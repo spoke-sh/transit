@@ -3,27 +3,27 @@
   "features": {
     "schema": {
       "status": "blocked",
-      "owner": "docs/reference/sql/create-table.md",
+      "owner": "docs/handbook/reference/sql/create-table.md",
       "reason": "Full benchmark schemas require UNIQUE, CHECK and foreign-key constraints beyond the selected general Table profile."
     },
     "transactions": {
       "status": "blocked",
-      "owner": "docs/reference/sql.md",
+      "owner": "docs/handbook/reference/sql.md",
       "reason": "No declarative multi-statement transaction session; separate resources have no implicit atomic commit."
     },
     "relational": {
       "status": "blocked",
-      "owner": "docs/reference/queries.md",
+      "owner": "docs/handbook/reference/queries.md",
       "reason": "No joins, grouping, sorting or general subqueries; each finite plan reads one source."
     },
     "expressions": {
       "status": "blocked",
-      "owner": "docs/reference/sql/expressions.md",
+      "owner": "docs/handbook/reference/sql/expressions.md",
       "reason": "No decimal/date arithmetic or general scalar expressions."
     },
     "bulk": {
       "status": "blocked",
-      "owner": "docs/reference/sql.md",
+      "owner": "docs/handbook/reference/sql.md",
       "reason": "No declarative COPY or INSERT SELECT; finite literal inserts are limited to 1024 rows and 4 MiB."
     },
     "suite_driver": {

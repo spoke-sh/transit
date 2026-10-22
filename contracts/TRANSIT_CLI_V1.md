@@ -57,7 +57,7 @@ Paths within them resolve against their file. Credentials, native IDs and trust
 settings never merge across connections. Private keys are referenced by files,
 never command arguments. Diagnostics name fields or roles without printing
 configuration values, request bodies or credentials.
-The [public CLI reference](../docs/reference/cli.md#output-philosophy-explain-locate-guide)
+The [public CLI reference](../docs/handbook/reference/cli.md#output-philosophy-explain-locate-guide)
 owns the human-output conventions: one specific explanation, with a location
 or next step when useful. Known option errors name the option; unknown arguments
 use positions without echoing their values. Configuration decoding reports the

@@ -3,7 +3,7 @@
 [Design items](../README.md)
 
 This item reviews how Transit communicates through the terminal. The
-[public CLI reference](../../reference/cli.md) owns implemented behavior;
+[public CLI reference](../../handbook/reference/cli.md) owns implemented behavior;
 these reviews describe proposed changes.
 
 **Current review:** [D2 — One query console and conventional configuration](D2.md).

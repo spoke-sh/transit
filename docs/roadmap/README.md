@@ -2,20 +2,21 @@
 
 This roadmap contains unfinished work for Transit, ordered by dependency rather
 than delivery date. Current behavior belongs in the [public reference](../README.md),
-mechanisms in [Internals](../internals/README.md), and executed checks in the
+mechanisms in [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../../tests/README.md). A plan does not establish support.
 
 | Order | Milestone | Outcome |
 | --- | --- | --- |
-| 1 | [Storage and query performance](01-storage-and-query-performance.md) | Lower end-to-end read/write cost with bounded memory |
-| 2 | [Standards and historical catalogs](02-standards-and-catalogs.md) | Explicit feature capabilities and historical schema/snapshot identities |
-| 3 | [SQL and declarative dataflows](03-sql-and-dataflows.md) | Selected SQL operations, dependency lifecycle and maintained-query controls |
-| 4 | [Multi-model and foreign relations](04-multi-model-and-foreign-relations.md) | Document projections, finite graphs and recoverable external captures |
-| 5 | [Branches, merges and restore](05-branches-merges-and-restore.md) | Isolated application-state branches and reviewed merges |
-| 6 | [Service and SDK coverage](06-service-and-sdk-coverage.md) | Broader types, sources and streaming interactions through shared contracts |
-| 7 | [Clustered execution](07-clustered-execution.md) | Automatic placement, fenced transfer and distributed execution |
-| 8 | [Qualification and complete benchmarks](08-qualification-and-benchmarks.md) | Reproducible full workloads, fault coverage and measured CI costs |
-| 9 | [Release distribution](09-releases.md) | Versioned, verified artifacts with runnable installed onboarding |
+| 1 | [Publish the handbook](01-handbook-publication.md) | Static documentation at transit.spoke.sh with repeatable deployment and rollback |
+| 2 | [Storage and query performance](02-storage-and-query-performance.md) | Lower end-to-end read/write cost with bounded memory |
+| 3 | [Standards and historical catalogs](03-standards-and-catalogs.md) | Explicit feature capabilities and historical schema/snapshot identities |
+| 4 | [SQL and declarative dataflows](04-sql-and-dataflows.md) | Selected SQL operations, dependency lifecycle and maintained-query controls |
+| 5 | [Multi-model and foreign relations](05-multi-model-and-foreign-relations.md) | Document projections, finite graphs and recoverable external captures |
+| 6 | [Branches, merges and restore](06-branches-merges-and-restore.md) | Isolated application-state branches and reviewed merges |
+| 7 | [Service and SDK coverage](07-service-and-sdk-coverage.md) | Broader types, sources and streaming interactions through shared contracts |
+| 8 | [Clustered execution](08-clustered-execution.md) | Automatic placement, fenced transfer and distributed execution |
+| 9 | [Qualification and complete benchmarks](09-qualification-and-benchmarks.md) | Reproducible full workloads, fault coverage and measured CI costs |
+| 10 | [Release distribution](10-releases.md) | Versioned, verified artifacts with runnable installed onboarding |
 
 Performance work is tracked in [issue #76](https://github.com/spoke-sh/transit/issues/76).
 Standards, multi-model and branching work is tracked in
@@ -29,7 +30,7 @@ Standards, multi-model and branching work is tracked in
   retirement and the distinction between cancellation and uncertainty.
 - Keep retained collection size independent of resident memory. Measure provider,
   compute, transport and publication costs separately.
-- Apply the [v1 hard-cutover policy](../reference/versioning.md) to incompatible
+- Apply the [v1 hard-cutover policy](../handbook/reference/versioning.md) to incompatible
   definitions. Never reinterpret accepted work or reset data automatically.
 - Run focused proofs and committed-source clean checks. Publish supported
   behavior and measured limits with their public owners as work lands.

@@ -10,7 +10,7 @@ snapshot. Fuze executes the compiled finite plan in the client, above the native
 client boundary. The authority supplies generic authorized resource snapshots;
 it neither parses SQL nor executes query operators. Table, KV and Document share
 the source adapters, checked arithmetic, budgets and native Arrow codecs used
-by [durable queries](../docs/reference/queries.md).
+by [durable queries](../docs/handbook/reference/queries.md).
 
 Interactive execution publishes no durable query progress or result segments.
 It does not change input admission, turn commits, retained read versions, query

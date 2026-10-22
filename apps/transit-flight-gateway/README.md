@@ -1,6 +1,6 @@
 # Transit Flight gateway
 
-M22's qualified finite Table Flight SQL entry point. It composes
+The finite Table Flight SQL entry point. It composes
 [`transit-flight`](../../packages/zig/transit-flight/README.md) with the native
 gRPC listener. A private configuration file supplies scoped caller mappings,
 credential/key file paths and a fixed source schema. No client can choose an

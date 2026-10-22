@@ -14,7 +14,7 @@
 # TRANSIT_SQL__POSTGRES__PORT=15432 or TRANSIT_QUERY__STATEMENT_TIMEOUT=5s.
 # Relative file paths resolve against this configuration file's directory.
 # Paths are literal: no ~ expansion, shell variables or secret interpolation.
-# See docs/reference/configuration.md for precedence, reload and permissions.
+# See docs/handbook/reference/configuration.md for precedence, reload and permissions.
 
 # Installation identity: choose before initialization; retain on every restart.
 # The default installation is .transit in the startup working directory.
@@ -193,4 +193,4 @@
 
 # This file covers the local supervisor's settings. Flight, standalone serving
 # gateways and HTTP/gRPC connector workers use their own deployment interfaces;
-# they are not additional transit.yaml switches. See docs/reference/components.md.
+# they are not additional transit.yaml switches. See docs/handbook/reference/components.md.

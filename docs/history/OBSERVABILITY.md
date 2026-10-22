@@ -1,6 +1,6 @@
 # Observability
 
-Engineering background and historical design. Use [Logs, metrics, traces and probes](../reference/observability.md)
+Engineering background and historical design. Use [Logs, metrics, traces and probes](../handbook/reference/observability.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

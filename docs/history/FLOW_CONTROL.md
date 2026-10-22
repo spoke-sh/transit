@@ -1,6 +1,6 @@
 # Flow control
 
-Engineering background and historical design. Use [Streams and delivery](../reference/streams.md)
+Engineering background and historical design. Use [Streams and delivery](../handbook/reference/streams.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

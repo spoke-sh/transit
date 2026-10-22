@@ -1,6 +1,6 @@
 # Reactive interfaces — notifications and exact snapshots
 
-Engineering background and historical design. Use [Sessions, watches and live views](../reference/reactive.md)
+Engineering background and historical design. Use [Sessions, watches and live views](../handbook/reference/reactive.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

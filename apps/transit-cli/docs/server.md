@@ -2,7 +2,7 @@
 
 `transit serve` is an alias for `transit server`, with the same options and
 recovery contract. Commands assume the complete local bundle is installed with
-`transit` on `PATH`; see the [quickstart](../../../docs/guides/quickstart.md).
+`transit` on `PATH`; see the [quickstart](../../../docs/handbook/guides/quickstart.md).
 The bundle supplies the CLI and matching native neighborhood artifacts.
 
 `transit server` creates a private installation when its directory is missing
@@ -160,7 +160,7 @@ directory if no file is selected. The default installation always remains
 `./.transit` in the working directory. A populated installation requires its
 recorded identity and storage; startup never recreates missing retained state.
 Initialization-only settings remain installation identity checks. Mutable settings
-use the [configuration lifecycle](../../../docs/reference/configuration.md);
+use the [configuration lifecycle](../../../docs/handbook/reference/configuration.md);
 restart-required changes apply on normal startup.
 
 A complete YAML configuration can override these defaults:
@@ -310,7 +310,7 @@ The same gateway policy and ready fields apply to the version 1
 listener retains its numeric loopback authority; `gateway_allowed_hosts` applies
 only to the native protocol gateway.
 
-The list is a reloadable setting. See [configuration and settings](../../../docs/reference/configuration.md). Changed runtime binaries remain subject to artifact identity checks; private installation records are never a configuration editing surface.
+The list is a reloadable setting. See [configuration and settings](../../../docs/handbook/reference/configuration.md). Changed runtime binaries remain subject to artifact identity checks; private installation records are never a configuration editing surface.
 
 ## Ownership and recovery
 
@@ -425,7 +425,7 @@ Earlier query-only installation records, authority histories and saved commands
 are incompatible and reject before use. Retain their matching binaries and
 recovery files to finish pending work. A new installation requires a deliberately
 separate directory; startup never converts or resets existing state. See the
-[hard-cutover policy](../../../docs/reference/versioning.md).
+[hard-cutover policy](../../../docs/handbook/reference/versioning.md).
 
 Open the printed `board_url`. Every caller that can reach this loopback listener
 shares its inspection scope; there is no viewer login. Board cannot borrow the

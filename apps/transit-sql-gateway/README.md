@@ -47,7 +47,7 @@ Explicit loopback trust logins need no password or certificate when TLS is disab
 they retain current native authorization. PostgreSQL password logins use
 SCRAM-SHA-256, with or without TLS. MySQL uses full caching_sha2_password authentication inside TLS,
 UTF8MB4, collation utf8mb4_0900_bin and SQL mode
-ANSI_QUOTES,NO_BACKSLASH_ESCAPES. Host settings, catalog SHOW and session SET/RESET use the shared [settings SQL](../../docs/reference/sql/settings.md) profile; host inspection/reload requires an explicit management binding. Other unknown settings reject. Compatibility version
+ANSI_QUOTES,NO_BACKSLASH_ESCAPES. Host settings, catalog SHOW and session SET/RESET use the shared [settings SQL](../../docs/handbook/reference/sql/settings.md) profile; host inspection/reload requires an explicit management binding. Other unknown settings reject. Compatibility version
 selectors choose driver codecs; the endpoint is a Transit adapter, not either
 upstream database engine.
 

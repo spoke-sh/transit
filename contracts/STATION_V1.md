@@ -2,7 +2,7 @@
 
 Station v1 defines message framing for behaviors, calls, scoped framework
 services, Tables and shared language APIs. The
-[Station reference](../docs/reference/station.md) explains those operations and
+[Station reference](../docs/handbook/reference/station.md) explains those operations and
 their relationship to Transit authority.
 
 ## Messages and origins

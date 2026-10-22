@@ -1,12 +1,12 @@
 # Protocol conformance and implementation gates
 
-Engineering background and historical design. Use [Guarantees and verification limits](../reference/verification.md)
+Engineering background and historical design. Use [Guarantees and verification limits](../handbook/reference/verification.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use these requirements to evaluate a change or a deployment guarantee. For
 commands and executed results, follow the [proof ledger](../../tests/README.md);
-for user-visible compatibility, start with [interface selection](../guides/choose-interface.md).
+for user-visible compatibility, start with [interface selection](../handbook/guides/choose-interface.md).
 
 Status: adversarial requirements with executable evidence for the bounded M1
 profile and its M2–M9 extensions. [tests/README.md](../../tests/README.md) maps commands to recorded results,

@@ -3,7 +3,7 @@
 The migration ledger records reviewed plans, bounded steps and activation in the
 application's state resource. Application commands provide its ingress.
 [Application definitions](APPLICATION_V1.md) and
-[reactive applications](../docs/reference/applications.md) own the surrounding model.
+[reactive applications](../docs/handbook/reference/applications.md) own the surrounding model.
 This ledger belongs above Station. It neither grants execution authority nor
 changes Transit's one-mutated-resource, four-mutation turn boundary.
 

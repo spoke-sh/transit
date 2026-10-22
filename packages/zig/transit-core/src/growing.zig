@@ -28,7 +28,7 @@ pub const Genesis = struct {
     /// unbounded by design, so unlike the legacy reserve there is no fixed
     /// array size to derive a worst-case wind-down budget from; the reserve
     /// below is an explicit configured band instead of a formula. See
-    /// docs/reference/state.md.
+    /// docs/handbook/reference/state.md.
     admission_ceiling: ?u64 = null,
     /// Extra journal positions beyond `admission_ceiling`, reserved for
     /// control/wind-down work only (see `checkCapacity`). Meaningless when

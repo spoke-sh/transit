@@ -28,7 +28,7 @@ not render payloads, credentials or retry exports by default.
 Selected public signatures, with support types defined by the shared design:
 
 ```python
-class Codec[T](../../internals/sdk/Protocol):
+class Codec[T](../../handbook/internals/sdk/Protocol):
     type_id: str
     version: int
     max_encoded_bytes: int
@@ -42,7 +42,7 @@ class State:
     def delete[T](self, key: Key[T]) -> None: ...
     def page(self, cursor: StateCursor | None = None) -> Page[KVEntry]: ...
 
-class Handler[M](../../internals/sdk/Protocol):
+class Handler[M](../../handbook/internals/sdk/Protocol):
     def initialize(self, turn: Turn) -> None: ...
     def handle(self, turn: Turn, incoming: Incoming[M]) -> None: ...
 

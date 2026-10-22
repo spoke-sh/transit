@@ -65,7 +65,7 @@ fn publishing(turn: *Turn, request: r.Publication, context: Context) !void {
     if (context.cancellation.load(.acquire)) return error.Cancelled;
     try turn.write(r.key('j', job.result, 0, 0), try job.encode());
 }
-/// The destination's application admission credit (docs/reference/streams.md#flow-control), not
+/// The destination's application admission credit (docs/handbook/reference/streams.md#flow-control), not
 /// a reply: it never closes the wait and is inert once publication is done.
 fn receiveCredit(turn: *Turn, credit: r.Credit, context: Context) !void {
     if (context.cancellation.load(.acquire)) return error.Cancelled;

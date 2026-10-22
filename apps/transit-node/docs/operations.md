@@ -30,7 +30,7 @@ History is unlimited by default. A checkpoint requires the genesis
 the published snapshot before trimming earlier authority records. Pending mailbox
 values, receipts and resource roots remain independent of the trimmed journal
 prefix. Resource history reclamation and physical payload deletion have their
-own eligibility gates. See [retention](../../../docs/reference/retention.md).
+own eligibility gates. See [retention](../../../docs/handbook/reference/retention.md).
 
 ## Time and deadlines
 

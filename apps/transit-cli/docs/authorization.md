@@ -62,7 +62,7 @@ transit auth prepare-plan --config admin.json --file grant.plan.json --output gr
 
 `compile-authorization` supports the selected role, membership, privilege,
 default-privilege, ownership and schema forms in the [SQL authorization
-reference](../../../docs/reference/sql/authorization.md). The plan fixes its
+reference](../../../docs/handbook/reference/sql/authorization.md). The plan fixes its
 scope, original principal, selected role, policy revision and resolved IDs.
 `prepare-plan` requires the same principal and selected role at that revision.
 Changing the source SQL or recompiling is a new proposal, not recovery of a

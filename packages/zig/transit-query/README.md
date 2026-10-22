@@ -15,7 +15,7 @@ event covers this lease; close it and open another tail to observe later work.
 The reader owns its lease and schemas; callers deinitialize returned row/change
 values, close explicitly and finally deinitialize the reader. Request budgets,
 cancellation and current native/catalog rights apply to every disclosure.
-See [Table change capture](../../../docs/reference/tables.md#snapshot-and-change-capture).
+See [Table change capture](../../../docs/handbook/reference/tables.md#snapshot-and-change-capture).
 
 `UnifiedClient` owns signed description, finite upload, frozen submission,
 committed-input observation, status, cancellation and verified result pages.
@@ -408,6 +408,6 @@ metadata compilation, `SettingsClient` for signed public operations,
 defaults/overrides, and `SettingsJournal` for exact administrative recovery.
 `SettingsAssistance` supplies authorized name completion without execution.
 The console and database-wire adapters compose these owners. See
-[configuration](../../../docs/reference/configuration.md) and
-[settings SQL](../../../docs/reference/sql/settings.md); query-only methods do
+[configuration](../../../docs/handbook/reference/configuration.md) and
+[settings SQL](../../../docs/handbook/reference/sql/settings.md); query-only methods do
 not gain an administrative route.

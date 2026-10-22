@@ -11,21 +11,21 @@ install:
 
 # Serve documentation locally with Docusaurus hot reload.
 dev:
-    cd apps/transit-docs && vp run start
+    cd docs/handbook && vp run start
 
 # Build static HTML, references and exact specification downloads.
 build:
-    cd apps/transit-docs && vp run build
+    cd docs/handbook && vp run build
 
 # Preview the existing production build on loopback.
 serve:
-    cd apps/transit-docs && vp run serve
+    cd docs/handbook && vp run serve
 
 # Validate source, strict types, reference generation and production links.
 check:
-    cd apps/transit-docs && vp check
-    cd apps/transit-docs && vp exec tsc --noEmit
-    cd apps/transit-docs && vp test run
+    cd docs/handbook && vp check
+    cd docs/handbook && vp exec tsc --noEmit
+    cd docs/handbook && vp test run
     just transit-docs::build
 
 # Install the locked Chromium used by the real documentation proof.
@@ -34,4 +34,4 @@ browser-install:
 
 # Exercise production routes, responsive navigation, search and spec downloads.
 browser: build
-    cd apps/transit-docs && vp exec playwright test
+    cd docs/handbook && vp exec playwright test

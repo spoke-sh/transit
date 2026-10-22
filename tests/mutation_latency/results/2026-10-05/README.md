@@ -109,4 +109,4 @@ for checks, development failures and clean qualification status.
 The packed-page report checks 256 keys, two cache pages, lost/partial batch
 acknowledgements and provider restart/checkpoint/trim. These finite checks establish
 neither arbitrary-fault correctness nor provider-memory bounds. Larger architectural
-changes retain their explicit contracts in the [storage account](../../../../docs/internals/storage-runtime.md#alternatives-and-contract-boundaries).
+changes retain their explicit contracts in the [storage account](../../../../docs/handbook/internals/storage-runtime.md#alternatives-and-contract-boundaries).

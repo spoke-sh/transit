@@ -150,7 +150,7 @@ process's death and remains owned until joined `close`. OTP processes, Tasks and
 managed fields are not durable recovery storage. Generated schemas and typed
 decoders check fields, identities, canonical integers, budgets and continuations.
 
-The [Table reference](../../../../docs/reference/tables.md) and
+The [Table reference](../../../../docs/handbook/reference/tables.md) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
 publication and retention. The [proof ledger](../../../../tests/README.md) records
 installed-package and recovery evidence and its limits.

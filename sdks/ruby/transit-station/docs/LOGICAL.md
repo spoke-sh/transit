@@ -41,5 +41,5 @@ children, and floating bytes count against payload budgets. These codec bounds
 do not override the enclosing schema, operation, storage or query budgets.
 
 See the [catalog caller](CATALOG.md) for typed assignments and schema operations,
-and [logical type reference](../../../../docs/reference/sql/types.md) for shared
+and [logical type reference](../../../../docs/handbook/reference/sql/types.md) for shared
 semantics.

@@ -1,6 +1,6 @@
 # Ursula integration boundary
 
-Engineering background and historical design. Use [Storage and recovery boundary](../reference/storage.md)
+Engineering background and historical design. Use [Storage and recovery boundary](../handbook/reference/storage.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

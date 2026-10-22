@@ -1,12 +1,12 @@
 # Reactive APIs — SSE, WebSocket and described contracts
 
-Engineering background and historical design. Use [Sessions, watches and live views](../reference/reactive.md)
+Engineering background and historical design. Use [Sessions, watches and live views](../handbook/reference/reactive.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use this API to host resumable Table notifications over fetch-SSE or WebSocket.
-The [OpenAPI reference](../reference/openapi.md) describes HTTP operations;
-[AsyncAPI](../reference/asyncapi.md) describes channels and messages. This page
+The [OpenAPI reference](../handbook/reference/openapi.md) describes HTTP operations;
+[AsyncAPI](../handbook/reference/asyncapi.md) describes channels and messages. This page
 explains their shared durable sessions, subscriptions and lifetime rules.
 
 Status: M20 implements the opt-in int64 Table profile over [M19 serving](SERVING.md).
@@ -222,8 +222,8 @@ OpenAPI describes HTTP exchanges, not the complete bidirectional WebSocket
 message state machine. The first profile uses AsyncAPI 3.0 plus its WebSocket binding for
 channels, message directions and operations. Both outputs reference the same
 versioned definitions and correlation/error types.
-[AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0),
-[WebSocket binding](https://www.asyncapi.com/docs/reference/bindings/websockets).
+[AsyncAPI 3.0](https://www.asyncapi.com/docs/handbook/reference/specification/v3.0.0),
+[WebSocket binding](https://www.asyncapi.com/docs/handbook/reference/bindings/websockets).
 
 Generate descriptions, validators and runtime codecs from owning public types
 and registered operation metadata; test them against shared wire fixtures. Never

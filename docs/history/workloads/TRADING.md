@@ -1,14 +1,14 @@
 # Trading application workload and capacity model
 
-Status: planning assumptions, recorded 2026-09-24 for [Verification](../../reference/verification.md).
+Status: planning assumptions, recorded 2026-09-24 for [Verification](../../handbook/reference/verification.md).
 These calculations describe the intended downstream application. They are not
 measurements of Transit, a venue selection, or production service objectives.
 [Testing](../TESTING.md) owns qualification; the
 [experiment matrix](../../../tests/verification/scale.json) owns experiment sizes.
 
-The shared [workload priorities](../../reference/workloads.md),
-[performance characteristics and improvement plan](../../reference/performance.md)
-and [public examples](../../guides/workload-examples.md) own the cross-application
+The shared [workload priorities](../../handbook/reference/workloads.md),
+[performance characteristics and improvement plan](../../handbook/reference/performance.md)
+and [public examples](../../handbook/guides/workload-examples.md) own the cross-application
 architectural direction. This record retains application-specific demand assumptions;
 its synthetic rates do not describe achieved runtime capacity.
 
@@ -97,7 +97,7 @@ Choose PIDs for independent sequencing, recovery and ownership. A record does
 not need its own PID, nor does a PID inherently need a dedicated OS process or
 pod. Measure retained PIDs separately from active handlers and worker pools.
 The reference currently maps a PID to a Substrate Actor;
-[Clustered execution](../../roadmap/07-clustered-execution.md) must qualify any multiplexing or alternative mapping.
+[Clustered execution](../../roadmap/08-clustered-execution.md) must qualify any multiplexing or alternative mapping.
 
 At one million events/s, 10 microseconds of CPU per event consumes ten fully busy
 CPU cores in ideal arithmetic, before I/O, contention or spare capacity. Giving
@@ -132,7 +132,7 @@ where access/lifetime rules permit, rather than a full copy per instrument.
 Mutable shared context and immutable source capture have distinct lifetimes.
 Collaboration needs Document semantics and per-user/application access policy;
 the private shared-identity Board deployment is not that collaboration surface.
-[Documents](../../reference/documents.md) owns Documents; identity and sharing scope still need
+[Documents](../../handbook/reference/documents.md) owns Documents; identity and sharing scope still need
 qualification before a multi-user trading application is deployed.
 
 ## Recovery headroom and latency
@@ -172,7 +172,7 @@ remote outcomes remain unknown until valid reconciliation.
 
 The current realm-wide journal serializes publication. More HTTP replicas do not
 remove that bottleneck. M10 must measure the single-authority limit;
-[Clustered execution](../../roadmap/07-clustered-execution.md) owns authority partitioning, routing, fencing and
+[Clustered execution](../../roadmap/08-clustered-execution.md) owns authority partitioning, routing, fencing and
 cross-partition delivery. Per-feed and per-PID order do not imply a global market
 order. Splitting physical streams alone does not solve authorization or atomicity.
 
@@ -193,8 +193,8 @@ full protocol operation count. Do not assume perfect large batches everywhere.
 The earlier mapping created one closed Ursula stream per immutable page. The
 current packed backend appends page records to shared streams; page misses and
 appends still issue individual provider requests. Use the public
-[storage reference](../../reference/storage.md) for the current mapping and
-[performance evidence](../../reference/performance.md) for measured amplification.
+[storage reference](../../handbook/reference/storage.md) for the current mapping and
+[performance evidence](../../handbook/reference/performance.md) for measured amplification.
 Include provider stream count, provider RSS, requests and writes per committed
 mutation, orphan staging and disk amplification in qualification. Bounded client
 cache alone does not establish bounded system memory or cost.

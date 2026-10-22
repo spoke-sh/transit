@@ -44,5 +44,5 @@ query or transport admission; their owning contracts define those capabilities.
 Run `just bindings::logical-dotnet` in the bindings shell to qualify the models
 from isolated NuGet packages. The same fixture is part of the complete .NET SDK
 schedule. The [proof ledger](../../../../tests/README.md) records executed evidence;
-[logical type semantics](../../../../docs/reference/sql/types.md) describes the
+[logical type semantics](../../../../docs/handbook/reference/sql/types.md) describes the
 shared domain rules.

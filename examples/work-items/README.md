@@ -40,7 +40,7 @@ guide](docs/browser.md) for roles, finite limits and recovery.
 
 See [the selected migration](docs/migration.md) for application revision changes.
 Authority movement and disaster recovery follow the separate
-[deployment boundary](../../docs/reference/deployment.md).
+[deployment boundary](../../docs/handbook/reference/deployment.md).
 
 The [physical placement guide](docs/placement.md) describes the owned Compose
 and reference tasks, role-specific files, TLS edge and fresh-key recovery. The

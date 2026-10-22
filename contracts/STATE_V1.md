@@ -4,7 +4,7 @@ State v1 defines resource identity, associations, read views and atomic mutation
 within the [native v1 protocol](TRANSIT_V1.md). The current
 [public types](../packages/zig/transit-protocol/src/Growth.zig) and
 [generated schema](transit-v1.schema.json) own exact fields and defaults. The
-[state reference](../docs/reference/state.md) explains the programming model.
+[state reference](../docs/handbook/reference/state.md) explains the programming model.
 
 ## Compatibility and persistence
 
@@ -13,7 +13,7 @@ All commands use the signed `/v1/command` envelope; metadata reads use
 They share the native contract definition identifier, signature domains and
 current authorization checks. The authority accepts only the current definition;
 it does not decode previous inline-state histories or translate saved operations.
-See [versioning](../docs/reference/versioning.md).
+See [versioning](../docs/handbook/reference/versioning.md).
 
 Resources, entries, associations and durable views live in immutable paged
 catalogs. The current immutable-page format uses compact `TPG1` binary pages,

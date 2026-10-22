@@ -1,12 +1,12 @@
 # Arrow interchange and remote queries
 
-Engineering background and historical design. Use [Arrow interchange](../reference/arrow.md)
+Engineering background and historical design. Use [Arrow interchange](../handbook/reference/arrow.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use Arrow for typed query results and analytical client interoperability. Start
-with the [Flight SQL and ADBC reference](../reference/flight.md) for remote clients
-or the [SQL reference](../reference/sql.md) for admitted queries. This page explains
+with the [Flight SQL and ADBC reference](../handbook/reference/flight.md) for remote clients
+or the [SQL reference](../handbook/reference/sql.md) for admitted queries. This page explains
 which layer owns buffers, query execution and remote access.
 
 Status: M9 implements finite IPC results, checked by an independent Arrow

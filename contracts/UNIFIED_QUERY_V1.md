@@ -4,7 +4,7 @@ Unified queries read declared KV, Table and Document sources. The
 [compatibility matrix](../packages/zig/transit-query/docs/compatibility.md)
 defines supported sources, callers and result representations.
 This is the sole current public query definition. Incompatible saved requests
-and results reject under the [versioning policy](../docs/reference/versioning.md).
+and results reject under the [versioning policy](../docs/handbook/reference/versioning.md).
 
 ## Ownership and source identity
 

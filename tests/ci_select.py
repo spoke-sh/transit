@@ -7,17 +7,20 @@ import subprocess
 
 
 def select(paths, event="pull_request"):
-    # Foundation prose runs the documentation-site gate instead of runtime lanes.
-    # Component READMEs, contracts, fixtures and shared infrastructure stay full.
-    def prose(path):
+    # Handbook sources and site tooling run the documentation gate. Component
+    # READMEs, contracts, fixtures and shared infrastructure stay full.
+    def documentation(path):
         p = PurePosixPath(path)
         return path in {"README.md", "AGENTS.md"} or (
-            p.parts[0:1] == ("docs",) and p.suffix == ".md" and ".." not in p.parts
+            ".." not in p.parts and (
+                (p.parts[0:1] == ("docs",) and p.suffix == ".md") or
+                p.parts[0:2] == ("docs", "handbook")
+            )
         )
 
-    full = event != "pull_request" or not paths or not all(map(prose, paths))
+    full = event != "pull_request" or not paths or not all(map(documentation, paths))
     return {"version": 1, "full": full, "docs": True,
-            "reason": "full qualification" if full else "foundational prose only",
+            "reason": "full qualification" if full else "documentation only",
             "paths": sorted(set(paths))}
 
 

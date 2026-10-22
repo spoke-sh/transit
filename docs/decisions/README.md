@@ -2,7 +2,7 @@
 
 This directory is reserved for future architecture decision records (ADRs).
 For now, technical choices and their rationale live in the
-[Internals accounts](../internals/README.md). There are no decision records yet.
+[Internals accounts](../handbook/internals/README.md). There are no decision records yet.
 
 When separate records become useful, use them for choices that materially affect
 contracts, operations, dependencies, or future changes. Number records in order,

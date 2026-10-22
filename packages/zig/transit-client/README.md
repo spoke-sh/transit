@@ -21,7 +21,7 @@ re-exported as `protocol`, and optional runtime instrumentation through
 [Client](src/root.zig) owns bounded native v1 HTTP exchange;
 [Session](src/Session.zig) adds activation-aware receive/prepare/submit operations.
 The [native caller guide](docs/growing.md) describes bounded views and retained
-versions. Read [caller semantics](../../../docs/reference/callers.md) for the
+versions. Read [caller semantics](../../../docs/handbook/reference/callers.md) for the
 language-neutral ownership boundary.
 
 [Recorded manual worker replacement](docs/worker-handoff.md) composes native
@@ -163,7 +163,7 @@ The [public contract package](../transit-protocol/README.md) owns the generated
 schema, canonical signing rules and shared vectors. All native operations use the
 current v1 definition identifier. Signatures, responses, saved requests and SDK
 library handshakes fence incompatible builds. No previous protocol profile or
-fallback decoder is supported; see [versioning](../../../docs/reference/versioning.md).
+fallback decoder is supported; see [versioning](../../../docs/handbook/reference/versioning.md).
 The [C ABI](docs/bindings.md) exposes shared signing and exact request export/import.
 The standalone [native client port](../../../apps/transit-client-host/README.md)
 provides those operations without Station.

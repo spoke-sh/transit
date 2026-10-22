@@ -93,8 +93,8 @@ aggregation grouping, arithmetic and general casts do
 not become executable merely because the reference grammar describes them.
 There is no best-effort translation or successful partial parse.
 
-The compiler does not host an endpoint. The [Transit CLI](../../../../docs/reference/cli.md),
-Board query workspace and [Flight gateway](../../../../docs/reference/flight.md)
+The compiler does not host an endpoint. The [Transit CLI](../../../../docs/handbook/reference/cli.md),
+Board query workspace and [Flight gateway](../../../../docs/handbook/reference/flight.md)
 provide separately configured ingress and capability checks. No optimizer rewrite
 is enabled.
 

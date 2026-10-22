@@ -306,7 +306,7 @@ whole output. PyArrow-produced round trips and thirteen malformed schema/state
 cases qualify this reader independently of Fuze's encoder.
 
 Station owns Table storage and an authorized Table capture/delivery helper.
-The [query reference](../../../docs/reference/queries.md) describes interactive
+The [query reference](../../../docs/handbook/reference/queries.md) describes interactive
 and durable queries across all supported sources. All use the same plan, source
 basis and nested Arrow result definition. `model` contains Table storage cells
 and descriptors, not a second query engine.
@@ -337,8 +337,8 @@ output failure, and the compatible upstream compute suite. PyArrow is a test
 dependency; no C++ query engine is linked into Fuze.
 
 [Integration notes](docs/integration.md) record pins, compatibility changes and
-measured limits. [Tables](../../../docs/reference/tables.md) owns transaction and result
-semantics; [Arrow](../../../docs/reference/arrow.md) owns Arrow interchange.
+measured limits. [Tables](../../../docs/handbook/reference/tables.md) owns transaction and result
+semantics; [Arrow](../../../docs/handbook/reference/arrow.md) owns Arrow interchange.
 
 `SqlDiagnostic.structured()` projects the compiler's original binding context into
 the shared [diagnostic value](../../../contracts/DIAGNOSTICS_V1.md): stable SQL

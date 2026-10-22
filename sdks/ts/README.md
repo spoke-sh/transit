@@ -29,7 +29,7 @@ libraries remain separate; they do not load the Node native port.
 
 - [Raw client API and recovery](transit-client/README.md)
 - [Station API and handler ownership](transit-station-sdk/README.md)
-- [Caller semantics](../../docs/reference/callers.md)
+- [Caller semantics](../../docs/handbook/reference/callers.md)
 - [Complete application examples](../../examples/station-sdk/README.md)
 
 Select credentials and the native profile explicitly. A locally compatible

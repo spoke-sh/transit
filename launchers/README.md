@@ -95,7 +95,7 @@ Installation and artifact records require the current native contract definition
 Missing or incompatible definitions, selected artifacts and topology reject
 before startup or replacement; `up` and `update` do not convert old installations.
 Preserve the original records, data and pending requests, and use their matching
-build to resolve accepted work. Follow the [hard-cutover procedure](../docs/reference/versioning.md#durable-data-and-pending-operations)
+build to resolve accepted work. Follow the [hard-cutover procedure](../docs/handbook/reference/versioning.md#durable-data-and-pending-operations)
 before choosing a separately named fresh installation. Compatible artifact updates
 within the current definition retain the existing realm, state and creation policy.
 

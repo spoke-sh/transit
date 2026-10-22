@@ -1,12 +1,12 @@
 # Scope
 
-Engineering background and historical design. Use [Architecture and scope](../reference/architecture.md)
+Engineering background and historical design. Use [Architecture and scope](../handbook/reference/architecture.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use this page to decide whether Transit fits your application and to distinguish
 implemented profiles from target architecture. New users can start with
-[What is Transit?](../guides/introduction.md) and the [interface matrix](../guides/choose-interface.md).
+[What is Transit?](../handbook/guides/introduction.md) and the [interface matrix](../handbook/guides/choose-interface.md).
 
 Status: implemented experimental profiles extend through M25:
 growing process/state access, Station and language SDKs, SQL and unified queries,

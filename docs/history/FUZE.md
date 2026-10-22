@@ -1,11 +1,11 @@
 # Fuze — query and compute engine
 
-Engineering background and historical design. Use [Query execution and result recovery](../reference/queries.md)
+Engineering background and historical design. Use [Query execution and result recovery](../handbook/reference/queries.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use Fuze to query declared state through bounded batches. Start with the
-[SQL reference](../reference/sql.md) and [console](../../apps/transit-cli/docs/console.md);
+[SQL reference](../handbook/reference/sql.md) and [console](../../apps/transit-cli/docs/console.md);
 use the [package API](../../packages/zig/transit-fuze/README.md) when embedding the
 engine. This page explains execution ownership and future extension boundaries.
 

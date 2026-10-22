@@ -4,7 +4,7 @@ Historical results are summarized in the [proof ledger](../README.md). Obsolete
 raw transcripts and their dependent manifests are no longer maintained; references
 to this summary do not promise retained transcript bytes or qualify current source.
 
-[Verification strategy](../../docs/reference/verification.md)
+[Verification strategy](../../docs/handbook/reference/verification.md)
 
 This is executable test infrastructure, not an alternate authority. The existing
 disk, native scheduling, browser, launcher and provider proofs remain necessary.

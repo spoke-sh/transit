@@ -33,7 +33,7 @@ domains, errors and transport bounds. The [native contract](../../contracts/TRAN
 owns paged operations, authorization and exact retry. Current grants apply to
 reads and receipt recovery; resource associations do not grant access.
 Incompatible histories and saved operations reject under the
-[hard-cutover policy](../../docs/reference/versioning.md).
+[hard-cutover policy](../../docs/handbook/reference/versioning.md).
 
 The listener allows 16 connections, four ordinary requests, four notification
 waits and two reserved control requests, with 64 sequential exchanges per
@@ -63,6 +63,6 @@ credentials nor provider access.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
-raw storage/provider APIs inaccessible to workloads. [Security](../../docs/reference/security.md)
+raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)
 owns these assumptions; the [proof ledger](../../tests/README.md) records executed
 checks and their limits.

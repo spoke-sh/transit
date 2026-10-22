@@ -1,5 +1,5 @@
 packages:
-  - apps/transit-docs
+  - docs/handbook
   - apps/transit-board-web
   - examples/serving/web
   - examples/work-items/web

@@ -1,12 +1,12 @@
 # Station Tables and Arrow results
 
-Engineering background and historical design. Use [Tables and materialization](../reference/tables.md)
+Engineering background and historical design. Use [Tables and materialization](../handbook/reference/tables.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use a Table for typed rows in a durable resource. Begin with the
 [Table API guide](../../packages/zig/transit-station/docs/tables.md) for mutations
-and the [SQL reference](../reference/sql.md) for reads. A Table is a Station
+and the [SQL reference](../handbook/reference/sql.md) for reads. A Table is a Station
 abstraction; its values and query schema are not kernel policy.
 
 Status: the bounded M9 Table/Fuze profile is implemented; the

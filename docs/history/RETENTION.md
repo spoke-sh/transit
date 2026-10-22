@@ -1,6 +1,6 @@
 # Retention and resource lifetimes
 
-Engineering background and historical design. Use [Retention, lifetimes and capacity](../reference/retention.md)
+Engineering background and historical design. Use [Retention, lifetimes and capacity](../handbook/reference/retention.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

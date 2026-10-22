@@ -124,6 +124,6 @@ activation reads the retained version while its predecessor is fenced.
 root checkpoint publication, authority-prefix trim and provider restart with one
 resident page. Immutable page storage is preserved; this is not page-GC proof.
 
-Configure admission and control reserves using the [capacity guide](../docs/reference/retention.md).
+Configure admission and control reserves using the [capacity guide](../docs/handbook/reference/retention.md).
 Station/Fuze result capture, delivery and recovery follow the separate
 [query contract](STATION_QUERY_V1.md).

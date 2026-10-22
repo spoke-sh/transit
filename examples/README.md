@@ -4,7 +4,7 @@ These are complete applications using `transit-client` or Station. Each director
 its entry point and application handler together. They demonstrate how to program
 against Transit; no example is required to run the authority.
 
-The public [workload gallery](../docs/guides/workload-examples.md) connects these
+The public [workload gallery](../docs/handbook/guides/workload-examples.md) connects these
 applications to inspection, telemetry, coordination, research, shared context
 and enrichment, with source excerpts across SQL, Python, TypeScript, Rust and Zig.
 

@@ -1,7 +1,7 @@
 # Station Document v1
 
 The Document format defines structured changes, merge rules and accepted-state
-reads above Station. [Documents](../docs/reference/documents.md) explains the model;
+reads above Station. [Documents](../docs/handbook/reference/documents.md) explains the model;
 [the package](../packages/zig/transit-station-document/README.md) describes usage.
 External CRDT wire formats are unsupported.
 

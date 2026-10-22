@@ -1,6 +1,6 @@
 # UI/UX design items
 
-Reviews follow the [Internals scientific standard](../internals/standard.md): identify
+Reviews follow the [Internals scientific standard](../handbook/internals/standard.md): identify
 assumptions, connect claims to evidence, preserve outcomes and state limits.
 
 This directory is for UI/UX design reviews: visual structure, interaction,

@@ -78,7 +78,7 @@ only version and connection suffices. The SQL file may contain, for example:
 CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(200), tags LIST(TEXT));
 ```
 
-The [Table SQL reference](../../../docs/reference/sql/create-table.md) specifies
+The [Table SQL reference](../../../docs/handbook/reference/sql/create-table.md) specifies
 all admitted types, aliases, defaults and constraints. Compilation reserves no
 identity and grants no permission. Operation, upload namespace and object flags
 are canonical positive uint64 values. `--object` supplies a new identity only
@@ -199,5 +199,5 @@ Current native grants and catalog inspection rights apply on every invocation.
 Commands validate options even with `--help`. Results are one neutral JSON
 envelope on stdout; diagnostics use stderr. Invocation/configuration failures
 exit 2, runtime failures exit 1 and successful commands exit 0. See the
-[CLI reference](../../../docs/reference/cli.md) and
+[CLI reference](../../../docs/handbook/reference/cli.md) and
 [proof ledger](../../../tests/README.md) for interface and executed evidence.

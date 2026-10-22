@@ -5,7 +5,7 @@ Transit event vocabulary and optional instrumentation helpers, exported as
 [protocol](../transit-protocol/README.md) and neutral
 [telemetry](../telemetry/README.md) packages. It imports no core, Board, provider,
 or exporter implementation. Executables own the runtime/sinks; libraries borrow
-them. See [Observability](../../../docs/reference/observability.md) for shared semantics.
+them. See [Observability](../../../docs/handbook/reference/observability.md) for shared semantics.
 
 `begin(runtime, kind, operation, parent)` returns an `Observation` with a short
 span and structured event. Set known fields, call `fail(err)` for a failure, and

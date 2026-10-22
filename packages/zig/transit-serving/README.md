@@ -35,8 +35,8 @@ cannot recover or retarget the old command merely by reusing the number. Native
 signatures and scoped reads bind the ingress explicitly.
 
 Run `zig build test` in the pinned Nix environment. Full HTTP/TLS/deployment and
-reactive API qualification are separate gates in [Serving](../../../docs/reference/serving.md)
-and [Reactive APIs](../../../docs/reference/reactive.md); this package's unit checks do not prove them.
+reactive API qualification are separate gates in [Serving](../../../docs/handbook/reference/serving.md)
+and [Reactive APIs](../../../docs/handbook/reference/reactive.md); this package's unit checks do not prove them.
 
 The [compatibility matrix](docs/compatibility.md) lists executed consumers,
 placements and limits. Run the [application example](../../../examples/serving/README.md)
@@ -118,7 +118,7 @@ Composition unit tests pass; gateway/client and placement qualification is open.
 Rejected controls use [`ServingFailure`](src/ServingFailure.zig) to retain original
 conflict, policy, quota and lifecycle evidence in one bounded durable record.
 Current authorized disposition reads project it through the shared diagnostic
-contract. See [serving semantics](../../../docs/reference/serving.md) for recovery
+contract. See [serving semantics](../../../docs/handbook/reference/serving.md) for recovery
 and the [wire contract](../../../contracts/SERVING_V1.md#rejected-input-evidence)
 for encoding and disclosure rules.
 

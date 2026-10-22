@@ -36,7 +36,7 @@ def documentation_examples():
             for child in node.getChildren():
                 visit(child)
 
-    directory = ROOT / 'docs/reference/sql'
+    directory = ROOT / 'docs/handbook/reference/sql'
     for path in [directory.with_suffix('.md'), *sorted(directory.glob('*.md'))]:
         if path.name == 'application.md':
             continue  # Its complete program uses the separate application grammar proof.

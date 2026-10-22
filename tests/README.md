@@ -8,9 +8,9 @@ Remaining benchmark budgets and independent regression fixtures stay executable.
 
 ## SQL idle lifetimes and readiness observations
 
-The [configuration reference](../docs/reference/configuration.md),
+The [configuration reference](../docs/handbook/reference/configuration.md),
 [wire contract](../contracts/SQL_GATEWAY_V1.md) and
-[Internals lifetime model](../docs/internals/service-interfaces.md#distinct-lifetimes-and-result-disclosure)
+[Internals lifetime model](../docs/handbook/internals/service-interfaces.md#distinct-lifetimes-and-result-disclosure)
 distinguish idle wire connections, renewable HTTP session leases and finite
 request deadlines.
 
@@ -41,9 +41,9 @@ promise that an admitted write cannot outlive its connection.
 
 ## Unified service logging
 
-The [observability reference](../docs/reference/observability.md) owns text/JSON
+The [observability reference](../docs/handbook/reference/observability.md) owns text/JSON
 formats, configuration and stdout separation; the
-[Internals account](../docs/internals/storage-runtime.md#presenting-observations-consistently)
+[Internals account](../docs/handbook/internals/storage-runtime.md#presenting-observations-consistently)
 explains the queue, supervision and readiness boundaries.
 
 Executed during the logging change on Linux with the pinned Zig development shell:
@@ -82,7 +82,7 @@ account coordinator. Local consoles authenticate through Unix peer credentials;
 explicit remote clients use the HTTPS session API and SCRAM. The
 [console guide](../apps/transit-cli/docs/console.md),
 [session contract](../contracts/SQL_SESSION_V1.md) and
-[Internals account](../docs/internals/service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
+[Internals account](../docs/handbook/internals/service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
 own behavior and reasoning. [SQL sessions](../apps/transit-cli/docs/console.md) records delivery scope.
 
 The [evidence record](verification/results/sql-sessions-2026-10-21.json) preserves
@@ -875,7 +875,7 @@ budget failures. Disabled intermediate roles cannot conceal membership cycles.
 
 This evidence covers the pure injected-store evaluator. It does not establish
 durable administration, adapter enforcement or restricted Table isolation. Those
-integration gates remain open in [Authorization](../docs/reference/security.md).
+integration gates remain open in [Authorization](../docs/handbook/reference/security.md).
 
 The subsequent paged-store and administrative-candidate run passes **92/92 core
 tests** using the same command. It adds reopen and page-boundary checks, private
@@ -1856,7 +1856,7 @@ execution status is reported separately in the PR.
 
 ## Experimental int64 batch qualification
 
-The first [Vectorized queries](../docs/reference/queries.md), before the integrated
+The first [Vectorized queries](../docs/handbook/reference/queries.md), before the integrated
 qualification above, used an internal Table/file selector. Production callers at
 that revision retained their existing executor.
 Runtime **`244c83f6`** passes full `just check`, the **22-task clean core lane**,
@@ -2891,7 +2891,7 @@ physical-disk qualification gates for the delivered profile. The historical
 retain their measured revisions, raw samples, withdrawn experiments and frozen
 budgets; this campaign adds no file benchmark or DuckDB-parity claim. Local file
 captures remain ephemeral, and native Table/Flight and other language logical
-admission retain the [published surface limits](../docs/reference/sql/types.md#surface-capability-matrix).
+admission retain the [published surface limits](../docs/handbook/reference/sql/types.md#surface-capability-matrix).
 Browser and external-placement tiers, hosted execution/cost and broader mutation
 latency work in [issue #55](https://github.com/spoke-sh/transit/issues/55) are outside
 this closeout. Later closeout commits change only evidence and roadmap prose;
@@ -3502,7 +3502,7 @@ executions and 2000 compilations/proposals. The
 timed phases, independently verified query outputs and mutation proposals,
 fixture/build/source hashes and host metadata. Binary SHA-256 is
 `4b8457964e12931d1058c2149d6483676e54618890863bb45959d600e2023e19`.
-The [public summary](../docs/reference/benchmarks.md#recorded-component-measurements)
+The [public summary](../docs/handbook/reference/benchmarks.md#recorded-component-measurements)
 reports the exact scope and shared-host limits. Measurement log:
 `/tmp/transit-benchmark-measurement.log`. These are unpaired component timings;
 all 151 complete-workload units remain blocked. Native authority, disk durability
@@ -6694,7 +6694,7 @@ This checkpoint replaces the bounded native authority with the paged v1
 implementation and moves native clients, Station, controllers, Board, Flight,
 installation and language boundaries onto it. It is an implementation checkpoint;
 full cutover qualification remains in progress under
-[Hard cutovers](../docs/reference/versioning.md). Earlier milestone records below
+[Hard cutovers](../docs/handbook/reference/versioning.md). Earlier milestone records below
 are historical executions and do not qualify the replacement automatically.
 
 Executed against the cutover workspace with the pinned Linux x86_64 Nix/Zig
@@ -7857,7 +7857,7 @@ These checks passed locally on Linux x86_64 with the pinned compiler. They do no
 yet qualify general public multi-call/followup APIs, managed secret providers,
 every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
-[HTTP effects](../docs/reference/connectors.md) exit obligations. The shared capture
+[HTTP effects](../docs/handbook/reference/connectors.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage
 from protocol completeness and effect-result acceptance.
 
@@ -7866,7 +7866,7 @@ from protocol completeness and effect-result acceptance.
 This directory owns conformance harnesses, fault injection, test-only executors,
 and proof results. Application examples live under [examples](../examples/README.md);
 tests launch those real binaries rather than a separate implementation of their
-logic. The [conformance design](../docs/reference/verification.md) owns the required adversarial
+logic. The [conformance design](../docs/handbook/reference/verification.md) owns the required adversarial
 scenarios. Results below describe the recorded bounded milestone profiles, not
 a claim that all commands are rerun on every documentation change.
 
@@ -10479,7 +10479,7 @@ workspace installation:
   177 CLI diagnostic cases, frontend checks and the documentation production build.
 - `just transit-docs::check` passed for the final structure as part of `just check`:
   formatting/lint, strict types, six content tests and broken-link/anchor checking.
-- `nix develop --command bash -c 'cd apps/transit-docs && vp exec playwright test'`
+- `nix develop --command bash -c 'cd docs/handbook && vp exec playwright test'`
   passed all four checks against the production root build in 14.4 seconds.
   Coverage includes Internals desktop/mobile navigation, labeled search results,
   standard/template and technical-account links, separate Roadmap/Design source
@@ -11115,7 +11115,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) records proposed contracts and proof
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:
@@ -11151,7 +11151,7 @@ just test::pages --keys 256 --cache 2 --mutation-batch 8
 just test::pages-cold --keys 1024 --cache 2
 ```
 
-Interpret the measurements using the [performance reference](../docs/reference/performance.md#reproduce-and-compare).
+Interpret the measurements using the [performance reference](../docs/handbook/reference/performance.md#reproduce-and-compare).
 These are reproduction commands, not a record of a new execution.
 
 ## Public command documentation
@@ -11170,7 +11170,7 @@ Executed for this documentation change:
   content/reference tests and the production build. The content guard rejects
   Nix/Just commands and path-qualified Transit invocations in published code.
 - `python3 -B tests/docs.py` passed 4,334 local links across 453 Markdown files.
-- `nix develop --command bash -c 'cd apps/transit-docs && vp exec playwright test'`
+- `nix develop --command bash -c 'cd docs/handbook && vp exec playwright test'`
   passed all four production browser checks at `/`, covering desktop/mobile
   navigation, search, generated downloads, diagrams and accessibility.
 - The built search index was checked for repository command invocations and
@@ -12800,7 +12800,7 @@ multi-model and historical-schema analysis. Runtime, fixtures, generated contrac
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
 is preserved, and the SQL continuation becomes M39 at that checkpoint (now
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
@@ -13348,7 +13348,7 @@ The Fuze package's `zig build test` also passes with these schema tests enabled.
 This is pure model/codec evidence. It does not qualify generalized native Table
 storage, SQL execution, catalog routing, DDL publication or restart recovery.
 Those remain separate implementation and proof obligations in
-[Typed Tables](../docs/reference/tables.md) and [#75](https://github.com/spoke-sh/transit/issues/75).
+[Typed Tables](../docs/handbook/reference/tables.md) and [#75](https://github.com/spoke-sh/transit/issues/75).
 
 The subsequent physical-row/key run passes 34 focused tests; the evolution run
 passes 33, including shared schema/type dependencies. Independent Python bytes
@@ -16373,7 +16373,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md).
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md).
 
 ### Native COUNT costs
 
@@ -21564,8 +21564,8 @@ scoped. Same-revision hosted CI and integration are still pending.
 
 The configuration-v1 implementation separates immutable installation/artifact
 identity from active and configured generations. Its public owners are the
-[configuration reference](../docs/reference/configuration.md),
-[SQL reference](../docs/reference/sql/settings.md) and
+[configuration reference](../docs/handbook/reference/configuration.md),
+[SQL reference](../docs/handbook/reference/sql/settings.md) and
 [wire contract](../contracts/CONFIGURATION_V1.md). Tests use disposable directories;
 the developer's installation is not a fixture.
 
@@ -21875,3 +21875,25 @@ At PR submission, `just ci-clean --lane experience` is running against committed
 inspection and Board query recovery. The local Station launcher is in progress.
 This partial lane is not a completed clean-checkout pass; the
 other ordinary lanes and separate browser lane are outside this run's scope.
+
+## Handbook consolidation and static publication preparation (2026-10-21)
+
+Documentation-only validation for the move into `docs/handbook` and the interface
+coverage review:
+
+- `python3 -B tests/docs.py`: 5,246 local links across 552 Markdown files pass.
+- `just transit-docs::check` in the pinned docs shell: Vite+ lint/format, strict
+  TypeScript, nine content/reference tests and the production build pass.
+- The final production build and all five Chromium checks pass after the content
+  review. They exercise navigation, static search, diagrams, desktop/mobile
+  accessibility, canonical URLs, sitemap/robots, the 404 artifact and byte-exact
+  downloads of OpenAPI/AsyncAPI descriptions, native schemas and setting metadata.
+- `python3 -B tests/ci_runner.py` passes, including handbook-only selection,
+  conservative shared-file selection, rename handling and failure propagation.
+- The component directory links all 55 app/library README owners. The final
+  static artifact has 353 files and no source Markdown or temporary server bundle.
+
+Runtime execution and `ci-clean` are not run for this documentation refactor, as
+requested. These checks establish documentation/build behavior, not new runtime
+qualification. Cloudflare deployment, DNS/TLS, CDN routing/cache behavior and
+rollback are not exercised; local Docusaurus preview cannot establish them.

@@ -3,9 +3,9 @@
 This matrix defines supported sources, clients and wire formats for each query
 interface. Query engine, result representation and transport versions are
 separate compatibility requirements.
-[HTTP serving](../../../../docs/reference/serving.md),
-[reactive APIs and refresh](../../../../docs/reference/reactive.md) and
-[Flight](../../../../docs/reference/flight.md) have separate interface contracts.
+[HTTP serving](../../../../docs/handbook/reference/serving.md),
+[reactive APIs and refresh](../../../../docs/handbook/reference/reactive.md) and
+[Flight](../../../../docs/handbook/reference/flight.md) have separate interface contracts.
 Flight adapts the current query v1 implementation to its finite int64 Table
 endpoint. It validates the verified native result before producing primitive Arrow.
 
@@ -21,7 +21,7 @@ endpoint. It validates the verified native result before producing primitive Arr
 | Language callers | Public SDKs over the shared Zig native/port implementation |
 | Flight / Flight SQL / ADBC | Int64 Table projection/count/sum; explicit checked conversion to primitive Arrow, as defined by the [client/type matrix](../../transit-flight/docs/compatibility.md) |
 
-The [hard-cutover policy](../../../../docs/reference/versioning.md) applies.
+The [hard-cutover policy](../../../../docs/handbook/reference/versioning.md) applies.
 Unknown formats and changed declarations reject; retained data is never guessed
 into a compatible decoder. Neither publication references nor continuation
 cursors confer authority. Host/provider placement does not change a contract.

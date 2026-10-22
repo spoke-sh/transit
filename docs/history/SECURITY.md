@@ -1,13 +1,13 @@
 # Identity, authorization, and trust boundaries
 
-Engineering background and historical design. Use [Identity, permissions and trust](../reference/security.md)
+Engineering background and historical design. Use [Identity, permissions and trust](../handbook/reference/security.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Provision identity, permissions and worker ownership separately. Start with the
-[native protocol reference](../reference/native.md) for signed callers,
-[serving OpenAPI](../reference/openapi.md) for application ingress or
-[Board access](../reference/board-api.md) for private inspection.
+[native protocol reference](../handbook/reference/native.md) for signed callers,
+[serving OpenAPI](../handbook/reference/openapi.md) for application ingress or
+[Board access](../handbook/reference/board-api.md) for private inspection.
 
 Status: required security boundaries with a bounded M1 implementation. The
 [v2 protocol](../../contracts/TRANSIT_V1.md) and [service contract](../../contracts/SERVICE_V1.md)

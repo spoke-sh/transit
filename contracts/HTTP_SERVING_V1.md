@@ -1,7 +1,7 @@
 # HTTP serving profile v1
 
 Board, application serving and the growing authority share this HTTP/1.1 listener contract.
-[Serving](../docs/reference/serving.md) describes the application boundary.
+[Serving](../docs/handbook/reference/serving.md) describes the application boundary.
 
 The listener accepts bounded HTTP/1.1 origin-form requests, requires exactly one
 valid Host. It defaults to one request per connection; consumers can enable

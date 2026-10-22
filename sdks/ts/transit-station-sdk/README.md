@@ -72,5 +72,5 @@ reads, resumable creation and saved mutation intents within native turns.
 
 Handler query failures use a typed callback with the authenticated origin,
 correlation, result identity and reason. See
-[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+[negative query outcomes](../../../docs/handbook/reference/sdks.md#handler-query-failures)
 for callback names, write budgets and recovery behavior.

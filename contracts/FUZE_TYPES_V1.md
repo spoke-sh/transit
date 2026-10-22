@@ -1,7 +1,7 @@
 # Fuze logical types v1
 
 This contract specifies the shared Zig logical type and conversion model. The
-implementation/capability table in the [type reference](../docs/reference/sql/types.md)
+implementation/capability table in the [type reference](../docs/handbook/reference/sql/types.md)
 distinguishes admitted types from interfaces that still accept a narrower profile.
 Logical types describe meaning; Arrow layouts and neutral encodings describe
 representation. Neither a descriptor nor a decoded value grants source access.

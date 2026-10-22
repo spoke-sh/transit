@@ -1,12 +1,12 @@
 # Documents and collaborative text
 
-Engineering background and historical design. Use [Documents and collaborative text](../reference/documents.md)
+Engineering background and historical design. Use [Documents and collaborative text](../handbook/reference/documents.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use Documents for accepted structured changes and collaborative text. Begin with
 the [Document service guide](../../packages/zig/transit-station-document/docs/service.md)
-and query accepted projections through [unified SQL](../reference/sql.md). Speculative
+and query accepted projections through [unified SQL](../handbook/reference/sql.md). Speculative
 edits and accepted revisions remain different states.
 
 Status: M17's declared growing profile is implemented and qualified: durable

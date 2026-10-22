@@ -61,7 +61,7 @@ route. The optional query workspace is configured separately below.
 
 Board and its generated client use the current v1 OpenAPI together. Before 1.0,
 incompatible changes are hard cutovers: replace the server, frontend and external
-client declarations together. The [versioning policy](../../../docs/reference/versioning.md)
+client declarations together. The [versioning policy](../../../docs/handbook/reference/versioning.md)
 defines that boundary. Unknown configuration fields reject at startup.
 
 The inspection identity has a signing seed. Viewer authentication, cookies and

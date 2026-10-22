@@ -1,6 +1,6 @@
 # Application declaration grammar
 
-Use the public [application SQL reference](../../docs/reference/sql/application.md)
+Use the public [application SQL reference](../../docs/handbook/reference/sql/application.md)
 for every declaration, required options and a complete offline example.
 
 [Application v1](../APPLICATION_V1.md) defines the selected bounded model.

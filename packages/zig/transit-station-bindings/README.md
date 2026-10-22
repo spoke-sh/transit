@@ -12,7 +12,7 @@ dependency direction. It exports `station_abi`, `libtransit_station`, generated
 C declarations and native-port schemas. HTTP and RPC request commitments,
 publication actions, durable calls, captured replay and explicit release use
 the same scoped turn and dispatch gates as ordinary Station operations.
-All [public language SDKs](../../../docs/reference/callers.md) use this boundary.
+All [public language SDKs](../../../docs/handbook/reference/callers.md) use this boundary.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never
