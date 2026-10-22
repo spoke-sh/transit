@@ -5,12 +5,13 @@ const s = @import("TableSchema.zig");
 const t = @import("Types.zig");
 const Cell = t.Values.Cell;
 pub const Change = union(enum) {
-    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null },
+    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null, encoding: s.Encoding = .plain, collation: s.Collation = .none },
     drop: s.ColumnId,
     rename: struct { column: s.ColumnId, name: []const u8 },
     default: struct { column: s.ColumnId, value: ?Cell },
     nullable: struct { column: s.ColumnId, value: bool },
     type: struct { column: s.ColumnId, type: t.Type, max_characters: ?u32 = null },
+    physical: struct { column: s.ColumnId, encoding: s.Encoding = .plain, collation: s.Collation = .none },
 };
 pub const Work = enum { metadata, validate_rows, rewrite_rows };
 pub const Transition = struct {
@@ -60,7 +61,7 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
         .add => |column| {
             if (count == columns.len) return error.InvalidColumnCount;
             after.next_column = try std.math.add(u64, before.next_column, 1);
-            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters };
+            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters, .encoding = column.encoding, .collation = column.collation };
             count += 1;
         },
         .drop => |id| {
@@ -82,6 +83,14 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
             validate_rows = column.max_characters != value.max_characters;
             column.type = value.type;
             column.max_characters = value.max_characters;
+        },
+        .physical => |value| {
+            const column = &columns[try before.index(value.column)];
+            for (before.primary_key) |id| if (id == column.id and column.collation != value.collation) {
+                key_changed = true;
+            };
+            column.encoding = value.encoding;
+            column.collation = value.collation;
         },
     }
     after.columns = columns[0..count];

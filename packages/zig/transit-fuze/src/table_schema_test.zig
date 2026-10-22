@@ -257,3 +257,67 @@ test "insert and patch validation reject an oversized schema before indexing col
     try expect.expectError(error.InvalidColumnCount, invalid.insert(&assignments, &output));
     try expect.expectError(error.InvalidColumnCount, invalid.validateAssignments(&assignments));
 }
+
+test "orthogonal column encoding and collation descriptors validate compatibility and round-trip" {
+    const mainframe_columns = [_]s.Column{
+        .{ .id = 1, .name = "acct_id", .type = .int64, .nullable = false, .encoding = .comp },
+        .{ .id = 2, .name = "branch_code", .type = .utf8, .nullable = false, .encoding = .ebcdic, .collation = .ebcdic_cp037 },
+        .{ .id = 3, .name = "balance", .type = .{ .decimal = .{ .precision = 18, .scale = 2 } }, .encoding = .comp_3 },
+        .{ .id = 4, .name = "rate", .type = .float64, .encoding = .ibm_hfp },
+    };
+    const physical_schema: s.Schema = .{
+        .object = 42,
+        .revision = 1,
+        .next_column = 5,
+        .columns = &mainframe_columns,
+        .primary_key = &.{ 1, 2 },
+    };
+    try physical_schema.validate();
+    try expect.expect(physical_schema.hasPhysicalAttributes());
+    var buffer: [s.max_bytes]u8 = undefined;
+    const encoded = try physical_schema.encode(&buffer);
+    var decoded = try s.decode(expect.allocator, encoded);
+    defer decoded.deinit();
+    try expect.expectEqual(s.Encoding.comp, decoded.schema.columns[0].encoding);
+    try expect.expectEqual(s.Encoding.ebcdic, decoded.schema.columns[1].encoding);
+    try expect.expectEqual(s.Collation.ebcdic_cp037, decoded.schema.columns[1].collation);
+    try expect.expectEqual(s.Encoding.comp_3, decoded.schema.columns[2].encoding);
+    try expect.expectEqual(s.Encoding.ibm_hfp, decoded.schema.columns[3].encoding);
+    try expect.expectEqualSlices(u8, &try physical_schema.fingerprint(), &try decoded.schema.fingerprint());
+    try expect.expectEqualSlices(u8, &try physical_schema.layoutFingerprint(), &try decoded.schema.layoutFingerprint());
+
+    var plain_columns = mainframe_columns;
+    for (&plain_columns) |*col| {
+        col.encoding = .plain;
+        col.collation = .none;
+    }
+    const plain_schema: s.Schema = .{
+        .object = 42,
+        .revision = 1,
+        .next_column = 5,
+        .columns = &plain_columns,
+        .primary_key = &.{ 1, 2 },
+    };
+    try expect.expect(!plain_schema.hasPhysicalAttributes());
+    try expect.expect(!std.mem.eql(u8, &try plain_schema.layoutFingerprint(), &try physical_schema.layoutFingerprint()));
+
+    // Reject redundant FTP1 trailer when all columns use default plain/none attributes.
+    const plain_bytes = try plain_schema.encode(&buffer);
+    var non_canonical: [512]u8 = undefined;
+    @memcpy(non_canonical[0..plain_bytes.len], plain_bytes);
+    @memcpy(non_canonical[plain_bytes.len .. plain_bytes.len + 4], "FTP1");
+    @memset(non_canonical[plain_bytes.len + 4 .. plain_bytes.len + 4 + plain_columns.len * 2], 0);
+    try expect.expectError(error.InvalidTableSchemaEncoding, s.decode(expect.allocator, non_canonical[0 .. plain_bytes.len + 4 + plain_columns.len * 2]));
+
+    // Reject incompatible (tau, epsilon, kappa) combinations.
+    var bad_encoding = mainframe_columns;
+    bad_encoding[0].encoding = .ibm_hfp; // int64 cannot use ibm_hfp
+    var bad_schema = physical_schema;
+    bad_schema.columns = &bad_encoding;
+    try expect.expectError(error.IncompatibleColumnEncoding, bad_schema.validate());
+
+    var bad_collation = mainframe_columns;
+    bad_collation[0].collation = .ascii_ci; // int64 cannot use text collation
+    bad_schema.columns = &bad_collation;
+    try expect.expectError(error.IncompatibleColumnCollation, bad_schema.validate());
+}

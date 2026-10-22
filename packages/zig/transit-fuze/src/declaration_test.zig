@@ -84,3 +84,20 @@ test "general Table declarations have one parser and schema owner" {
     try expect(schema.columns[2].type == .decimal and schema.columns[3].type == .list);
     try expect(schema.columns.len == 4 and schema.primary_key.len == 1);
 }
+
+test "declarative object kind and state actions map definitions and validate names" {
+    const kv_def = try d.compile("CREATE KV settings (UTF8)");
+    try expect(kv_def.objectKind() == .kv);
+    const kv_action = kv_def.toStateAction();
+    try kv_action.validate();
+    try expect(kv_action == .create_kv);
+    try std.testing.expectEqualStrings("settings", kv_action.create_kv.name.slice());
+    try expect(kv_action.create_kv.value_type == .utf8);
+
+    const doc_def = try d.compile("CREATE DOCUMENT notebook");
+    try expect(doc_def.objectKind() == .document);
+    const doc_action = doc_def.toStateAction();
+    try doc_action.validate();
+    try expect(doc_action == .create_document);
+    try std.testing.expectEqualStrings("notebook", doc_action.create_document.name.slice());
+}
