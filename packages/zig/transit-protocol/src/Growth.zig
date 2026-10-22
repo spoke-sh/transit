@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.assistance-coverage.2026-10-24.
+/// SHA-256 of transit.native.v1.declarative-data-lifecycle.2026-10-22.
 pub const Definition = enum {
-    c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b,
+    @"9438134d5552df1afc0043aab73220112135bc05c260525d7598f6ba694cc31b",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -811,6 +811,8 @@ test "native responses require the current contract definition even with a v1 la
     inline for (.{
         // Fixed two-column Tables, before general schema/lifecycle and ABI cutover.
         "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+        // Before mandatory local WAL metadata and exact data lifecycle bindings.
+        "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
         // Pre-compact immutable page definition.
         "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9",
         // Previous publication input dispositions omitted retained typed witnesses.

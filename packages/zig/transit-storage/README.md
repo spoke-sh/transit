@@ -1,17 +1,22 @@
 # `transit-storage`
 
-`transit-storage` implements Transit's tiered storage boundary (`TransitLog` and
+`transit-storage` supplies components for Transit's tiered storage boundary (`TransitLog` and
 `TransitObjectStore`), the Tier 0 MVCC `TableMemtable`, the Tier 2 content-verified
 `NvmeCache`, versioned immutable `TableManifest` (`"TMAN"` v1) artifacts, and the
 lock-free multi-writer OCC coordinator (`PartitionLease.OccCoordinator`).
+
+The installed native service still uses its Ursula backend. This package's
+component tests do not establish installed SQL execution, automatic flushing,
+durable snapshot pins, policy-authorized trimming or multi-process Table commits.
 
 ## Modules
 
 - `TransitLog.zig`: Pluggable write-ahead log interface and 64-byte-aligned `"TWAL"` v1
   binary frame format with CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`
   fencing.
-- `LocalWal.zig`: Native segmented POSIX/memory `TransitLog` backend with `sync`
-  durability and torn-tail crash recovery.
+- `LocalWal.zig`: Exclusive POSIX log owner with incremental segmented writes,
+  synced frontiers/fences/trim floors, bounded recovery, and a separate volatile
+  memory fixture. See the [persistence contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence).
 - `TransitObjectStore.zig`: Pluggable immutable segment and conditional manifest
   object store interface (`putImmutable`, `putConditional` with `if_none_match` / `if_match`,
   `getRange`, `head`, `delete`).
@@ -28,3 +33,10 @@ lock-free multi-writer OCC coordinator (`PartitionLease.OccCoordinator`).
   manifest rebasing.
 - `TableMemtable.zig`: Tier 0 MVCC Memtable with direct data-plane WAL ingestion,
   read-your-writes snapshot queries, `.tseg`/`.tdel` segment flushing, and crash recovery.
+
+`zig build test` includes real temporary-directory WAL tests: cache eviction,
+segmented recovery above 64 MiB, durable empty-log fencing and full trim,
+incomplete tails, missing/corrupt acknowledged history, incompatible definitions,
+exclusive ownership and an injected sync failure. Power interruption and
+filesystem rollback are separate qualification boundaries. Run through the
+pinned development shell described in [contributing](../../../docs/handbook/guides/contributing.md).

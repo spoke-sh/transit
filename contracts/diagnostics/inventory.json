@@ -11693,7 +11693,7 @@
           "deadline"
         ],
         "Definition": [
-          "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+          "@\"9438134d5552df1afc0043aab73220112135bc05c260525d7598f6ba694cc31b\""
         ],
         "Effect.phase": [
           "pending",
@@ -23250,6 +23250,392 @@
         "builtin",
         "transit_client",
         "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-storage/src/DiskWal.zig": {
+      "errors": {
+        "CorruptWalFrame": 3,
+        "CorruptWalMetadata": 5,
+        "FileNotFound": 2,
+        "IncompatibleDefinition": 3,
+        "InvalidWalDirectory": 4,
+        "InvalidWalEpoch": 2,
+        "InvalidWalHeader": 1,
+        "InvalidWalLimits": 1,
+        "InvalidWalMagic": 1,
+        "InvalidWalTrimBoundary": 1,
+        "StalePolicyEpoch": 1,
+        "StaleWriterEpoch": 1,
+        "TruncatedWalFrame": 3,
+        "WalEpochRegression": 1,
+        "WalHistoryMissing": 6,
+        "WalHistoryTrimmed": 1,
+        "WalInUse": 1,
+        "WalLsnConflict": 1,
+        "WalLsnExhausted": 2,
+        "WalMetadataMissing": 2,
+        "WalPayloadTooLarge": 1,
+        "WalRecoveryRequired": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "atomic()": "<inferred>",
+        "fence()": "<inferred>",
+        "frame()": "<inferred>",
+        "load()": "<inferred>",
+        "metadata()": "<inferred>",
+        "nextSegment()": "<inferred>",
+        "open()": "<inferred>",
+        "read()": "<inferred>",
+        "recover()": "<inferred>",
+        "save()": "<inferred>",
+        "syncDir()": "<inferred>",
+        "syncDirectory()": "<inferred>",
+        "tail()": "<inferred>",
+        "trim()": "<inferred>",
+        "usable()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 71,
+        "catch": 12
+      },
+      "imports": [
+        "TransitLog.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "FileNotFound": 2,
+        "ImmutableObjectConflict": 1,
+        "ObjectDigestMismatch": 1,
+        "ObjectNotFound": 1,
+        "ObjectTooLarge": 2,
+        "RangeOutOfBounds": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "LocalSegmentStore.deleteErased()": "anyerror",
+        "LocalSegmentStore.deleteObject()": "<inferred>",
+        "LocalSegmentStore.getObjectRange()": "<inferred>",
+        "LocalSegmentStore.getRangeErased()": "anyerror",
+        "LocalSegmentStore.headErased()": "anyerror",
+        "LocalSegmentStore.headObject()": "<inferred>",
+        "LocalSegmentStore.loadFromDiskIfPresent()": "<inferred>",
+        "LocalSegmentStore.openDisk()": "<inferred>",
+        "LocalSegmentStore.persistToDisk()": "<inferred>",
+        "LocalSegmentStore.putConditionalErased()": "anyerror",
+        "LocalSegmentStore.putConditionalObject()": "<inferred>",
+        "LocalSegmentStore.putImmutableErased()": "anyerror",
+        "LocalSegmentStore.putImmutableObject()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 31,
+        "catch": 2
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/LocalWal.zig": {
+      "errors": {
+        "InvalidWalEpoch": 2,
+        "InvalidWalTrimBoundary": 1,
+        "StalePolicyEpoch": 1,
+        "StaleWriterEpoch": 1,
+        "WalEpochRegression": 1,
+        "WalHistoryTrimmed": 1,
+        "WalLsnConflict": 1,
+        "WalLsnExhausted": 1,
+        "WalMemoryCapacity": 1,
+        "WalPartitionLimitExceeded": 1,
+        "WalPayloadTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "LocalWal.appendErased()": "anyerror",
+        "LocalWal.appendFrame()": "<inferred>",
+        "LocalWal.fenceEpochs()": "<inferred>",
+        "LocalWal.fenceErased()": "anyerror",
+        "LocalWal.getOrCreatePartition()": "<inferred>",
+        "LocalWal.openDisk()": "<inferred>",
+        "LocalWal.openDiskWithOptions()": "<inferred>",
+        "LocalWal.readErased()": "anyerror",
+        "LocalWal.readFrames()": "<inferred>",
+        "LocalWal.tailErased()": "anyerror",
+        "LocalWal.tailLsn()": "<inferred>",
+        "LocalWal.trimErased()": "anyerror",
+        "LocalWal.trimUpTo()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 12,
+        "catch": 1
+      },
+      "imports": [
+        "DiskWal.zig",
+        "TransitLog.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/NvmeCache.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "ObjectNotFound": 1,
+        "RangeOutOfBounds": 2
+      },
+      "outcomes": {
+        "CacheCategory": [
+          "metadata_or_index",
+          "column_data"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "NvmeCache.getRangeVerified()": "<inferred>",
+        "NvmeCache.insertChunk()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/PartitionLease.zig": {
+      "errors": {
+        "InvalidPartitionLease": 2,
+        "InvalidTableManifest": 1,
+        "LeaseExpired": 1,
+        "StaleEpoch": 2,
+        "WriteWriteConflict": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "OccCoordinator.commitSegment()": "<inferred>",
+        "OccCoordinator.segmentsShareAnyPrimaryKey()": "<inferred>",
+        "OccCoordinator.verifyDisjointFromConcurrentCommit()": "<inferred>",
+        "PartitionLease.appendToControlLog()": "<inferred>",
+        "PartitionLease.decode()": "<inferred>",
+        "PartitionLease.validateDataPartition()": "<inferred>",
+        "PartitionLease.verifyEpochFence()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 6
+      },
+      "imports": [
+        "TableManifest.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-storage/src/S3ObjectStore.zig": {
+      "errors": {
+        "InvalidObjectKey": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "S3ObjectStore.deleteImpl()": "anyerror",
+        "S3ObjectStore.getRangeImpl()": "anyerror",
+        "S3ObjectStore.headImpl()": "anyerror",
+        "S3ObjectStore.putConditionalImpl()": "anyerror",
+        "S3ObjectStore.putImmutableImpl()": "anyerror",
+        "signAwsV4Request()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "LocalSegmentStore.zig",
+        "TransitObjectStore.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/TableManifest.zig": {
+      "errors": {
+        "CorruptTableManifest": 1,
+        "InvalidTableManifest": 8
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Manifest.encode()": "<inferred>",
+        "Manifest.validate()": "<inferred>",
+        "decode()": "<inferred>",
+        "deletionKey()": "<inferred>",
+        "manifestKey()": "<inferred>",
+        "segmentKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 65,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/TableMemtable.zig": {
+      "errors": {
+        "InvalidRowDelta": 4,
+        "ManifestCasConflict": 1
+      },
+      "outcomes": {
+        "DeltaOp": [
+          "upsert",
+          "delete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "TableMemtable.appendWalDelta()": "<inferred>",
+        "TableMemtable.applyInMemoryDelta()": "<inferred>",
+        "TableMemtable.decodeOwnedRow()": "<inferred>",
+        "TableMemtable.deleteByPrimaryKey()": "<inferred>",
+        "TableMemtable.flushToSegment()": "<inferred>",
+        "TableMemtable.getByPrimaryKey()": "<inferred>",
+        "TableMemtable.init()": "<inferred>",
+        "TableMemtable.readObjectBytes()": "<inferred>",
+        "TableMemtable.recoverFromWal()": "<inferred>",
+        "TableMemtable.upsertRow()": "<inferred>",
+        "decodeRowDeltaPayload()": "<inferred>",
+        "encodeRowDeltaPayload()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 87,
+        "catch": 0
+      },
+      "imports": [
+        "NvmeCache.zig",
+        "PartitionLease.zig",
+        "TableManifest.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-storage/src/TransitLog.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "CorruptWalFrame": 2,
+        "InvalidWalEpoch": 1,
+        "InvalidWalHeader": 2,
+        "InvalidWalMagic": 1,
+        "TruncatedWalFrame": 2,
+        "WalPayloadTooLarge": 1
+      },
+      "outcomes": {
+        "FrameKind": [
+          "genesis",
+          "policy_control",
+          "row_delta",
+          "catalog_ddl",
+          "process_turn",
+          "manifest_checkpoint"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Log.VTable.append()": "anyerror",
+        "Log.VTable.fence()": "anyerror",
+        "Log.VTable.read()": "anyerror",
+        "Log.VTable.tail()": "anyerror",
+        "Log.VTable.trim()": "anyerror",
+        "Log.append()": "<inferred>",
+        "Log.fence()": "<inferred>",
+        "Log.read()": "<inferred>",
+        "Log.tail()": "<inferred>",
+        "Log.trim()": "<inferred>",
+        "decodeFrame()": "<inferred>",
+        "encodeFrame()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/TransitObjectStore.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "InvalidObjectKey": 4,
+        "ObjectDigestMismatch": 1
+      },
+      "outcomes": {
+        "Condition": [
+          "if_none_match",
+          "if_match"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "ObjectStore.VTable.delete()": "anyerror",
+        "ObjectStore.VTable.getRange()": "anyerror",
+        "ObjectStore.VTable.head()": "anyerror",
+        "ObjectStore.VTable.putConditional()": "anyerror",
+        "ObjectStore.VTable.putImmutable()": "anyerror",
+        "ObjectStore.delete()": "<inferred>",
+        "ObjectStore.getRange()": "<inferred>",
+        "ObjectStore.head()": "<inferred>",
+        "ObjectStore.putConditional()": "<inferred>",
+        "ObjectStore.putImmutable()": "<inferred>",
+        "validateKey()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "LocalSegmentStore.zig",
+        "LocalWal.zig",
+        "NvmeCache.zig",
+        "PartitionLease.zig",
+        "S3ObjectStore.zig",
+        "TableManifest.zig",
+        "TableMemtable.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig"
       ]
     },
     "packages/zig/transit-tls-server/src/LocalTrust.zig": {

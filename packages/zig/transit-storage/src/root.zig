@@ -22,4 +22,5 @@ test {
     _ = PartitionLease;
     _ = TableMemtable;
     _ = @import("storage_test.zig");
+    _ = @import("disk_wal_test.zig");
 }

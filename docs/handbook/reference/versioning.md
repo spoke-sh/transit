@@ -64,6 +64,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
+The shared definition binds the local WAL's mandatory directory and partition
+metadata. The local disk owner rejects its earlier unmarked layout and missing
+or foreign definitions. It does not convert old logs. Preserve them with their
+matching build before an explicitly chosen fresh installation or a separately
+qualified converter. This storage-component cutover does not change the installed
+service's backend selection.
+
 The current definition uses Transit domains for immutable payload locations and
 Substrate resource/workload identities. It requires matching node, client, SDK,
 controller and launcher builds. Older installations and saved operations reject

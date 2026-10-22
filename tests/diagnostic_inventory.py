@@ -23,7 +23,7 @@ PACKAGES = (
     'transit-serving', 'transit-serving-http', 'transit-flight', 'transit-board-api',
     'transit-station-bindings', 'transit-station-document', 'transit-station',
     'transit-station-http', 'transit-station-grpc', 'transit-station-flight',
-    'transit-exchange', 'transit-client', 'transit-protocol',
+    'transit-exchange', 'transit-client', 'transit-protocol', 'transit-storage',
     'transit-grpc', 'transit-tls', 'transit-http-server',
     'transit-tls-server', 'transit-sql-protocol', 'transit-sql-client', 'transit-sql', 'transit-postgres', 'transit-mysql',
 )

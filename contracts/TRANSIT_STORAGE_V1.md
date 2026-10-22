@@ -37,10 +37,64 @@ Every `TransitLog` frame begins with a 64-byte little-endian header followed by
 | `52..56` | 4 | `u32` | `crc32c` (`CRC-32/ISCSI` over header bytes `0..52` followed by `payload`) |
 | `56..64` | 8 | `[8]u8` | First 8 bytes of `SHA-256(payload)` |
 
-Crash recovery scans retained partition files sequentially. An incomplete trailing
-frame (`error.TruncatedWalFrame`) at the end of a partition file is truncated
-cleanly to the last verified frame boundary; mid-log checksum mismatches fail
-closed with `error.CorruptWalFrame`.
+Reserved flags must be zero. Checksums do not establish permission or an accepted
+application operation; the owning acceptance record supplies that binding.
+
+## Local WAL persistence
+
+`LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second
+owner fails with `WalInUse`; callers serialize operations within one owner.
+The directory requires `.definition`, exactly the 32 decoded bytes of the shared
+current contract identifier. A nonempty directory without it, or a foreign
+identifier, rejects without conversion or reset. Empty-directory initialization
+does not establish authority over an older installation.
+
+Each partition has `part-<partition>.meta` and rolling
+`part-<partition>-<first-lsn>.twal` segment files. Metadata is 128 bytes:
+
+| Offset | Meaning |
+| --- | --- |
+| `0..8` | `LWMT`, byte `1`, three zero bytes |
+| `8..40` | Mandatory current definition bytes |
+| `40..48` | Partition ID, little-endian `u64` |
+| `48..56`, `56..64` | Minimum writer and policy epochs |
+| `64..72` | Exclusive trimmed prefix |
+| `72..80` | Persisted exclusive accepted frontier |
+| `80..96` | Reserved zero bytes |
+| `96..128` | SHA-256 over `0..96` |
+
+Append writes a bounded frame at the current segment offset, syncs the file and
+new directory entry, then atomically replaces and syncs the metadata and its
+directory before acknowledging. Existing segment bytes are not rewritten.
+The frame's complete durable presence can precede acknowledgement: an error or
+lost reply requires reconciliation of the original application operation.
+Any uncertain disk mutation makes that open owner return `WalRecoveryRequired`;
+it cannot continue from a guessed frontier.
+
+Recovery checks contiguous LSNs, frame integrity and the persisted frontier.
+It reads one bounded frame at a time. Only an incomplete frame in the final
+segment beyond the persisted frontier can be truncated; missing acknowledged
+history, a damaged earlier segment and checksum failures reject. Complete frames
+beyond the metadata frontier remain recoverable uncertain work. Missing metadata
+does not turn existing segments into a new empty partition.
+
+Epoch fences persist even without an append. Trim persists the exclusive floor
+and frontier before removing complete prefix segments; a partially covered
+segment remains until a later trim. Trimming every frame preserves the next LSN
+and epochs. Retention authority must establish checkpoint, receipt, pin and
+logical-history coverage before calling trim. Disk pressure grants no permission
+to trim, and this backend does not implement that higher-level retention owner.
+
+The disk owner caches eight partition descriptors. Partition and segment counts
+can exceed this cache. Defaults roll segments at 64 MiB and bound returned pages
+to 1,024 frames and 8 MiB of encoded frame bytes. A single frame may exceed a
+configured roll target, up to the 4 MiB payload bound. `openDiskWithOptions`
+configures these operation bounds; the result page also owns bounded frame
+descriptors. Ordered directory traversal uses constant resident memory but may
+scan the directory repeatedly. No throughput claim follows from these bounds.
+
+`initMemory` supplies a separate volatile fixture limited to 64 partitions and
+64 MiB of retained encoded frames. It does not qualify disk durability.
 
 ## `.tseg` (`TSEG` v1) hybrid segment layout
 
