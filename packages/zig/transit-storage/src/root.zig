@@ -10,6 +10,7 @@ pub const NvmeCache = @import("NvmeCache.zig");
 pub const S3ObjectStore = @import("S3ObjectStore.zig");
 pub const PartitionLease = @import("PartitionLease.zig");
 pub const TableMemtable = @import("TableMemtable.zig");
+pub const TreeStore = @import("TreeStore.zig");
 
 test {
     _ = TransitLog;
@@ -25,4 +26,5 @@ test {
     _ = @import("disk_wal_test.zig");
     _ = @import("disk_objects_test.zig");
     _ = @import("memtable_recovery_test.zig");
+    _ = @import("tree_store_test.zig");
 }
