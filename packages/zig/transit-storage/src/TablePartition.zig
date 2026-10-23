@@ -46,6 +46,31 @@ pub const Options = struct {
 pub const Change = Changes.Change;
 pub const Ingestion = Changes.Ingestion;
 pub const SnapshotHandle = Snapshot.Handle;
+pub const SnapshotDefinition = Snapshot.Owned;
+pub const SnapshotCursor = struct { source: d.Content, after: [13]u8 };
+pub const ReadLimits = struct {
+    rows: u8 = pages.page_entries,
+    encoded_bytes: u32 = 4 * 1024 * 1024,
+    pub fn validate(self: ReadLimits) !void {
+        if (self.rows == 0 or self.rows > pages.page_entries or self.encoded_bytes == 0 or self.encoded_bytes > 16 * 1024 * 1024) return error.InvalidTableReadBudget;
+    }
+};
+pub const SnapshotPage = struct {
+    source: SnapshotHandle,
+    interpretation: Declaration.Stored,
+    accepted: d.Position,
+    changed_lsn: u64,
+    total_rows: u64,
+    rows: [pages.page_entries]?OwnedRow = @splat(null),
+    count: u8 = 0,
+    encoded_bytes: u32 = 0,
+    next: ?SnapshotCursor = null,
+
+    pub fn deinit(self: *SnapshotPage) void {
+        for (&self.rows) |*slot| if (slot.*) |*value| value.deinit();
+        self.* = undefined;
+    }
+};
 pub const OwnedRow = union(enum) {
     wal: f.TableRow.Owned,
     segment: f.TSeg.OwnedRow,
@@ -1082,4 +1107,83 @@ pub fn readSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     var actual: [f.Collation.max_sort_key_bytes]u8 = undefined;
     if (!std.mem.eql(u8, key, try row.row().storageKey(frozen.schema.schema, &actual))) return error.TableKeyHashCollision;
     return row;
+}
+
+/// Returns the original schema and source basis. Inspection never acquires or
+/// renews a pin; the existing owner must remain live and currently authorized.
+pub fn inspectSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, guard: Guard) !SnapshotDefinition {
+    try self.ready();
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        if ((try self.requirePin(handle)).released) return error.TableSnapshotReleased;
+    }
+    var frozen = try Snapshot.load(allocator, self.objects, handle);
+    errdefer frozen.deinit();
+    try self.requireBasis(frozen.root);
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return frozen;
+}
+
+/// Physical pages are independent of query result batches. Values in the
+/// returned page own their storage and remain valid across subsequent reads.
+/// Cursor completion means this pinned Table traversal is exhausted, not that
+/// a query or an independently captured source vector is complete.
+pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, after: ?SnapshotCursor, limits: ReadLimits, guard: Guard) !SnapshotPage {
+    try limits.validate();
+    var frozen = try self.inspectSnapshot(allocator, handle, guard);
+    defer frozen.deinit();
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
+        const key = try pages.Key.init(&value.after);
+        if (try self.tree().get(frozen.root.scan_rows, key) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key;
+    } else null;
+    const batch = try self.tree().scan(frozen.root.scan_rows, cursor);
+    var result: SnapshotPage = .{
+        .source = handle,
+        .interpretation = frozen.root.declared(),
+        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
+        .changed_lsn = frozen.root.changed_lsn,
+        .total_rows = frozen.root.live_rows,
+    };
+    errdefer result.deinit();
+    const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
+    defer allocator.free(scratch);
+    var previous: ?pages.Key = cursor;
+    for (batch.entries) |slot| {
+        const entry = slot orelse break;
+        if (result.count == limits.rows) {
+            result.next = .{ .source = handle.content, .after = previous.?.data[0..13].* };
+            break;
+        }
+        if (entry.key.len != 13 or entry.value.len != 81) return error.InvalidTableRowReference;
+        const value = entry.value;
+        const locator = try r.Locator.decode(try pages.Value.init(value.data[32..81]));
+        if (!std.meta.eql(entry.key, try locator.scanKey())) return error.InvalidTableRowReference;
+        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, try pages.Key.init(value.data[0..32]), try locator.encode());
+        var moved = false;
+        defer if (!moved) row.deinit();
+        const encoded = try row.row().encode(frozen.schema.schema, scratch);
+        if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
+            if (result.count == 0) return error.TableReadBudgetTooSmall;
+            result.next = .{ .source = handle.content, .after = previous.?.data[0..13].* };
+            break;
+        }
+        result.rows[result.count] = row;
+        moved = true;
+        result.count += 1;
+        result.encoded_bytes += @intCast(encoded.len);
+        previous = entry.key;
+    }
+    if (result.next == null) if (batch.next) |key| {
+        if (key.len != 13) return error.InvalidTableRowReference;
+        result.next = .{ .source = handle.content, .after = key.data[0..13].* };
+    };
+    // Authorization may change while rows are decoded or copied. Recheck after
+    // buffering, including empty output and end-of-source metadata.
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
 }

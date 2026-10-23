@@ -142,6 +142,20 @@ bytes without an accepted pin confer no read capability.
 `readSnapshot` verifies the current pin, exact content identity, original schema
 and current guard. `releaseSnapshot` records retirement of that handle and is
 idempotent. A retired handle cannot acquire another snapshot or serve a read.
+`inspectSnapshot` returns the retained schema and read basis without acquiring
+or renewing a pin. `scanSnapshot` returns at most eight owned rows and at most
+the requested canonical row-byte budget (up to 16 MiB). Decoding scratch and
+transport envelopes have separate budgets. A first row larger than the requested
+allowance fails explicitly; a later row continues on the next page.
+
+Each cursor binds the immutable snapshot content and an existing physical scan
+key. It cannot continue another snapshot or current head. Returned values own
+their memory across subsequent reads, cache eviction and owner destruction.
+The final guard runs after buffering, including empty completion. Pages expose
+the original definition, accepted position, logical-change frontier and total
+source-row count. End of this physical traversal is distinct from a query's
+terminal result and from a consistent multi-source snapshot.
+
 Data snapshots omit receipt, operation, pending and pin directories from their retained read basis, so
 they do not recursively retain earlier pin owners.
 
