@@ -49,6 +49,8 @@ collector races, policy-authorized trimming or multi-process Table commits.
   WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
   Frozen row admission, rejection and cancellation share that Table WAL; row
   acceptance atomically clears pending work and records matched/changed counts.
+  Bounded logical-history inspection separates accepted statements from physical
+  maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
 

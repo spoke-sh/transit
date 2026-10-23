@@ -56,6 +56,21 @@ pub const PinState = struct {
     released: bool,
 };
 pub const SnapshotDefinition = Snapshot.Owned;
+/// Logical acceptance history is separate from physical flush/pin/control
+/// records. A no-op statement still has an accepted operation and source root.
+pub const HistoryEntry = struct {
+    root: Root,
+    receipt: r.Receipt,
+    commitment: [32]u8,
+};
+pub const HistoryPage = struct {
+    object: d.Object,
+    through: d.Position,
+    next: d.Position,
+    scanned: u8 = 0,
+    entries: [pages.page_entries]?HistoryEntry = @splat(null),
+    count: u8 = 0,
+};
 pub const SnapshotCursor = struct { source: d.Content, after: [f.TableRow.Identity.encoded_bytes]u8 };
 pub const ReadLimits = struct {
     rows: u8 = pages.page_entries,
@@ -249,6 +264,54 @@ fn observed(self: *Self, binding: d.Binding) !?r.Record {
     const record = (try r.decode(self.allocator, batch.frames[0].payload, at)).record;
     try (try record.receipt()).binding.requireSame(binding);
     return record;
+}
+
+/// Inspect a fixed, exclusive WAL interval after validated recovery. At most
+/// `frames` physical records are visited, one bounded frame resident at a time.
+/// Empty pages can advance over physical maintenance without inventing a data
+/// change. This acquires no snapshot: callers must separately establish durable
+/// retention before relying on a root for continued computation or collection.
+pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, guard: Guard) !HistoryPage {
+    try self.ready();
+    try from.validate();
+    try through.validate();
+    if (frames == 0 or frames > pages.page_entries) return error.InvalidTableReadBudget;
+    if (from.partition != self.root.partition or through.partition != self.root.partition or
+        from.next_lsn > through.next_lsn or through.next_lsn > self.root.next_lsn) return error.InvalidTableBasis;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    var result: HistoryPage = .{ .object = self.root.interpretation.object, .through = through, .next = from };
+    var previous: ?[32]u8 = null;
+    while (result.next.next_lsn < through.next_lsn and result.scanned < frames) {
+        var batch = try self.log.read(self.allocator, from.partition, result.next.next_lsn, 1);
+        defer batch.deinit();
+        if (batch.frames.len != 1) return error.TableHistoryMissing;
+        const frame = batch.frames[0];
+        if (frame.header.partition_id != from.partition or frame.header.lsn != result.next.next_lsn or
+            (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint)) return error.InvalidTableHistory;
+        const decoded = try r.decode(self.allocator, frame.payload, frame.header.lsn);
+        const record = decoded.record;
+        if (!std.meta.eql(record.root.interpretation.object, result.object) or record.root.partition != from.partition or
+            (record.action == .mutation) != (frame.header.kind == .row_delta) or
+            (record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
+        if (previous) |digest| if (!std.mem.eql(u8, &record.previous, &digest)) return error.InvalidTableHistory;
+        const commitment = r.hash(frame.payload);
+        switch (record.action) {
+            .mutation, .declaration => {
+                result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
+                result.count += 1;
+            },
+            .operation, .checkpoint, .pin, .release => {},
+        }
+        previous = commitment;
+        result.scanned += 1;
+        result.next.next_lsn = record.root.next_lsn;
+    }
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
 }
 
 fn operationAt(self: *Self, basis: Root, binding: d.Binding) !?Operation {

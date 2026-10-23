@@ -6,12 +6,14 @@ content hash binds the `DataLifecycle.Definition`; the row-schema fingerprint is
 separate. `recover` must succeed before any operation or read. Opening an existing
 partition loads its accepted declaration, including schema, properties and
 retirement; the constructor template cannot replace persisted interpretation.
-The component is exercised through typed callers in its package tests. Installed
-SQL still uses the catalog's existing actor path; this component has no HTTP
-route or catalog name publisher. The
+The [direct catalog](../../transit-catalog/README.md) composes this component
+with name publication and native authorization. A configured local node exposes
+the signed [direct Table service](../../../../contracts/DIRECT_TABLE_V1.md),
+which the installed SQL runtime uses for Table operations. The
 [local backend](../../transit-backend-local/README.md) supplies a current native
 authorization/lifetime fence and quota-accounted log/object adapter, with
-separate composition tests. Public SQL integration remains required.
+separate composition tests. The [proof ledger](../../../../tests/README.md)
+distinguishes component, public service and installed execution evidence.
 
 ## Acceptance and observation
 
@@ -112,6 +114,27 @@ identical canonical bytes reports a match without new row bytes or a logical
 change; removing a missing key reports neither. Every receipt retains the
 original counts. SQL lowering must preserve row identity for unchanged rows and
 must supply the correct source expectation for predicates and read/modify/write.
+
+## Logical acceptance history
+
+`history(from, through, frames, guard)` inspects a fixed exclusive interval of
+this partition's accepted WAL after recovery. It visits at most one to eight
+physical frames per call, retaining one bounded WAL frame at a time. The result
+contains ordered logical acceptance roots, original operation receipts and
+commitments, plus the next physical position. CREATE, row statements and
+definition changes appear once at their acceptance position. Accepted no-op
+statements remain visible even though their logical-change frontier is unchanged.
+Admission/rejection/cancellation records, flushing and pin transitions advance
+the inspection cursor without inventing row changes. A page can therefore be
+empty and still have more work in its fixed interval.
+
+The upper bound does not expand when later writes arrive. Current authorization
+is checked before work and after buffering, including an empty result. Inspecting
+history creates no pin and changes no accepted state. Historical roots rely on
+the owner's retained WAL and immutable pages; a computation must separately
+establish durable retention before using them across future collection. This
+component method is not yet a public direct-service change feed or maintained
+query adapter.
 
 ## Typed predicate mutations
 
