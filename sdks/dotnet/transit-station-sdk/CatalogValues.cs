@@ -45,8 +45,8 @@ public static partial class Catalog
         if (v["columns"] is not JsonArray { Count: > 0 and <= 128 } cols || v["primary_key"] is not JsonArray keys || keys.Count > cols.Count) throw V.Incompatible("catalog-schema-bound");
         List<Column> columns = [];
         foreach (var col in cols) {
-            var c = Fields(col, "id", "name", "type", "nullable", "default", "max_characters");
-            columns.Add(new(Wide(c["id"]), V.String(c["name"]), Logical.TypeFromWire(c["type"]), V.Boolean(c["nullable"]), c["default"] is {} d ? Logical.CellFromWire(d) : null, c["max_characters"] is {} m ? Small(m, 1) : null));
+            var c = Fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation");
+            columns.Add(new(Wide(c["id"]), V.String(c["name"]), Logical.TypeFromWire(c["type"]), V.Boolean(c["nullable"]), c["default"] is {} d ? Logical.CellFromWire(d) : null, c["max_characters"] is {} m ? Small(m, 1) : null, Variant<Encoding>(c["encoding"]), Variant<Collation>(c["collation"])));
         }
         Schema result = new(Wide(v["object"]), Wide(v["revision"]), Wide(v["next_column"]), columns, keys.Select(Wide).ToArray()); result.Wire(); return result;
     }

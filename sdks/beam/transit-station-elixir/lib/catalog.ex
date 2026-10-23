@@ -51,7 +51,16 @@ end
 defmodule Transit.Station.Sdk.Catalog.Column do
   @enforce_keys [:id, :name, :type]
   @derive {Inspect, only: []}
-  defstruct [:id, :name, :type, nullable: true, default: nil, max_characters: nil]
+  defstruct [
+    :id,
+    :name,
+    :type,
+    nullable: true,
+    default: nil,
+    max_characters: nil,
+    encoding: :plain,
+    collation: :none
+  ]
 end
 
 defmodule Transit.Station.Sdk.Catalog.Schema do
@@ -488,7 +497,7 @@ defmodule Transit.Station.Sdk.Catalog do
     do:
       tagged(
         :transit_catalog_column,
-        [v.id, v.name, v.type, v.nullable, v.default, v.max_characters],
+        [v.id, v.name, v.type, v.nullable, v.default, v.max_characters, v.encoding, v.collation],
         :native,
         depth,
         left
@@ -753,9 +762,20 @@ defmodule Transit.Station.Sdk.Catalog do
      }, next}
   end
 
-  defp walk({:transit_catalog_column, v0, v1, v2, v3, v4, v5}, :public, depth, left) do
-    {[o0, o1, o2, o3, o4, o5], next} = children([v0, v1, v2, v3, v4, v5], :public, depth, left)
-    {%Column{id: o0, name: o1, type: o2, nullable: o3, default: o4, max_characters: o5}, next}
+  defp walk({:transit_catalog_column, v0, v1, v2, v3, v4, v5, v6, v7}, :public, depth, left) do
+    {[o0, o1, o2, o3, o4, o5, o6, o7], next} =
+      children([v0, v1, v2, v3, v4, v5, v6, v7], :public, depth, left)
+
+    {%Column{
+       id: o0,
+       name: o1,
+       type: o2,
+       nullable: o3,
+       default: o4,
+       max_characters: o5,
+       encoding: o6,
+       collation: o7
+     }, next}
   end
 
   defp walk({:transit_catalog_schema, v0, v1, v2, v3, v4}, :public, depth, left) do

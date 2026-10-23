@@ -8,7 +8,7 @@
 -record(transit_catalog_authority, {database_domain, schema_domain, table_domain, database, initial_schema_authority, initial_schema}).
 -record(transit_catalog_subject, {principal, login_role, role, credential_epoch, audience, context}).
 -record(transit_catalog_configuration, {scope :: #transit_catalog_scope{}, owner :: #transit_process{}, administrator :: non_neg_integer(), table_limits :: #transit_catalog_limits{}, authority :: #transit_catalog_authority{}, database_name :: binary()}).
--record(transit_catalog_column, {id :: pos_integer(), name :: binary(), type, nullable=true, default=undefined, max_characters=undefined}).
+-record(transit_catalog_column, {id :: pos_integer(), name :: binary(), type, nullable=true, default=undefined, max_characters=undefined, encoding=plain, collation=none}).
 -record(transit_catalog_schema, {object :: pos_integer(), revision :: pos_integer(), next_column :: pos_integer(), columns=[], primary_key=[]}).
 -record(transit_catalog_identity, {operation :: pos_integer(), namespace :: pos_integer()}).
 -record(transit_catalog_basis, {object :: pos_integer(), revision :: pos_integer(), schema_fingerprint :: binary()}).

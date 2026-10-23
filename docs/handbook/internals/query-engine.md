@@ -891,8 +891,10 @@ Zone maps and primary-key indexes consume these keys. A predicate can use their
 bounds only when it has the same collation. Direct SQL currently rejects
 non-binary text collations before evaluation, including UPDATE/DELETE predicate
 plans. It does not infer correct hash/group/join semantics from storage support.
-The neutral JSON schema adapter likewise rejects physical descriptors it cannot
-carry, while the direct Table interface retains complete schema bytes.
+The neutral JSON schema requires explicit encoding and collation fields and
+preserves them through SDK conversion. The shared schema validator admits the
+type/codec/collation combination; the direct Table interface retains complete
+schema bytes. Carrying descriptors does not establish query support.
 
 The independent [fixture generator](../../../tests/column_codecs.py) uses
 Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.

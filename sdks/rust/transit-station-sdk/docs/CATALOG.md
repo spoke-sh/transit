@@ -1,5 +1,12 @@
 # General Table callers
 
+Columns preserve orthogonal encoding and collation descriptors through creation,
+ADD COLUMN and metadata readback. New columns default to plain encoding and no
+declared collation. Wire schemas require both fields and reject unknown tags;
+missing fields never acquire defaults. `Change::Physical` selects physical descriptors
+for an existing column. Shared Zig validation owns supported combinations and
+exact conversion; carrying a collation does not establish SQL comparison support.
+
 `transit_station_sdk::catalog::Client` exposes CREATE, typed INSERT/UPDATE/DELETE,
 ALTER, RENAME, DROP, authorized metadata and exact saved-intent recovery through
 the shared Zig compiler and owner. Provision the catalog host, native resource,

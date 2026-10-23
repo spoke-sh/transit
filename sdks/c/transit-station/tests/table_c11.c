@@ -8,7 +8,7 @@
 void transit_test_table_c11(void) {
     transit_logical_type_view type = {0}; type.kind = TRANSIT_LOGICAL_INT64;
     transit_logical_cell_view cell = {0}; cell.state = TRANSIT_LOGICAL_NULL;
-    const transit_station_catalog_column columns[] = {{1, "id", &type, true, &cell, 0}};
+    const transit_station_catalog_column columns[] = {{1, "id", &type, true, &cell, 0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE}};
     const transit_station_catalog_schema schema = {UINT64_MAX, 1, 2, columns, 1, NULL, 0};
     const transit_station_catalog_assignment assignment = {1, NULL};
     const transit_station_catalog_assignments row = {&assignment, 1};

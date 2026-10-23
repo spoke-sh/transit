@@ -67,7 +67,7 @@ static void scenario(transit_station_catalog_client *client, const transit_sdk_c
     assert(updated.has_counts && updated.counts.matched == 1 && updated.counts.changed == 0);
     transit_logical_type_view boolean = {.kind = TRANSIT_LOGICAL_BOOLEAN};
     transit_logical_cell_view yes = atom((transit_logical_atom){.kind = TRANSIT_ATOM_BOOLEAN, .as.boolean = true});
-    transit_station_catalog_change add = {.kind = TRANSIT_CATALOG_ADD_COLUMN, .as.add = {"enabled", &boolean, false, &yes, 0}};
+    transit_station_catalog_change add = {.kind = TRANSIT_CATALOG_ADD_COLUMN, .as.add = {"enabled", &boolean, false, &yes, 0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE}};
     assert(execute(client, root, name, identity(base, 3), (transit_station_catalog_action){.kind = TRANSIT_CATALOG_ALTER, .as.alter = {source, add}}).phase == TRANSIT_CATALOG_APPLIED);
     transit_station_catalog_request stale = {name, identity(base, 4), {.kind = TRANSIT_CATALOG_DROP, .as.drop = {&source, false}}};
     transit_station_catalog_compiled *rejected = NULL; assert(transit_station_catalog_prepare(client, &stale, &rejected).kind != TRANSIT_SDK_OK && !rejected);
@@ -77,7 +77,7 @@ static void scenario(transit_station_catalog_client *client, const transit_sdk_c
     assert(removed.has_counts && removed.counts.matched == 1 && removed.counts.changed == 1);
     assert(execute(client, root, name, identity(base, 6), (transit_station_catalog_action){.kind = TRANSIT_CATALOG_DROP, .as.drop = {&source, false}}).phase == TRANSIT_CATALOG_APPLIED);
     uint64_t replacement = object + 1; transit_logical_type_view text_type = {.kind = TRANSIT_LOGICAL_UTF8};
-    transit_station_catalog_column column = {1, "replacement", &text_type, true, NULL, 0};
+    transit_station_catalog_column column = {1, "replacement", &text_type, true, NULL, 0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE};
     transit_station_catalog_schema new_schema = {replacement, 1, 2, &column, 1, NULL, 0};
     assert(execute(client, root, name, identity(base, 7), (transit_station_catalog_action){.kind = TRANSIT_CATALOG_CREATE, .as.create = {&new_schema, false}}).phase == TRANSIT_CATALOG_APPLIED);
     checked(transit_station_catalog_close(client));

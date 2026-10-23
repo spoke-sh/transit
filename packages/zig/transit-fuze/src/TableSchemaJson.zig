@@ -13,6 +13,8 @@ pub const Column = struct {
     nullable: bool,
     default: ?j.Cell,
     max_characters: ?u32,
+    encoding: s.Encoding,
+    collation: s.Collation,
 };
 pub const Schema = struct {
     pub const json_schema_sequence_bounds = .{ .columns = s.max_columns, .primary_key = s.max_columns };
@@ -35,9 +37,6 @@ fn decimal(allocator: std.mem.Allocator, value: u64) ![]const u8 {
 /// The enclosing arena owns every result byte, including borrowed-looking
 /// descriptor/default children. Destroying the native input is safe on return.
 pub fn foreign(arena: *std.heap.ArenaAllocator, source: s.Schema) !Schema {
-    // This neutral envelope has no physical descriptor fields. Reject instead
-    // of silently reconstructing a different layout or equality relation.
-    if (source.hasPhysicalAttributes()) return error.UnsupportedNeutralColumnRepresentation;
     const allocator = arena.allocator();
     // Child owners allocate exclusively through the enclosing arena, which
     // releases their complete storage together with the neutral projection.
@@ -51,6 +50,8 @@ pub fn foreign(arena: *std.heap.ArenaAllocator, source: s.Schema) !Schema {
         .nullable = column.nullable,
         .default = if (column.default) |cell| try j.foreignCell(allocator, cell, column.type) else null,
         .max_characters = column.max_characters,
+        .encoding = column.encoding,
+        .collation = column.collation,
     };
     const primary_key = try allocator.alloc([]const u8, value.primary_key.len);
     for (value.primary_key, primary_key) |id, *output| output.* = try decimal(allocator, id);
@@ -66,7 +67,7 @@ pub fn native(arena: *std.heap.ArenaAllocator, value: Schema) !s.Schema {
     const columns = try allocator.alloc(s.Column, value.columns.len);
     var default_bytes: u64 = 0;
     for (value.columns, columns) |column, *output| {
-        output.* = .{ .id = try unsigned(column.id), .name = column.name, .type = column.type, .nullable = column.nullable, .max_characters = column.max_characters };
+        output.* = .{ .id = try unsigned(column.id), .name = column.name, .type = column.type, .nullable = column.nullable, .max_characters = column.max_characters, .encoding = column.encoding, .collation = column.collation };
         if (column.default) |cell| {
             output.default = try j.fromForeign(allocator, cell, output.field());
             // Canonical payloads are a lower bound on the complete FTS1 record.

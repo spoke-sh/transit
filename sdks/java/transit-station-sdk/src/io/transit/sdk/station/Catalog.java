@@ -23,6 +23,8 @@ public final class Catalog {
     static Bytes digest(Bytes value) { if (value.size() != 32) throw new IllegalArgumentException("Expected digest"); return value; }
     static String hex(Bytes value) { return HexFormat.of().formatHex(value.copy()); }
     static long u32(long value) { if (value < 1 || value > 0xffffffffL) throw new IllegalArgumentException("Expected positive uint32"); return value; }
+    public enum Encoding { PLAIN, BITPACKED, RLE, DICTIONARY, FSST, COMP, COMP_3, ZONED, IBM_HFP, EBCDIC }
+    public enum Collation { NONE, UTF8_BINARY, ASCII_CI, EBCDIC_CP037, ICU_ROOT }
     public enum Kind { CREATE, ALTER, RENAME, DROP, INSERT, UPDATE, DELETE }
     public enum Phase { PREPARING, DELEGATED, BUILDING, APPLIED, UNCHANGED, REJECTED, CANCELLED }
     public enum Observation { PENDING, PROCESSED }
@@ -74,13 +76,13 @@ public final class Catalog {
             return value;
         }
     }
-    public record Column(BigInteger id, String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) {
-        public Column { positive(id); Catalog.name(name); Objects.requireNonNull(type); Objects.requireNonNull(defaultValue); maxCharacters.ifPresent(Catalog::u32); }
-        public Column(BigInteger id, String name, Logical.Descriptor type) { this(id, name, type, true, Optional.empty(), Optional.empty()); }
-        JsonObject wire() { JsonObject out = columnWire(name, type, nullable, defaultValue, maxCharacters); out.addProperty("id", id.toString()); return out; }
+    public record Column(BigInteger id, String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters, Encoding encoding, Collation collation) {
+        public Column { Objects.requireNonNull(encoding); Objects.requireNonNull(collation); positive(id); Catalog.name(name); Objects.requireNonNull(type); Objects.requireNonNull(defaultValue); maxCharacters.ifPresent(Catalog::u32); }
+        public Column(BigInteger id, String name, Logical.Descriptor type) { this(id, name, type, true, Optional.empty(), Optional.empty(), Encoding.PLAIN, Collation.NONE); }
+        JsonObject wire() { JsonObject out = columnWire(name, type, nullable, defaultValue, maxCharacters, encoding, collation); out.addProperty("id", id.toString()); return out; }
     }
-    static JsonObject columnWire(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) {
-        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null));
+    static JsonObject columnWire(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters, Encoding encoding, Collation collation) {
+        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation));
     }
     public record Schema(BigInteger object, BigInteger revision, BigInteger nextColumn, List<Column> columns, List<BigInteger> primaryKey) {
         public Schema {
@@ -214,11 +216,11 @@ public final class Catalog {
         public Kind kind() { return Kind.DELETE; }
         public JsonObject wire() { return obj("action", obj("delete", obj()), "predicate", predicateWire(predicate, new WireBudget(limit("catalog_action_bytes")))); }
     }
-    public sealed interface Change permits AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, SetType { JsonObject wire(); }
-    public record AddColumn(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) implements Change {
-        public AddColumn { new Column(BigInteger.ONE, name, type, nullable, defaultValue, maxCharacters); }
-        public AddColumn(String name, Logical.Descriptor type) { this(name, type, true, Optional.empty(), Optional.empty()); }
-        public JsonObject wire() { return obj("add", columnWire(name, type, nullable, defaultValue, maxCharacters)); }
+    public sealed interface Change permits AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, SetType, SetPhysical { JsonObject wire(); }
+    public record AddColumn(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters, Encoding encoding, Collation collation) implements Change {
+        public AddColumn { new Column(BigInteger.ONE, name, type, nullable, defaultValue, maxCharacters, encoding, collation); }
+        public AddColumn(String name, Logical.Descriptor type) { this(name, type, true, Optional.empty(), Optional.empty(), Encoding.PLAIN, Collation.NONE); }
+        public JsonObject wire() { return obj("add", columnWire(name, type, nullable, defaultValue, maxCharacters, encoding, collation)); }
     }
     public record DropColumn(BigInteger column) implements Change { public DropColumn { positive(column); } public JsonObject wire() { return obj("drop", column.toString()); } }
     public record RenameColumn(BigInteger column, String name) implements Change { public RenameColumn { positive(column); Catalog.name(name); } public JsonObject wire() { return obj("rename", obj("column", column.toString(), "name", name)); } }
@@ -227,6 +229,10 @@ public final class Catalog {
     public record SetType(BigInteger column, Logical.Descriptor type, Optional<Long> maxCharacters) implements Change {
         public SetType { positive(column); Objects.requireNonNull(type); maxCharacters.ifPresent(Catalog::u32); }
         public JsonObject wire() { return obj("type", obj("column", column.toString(), "type", Logical.typeWire(type), "max_characters", maxCharacters.orElse(null))); }
+    }
+    public record SetPhysical(BigInteger column, Encoding encoding, Collation collation) implements Change {
+        public SetPhysical { positive(column); Objects.requireNonNull(encoding); Objects.requireNonNull(collation); }
+        public JsonObject wire() { return obj("physical", obj("column", column.toString(), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation))); }
     }
     public sealed interface Operation permits Create, Alter, Rename, Drop, Mutate { Kind kind(); BigInteger object(); JsonObject wire(); }
     public record Create(Schema schema, boolean ifNotExists) implements Operation {

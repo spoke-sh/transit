@@ -46,8 +46,9 @@ signed zero. Unrepresentable values reject before mutation acceptance. Text
 collations use no space padding. `icu_root` rejects explicitly.
 
 The direct typed interface preserves physical descriptors in its schema bytes.
-The neutral JSON schema adapter rejects non-default descriptors it cannot
-represent. SQL does not admit ENCODING or COLLATE declarations, and direct SQL
+The neutral JSON schema and language SDKs preserve each column’s explicit
+`encoding` and `collation`, including default `plain`/`none` values. Missing or
+unknown wire descriptors reject; constructors supply defaults for new schemas. SQL does not admit ENCODING or COLLATE declarations, and direct SQL
 reads and predicate mutations reject non-binary text collations. Typed point
 operations and storage sort keys support `ascii_ci` and `ebcdic_cp037` without
 implying those query semantics.

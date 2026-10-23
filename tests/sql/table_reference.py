@@ -109,7 +109,7 @@ def literal(ctx, typ):
 
 def column(ctx, identity):
     typ, bound=data_type(ctx.dataType())
-    result=dict(id=str(identity),name=identifier(ctx.identifier()),type=typ,nullable=True,default=None,max_characters=bound)
+    result=dict(id=str(identity),name=identifier(ctx.identifier()),type=typ,nullable=True,default=None,max_characters=bound,encoding='plain',collation='none')
     primary=False
     for constraint in ctx.columnConstraint():
         if constraint.nullability(): result['nullable']=nullable(constraint.nullability())

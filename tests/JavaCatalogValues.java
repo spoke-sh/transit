@@ -42,6 +42,24 @@ public final class JavaCatalogValues {
         return obj("resource_revision", 9, "entries", entries, "next", new Cursor(DEFINITION, SCOPE, 9, MAX).wire());
     }
     private static void metadataValues() {
+        JsonObject physicalWire = new Gson().fromJson("""
+            {"definition":"%s","object":"7","revision":"2","next_column":"2","columns":[
+            {"id":"1","name":"text","type":{"utf8":{}},"nullable":true,"default":null,
+            "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037"}],"primary_key":[]}
+            """.formatted(DEFINITION), JsonObject.class);
+        Schema physical = CatalogValues.schema(physicalWire);
+        check(physical.columns().getFirst().encoding() == Encoding.EBCDIC && physical.columns().getFirst().collation() == Collation.EBCDIC_CP037);
+        check(physical.wire().equals(physicalWire));
+        check(new SetPhysical(n(1), Encoding.FSST, Collation.ASCII_CI).wire().equals(
+            obj("physical", obj("column", "1", "encoding", "fsst", "collation", "ascii_ci"))));
+        JsonObject added = new AddColumn("text", Logical.Scalar.UTF8, true, Optional.empty(), Optional.empty(), Encoding.EBCDIC, Collation.EBCDIC_CP037).wire().getAsJsonObject("add");
+        check(added.get("encoding").getAsString().equals("ebcdic") && added.get("collation").getAsString().equals("ebcdic_cp037"));
+        for (String field : List.of("encoding", "collation")) {
+            JsonObject bad = physicalWire.deepCopy(); bad.getAsJsonArray("columns").get(0).getAsJsonObject().remove(field);
+            rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.schema(bad)));
+            bad.getAsJsonArray("columns").get(0).getAsJsonObject().addProperty(field, "invented");
+            rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.schema(bad)));
+        }
         JsonObject wire = definition(); Definition original = CatalogValues.decode(() -> CatalogValues.resolved(wire, SCOPE, 1, "items")).orElseThrow();
         check(original.metadata().commitment().bytes()==200 && original.metadata().commitment().digest().equals(new Bytes(new byte[32])));
         check(original.metadata().object().equals(MAX) && original.metadata().revision().equals(MAX) && original.schema().equals(schema()));
@@ -107,8 +125,8 @@ public final class JavaCatalogValues {
         Logical.Cell largeCell = new Logical.Present(new Logical.Binary(new Logical.BinaryData(new byte[1024 * 1024])));
         Logical.Cell laterInvalid = new Logical.Present(new Logical.Sequence(Logical.SequenceKind.LIST, List.of(largeCell, largeCell)));
         Schema oversizedSchema = new Schema(n(1), n(1), n(3), List.of(
-            new Column(n(1), "data", Logical.Scalar.BINARY, true, Optional.of(largeCell), Optional.empty()),
-            new Column(n(2), "later", Logical.Scalar.BINARY, true, Optional.of(laterInvalid), Optional.empty())));
+            new Column(n(1), "data", Logical.Scalar.BINARY, true, Optional.of(largeCell), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE),
+            new Column(n(2), "later", Logical.Scalar.BINARY, true, Optional.of(laterInvalid), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE)));
         check(rejects(IllegalArgumentException.class, oversizedSchema::wire).getMessage().equals("Table wire budget exceeded"));
         List<List<Assignment>> oversizedRows = new ArrayList<>(Collections.nCopies(9, List.of(new Assignment(n(1), largeCell))));
         oversizedRows.add(List.of(new Assignment(n(1), laterInvalid)));

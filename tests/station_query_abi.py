@@ -209,7 +209,7 @@ def _run(node, cli, library, raw_library, host, cold):
             signed = lambda value: {'value': {'atom': {'signed': str(value)}}}
             schema = dict(definition=caps['definition'], object='1', revision='1', next_column='4',
                 columns=[dict(id=str(i), name=name, type={kind: {}}, nullable=i == 2,
-                    default={'value': {'atom': {'utf8': 'query'}}} if i == 3 else None, max_characters=None)
+                    default={'value': {'atom': {'utf8': 'query'}}} if i == 3 else None, max_characters=None, encoding='plain', collation='none')
                     for i, name, kind in ((1, 'id', 'int64'), (2, 'value', 'int64'), (3, 'label', 'utf8'))], primary_key=['1'])
             creation = {'create': dict(realm=72, resource=resource, schema=schema,
                 limits=dict(record_bytes=65536, staging_bytes='8388608', staging_records=1024))}

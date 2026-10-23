@@ -42,7 +42,10 @@ Public structs correspond to the shared guide's records: `Scope`, `Connection`,
 `Intent`, `Compiled`, `Counts`, `Outcome`, `Upload`, `State`, `Disposition`, `Next`,
 `Progress`, `Capabilities`, `Description`, `Assignment` and `Dependency`.
 Missing optional values are `nil`. Columns default nullable
-with no default or length bound, and schema primary keys default to an empty list.
+with no default or length bound, `encoding: :plain` and `collation: :none`; schema
+primary keys default to an empty list. Readback preserves physical descriptors
+and rejects missing wire fields. Physical ALTER uses
+`{:physical, column_id, encoding, collation}`; ADD tuples include both descriptors.
 [Logical values](logical.md) retain recursive descriptors and separate cell states.
 
 `prepare(client, name, identity, operation)` takes the same tuples as the shared

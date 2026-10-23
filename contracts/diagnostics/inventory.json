@@ -4998,7 +4998,8 @@
           "rename",
           "default",
           "nullable",
-          "type"
+          "type",
+          "physical"
         ],
         "Instruction": [
           "atom",
@@ -5036,7 +5037,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 47,
         "catch": 0
       },
       "imports": [
@@ -10307,7 +10308,6 @@
         "JsonByteBudgetExceeded": 1,
         "OutOfMemory": 1,
         "TableSchemaTooLarge": 1,
-        "UnsupportedNeutralColumnRepresentation": 1,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -12768,7 +12768,7 @@
           "deadline"
         ],
         "Definition": [
-          "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964"
+          "@\"64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c\""
         ],
         "Effect.phase": [
           "pending",

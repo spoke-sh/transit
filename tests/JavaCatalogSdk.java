@@ -66,7 +66,7 @@ public final class JavaCatalogSdk {
         Optional<List<Predicate>> predicate = Optional.of(List.of(new Comparison(n(1), CompareOperator.EQ, new Logical.Signed(n(1)))));
         Compiled update = await(client.prepare(name, id.apply(2), new Mutate(original.metadata().basis(), new Update(List.of(assignment(3, amount)), predicate))));
         check(finish(client, update, root).counts().orElseThrow().equals(new Counts(n(1), n(0))));
-        Compiled alter = await(client.prepare(name, id.apply(3), new Alter(original.metadata().basis(), new AddColumn("enabled", Logical.Scalar.BOOLEAN, false, Optional.of(atom(new Logical.BooleanValue(true))), Optional.empty()))));
+        Compiled alter = await(client.prepare(name, id.apply(3), new Alter(original.metadata().basis(), new AddColumn("enabled", Logical.Scalar.BOOLEAN, false, Optional.of(atom(new Logical.BooleanValue(true))), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE))));
         check(finish(client, alter, root).phase() == Phase.APPLIED);
         try { await(client.prepare(name, id.apply(4), new Drop(original.metadata().basis()))); throw new AssertionError("Stale basis retargeted work"); } catch (TransitException expected) { }
         Definition current = await(client.lookup(name)).orElseThrow();

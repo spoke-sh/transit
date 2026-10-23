@@ -5,6 +5,8 @@ module Transit
       CONTRACT = JSON.parse(File.binread(File.join(__dir__, 'contract.json'))).freeze
       DEFINITION = CONTRACT.fetch('definition').freeze
       LIMITS = CONTRACT.fetch('limits').freeze
+      ENCODINGS = %i[plain bitpacked rle dictionary fsst comp comp_3 zoned ibm_hfp ebcdic].freeze
+      COLLATIONS = %i[none utf8_binary ascii_ci ebcdic_cp037 icu_root].freeze
       KINDS = %i[create alter rename drop insert update delete].freeze
       PHASES = %i[preparing delegated building applied unchanged rejected cancelled].freeze
       module Values
@@ -58,8 +60,8 @@ module Transit
         def scope(value)
           v = object(value, %w[realm resource catalog]); Scope.new(resource: ResourceRef.new(realm: v.fetch('realm'), resource: v.fetch('resource')), catalog: decimal(v.fetch('catalog')))
         end
-        def column(name, type, nullable, default, max_characters)
-          { 'name' => self.name(name), 'type' => Logical.type_wire(type), 'nullable' => Internal.boolean(nullable), 'default' => default.nil? ? nil : Logical.cell_wire(default), 'max_characters' => optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) } }
+        def column(name, type, nullable, default, max_characters, encoding, collation)
+          { 'name' => self.name(name), 'type' => Logical.type_wire(type), 'nullable' => Internal.boolean(nullable), 'default' => default.nil? ? nil : Logical.cell_wire(default), 'max_characters' => optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) }, 'encoding' => symbol(encoding, ENCODINGS), 'collation' => symbol(collation, COLLATIONS) }
         end
       end
       private_constant :CONTRACT, :Values
@@ -112,11 +114,12 @@ module Transit
             audience: Internal.integer(audience), context: Values.digest(context))
         end
       end
-      Column = Data.define(:id, :name, :type, :nullable, :default, :max_characters) do
-        def initialize(id:, name:, type:, nullable: true, default: nil, max_characters: nil)
-          super(id: Values.wide(id), name: Values.name(name), type: Logical.descriptor(type), nullable: Internal.boolean(nullable), default: default.nil? ? nil : Logical.cell(default), max_characters: Values.optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) })
+      Column = Data.define(:id, :name, :type, :nullable, :default, :max_characters, :encoding, :collation) do
+        def initialize(id:, name:, type:, nullable: true, default: nil, max_characters: nil, encoding: :plain, collation: :none)
+          Values.symbol(encoding, ENCODINGS); Values.symbol(collation, COLLATIONS)
+          super(id: Values.wide(id), name: Values.name(name), type: Logical.descriptor(type), nullable: Internal.boolean(nullable), default: default.nil? ? nil : Logical.cell(default), max_characters: Values.optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) }, encoding: encoding, collation: collation)
         end
-        def wire = { 'id' => id.to_s }.merge(Values.column(name, type, nullable, default, max_characters))
+        def wire = { 'id' => id.to_s }.merge(Values.column(name, type, nullable, default, max_characters, encoding, collation))
       end
       Schema = Data.define(:object, :revision, :next_column, :columns, :primary_key) do
         def initialize(object:, revision:, next_column:, columns:, primary_key: [])
@@ -275,12 +278,12 @@ module Transit
         def kind = :delete
         def wire = { 'action' => { 'delete' => {} }, 'predicate' => Values.predicate_wire(predicate, Values::WireBudget.new(LIMITS.fetch('catalog_action_bytes'))) }
       end
-      AddColumn = Data.define(:name, :type, :nullable, :default, :max_characters) do
-        def initialize(name:, type:, nullable: true, default: nil, max_characters: nil)
-          c = Column.new(id: 1, name: name, type: type, nullable: nullable, default: default, max_characters: max_characters)
+      AddColumn = Data.define(:name, :type, :nullable, :default, :max_characters, :encoding, :collation) do
+        def initialize(name:, type:, nullable: true, default: nil, max_characters: nil, encoding: :plain, collation: :none)
+          c = Column.new(id: 1, name: name, type: type, nullable: nullable, default: default, max_characters: max_characters, encoding: encoding, collation: collation)
           super(**c.to_h.reject { |k, _| k == :id })
         end
-        def wire = { 'add' => Values.column(name, type, nullable, default, max_characters) }
+        def wire = { 'add' => Values.column(name, type, nullable, default, max_characters, encoding, collation) }
       end
       DropColumn = Data.define(:column) do
         def initialize(column:) = super(column: Values.wide(column))
@@ -302,6 +305,13 @@ module Transit
         def initialize(column:, type:, max_characters: nil) = super(column: Values.wide(column), type: Logical.descriptor(type), max_characters: Values.optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) })
         def wire = { 'type' => { 'column' => column.to_s, 'type' => Logical.type_wire(type), 'max_characters' => max_characters } }
       end
+      SetPhysical = Data.define(:column, :encoding, :collation) do
+        def initialize(column:, encoding:, collation:)
+          Values.symbol(encoding, ENCODINGS); Values.symbol(collation, COLLATIONS)
+          super(column: Values.wide(column), encoding: encoding, collation: collation)
+        end
+        def wire = { 'physical' => { 'column' => column.to_s, 'encoding' => encoding.to_s, 'collation' => collation.to_s } }
+      end
       Create = Data.define(:schema, :if_not_exists) do
         def initialize(schema:, if_not_exists: false) = super(schema: Values.typed(schema, Schema), if_not_exists: Internal.boolean(if_not_exists))
         def kind = :create
@@ -310,7 +320,7 @@ module Transit
       end
       Alter = Data.define(:basis, :change) do
         def initialize(basis:, change:)
-          raise ArgumentError, 'Expected typed ALTER change' unless [AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, SetType].any? { |type| change.is_a?(type) }
+          raise ArgumentError, 'Expected typed ALTER change' unless [AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, SetType, SetPhysical].any? { |type| change.is_a?(type) }
           super(basis: Values.typed(basis, Basis), change: change)
         end
         def kind = :alter
@@ -367,7 +377,7 @@ module Transit
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
           raise IncompatibleNative, 'Invalid Table columns' unless v['columns'].is_a?(Array) && v['columns'].length.between?(1, 128) && v['primary_key'].is_a?(Array)
           columns = v.fetch('columns').map do |c|
-            object(c, %w[id name type nullable default max_characters]); Column.new(id: decimal(c.fetch('id')), name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), default: optional(c.fetch('default')) { |cell| Logical.cell_from_wire(cell) }, max_characters: c.fetch('max_characters'))
+            object(c, %w[id name type nullable default max_characters encoding collation]); Column.new(id: decimal(c.fetch('id')), name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), default: optional(c.fetch('default')) { |cell| Logical.cell_from_wire(cell) }, max_characters: c.fetch('max_characters'), encoding: enum(c.fetch('encoding'), ENCODINGS), collation: enum(c.fetch('collation'), COLLATIONS))
           end
           Schema.new(object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), next_column: decimal(v.fetch('next_column')), columns: columns, primary_key: v.fetch('primary_key').map { |k| decimal(k) })
         end

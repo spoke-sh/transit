@@ -72,7 +72,7 @@ def _run(node, cli, libraries, cold):
             schema = dict(definition=definition, object='1', revision='1', next_column='4',
                 columns=[dict(id=str(i), name=name, type={kind: {}}, nullable=False,
                     default={'value': {'atom': {'utf8': 'materialized'}}} if i == 3 else None,
-                    max_characters=None)
+                    max_characters=None, encoding='plain', collation='none')
                     for i, name, kind in ((1, 'id', 'int64'), (2, 'amount', 'int64'), (3, 'label', 'utf8'))],
                 primary_key=['1'])
             return [{'create': dict(realm=72, resource=resource, schema=schema,

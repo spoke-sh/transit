@@ -72,7 +72,7 @@ struct SchemaView {
     explicit SchemaView(const TableSchema &s) {
         catalog::detail::require(!s.columns.empty() && s.columns.size() <= 128 && s.primary_key.size() <= s.columns.size());
         columns.reserve(s.columns.size());
-        for (const auto &c : s.columns) columns.push_back({c.id, catalog::detail::text(c.name), &c.type.native(), c.nullable, catalog::detail::cell(c.default_value), catalog::detail::characters(c.max_characters)});
+        for (const auto &c : s.columns) columns.push_back({c.id, catalog::detail::text(c.name), &c.type.native(), c.nullable, catalog::detail::cell(c.default_value), catalog::detail::characters(c.max_characters),static_cast<uint32_t>(c.encoding),static_cast<uint32_t>(c.collation)});
         value = {s.object, s.revision, s.next_column, columns.data(), columns.size(), s.primary_key.data(), s.primary_key.size()};
     }
     SchemaView(const SchemaView &) = delete;

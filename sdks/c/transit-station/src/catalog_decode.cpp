@@ -54,12 +54,12 @@ Schema decode_schema(const Json &v, Arena &a) {
     Schema out{}; out.object = full(v.at("object")); out.revision = full(v.at("revision")); out.next_column = full(v.at("next_column"));
     const auto &columns = v.at("columns").array(128); require(!columns.empty(), "catalog-response-columns"); auto *values = a.array<Column>(columns.size()); out.columns = values; out.column_count = columns.size();
     for (size_t i = 0; i < columns.size(); ++i) {
-        const auto &c = columns[i]; c.fields({"id", "name", "type", "nullable", "default", "max_characters"}); char name[256]{}; string(c.at("name"), name);
+        const auto &c = columns[i]; c.fields({"id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation"}); char name[256]{}; string(c.at("name"), name);
         auto *owned_name = a.array<char>(std::strlen(name) + 1); std::copy_n(name, std::strlen(name) + 1, owned_name);
         auto *type = a.array<transit_logical_type_view>(1); *type = logical_detail::type_from(c.at("type"), a);
         transit_logical_cell_view *cell = nullptr;
         if (!c.at("default").is_null()) { cell = a.array<transit_logical_cell_view>(1); *cell = logical_detail::cell_from(c.at("default"), a); }
-        values[i] = {full(c.at("id")), owned_name, type, c.at("nullable").boolean(), cell, c.at("max_characters").is_null() ? 0 : static_cast<uint32_t>(c.at("max_characters").number(UINT32_MAX, false))};
+        values[i] = {full(c.at("id")), owned_name, type, c.at("nullable").boolean(), cell, c.at("max_characters").is_null() ? 0 : static_cast<uint32_t>(c.at("max_characters").number(UINT32_MAX, false)), choice(c.at("encoding"), {"plain", "bitpacked", "rle", "dictionary", "fsst", "comp", "comp_3", "zoned", "ibm_hfp", "ebcdic"}), choice(c.at("collation"), {"none", "utf8_binary", "ascii_ci", "ebcdic_cp037", "icu_root"})};
     }
     const auto &keys = v.at("primary_key").array(out.column_count); auto *owned_keys = a.array<uint64_t>(keys.size()); out.primary_key = owned_keys; out.primary_key_count = keys.size();
     for (size_t i = 0; i < keys.size(); ++i) owned_keys[i] = full(keys[i]); return out;

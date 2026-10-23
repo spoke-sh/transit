@@ -212,6 +212,8 @@ export class Subject {
     return unhex(this.#context, 32);
   }
 }
+export type Encoding = NativeSchema["columns"][number]["encoding"];
+export type Collation = NativeSchema["columns"][number]["collation"];
 export interface Column {
   readonly id: bigint;
   readonly name: string;
@@ -219,6 +221,8 @@ export interface Column {
   readonly nullable?: boolean;
   readonly default?: Cell;
   readonly maxCharacters?: number;
+  readonly encoding?: Encoding;
+  readonly collation?: Collation;
 }
 const schemas = new WeakMap<Schema, NativeSchema>();
 // Charge completed fragments before constructing another owned logical tree.
@@ -269,6 +273,8 @@ export class Schema {
           nullable: column.nullable ?? true,
           default: column.default === undefined ? null : encodeCell(column.default),
           max_characters: column.maxCharacters ?? null,
+          encoding: column.encoding ?? "plain",
+          collation: column.collation ?? "none",
         }),
       ),
       primary_key: primaryKey.map((value) => positive(value).toString()),
@@ -284,6 +290,8 @@ export class Schema {
       name: column.name,
       type: decodeType(column.type),
       nullable: column.nullable,
+      encoding: column.encoding,
+      collation: column.collation,
       ...(column.default === null ? {} : { default: decodeCell(column.default) }),
       ...(column.max_characters === null ? {} : { maxCharacters: column.max_characters }),
     }));
@@ -299,6 +307,8 @@ export function schemaValue(value: NativeSchema): Schema {
     name: column.name,
     type: decodeType(column.type),
     nullable: column.nullable,
+    encoding: column.encoding,
+    collation: column.collation,
     ...(column.default === null ? {} : { default: decodeCell(column.default) }),
     ...(column.max_characters === null ? {} : { maxCharacters: column.max_characters }),
   }));
@@ -685,6 +695,12 @@ export type Change =
   | { readonly kind: "default"; readonly column: bigint; readonly value?: Cell }
   | { readonly kind: "nullable"; readonly column: bigint; readonly value: boolean }
   | {
+      readonly kind: "physical";
+      readonly column: bigint;
+      readonly encoding: Encoding;
+      readonly collation: Collation;
+    }
+  | {
       readonly kind: "type";
       readonly column: bigint;
       readonly type: Descriptor;
@@ -727,6 +743,8 @@ function operation(value: Operation): Action<"prepare">["action"] {
               nullable: item.column.nullable ?? true,
               default: item.column.default === undefined ? null : encodeCell(item.column.default),
               max_characters: item.column.maxCharacters ?? null,
+              encoding: item.column.encoding ?? "plain",
+              collation: item.column.collation ?? "none",
             },
           };
           break;
@@ -746,6 +764,15 @@ function operation(value: Operation): Action<"prepare">["action"] {
           break;
         case "nullable":
           change = { nullable: { column: positive(item.column).toString(), value: item.value } };
+          break;
+        case "physical":
+          change = {
+            physical: {
+              column: positive(item.column).toString(),
+              encoding: item.encoding,
+              collation: item.collation,
+            },
+          };
           break;
         case "type":
           change = {

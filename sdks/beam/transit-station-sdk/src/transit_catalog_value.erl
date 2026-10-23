@@ -37,6 +37,8 @@ limit(Name) -> maps:get(Name,context_value(limits)).
 current(V) -> check(V=:=definition()),V.
 fixed(V,N) -> B=transit_sdk_value:bytes(V,N),check(byte_size(B)=:=N),B.
 unhex(V,N) -> fixed(transit_sdk_value:unhex(V,N),N).
+encodings() -> [plain,bitpacked,rle,dictionary,fsst,comp,comp_3,zoned,ibm_hfp,ebcdic].
+collations() -> [none,utf8_binary,ascii_ci,ebcdic_cp037,icu_root].
 kinds() -> [create,alter,rename,drop,insert,update,delete].
 
 scope(#transit_catalog_scope{resource=#transit_resource{realm=Realm,resource=Resource},catalog=Catalog}) ->
@@ -49,10 +51,10 @@ authority(#transit_catalog_authority{database_domain=D,schema_domain=S,table_dom
 configuration(#transit_catalog_configuration{scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm}}=Scope,owner=#transit_process{realm=Realm,pid=Owner},administrator=Admin,table_limits=#transit_catalog_limits{record_bytes=Record,staging_bytes=Staging,staging_records=Records},authority=Authority,database_name=Name}) ->
     check(Staging>=Record),Database=identifier(Name),check(byte_size(Database)=<63),
     #{<<"scope">>=>scope(Scope),<<"owner">>=>counter(Owner),<<"administrator">>=>zero(Admin),<<"table_limits">>=>#{<<"record_bytes">>=>small(Record),<<"staging_bytes">>=>decimal(Staging),<<"staging_records">>=>small(Records)},<<"authority">>=>authority(Authority),<<"database_name">>=>Database}.
-column_fields(Name,Type,Nullable,Default,Max) ->
-    #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1)}.
-column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max}) ->
-    (column_fields(Name,Type,Nullable,Default,Max))#{<<"id">>=>decimal(Id)}.
+column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation) ->
+    #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>enum(Collation,collations())}.
+column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max,encoding=Encoding,collation=Collation}) ->
+    (column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation))#{<<"id">>=>decimal(Id)}.
 %% Retain only a bounded prefix plus one individually bounded conversion.
 wire_map(F,Values,Remaining) -> lists:mapfoldl(fun(V,Left)->
     Wire=F(V),Next=Left-byte_size(transit_sdk_value:encode(Wire)),
@@ -92,7 +94,8 @@ mutation({update,Assignments,Predicate}) ->
     {#{<<"action">>=>#{<<"update">>=>Encoded},<<"predicate">>=>P},update};
 mutation({delete,Predicate}) -> {P,_}=predicates(Predicate,limit(<<"catalog_action_bytes">>)),
     {#{<<"action">>=>#{<<"delete">>=>#{}},<<"predicate">>=>P},delete}.
-change({add,Name,Type,Nullable,Default,Max}) -> #{<<"add">>=>column_fields(Name,Type,Nullable,Default,Max)};
+change({add,Name,Type,Nullable,Default,Max,Encoding,Collation}) -> #{<<"add">>=>column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation)};
+change({physical,Column,Encoding,Collation}) -> #{<<"physical">>=>#{<<"column">>=>decimal(Column),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>enum(Collation,collations())}};
 change({drop,Column}) -> #{<<"drop">>=>decimal(Column)};
 change({rename,Column,Name}) -> #{<<"rename">>=>#{<<"column">>=>decimal(Column),<<"name">>=>identifier(Name)}};
 change({default,Column,Value}) -> #{<<"default">>=>#{<<"column">>=>decimal(Column),<<"value">>=>optional(Value,fun transit_logical:cell_wire/1)}};
@@ -159,8 +162,8 @@ parse_schema(V) ->
     Columns=[parse_column(C)||C<-list(maps:get(<<"columns">>,V),128)],Keys=[wide(K)||K<-list(maps:get(<<"primary_key">>,V),length(Columns))],
     Out=#transit_catalog_schema{object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),next_column=wide(maps:get(<<"next_column">>,V)),columns=Columns,primary_key=Keys},schema(Out),Out.
 parse_column(V) ->
-    fields(V,[<<"id">>,<<"name">>,<<"type">>,<<"nullable">>,<<"default">>,<<"max_characters">>]),
-    #transit_catalog_column{id=wide(maps:get(<<"id">>,V)),name=identifier(maps:get(<<"name">>,V)),type=transit_logical:type_from_wire(maps:get(<<"type">>,V)),nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),default=parsed(maps:get(<<"default">>,V),fun transit_logical:cell_from_wire/1),max_characters=parsed(maps:get(<<"max_characters">>,V),fun small/1)}.
+    fields(V,[<<"id">>,<<"name">>,<<"type">>,<<"nullable">>,<<"default">>,<<"max_characters">>,<<"encoding">>,<<"collation">>]),
+    #transit_catalog_column{id=wide(maps:get(<<"id">>,V)),name=identifier(maps:get(<<"name">>,V)),type=transit_logical:type_from_wire(maps:get(<<"type">>,V)),nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),default=parsed(maps:get(<<"default">>,V),fun transit_logical:cell_from_wire/1),max_characters=parsed(maps:get(<<"max_characters">>,V),fun small/1),encoding=known(maps:get(<<"encoding">>,V),encodings()),collation=known(maps:get(<<"collation">>,V),collations())}.
 parse_assignments(V) -> [begin
     fields(A,[<<"column">>,<<"value">>]), Cell=maps:get(<<"value">>,A),
     Value=case maps:to_list(Cell) of

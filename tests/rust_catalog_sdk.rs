@@ -193,6 +193,8 @@ fn scenario(mut client: m::Client, config: &Value, path: &Path, index: u64) -> R
                 nullable: false,
                 default: Some(atom(l::Atom::Boolean(true))),
                 max_characters: None,
+                encoding: m::Encoding::Plain,
+                collation: m::Collation::None,
             },
         },
     )?;

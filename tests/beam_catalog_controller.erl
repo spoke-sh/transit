@@ -49,7 +49,7 @@ scenario(A,C,Cfg,Root,Index) ->
     #transit_catalog_outcome{counts=#transit_catalog_counts{matched=1,changed=1}}=Applied=finish(A,C,Insert,Root),
     Predicate=[{compare,1,eq,{signed,1}}],Update=result(A:prepare(C,Name,identity(Base,2),{mutate,Basis,{update,[assignment(3,Amount)],Predicate}})),
     #transit_catalog_outcome{counts=#transit_catalog_counts{matched=1,changed=0}}=finish(A,C,Update,Root),
-    Alter=result(A:prepare(C,Name,identity(Base,3),{alter,Basis,{add,<<"enabled">>,boolean,false,atom({boolean,true}),undefined}})),
+    Alter=result(A:prepare(C,Name,identity(Base,3),{alter,Basis,{add,<<"enabled">>,boolean,false,atom({boolean,true}),undefined,plain,none}})),
     #transit_catalog_outcome{phase=applied}=finish(A,C,Alter,Root),
     {error,_}=A:prepare(C,Name,identity(Base,4),{drop,Basis,false}),
     #transit_catalog_definition{metadata=CurrentMetadata}=result(A:lookup(C,Name)),Current=A:basis(CurrentMetadata),

@@ -29,14 +29,20 @@ typedef struct transit_station_catalog_identity { uint64_t operation, namespace_
 typedef struct transit_station_catalog_basis { uint64_t object, revision; uint8_t schema_fingerprint[32]; } transit_station_catalog_basis;
 /* Construction views borrow their trees during the call. max_characters == 0
  * means no declared length; default_value == NULL means no default. */
+typedef uint32_t transit_station_catalog_encoding;
+enum { TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_BITPACKED, TRANSIT_CATALOG_RLE, TRANSIT_CATALOG_DICTIONARY, TRANSIT_CATALOG_FSST, TRANSIT_CATALOG_COMP, TRANSIT_CATALOG_COMP_3, TRANSIT_CATALOG_ZONED, TRANSIT_CATALOG_IBM_HFP, TRANSIT_CATALOG_EBCDIC };
+typedef uint32_t transit_station_catalog_collation;
+enum { TRANSIT_CATALOG_NONE, TRANSIT_CATALOG_UTF8_BINARY, TRANSIT_CATALOG_ASCII_CI, TRANSIT_CATALOG_EBCDIC_CP037, TRANSIT_CATALOG_ICU_ROOT };
 typedef struct transit_station_catalog_column {
     uint64_t id; const char *name; const transit_logical_type_view *type; bool nullable;
     const transit_logical_cell_view *default_value; uint32_t max_characters;
+    transit_station_catalog_encoding encoding; transit_station_catalog_collation collation;
 } transit_station_catalog_column;
 /* ADD allocates its stable column identity through the owning schema. */
 typedef struct transit_station_catalog_column_spec {
     const char *name; const transit_logical_type_view *type; bool nullable;
     const transit_logical_cell_view *default_value; uint32_t max_characters;
+    transit_station_catalog_encoding encoding; transit_station_catalog_collation collation;
 } transit_station_catalog_column_spec;
 typedef struct transit_station_catalog_schema {
     uint64_t object, revision, next_column; const transit_station_catalog_column *columns; size_t column_count;
@@ -56,7 +62,7 @@ typedef struct transit_station_catalog_predicate_term {
 /* Postfix program; NULL data and zero size means no predicate. */
 typedef struct transit_station_catalog_predicate { const transit_station_catalog_predicate_term *data; size_t size; } transit_station_catalog_predicate;
 typedef uint32_t transit_station_catalog_change_kind;
-enum { TRANSIT_CATALOG_ADD_COLUMN, TRANSIT_CATALOG_DROP_COLUMN, TRANSIT_CATALOG_RENAME_COLUMN, TRANSIT_CATALOG_DEFAULT, TRANSIT_CATALOG_NULLABLE, TRANSIT_CATALOG_TYPE };
+enum { TRANSIT_CATALOG_ADD_COLUMN, TRANSIT_CATALOG_DROP_COLUMN, TRANSIT_CATALOG_RENAME_COLUMN, TRANSIT_CATALOG_DEFAULT, TRANSIT_CATALOG_NULLABLE, TRANSIT_CATALOG_TYPE, TRANSIT_CATALOG_PHYSICAL };
 typedef struct transit_station_catalog_change {
     transit_station_catalog_change_kind kind; uint64_t column;
     union {
@@ -65,6 +71,7 @@ typedef struct transit_station_catalog_change {
         const transit_logical_cell_view *default_value;
         bool nullable;
         struct { const transit_logical_type_view *type; uint32_t max_characters; } type;
+        struct { transit_station_catalog_encoding encoding; transit_station_catalog_collation collation; } physical;
     } as;
 } transit_station_catalog_change;
 typedef uint32_t transit_station_catalog_kind;

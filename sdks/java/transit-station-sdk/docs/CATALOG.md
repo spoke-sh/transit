@@ -1,5 +1,12 @@
 # General Table callers
 
+Columns preserve orthogonal encoding and collation descriptors through creation,
+ADD COLUMN and metadata readback. New columns default to plain encoding and no
+declared collation. Wire schemas require both fields and reject unknown tags;
+missing fields never acquire defaults. `SetPhysical` selects physical descriptors
+for an existing column. Shared Zig validation owns supported combinations and
+exact conversion; carrying a collation does not establish SQL comparison support.
+
 Serialization charges each converted column, assignment and predicate before
 building the next owned value. Neutral schemas share 2 MiB and actions share
 16 MiB; complete frame admission also counts enclosing fields. Oversized input

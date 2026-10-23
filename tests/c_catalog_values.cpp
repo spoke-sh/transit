@@ -50,6 +50,7 @@ int main(int argc, char **argv) {
                 const transit_station_catalog_definition_view *v = nullptr; ok(transit_station_catalog_definition_get(out, &v));
                 assert(v->metadata.commitment.bytes == 200 && v->metadata.commitment.digest[0] == 171 && v->metadata.commitment.digest[31] == 171);
                 assert(v->authorization == 101 && v->metadata.namespace_id == 1 && v->metadata.object == UINT64_MAX && v->metadata.revision == UINT64_MAX && v->schema.columns[0].type->kind == TRANSIT_LOGICAL_INT128);
+                assert(v->schema.columns[0].encoding == TRANSIT_CATALOG_RLE && v->schema.columns[1].encoding == TRANSIT_CATALOG_EBCDIC && v->schema.columns[1].collation == TRANSIT_CATALOG_EBCDIC_CP037);
             } else assert(!out);
             transit_station_catalog_definition_destroy(out);
         } else if (command == "history" || command == "wrong_history") {
@@ -77,6 +78,17 @@ int main(int argc, char **argv) {
                 ok(transit_station_catalog_saved_get(saved, &definition, &data)); assert(data.size == 300000 && data.data[0] == 0xab && std::strcmp(definition, TRANSIT_SDK_STATION_DEFINITION) == 0);
             } else assert(!out);
             transit_station_catalog_compiled_destroy(out);
+        } else if (command == "physical_create" || command == "physical_alter" || command == "physical_invalid") {
+            const auto type = logical::Type::scalar(TRANSIT_LOGICAL_UTF8);
+            const transit_station_catalog_column column{1, "text", &type.native(), true, nullptr, 0, TRANSIT_CATALOG_EBCDIC, TRANSIT_CATALOG_EBCDIC_CP037};
+            const transit_station_catalog_schema schema{1, 1, 2, &column, 1, nullptr, 0};
+            transit_station_catalog_request request{}; request.name = "items"; request.identity = {10, 100};
+            if (command == "physical_create") { request.action.kind = TRANSIT_CATALOG_CREATE; request.action.as.create = {&schema, false}; }
+            else { request.action.kind = TRANSIT_CATALOG_ALTER; request.action.as.alter.basis = {1, 1, {}};
+                request.action.as.alter.change.kind = TRANSIT_CATALOG_PHYSICAL; request.action.as.alter.change.column = 1;
+                request.action.as.alter.change.as.physical = {command == "physical_invalid" ? UINT32_MAX : TRANSIT_CATALOG_FSST, TRANSIT_CATALOG_ASCII_CI}; }
+            transit_station_catalog_compiled *out = nullptr; result = transit_station_catalog_prepare(client, &request, &out);
+            transit_station_catalog_compiled_destroy(out);
         } else if (command == "submit") {
             uint64_t position = 99; result = transit_station_catalog_submit(client, prepared, &position);
             assert(position == (result.kind == TRANSIT_SDK_OK ? 7 : 0));
@@ -85,7 +97,7 @@ int main(int argc, char **argv) {
             try {
                 auto settings = sdk::ClientConfig::growing("http://127.0.0.1:9"); settings.native_directory(directory);
                 auto cpp = cat::Client::open(settings, sdk::Credential{46, 17, seed}, {sdk::ProcessRef(46, 3), {sdk::ResourceRef(46, 7), UINT64_MAX}});
-                if (command == "cpp_lookup") { auto v = cpp.lookup("items"); cpp.close(); assert(v && v->metadata.commitment.bytes == 200 && v->metadata.commitment.digest.front() == 171 && v->metadata.commitment.digest.back() == 171 && v->metadata.object == UINT64_MAX && v->schema.columns[0].name == "id"); }
+                if (command == "cpp_lookup") { auto v = cpp.lookup("items"); cpp.close(); assert(v && v->metadata.commitment.bytes == 200 && v->metadata.commitment.digest.front() == 171 && v->metadata.commitment.digest.back() == 171 && v->metadata.object == UINT64_MAX && v->schema.columns[0].name == "id"); assert(v->schema.columns[0].encoding == cat::Encoding::Rle && v->schema.columns[1].encoding == cat::Encoding::Ebcdic && v->schema.columns[1].collation == cat::Collation::EbcdicCp037); }
                 else { auto p = cat::Prepared::recover(sdk::Bytes(original.begin(), original.end())); assert(cpp.submit(p) == 7); }
             } catch (const sdk::Error &e) { result = e.detail(); }
         } else if (command == "block") {

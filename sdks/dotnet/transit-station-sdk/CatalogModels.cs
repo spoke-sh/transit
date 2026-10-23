@@ -15,6 +15,8 @@ public static partial class Catalog
     internal static string Identifier(string value) { V.Text(value, 255); if (value.Length == 0 || value.Contains('\0')) throw new ArgumentException("Invalid Table name"); return value; }
     internal static string Current(string value) => value == ContractDefinition ? value : throw new ArgumentException("Missing or foreign Table definition");
     internal static Bytes Digest(Bytes value) { ArgumentNullException.ThrowIfNull(value); if (value.Length != 32) throw new ArgumentException("Expected digest"); return value; }
+    public enum Encoding { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp_3, Zoned, IbmHfp, Ebcdic }
+    public enum Collation { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot }
     public enum Kind { Create, Alter, Rename, Drop, Insert, Update, Delete }
     public enum Phase { Preparing, Delegated, Building, Applied, Unchanged, Rejected, Cancelled }
     public enum Observation { Pending, Processed }
@@ -98,10 +100,12 @@ public static partial class Catalog
         public bool Nullable { get; }
         public Logical.Cell? DefaultValue { get; }
         public uint? MaxCharacters { get; }
-        public Column(ulong id, string name, Logical.Descriptor type, bool nullable = true, Logical.Cell? defaultValue = null, uint? maxCharacters = null) {
-            Id = Positive(id); Name = Identifier(name); ArgumentNullException.ThrowIfNull(type); if (maxCharacters.HasValue) Positive(maxCharacters.Value); Type = type; Nullable = nullable; DefaultValue = defaultValue; MaxCharacters = maxCharacters;
+        public Encoding Encoding { get; }
+        public Collation Collation { get; }
+        public Column(ulong id, string name, Logical.Descriptor type, bool nullable = true, Logical.Cell? defaultValue = null, uint? maxCharacters = null, Encoding encoding = Encoding.Plain, Collation collation = Collation.None) {
+            Id = Positive(id); Name = Identifier(name); ArgumentNullException.ThrowIfNull(type); if (maxCharacters.HasValue) Positive(maxCharacters.Value); Type = type; Nullable = nullable; DefaultValue = defaultValue; MaxCharacters = maxCharacters; Logical.EnumName(encoding); Logical.EnumName(collation); Encoding = encoding; Collation = collation;
         }
-        internal JsonObject Wire() { var value = ColumnWire(Name, Type, Nullable, DefaultValue, MaxCharacters); value.Add("id", Turn.Decimal(Id)); return value; }
+        internal JsonObject Wire() { var value = ColumnWire(Name, Type, Nullable, DefaultValue, MaxCharacters, Encoding, Collation); value.Add("id", Turn.Decimal(Id)); return value; }
     }
     private sealed class WireBudget(int limit) {
         private int remaining = limit;
@@ -111,7 +115,7 @@ public static partial class Catalog
             return value;
         }
     }
-    private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null));
+    private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters, Encoding encoding, Collation collation) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null), ("encoding", Logical.EnumName(encoding)), ("collation", Logical.EnumName(collation)));
     public sealed record Schema {
         public ulong ObjectId { get; }
         public ulong Revision { get; }
@@ -302,10 +306,12 @@ public static partial class Catalog
         public bool Nullable { get; }
         public Logical.Cell? DefaultValue { get; }
         public uint? MaxCharacters { get; }
-        public AddColumn(string name, Logical.Descriptor type, bool nullable = true, Logical.Cell? defaultValue = null, uint? maxCharacters = null) {
-            _ = new Column(1, name, type, nullable, defaultValue, maxCharacters); Name = name; Type = type; Nullable = nullable; DefaultValue = defaultValue; MaxCharacters = maxCharacters;
+        public Encoding Encoding { get; }
+        public Collation Collation { get; }
+        public AddColumn(string name, Logical.Descriptor type, bool nullable = true, Logical.Cell? defaultValue = null, uint? maxCharacters = null, Encoding encoding = Encoding.Plain, Collation collation = Collation.None) {
+            _ = new Column(1, name, type, nullable, defaultValue, maxCharacters, encoding, collation); Name = name; Type = type; Nullable = nullable; DefaultValue = defaultValue; MaxCharacters = maxCharacters; Logical.EnumName(encoding); Logical.EnumName(collation); Encoding = encoding; Collation = collation;
         }
-        internal override JsonObject Wire() => V.Obj(("add", ColumnWire(Name, Type, Nullable, DefaultValue, MaxCharacters)));
+        internal override JsonObject Wire() => V.Obj(("add", ColumnWire(Name, Type, Nullable, DefaultValue, MaxCharacters, Encoding, Collation)));
     }
     public sealed record DropColumn : Change { public ulong Column { get; } public DropColumn(ulong column) { Column = Positive(column); } internal override JsonObject Wire() => V.Obj(("drop", Turn.Decimal(Column))); }
     public sealed record RenameColumn : Change {
@@ -325,6 +331,13 @@ public static partial class Catalog
         public bool Nullable { get; }
         public SetNullable(ulong column, bool nullable) { Column = Positive(column); Nullable = nullable; }
         internal override JsonObject Wire() => V.Obj(("nullable", V.Obj(("column", Turn.Decimal(Column)), ("value", Nullable))));
+    }
+    public sealed record SetPhysical : Change {
+        public ulong Column { get; }
+        public Encoding Encoding { get; }
+        public Collation Collation { get; }
+        public SetPhysical(ulong column, Encoding encoding, Collation collation) { Column = Positive(column); Logical.EnumName(encoding); Logical.EnumName(collation); Encoding = encoding; Collation = collation; }
+        internal override JsonObject Wire() => V.Obj(("physical", V.Obj(("column", Turn.Decimal(Column)), ("encoding", Logical.EnumName(Encoding)), ("collation", Logical.EnumName(Collation)))));
     }
     public sealed record SetType : Change {
         public ulong Column { get; }

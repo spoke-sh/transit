@@ -15,11 +15,11 @@ public final class Handlers {
     public static final Key<BigInteger> OBSERVED = new Key<>("observed", Codecs.U64);
     public static Logical.Cell signed(long value) { return new Logical.Present(new Logical.Signed(BigInteger.valueOf(value))); }
     public static final Catalog.Schema TABLE = new Catalog.Schema(BigInteger.ONE, BigInteger.ONE, BigInteger.valueOf(5), List.of(
-        new Catalog.Column(BigInteger.ONE, "id", Logical.Scalar.INT64, false, Optional.empty(), Optional.empty()),
+        new Catalog.Column(BigInteger.ONE, "id", Logical.Scalar.INT64, false, Optional.empty(), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE),
         new Catalog.Column(BigInteger.TWO, "value", Logical.Scalar.INT64),
-        new Catalog.Column(BigInteger.valueOf(3), "label", Logical.Scalar.UTF8, false, Optional.of(new Logical.Present(new Logical.Utf8("example"))), Optional.empty()),
+        new Catalog.Column(BigInteger.valueOf(3), "label", Logical.Scalar.UTF8, false, Optional.of(new Logical.Present(new Logical.Utf8("example"))), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE),
         new Catalog.Column(BigInteger.valueOf(4), "tags", new Logical.ListType(new Logical.Element(Logical.Scalar.INT64)), false,
-            Optional.of(new Logical.Present(new Logical.Sequence(Logical.SequenceKind.LIST, List.of(signed(1), signed(2))))), Optional.empty())
+            Optional.of(new Logical.Present(new Logical.Sequence(Logical.SequenceKind.LIST, List.of(signed(1), signed(2))))), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE)
     ), List.of(BigInteger.ONE));
     public static final Catalog.TableLimits TABLE_LIMITS = new Catalog.TableLimits(65536, BigInteger.valueOf(8388608), 1024);
     public static final Key<BigInteger> NOT_READY = new Key<>("not-ready", Codecs.U64);
