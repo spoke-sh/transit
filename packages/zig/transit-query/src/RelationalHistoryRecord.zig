@@ -150,6 +150,36 @@ test "direct history records retain full-width cuts and no-op commitments in one
     try no_op.validate(source, grant);
     try t.expectEqual(record.basis.changed_lsn, no_op.basis.changed_lsn);
     try t.expect(!std.mem.eql(u8, &try record.fingerprint(), &try no_op.fingerprint()));
+    const bundle: q.RelationalBundle = .{
+        .sources = &.{ source, source },
+        .retention = &.{ grant, grant },
+        .plan = .{
+            .sources = &.{
+                .{ .alias = "a", .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = schema },
+                .{ .alias = "b", .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = schema },
+            },
+            .join = .{ .kind = .inner, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } },
+            .outputs = &.{.{ .name = "n", .expression = .count_all }},
+            .lifetime = .maintained,
+            .budgets = .{ .resident_bytes = 8 * 1024 * 1024, .spill_bytes = 1024, .result_bytes = 1024, .output_rows = 10, .work_steps = 100, .source_pins = 1 },
+        },
+    };
+    const entry: q.RelationalHistory.Entry = .{ .position = no_op.basis.accepted.next_lsn, .record = no_op };
+    const vector: q.RelationalHistory.Vector = .{ .request = try bundle.fingerprint(), .count = 2, .entries = .{ entry, entry } };
+    var vector_bytes: [q.RelationalHistory.Vector.max_bytes]u8 = undefined;
+    const encoded = try vector.encode(bundle, &vector_bytes);
+    try t.expectEqual(@as(usize, 581), encoded.len);
+    try t.expectEqualDeep(vector, try q.RelationalHistory.Vector.decode(bundle, encoded));
+    var scan: q.RelationalHistory.Scan = .{ .basis = try vector.fingerprint(bundle), .count = 2, .preference = 1, .cursors = .{ full - 1, full - 1 }, .uppers = .{ full, full } };
+    const scan_bytes = try scan.encode(bundle, vector);
+    try t.expectEqual(@as(u16, 102), scan_bytes.len);
+    try t.expectEqualDeep(scan, try q.RelationalHistory.Scan.decode(bundle, vector, scan_bytes));
+    scan.cursors[0] = full;
+    try t.expectError(error.InconsistentRelationalCut, scan.validate(bundle, vector));
+    scan.cursors[1] = full;
+    try scan.validate(bundle, vector);
+    scan.basis[0] ^= 1;
+    try t.expectError(error.InvalidRelationalHistory, scan.validate(bundle, vector));
     binding.retention = .snapshot;
     const snapshot_grant: Grant = .{ .binding = binding, .proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = connection.scope.realm, .principal = connection.principal, .credential_epoch = 1, .role = null, .audience = connection.audience, .context = try binding.context(t.allocator) }, key) };
     try t.expectError(error.InvalidRelationalHistory, record.validate(source, snapshot_grant));

@@ -283,6 +283,12 @@ const Remote = struct {
         try client.closeOriginalPin(grant.binding.interpretation.object, grant.binding.owner, grant.binding.expected, known);
     }
 };
+
+/// Bind a configured executor route to an immutable original grant. Callers
+/// separately establish committed retention before using this route for work.
+pub fn delegatedClient(client: c.DirectTableClient, grant: Grant) !c.DirectTableClient {
+    return (Remote{ .client = client }).delegated(grant);
+}
 /// The configured executor's own key authenticates the original caller's saved
 /// grant. Acquisition only follows committed admission and preserves its cut.
 pub fn acquire(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.DirectTableClient) !c.DirectTableReader.Basis {

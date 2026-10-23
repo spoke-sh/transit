@@ -157,13 +157,15 @@ native progress; exact Table grants and durable pin records preserve source
 retention across replacement. See the [captured relational guide](docs/relational-capture.md)
 for policy, host recovery, memory, closure and collection requirements.
 
-`RelationalMaintenance` records every complete Table-history basis, stages its
-result and paired delta, and atomically publishes a complete revision. A failed
+`RelationalMaintenance` retains direct Table history independently of native
+query progress. It persists physical traversal between logical acceptances,
+records each selected complete source basis, stages its result and paired delta, and atomically publishes a complete revision. A failed
 successor preserves the preceding result. `RelationalRevision` verifies full
 results or exact predecessor deltas under the reading caller's current source
 rights, using a fresh proof bound to the complete result selection; its saved
 position advances only after complete delivery. The host explicitly activates
-and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
+and wakes this typed owner. Terminal cleanup closes the original history leases;
+completed result reads still check current source rights. See [maintained relations](docs/relational-maintenance.md)
 for scheduling, recomputation costs, quotas, resume and retirement.
 
 `RelationalExchange` records producer eligibility, copies accepted segments into

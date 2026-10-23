@@ -10,11 +10,11 @@ const t = std.testing;
 const r = q.UnifiedRecords;
 const budgets: q.Bundle.Limits = .{ .pages = 64, .segments = 64, .result_bytes = 1048576 };
 pub const State = struct { connection: q.UnifiedClient.Connection, bundle: w.Binary, declaration: q.Values.Source, capture: q.Values.Capture, worker_generation: u64, requester_generation: u64, job: u64 };
-const Provision = struct { pid: u64, resource: u64, generation: u64 };
-fn key(byte: u8) !p.Ed25519.KeyPair {
+pub const Provision = struct { pid: u64, resource: u64, generation: u64 };
+pub fn key(byte: u8) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(byte));
 }
-fn provision(admin: anytype, principal: u64, byte: u8) !Provision {
+pub fn provision(admin: anytype, principal: u64, byte: u8) !Provision {
     const pid = try admin.submit(.{ .spawn = .{} });
     _ = try admin.submit(.{ .grant = .{ .subject = principal, .public_key = (try key(byte)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = pid } });
     const resource = try admin.submit(.{ .create_resource = .{ .writer = pid } });
@@ -22,7 +22,7 @@ fn provision(admin: anytype, principal: u64, byte: u8) !Provision {
     _ = try admin.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("state"), .resource = resource } });
     return .{ .pid = pid, .resource = resource, .generation = 1 };
 }
-fn send(client: c.DirectTableClient, pid: u64, payload: p.Value) !void {
+pub fn send(client: c.DirectTableClient, pid: u64, payload: p.Value) !void {
     const identity = try client.authority.query(.{ .realm = 42, .principal = 101, .kind = .identity }, client.key);
     _ = try client.authority.submit(try g.sign(.{ .realm = 42, .principal = 101, .sequence = identity.principal_sequence + 1, .command = .{ .send = .{ .pid = pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } } }, client.key));
 }
@@ -69,7 +69,7 @@ const Hosts = struct {
 fn caller(client: c.DirectTableClient, state: State) q.UnifiedClient {
     return .{ .wire = client.authority, .tables = client, .connection = state.connection, .key = client.key };
 }
-fn table(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64, object: u64, name: []const u8, operation: u64, count: usize) !void {
+pub fn table(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64, object: u64, name: []const u8, operation: u64, count: usize) !void {
     const schema: q.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
     const changes = try allocator.alloc(w.RowChange, count);
     defer allocator.free(changes);
@@ -89,6 +89,7 @@ fn tableRows(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u6
     defer admission.deinit();
     const result = try client.call(.{ .operation = .{ .binding = ddl.binding, .command = .execute, .steps = 32 } });
     defer result.deinit();
+    try t.expect(result.value.result.ddl == .committed);
     const created = result.value.result.ddl.committed;
     var rows: w.Rows = .{ .binding = ddl.binding, .interpretation = created.resulting, .schema = encoded, .changes = changes, .ingestion = .point };
     rows.binding.action = .insert;
@@ -543,13 +544,13 @@ fn cleanupBeforeAcquisition(init: std.process.Init, client: c.DirectTableClient,
     try t.expect(remote.value.result.pin_state.handle == null);
 }
 
-const RelationalHost = struct {
+pub const RelationalHost = struct {
     bundle: q.RelationalBundle,
     bytes: []const u8,
     reference: s.PublicationReference,
     clients: []const c.DirectTableClient,
     workspace: []u8,
-    const correlation_key = p.Value.init("direct-relational-correlation") catch unreachable;
+    pub const correlation_key = p.Value.init("direct-relational-correlation") catch unreachable;
     fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
         const self: *@This() = @ptrCast(@alignCast(raw.?));
         const local = (s.Frame.source(turn.delivery.input) catch 0) == turn.delivery.pid;
@@ -560,7 +561,9 @@ const RelationalHost = struct {
         if (frame.kind == .reply) return;
         if (frame.kind == .call) {
             if (!local) return error.AccessDenied;
-            _ = try q.RelationalCapture.start(turn, try s.PublicationReference.decode(frame.payload), self.clients, self.workspace);
+            if (self.bundle.plan.lifetime == .maintained) {
+                _ = try q.RelationalMaintenance.start(turn, try s.PublicationReference.decode(frame.payload), self.clients, self.workspace);
+            } else _ = try q.RelationalCapture.start(turn, try s.PublicationReference.decode(frame.payload), self.clients, self.workspace);
             return;
         }
         if (frame.kind != .cast) return error.InvalidProofFrame;
@@ -578,10 +581,25 @@ const RelationalHost = struct {
             } else try turn.cast(turn.delivery.pid, frame.payload);
             return;
         }
+        if (self.bundle.plan.lifetime == .maintained) {
+            if (external) {
+                const correlation = try q.UnifiedRecords.readIdentity((try turn.read(correlation_key)).?);
+                const identity: q.RelationalMaintenanceRecords.Identity = .{ .peer = turn.delivery.pid, .correlation = correlation };
+                if (std.mem.eql(u8, frame.payload.slice(), "wake")) {
+                    _ = try q.RelationalMaintenance.wake(turn, identity, self.clients, self.workspace);
+                    return;
+                }
+                if (std.mem.eql(u8, frame.payload.slice(), "close")) return q.RelationalMaintenance.close(turn, identity, .cancelled, null);
+                if (std.mem.eql(u8, frame.payload.slice(), "retire")) return q.RelationalMaintenance.close(turn, identity, .retired, null);
+            }
+            if (!local) return error.AccessDenied;
+            _ = try q.RelationalMaintenance.advance(turn, try q.RelationalMaintenanceRecords.Continuation.decode(frame.payload), self.clients, self.workspace);
+            return;
+        }
         if (!local) return error.AccessDenied;
         _ = try q.RelationalCapture.advance(turn, try q.UnifiedRecords.Continuation.decode(frame.payload), self.clients, self.workspace);
     }
-    fn interface(self: *@This()) s.GenServer.Handler {
+    pub fn interface(self: *@This()) s.GenServer.Handler {
         return .{ .context = self, .handle = handle };
     }
 };

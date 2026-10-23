@@ -457,28 +457,33 @@ plans. The maintained owner below uses a separate activation and revision ledger
 `RelationalMaintenance` admits a bundle with lifetime `maintained`. The same
 explicit source routes, scalar types, ordering, budget and current policy rules
 apply. Activation is an authenticated Station call; its peer/correlation names
-one permanent admission. The coordinator is the first Table's owner/resource.
-An authorized host installs its exact `RQA1` request policy and invokes `start`.
-The same admission turn replies with its original `RMH1` record, settling the
-activation call; this reply is not a complete result. SQL compilation or an editor change does not activate it.
+one permanent admission. Query progress and the request publication use their
+own native resource; the coordinator need not own a source Table or its catalog.
+An authorized host installs its exact `RQA1` request policy and invokes `start`
+with explicit direct clients for the sources. The admission turn replies with
+its original `RMH1` record, settling the activation call; this reply is not a
+complete result. SQL compilation or an editor change does not activate it.
 
-Admission retains the original request publication, creates its private
-Publication namespace and records every initial Table head. These fit one turn
-with at most four mutations and one retained request version. Data history uses
-the [complete Table history contract](TABLE_DATA_V1.md), including immutable
-accepted row/schema pages. It does not manufacture historical native read views.
-Each later work step reads those exact immutable roots through freshly authorized
-current resource views, with current-revision guards at acceptance. History or
+Admission retains the original request publication and creates its private
+Publication namespace. Later bounded turns commit acquisition eligibility,
+acquire each exact history lease through the signed direct service, and commit
+its immutable handle. Same-Table aliases share that lease. The owner records
+the complete initial vector only after all handles are committed. Lost replies
+retry the original operation; replacement cannot select a later cut. Direct
+history reads include accepted unflushed rows and enforce the original caller's
+current rights. Native publication commits also fence those rights. History or
 page loss is a failure, never permission to substitute the latest Table.
 
-A basis records a native coordinate and an exact `STJ1` head per declared Table.
-All required Tables in one resource move together at a selected native commit.
-Self aliases carry identical records. Between resources the owner chooses an
-eligible resource using its persisted round-robin preference, advances to its
-next relevant Table transaction, and records that choice before computation.
-Other resource components remain unchanged. Each relevant transaction produces
-one revision, including reservation/no-op heads; batching does not collapse them.
-There is no implied global transaction or causal cut.
+A basis records the complete direct source interpretation, immutable lease,
+accepted Table frontier and WAL commitment. Same-Table aliases carry identical
+records. Distinct Tables remain independent even within one catalog. The owner
+captures a fixed upper bound for each Table, then chooses an eligible Table
+using its persisted round-robin preference. Bounded traversal through physical
+storage records persists a separate cursor before continuation. A selected
+logical acceptance advances only that Table's aliases; its full source vector
+commits before computation. Each logical acceptance produces one revision,
+including an accepted no-op. Admission, flush and other storage-only records do
+not fabricate revisions. There is no implied catalog-wide or global transaction.
 
 The first basis remains frozen through backfill while later transactions stay
 in Table history. The implementation recomputes each complete basis through the
@@ -519,8 +524,14 @@ read requires a fresh closure proposal after settling pending work.
 own resource. Cancellation stops maintenance while preserving published revisions.
 Failure and cancellation retain the request dependency needed by those revisions.
 Explicit retirement makes the query's revisions unavailable and releases the
-request version. Retirement does not implicitly expire Table history or delete
-query pages. Physical query-page collection is not exposed by this owner.
+request version. Terminal closure schedules bounded cleanup of the original
+history leases. Pending closure is separately observable through `cleanup_cursor`
+and the pin records. Denial or transport failure leaves it pending; an explicit
+`retryCleanup` or current, original-caller `authorizeCleanup` can resume it.
+Closure permission cannot renew the original execution proof or acquire a newer
+cut. Completed revision disclosure uses immutable source evidence and current
+native rights after lease closure. Retirement does not delete query pages.
+Physical query-page collection is not exposed by this owner.
 
 The workspace plus `resident_base` must fit the resident budget. Retained logical
 bytes include every immutable group/checkpoint/output/delta/manifest version;
@@ -538,23 +549,34 @@ record below includes its four-byte magic and mandatory 32-byte shared native
 definition. Integer fields are little endian unless stated otherwise.
 
 - `RQH1`: 32-byte bundle fingerprint, one-byte source count, then per source
-  uint64 native coordinate and uint16-length-prefixed `STJ1`. It fits 601 bytes.
-  A resource's bound commitment hashes `transit.relational.table-history-cut.v1`,
-  NUL, the bundle fingerprint, uint64 coordinate, and the encoded required heads
-  in source order. Same-resource aliases share the entire resource commitment.
-  Captured query exchanges can freeze this Table-history vector under a captured
-  bundle; the bundle fingerprint distinguishes its lifetime. `RelationalHistory`
-  reads that exact basis under each worker's current rights, without borrowing
-  another PID's native retained-read pin. Only a maintained bundle can select a
-  successor. The `RQV1` captured owner binds independent direct Table pins;
-  no decoder falls back between these distinct vector formats.
-- `RMH1`, 217 bytes: uint64 admission ID, peer, correlation, policy revision,
+  uint64 exclusive Table frontier and uint16-length-prefixed `QHB1`. It fits
+  581 bytes. Each frontier equals its source record's accepted position.
+  Same-Table aliases repeat the complete record; distinct Tables remain
+  independent even within one catalog. Bound cuts use the Table-partition
+  domain, declared branch/object, accepted frontier and complete source-record
+  fingerprint. Captured exchanges use snapshot records; maintained vectors use
+  history records. Original definitions and lease ownership come from the
+  bundle's original grants, never a new name lookup or native resource revision.
+- `QHS1`, 102 bytes: 32-byte exact preceding-vector fingerprint, one-byte source
+  count and scheduling preference, then two uint64 cursor/upper pairs. Unused
+  pairs are zero. Aliases repeat their Table's pair. Each cursor lies between
+  that Table's selected logical cut and its fixed observed upper bound. This is
+  physical traversal progress, not a result vector. A bounded empty history page
+  advances it without publishing a logical revision. Persisting this record
+  before continuation prevents rescanning the same physical-only prefix after
+  replacement. Vector fingerprints hash
+  `transit.query.direct-history-vector.v1`, NUL and complete `RQH1` bytes.
+- `RMH1`, 219 bytes: uint64 admission ID, peer, correlation, policy revision,
   current complete revision, manifest ID, next record ID, retained bytes and
   continuation input; 72-byte request reference; retained request version
   (uint64 PID/input and one-byte slot); two uint64 pending source coordinates;
-  one-byte source count, scheduling preference, phase and request-released flag.
-  Phases are admitted 1, running 2, idle 3, failed 4, cancelled 5, retired 6.
-  Only retirement marks the dependency released. Complete revision zero has
+  one-byte source count, acquired count, cleanup cursor, scheduling preference,
+  phase and request-released flag. Phases are admitted 1, running 2, idle 3,
+  failed 4, cancelled 5, retired 6, acquiring 7, seeking 8. Counts/cursors never
+  exceed the source count. Source coordinates use the full uint64 Table domain;
+  initial acquisition may have zero coordinates. Running, idle and seeking
+  require every source acquired; idle/seeking require a completed revision.
+  Only retirement marks the native request dependency released. Complete revision zero has
   manifest zero. Pending work leaves the last complete allocation floor intact.
 - `RMW1`, 189 bytes: uint64 target revision, checkpoint, output count, output
   bytes, old/new merge cursors, delta count, delta bytes, next record ID, retained
@@ -577,7 +599,7 @@ definition. Integer fields are little endian unless stated otherwise.
 
 Maintained ledger keys are NUL, `rm`, one-byte tag, then three big-endian uint64
 coordinates. `h` uses peer/correlation/zero; `b` uses admission/target-revision/
-source ordinal; `w` uses admission/target-revision/zero; `o` and `d` use admission/
+source ordinal; `s` uses admission/target-revision/zero for `QHS1`; `w` uses admission/target-revision/zero; `o` and `d` use admission/
 revision/output or delta ordinal; `r` uses admission/revision/zero for the complete
 manifest reference; `f` uses admission/failed-successor/zero for `RQF1`. Immutable
 records use the Publication namespace with the high bit set on the admission ID.

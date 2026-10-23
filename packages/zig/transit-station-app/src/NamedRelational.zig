@@ -1,5 +1,6 @@
 //! Immutable names and explicit activation above the existing query owners.
-//! Namespace metadata never grants native or Table access. No effects or I/O.
+//! Namespace metadata grants no native or Table access. Explicit activation
+//! delegates to the query owner with its original direct source grants.
 const std = @import("std");
 const root = @import("root.zig");
 const q = root.query;
@@ -134,7 +135,7 @@ pub fn publish(self: Self, turn: *s.Turn, proposal: Proposal, workspace: []u8) !
     var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
     const bundle = try q.RelationalBundle.decodeInto(fixed.allocator(), try requestBytes(&view, proposal.request, &bytes));
-    if (bundle.sources[0].scope.realm != identity.scope.realm or bundle.sources[0].scope.resource != identity.scope.resource or bundle.sources[0].owner != identity.scope.owner) return error.RelationalSourceChanged;
+    for (bundle.sources) |source| if (source.scope.realm != identity.scope.realm) return error.RelationalSourceChanged;
     try view.requireCurrent();
     const definition_value: r.Definition = .{ .identity = identity, .peer = proposal.peer, .request = proposal.request, .version = try view.retain(), .fingerprint = try bundle.fingerprint(), .lifetime = bundle.plan.lifetime };
     const encoded = try r.encodeRecord("NRD1", definition_value);
@@ -184,7 +185,7 @@ pub fn attribution(self: Self, source: anytype, peer: u64, policy_revision: u64)
     if (definition_value.peer != peer or definition_value.request.resource != archive.policy.requests or !std.mem.eql(u8, &definition_value.fingerprint, &archive.policy.request)) return error.InvalidNamedQuery;
     return reference;
 }
-pub fn activate(self: Self, turn: *s.Turn, activation: r.Activation, workspace: []u8) !Started {
+pub fn activate(self: Self, turn: *s.Turn, activation: r.Activation, clients: []const q.catalog.DirectTableClient, workspace: []u8) !Started {
     const before = turn.decision;
     errdefer turn.decision = before;
     try self.scoped(turn);
@@ -199,8 +200,8 @@ pub fn activate(self: Self, turn: *s.Turn, activation: r.Activation, workspace: 
     const archive = try r.decodeRecord(r.Authorization, "NRP1", (try turn.read(r.authorizationKey(peer, activation.policy_revision))).?);
     if (!current.allow or !std.meta.eql(current, archive.policy)) return error.QueryDenied;
     return switch (definition_value.lifetime) {
-        .captured => .{ .captured = try q.RelationalCapture.start(turn, definition_value.request, workspace) },
-        .maintained => .{ .maintained = try q.RelationalMaintenance.start(turn, definition_value.request, workspace) },
+        .captured => .{ .captured = try q.RelationalCapture.start(turn, definition_value.request, clients, workspace) },
+        .maintained => .{ .maintained = try q.RelationalMaintenance.start(turn, definition_value.request, clients, workspace) },
         .interactive => error.InvalidNamedQuery,
     };
 }

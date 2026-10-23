@@ -141,9 +141,14 @@ The direct storage/service boundary now has explicit history leases, fixed-bound
 logical acceptance pages and exact historical reads. Its
 [storage and native-policy evidence](../../tests/README.md#direct-table-history-retention--2026-10-23)
 covers restart, no-ops, retention-kind separation and current revocation.
-The maintained-query adapter, older relational caller fixtures and broader
-schedules remain unported, and the full query package remains unqualified during
-the cutover.
+The maintained-query adapter now uses those direct history leases and stores a
+separate bounded physical scan cursor. Its [public recovery evidence](../../tests/README.md#maintained-direct-table-queries--2026-10-23)
+covers original acquisition recovery, restart inside a physical-only prefix,
+initial backfill, independent Table cuts, accepted no-op revisions, paired deltas,
+terminal lease cleanup and current result-disclosure rights. Maintained
+gap/overflow/exchange and credential-rotation cleanup schedules, older relational
+caller fixtures and broader qualification remain unfinished. The full query
+package remains unqualified during the cutover.
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

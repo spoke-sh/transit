@@ -28,6 +28,16 @@ test "maintained control and work records match independent bytes and reject mis
     try hex(parsed.value.key, head.identity().address());
     try t.expectEqualDeep(head, try m.Head.decode(try head.encode()));
     try rejects(m.Head, try head.encode());
+    var wide = head;
+    wide.phase = .running;
+    wide.acquired = wide.count;
+    wide.positions = .{ std.math.maxInt(u64), std.math.maxInt(u64) - 1 };
+    try t.expectEqualDeep(wide, try m.Head.decode(try wide.encode()));
+    wide.acquired = wide.count + 1;
+    try t.expectError(error.InvalidMaintainedRecord, wide.encode());
+    wide.acquired = wide.count;
+    wide.cleanup_cursor = wide.count + 1;
+    try t.expectError(error.InvalidMaintainedRecord, wide.encode());
     const work: m.Work = .{ .revision = 1, .next_record = 1, .state_bytes = 0 };
     try hex(parsed.value.work, try work.encode());
     try t.expectEqualDeep(work, try m.Work.decode(try work.encode()));

@@ -12838,7 +12838,7 @@
           "deadline"
         ],
         "Definition": [
-          "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
+          "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
         ],
         "Effect.phase": [
           "pending",
@@ -13877,6 +13877,7 @@
         "authorizeExecution()": "<inferred>",
         "authorizeSource()": "<inferred>",
         "beginClose()": "<inferred>",
+        "delegatedClient()": "<inferred>",
         "evidence()": "<inferred>",
         "inspect()": "<inferred>",
         "observe()": "<inferred>",
@@ -15008,40 +15009,51 @@
     },
     "packages/zig/transit-query/src/RelationalHistory.zig": {
       "errors": {
-        "CrossRealmRelationalQuery": 3,
-        "IncompatibleDefinition": 1,
+        "CrossRealmRelationalQuery": 2,
+        "IncompatibleDefinition": 2,
         "InconsistentRelationalCut": 2,
         "InvalidQueryBudget": 1,
-        "InvalidRelationalHistory": 10,
+        "InvalidRelationalHistory": 14,
         "InvalidRelationalSourceRow": 2,
-        "InvalidRelationalSources": 1,
+        "InvalidRelationalSources": 3,
+        "QueryCaptureRequired": 3,
         "RelationalResidentBudget": 1,
-        "RelationalSourceChanged": 1,
+        "RelationalSourceChanged": 4,
         "RelationalWorkBudget": 1,
-        "TableHeadChanged": 1,
-        "TableHistoryConflict": 2,
-        "TableHistoryGap": 1,
         "TableRetired": 1,
         "TableSchemaChanged": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Successor": [
+          "idle",
+          "pending",
+          "next"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
+        "Scan.decode()": "<inferred>",
+        "Scan.encode()": "<inferred>",
+        "Scan.validate()": "<inferred>",
         "Vector.boundCuts()": "<inferred>",
         "Vector.decode()": "<inferred>",
         "Vector.encode()": "<inferred>",
+        "Vector.fingerprint()": "<inferred>",
         "Vector.validate()": "<inferred>",
+        "begin()": "<inferred>",
         "capture()": "<inferred>",
         "checkSchema()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
+        "read()": "<inferred>",
+        "route()": "<inferred>",
         "successor()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 68,
-        "catch": 0
+        "try": 93,
+        "catch": 7
       },
       "imports": [
         "root.zig",
@@ -15074,24 +15086,28 @@
     },
     "packages/zig/transit-query/src/RelationalMaintenance.zig": {
       "errors": {
+        "AccessDenied": 1,
+        "Conflict": 1,
         "CorrelationAlreadyUsed": 2,
         "ExpectedCall": 1,
         "IncompleteResult": 1,
-        "InvalidMaintainedRecord": 18,
+        "InvalidMaintainedRecord": 20,
         "InvalidQueryContinuation": 2,
         "InvalidRelationalExchange": 1,
         "InvalidRelationalHistory": 1,
-        "MissingQueryProgress": 1,
+        "InvalidRelationalSources": 3,
+        "MissingQueryProgress": 2,
         "MissingResultSegment": 1,
         "MutationBudgetExceeded": 1,
         "PublicationReferenceChanged": 1,
+        "QueryActive": 2,
         "QueryAfterMutation": 1,
         "QueryDenied": 9,
         "QueryNamespaceInUse": 1,
         "QueryNotFound": 1,
         "RelationalExchangeConflict": 3,
         "RelationalResidentBudget": 1,
-        "RelationalSourceChanged": 2,
+        "RelationalSourceChanged": 1,
         "RelationalSpillBudget": 3,
         "UnexpectedQueryContinuation": 1,
         "UnexpectedQueryPublisher": 1
@@ -15119,6 +15135,7 @@
         "advanceInner()": "<inferred>",
         "allocated()": "<inferred>",
         "attachExchange()": "<inferred>",
+        "authorizeCleanup()": "<inferred>",
         "close()": "<inferred>",
         "compute()": "<inferred>",
         "delta()": "<inferred>",
@@ -15133,6 +15150,7 @@
         "readBasis()": "<inferred>",
         "readBody()": "<inferred>",
         "readWork()": "<inferred>",
+        "retryCleanup()": "<inferred>",
         "schedule()": "<inferred>",
         "selectExchanges()": "<inferred>",
         "stage()": "<inferred>",
@@ -15144,8 +15162,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 188,
-        "catch": 4
+        "try": 224,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -15156,7 +15174,7 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "IncompleteResult": 1,
-        "InvalidMaintainedRecord": 32,
+        "InvalidMaintainedRecord": 35,
         "InvalidRelationalExchange": 1,
         "MaintainedRevisionExhausted": 1
       },
@@ -15167,7 +15185,9 @@
           "idle",
           "failed",
           "cancelled",
-          "retired"
+          "retired",
+          "acquiring",
+          "seeking"
         ],
         "WorkPhase": [
           "compute",
@@ -15202,7 +15222,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 126,
+        "try": 130,
         "catch": 2
       },
       "imports": [
@@ -15331,6 +15351,7 @@
         "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 1,
         "IncompleteResult": 7,
+        "IncompleteSource": 1,
         "InvalidMaintainedRecord": 7,
         "InvalidRelationalSourceOrder": 1,
         "InvalidRelationalSources": 2,
@@ -15341,7 +15362,7 @@
         "QueryClosed": 2,
         "QueryDenied": 8,
         "QueryPageBudget": 2,
-        "RelationalSourceChanged": 3
+        "RelationalSourceChanged": 4
       },
       "outcomes": {
         "Event": [
@@ -15373,7 +15394,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 67,
         "catch": 3
       },
       "imports": [
