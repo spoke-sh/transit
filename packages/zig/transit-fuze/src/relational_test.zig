@@ -33,8 +33,8 @@ fn plan() r.Plan {
 }
 fn cuts() ![2]r.Cut {
     return .{
-        .{ .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() },
-        .{ .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try sources[1].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try sources[1].schema.fingerprint() },
     };
 }
 const Fixture = struct {
@@ -238,6 +238,28 @@ test "relational source vectors seal every alias and prohibit mixed cuts for one
     aliases[1].resource = 303;
     bound.plan.budgets.source_pins = 2;
     try testing.expectError(error.RelationalSourceChanged, bound.validate());
+}
+
+test "direct Table vectors keep partition domains distinct from native resource cuts" {
+    var declarations = sources;
+    declarations[1].resource = declarations[0].resource;
+    var basis = try cuts();
+    basis[1].resource = basis[0].resource;
+    var bound: r.Bound = .{ .plan = plan(), .cuts = &basis };
+    bound.plan.sources = &declarations;
+    try testing.expectError(error.InconsistentRelationalCut, bound.validate());
+    for (&basis, declarations, 0..) |*cut, source, i| cut.domain = .{ .table_partition = .{ .branch = 1, .object = source.schema.object, .partition = i + 2 } };
+    try bound.validate();
+    const identity = try bound.fingerprint();
+    bound.plan.budgets.source_pins = 1;
+    try testing.expectError(error.InvalidRelationalBudgets, bound.validate());
+    bound.plan.budgets.source_pins = 2;
+    basis[1].domain.table_partition.partition = basis[0].domain.table_partition.partition;
+    try testing.expectError(error.InconsistentRelationalCut, bound.validate());
+    basis[1].domain = .native_resource;
+    try testing.expectError(error.InconsistentRelationalCut, bound.validate());
+    basis[1].domain = .{ .table_partition = .{ .branch = 1, .object = declarations[1].schema.object, .partition = 4 } };
+    try testing.expect(!std.mem.eql(u8, &identity, &try bound.fingerprint()));
 }
 
 test "relational prepared and bound identities retain budgets lifetime schemas and exact cuts" {

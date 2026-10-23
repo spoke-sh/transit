@@ -675,6 +675,54 @@ command layouts. After regeneration, the SQL package passes **28/28** tests
 (856 ms, MaxRSS 45 MiB). This is baseline actor-ledger evidence, not a direct
 SQL cutover result.
 
+## Direct SQL references and read recovery — 2026-10-23
+
+In the pinned Linux Nix shell, `just test::direct-table-service` passes
+**316 typed HTTP calls** against real local native/Table owners and two node
+restarts. The added cases cover retained self-join/grouping over an older source,
+namespace listing, source/column completion, and current revocation after result
+completion. A renamed Table rejects an older pin despite an unchanged column
+schema. Existing full CRUD/DDL, 64 KiB point rows, bulk `.tseg` publication and
+saved typed SQL mutations also pass.
+
+The same proof exercises SQL's disk pin journal. It corrupts an accepted pin
+reply, retains an active pin across restart, protects current-generation active
+reads and releases earlier-generation/closing pins. A release denied by current
+rights leaves durable cleanup work; restoring rights permits exact release and
+idempotent closure. The helper supplies the gateway generation explicitly; this
+does not independently qualify native SQL activation fencing or installed SQL
+listeners.
+
+SQL `zig build test -Doptimize=ReleaseSafe --summary all` passes **28/28** tests
+(309 ms, MaxRSS 11 MiB). Cases cover committed dispatch eligibility, exact frozen
+reference/content identity, replacement, local abandonment versus qualified
+cancellation, terminal position attribution, paged growth and independent record/
+control fixtures. The CLI and gateway executables compile with the changed session basis and
+completion descriptors. Diagnostic checks pass 3387 outcome projections across
+29 surfaces, plus 16 inferred error sets and nine unknown-cause projections.
+
+The full storage run passed **56/58** tests and failed two ALTER fixtures that
+reused one row identity for different rows. After assigning distinct ordinals,
+`zig build test -Doptimize=ReleaseSafe -Dtest-filter='Table ALTER'
+-Dtest-filter='Table identity index' --summary all` passes **4/4** tests (7 seconds,
+MaxRSS 52 MiB), including a new point/bulk identity-alias rejection case. The
+failed full run is not reported as a complete pass. Fuze **334/334** and Query
+**141/141** had passed earlier in this work before the definition regeneration;
+the current full-repository gate remains separate.
+
+Two earlier pin-journal runs failed before acquisition: the parent descriptor
+was unsuitable for directory sync, and new-file publication called the atomic
+replacement API. The journal now owns a readable parent descriptor and uses
+atomic link for creation, atomic replacement for updates. Only the completed
+runs above count as passing evidence.
+
+The shared definition derives from
+`transit.native.v1.direct-sql-read-recovery.2026-10-23`; the previous identifier
+remains an explicit rejection case. Contracts, binding resources, independent
+signing/storage fixtures and SQL records are regenerated together, and
+`just contract::check` passes. Installed SQL fault/recovery qualification,
+conditional catalog DDL, launcher provisioning and physical GC remain open.
+
 ## Prepared SELECT over retained direct Tables — 2026-10-23
 
 Query `zig build test --summary all` passes **141/141** tests in the pinned Linux

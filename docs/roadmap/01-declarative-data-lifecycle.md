@@ -81,22 +81,25 @@ checks current policy, expectations and schema work without claims or admission.
 The [typed finite SQL owner](../../tests/README.md#finite-sql-over-retained-direct-tables--2026-10-23)
 now executes Fuze filtering/aggregation over retained direct sources with current
 disclosure checks. The direct Table owner also accepts frozen typed SQL
-UPDATE/DELETE plans with bounded private selection and one atomic outcome;
-the gateway still needs to lower its statements through that operation.
-Read-only exact-definition and action checks now support prepared caller
-bindings without raw-storage inspection credentials. Parameterized DML templates
-now produce complete saved direct intents with explicit admission and recovery;
-their installed SQL adapters remain part of the unfinished cutover.
-Prepared SELECT also binds parameters to an explicitly retained direct source
-under current rights; SQL session pin acquisition and recovery remain unfinished.
-Complete intents can now be staged directly in immutable storage and admitted
-later through exact references, including after restart. SQL's control ledger
-still needs to adopt those references and retire its actor row-upload path.
-The default launcher and installed SQL still use the actor
-catalog. Their cutover, dependency contracts, automatic point flushing,
-named resource provisioning and computation
-evidence remain unfinished. None of the completion matrix rows below is closed
-by this partial caller path.
+UPDATE/DELETE plans with bounded private selection and one atomic outcome.
+Read-only exact-definition and action checks support prepared bindings without
+raw-storage inspection credentials. Parameterized DML templates produce complete
+saved direct intents with explicit admission and recovery.
+
+SQL's control ledger now publishes exact intent references and commits dispatch
+eligibility before direct admission, replacing its actor row-upload/saved-step
+path. Its current session adapters use direct prepared reads and mutations.
+A durable local pin journal preserves interrupted acquisitions and closure;
+relational reads use stable row-identity traversal and explicit independent Table
+cuts. [Recovery and binding evidence](../../tests/README.md#direct-sql-references-and-read-recovery--2026-10-23)
+covers those component and HTTP paths, including lost pin replies, replacement,
+current denial and definition changes that preserve column schemas.
+
+Installed SQL fault/recovery qualification, conditional name-only DDL and default
+launcher provisioning remain unfinished. The launcher still provisions the actor
+catalog. Dependency contracts, automatic point flushing, named resource
+provisioning and computation evidence also remain unfinished. None of the
+completion matrix rows below is closed by this partial caller path.
 
 ## Catalog, transaction and snapshot scope
 

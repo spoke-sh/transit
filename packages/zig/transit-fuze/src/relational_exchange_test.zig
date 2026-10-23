@@ -11,7 +11,7 @@ const sources = [_]r.Source{
 const plan: r.Plan = .{ .sources = &sources, .join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } }, .outputs = &.{.{ .name = "v", .expression = .{ .column = .{ .source = 1, .id = 2 } } }}, .lifetime = .captured, .budgets = .{ .resident_bytes = 1024 * 1024, .spill_bytes = 1024 * 1024, .result_bytes = 16384, .output_rows = 100, .work_steps = 10000, .source_pins = 2 } };
 fn cuts() ![2]r.Cut {
     var result: [2]r.Cut = undefined;
-    for (sources, 0..) |source, i| result[i] = .{ .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
+    for (sources, 0..) |source, i| result[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
     return result;
 }
 fn row(id: u64, key: ?i64) e.Row {
@@ -57,8 +57,8 @@ test "exchange bytes and routing agree with the independent Python contract fixt
     };
     fixture_plan.budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
     const basis = [_]r.Cut{
-        .{ .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try fixture_sources[0].schema.fingerprint() },
-        .{ .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try fixture_sources[1].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try fixture_sources[0].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try fixture_sources[1].schema.fingerprint() },
     };
     const bound: r.Bound = .{ .plan = fixture_plan, .cuts = &basis };
     var bytes: [x.max_bytes]u8 = undefined;

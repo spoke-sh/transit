@@ -312,6 +312,9 @@ test "durable Table pins recover lost acquisition replies and preserve the unflu
         defer table.deinit();
         const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 42 } } };
         _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .point, access.guard());
+        const before = try table.pinState(pin_owner, access.guard());
+        try t.expect(before.handle == null and !before.released and !before.retired);
+        try t.expectEqualDeep(expected, before.position);
         table.lose_reply = true;
         try t.expectError(error.LostAcknowledgement, table.pin(pin_owner, expected, access.guard()));
     }
@@ -321,7 +324,10 @@ test "durable Table pins recover lost acquisition replies and preserve the unflu
     defer objects.deinit();
     var table = try owner(&wal, &objects);
     defer table.deinit();
+    const recovered = try table.pinState(pin_owner, access.guard());
+    try t.expect(recovered.handle != null and !recovered.released);
     const handle = try table.pin(pin_owner, expected, access.guard());
+    try t.expectEqualDeep(handle, recovered.handle.?);
     try t.expectEqual(@as(u64, 2), table.root.next_lsn);
     try t.expectEqual(@as(u64, 1), table.root.changed_lsn);
     try t.expectEqual(@as(usize, 1), try table.flush(access.guard()));
@@ -340,6 +346,7 @@ test "durable Table pins recover lost acquisition replies and preserve the unflu
     changed.next_lsn = 2;
     try t.expectError(error.DataIdentityConflict, table.pin(pin_owner, changed, access.guard()));
     access.deny_at = access.calls + 1;
+    try t.expectError(error.PermissionDenied, table.pinState(pin_owner, access.guard()));
     try t.expectError(error.PermissionDenied, table.readSnapshot(t.allocator, handle, row_key, access.guard()));
     try t.expectError(error.PermissionDenied, table.releaseSnapshot(handle, access.guard()));
     access.deny_at = std.math.maxInt(usize);
@@ -347,6 +354,15 @@ test "durable Table pins recover lost acquisition replies and preserve the unflu
     const released_at = table.root.next_lsn;
     try table.recover();
     try table.releaseSnapshot(handle, access.guard());
+    try t.expectEqual(released_at, table.root.next_lsn);
+    const released = try table.pinState(pin_owner, access.guard());
+    try t.expect(released.released);
+    try t.expectEqualDeep(handle, released.handle.?);
+    var missing_owner = pin_owner;
+    missing_owner.operation += 1;
+    const missing = try table.pinState(missing_owner, access.guard());
+    try t.expect(missing.handle == null and !missing.released);
+    try t.expect(missing.position.next_lsn > expected.next_lsn);
     try t.expectEqual(released_at, table.root.next_lsn);
     try t.expectError(error.TableSnapshotReleased, table.readSnapshot(t.allocator, handle, row_key, access.guard()));
     try t.expectError(error.TableSnapshotReleased, table.pin(pin_owner, expected, access.guard()));
@@ -600,6 +616,7 @@ test "Table ALTER streams more rows than a rewrite group and publishes no prefix
         for (&cells, &changes, 0..) |*cell, *mutation, i| {
             cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(batch * cells.len + i) } } };
             mutation.* = change(cell, batch + 1);
+            mutation.put.row.identity.ordinal = @intCast(i);
         }
         _ = try table.apply(binding(&table, batch + 1), &changes, .bulk, access.guard());
     }
@@ -643,7 +660,9 @@ test "Table ALTER rejects duplicate collation keys without publishing schema or 
     try table.recover();
     var access: Access = .{};
     const values = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "A" } } }, .{ .value = .{ .atom = .{ .bytes = "a" } } } };
-    _ = try table.apply(binding(&table, 1), &.{ change(&values[0], 1), change(&values[1], 1) }, .point, access.guard());
+    var second = change(&values[1], 1);
+    second.put.row.identity.ordinal = 1;
+    _ = try table.apply(binding(&table, 1), &.{ change(&values[0], 1), second }, .point, access.guard());
     const before = table.root;
     const request = ddlBinding(&table, 2, .alter);
     try t.expectError(error.DuplicatePrimaryKey, table.changeDefinition(request, .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .collation = .ascii_ci } }, .properties = "names" } }, access.guard()));
@@ -707,4 +726,33 @@ fn declarationAllocationCase(allocator: std.mem.Allocator) !void {
 
 test "Table definition acceptance makes no fallible visibility allocation after append" {
     try t.checkAllAllocationFailures(t.allocator, declarationAllocationCase, .{});
+}
+
+test "Table identity index rejects aliases without publishing partial rows" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cells = [_]f.Types.Values.Cell{
+        .{ .value = .{ .atom = .{ .signed = 1 } } },
+        .{ .value = .{ .atom = .{ .signed = 2 } } },
+    };
+    const before = table.root;
+    for ([_]P.Ingestion{ .point, .bulk }) |ingestion| {
+        try t.expectError(error.DuplicateTableRowIdentity, table.apply(binding(&table, 1), &.{ change(&cells[0], 1), change(&cells[1], 1) }, ingestion, access.guard()));
+        try t.expectEqualDeep(before, table.root);
+        try t.expectEqual(@as(u64, 0), try wal.log().tail(17));
+    }
+    _ = try table.apply(binding(&table, 1), &.{change(&cells[0], 1)}, .point, access.guard());
+    const accepted = table.root;
+    try t.expectError(error.DuplicateTableRowIdentity, table.apply(binding(&table, 2), &.{change(&cells[1], 1)}, .bulk, access.guard()));
+    try t.expectEqualDeep(accepted, table.root);
+    var unique = change(&cells[1], 1);
+    unique.put.row.identity.ordinal = 1;
+    _ = try table.apply(binding(&table, 2), &.{unique}, .bulk, access.guard());
+    try table.recover();
+    try t.expectEqual(@as(u64, 2), table.root.live_rows);
 }

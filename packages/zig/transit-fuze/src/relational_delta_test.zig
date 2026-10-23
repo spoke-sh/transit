@@ -12,7 +12,7 @@ const sources = [_]r.Source{
 const plan: r.Plan = .{ .sources = &sources, .join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } }, .outputs = &.{.{ .name = "v", .expression = .{ .column = .{ .source = 1, .id = 1 } } }}, .lifetime = .maintained, .budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 100, .work_steps = 10000, .source_pins = 2 } };
 fn cuts(revision: u64) ![2]r.Cut {
     var result: [2]r.Cut = undefined;
-    for (sources, 0..) |source, i| result[i] = .{ .resource = source.resource, .revision = revision, .commitment = @splat(@intCast(revision)), .schema = try source.schema.fingerprint() };
+    for (sources, 0..) |source, i| result[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = revision, .commitment = @splat(@intCast(revision)), .schema = try source.schema.fingerprint() };
     return result;
 }
 fn row(bound: r.Bound, ordinal: u64, right: ?r.RowIdentity, value: ?i64) !Output {

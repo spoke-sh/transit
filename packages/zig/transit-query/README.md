@@ -65,10 +65,26 @@ This direct caller accepts the finite Transit SELECT profile over one explicit
 retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
 collations reject before execution because the shared logical evaluator does
 not yet apply them. Closing a computation leaves its source available for other
-queries until the pin owner explicitly releases it. The default launcher, SQL
-gateway, relational sources and durable query jobs do not
-use this owner yet. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
+queries until the pin owner explicitly releases it. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
 for pin acquisition, authority and recovery.
+
+`DirectRelationalCompilation` prepares the finite relational profile against
+current direct definitions. `DirectRelationalQuery.openPreparedRetained` receives
+the original pins and owns the cloned plan, bounded readers and private spill.
+It uses `independent_table_snapshots`; aliases of one Table must share the same
+pin. Every cut explicitly distinguishes a native resource revision from a direct
+Table's branch/object/partition frontier. Neither form is inferred from a v1
+label. Stable row-identity pages support rewinds over the retained source without
+another pin or name lookup. Current rights for all inputs are rechecked together
+before row and completion disclosure. Cleanup closes local execution only;
+the caller remains responsible for durable pin release.
+
+`DirectTableAssistance` uses the same production parser and suggestion builders
+as Table completion, obtaining metadata through direct lookups and paged lists.
+It rechecks all disclosed definitions and current rights together. Its contract
+fingerprint binds that metadata vector; it supplies no native resource revision
+or data snapshot. Installed launcher/SQL recovery qualification and durable
+computation-source migration remain separate integration work.
 
 Table scans own their bounded entry, index-node and block caches in heap storage.
 Moving a scan into its query owner transfers that storage; it does not copy bulk

@@ -19,7 +19,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const tests = b.addTest(.{ .root_module = module });
+    const filters = b.option([]const []const u8, "test-filter", "Run storage tests whose names contain a filter") orelse &.{};
+    const tests = b.addTest(.{ .root_module = module, .filters = filters });
     b.step("test", "Qualify TransitLog, TransitObjectStore, TableMemtable, NvmeCache, and OCC").dependOn(&b.addRunArtifact(tests).step);
     b.step("check", "Compile the tiered storage runtime library").dependOn(&tests.step);
 }

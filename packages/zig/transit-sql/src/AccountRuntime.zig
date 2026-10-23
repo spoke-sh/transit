@@ -28,6 +28,8 @@ ingress_lane: g.ControlLane = .{},
 private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
+read_pins: ?g.ReadPins = null,
+read_cleanup_failure: std.atomic.Value(u16) = .init(0),
 
 pub fn notify(self: *Self) void {
     self.wake_mutex.lockUncancelable(self.io);
@@ -95,7 +97,7 @@ fn create(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.L
     const config = ledger.configuration;
     self.ingress = .{ .transport = &self.ingress_wire, .ledger = ledger, .principal = config.ingress, .key = keys.ingress };
     self.private = .{ .transport = &self.background, .ledger = ledger, .principal = config.coordinator, .key = keys.coordinator };
-    self.coordinator = .{ .allocator = allocator, .client = &self.private, .table_key = keys.table, .reader_key = keys.reader, .generation = generation };
+    self.coordinator = .{ .allocator = allocator, .client = &self.private, .table_key = keys.table, .generation = generation };
     self.server = try s.GenServer.init(.{ .client = &self.background, .realm = config.realm, .principal = config.worker, .pid = config.owner, .generation = generation, .key = keys.worker }, association);
     self.server.input_guard = self.behavior.guard();
     self.server.failure_policy = .stop;
@@ -111,12 +113,18 @@ fn create(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.L
 /// Call only after joining the worker and every borrowing connection. A restart
 /// requires a new native generation; process shutdown is no recovery evidence.
 pub fn deinit(self: *Self) void {
+    if (self.read_pins) |*pins| pins.deinit();
     self.coordinator.deinit();
     self.background.deinit();
     self.ingress_wire.deinit();
     const allocator = self.allocator;
     std.crypto.secureZero(u8, std.mem.asBytes(self));
     allocator.destroy(self);
+}
+pub fn attachReadPins(self: *Self, directory: std.Io.Dir) !void {
+    if (self.read_pins != null) return error.InvalidSqlReadRecovery;
+    const config = self.ledger.configuration;
+    self.read_pins = try g.ReadPins.init(self.allocator, self.io, directory, .{ .realm = config.realm, .owner = config.owner, .account = config.account }, self.coordinator.generation);
 }
 fn advancePrivate(self: *Self) !bool {
     if (self.private_lane.pending == null) return false;
@@ -186,16 +194,31 @@ pub fn tick(self: *Self) !bool {
             self.notifyProgress();
         },
         .dispatch => |action| {
-            // Receipt loss leaves the committed Table pointer unchanged. A
-            // subsequent pass dispatches the identical published signed bytes.
+            // Unknown direct outcomes retain the committed original binding.
+            // A later pass observes it before repeating admission or execution.
             const command = self.coordinator.dispatch(action) catch |err| {
                 if (staleRead(&self.background, err)) return progressed;
                 return err;
             };
-            try self.private_lane.start(&self.private, command);
-            progressed = try self.advancePrivate() or true;
+            if (command) |value| {
+                try self.private_lane.start(&self.private, value);
+                _ = try self.advancePrivate();
+            }
+            progressed = true;
             self.notifyProgress();
         },
+    }
+    if (self.read_pins) |*pins| {
+        try self.coordinator.fence();
+        const cleaned = pins.tick(&self.background, self.coordinator.table_key, self.ledger.configuration.table_principal) catch |err| blk: {
+            if (err == error.StaleGatewayCoordinator) return err;
+            // Cleanup denial/unavailability retains its durable record. It
+            // must not stall unrelated accepted mutations or new sessions.
+            self.read_cleanup_failure.store(@intFromError(err), .release);
+            break :blk false;
+        };
+        if (cleaned) self.read_cleanup_failure.store(0, .release);
+        progressed = progressed or cleaned;
     }
     const was_ready = self.ready.swap(true, .release);
     if (!was_ready or progressed) self.notifyProgress();
@@ -272,7 +295,7 @@ fn prepareControl(lane: *g.ControlLane, client: anytype, command: g.Control.Comm
 }
 /// observer and table borrow the connection's own native transport; no HTTP
 /// client or mutable sequence state is shared between concurrent sessions.
-pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.TableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !g.Terminal {
+pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !g.Terminal {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
@@ -288,11 +311,10 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
         };
     };
     defer allocator.free(bytes);
-    var intent = try c.TableIntent.restore(allocator, bytes);
-    defer intent.deinit();
+    const intent = try g.IntentReference.decode(allocator, bytes);
     while (true) {
         try deadline.check(self.io);
-        const terminal = self.observe(observer, table, &intent, item.id) catch |err| {
+        const terminal = self.observe(observer, table, intent, item.id) catch |err| {
             if (!retryObservation(observer.transport, err)) return err;
             try self.waitProgress(2);
             continue;
@@ -311,7 +333,7 @@ pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32
     if (fingerprint) |expected| if (!std.mem.eql(u8, &expected, &index.fingerprint)) return error.SqlTokenConflict;
     return item;
 }
-pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.TableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.LedgerRecords.Operation {
+pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.LedgerRecords.Operation {
     // This lock covers publication, never outcome waiting or client output.
     // Read sessions and the independently reserved control lane remain separate.
     while (!self.admission_mutex.tryLock()) {
@@ -327,7 +349,7 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try statement.validate(table);
     if (observer.principal != self.ledger.configuration.ingress or !std.mem.eql(u8, &try observer.ledger.configuration.digest(), &try self.ledger.configuration.digest())) return error.GatewayIdentityConflict;
     const connection = table.connection;
-    try self.control(.{ .begin = .{ .nonce = nonce, .fingerprint = fingerprint, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner, .namespace = connection.namespace, .role = connection.role } } }, deadline);
+    try self.control(.{ .begin = .{ .nonce = nonce, .fingerprint = fingerprint, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .namespace = statement.namespace, .role = connection.role } } }, deadline);
     const item = while (true) {
         try deadline.check(self.io);
         break self.discover(observer, nonce) catch |err| {
@@ -341,21 +363,27 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     var intent = while (true) {
         try deadline.check(self.io);
         break statement.bindWrite(allocator, table, values, item.id) catch |err| {
-            if (attempts == 64 or (!retryObservation(table.transport, err) and err != error.CatalogDefinitionChanged)) return err;
+            if (attempts == 64 or (!retryObservation(table.authority, err) and err != error.CatalogDefinitionChanged)) return err;
             attempts += 1;
             try self.io.sleep(.fromMilliseconds(if (s.client.Client.unavailable(err)) 20 else 1), .awake);
             continue;
         };
     };
     defer intent.deinit();
-    try self.control(.{ .begin_intent = .{ .operation = item.id, .spec = try s.Publication.Digest.of(g.LedgerRecords.intent_format, intent.bytes) } }, deadline);
+    // Complete work is staged once through the direct data plane. The private
+    // control ledger receives only its bounded immutable reference.
+    if (intent.bytes.len > self.ledger.configuration.intent_bytes) return error.GatewayRecordTooLarge;
+    const reference = try intent.stage(table.*, statement.namespace);
+    var storage: [g.IntentReference.max_bytes]u8 = undefined;
+    const bytes = try g.IntentReference.encode(reference, &storage);
+    try self.control(.{ .begin_intent = .{ .operation = item.id, .spec = try s.Publication.Digest.of(g.LedgerRecords.intent_format, bytes) } }, deadline);
     var offset: usize = 0;
-    while (offset < intent.bytes.len) {
-        const count = @min(g.Upload.part_bytes, intent.bytes.len - offset);
+    while (offset < bytes.len) {
+        const count = @min(g.Upload.part_bytes, bytes.len - offset);
         // Admission retains the exact bytes in the ordered native mailbox.
         // Keep only one uncertain send resident; let the ledger consume parts
         // independently, then require the seal's domain result below.
-        try self.handoff(.{ .intent_part = .{ .operation = item.id, .part = try g.Control.Part.init(@intCast(offset), intent.bytes[offset..][0..count]) } }, deadline, .admitted);
+        try self.handoff(.{ .intent_part = .{ .operation = item.id, .part = try g.Control.Part.init(@intCast(offset), bytes[offset..][0..count]) } }, deadline, .admitted);
         offset += count;
     }
     try self.control(.{ .seal_intent = item.id }, deadline);
@@ -370,24 +398,24 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
 }
 fn readIntent(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, id: u64) ![]u8 {
     var source = try observer.source();
-    return g.Upload.read(allocator, self.ledger.publication(id), &source, 1, self.ledger.configuration.intent_bytes);
+    return g.Upload.read(allocator, self.ledger.publication(id), &source, 1, g.IntentReference.max_bytes);
 }
 /// A service-side status read reopens the frozen intent only to check current
 /// disclosure rights. It cannot dispatch, recompile or invent an outcome.
-pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.TableClient, id: u64) !g.session_protocol.Operation {
+pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, namespace: u64, id: u64) !g.session_protocol.Operation {
     var source = try observer.source();
     const item = try self.ledger.operation(&source, id);
     const connection = table.connection;
-    if (item.resource != connection.scope.resource or item.catalog != connection.scope.catalog or item.owner != connection.owner or item.namespace != connection.namespace or item.selectedRole() != connection.role) return error.GatewayCatalogDenied;
-    _ = try table.describeDatabase();
+    if (item.resource != connection.scope.resource or item.catalog != connection.scope.catalog or item.owner != connection.audience or item.namespace != namespace or item.selectedRole() != connection.role) return error.GatewayCatalogDenied;
+    _ = try table.require(.{ .namespace = null, .target = null, .access = .database });
     var outcome: ?g.Terminal = null;
     if (item.phase == .ready or item.phase == .active or item.phase == .terminal) {
-        const bytes = try g.Upload.read(allocator, self.ledger.publication(id), &source, 1, self.ledger.configuration.intent_bytes);
+        const bytes = try g.Upload.read(allocator, self.ledger.publication(id), &source, 1, g.IntentReference.max_bytes);
         defer allocator.free(bytes);
-        var intent = try c.TableIntent.restore(allocator, bytes);
-        defer intent.deinit();
-        _ = try table.inspectIntent(&intent);
-        if (item.phase == .terminal) outcome = try self.observe(observer, table, &intent, id);
+        const intent = try g.IntentReference.decode(allocator, bytes);
+        const observed = try intent.operation(table.*, .inspect, 1);
+        defer observed.deinit();
+        if (item.phase == .terminal) outcome = try self.observe(observer, table, intent, id);
     }
     return .{
         .identity = .{ .account = self.ledger.configuration.account, .id = id },
@@ -399,9 +427,8 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
         .cancellation_requested = item.cancel != 0,
         .outcome = if (outcome) |terminal| switch (terminal.state) {
             .applied => .applied,
-            .unchanged => .unchanged,
             .rejected => .rejected,
-            .cancelled, .upload_cancelled => .cancelled,
+            .cancelled => .cancelled,
         } else null,
         .matched = if (outcome) |terminal| terminal.matched else 0,
         .changed = if (outcome) |terminal| terminal.changed else 0,
@@ -412,15 +439,16 @@ fn discover(self: *Self, observer: *g.Client, nonce: [16]u8) !g.LedgerRecords.Op
     var source = try observer.source();
     return (try self.ledger.discover(&source, nonce)) orelse error.MissingGatewayOperation;
 }
-fn observe(self: *Self, observer: *g.Client, table: *c.TableClient, intent: *const c.TableIntent, id: u64) !?g.Terminal {
+fn observe(self: *Self, observer: *g.Client, table: *c.DirectTableClient, intent: g.IntentReference.Reference, id: u64) !?g.Terminal {
     var source = try observer.source();
     const current = try self.ledger.operation(&source, id);
     if (current.phase == .terminal) {
         const bytes = (try source.read(g.LedgerRecords.key('t', id, 0))) orelse return error.MissingGatewayTerminal;
         const terminal = try g.LedgerRecords.decode(g.Terminal, bytes);
         // A cached ledger summary never carries current disclosure rights.
-        const native = try table.inspectIntent(intent);
-        const actual = if (native.outcome) |outcome| try g.Terminal.fromOutcome(outcome) else if (native.upload) |upload| try g.Terminal.fromUpload(upload) else return error.MissingGatewayTerminal;
+        const native = try intent.operation(table.*, .inspect, 1);
+        defer native.deinit();
+        const actual = (try g.Terminal.fromResult(intent.binding, native.value.result)) orelse return error.MissingGatewayTerminal;
         if (!std.meta.eql(terminal, actual)) return error.GatewayIdentityConflict;
         return terminal;
     }

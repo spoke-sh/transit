@@ -29,7 +29,8 @@ pub const Terminal = @import("Terminal.zig");
 pub const Ledger = @import("Ledger.zig");
 pub const LedgerRecords = @import("LedgerRecords.zig");
 pub const Upload = @import("Upload.zig");
-pub const SavedStep = @import("SavedStep.zig");
+pub const IntentReference = @import("IntentReference.zig");
+pub const ReadPins = @import("ReadPins.zig");
 pub const Type = @import("Type.zig");
 pub const Bytes = @import("Bytes.zig");
 test {

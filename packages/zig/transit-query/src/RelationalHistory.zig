@@ -81,7 +81,7 @@ pub const Vector = struct {
             for (self.entries[0..self.count]) |required| if (required.record.head.resource == source.resource) {
                 hash.update((try required.record.encode()).slice());
             };
-            output[i] = .{ .resource = source.resource, .revision = entry.position, .commitment = hash.finalResult(), .schema = try source.schema.fingerprint() };
+            output[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = entry.position, .commitment = hash.finalResult(), .schema = try source.schema.fingerprint() };
         }
         try (r.Bound{ .plan = bundle.plan, .cuts = output[0..self.count] }).validate();
     }

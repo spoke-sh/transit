@@ -25,7 +25,9 @@ by admission; decoded child values belong to the supplied request arena.
 schema. Keep the pin handle separately while opening: a failed inspection does
 not release the pin. `next` checks every page against the exact retained
 interpretation, accepted/logical-change positions and total row count, then
-decodes all rows under that original schema. Failed requests or decodes leave
+decodes all rows under that original schema. It checks strictly increasing row
+identities across pages and binds the continuation to the last returned identity.
+Failed requests or decodes leave
 the cursor unchanged. Returned batches own their values independently of the
 reader. Completion requires exact source consumption; it establishes no completed
 query result or consistent cut across independently retained Tables.
@@ -145,14 +147,21 @@ pages can be empty and still have a continuation. Its directory position and
 Table positions are independent observations, not a consistent catalog snapshot.
 Retained Table snapshots use the storage owner's separate durable-pin operations.
 
-`pinRows`, `snapshotDefinition`, `scanRows` and `releaseRows` expose those
+`pinRows`, `pinState`, `snapshotDefinition`, `scanRows` and `releaseRows` expose those
 operations through the same native policy owner. A pin belongs to its original
 principal; its handle does not grant access. Each read requires current CONNECT,
 USAGE and SELECT and retains its original schema after Table alteration or
 retirement. Row pages return owned values under separate row/byte limits and
 recheck authorization after buffering. Explicit release uses reserved control
-capacity. The direct HTTP dispatcher calls these methods; installed SQL adapters
-do not call them yet.
+capacity. Pin status observes the original acquisition without creating another
+snapshot. The direct HTTP dispatcher calls these methods.
+
+`check_set` validates up to sixteen access/snapshot requests under one final
+current authorization check. The local dispatcher excludes definition/data
+mutations while checking that set. It exposes no rows and establishes no common
+data frontier. Relational reads use it before disclosing results, including
+empty inputs. `namespaces` traverses the paged schema directory, filtering current
+USAGE rights and rechecking every returned schema together before disclosure.
 
 ## Bounds and remaining integration
 

@@ -9,6 +9,8 @@ const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const t = std.testing;
 const Lifecycle = @import("direct_table_lifecycle.zig");
+const SqlPins = @import("direct_sql_read_recovery.zig");
+const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
 const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null };
 const Admin = struct {
@@ -131,7 +133,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     try t.expectEqual(@as(u64, 2), second.outcome.live_rows);
     profile.saved = .{ .create = binding, .insert = work.binding, .snapshot = snapshot, .first = first, .second = second };
 }
-fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile) !void {
+fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
     const saved = profile.saved.?;
     try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
     try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
@@ -153,19 +155,68 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer current.deinit();
     try t.expectEqual(@as(u64, 2), current.value.result.lookup.?.row_count);
+    const pin_state = try client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = saved.snapshot.handle.owner } });
+    defer pin_state.deinit();
+    try t.expectEqualDeep(saved.snapshot.handle, pin_state.value.result.pin_state.handle.?);
+    try t.expect(!pin_state.value.result.pin_state.released);
+    const namespaces = try client.call(.{ .namespaces = .{ .after = null } });
+    defer namespaces.deinit();
+    try t.expectEqual(@as(u64, 1), namespaces.value.result.namespaces.entries[0].?.id);
+    try t.expect(namespaces.value.result.namespaces.entries[1] == null and namespaces.value.result.namespaces.next == null);
+    var assistance_arena = std.heap.ArenaAllocator.init(init.gpa);
+    defer assistance_arena.deinit();
+    const source_hint = try q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = "SELECT id FROM eve", .cursor = 18, .generation = 1 });
+    var source_found = false;
+    for (source_hint.items) |item| if (item.kind == .source and std.mem.eql(u8, item.text, "\"events\"")) {
+        source_found = true;
+    };
+    try t.expect(source_found);
+    const column_hint = try q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = "SELECT i FROM events", .cursor = 8, .generation = 2 });
+    var column_found = false;
+    for (column_hint.items) |item| if (item.kind == .column and std.mem.eql(u8, item.text, "\"id\"")) {
+        column_found = true;
+    };
+    try t.expect(column_found);
+    const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
+    const clients = [_]c.DirectTableClient{ client, client };
+    const prepared = try q.DirectRelationalCompilation.prepare(init.gpa, &clients, 1, "SELECT a.id AS id, COUNT(*) AS matches FROM events a LEFT JOIN events b ON a.id = b.id GROUP BY a.id", .interactive, options, null);
+    defer prepared.deinit();
+    const joined = try q.DirectRelationalQuery.openPreparedRetained(init.gpa, init.io, directory, "joined", client, prepared, &.{ saved.snapshot, saved.snapshot }, options, null);
+    defer joined.deinit();
+    const result = (try joined.next()).?;
+    try t.expectEqual(@as(i128, 1), result.cells[0].value.atom.signed);
+    try t.expectEqual(@as(u128, 1), result.cells[1].value.atom.unsigned);
+    try t.expect(try joined.next() == null);
+    try t.expect(joined.complete);
     var empty_query = try q.DirectTableQuery.openRetained(init.gpa, client, saved.snapshot, "events", "SELECT id FROM events LIMIT 0", .{ .requests = 100, .rows = 10, .result_bytes = 1024 }, null, null, .{});
     defer empty_query.deinit();
+    var cleanup = try sql_runtime.ReadPins.init(init.gpa, init.io, directory, .{ .realm = 42, .owner = 100, .account = @splat(49) }, 1);
+    defer cleanup.deinit();
+    const cleanup_record = try cleanup.acquire(client, try c.DirectTableBinding.init(client.connection, current.value.result.lookup.?), current.value.result.lookup.?.position);
     const native_table = (try admin.query(.{ .binding = .{ .domain = profile.catalog.authority.table_domain, .key = try c.TableAuthority.binding(profile.catalog.scope, .table, 7) } })).body.authorization.body.binding.?.reference.id;
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
     try t.expectError(error.AccessDenied, reader.check(client));
     try t.expectError(error.AccessDenied, reader.next(client, .{}));
     try t.expectError(error.AccessDenied, empty_query.nextBatch(8));
+    try t.expectError(error.AccessDenied, joined.next());
+    try t.expectError(error.AccessDenied, q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = "SELECT i FROM events", .cursor = 8, .generation = 3 }));
+    try t.expectError(error.AccessDenied, client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = saved.snapshot.handle.owner } }));
     try t.expectError(error.AccessDenied, inspect(client, saved.insert));
+    try t.expectError(error.AccessDenied, cleanup.close(client, cleanup_record));
+    try t.expectError(error.AccessDenied, cleanup.tick(client.authority, client.key, client.connection.principal));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = profile.role } });
+    for (0..3) |_| _ = try cleanup.tick(client.authority, client.key, client.connection.principal);
+    const cleanup_state = try client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = cleanup_record.owner() } });
+    defer cleanup_state.deinit();
+    try t.expect(cleanup_state.value.result.pin_state.released);
+    try cleanup.close(client, cleanup_record);
     try reader.check(client);
     try reader.release(client);
     try reader.release(client);
+    const released = try client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = saved.snapshot.handle.owner } });
+    defer released.deinit();
+    try t.expect(released.value.result.pin_state.released);
     try t.expectError(error.TableSnapshotReleased, reader.check(client));
     try t.expectError(error.Conflict, c.DirectTableReader.open(init.gpa, client, saved.snapshot));
     try t.expectEqual(p.ErrorCode.QueryExpired, client.service.last_rejection.?);
@@ -194,12 +245,16 @@ pub fn main(init: std.process.Init) !void {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.arena.allocator(), .limited(1024 * 1024));
         var profile = (try p.Json.parseFromSlice(Profile, init.arena.allocator(), bytes)).value;
         const client: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &native, .service = &service, .connection = .{ .scope = profile.catalog.scope, .branch = 1, .audience = profile.catalog.audience, .principal = 101, .role = null }, .key = try key(29) };
+        const directory = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(args[3]) orelse ".", .{});
+        defer directory.close(init.io);
         if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
+            try SqlPins.prepare(init, client, directory);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "recover")) {
-            try recover(init, client, &admin, profile);
-            var lifecycle = try Lifecycle.evolve(init.gpa, client, profile.role);
+            try SqlPins.recover(init, client, directory);
+            try recover(init, client, &admin, profile, directory);
+            var lifecycle = try Lifecycle.evolve(init.gpa, init.io, directory, client, profile.role);
             defer lifecycle.deinit();
             profile.lifecycle = lifecycle.value;
             try save(init, args[3], profile);

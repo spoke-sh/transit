@@ -7,7 +7,7 @@ const columns = [_]@import("TableSchema.zig").Column{.{ .id = 1, .name = "k", .t
 const sources = [_]r.Source{.{ .alias = "t", .realm = 1, .resource = 101, .catalog = 9, .owner = 7, .schema = .{ .object = 11, .revision = 1, .next_column = 2, .columns = &columns } }};
 const plan: r.Plan = .{ .sources = &sources, .group_by = &.{.{ .source = 0, .id = 1 }}, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = Index.resident_bytes, .spill_bytes = 1 << 30, .result_bytes = 1 << 20, .output_rows = 10000, .work_steps = 1000000, .source_pins = 1 } };
 fn cut() ![1]r.Cut {
-    return .{.{ .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() }};
+    return .{.{ .domain = .native_resource, .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() }};
 }
 // Test-only materialized medium. Runtime stores use bounded pages and staging.
 pub const Store = struct {

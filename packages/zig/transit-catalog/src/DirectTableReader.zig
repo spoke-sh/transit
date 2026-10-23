@@ -107,6 +107,7 @@ fn consume(self: *Self, page: w.Page, limits: P.ReadLimits) !Batch {
     var batch: Batch = .{ .complete = page.next == null };
     errdefer batch.deinit();
     var encoded_bytes: u64 = 0;
+    var previous: ?[f.TableRow.Identity.encoded_bytes]u8 = if (self.after) |cursor| cursor.after else null;
     for (page.rows, 0..) |binary, i| {
         const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
         defer self.allocator.free(bytes);
@@ -114,8 +115,11 @@ fn consume(self: *Self, page: w.Page, limits: P.ReadLimits) !Batch {
         if (encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
         batch.rows[i] = try f.TableRow.decode(self.allocator, self.schema.schema, bytes);
         batch.count += 1;
-        for (batch.rows[0..i]) |previous| if (std.meta.eql(previous.?.identity, batch.rows[i].?.identity)) return error.InvalidTableResponse;
+        const identity = try batch.rows[i].?.identity.encode();
+        if (previous) |before| if (std.mem.order(u8, &identity, &before) != .gt) return error.InvalidTableResponse;
+        previous = identity;
     }
+    if (page.next) |cursor| if (previous == null or !std.meta.eql(cursor.after, previous.?)) return error.InvalidTableResponse;
     if (encoded_bytes != page.encoded_bytes) return error.InvalidTableResponse;
     self.after = page.next;
     self.consumed = consumed;
@@ -161,7 +165,7 @@ test "retained reader binds pages, complete consumption and original schema with
         encoded.* = try w.Binary.encode(alloc, bytes);
         length.* = @intCast(bytes.len);
     }
-    const first: w.Page = .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .total_rows = 3, .rows = binary[0..1], .encoded_bytes = lengths[0], .next = .{ .source = source.snapshot.handle.content, .after = @splat(1) } };
+    const first: w.Page = .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .total_rows = 3, .rows = binary[0..1], .encoded_bytes = lengths[0], .next = .{ .source = source.snapshot.handle.content, .after = try (f.TableRow.Identity{ .origin = 7, .operation = 1, .ordinal = 0 }).encode() } };
     var bad = first;
     bad.accepted.next_lsn += 1;
     try t.expectError(error.InvalidTableResponse, reader.consume(bad, .{}));

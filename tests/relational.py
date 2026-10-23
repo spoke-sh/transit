@@ -206,7 +206,7 @@ def identity_fixture():
     prepared = hashlib.sha256(encoded).digest()
     bound = DEFINITION + b'\0bound\0' + prepared
     for resource, revision, marker, fingerprint in zip([101, 202], [7, 12], [17, 34], schemas):
-        bound += struct.pack('<QQ', resource, revision) + bytes([marker]) * 32 + fingerprint
+        bound += b'\0' + struct.pack('<QQ', resource, revision) + bytes([marker]) * 32 + fingerprint
     return {'prepared': prepared.hex(), 'bound': hashlib.sha256(bound).hexdigest()}
 
 

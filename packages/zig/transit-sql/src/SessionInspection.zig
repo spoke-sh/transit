@@ -7,7 +7,7 @@ const c = g.catalog;
 const Self = @This();
 arena: std.heap.ArenaAllocator,
 name: ?c.TableMetadata.Name = null,
-metadata: ?c.TableMetadata.Record = null,
+metadata: ?c.DirectTableBinding = null,
 statement: ?g.Statement = null,
 source: bool = false,
 rows: []const []const f.Types.Values.Cell,
@@ -38,9 +38,13 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     if (try parser.takeWord("DESCRIBE")) {
         const name = try c.TableMetadata.Name.init(try parser.name());
         try parser.finish();
-        var definition = (try host.table.lookup(host.allocator, name)) orelse return error.CatalogNameNotFound;
-        defer definition.deinit();
-        const schema = definition.schema.schema;
+        const response = try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        defer response.deinit();
+        const definition = response.value.result.lookup orelse return error.CatalogNameNotFound;
+        const binding = try c.DirectTableBinding.init(host.table.connection, definition);
+        var owned_schema = try f.TableSchema.decode(a, try definition.schema.decode(a, f.TableSchema.max_bytes));
+        defer owned_schema.deinit();
+        const schema = owned_schema.schema;
         const rows = try a.alloc([]const f.Types.Values.Cell, schema.columns.len);
         for (schema.columns, rows) |column, *row| {
             var type_text: std.Io.Writer.Allocating = .init(a);
@@ -51,10 +55,10 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 unsigned(column.id),
             });
         }
-        return .{ .arena = arena, .name = name, .metadata = definition.metadata, .rows = rows, .output = &describe_fields };
+        return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = &describe_fields };
     }
     if (try parser.takeWord("EXPLAIN")) {
-        var statement = try g.Statement.prepare(host.allocator, &host.table, sql[parser.lexer.start..], host.dialect, .native, g.Session.read_options);
+        var statement = try g.Statement.prepare(host.allocator, &host.table, host.namespace, sql[parser.lexer.start..], host.dialect, .native, g.Session.read_options);
         errdefer statement.deinit();
         if (statement.kind() != .select or statement.parameters().len != 0) return error.UnsupportedConstruct;
         const plan = switch (statement.plan) {
@@ -63,7 +67,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 var bound = try template.bind(host.allocator, template.name, template.descriptor.type, template.basis, &.{}, null);
                 defer bound.deinit();
                 break :blk try std.json.Stringify.valueAlloc(a, .{
-                    .object = selected.binding.metadata.object,
+                    .object = selected.binding.interpretation.interpretation.object.object,
                     .filter = bound.plan.predicate != .all,
                     .aggregate = @tagName(bound.plan.aggregate),
                     .limit = bound.plan.limit,
@@ -73,7 +77,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 }, .{});
             },
             .relational => |compilation| try std.json.Stringify.valueAlloc(a, .{
-                .consistency = "per_resource_snapshot_vector",
+                .consistency = "independent_table_snapshots",
                 .sources = compilation.plan.sources.len,
                 .join = if (compilation.plan.join) |join| @tagName(join.kind) else "none",
                 .grouped = compilation.grouped(),
@@ -97,10 +101,9 @@ pub fn validate(self: *Self, host: *g.Session) !void {
         try source.current();
         _ = try source.client.describe(source.definition);
     }
-    if (self.name) |name| {
-        var definition = (try host.table.lookup(host.allocator, name)) orelse return error.CatalogNameNotFound;
-        defer definition.deinit();
-        if (!std.meta.eql(definition.metadata, self.metadata.?)) return error.CatalogDefinitionChanged;
+    if (self.metadata) |binding| {
+        if (host.namespace != binding.namespace) return error.CatalogIdentityConflict;
+        _ = try binding.require(host.table, .inspect);
     }
     if (self.statement) |*statement| try statement.validate(&host.table);
 }

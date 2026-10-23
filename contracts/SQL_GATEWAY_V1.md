@@ -132,13 +132,11 @@ against native authority and require current database CONNECT. Database mappings
 fix a schema namespace and eligible selected role; the operation ledger retains
 both, independently of the connection lifetime.
 
-The private reader identity supplies catalog storage bytes and exact admission
-inspection. The Table caller supplies the signed subject used by the common
-catalog/query evaluator; the reader's raw-resource grants cannot satisfy that
-subject's missing Table privileges. SQL users need no raw-resource grants.
-Immutable signed steps retain their own signing key. Credential rotation does
-not change the ledger's identity or replace those signatures; exact receipt
-recovery precedes any retry under the original request bytes.
+Direct Table metadata, scans and operation evidence use the Table caller's current
+signed subject and selected role. They require no private raw-storage reader.
+The ledger retains an exact direct intent reference; current credentials may
+sign its transport attempts without changing accepted work. Native ledger
+controls retain their own exact signatures and sequence-recovery rules.
 
 ## PostgreSQL frame and cycle ownership
 
@@ -309,24 +307,17 @@ markers. `Codec.string` checks its byte bound before slicing input. These helper
 do not allocate based on untrusted lengths. Decoded parameter strings borrow the
 input until the session clones/binds them.
 
-## Saved native steps and record upload
+## Frozen direct references and record upload
 
-`SavedStep` stores one exact `TableClient.Prepared` in at most 455 bytes. The
-layout is `GSS1`, mandatory current native definition:32, realm/resource/catalog/
-owner/principal/sequence as six little-endian u64 values, schema namespace:u64,
-selected-role presence:u8 (0 or 1), selected role:u64 (zero when absent), original
-signing public key:32, Station frame length:u16,
-exact frame bytes (at most 256) and signature:64. The redundant native envelope
-identities are reconstructed only after validating this explicit definition and
-the Table command's connection. No signature is generated or replaced. Encoding
-requires a current Table send; decoding rejects missing/foreign definitions,
-invalid framing, unsupported command identities and trailing bytes. `verify`
-checks the saved public key against the configured original signer, the signature
-and its match to the original complete Table intent. The reconstructed native
-send retains the selected role; schema namespace and null-role presence are not
-inferred from a current session.
-The coordinator remains responsible for current grants and principal sequence
-ownership. A decoded record is not evidence that its send was accepted.
+`IntentReference` stores a canonical `GIR1` envelope: magic:4, mandatory current
+definition:32 and canonical JSON of `DirectTableIntent.Reference`, at most 4096
+bytes in total. The reference contains the definition, direct connection,
+namespace, complete neutral operation binding and exact content length/digest.
+Decoding is pure and rejects missing/foreign definitions, noncanonical JSON and
+invalid bindings. It never resolves a name, signs a request or admits execution.
+Complete `TDI1` content is staged with the direct owner before its reference is
+published. Current credentials authorize each direct request; the reference
+retains the original principal, selected role and work identity.
 
 `Upload` composes SQL gateway publication domain 11 with 128-byte ingress parts.
 It temporarily retains a first half under publication key tag `h`, id=record ID,
@@ -356,52 +347,40 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 
 | Magic | Contents |
 | --- | --- |
-| GSH1 | Account/configuration commitment, retained/unsettled counters, used/reserved content, current quotas, active operation and known accepted principal sequence |
-| GSN1 | Immutable nonce-to-operation identity |
-| GSO1 | Frozen target, preparation phase, intent commitment, record/pending identities, sequence/input observations, conservative content reservation, requested controls and terminal summary/counts |
-| GSB1 | Original Table command header fields with nested TCQ1 magic/definition omitted, body offset/length, command/domain digests and DML route; exactly 222 bytes including the checked GSB1 definition prefix |
-| GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
-| GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual DDL object and Table route |
+| GSH1 | Account/configuration commitment, retained/unsettled counters, used/reserved content, quotas and active operation |
+| GSN1 | Immutable nonce-to-operation identity and request fingerprint |
+| GSO1 | Frozen scope, preparation phase, reference commitment, permanent dispatch eligibility, reservation, controls and summary/counts |
+| GSB1 | Operation ID and SHA-256 commitment to the full canonical neutral operation binding |
+| GST1 | Direct DDL/DML kind, binding commitment, scope/operation/object, terminal state/reason, counts, acceptance position and resulting revision |
 | GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
 
 Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
-Tags are `h` head (both IDs zero), `o` operation, `u` unfinished-upload index,
-`q` ready index, `b` intent binding, `e` step observation, `d` exact native
-disposition, `i` ledger input rejection and `t` terminal facts. Index values are
-the exact ASCII bytes `upload` and `ready`. `i` uses the native input as its first
-ID, zero as its second, and a GSD1 value.
-Nonce keys use tag `n` followed by the 16 nonce bytes instead of the two integers.
-`d` values use the catalog's original TCA1/E encoding. `t` holds GST1 or the exact
-marker `gateway.cancelled.before-dispatch.v1` under a current-definition operation.
-The marker claims local cancellation only. Publication namespace is the operation
-ID: record 1 is the complete typed intent; later IDs are monotonic step attempts.
-Only never-published abandoned step parts may be collected by the bounded helper.
+Tags are `h` head, `o` operation, `u` unfinished-upload index, `q` ready index,
+`b` binding commitment, `i` input rejection and `t` terminal facts. Index values
+are exactly `upload` and `ready`. Rejection keys use the native input as the first
+ID and zero as the second. Nonce keys use tag `n` followed by the 16 nonce bytes.
+Publication namespace is the operation ID; record 1 holds the exact GIR1 reference.
 
 Operation phases are reserved=1, uploading=2, ready=3, active=4, terminal=5 and
-abandoned=6. A begin input allocates the ID and reservation before any intent is
-uploaded. Complete canonical validation precedes ready admission. One active
-operation owns the account's dedicated Table sequence. A committed published step
-precedes dispatch; a native receipt precedes sequence advancement; processed
-input and SQL terminal facts remain distinct records. Current rights are required
-again before disclosing cached outcome facts. Operator controls and private
-coordinator observations have distinct native principals.
+abandoned=6. Complete reference validation precedes ready admission. Committed
+dispatch eligibility precedes the first direct admission attempt and is never
+cleared after uncertainty. The coordinator recovers the original direct outcome;
+a native control receipt is not SQL completion. Current rights govern terminal
+disclosure independently of the retained summary.
 
-DDL bindings cover CREATE, ALTER, rename and DROP. A missing-object
-`DROP IF EXISTS` retains object zero and the catalog's unchanged outcome.
-GST1 DDL route zero carries catalog reasons; route three carries a delegated
-ALTER's Table rejection reason and completion input. The latter retains the
-original catalog digest, checks the Table reference against its recorded
-delegation, and has zero row counts. Neither admission nor catalog delegation
-alone is terminal evidence.
+GST1 kinds are DDL=1 and DML=2; states are applied=1, rejected=2 and cancelled=3.
+An applied result includes a nonzero partition, next LSN and resulting definition
+revision. Only DML has row counts. Rejected/cancelled outcomes contain no
+acceptance position or result counts. Before-dispatch abandonment has summary
+none and fabricates no direct terminal record. Conditional name-only DDL requires
+a separate catalog outcome contract and is not represented by object zero.
 
-Configuration supports 1–8 frozen catalogs per account, a dedicated private
-ledger resource and five distinct nonzero worker/ingress/operator/coordinator/
-Table principals. Native grants remain explicit. Initial retained-count/content
-quotas are mandatory; pending quota defaults to 16, at most 1024. Increasing
-capacity and reserving extra recovery space are explicit operator transitions.
-New admission cannot consume an existing operation reservation. No transition
-expires accepted work, drops history under pressure, dispatches during inspection
-or treats a disconnected session as cancellation.
+Configuration fixes one to eight catalog bindings and a separate private ledger.
+Native grants remain explicit. Retained-count/content quotas are mandatory;
+pending quota defaults to 16 and is at most 1024. Capacity and reservation
+increases require explicit controls. New admission cannot consume existing
+reservations. No transition expires work, deletes history under pressure,
+dispatches during inspection or treats disconnect as cancellation.
 
 ## Signed native ledger controls
 
@@ -410,29 +389,22 @@ then the fields of [`Control.Command`](../packages/zig/transit-sql/src/Control.z
 in declaration order. Integers are little-endian, arrays have exact declared
 length, enums use their declared integer tag, and optional values start with
 zero (absent) or one (present). There are no omitted/defaulted wire fields.
-Qualified targets contain operation:u64 and native generation:u64; record
-targets add record:u64. Parts contain offset:u32, length:u8 and bytes:128; offsets
+Qualified targets contain operation:u64 and native generation:u64. Parts contain offset:u32, length:u8 and bytes:128; offsets
 are multiples of 128 and unused bytes are zero. Embedded terminal facts omit
 the GST1/definition prefix because the command already supplies its definition.
 
 | Tag | Command | Required actor |
 | ---: | --- | --- |
-| 1 | initialize(sequence) | Operator |
-| 2 | begin(nonce, binding) | Ingress |
+| 1 | initialize | Operator |
+| 2 | begin(nonce, binding, fingerprint) | Ingress |
 | 3 | begin_intent(operation, spec) | Ingress |
 | 4 | intent_part(operation, part) | Ingress |
 | 5 | seal_intent(operation) | Ingress |
 | 6 | admit_intent(qualified target) | Coordinator |
 | 7 | activate(generation) | Coordinator |
-| 8 | begin_step(qualified target, spec) | Coordinator |
-| 9 | step_part(record target, part) | Coordinator |
-| 10 | publish_step(record target) | Coordinator |
-| 11 | receipt(record target, input) | Coordinator |
-| 12 | processed(record target, optional Table disposition) | Coordinator |
+| 8 | dispatch(qualified target) | Coordinator |
 | 13 | reconcile(operation) | Operator |
 | 14 | cancel(operation) | Operator |
-| 15 | abandon_step(record target) | Coordinator |
-| 16 | collect_step(record target) | Coordinator |
 | 17 | cancel_unsent(qualified target) | Coordinator |
 | 18 | capacity(operations:u64, bytes:u64, pending:u32) | Operator |
 | 19 | reserve(operation:u64, bytes:u64) | Operator |

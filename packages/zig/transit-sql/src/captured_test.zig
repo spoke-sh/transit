@@ -36,7 +36,7 @@ test "captured publication fences dispatch and serializes exact source requests 
     var store: Store = .{};
     defer store.deinit();
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = configuration.ingress;
     const id = try begin(&store, 1);
@@ -91,7 +91,7 @@ test "an incomplete captured admission can be cancelled without compiling or dis
     var store: Store = .{};
     defer store.deinit();
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = configuration.ingress;
     const id = try begin(&store, 4);

@@ -173,7 +173,7 @@ fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.B
     defer allocator.free(scratch);
     return w.Binary.encode(allocator, try row.storageKey(schema, scratch));
 }
-pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64) !OwnedState {
+pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, client: c.DirectTableClient, role: u64) !OwnedState {
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const alloc = arena.allocator();
@@ -217,6 +217,12 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     const after_rename = try lookup(client, "renamed");
     defer after_rename.deinit();
     try t.expectEqual(@as(u64, 7), after_rename.value.result.lookup.?.interpretation.interpretation.object.object);
+    const relational_options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
+    const regrouped = try q.DirectRelationalCompilation.prepare(allocator, &.{client}, 1, "SELECT id, COUNT(*) AS total FROM renamed GROUP BY id", .interactive, relational_options, null);
+    defer regrouped.deinit();
+    // Rename preserves columns, but changes the prepared interpretation. The
+    // old pin cannot be substituted merely because its schema hash matches.
+    try t.expectError(error.RelationalSourceChanged, q.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "changed-definition", client, regrouped, &.{rewritten}, relational_options, null));
     const dropped = try ddl(alloc, client, .{ .binding = binding(client, 8, .drop, after_rename.value.result.lookup.?), .namespace = 1, .name = "renamed", .action = .drop });
     try t.expect(dropped.resulting.retired);
     try absent(client, "renamed");

@@ -14,6 +14,65 @@ for successive complete results. The physical mechanisms below preserve those
 semantics. Typed maintained owners require explicit host activation and wakeups;
 they do not establish an automatic SQL materialized-view service.
 
+## Direct Table snapshots and interrupted SQL reads
+
+The question is how a finite SQL result retains its exact source when accepted
+rows still live in the WAL, storage maintenance moves rows into segments, or a
+gateway loses the acquisition reply. This account covers the direct Table
+adapter and its local gateway recovery journal. It assumes the Table owner keeps
+its append-only history and immutable snapshot objects, the local journal's file
+and directory syncs establish durability, and native generation checks fence a
+replaced SQL coordinator. It does not establish storage garbage collection or
+resumption of an ordinary SELECT after session loss.
+
+A retained Table basis names the object and immutable definition, the partition's
+accepted frontier and logical-change frontier, the schema and snapshot content.
+The snapshot root covers both WAL and segment locators. The paged row-identity
+index orders rows independently of their physical location. A flush changes
+locators while preserving this index and logical-change evidence. Repeated
+relational scans therefore retain canonical contribution order across WAL and
+segment sources. The [storage owner](../../../packages/zig/transit-storage/src/TablePartition.zig)
+checks identity uniqueness before publishing the complete root.
+
+[`DirectRelationalCompilation`](../../../packages/zig/transit-query/src/DirectRelationalCompilation.zig)
+binds current definitions without acquiring data. Execution supplies retained
+pins and verifies the prepared interpretations. A cut explicitly identifies a
+native resource or a Table partition. Separate Tables have independent frontiers
+even when their catalog resource is the same; aliases of one Table reuse its
+pin. A single resource revision would erase that distinction and incorrectly
+promise consistency. Final batched authorization covers every input, including
+an empty input that contributes no row. This check establishes current disclosure
+rights, not a common data frontier.
+
+The difficult interruption lies between remote pin acceptance and receiving its
+handle. [`ReadPins`](../../../packages/zig/transit-sql/src/ReadPins.zig) syncs the
+original principal, prepared binding, random acquisition identity and expected
+frontier before its first request. It records the returned handle before exposing
+the query. Closure is also durable before release. Recovery observes the original
+pin: it releases an active pin or removes a journal entry after recorded release.
+If no pin exists at the original frontier, replaying that exact acquisition and
+releasing it closes uncertainty. If the object has retired or advanced beyond
+the expected frontier, a delayed original request can no longer acquire the pin.
+Choosing a fresh identity or frontier would instead create unrelated work.
+
+A pass visits at most eight journal entries and reconciles at most one eligible
+record. Current-generation active reads stay protected; earlier-generation and
+closing records are eligible. Denial or unavailable evidence leaves the record
+and reports a cleanup error without blocking unrelated accepted mutations. This
+costs durable local metadata and extra control requests; lease-only cleanup would
+not preserve this durable pin contract. The journal has no authority to grant
+access, expire history or physically collect Table objects.
+
+The mechanism is falsified by an accepted acquisition with no recoverable original
+request, cleanup of a current-generation active pin, changed interpretation under
+a prepared handle, unstable row order after flush, or output disclosure after
+rights are revoked. `just test::direct-table-service` in the pinned Nix shell
+exercises corrupted acquisition replies, node restart, generation replacement,
+retained joins and revocation. Storage and SQL package tests cover root atomicity
+and dispatch/terminal binding. The [proof ledger](../../../tests/README.md) records
+executions and limits. These component/HTTP checks do not by themselves qualify
+the default launcher or every installed SQL transport.
+
 ## Column execution and ordered failure frontiers
 
 The question is whether private column computation can remove repeated dynamic

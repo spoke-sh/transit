@@ -332,6 +332,35 @@ pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !
     return result;
 }
 
+pub const NamespacePage = struct { entries: [8]?a.Schema = @splat(null), next: ?pages.Key = null, directory_position: d.Position };
+/// Directory traversal filters current USAGE rights, including empty pages.
+pub fn listNamespaces(self: *Self, after: ?pages.Key, policy: Policy) !NamespacePage {
+    try self.requireInitialized();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var combined = try self.requirements(policy, null, null, .database);
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined));
+    const batch = try self.store.tree().scan(self.store.root.schemas, after);
+    var result: NamespacePage = .{ .next = batch.next, .directory_position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
+    var count: usize = 0;
+    for (batch.entries) |slot| if (slot) |item| {
+        const namespace_value = try r.fromValue(a.Schema, self.allocator, item.value);
+        try namespace_value.validate();
+        if (!std.meta.eql(item.key, try r.idKey(namespace_value.id)) or !std.meta.eql(namespace_value.scope, self.config().scope)) return error.InvalidDirectCatalogEntry;
+        if (namespace_value.retired) continue;
+        const required = try self.requirements(policy, namespace_value, null, .schema);
+        check(try policy.make_guard(policy.context, arena.allocator(), required)) catch |err| {
+            if (err == error.CatalogDenied or err == error.Forbidden) continue;
+            return err;
+        };
+        combined = try combined.merge(required);
+        result.entries[count] = namespace_value;
+        count += 1;
+    };
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined));
+    return result;
+}
+
 fn original(self: *Self, policy: Policy, binding: d.Binding) !void {
     try binding.validate();
     if (policy.subject.principal() != binding.identity.principal or !std.meta.eql(binding.identity.scope, self.config().scope) or binding.target.branch != self.config().branch) return error.CatalogDenied;
@@ -717,6 +746,14 @@ pub fn pinRows(self: *Self, object: d.Object, owner: d.Operation, expected: d.Po
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
     defer access.view.deinit();
     return access.view.table.pin(owner, expected, access.current);
+}
+
+pub fn pinState(self: *Self, object: d.Object, owner: d.Operation, policy: Policy) !P.PinState {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, true);
+    defer access.view.deinit();
+    return access.view.table.pinState(owner, access.current);
 }
 
 pub fn snapshotDefinition(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !P.SnapshotDefinition {

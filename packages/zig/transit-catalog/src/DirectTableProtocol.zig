@@ -217,11 +217,16 @@ pub const Statement = struct {
 };
 
 pub const Snapshot = struct { object: d.Object, handle: P.SnapshotHandle };
+pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot };
 pub const Action = union(enum) {
+    pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     initialize,
     describe,
     namespace: u64,
+    namespaces: struct { after: ?u64 },
     check: D.AccessRequest,
+    /// All requirements are checked together before disclosing the response.
+    check_set: []const ReadCheck,
     list: struct { namespace: u64, after: ?u64 },
     lookup: struct { namespace: u64, name: []const u8 },
     preview: Ddl,
@@ -232,6 +237,7 @@ pub const Action = union(enum) {
     admit_statement: Statement,
     operation: struct { binding: d.Binding, command: enum { inspect, execute, cancel }, steps: u16 },
     pin: struct { object: d.Object, owner: d.Operation, expected: d.Position },
+    pin_status: struct { object: d.Object, owner: d.Operation },
     snapshot: Snapshot,
     scan: struct { snapshot: Snapshot, after: ?P.SnapshotCursor, limits: P.ReadLimits },
     release: Snapshot,
@@ -263,7 +269,7 @@ pub const Request = struct {
             .operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = self.action == .release or (self.action == .operation and self.action.operation.command != .execute);
+        const control = self.action == .release or self.action == .pin_status or (self.action == .operation and self.action.operation.command != .execute);
         return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -287,7 +293,15 @@ pub const Request = struct {
                 if (!std.meta.eql(value.connection, connection)) return error.CatalogIdentityConflict;
             },
             .namespace => |id| try c.Model.nativeId(id),
+            .namespaces => |value| if (value.after) |after| if (after == 0) return error.InvalidCatalogCursor,
             .check => |value| try value.validate(connection.scope, connection.branch),
+            .check_set => |values| {
+                if (values.len == 0 or values.len > 16) return error.InvalidTableReadBudget;
+                for (values) |value| switch (value) {
+                    .access => |access| try access.validate(connection.scope, connection.branch),
+                    .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
+                };
+            },
             .list => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (value.after) |after| if (after == 0) return error.InvalidCatalogCursor;
@@ -309,6 +323,10 @@ pub const Request = struct {
                 try connection.object(value.object);
                 try connection.owner(value.owner);
                 try value.expected.validate();
+            },
+            .pin_status => |value| {
+                try connection.object(value.object);
+                try connection.owner(value.owner);
             },
             inline .snapshot, .release => |value| try validateSnapshot(connection, value),
             .scan => |value| {
@@ -359,6 +377,7 @@ pub const Result = union(enum) {
     initialized,
     description: D.Configuration,
     namespace: ?c.TableAuthority.Schema,
+    namespaces: struct { entries: [8]?c.TableAuthority.Schema, next: ?u64, directory_position: d.Position },
     checked,
     staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
@@ -367,6 +386,7 @@ pub const Result = union(enum) {
     ddl: D.Observation,
     rows: P.OperationState,
     pin: P.SnapshotHandle,
+    pin_state: P.PinState,
     snapshot: Source,
     page: Page,
     released,

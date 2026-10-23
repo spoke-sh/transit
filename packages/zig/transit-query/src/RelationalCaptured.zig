@@ -84,7 +84,7 @@ pub const Vector = struct {
     }
     pub fn boundCuts(self: Vector, bundle: q.RelationalBundle, output: *[r.max_sources]r.Cut) !void {
         try self.validate(bundle);
-        for (self.entries[0..self.count], bundle.plan.sources, 0..) |entry, source, i| output[i] = .{ .resource = source.resource, .revision = entry.revision, .commitment = commitment(source.realm, source.resource, entry), .schema = try source.schema.fingerprint() };
+        for (self.entries[0..self.count], bundle.plan.sources, 0..) |entry, source, i| output[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = entry.revision, .commitment = commitment(source.realm, source.resource, entry), .schema = try source.schema.fingerprint() };
         try (r.Bound{ .plan = bundle.plan, .cuts = output[0..self.count] }).validate();
     }
     /// Closure releases each distinct pin once. Native release deliberately does

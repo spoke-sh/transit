@@ -66,11 +66,24 @@ test "pinned Table pages retain mixed WAL and segment rows across schema rewrite
         try t.expectEqual(@as(u8, 3), retained.count);
         try t.expectEqual(@as(u64, 13), retained.total_rows);
         try t.expect(retained.next != null);
+        for (retained.rows[0..retained.count], 0..) |row, i| try t.expectEqual(i, row.?.row().identity.ordinal);
         // A new pin over later physical state cannot consume this cursor.
+        const identity_root = table.root.identities;
         _ = try table.flush(access.guard());
+        try t.expectEqualDeep(identity_root, table.root.identities);
         const later = try pin(&table, 81, &access);
+        var ordered = try table.scanSnapshot(t.allocator, later, null, .{}, access.guard());
+        defer ordered.deinit();
+        for (ordered.rows[0..ordered.count], 0..) |row, i| try t.expectEqual(i, row.?.row().identity.ordinal);
         try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshot(t.allocator, later, retained.next, .{}, access.guard()));
         _ = try table.changeDefinition(binding(&table, 3, .alter), .{ .alter = .{ .change = .{ .add = .{ .name = "extra", .type = .int64, .nullable = false, .default = .{ .value = .{ .atom = .{ .signed = 42 } } } } }, .properties = "" } }, access.guard());
+        const rewritten = try pin(&table, 82, &access);
+        var reshaped = try table.scanSnapshot(t.allocator, rewritten, null, .{}, access.guard());
+        defer reshaped.deinit();
+        for (reshaped.rows[0..reshaped.count], 0..) |row, i| {
+            try t.expectEqual(i, row.?.row().identity.ordinal);
+            try t.expectEqual(@as(usize, 3), row.?.row().cells.len);
+        }
         _ = try table.changeDefinition(binding(&table, 4, .drop), .{ .drop = "" }, access.guard());
     }
     defer retained.deinit();
@@ -96,6 +109,7 @@ test "pinned Table pages retain mixed WAL and segment rows across schema rewrite
         try t.expectEqual(@as(u8, 1), page.count);
         try t.expectEqualDeep(retained.accepted, page.accepted);
         for (page.rows[0..page.count]) |row| {
+            try t.expectEqual(count, row.?.row().identity.ordinal);
             const id: usize = @intCast(row.?.row().cells[0].value.atom.signed);
             try t.expect(!seen[id]);
             seen[id] = true;

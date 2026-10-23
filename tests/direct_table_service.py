@@ -53,7 +53,7 @@ def run(node, caller):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "pin_changed": False, "execute": None, "requests": 0, "commands": []}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -73,6 +73,14 @@ def run(node, caller):
                     data = response.read()
                     if self.path == "/table/v1":
                         fault["requests"] += 1
+                        pin = envelope["action"].get("pin")
+                        if pin and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
+                            assert response.status == 200, data
+                            parsed = json.loads(data)
+                            assert "pin" in parsed["result"]
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
+                            fault["pin_changed"] = True
                         operation = envelope["action"].get("operation")
                         if operation and operation["command"] == "execute":
                             fault["execute"] = body
@@ -107,6 +115,7 @@ def run(node, caller):
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
             subprocess.run([caller, endpoint, "write", str(profile)], check=True, timeout=180)
             assert fault["changed"]
+            assert fault["pin_changed"]
             segments = list((root / "native").rglob("*.tseg"))
             assert segments, "Bulk acceptance created no .tseg object"
             stop(authority)
@@ -125,7 +134,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

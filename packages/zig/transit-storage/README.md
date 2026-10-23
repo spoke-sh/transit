@@ -85,3 +85,6 @@ retain a historical basis implicitly. WAL frames, segment footers, deletion
 vectors and manifests require the shared binary definition even when copied
 outside their original directory. Segment lookups check schema interpretation
 and deletion-vector ownership before pruning.
+
+Focused storage checks use `zig build test -Dtest-filter='Table ALTER'` inside
+`nix develop`. Filters select test names; omit them for the complete suite.

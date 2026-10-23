@@ -88,6 +88,26 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
 pub fn batchIdentity(self: *const Self) ?f.TableRow.Identity {
     return self.after;
 }
+/// Rewinds traverse the same retained identity index. The common sequential
+/// call uses the already buffered page; no new snapshot or name lookup occurs.
+pub fn nextAfter(self: *Self, after: ?f.TableRow.Identity) !?f.LogicalQuery.Row {
+    try self.checkCancellation();
+    if (std.meta.eql(after, self.after)) return self.next();
+    if (self.page) |*page| page.deinit();
+    self.page = null;
+    self.index = 0;
+    self.after = null;
+    self.complete = false;
+    self.reader.after = null;
+    self.reader.consumed = 0;
+    self.reader.complete = false;
+    while (try self.next()) |value| {
+        var row = value;
+        if (after == null or f.RelationalExecution.identityOrder(self.after.?, after.?) == .gt) return row;
+        row.deinit();
+    }
+    return null;
+}
 pub fn close(self: *Self) void {
     self.closed = true;
 }

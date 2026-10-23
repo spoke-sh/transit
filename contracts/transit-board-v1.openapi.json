@@ -4492,7 +4492,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+                        "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
                       ]
                     },
                     "code": {
@@ -6570,7 +6570,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+                      "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
                     ]
                   },
                   "code": {
@@ -15485,7 +15485,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T21"
               },
               "resource_revision": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T3"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T4"
               },
               "policy_revision": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
@@ -15518,7 +15518,8 @@
             "enum": [
               "unified_v1",
               "catalog_v1",
-              "configuration_v1"
+              "configuration_v1",
+              "direct_table_v1"
             ]
           },
           "T67": {
@@ -17826,7 +17827,7 @@
           "T143": {
             "type": "string",
             "enum": [
-              "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+              "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
             ]
           },
           "T144": {
@@ -19673,7 +19674,7 @@
           "T10": {
             "type": "string",
             "enum": [
-              "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+              "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
             ]
           }
         }
@@ -19735,7 +19736,7 @@
             ],
             "x-transit-defaults": {
               "capabilities": {
-                "definition": "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a",
+                "definition": "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9",
                 "sources": 2,
                 "active_queries": 1,
                 "page_rows": 1,
@@ -19796,7 +19797,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a",
+              "definition": "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -19809,7 +19810,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+              "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
             ]
           },
           "T4": {
@@ -19826,6 +19827,7 @@
             "type": "string",
             "enum": [
               "per_resource_snapshot_vector",
+              "independent_table_snapshots",
               "atomic"
             ]
           },
@@ -20097,7 +20099,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a",
+              "definition": "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9",
               "executed": false
             }
           },

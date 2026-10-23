@@ -42,7 +42,7 @@ pub fn poll(self: *Self, client: anytype) !Result {
 /// A newly fenced coordinator can race a delayed old-generation scheduler send.
 /// Only a definite native ConflictingRetry on an unreceipted private proposal
 /// permits recomputation, after checking the actual current native fence. This
-/// never touches a published Table SavedStep or an ingress/operator request.
+/// never replaces a published direct intent reference or an ingress/operator request.
 pub fn discardConflictingProposal(self: *Self, coordinator: *g.Coordinator) !void {
     const pending = self.pending orelse return error.GatewayControlNotPending;
     const client = coordinator.client;
@@ -108,9 +108,9 @@ test "failed preparation cannot publish a partially initialized control" {
     };
     var client: Fake = .{};
     var lane: Self = .{};
-    try t.expectError(error.AuthorityTimeout, lane.start(&client, .{ .initialize = 0 }));
+    try t.expectError(error.AuthorityTimeout, lane.start(&client, .{ .initialize = {} }));
     try t.expect(lane.pending == null);
-    try t.expectError(error.AuthorityTimeout, lane.start(&client, .{ .initialize = 0 }));
+    try t.expectError(error.AuthorityTimeout, lane.start(&client, .{ .initialize = {} }));
     try t.expect(lane.pending == null);
 }
 
