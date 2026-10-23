@@ -32,12 +32,12 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     defer catalog.deinit();
     try catalog.recover();
     const result = try self.apply(allocator, &catalog, policy.policy(), request.action);
-    const revision = try policy.check();
+    const observed = try policy.observation();
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, w.max_response_bytes)]);
     var encoder: std.json.Stringify = .{ .writer = &writer };
-    try c.protocol.Json.write(w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = revision, .result = result }, &encoder);
+    try c.protocol.Json.write(w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, &encoder);
     if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
-    if (try policy.check() != revision) return error.AuthorizationChanged;
+    if (!std.meta.eql(try policy.observation(), observed)) return error.AuthorizationChanged;
     return writer.buffered();
 }
 
@@ -53,12 +53,18 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             return .initialized;
         },
         .describe => return .{ .description = self.configuration },
+        .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
+        .check => |value| {
+            try catalog.checkAccess(value, policy);
+            return .checked;
+        },
         .lookup => |value| {
             var view = (try catalog.resolve(allocator, value.namespace, try .init(value.name), policy)) orelse return .{ .lookup = null };
             defer view.deinit();
             return .{ .lookup = .{
                 .interpretation = view.table.root.declared(),
                 .namespace = view.properties.namespace,
+                .authorization = view.properties.authorization,
                 .name = view.properties.name,
                 .position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn },
                 .changed_lsn = view.table.root.changed_lsn,

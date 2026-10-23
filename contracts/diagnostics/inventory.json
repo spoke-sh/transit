@@ -3061,10 +3061,10 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 6,
+        "CatalogDenied": 10,
         "CatalogIdentityConflict": 2,
         "CatalogNameHashCollision": 1,
-        "CatalogNamespaceMissing": 2,
+        "CatalogNamespaceMissing": 3,
         "CatalogNotInitialized": 1,
         "CatalogObjectBusy": 1,
         "CatalogObjectMissing": 1,
@@ -3079,11 +3079,12 @@
         "InvalidDirectCatalogTransition": 1,
         "InvalidPartitionLease": 1,
         "InvalidStorageBudget": 1,
+        "InvalidTableAccessRequest": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 1,
         "Overflow": 1,
         "TableDataChanged": 1,
-        "TableDefinitionChanged": 1,
+        "TableDefinitionChanged": 2,
         "TableRetired": 1,
         "UnsupportedTableAction": 1
       },
@@ -3107,6 +3108,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "AccessRequest.validate()": "<inferred>",
         "Policy.make_guard()": "anyerror",
         "Policy.registered()": "anyerror",
         "admissionReason()": "<inferred>",
@@ -3119,10 +3121,12 @@
         "cancelRows()": "<inferred>",
         "candidate()": "<inferred>",
         "check()": "<inferred>",
+        "checkAccess()": "<inferred>",
         "entry()": "<inferred>",
         "guard()": "<inferred>",
         "init()": "<inferred>",
         "initialize()": "<inferred>",
+        "inspectNamespace()": "<inferred>",
         "list()": "<inferred>",
         "loadRequest()": "<inferred>",
         "open()": "<inferred>",
@@ -3153,8 +3157,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 215,
-        "catch": 2
+        "try": 236,
+        "catch": 3
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -3299,17 +3303,42 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableBinding.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "IncompatibleDefinition": 1,
+        "TableDefinitionChanged": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "init()": "<inferred>",
+        "require()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {},
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "call()": "<inferred>",
+        "require()": "<inferred>",
         "signed()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -3339,6 +3368,8 @@
         "Action": [
           "initialize",
           "describe",
+          "namespace",
+          "check",
           "list",
           "lookup",
           "preview",
@@ -3374,6 +3405,8 @@
         "Result": [
           "initialized",
           "description",
+          "namespace",
+          "checked",
           "list",
           "lookup",
           "preview",
@@ -3417,7 +3450,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 67,
+        "try": 69,
         "catch": 2
       },
       "imports": [
@@ -3456,7 +3489,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 33
+        "InvalidTableResponse": 36
       },
       "outcomes": {},
       "error_sets": {},
@@ -3465,13 +3498,14 @@
         "definition()": "<inferred>",
         "evidence()": "<inferred>",
         "frontier()": "<inferred>",
+        "metadata()": "<inferred>",
         "rows()": "<inferred>",
         "schema()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 54,
         "catch": 0
       },
       "imports": [
@@ -4938,6 +4972,7 @@
         "AuthorizationSql.zig",
         "DeclarativeCatalog.zig",
         "DirectCatalog.zig",
+        "DirectTableBinding.zig",
         "DirectTableClient.zig",
         "DirectTableProtocol.zig",
         "DirectTableReader.zig",
@@ -12384,7 +12419,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"a6ca7686cc7bdd39ff47373f000221d6e0ccf91ed1ac2cf4c56e0f60fb250f92\""
+          "b801d844954d7d395d6af53ac922cc07f39dd158f77d9c45ce62c6624178e47e"
         ],
         "Effect.phase": [
           "pending",

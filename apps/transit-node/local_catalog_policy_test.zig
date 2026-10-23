@@ -52,6 +52,11 @@ fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTablePro
     const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value, output));
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
+    if (response.value.result == .lookup and response.value.result.lookup != null) {
+        var altered = response.value;
+        altered.result.lookup.?.authorization += 1;
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
+    }
     if (response.value.result == .page) {
         var altered = response.value;
         altered.result.page.encoded_bytes += 1;
@@ -159,6 +164,11 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     _ = try change(engine, .{ .grant = .{ .object = c.TableAuthority.reference(native_table), .grantee = owner_role, .privileges = c.TableAuthority.update } });
     const basis = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
     defer basis.deinit();
+    const access = try dispatch(&service, .{ .check = .{ .namespace = 1, .target = basis.value.result.lookup.?.interpretation.interpretation, .access = .update } });
+    defer access.deinit();
+    try t.expect(access.value.result == .checked);
+    try t.expectEqual(owner_role, access.value.subject.role);
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .check = .{ .namespace = 1, .target = basis.value.result.lookup.?.interpretation.interpretation, .access = .read } }));
     var compiled = try c.fuze.TableDml.compile(alloc, "UPDATE through_dispatch SET id = 13 WHERE id = 12", ddl.name, schema, null);
     defer compiled.deinit();
     var statement: w.Statement = .{ .binding = work.binding, .interpretation = selected.interpretation, .schema = schema_wire, .plan = try w.Binary.encode(alloc, try c.fuze.TableDmlCodec.encode(alloc, compiled.plan, &buffer)) };

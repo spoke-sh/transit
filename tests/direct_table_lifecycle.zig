@@ -8,7 +8,7 @@ const w = c.DirectTableProtocol;
 const f = c.fuze;
 const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
-pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E };
+pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, prepared: c.DirectTableBinding };
 
 fn execute(client: c.DirectTableClient, original: d.Binding) !w.Result {
     const response = try client.call(.{ .operation = .{ .binding = original, .command = .execute, .steps = 32 } });
@@ -102,6 +102,15 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     const alloc = arena.allocator();
     const initial = try lookup(client, "events");
     defer initial.deinit();
+    const prepared = try c.DirectTableBinding.init(client.connection, initial.value.result.lookup.?);
+    const subject = try prepared.require(client, .read);
+    try t.expectEqual(role, subject.role);
+    const namespace = try client.call(.{ .namespace = 1 });
+    defer namespace.deinit();
+    try t.expectEqual(@as(u64, 1), namespace.value.result.namespace.?.id);
+    const missing_namespace = try client.call(.{ .namespace = 2 });
+    defer missing_namespace.deinit();
+    try t.expect(missing_namespace.value.result.namespace == null);
     const original = try pin(client, 91, initial.value.result.lookup.?);
     var schema = try f.TableSchema.decode(alloc, try initial.value.result.lookup.?.schema.decode(alloc, f.TableSchema.max_bytes));
     defer schema.deinit();
@@ -111,6 +120,7 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     const updated = try rows(alloc, client, .{ .binding = binding(client, 4, .update, initial.value.result.lookup.?), .interpretation = initial.value.result.lookup.?.interpretation, .schema = initial.value.result.lookup.?.schema, .ingestion = .point, .changes = &.{.{ .update = .{ .key = try key(alloc, schema.schema, 1), .row = try w.Binary.encode(alloc, try replacement.encode(schema.schema, scratch)) } }} });
     try t.expectEqual(@as(u64, 1), updated.outcome.matched);
     try t.expectEqual(@as(u64, 1), updated.outcome.affected);
+    _ = try prepared.require(client, .update);
     const after_update = try lookup(client, "events");
     defer after_update.deinit();
     const deleted = try rows(alloc, client, .{ .binding = binding(client, 5, .delete, after_update.value.result.lookup.?), .interpretation = after_update.value.result.lookup.?.interpretation, .schema = after_update.value.result.lookup.?.schema, .ingestion = .bulk, .changes = &.{.{ .delete = try key(alloc, schema.schema, 2) }} });
@@ -121,6 +131,7 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     const altered = try ddl(alloc, client, .{ .binding = binding(client, 6, .alter, after_delete.value.result.lookup.?), .namespace = 1, .name = "events", .action = .{ .alter = .{ .add = .{ .name = "extra", .type = .int64, .nullable = true, .default = null, .max_characters = null, .encoding = .plain, .collation = .none } } } });
     const after_alter = try lookup(client, "events");
     defer after_alter.deinit();
+    try t.expectError(error.Conflict, prepared.require(client, .read));
     const rewritten = try pin(client, 92, after_alter.value.result.lookup.?);
     // The pin advances physical/control progress; the inspected logical basis
     // still permits the conditional rename.
@@ -139,11 +150,12 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     create_binding.expected_definition = null;
     create_binding.expected_data = null;
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
-    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = try predicateWork(alloc, client) };
+    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = try predicateWork(alloc, client), .prepared = prepared };
     try verify(allocator, client, state, false);
     return state;
 }
 pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: State, release: bool) !void {
+    try t.expectError(error.AccessDenied, state.prepared.require(client, .read));
     for (state.statements) |result| {
         const response = try client.call(.{ .operation = .{ .binding = result.binding, .command = .inspect, .steps = 1 } });
         defer response.deinit();

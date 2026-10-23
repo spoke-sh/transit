@@ -10,6 +10,8 @@ request: core.protocol.Authorization.Guard,
 audience: u64,
 resource: u64,
 held: bool = false,
+/// Valid only after successful acquisition of the current native fence.
+verified: ?core.protocol.Authorization.Verified = null,
 
 pub fn guard(self: *Self) storage.TablePartition.Guard {
     return .{ .context = self, .acquire = acquire, .release = release };
@@ -18,12 +20,14 @@ pub fn guard(self: *Self) storage.TablePartition.Guard {
 fn acquire(context: *anyopaque) !storage.TablePartition.Guard.Fence {
     const self: *Self = @ptrCast(@alignCast(context));
     if (self.held) return error.AuthorityFenceAlreadyHeld;
+    self.verified = null;
     const owner = self.engine.journal.backend;
     try owner.authority.lockShared(owner.io);
     errdefer owner.authority.unlockShared(owner.io);
-    _ = try self.engine.authorizeDomain(self.request, self.audience);
+    const verified = try self.engine.authorizeDomain(self.request, self.audience);
     try self.engine.requireResourceLifetime(self.resource);
     self.held = true;
+    self.verified = verified;
     return .{ .writer_epoch = self.engine.head.storage_epoch, .policy_epoch = self.engine.head.authorization.revision + 1 };
 }
 

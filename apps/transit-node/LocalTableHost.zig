@@ -50,6 +50,7 @@ fn exclusive(action: w.Action) bool {
 }
 fn target(action: w.Action) ?u64 {
     return switch (action) {
+        .check => |value| if (value.target) |expected| expected.object.object else null,
         .preview => |value| value.binding.target.object,
         inline .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,

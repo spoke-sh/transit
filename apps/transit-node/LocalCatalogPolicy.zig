@@ -70,11 +70,15 @@ const ObservedGuard = struct {
 /// Recheck all disclosed inputs after response buffering, including empty pages
 /// and the caller credential/resource lifetime. This does not execute any work.
 pub fn check(self: *Self) !u64 {
+    return (try self.observation()).revision;
+}
+
+pub fn observation(self: *Self) !struct { revision: u64, subject: p.Authorization.Verified } {
     var value = self.authority(self.observed orelse return error.CatalogDenied);
     const guard = value.guard();
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
-    return fence.policy_epoch - 1;
+    return .{ .revision = fence.policy_epoch - 1, .subject = value.verified.? };
 }
 
 fn registered(context: *anyopaque, kind: a.Kind, logical: u64) !?p.Authorization.Object {

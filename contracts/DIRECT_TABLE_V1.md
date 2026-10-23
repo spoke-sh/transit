@@ -22,7 +22,9 @@ contract; it creates no new permission authority.
 The node authenticates the original caller against its current native credential,
 role graph and backing-resource lifetime. Catalog operations check the registered
 database/schema/Table bindings and their current privileges. A response binds the
-request context and checked policy revision. The node checks all successfully
+request context, checked policy revision and verified native subject (principal,
+login role, effective role, credential epoch and audience). The client checks
+that subject against the original connection and signed claim. The node checks all successfully
 used requirements again after buffering the complete response. Denial at this
 boundary suppresses the response, even if a mutation has already committed.
 Recover that mutation through its original operation binding.
@@ -51,10 +53,27 @@ all row constraints. Inspect an existing operation for its past outcome; preview
 evaluates the proposal against current state.
 
 `initialize` initializes the configured catalog under its native owner;
-`describe`, `list` and `lookup` inspect current authorized definitions. Listing
+`describe`, `namespace`, `list` and `lookup` inspect current authorized definitions.
+Namespace inspection requires current CONNECT/USAGE; an absent namespace returns
+null after the database check. Lookup returns the native authorization reference
+and validates the complete accepted declaration, including namespace and name.
+Listing
 is an independent directory/Table observation, with at most eight entries per
 page. Empty filtered pages may still have a continuation. An `after` value is
 the last visited object ID, not a retained snapshot or offset into returned rows.
+
+`check` performs read-only action-specific authorization. Database and
+CREATE SCHEMA checks have no namespace or target; schema and CREATE TABLE checks
+carry a namespace; Table checks carry both a namespace and an exact definition.
+The Table owner serializes these checks against definition changes and checks
+current rights before disclosing a stale-definition conflict. A check admits no
+work, creates no pin and grants no continuing permission.
+
+`DirectTableBinding` retains an exact connection, namespace, name and immutable
+declaration for preparation. Row changes do not invalidate it. Definition changes
+reject validation, and DROP/name reuse cannot retarget it. Every use still needs
+current action rights. This binding is neither a data snapshot nor a prepared
+SQL execution artifact.
 
 `admit_ddl` freezes namespace, name, exact binding and CREATE/ALTER/RENAME/DROP
 intent. CREATE carries the selected owner and binary FTS1 schema; ALTER uses

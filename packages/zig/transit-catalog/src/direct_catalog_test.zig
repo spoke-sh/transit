@@ -98,6 +98,17 @@ test "direct preview checks current expectations and schema work without claims 
     const before_table = try wal.log().tail(view.table.root.partition);
     const before_catalog = catalog.store.root;
     const before_objects = objects.puts;
+    try t.expectEqual(@as(u64, 1), (try catalog.inspectNamespace(1, access.policy())).?.id);
+    try t.expect(try catalog.inspectNamespace(2, access.policy()) == null);
+    const requested: D.AccessRequest = .{ .namespace = 1, .target = view.table.root.interpretation, .access = .read };
+    try catalog.checkAccess(requested, access.policy());
+    var stale_access = requested;
+    stale_access.target.?.revision += 1;
+    try t.expectError(error.TableDefinitionChanged, catalog.checkAccess(stale_access, access.policy()));
+    access.deny_at = access.calls + 3;
+    try t.expectError(error.CatalogDenied, catalog.checkAccess(requested, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expectError(error.InvalidTableAccessRequest, catalog.checkAccess(.{ .namespace = 1, .target = null, .access = .read }, access.policy()));
     const previewed = try catalog.preview(altered, access.policy());
     try t.expectEqual(.none, previewed.reason);
     try t.expectEqual(c.fuze.TableEvolution.Work.rewrite_rows, previewed.work.?);
