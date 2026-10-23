@@ -11,27 +11,32 @@ const Self = @This();
 pub const Config = struct {
     catalog: c.DirectCatalog.Configuration,
     registrar: struct { principal: u64, seed_file: []const u8, role: ?u64 = null },
+    statement_scan_rows: u64 = 1_000_000,
+    statement_scan_bytes: u64 = 64 * 1024 * 1024,
 };
 
 configuration: c.DirectCatalog.Configuration,
 registrar: @FieldType(Service, "registrar"),
+options: c.DirectCatalog.Options,
 directory: std.Io.RwLock = .init,
 tables: [64]std.Io.Mutex = @splat(.init),
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
+    if (config.statement_scan_rows == 0 or config.statement_scan_bytes == 0) return error.InvalidTableConfiguration;
     if (config.catalog.scope.realm != engine.genesis.realm or config.registrar.principal > c.protocol.max_counter) return error.InvalidTableConfiguration;
     if (config.registrar.role) |role| try c.protocol.Authorization.roleId(role);
     const key = try @import("transit_client").readKey(allocator, io, config.registrar.seed_file);
     const owner = engine.journal.backend;
     var control: backend.DataStore = .{ .backend = owner, .control = true };
     var data: backend.DataStore = .{ .backend = owner };
-    var catalog = try c.DirectCatalog.init(allocator, config.catalog, control.log(), control.objects(), data.log(), data.objects(), .{});
+    const options: c.DirectCatalog.Options = .{ .table = .{ .statement_scan_rows = config.statement_scan_rows, .statement_scan_bytes = config.statement_scan_bytes } };
+    var catalog = try c.DirectCatalog.init(allocator, config.catalog, control.log(), control.objects(), data.log(), data.objects(), options);
     defer catalog.deinit();
     // Validate retained configuration/history before listener readiness. This
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role } };
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options };
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
@@ -46,7 +51,7 @@ fn exclusive(action: w.Action) bool {
 fn target(action: w.Action) ?u64 {
     return switch (action) {
         .preview => |value| value.binding.target.object,
-        .admit_rows => |value| value.binding.target.object,
+        inline .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
         .pin => |value| value.object.object,
         .scan => |value| value.snapshot.object.object,
@@ -61,6 +66,6 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
     const mutex = if (!write) if (target(request.action)) |object| &self.tables[@intCast(object % self.tables.len)] else null else null;
     if (mutex) |lock| try lock.lock(io);
     defer if (mutex) |lock| lock.unlock(io);
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar };
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = self.options };
     return service.execute(arena, request, output);
 }

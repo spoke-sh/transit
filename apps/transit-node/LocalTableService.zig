@@ -84,7 +84,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             _ = try catalog.admit(try value.native(allocator, self.configuration), policy);
             return .{ .ddl = try catalog.status(value.binding, policy) };
         },
-        .admit_rows => |value| return .{ .rows = try catalog.admitRows(try value.native(allocator), policy) },
+        inline .admit_rows, .admit_statement => |value| return .{ .rows = try catalog.admitRows(try value.native(allocator), policy) },
         .operation => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => return .{ .ddl = switch (value.command) {
                 .inspect => try catalog.status(value.binding, policy),

@@ -80,7 +80,10 @@ schemas and exact outcomes across a second restart. [Read-only DDL preview](../.
 checks current policy, expectations and schema work without claims or admission.
 The [typed finite SQL owner](../../tests/README.md#finite-sql-over-retained-direct-tables--2026-10-23)
 now executes Fuze filtering/aggregation over retained direct sources with current
-disclosure checks. The default launcher and installed SQL still use the actor
+disclosure checks. The direct Table owner also accepts frozen typed SQL
+UPDATE/DELETE plans with bounded private selection and one atomic outcome;
+the gateway still needs to lower its statements through that operation.
+The default launcher and installed SQL still use the actor
 catalog. Their cutover, dependency contracts, automatic point flushing,
 named resource provisioning and computation
 evidence remain unfinished. None of the completion matrix rows below is closed

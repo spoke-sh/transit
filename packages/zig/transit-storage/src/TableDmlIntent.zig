@@ -1,5 +1,5 @@
-//! Immutable frozen row work. Staging is not operation admission or acceptance.
-//! Row bytes use the typed binary codec, preserving floating-point bit patterns.
+//! Immutable concrete rows or typed predicate work under an exact definition.
+//! Staging is not admission. Binary cells preserve floating-point bit patterns.
 const std = @import("std");
 const p = @import("transit_protocol");
 const d = p.DataLifecycle;
@@ -24,6 +24,7 @@ pub const Request = struct {
     interpretation: Declaration.Stored,
     changes: []const Changes.Change,
     ingestion: Changes.Ingestion,
+    statement: ?f.TableDml.Plan = null,
 
     pub fn validate(self: Request) !void {
         try self.binding.validate();
@@ -33,6 +34,18 @@ pub const Request = struct {
         switch (self.binding.action) {
             .insert, .update, .delete => {},
             else => return error.UnsupportedTableAction,
+        }
+        if (self.statement) |plan| {
+            if (self.changes.len != 0 or self.ingestion != .bulk or self.binding.expected_data == null or
+                plan.action == .insert or !std.mem.eql(u8, @tagName(plan.action), @tagName(self.binding.action))) return error.InvalidTableStatementIntent;
+            try plan.validate();
+            if (!std.mem.eql(u8, &try plan.schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.TableSchemaChanged;
+            // Predicate evaluation currently compares text as UTF-8 bytes.
+            for (plan.schema.columns) |column| switch (column.collation) {
+                .none, .utf8_binary => {},
+                else => return error.UnsupportedTableStatementCollation,
+            };
+            return;
         }
         for (self.changes, 0..) |change, ordinal| switch (self.binding.action) {
             .insert => {
@@ -45,16 +58,18 @@ pub const Request = struct {
         };
     }
 };
-const Metadata = struct { binding: d.Binding, interpretation: Declaration.Stored, ingestion: Changes.Ingestion, count: u16 };
+const Metadata = struct { binding: d.Binding, interpretation: Declaration.Stored, ingestion: Changes.Ingestion, work: enum { rows, statement }, count: u16 };
 pub const Owned = struct {
     allocator: std.mem.Allocator,
     arena: *std.heap.ArenaAllocator,
     declaration: Declaration.Owned,
     decoded: []f.TableRow.Owned,
+    statement: ?f.TableDml.Owned = null,
     count: usize = 0,
     request: Request,
 
     pub fn deinit(self: *Owned) void {
+        if (self.statement) |*plan| plan.deinit();
         for (self.decoded[0..self.count]) |*row| row.deinit();
         self.declaration.deinit();
         self.arena.deinit();
@@ -80,12 +95,15 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request
     defer allocator.free(bytes);
     var metadata: [max_metadata_bytes]u8 = undefined;
     var metadata_writer: std.Io.Writer = .fixed(&metadata);
-    try std.json.Stringify.value(Metadata{ .binding = request.binding, .interpretation = request.interpretation, .ingestion = request.ingestion, .count = @intCast(request.changes.len) }, .{}, &metadata_writer);
+    try std.json.Stringify.value(Metadata{ .binding = request.binding, .interpretation = request.interpretation, .ingestion = request.ingestion, .work = if (request.statement != null) .statement else .rows, .count = @intCast(request.changes.len) }, .{}, &metadata_writer);
     bytes[0..8].* = "TDMLREQ1".*;
     bytes[8..40].* = p.Growth.definition_bytes;
     std.mem.writeInt(u32, bytes[40..44], @intCast(metadata_writer.end), .little);
     var writer: std.Io.Writer = .fixed(bytes[header_bytes..]);
     try writer.writeAll(metadata_writer.buffered());
+    if (request.statement) |plan| {
+        writer.end += (try f.TableDmlCodec.encode(allocator, plan, bytes[header_bytes + writer.end ..])).len;
+    }
     for (request.changes) |change| switch (change) {
         .put => |value| {
             try writer.writeByte(1);
@@ -145,6 +163,14 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content:
     if (meta.count > Changes.max_changes) return error.InvalidTableMutationIntent;
     var declaration = try Declaration.load(alloc, objects, meta.interpretation);
     errdefer declaration.deinit();
+    if (meta.work == .statement) {
+        if (meta.count != 0) return error.InvalidTableMutationIntent;
+        var plan = try f.TableDmlCodec.decode(alloc, declaration.schema.schema, bytes[header_bytes + metadata_length ..]);
+        errdefer plan.deinit();
+        const request: Request = .{ .binding = meta.binding, .interpretation = meta.interpretation, .ingestion = meta.ingestion, .changes = &.{}, .statement = plan.plan };
+        try request.validate();
+        return .{ .allocator = allocator, .arena = arena, .declaration = declaration, .decoded = &.{}, .statement = plan, .request = request };
+    }
     const changes = try alloc.alloc(Changes.Change, meta.count);
     const decoded = try alloc.alloc(f.TableRow.Owned, meta.count);
     var count: usize = 0;

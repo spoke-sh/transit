@@ -163,3 +163,36 @@ test "DDL preview responses preserve proposed schema and never imply an accepted
     try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
     try t.expect(!request.transport().mutation and request.transport().control == null);
 }
+
+test "direct statement conversion freezes typed predicates and requires a data basis" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = 3, .catalog = 1 };
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .schema = schema, .properties = "" });
+    defer declaration.deinit();
+    var compiled = try c.fuze.TableDml.compile(alloc, "DELETE FROM events WHERE id >= 42", "events", schema, null);
+    defer compiled.deinit();
+    const scratch = try alloc.alloc(u8, c.fuze.TableDmlCodec.max_bytes);
+    var work: w.Statement = .{
+        .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 4, .operation = 2 }, .target = declaration.definition.object, .action = .delete, .expected_definition = (try declaration.stored()).interpretation, .expected_data = .{ .partition = 17, .next_lsn = 8 }, .intent = @splat(0) },
+        .interpretation = try declaration.stored(),
+        .schema = try w.Binary.encode(alloc, try schema.encode(scratch)),
+        .plan = try w.Binary.encode(alloc, try c.fuze.TableDmlCodec.encode(alloc, compiled.plan, scratch)),
+    };
+    work.binding.intent = try work.digest(alloc);
+    const native = try work.native(alloc);
+    try t.expect(native.changes.len == 0 and native.statement.?.action == .delete);
+    try t.expect(try native.statement.?.matches(&.{.{ .value = .{ .atom = .{ .signed = 42 } } }}));
+    try t.expect(!try native.statement.?.matches(&.{.{ .value = .{ .atom = .{ .signed = 41 } } }}));
+    work.binding.expected_data = null;
+    try t.expectError(error.InvalidTableStatementIntent, work.native(alloc));
+    work.binding.expected_data = .{ .partition = 17, .next_lsn = 8 };
+    work.binding.action = .update;
+    try t.expectError(error.InvalidTableStatementIntent, work.native(alloc));
+    work.binding.action = .delete;
+    work.binding.intent[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, work.native(alloc));
+}

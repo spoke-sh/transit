@@ -8,7 +8,7 @@ const w = c.DirectTableProtocol;
 const f = c.fuze;
 const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
-pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot };
+pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E };
 
 fn execute(client: c.DirectTableClient, original: d.Binding) !w.Result {
     const response = try client.call(.{ .operation = .{ .binding = original, .command = .execute, .steps = 32 } });
@@ -53,6 +53,41 @@ fn ddl(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Ddl) 
     defer admitted.deinit();
     try t.expect(admitted.value.result.ddl == .admitted);
     return (try execute(client, work.binding)).ddl.committed;
+}
+fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) ![4]E {
+    const response = try lookup(client, "events");
+    defer response.deinit();
+    var basis = response.value.result.lookup.?;
+    var schema = try f.TableSchema.decode(allocator, try basis.schema.decode(allocator, f.TableSchema.max_bytes));
+    defer schema.deinit();
+    const scratch = try allocator.alloc(u8, f.TableDmlCodec.max_bytes);
+    defer allocator.free(scratch);
+    const exact = binding(client, 10, .insert, basis);
+    var inserts: [2]w.RowChange = undefined;
+    for (&inserts, 0..) |*change, i| {
+        const row: f.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(exact.identity, @intCast(i)), .cells = &.{ .{ .value = .{ .atom = .{ .signed = @intCast(i + 1) } } }, .{ .value = .{ .atom = .{ .bytes = "predicate" } } } } };
+        change.* = .{ .insert = try w.Binary.encode(allocator, try row.encode(schema.schema, scratch)) };
+    }
+    var results: [4]E = undefined;
+    results[0] = try rows(allocator, client, .{ .binding = exact, .interpretation = basis.interpretation, .schema = basis.schema, .changes = &inserts, .ingestion = .point });
+    basis.position = results[0].outcome.position;
+    for ([_][]const u8{ "UPDATE events SET id = 3 WHERE id = 1", "DELETE FROM events WHERE id = 2", "DELETE FROM events WHERE id = 3" }, 0..) |sql, i| {
+        var compiled = try f.TableDml.compile(allocator, sql, "events", schema.schema, null);
+        defer compiled.deinit();
+        var work: w.Statement = .{ .binding = binding(client, 11 + i, if (i == 0) .update else .delete, basis), .interpretation = basis.interpretation, .schema = basis.schema, .plan = try w.Binary.encode(allocator, try f.TableDmlCodec.encode(allocator, compiled.plan, scratch)) };
+        work.binding.intent = try work.digest(allocator);
+        const admitted = try client.call(.{ .admit_statement = work });
+        defer admitted.deinit();
+        try t.expect(admitted.value.result.rows == .admitted);
+        results[i + 1] = (try execute(client, work.binding)).rows.committed;
+        try t.expectEqual(@as(u64, 1), results[i + 1].outcome.matched);
+        try t.expectEqual(@as(u64, 1), results[i + 1].outcome.affected);
+        const repeated = try client.call(.{ .admit_statement = work });
+        defer repeated.deinit();
+        try t.expectEqualDeep(results[i + 1], repeated.value.result.rows.committed);
+        basis.position = results[i + 1].outcome.position;
+    }
+    return results;
 }
 fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.Binary {
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = id } } }, .{ .value = .{ .atom = .{ .bytes = "" } } } };
@@ -104,11 +139,16 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     create_binding.expected_definition = null;
     create_binding.expected_data = null;
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
-    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten };
+    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = try predicateWork(alloc, client) };
     try verify(allocator, client, state, false);
     return state;
 }
 pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: State, release: bool) !void {
+    for (state.statements) |result| {
+        const response = try client.call(.{ .operation = .{ .binding = result.binding, .command = .inspect, .steps = 1 } });
+        defer response.deinit();
+        try t.expectEqualDeep(result, response.value.result.rows.committed);
+    }
     // SQL uses the retained source binding, including after live name reuse.
     const limits: q.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 * 1024 };
     var too_few_requests = limits;

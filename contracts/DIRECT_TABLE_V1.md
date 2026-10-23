@@ -85,6 +85,24 @@ current credentials. Retrying an operation with changed work conflicts. DDL
 uses the existing canonical native catalog intent digest. The storage owner
 also retains and compares the complete immutable admitted payload.
 
+`admit_statement` carries `binding`, the exact `interpretation`, FTS1 `schema`
+and an FDM1 `plan` as canonical binary fields. It admits typed UPDATE or DELETE;
+INSERT uses the concrete row operation. A data-frontier expectation is mandatory.
+Its intent digest uses `transit.table.direct.statement.v1`, a zero byte and
+canonical JSON of `interpretation`, `schema`, `plan` in that order. The retained
+plan owns predicate and assignment values; execution never recompiles SQL or
+resolves the name again. Predicate text comparison supports `none` and
+`utf8_binary` column collations; other declared collations reject before admission.
+
+The Table owner checks the action privilege, selects rows privately and publishes
+the complete result once. Selection does not disclose rows or require SELECT.
+A later logical change rejects the frozen basis. UPDATE stages replacement
+segments in groups of at most 1024 rows and 4 MiB of encoded row work. DELETE
+changes the row indexes. Limits cover total decoded visits and bytes across
+passes, separately from index staging and deployment storage quotas. Exhaustion
+or a destination collision records terminal rejection without publishing any
+changed rows. Current authorization is checked again at the final commit.
+
 `operation` carries the original binding and `inspect`, `execute` or `cancel`.
 Inspection starts no work. Execution resumes only admitted frozen work; CREATE
 uses the native registration ledger before Table publication. Its step limit

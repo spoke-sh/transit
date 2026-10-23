@@ -39,6 +39,16 @@ memory. There is no implicit renewal, replacement cut or remote cleanup.
 
 ## Identity, admission and publication
 
+`DirectTableProtocol.Statement` binds a complete typed Fuze UPDATE/DELETE plan
+to an immutable definition and a required data frontier. `admit_statement` uses
+the same Table admission, outcome and cancellation directories as concrete row
+batches. Execution selects privately under the action privilege, preserving row
+identity and committing one complete successor. It never loads the whole Table
+into the caller or requests SELECT on its behalf. INSERT uses `Rows` with exact
+operation-derived identities and a point/bulk ingestion choice. The
+[wire contract](../../../../contracts/DIRECT_TABLE_V1.md) defines binary payloads,
+digest binding, collation restrictions and statement work limits.
+
 `preview` performs read-only DDL checks through the same policy and expectation
 rules as admission. It reports current independently observed directory/Table
 positions, conflicts and metadata/validation/rewrite work, with the proposed

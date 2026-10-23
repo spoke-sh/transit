@@ -84,7 +84,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .lookup => .lookup,
         .preview => .preview,
         .admit_ddl => .ddl,
-        .admit_rows => .rows,
+        .admit_rows, .admit_statement => .rows,
         .operation => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => .ddl,
             .insert, .update, .delete => .rows,
@@ -162,8 +162,12 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try ddl(binding, value);
         },
         .rows => |value| {
-            const binding = if (request.action == .admit_rows) request.action.admit_rows.binding else request.action.operation.binding;
-            if (request.action == .admit_rows and value == .not_observed) return error.InvalidTableResponse;
+            const binding = switch (request.action) {
+                inline .admit_rows, .admit_statement => |work| work.binding,
+                .operation => |work| work.binding,
+                else => unreachable,
+            };
+            if (request.action != .operation and value == .not_observed) return error.InvalidTableResponse;
             try rows(binding, value);
         },
         .pin => |value| {

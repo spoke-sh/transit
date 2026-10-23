@@ -179,6 +179,37 @@ pub const Rows = struct {
     }
 };
 
+/// A complete typed UPDATE/DELETE plan evaluated privately by the Table owner.
+/// INSERT uses Rows so point ingestion retains its WAL path.
+pub const Statement = struct {
+    binding: d.Binding,
+    interpretation: c.storage.TableDeclaration.Stored,
+    schema: Binary,
+    plan: Binary,
+    pub fn digest(self: Statement, allocator: std.mem.Allocator) ![32]u8 {
+        const Payload = struct { interpretation: c.storage.TableDeclaration.Stored, schema: Binary, plan: Binary };
+        const bytes = try p.Json.valueAlloc(allocator, Payload{ .interpretation = self.interpretation, .schema = self.schema, .plan = self.plan });
+        defer allocator.free(bytes);
+        if (bytes.len > max_request_bytes) return error.TablePayloadTooLarge;
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.table.direct.statement.v1\x00");
+        hash.update(bytes);
+        return hash.finalResult();
+    }
+    /// All decoded values belong to the bounded request arena.
+    pub fn native(self: Statement, allocator: std.mem.Allocator) !c.storage.TableDmlIntent.Request {
+        try self.binding.validate();
+        try self.interpretation.validate();
+        const schema = (try f.TableSchema.decode(allocator, try self.schema.decode(allocator, f.TableSchema.max_bytes))).schema;
+        if (schema.object != self.binding.target.object or !std.mem.eql(u8, &try schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.TableSchemaChanged;
+        const plan = try f.TableDmlCodec.decode(allocator, schema, try self.plan.decode(allocator, max_work_bytes));
+        const result: c.storage.TableDmlIntent.Request = .{ .binding = self.binding, .interpretation = self.interpretation, .changes = &.{}, .ingestion = .bulk, .statement = plan.plan };
+        try result.validate();
+        if (!std.mem.eql(u8, &self.binding.intent, &try self.digest(allocator))) return error.DataIdentityConflict;
+        return result;
+    }
+};
+
 pub const Snapshot = struct { object: d.Object, handle: P.SnapshotHandle };
 pub const Action = union(enum) {
     initialize,
@@ -188,6 +219,7 @@ pub const Action = union(enum) {
     preview: Ddl,
     admit_ddl: Ddl,
     admit_rows: Rows,
+    admit_statement: Statement,
     operation: struct { binding: d.Binding, command: enum { inspect, execute, cancel }, steps: u16 },
     pin: struct { object: d.Object, owner: d.Operation, expected: d.Position },
     snapshot: Snapshot,
@@ -217,7 +249,7 @@ pub const Request = struct {
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
-            .initialize, .admit_ddl, .admit_rows, .pin, .release => true,
+            .initialize, .admit_ddl, .admit_rows, .admit_statement, .pin, .release => true,
             .operation => |value| value.command != .inspect,
             else => false,
         };
@@ -246,7 +278,7 @@ pub const Request = struct {
                 try connection.binding(value.binding);
                 if (!std.mem.eql(u8, @tagName(value.binding.action), @tagName(value.action))) return error.InvalidDirectCatalogOperation;
             },
-            .admit_rows => |value| try connection.binding(value.binding),
+            inline .admit_rows, .admit_statement => |value| try connection.binding(value.binding),
             .operation => |value| {
                 try connection.binding(value.binding);
                 if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
