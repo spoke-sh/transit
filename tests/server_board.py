@@ -27,11 +27,11 @@ class Board(Applications):
         port = free_port()
         while port in [*self.config['ports'].values(), self.config['applications']['port']]:
             port = free_port()
-        self.config.update(version=1, board={'port': port, 'public_origin': f'http://127.0.0.1:{port}'})
+        self.config.update(version=1, board={'port': port})
         self.config['executables']['board'] = str(Path(board).resolve())
         self.path.write_text(json.dumps(self.config))
         self.no_ui = False
-        self.board_url = self.config['board']['public_origin']
+        self.board_url = f'http://127.0.0.1:{port}'
 
     def ready(self, timeout=120):
         report = super().ready(timeout)
@@ -41,16 +41,25 @@ class Board(Applications):
         assert len(owned) == (0 if self.no_ui else 1), owned
         return report
 
-    def get(self, path, headers=None, expected=200):
+    def request(self, path, headers=None, expected=200, *, base_url=None, method='GET', body=None):
         deadline = time.monotonic() + 10
         while True:
             try:
-                result = self.http.open(urllib.request.Request(self.board_url + path, headers=headers or {}), timeout=5)
+                result = self.http.open(urllib.request.Request((base_url or self.board_url) + path,
+                    headers=headers or {}, method=method, data=body), timeout=5)
             except urllib.error.HTTPError as error:
                 result = error
             with result:
                 status, data = result.status, result.read()
-            if status == 429 or (status == 409 and expected == 200):
+            capacity = False
+            if status == 503 and method == 'GET' and expected == 200:
+                failure = json.loads(data)
+                diagnostic = failure.get('diagnostic') or {}
+                capacity = (failure.get('err') == 'Unavailable'
+                    and diagnostic.get('cause') == 'AuthorityUnavailable'
+                    and any(fact and fact['field'] == 'native_cause'
+                        and fact['value'] == {'text': 'HttpCapacity'} for fact in diagnostic.get('facts', [])))
+            if status == 429 or (status == 409 and expected == 200) or capacity:
                 assert time.monotonic() < deadline, (status, data)
                 time.sleep(.15)
                 continue
@@ -58,7 +67,7 @@ class Board(Applications):
             return data
 
     def atlas(self):
-        return json.loads(self.get('/api/v1/atlas'))
+        return json.loads(self.request('/api/v1/atlas'))
 
     def visible(self, resource):
         # This fixture deliberately fits in one eight-resource page.
@@ -113,14 +122,43 @@ def lifecycle(cli, node, host, board, worker, operator):
         atlas = fixture.atlas()
         assert int(atlas['realm']) == 73 and int(atlas['identity']['principal']) == 25
         assert atlas['identity']['permissions'] == 16
-        html = fixture.get('/').decode()
+        html = fixture.request('/').decode()
         scripts = re.findall(r'src="([^"]+\.js)"', html)
         assert scripts, html
-        assert len(fixture.get(scripts[0])) > 100_000
-        capabilities = json.loads(fixture.get('/api/v1/capabilities'))
+        assert len(fixture.request(scripts[0])) > 100_000
+        capabilities = json.loads(fixture.request('/api/v1/capabilities'))
         assert not capabilities['query_enabled']
-        fixture.get('/api/v1/atlas', {'Origin': 'http://foreign.invalid'}, expected=403)
-        fixture.get('/health', {'Host': 'foreign.invalid'}, expected=403)
+        # Use both real URLs, including their default Host headers. The default
+        # server enables the alias even when Board uses a non-default port.
+        port = fixture.config['board']['port']
+        origins = (fixture.board_url, f'http://localhost:{port}')
+        for origin in origins:
+            headers = {'Origin': origin}
+            assert fixture.request('/', base_url=origin).decode() == html
+            assert len(fixture.request(scripts[0], base_url=origin)) > 100_000
+            assert json.loads(fixture.request('/health', headers, base_url=origin))['ready']
+            local_atlas = json.loads(fixture.request('/api/v1/atlas', headers, base_url=origin))
+            assert int(local_atlas['identity']['principal']) == 25
+            for route, error in (('query', 'QueryDisabled'), ('relational', 'QueryDisabled'), ('application', 'NotFound')):
+                # Disabled workspaces are reached only after Host/Origin checks.
+                path = '/api/v1/' + route
+                response = fixture.request(path, headers | {'Content-Type': 'application/json'},
+                    base_url=origin, method='POST', body=b'{}', expected=404)
+                assert json.loads(response)['err'] == error
+                fixture.request(path, {'Content-Type': 'application/json'},
+                    base_url=origin, method='POST', body=b'{}', expected=403)
+            for other in (*[item for item in origins if item != origin],
+                          f'https://localhost:{port}', f'http://localhost:{port + 1}',
+                          'http://foreign.invalid', 'null'):
+                for path, method, body in (('/health', 'GET', None), ('/api/v1/query', 'POST', b'{}')):
+                    response = fixture.request(path, {'Origin': other, 'Content-Type': 'application/json'},
+                        base_url=origin, method=method, body=body, expected=403)
+                    assert json.loads(response)['err'] == 'InvalidOrigin'
+            for name in ('Forwarded', 'X-Forwarded-Host', 'X-Forwarded-Proto', 'X-Forwarded-For'):
+                fixture.request('/health', {name: 'foreign.invalid'}, base_url=origin, expected=403)
+        for host_header in ('foreign.invalid', f'localhost:{port + 1}', f'localhost.evil:{port}',
+                            f'localhost.:{port}', f'127.0.0.2:{port}', f'[::1]:{port}', 'localhost'):
+            fixture.request('/health', {'Host': host_header}, expected=403)
         board_record = fixture.record()['board_receipts']
         assert all(board_record)
         replacement = fixture.root / 'replacement.json'
@@ -165,7 +203,8 @@ def lifecycle(cli, node, host, board, worker, operator):
         fixture.ready()
         fixture.revoke({'revoke': 25})
         assert fixture.process.wait(timeout=20) == 1
-        assert 'permission denied' in Path(fixture.logs[-1].name).read_text()
+        assert any('server.failed' in line and 'role="board"' in line and 'error_type="AccessDenied"' in line
+            for line in Path(fixture.logs[-1].name).read_text().splitlines())
         fixture.stop()
         fixture.start()
         assert fixture.process.wait(timeout=45) == 1

@@ -6,6 +6,41 @@ the summaries retain measured outcomes and limits, but do not claim those archiv
 bytes are available here. Current validation must be rerun with the owning tasks.
 Remaining benchmark budgets and independent regression fixtures stay executable.
 
+## Local Board hostname aliases — 2026-10-22
+
+The [local server](../apps/transit-cli/docs/server.md) enables a fixed localhost
+alias for Board. Its canonical URL remains the numeric loopback origin; each
+request's Origin must match its own admitted Host and scheme. The standalone
+option and its listener/reactive restrictions belong to
+[Board configuration](../apps/transit-board/docs/configuration.md).
+
+Executed on Linux with the pinned Nix development shell:
+
+- `just check` passes, including the shared Zig tests, generated contracts,
+  frontend checks and documentation production build.
+- `just transit-board::test` passes the ingress units and real disk-backed
+  inspection proof. The standalone default still rejects an unconfigured
+  localhost Host. Units reject aliases for remote listeners, mismatched ports,
+  remote origins and reactive configurations.
+- `just test::server-board` passes with an omitted public origin and an isolated
+  non-default port. Both real URLs serve the embedded UI/assets, health and
+  authorized atlas. JSON workspace requests reach their disabled-route responses
+  under either matching origin. Cross-origin local pairs, foreign/null origins,
+  wrong schemes/ports, hostname suffixes and forwarded headers reject. Missing
+  Origin still rejects workspace requests. The complete proof also passes
+  revocation, headless toggles, artifact checks, process/storage replacement and
+  exact recovery after lost provisioning replies.
+
+Two earlier server-proof attempts failed after the new URL checks: one read
+received native `HttpCapacity`, and a later run reached a stale text-log assertion.
+The fixture now retries only that identified unavailable GET response within its
+existing ten-second read budget and checks the current Board `AccessDenied`
+failure event. Denial and other unavailable responses still fail immediately.
+The complete rerun passes; the earlier attempts are not counted as passes.
+
+This is HTTP and local lifecycle evidence. It does not qualify browser automation,
+IPv6 listeners, remote aliases or aliases for the reactive gateway.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),

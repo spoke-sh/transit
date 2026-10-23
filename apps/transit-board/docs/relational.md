@@ -88,7 +88,7 @@ wraps a shared `RelationalBridge.Action`: capabilities, explain, open, page or
 close. The [generated OpenAPI](../../../contracts/transit-board-v1.openapi.json)
 and browser validators derive from those Zig types.
 
-Requests require the exact configured `Origin` and JSON content type. The body
+Requests require an `Origin` matching the admitted Host and scheme, and JSON content type. The body
 limit is 16 KiB; responses use the browser's 256 KiB decoded limit. One page has
 at most 128 int64/uint64/null cells. Existing Board deadlines, shared read throttle
 and serialized query lock apply. The browser retries an identical pre-dispatch

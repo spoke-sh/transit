@@ -115,6 +115,7 @@ def run(node, cli, board, browser=False):
         assert b"<!doctype" in request("/unknown")[0]
         request("/api/v1/capabilities")
         request("/api/v1/capabilities", headers={"Host": "evil.example"}, status=403)
+        request("/health", headers={"Host": f"localhost:{port}"}, status=403)
         request("/api/v1/capabilities", headers={"Origin": "https://evil.example"}, status=403)
         request("/api/v1/capabilities", headers={"X-Forwarded-Host": "evil.example"}, status=403)
         api("processes?url=http://metadata", status=400)

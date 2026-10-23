@@ -45,7 +45,7 @@ operator identities can access this endpoint; this deployment bound is not the
 number of durable application revisions or operators supported by Transit.
 
 The endpoint is disabled when `application` is absent. It requires the exact
-configured Origin, Host and JSON content type. Its 512 KiB request cap admits JSON
+admitted Host, matching Origin and JSON content type. Its 512 KiB request cap admits JSON
 escaping of a complete 64 KiB program; semantic program, member and upload bounds
 remain smaller. It shares the listener's finite handler capacity, request deadline
 and read throttle. Telemetry records the fixed route, never program or key bytes.

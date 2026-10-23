@@ -18,6 +18,7 @@ pub fn configuration(installation: *Installation, allocator: std.mem.Allocator) 
         .listen = "127.0.0.1",
         .port = board.port,
         .public_origin = board.public_origin.?,
+        .localhost_alias = true,
         .request_timeout_ms = 3000,
         .upstream_timeout_ms = 2000,
         .read_interval_ms = 100,

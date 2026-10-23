@@ -81,6 +81,7 @@
         "InvalidDocumentCursor": 1,
         "InvalidExchangeCoverage": 1,
         "InvalidGrpcCapture": 1,
+        "InvalidLocalhostAlias": 2,
         "InvalidOrigin": 2,
         "InvalidQuery": 57,
         "InvalidQueryConfiguration": 3,
@@ -123,6 +124,7 @@
         "Server.unifiedQueryRequest()": "<inferred>",
         "Shared.handle()": "anyerror",
         "header()": "<inferred>",
+        "localhostOrigin()": "<inferred>",
         "main()": "<inferred>",
         "number()": "<inferred>",
         "originHost()": "<inferred>",
@@ -137,7 +139,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 53,
+        "try": 55,
         "catch": 46
       },
       "imports": [

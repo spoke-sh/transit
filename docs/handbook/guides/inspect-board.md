@@ -6,6 +6,11 @@ Board displays evidence obtained through Transit's public read APIs. Open the
 [standalone service](../../../apps/transit-board/docs/configuration.md).
 Use it to follow process history, state resources, ownership and retained work.
 
+The default local server serves Board at both `http://127.0.0.1:19107` and
+`http://localhost:19107`. A configured Board port applies to both addresses.
+Use one address consistently: requests with an `Origin` header must match their
+own scheme, hostname and port. Other hostnames and forwarded headers reject.
+
 ## Start from an identity and an observed cut
 
 1. Find the process/resource and confirm its realm and logical identity.

@@ -194,8 +194,12 @@ remote listeners and alternate source definitions remain unsupported.
 Version 1 requires a resolved `executables.board`, supplied by the bundle by default. Optional `board` settings default to
 `{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for
 multiple installations; omit the origin to derive it from that port, or specify
-the exact matching loopback origin. Other origins reject in this local profile.
-Board retains its exact Host/Origin checks. All configured ports, including
+the exact matching loopback origin. The printed `board_url` uses `127.0.0.1`;
+Board also accepts `http://localhost:<board-port>` without extra configuration.
+Both addresses serve the UI and API. A supplied `Origin` must match the request's
+own scheme, hostname and port; crossing between the two origins rejects.
+Other hostnames, ports and forwarded headers reject. The listener remains on
+IPv4 loopback. All configured ports, including
 optional application management, must be distinct. Startup checks occupied
 listeners before effects; `--no-ui` skips only Board's listener preflight.
 Version 1 defaults to application management on port 19106 and
