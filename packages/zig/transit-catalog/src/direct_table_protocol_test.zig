@@ -106,9 +106,15 @@ test "direct Table responses reject unrelated requests, altered receipts and mal
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
-    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .result = .{ .rows = .{ .committed = .{ .binding = binding, .resulting = stored, .outcome = .{ .position = .{ .partition = 2, .next_lsn = 9 }, .matched = 1, .affected = 0, .live_rows = 1 } } } } };
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .rows = .{ .committed = .{ .binding = binding, .resulting = stored, .outcome = .{ .position = .{ .partition = 2, .next_lsn = 9 }, .matched = 1, .affected = 0, .live_rows = 1 } } } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     var altered = response;
+    altered.subject.role += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
+    altered.subject.credential_epoch += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
     altered.context[0] ^= 1;
     try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
     altered = response;
@@ -147,7 +153,7 @@ test "DDL preview responses preserve proposed schema and never imply an accepted
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
-    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .result = .{ .preview = .{ .binding = proposal.binding, .directory_position = .{ .partition = 1, .next_lsn = 1 }, .current = null, .reason = .none, .work = .metadata, .schema_fingerprint = try schema.fingerprint() } } };
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .preview = .{ .binding = proposal.binding, .directory_position = .{ .partition = 1, .next_lsn = 1 }, .current = null, .reason = .none, .work = .metadata, .schema_fingerprint = try schema.fingerprint() } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     var changed = response;
     changed.result.preview.schema_fingerprint.?[0] ^= 1;

@@ -116,6 +116,15 @@ does not replace it with a new request or infer cancellation.
 
 ## Authorization and concurrency
 
+`inspectNamespace` returns current namespace metadata under CONNECT/USAGE.
+`checkAccess` validates current action rights against an exact Table definition
+without provisioning, admission, a read pin or raw resource access. The signed
+client exposes it as `require` and returns the verified native subject. This
+supports preparing an UPDATE without granting SELECT on its private selection.
+`DirectTableBinding` retains immutable interpretation and caller scope; ordinary
+row progress leaves it valid, while alteration, retirement and replacement do
+not silently change its target. A retained binding carries no permission.
+
 The service supplies independently allocated guards backed by current native
 authority. Guards verify the configured database/schema/Table registrations,
 CONNECT, USAGE and the requested privilege or ownership. CREATE also requires

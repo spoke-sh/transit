@@ -643,6 +643,28 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Direct preparation rights and immutable bindings — 2026-10-23
+
+In the pinned Linux Nix shell, catalog `zig build test --summary all` passes
+**110/110** cases (one minute, MaxRSS 66 MiB). Read-only namespace and exact
+definition checks leave the catalog root, Table WAL frontier and object count
+unchanged, including stale definitions and late denial.
+
+`just test::local-catalog` passes with real local native authority. An UPDATE-only
+caller can check UPDATE and execute private selection while a SELECT check
+rejects. Returned native subject attribution agrees with the caller; changing a
+lookup's authorization reference breaks its complete declaration commitment.
+
+`just test::direct-table-service` passes **146 typed HTTP calls** across two
+service restarts. A retained preparation binding survives a row update, rejects
+ALTER, and cannot follow DROP/name reuse, including after restart. Namespace
+inspection and current verified role checks use the public signed path. The
+existing CRUD/DDL, predicate, retained-pin and revocation cases also pass.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass after regenerating the shared definition and fixtures. These checks do not
+establish installed prepared SQL or the default launcher's Table cutover.
+
 ## Direct INSERT identity — 2026-10-23
 
 The storage package passes **56/56 tests** and the catalog package passes

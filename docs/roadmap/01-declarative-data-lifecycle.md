@@ -83,6 +83,9 @@ now executes Fuze filtering/aggregation over retained direct sources with curren
 disclosure checks. The direct Table owner also accepts frozen typed SQL
 UPDATE/DELETE plans with bounded private selection and one atomic outcome;
 the gateway still needs to lower its statements through that operation.
+Read-only exact-definition and action checks now support prepared caller
+bindings without raw-storage inspection credentials. Prepared SQL templates and
+their installed adapters remain part of the unfinished cutover.
 The default launcher and installed SQL still use the actor
 catalog. Their cutover, dependency contracts, automatic point flushing,
 named resource provisioning and computation

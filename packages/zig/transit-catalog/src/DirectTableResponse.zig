@@ -22,6 +22,20 @@ fn schema(allocator: std.mem.Allocator, binary: w.Binary, stored: c.storage.Tabl
     defer decoded.deinit();
     if (decoded.schema.object != stored.interpretation.object.object or !std.mem.eql(u8, &try decoded.schema.fingerprint(), &stored.schema_fingerprint)) return error.InvalidTableResponse;
 }
+
+/// Names and native references are part of the accepted definition, not an
+/// independently mutable hint attached to an otherwise valid row schema.
+fn metadata(allocator: std.mem.Allocator, value: w.Definition) !void {
+    const bytes = try value.schema.decode(allocator, c.fuze.TableSchema.max_bytes);
+    defer allocator.free(bytes);
+    var decoded = try c.fuze.TableSchema.decode(allocator, bytes);
+    defer decoded.deinit();
+    const properties: c.DirectCatalog.Properties = .{ .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
+    var encoded: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
+    var declaration = try c.storage.TableDeclaration.prepare(allocator, .{ .object = value.interpretation.interpretation.object, .revision = value.interpretation.interpretation.revision, .schema = decoded.schema, .properties = try properties.encode(&encoded) });
+    defer declaration.deinit();
+    if (!std.meta.eql(value.interpretation, try declaration.stored())) return error.InvalidTableResponse;
+}
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);
     try value.resulting.validate();
@@ -76,10 +90,18 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     try request.validate(allocator);
     if (response.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try p.Authorization.revision(response.policy_revision);
+    const subject = response.subject;
+    try p.Authorization.roleId(subject.login_role);
+    try p.Authorization.roleId(subject.role);
+    if (subject.principal != request.connection.principal or subject.audience != request.connection.audience or
+        subject.credential_epoch != request.proof.claim.credential_epoch or subject.role != (request.connection.role orelse subject.login_role) or
+        !std.mem.eql(u8, &subject.context, &response.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
         .initialize => .initialized,
         .describe => .description,
+        .namespace => .namespace,
+        .check => .checked,
         .list => .list,
         .lookup => .lookup,
         .preview => .preview,
@@ -126,17 +148,21 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 }
             }
         },
-        .initialized, .released => {},
+        .initialized, .released, .checked => {},
         .description => |value| {
             try value.validate();
             if (!request.connection.matches(value)) return error.InvalidTableResponse;
+        },
+        .namespace => |maybe| if (maybe) |value| {
+            try value.validate();
+            if (value.retired or value.id != request.action.namespace or !std.meta.eql(value.scope, request.connection.scope)) return error.InvalidTableResponse;
         },
         .lookup => |maybe| if (maybe) |value| {
             try definition(request.connection, value.interpretation);
             try value.name.validate();
             try frontier(value.position, value.changed_lsn);
             if (value.interpretation.retired or value.namespace != request.action.lookup.namespace or !std.mem.eql(u8, value.name.slice(), request.action.lookup.name)) return error.InvalidTableResponse;
-            try schema(allocator, value.schema, value.interpretation);
+            try metadata(allocator, value);
         },
         .list => |value| {
             try value.directory_position.validate();

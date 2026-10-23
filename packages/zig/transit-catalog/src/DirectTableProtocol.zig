@@ -214,6 +214,8 @@ pub const Snapshot = struct { object: d.Object, handle: P.SnapshotHandle };
 pub const Action = union(enum) {
     initialize,
     describe,
+    namespace: u64,
+    check: D.AccessRequest,
     list: struct { namespace: u64, after: ?u64 },
     lookup: struct { namespace: u64, name: []const u8 },
     preview: Ddl,
@@ -266,6 +268,8 @@ pub const Request = struct {
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
             .initialize, .describe => {},
+            .namespace => |id| try c.Model.nativeId(id),
+            .check => |value| try value.validate(connection.scope, connection.branch),
             .list => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (value.after) |after| if (after == 0) return error.InvalidCatalogCursor;
@@ -314,6 +318,7 @@ fn validateSnapshot(connection: Connection, value: Snapshot) !void {
 pub const Definition = struct {
     interpretation: c.storage.TableDeclaration.Stored,
     namespace: u64,
+    authorization: u64,
     name: c.TableAuthority.Name,
     position: d.Position,
     changed_lsn: u64,
@@ -335,6 +340,8 @@ pub const Page = struct {
 pub const Result = union(enum) {
     initialized,
     description: D.Configuration,
+    namespace: ?c.TableAuthority.Schema,
+    checked,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
     preview: D.Preview,
@@ -345,7 +352,7 @@ pub const Result = union(enum) {
     page: Page,
     released,
 };
-pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, result: Result };
+pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };
 
 test {
     _ = @import("direct_table_protocol_test.zig");

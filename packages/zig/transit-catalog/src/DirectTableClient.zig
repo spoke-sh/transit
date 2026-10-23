@@ -14,6 +14,13 @@ connection: w.Connection,
 key: p.Ed25519.KeyPair,
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
+/// Current rights and exact interpretation only. This prepares no mutation or
+/// snapshot, and the returned subject does not authorize a later operation.
+pub fn require(self: Self, requested: c.DirectCatalog.AccessRequest) !p.Authorization.Verified {
+    const response = try self.call(.{ .check = requested });
+    defer response.deinit();
+    return response.value.subject;
+}
 pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
     try self.connection.validate();
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action };

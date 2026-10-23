@@ -129,6 +129,66 @@ fn schema(self: *Self, id: u64) !a.Schema {
     return result;
 }
 
+/// Current namespace metadata under CONNECT/USAGE. This creates no definition
+/// or operation, and its native reference grants no rights by itself.
+pub fn inspectNamespace(self: *Self, id: u64, policy: Policy) !?a.Schema {
+    try self.requireInitialized();
+    try c.Model.nativeId(id);
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const database = try self.guard(arena.allocator(), policy, null, null, .database);
+    try check(database);
+    const found = self.schema(id) catch |err| switch (err) {
+        error.CatalogNamespaceMissing => {
+            try check(database);
+            return null;
+        },
+        else => return err,
+    };
+    try check(try self.guard(arena.allocator(), policy, found, null, .schema));
+    return found;
+}
+
+pub const AccessRequest = struct {
+    namespace: ?u64,
+    target: ?d.Definition,
+    access: a.Access,
+    pub fn validate(self: AccessRequest, scope: d.Scope, branch: u64) !void {
+        const database_only = self.access == .database or self.access == .create_schema;
+        const table_required = !database_only and self.access != .schema and self.access != .create_table;
+        if (database_only != (self.namespace == null) or table_required != (self.target != null)) return error.InvalidTableAccessRequest;
+        if (self.namespace) |id| try c.Model.nativeId(id);
+        if (self.target) |target| {
+            try target.validate();
+            if (!std.meta.eql(target.object.scope, scope) or target.object.branch != branch) return error.CatalogDenied;
+        }
+    }
+};
+
+/// Preparation checks exact current interpretation and action-specific rights
+/// without admission, native provisioning, a read pin or raw resource access.
+pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
+    try self.requireInitialized();
+    try request.validate(self.config().scope, self.config().branch);
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const namespace_value = if (request.namespace) |id| try self.schema(id) else null;
+    const initial = try self.guard(arena.allocator(), policy, namespace_value, null, if (namespace_value != null) .schema else .database);
+    try check(initial);
+    var view: ?View = null;
+    defer if (view) |*value| value.deinit();
+    if (request.target) |expected| {
+        const target_entry = try self.entry(expected.object.object) orelse return error.CatalogDenied;
+        if (target_entry.seed == null) return error.CatalogDenied;
+        view = try self.open(self.allocator, target_entry, false);
+        if (view.?.table.root.next_lsn == 0 or view.?.table.root.retired or view.?.properties.namespace != request.namespace.?) return error.CatalogDenied;
+        const required = try self.guard(arena.allocator(), policy, namespace_value, view.?.properties.target(expected.object.object), request.access);
+        try check(required);
+        if (!std.meta.eql(expected, view.?.table.root.interpretation)) return error.TableDefinitionChanged;
+        try check(required);
+    } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
+}
+
 pub fn initialize(self: *Self, policy: Policy) !void {
     try self.store.refresh();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
