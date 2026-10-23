@@ -113,6 +113,10 @@ def run(node, caller):
             authority = None
             authority = start()
             subprocess.run([caller, endpoint, "recover", str(profile)], check=True, timeout=180)
+            stop(authority)
+            authority = None
+            authority = start()
+            subprocess.run([caller, endpoint, "lifecycle", str(profile)], check=True, timeout=180)
             assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
             assert fault["execute"] is not None
             # An admission hint cannot place ordinary execution in the reserve.
@@ -121,7 +125,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} .tseg object(s), exact lost-reply recovery, retained pin across restart, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

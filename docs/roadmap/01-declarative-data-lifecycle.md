@@ -73,9 +73,12 @@ covers restart, lost replies, quota pressure and current rights. A configured
 local node now serves signed typed requests directly over HTTP and resumes native
 registration under the original caller's fence. The [public HTTP proof](../../tests/README.md#direct-table-http-owner-and-typed-caller--2026-10-22)
 covers a 64 KiB point row, bulk `.tseg` publication, exact lost-reply recovery,
-restart, an unflushed retained pin and current revocation. The default launcher
-and installed SQL still use the actor catalog. Their cutover, complete public
-CRUD/DDL, automatic point flushing, named resource provisioning and computation
+restart, an unflushed retained pin and current revocation. Its subsequent
+[CRUD/DDL recovery run](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+also covers UPDATE, DELETE, ADD COLUMN, RENAME, DROP and name reuse with retained
+schemas and exact outcomes across a second restart. The default launcher and
+installed SQL still use the actor catalog. Their cutover, preview and dependency
+contracts, automatic point flushing, named resource provisioning and computation
 evidence remain unfinished. None of the completion matrix rows below is closed
 by this partial caller path.
 
