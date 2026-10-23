@@ -78,6 +78,14 @@ pages can be empty and still have a continuation. Its directory position and
 Table positions are independent observations, not a consistent catalog snapshot.
 Retained Table snapshots use the storage owner's separate durable-pin operations.
 
+`pinRows`, `snapshotDefinition`, `scanRows` and `releaseRows` expose those
+operations through the same native policy owner. A pin belongs to its original
+principal; its handle does not grant access. Each read requires current CONNECT,
+USAGE and SELECT and retains its original schema after Table alteration or
+retirement. Row pages return owned values under separate row/byte limits and
+recheck authorization after buffering. Explicit release uses reserved control
+capacity. Installed HTTP and SQL adapters do not call these methods yet.
+
 ## Bounds and remaining integration
 
 Directories and operation indexes use immutable B-tree pages. The default cache

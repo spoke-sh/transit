@@ -33,4 +33,5 @@ test {
     _ = @import("table_partition_test.zig");
     _ = @import("table_dml_intent_test.zig");
     _ = @import("table_operation_test.zig");
+    _ = @import("table_snapshot_scan_test.zig");
 }

@@ -538,6 +538,55 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
     };
 }
 
+const SnapshotAccess = struct { view: View, current: P.Guard };
+fn snapshotAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, owner: d.Operation, policy: Policy, control: bool) !SnapshotAccess {
+    try self.requireInitialized();
+    try object.validate();
+    try owner.validate();
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch or
+        !std.meta.eql(owner.scope, object.scope) or owner.principal != policy.subject.principal()) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    var view = try self.open(self.allocator, target, control);
+    errdefer view.deinit();
+    const current = try self.guard(allocator, policy, try self.schema(view.properties.namespace), view.properties.target(object.object), .read);
+    try check(current);
+    return .{ .view = view, .current = current };
+}
+
+/// Pin ownership is private to the original principal. Possession of a handle
+/// never substitutes for current database/schema/Table SELECT rights.
+pub fn pinRows(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, policy: Policy) !P.SnapshotHandle {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.pin(owner, expected, access.current);
+}
+
+pub fn snapshotDefinition(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !P.SnapshotDefinition {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.inspectSnapshot(allocator, handle, access.current);
+}
+
+pub fn scanRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.SnapshotPage {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.scanSnapshot(allocator, handle, after, limits, access.current);
+}
+
+pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !void {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, true);
+    defer access.view.deinit();
+    return access.view.table.releaseSnapshot(handle, access.current);
+}
+
 fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !void {
     try self.store.index.begin(self.options.index_work_bytes);
     defer self.store.index.end();

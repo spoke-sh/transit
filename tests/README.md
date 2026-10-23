@@ -631,6 +631,28 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Retained Table page reads — 2026-10-22
+
+The pinned storage suite passes **54/54 tests** with `inspectSnapshot` and
+`scanSnapshot`. New disk-backed cases traverse thirteen mixed unflushed WAL and
+segment rows across flush, schema rewrite, DROP and actual owner reopen. They
+retain the original two-column interpretation and exact accepted position,
+enforce independent row/byte page limits, and reject foreign or fabricated
+cursors and released handles. Variable-length returned values remain valid
+after the Table owner and its caches are destroyed. A final injected policy
+denial discards buffered values and also denies empty end-of-source metadata.
+Repeated inspection leaves the Table root unchanged.
+
+`just test::local-catalog` passes with the new catalog read operations under real
+native authority. A domain owner without raw-resource access can acquire and
+read its pin. Another pin principal rejects. Ownership revocation denies page
+delivery and release; regrant permits release even when ordinary data capacity
+is exhausted. Returned pages and schema use caller-owned allocations after the
+temporary catalog view closes.
+
+This qualifies bounded retained source pages, not public HTTP/SQL result
+streaming, service scheduling, a shared catalog cut or physical collection.
+
 ## Table partition acceptance and retained read pins — 2026-10-22
 
 In the pinned development shell, `zig build test` passes in
