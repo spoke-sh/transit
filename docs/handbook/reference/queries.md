@@ -377,8 +377,8 @@ still run; missing or invalid data fails instead of becoming an empty result.
 Cached bytes are checked against the live lease and current source policy before
 disclosure. A failed, interrupted or denied prefix has no successful completion
 footer. The native session API retains one bounded batch for fetch retries. Opening a
-new session starts new statements; `execution: captured` selects service-owned
-captured queries against an explicit source binding.
+new session starts new statements. The native session API separately supports
+service-owned captured queries against an explicit source binding.
 [Workload priorities](workloads.md) and [measured costs](performance.md) explain
 the rationale and the shared storage work needed alongside this lifecycle.
 

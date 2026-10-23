@@ -71,9 +71,10 @@ console interrupted during SQL stops its current request and returns to an empty
 terminal prompt. Interactive reads use independently admitted cancellation and
 release the service-owned snapshot. Accepted Table, configuration and captured
 operations remain recoverable; interrupting presentation does not undo them.
-Use `.cancel` for explicit operation cancellation under its owner's semantics.
-Batch interruption returns 130; a failed cleanup or unknown transport outcome
-remains a failure with the original token. Server SIGINT/SIGTERM initiate joined
+Ctrl-C requests cancellation of the current statement where supported and checks
+its original outcome within a one-second cleanup budget. Cancellation cannot
+undo completion. Batch interruption returns 130; unconfirmed outcomes remain
+explicit errors without exposing operation identities. Server SIGINT/SIGTERM initiate joined
 shutdown. Machine records go to stdout and diagnostics to stderr; JSON mode has
 no banner or prompt. Broken stdout ends presentation without deleting accepted
 work.
@@ -95,11 +96,9 @@ fields and malformed scalar representations reject. Source templates retain the
 [parameter contract](SQL_PARAMETERS_V1.md), including their smaller admitted
 placeholder profile; catalog parameters use the shared Table compiler.
 
-Console captured execution uses the service-owned operation ledger.
-After admission, changing or deleting an input file cannot change that original
-work. `.status` and `.resume` select its token or operation identity; reconnect
-never recompiles or resubmits SQL automatically. Bindings are not session defaults
-and parameter values are not added to dot-command history.
+After admission, changing or deleting an input file cannot change the original
+work. The console never recompiles or resubmits SQL automatically. Bindings are
+not session defaults and parameter values are not added to dot-command history.
 
 ## Local server and recovery
 
@@ -294,31 +293,53 @@ failure rejects rather than guessing. SQL is recorded before execution and uses
 the ordinary session, current authorization and a new admission token; this is
 not exact recovery of a prior request.
 
-The console exposes `.help`, `.info`, `.tables`, `.sources`, `.schema`, `.status`,
-`.resume [ID]`, `.cancel`, `.mode table|json`, `.timer on|off`, `.show`, `.connect PATH`, `.edit` and `.quit`.
-`.show` emits one setting per line on stdout, with right-aligned names, aligned
-colons and escaped text values, independently of the query result format.
-Automatic connection selection is `(automatic)`; boolean settings use `on`/`off`.
-It reports effective settings and their origins without changing settings,
-submitting queries or retrying saved work.
-`.connect` is terminal-only. It closes temporary session state; accepted work
-remains in the service ledger. Unknown commands/arguments reject as a whole.
-Default `execution: interactive` uses a fresh service-owned leased snapshot and
-Fuze execution. `execution: captured` selects an explicitly configured source
-binding and a retained query operation. The server freezes the compiled bundle,
-signed steps and original source binding before dispatch. Catalog DDL/DML and
-configuration reload use their corresponding durable operation owners in either
-mode. No console connection accepts private native identities or recovery paths.
+| Command | Purpose |
+| --- | --- |
+| `.connect FILE` | Open a new independent connection in a terminal |
+| `.edit` | Edit the latest SQL in `$EDITOR`; save and close to submit |
+| `.execute FILE` | Execute a typed JSON query object |
+| `.help [--all] [TOPIC]` | List commands or show focused help |
+| `.info` | Current account/database and authorized source bindings |
+| `.mode table\|json` | Select SQL result presentation |
+| `.quit`, EOF | Close this session |
+| `.schema [TABLE]` | Show table columns, or list available tables |
+| `.show` | Presentation preferences and their origins |
+| `.sources` | Alias for `.info` |
+| `.tables` | List available tables |
+| `.timer on\|off` | Enable or disable query timing |
 
-Each submitted operation has a random 128-bit admission token. Exact token reuse
-returns the original operation; conflicting request content rejects. After an
-uncertain response the console prints that token. `.status token:HEX` finds its
-current outcome. `.status all` pages authorized account operations; recovery never
-matches by SQL text. `.resume [table:ID|configuration:ID|captured:ID]` advances the
-original operation, and `.cancel` requests cancellation where supported. Captured
-`.resume` on a completed operation streams its retained result from the beginning,
-so rows already presented may repeat. These commands accept `token:HEX` and the
-last observed operation/token. Configuration cancellation is unsupported.
+`.help` prints an alphabetical command index with one description per line.
+`.help --all` expands those same entries with arguments, notes and examples.
+`.help edit` and `.help .EDIT` show the same focused command help. Topics are
+case-insensitive; `.help sql`, `.help settings` and `.help shortcuts` cover SQL,
+configuration and terminal keys. Statement topics such as `.help INSERT` and
+`.help ALTER TABLE` describe only the selected statement. Help always prints
+text, including in JSON result mode, and submits no SQL.
+
+`.show` emits aligned text independently of query output format. `.connect` is
+terminal-only and replaces temporary session state. Unknown commands and
+arguments reject as a whole. SELECT uses a fresh leased snapshot; connection
+files accept no execution-mode selector. Durable captured execution remains a
+native service capability. Catalog DDL/DML and configuration reload keep their
+service-owned acceptance and recovery semantics.
+
+The console reports statement completion and authoritative matched/changed
+counts. Accepted statements emit a JSON `completion` object with `outcome`,
+`matched`, `changed` and `pending_restart`; direct session completions retain
+`kind`, `matched` and `changed`. No operation token or workflow phase is printed.
+Rejected, cancelled, partial and unconfirmed outcomes are errors, not successful
+completion records. The current accepted-operation response has no SQL command
+tag, so its human output uses “Statement completed” rather than guessing a
+statement kind from SQL text.
+
+After a lost write response, the shared client checks the original request
+within a bounded deadline. It never submits the SQL again. If the original
+session expired, a separate authenticated observation session can check that
+request against the same instance and account. This does not restore the user's
+session or its settings; further SQL requires reconnection. A timeout, missing
+observation or failed authorization cannot establish that a write failed.
+Unconfirmed outcomes explicitly warn that running the statement again may apply
+changes twice.
 
 Closing a connection, expiring a session, changing clients or restarting the
 service invalidates temporary handles, while accepted operations remain durable.
@@ -337,7 +358,7 @@ remain independent. The [console guide](../apps/transit-cli/docs/console.md) own
 configuration examples and presentation limits.
 
 Timing is off by default. `.timer on` reports monotonic wall milliseconds after
-SQL and resume attempts, including failures, to stderr. The timing line follows
+SQL attempts, including failures, to stderr. The timing line follows
 all result and diagnostic output for that command, including cancellation messages,
 and precedes the next interactive prompt. Diagnostic presentation is outside the
 measured interval. The total and preparation,

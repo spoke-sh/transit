@@ -30,7 +30,8 @@ remain distinct from a live name.
 DROP does not physically erase data or grant access to history. Accepted history
 retains its separate retention policy. Qualified cleanup of rejected/cancelled
 candidate storage preserves receipts and identity floors. After an uncertain
-send, use `.status` and `.resume`; do not repeat DROP against the reused name.
+send, the console checks the original request; do not repeat DROP against a
+reused name when its outcome remains unconfirmed.
 
 See [Tables](../tables.md) and the
 [catalog lifecycle and dependency rules](../../../../packages/zig/transit-catalog/docs/table-metadata.md).

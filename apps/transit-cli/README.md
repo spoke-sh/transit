@@ -13,7 +13,7 @@ The `transit-admin` administration utility remains separate.
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
 configuration and recovery. Shared parser and
 cursor assistance lives in Fuze/query packages. The [console guide](docs/console.md)
-covers versioned configuration, terminal editing, trust and exact recovery.
+covers versioned configuration, terminal editing, trust and statement outcomes.
 The [local server guide](docs/server.md) describes the implemented supervisor,
 private native gateway and selected dependency/credential profile. Focused recovery,
 gateway pressure, physical capacity and clean-checkout qualification are recorded in the [proof ledger](../../tests/README.md). The console uses dot commands.
@@ -46,7 +46,9 @@ CREATE/ALTER/DROP and typed DML share the configured general catalog; new
 Tables are discoverable and queryable through that catalog. Connections select
 an enrolled account and database, or an authorized service-owned source binding;
 `.help INSERT` and `.help CREATE TABLE` explain syntax, configuration and
-recovery inside the shell. Its `.transitrc` hierarchy
+statement behavior inside the shell. `.help` lists commands, `.help --all`
+expands their instructions, and `.help shortcuts` lists terminal keys.
+Its `.transitrc` hierarchy
 configures `.connect`, `.mode` and `.timer`; server `transit.yaml` settings overlay the
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.

@@ -28,3 +28,12 @@ socket ownership lock.
 Run `nix develop --command sh -c 'cd packages/zig/transit-sql-client && zig build test'`.
 The public messages and failure rules are in the
 [SQL session contract](../../../contracts/SQL_SESSION_V1.md).
+
+`Pending` observes one original admission token under a single deadline. It never
+contains or replays SQL. It can open one separately authenticated observation
+session after expiry, pinned to the same instance and account; this does not
+restore the caller's session or settings. Interruption requests cancellation of
+the active query and original operation where supported, with a one-second
+settlement budget. Missing observation, timeout and denial do not imply rejection.
+The caller still renders the confirmed outcome or explicit uncertainty. This is
+an adapter to the existing session API, not the future logical result-set API.
