@@ -54,8 +54,33 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
         },
         .describe => return .{ .description = self.configuration },
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
+        .namespaces => |value| {
+            var bytes: [8]u8 = undefined;
+            const after = if (value.after) |id| blk: {
+                std.mem.writeInt(u64, &bytes, id, .big);
+                break :blk try c.storage.TreeStore.pages.Key.init(&bytes);
+            } else null;
+            const page = try catalog.listNamespaces(after, policy);
+            const next = if (page.next) |cursor| blk: {
+                if (cursor.len != 8) return error.InvalidCatalogCursor;
+                break :blk std.mem.readInt(u64, cursor.data[0..8], .big);
+            } else null;
+            return .{ .namespaces = .{ .entries = page.entries, .next = next, .directory_position = page.directory_position } };
+        },
         .check => |value| {
             try catalog.checkAccess(value, policy);
+            return .checked;
+        },
+        .check_set => |values| {
+            for (values) |value| switch (value) {
+                .access => |access| try catalog.checkAccess(access, policy),
+                .snapshot => |snapshot| {
+                    var source = try catalog.snapshotDefinition(allocator, snapshot.object, snapshot.handle, policy);
+                    source.deinit();
+                },
+            };
+            // LocalCatalogPolicy accumulates successful requirements and
+            // rechecks their union after buffering this response.
             return .checked;
         },
         .lookup => |value| {
@@ -122,6 +147,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             } },
         },
         .pin => |value| return .{ .pin = try catalog.pinRows(value.object, value.owner, value.expected, policy) },
+        .pin_status => |value| return .{ .pin_state = try catalog.pinState(value.object, value.owner, policy) },
         .snapshot => |value| {
             var found = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);
             defer found.deinit();

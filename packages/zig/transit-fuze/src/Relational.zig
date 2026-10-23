@@ -283,6 +283,9 @@ pub fn resolve(sources: []const Source, qualifier: ?[]const u8, column_name: []c
 /// required Table heads at its recorded native coordinate, resolved through
 /// complete Table history. Neither evidence kind supplies authority or a lease.
 pub const Cut = struct {
+    /// Native KV resource revisions and direct Table partition frontiers are
+    /// distinct atomic domains. This field is mandatory in persisted vectors.
+    domain: union(enum) { native_resource, table_partition: struct { branch: u64, object: u64, partition: u64 } },
     resource: u64,
     revision: u64,
     commitment: [32]u8,
@@ -295,14 +298,30 @@ pub const Bound = struct {
     pub fn validate(self: Bound) !void {
         try self.plan.validate();
         if (self.cuts.len != self.plan.sources.len) return error.IncompleteRelationalBasis;
+        var domains: usize = 0;
         for (self.cuts, self.plan.sources, 0..) |cut, source, i| {
             if (cut.resource != source.resource or
                 !std.mem.eql(u8, &cut.schema, &try source.schema.fingerprint())) return error.RelationalSourceChanged;
             if (std.mem.allEqual(u8, &cut.commitment, 0)) return error.InvalidRelationalCut;
+            if (cut.domain == .table_partition) {
+                const target = cut.domain.table_partition;
+                if (target.branch != 1 or target.object != source.schema.object or target.partition == 0 or cut.revision == 0) return error.InvalidRelationalCut;
+            }
+            var shared = false;
             for (self.cuts[0..i]) |earlier| if (cut.resource == earlier.resource) {
+                if (std.meta.activeTag(cut.domain) != std.meta.activeTag(earlier.domain)) return error.InconsistentRelationalCut;
+                if (cut.domain == .table_partition) {
+                    const a = cut.domain.table_partition;
+                    const b = earlier.domain.table_partition;
+                    if ((a.partition == b.partition) != (a.branch == b.branch and a.object == b.object)) return error.InconsistentRelationalCut;
+                    if (a.partition != b.partition) continue;
+                }
                 if (cut.revision != earlier.revision or !std.mem.eql(u8, &cut.commitment, &earlier.commitment)) return error.InconsistentRelationalCut;
+                shared = true;
             };
+            if (!shared) domains += 1;
         }
+        if (domains > self.plan.budgets.source_pins) return error.InvalidRelationalBudgets;
     }
 
     pub fn fingerprint(self: Bound) ![32]u8 {
@@ -311,6 +330,15 @@ pub const Bound = struct {
         hash.update(definition ++ "\x00bound\x00");
         hash.update(&try self.plan.fingerprint());
         for (self.cuts) |cut| {
+            hash.update(&.{if (cut.domain == .native_resource) 0 else 1});
+            if (cut.domain == .table_partition) {
+                const target = cut.domain.table_partition;
+                inline for (.{ target.branch, target.object, target.partition }) |id| {
+                    var value: [8]u8 = undefined;
+                    std.mem.writeInt(u64, &value, id, .little);
+                    hash.update(&value);
+                }
+            }
             var coordinates: [16]u8 = undefined;
             std.mem.writeInt(u64, coordinates[0..8], cut.resource, .little);
             std.mem.writeInt(u64, coordinates[8..16], cut.revision, .little);

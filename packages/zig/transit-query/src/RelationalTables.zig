@@ -11,7 +11,7 @@ const e = f.RelationalExecution;
 const Scan = @import("TableScan.zig");
 const Self = @This();
 pub const Binding = struct { client: *c.TableClient, name: c.TableMetadata.Name, alias: []const u8 };
-pub const Consistency = enum { per_resource_snapshot_vector, atomic };
+pub const Consistency = enum { per_resource_snapshot_vector, independent_table_snapshots, atomic };
 allocator: std.mem.Allocator,
 scans: [r.max_sources]?Scan = @splat(null),
 declarations: [r.max_sources]r.Source = undefined,
@@ -46,7 +46,7 @@ pub fn open(allocator: std.mem.Allocator, bindings: []const Binding, nonces: [r.
         const schema = scan.definition.?.schema.schema;
         const connection = binding.client.connection;
         self.declarations[i] = .{ .alias = binding.alias, .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner, .schema = schema };
-        self.cuts[i] = .{ .resource = connection.scope.resource, .revision = scan.view.revision, .commitment = commitment(scan), .schema = try schema.fingerprint() };
+        self.cuts[i] = .{ .domain = .native_resource, .resource = connection.scope.resource, .revision = scan.view.revision, .commitment = commitment(scan), .schema = try schema.fingerprint() };
     }
     try self.authorize();
     return self;

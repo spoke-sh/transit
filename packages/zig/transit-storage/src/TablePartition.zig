@@ -49,8 +49,14 @@ pub const Options = struct {
 pub const Change = Changes.Change;
 pub const Ingestion = Changes.Ingestion;
 pub const SnapshotHandle = Snapshot.Handle;
+pub const PinState = struct {
+    position: d.Position,
+    retired: bool,
+    handle: ?SnapshotHandle,
+    released: bool,
+};
 pub const SnapshotDefinition = Snapshot.Owned;
-pub const SnapshotCursor = struct { source: d.Content, after: [13]u8 };
+pub const SnapshotCursor = struct { source: d.Content, after: [f.TableRow.Identity.encoded_bytes]u8 };
 pub const ReadLimits = struct {
     rows: u8 = pages.page_entries,
     encoded_bytes: u32 = 4 * 1024 * 1024,
@@ -116,7 +122,7 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
@@ -133,7 +139,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             } else if (!std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
             if (record.action == .mutation and after.changed_lsn != (if (value.outcome.affected != 0 or binding.action == .create) after.next_lsn else before.changed_lsn)) return error.InvalidTableHistory;
             if (record.action == .mutation and value.outcome.affected == 0 and
-                (!std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or
+                (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or
                     before.live_rows != after.live_rows or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
             if (before.next_lsn == 0) {
                 if (record.action != .mutation or binding.action != .create or after.interpretation.revision != 1 or after.retired) return error.InvalidTableHistory;
@@ -146,7 +152,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
                     if (binding.action != .alter and binding.action != .rename and binding.action != .drop) return error.InvalidTableHistory;
                     if (after.interpretation.revision != try std.math.add(u64, before.interpretation.revision, 1) or after.retired != (binding.action == .drop) or after.live_rows != before.live_rows) return error.InvalidTableHistory;
                     if (binding.action != .alter and (!std.mem.eql(u8, &before.schema_fingerprint, &after.schema_fingerprint) or
-                        !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
+                        !std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
                 }
             }
             if (operation == null) if (binding.expected_data) |expected| {
@@ -156,8 +162,8 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
         else => {
             if (before.next_lsn == 0 or !std.meta.eql(before.declared(), after.declared()) or before.changed_lsn != after.changed_lsn or
                 before.live_rows != after.live_rows or !std.meta.eql(before.receipts, after.receipts)) return error.InvalidTableHistory;
-            if (record.action != .checkpoint and (!std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
-            if (record.action == .checkpoint and !std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
+            if (record.action != .checkpoint and (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
+            if (record.action == .checkpoint and (!std.meta.eql(before.pins, after.pins) or !std.meta.eql(before.identities, after.identities))) return error.InvalidTableHistory;
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
@@ -208,7 +214,7 @@ pub fn recover(self: *Self) !void {
     }
     // Verify all top-level roots before exposing the recovered state. Descendant
     // pages and row objects remain checked on access, never substituted by empty.
-    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.receipts, next.pins, next.operations, next.pending }) |reference| if (reference) |ref| {
+    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.receipts, next.pins, next.operations, next.pending }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
     if (end != 0) {
@@ -401,7 +407,7 @@ pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
             error.TableDataChanged => .data_changed,
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => .duplicate_key,
             error.TableRowMissing => .missing_row,
-            error.TableRowIdentityChanged => .invalid_rows,
+            error.TableRowIdentityChanged, error.DuplicateTableRowIdentity => .invalid_rows,
             error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge => .work_limit,
             else => return err,
         };
@@ -579,10 +585,13 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
     const changed = try a.alloc(bool, changes.len);
     @memset(changed, false);
     const previous_bytes = try a.alloc(u8, f.TableRow.max_bytes);
+    const previous_ids = try a.alloc(?f.TableRow.Identity, changes.len);
+    @memset(previous_ids, null);
     // Validate every row/key constraint against the accepted root before staging.
     for (changes, old_keys, 0..) |change, key, i| {
         var existing = try self.getAt(self.allocator, self.root, key);
         defer if (existing) |*row| row.deinit();
+        if (existing) |*row| previous_ids[i] = row.row().identity;
         switch (change) {
             inline .put, .replace => |value| {
                 const expectation = if (change == .put) change.put.expect else Changes.Expect.present;
@@ -609,8 +618,9 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
     }
     // Remove all old keys before testing destinations. This permits a complete
     // UPDATE to exchange keys while still rejecting collisions with survivors.
-    for (old_keys, changed) |key, is_changed| {
+    for (old_keys, changed, previous_ids) |key, is_changed, previous_id| {
         if (!is_changed) continue;
+        if (previous_id) |identity| next.identities = try self.tree().remove(next.identities, try pages.Key.init(&try identity.encode()));
         const index_key = try r.rowKey(key);
         if (try self.tree().get(next.rows, index_key)) |value| {
             next.scan_rows = try self.tree().remove(next.scan_rows, try (try r.Locator.decode(value)).scanKey());
@@ -647,6 +657,7 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
     for (changes, keys, 0..) |change, key, i| {
         if (!changed[i] or change == .remove) continue;
         const index_key = try r.rowKey(key);
+        try self.indexIdentity(&next, change.row().?.identity, index_key);
         next.rows = try self.tree().put(next.rows, index_key, try locators[i].encode());
         next.scan_rows = try self.tree().put(next.scan_rows, try locators[i].scanKey(), try locators[i].scanValue(index_key));
     }
@@ -726,6 +737,7 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
             matched += 1;
             if (plan.action == .update and try statementReplacement(plan, row, encoded, &cells, after_bytes) == null) continue;
             affected += 1;
+            next.identities = try self.tree().remove(next.identities, try pages.Key.init(&try row.identity.encode()));
             next.rows = try self.tree().remove(next.rows, entry.key);
             next.scan_rows = try self.tree().remove(next.scan_rows, try (try r.Locator.decode(entry.value)).scanKey());
         };
@@ -780,6 +792,7 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
                 const key = try r.rowKey(entry.pk_sort_key);
                 if (try self.tree().get(next.rows, key) != null) return error.DuplicatePrimaryKey;
                 const locator: r.Locator = .{ .kind = .segment, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
+                try self.indexIdentity(&next, entry.identity, key);
                 next.rows = try self.tree().put(next.rows, key, try locator.encode());
                 next.scan_rows = try self.tree().put(next.scan_rows, try locator.scanKey(), try locator.scanValue(key));
                 written += 1;
@@ -883,9 +896,17 @@ pub fn changeDefinition(self: *Self, binding: d.Binding, edit: Edit, guard: Guar
     return outcome;
 }
 
+fn indexIdentity(self: *Self, next: *Root, identity: f.TableRow.Identity, row_key: pages.Key) !void {
+    if (row_key.len != 32) return error.InvalidTableKey;
+    const key = try pages.Key.init(&try identity.encode());
+    if (try self.tree().get(next.identities, key) != null) return error.DuplicateTableRowIdentity;
+    next.identities = try self.tree().put(next.identities, key, try pages.Value.init(row_key.data[0..32]));
+}
+
 fn rewrite(self: *Self, next: *Root, transition: f.TableEvolution.Transition) !void {
     next.rows = null;
     next.scan_rows = null;
+    next.identities = null;
     var cursor: ?pages.Key = null;
     var done = false;
     var count: u64 = 0;
@@ -926,6 +947,7 @@ fn rewrite(self: *Self, next: *Root, transition: f.TableEvolution.Transition) !v
             // hash collision rejects conservatively; it never merges two rows.
             if (try self.tree().get(next.rows, index_key) != null) return error.DuplicatePrimaryKey;
             const locator: r.Locator = .{ .kind = .segment, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
+            try self.indexIdentity(next, entry.identity, index_key);
             next.rows = try self.tree().put(next.rows, index_key, try locator.encode());
             next.scan_rows = try self.tree().put(next.scan_rows, try locator.scanKey(), try locator.scanValue(index_key));
             count = try std.math.add(u64, count, 1);
@@ -1212,6 +1234,24 @@ fn requirePin(self: *Self, handle: SnapshotHandle) !Snapshot.Pin {
     return existing;
 }
 
+/// Recover the original acquisition without acquiring a pin. An absent pin
+/// plus a later physical frontier proves that its old exact-frontier request
+/// can no longer succeed. Release remains a separately authorized mutation.
+pub fn pinState(self: *Self, owner: d.Operation, guard: Guard) !PinState {
+    try self.ready();
+    try self.scope(owner);
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    const value = try self.tree().get(self.root.pins, try r.operationKey(owner));
+    const existing = if (value) |bytes| try Snapshot.Pin.decode(bytes) else null;
+    return .{
+        .position = .{ .partition = self.root.partition, .next_lsn = self.root.next_lsn },
+        .retired = self.root.retired,
+        .handle = if (existing) |pin_value| .{ .owner = owner, .content = pin_value.content } else null,
+        .released = if (existing) |pin_value| pin_value.released else false,
+    };
+}
+
 pub fn releaseSnapshot(self: *Self, handle: SnapshotHandle, guard: Guard) !void {
     try self.ready();
     {
@@ -1273,10 +1313,10 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     const cursor: ?pages.Key = if (after) |value| blk: {
         if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
         const key = try pages.Key.init(&value.after);
-        if (try self.tree().get(frozen.root.scan_rows, key) == null) return error.InvalidTableSnapshotCursor;
+        if (try self.tree().get(frozen.root.identities, key) == null) return error.InvalidTableSnapshotCursor;
         break :blk key;
     } else null;
-    const batch = try self.tree().scan(frozen.root.scan_rows, cursor);
+    const batch = try self.tree().scan(frozen.root.identities, cursor);
     var result: SnapshotPage = .{
         .source = handle,
         .interpretation = frozen.root.declared(),
@@ -1291,20 +1331,20 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     for (batch.entries) |slot| {
         const entry = slot orelse break;
         if (result.count == limits.rows) {
-            result.next = .{ .source = handle.content, .after = previous.?.data[0..13].* };
+            result.next = .{ .source = handle.content, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
             break;
         }
-        if (entry.key.len != 13 or entry.value.len != 81) return error.InvalidTableRowReference;
-        const value = entry.value;
-        const locator = try r.Locator.decode(try pages.Value.init(value.data[32..81]));
-        if (!std.meta.eql(entry.key, try locator.scanKey())) return error.InvalidTableRowReference;
-        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, try pages.Key.init(value.data[0..32]), try locator.encode());
+        if (entry.key.len != f.TableRow.Identity.encoded_bytes or entry.value.len != 32) return error.InvalidTableRowReference;
+        const row_key = try pages.Key.init(entry.value.data[0..32]);
+        const locator = try self.tree().get(frozen.root.rows, row_key) orelse return error.InvalidTableRowReference;
+        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, row_key, locator);
         var moved = false;
         defer if (!moved) row.deinit();
+        if (!std.mem.eql(u8, entry.key.data[0..entry.key.len], &try row.row().identity.encode())) return error.InvalidTableRowReference;
         const encoded = try row.row().encode(frozen.schema.schema, scratch);
         if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
             if (result.count == 0) return error.TableReadBudgetTooSmall;
-            result.next = .{ .source = handle.content, .after = previous.?.data[0..13].* };
+            result.next = .{ .source = handle.content, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
             break;
         }
         result.rows[result.count] = row;
@@ -1314,8 +1354,8 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
         previous = entry.key;
     }
     if (result.next == null) if (batch.next) |key| {
-        if (key.len != 13) return error.InvalidTableRowReference;
-        result.next = .{ .source = handle.content, .after = key.data[0..13].* };
+        if (key.len != f.TableRow.Identity.encoded_bytes) return error.InvalidTableRowReference;
+        result.next = .{ .source = handle.content, .after = key.data[0..f.TableRow.Identity.encoded_bytes].* };
     };
     // Authorization may change while rows are decoded or copied. Recheck after
     // buffering, including empty output and end-of-source metadata.

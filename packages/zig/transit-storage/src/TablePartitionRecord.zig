@@ -21,6 +21,9 @@ pub const Root = struct {
     changed_lsn: u64 = 0,
     rows: ?pages.Reference = null,
     scan_rows: ?pages.Reference = null,
+    /// Stable row identity -> primary-key hash. Physical relocation leaves this
+    /// index unchanged; accepted mutations publish it with the row locators.
+    identities: ?pages.Reference,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
     /// Required on disk: older roots must not silently lose admitted work.
@@ -36,7 +39,8 @@ pub const Root = struct {
         try self.declared().validate();
         if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or
             (self.live_rows == 0) != (self.rows == null) or
-            (self.live_rows == 0) != (self.scan_rows == null)) return error.InvalidTableRoot;
+            (self.live_rows == 0) != (self.scan_rows == null) or
+            (self.live_rows == 0) != (self.identities == null)) return error.InvalidTableRoot;
     }
 };
 

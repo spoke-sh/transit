@@ -97,8 +97,8 @@ fn predicate(value: ?Predicate, instruction: *[1]r.Instruction) r.Predicate {
 }
 fn cuts() ![2]r.Cut {
     return .{
-        .{ .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() },
-        .{ .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try sources[1].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try sources[1].schema.fingerprint() },
     };
 }
 fn base() r.Plan {

@@ -453,6 +453,7 @@ const Output = struct {
 };
 fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void {
     var interval_ms: u32 = 2;
+    var cleanup_failure: u16 = 0;
     while (true) {
         const progressed = runtime.tick() catch |err| blk: {
             if (!g.station.client.Client.unavailable(err)) {
@@ -462,6 +463,11 @@ fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void 
             }
             break :blk false;
         };
+        const current_cleanup = runtime.read_cleanup_failure.load(.acquire);
+        if (current_cleanup != cleanup_failure) {
+            cleanup_failure = current_cleanup;
+            if (current_cleanup != 0) diagnostics.event(.{ .name = "sql.read.cleanup_blocked", .level = .warn, .outcome = .failed, .error_type = @errorName(@as(anyerror, @errorFromInt(current_cleanup))) });
+        }
         if (progressed) {
             interval_ms = 2;
             continue;
@@ -529,6 +535,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (std.c.fsync(activation.handle) != 0) return error.GatewayActivationSyncFailed;
     }
     var tasks: [g.Limits.max_accounts]?std.Io.Future(void) = @splat(null);
+    if (!initialize) for (runtimes.items) |runtime| try runtime.attachReadPins(activation);
     defer for (&tasks) |*task| if (task.*) |*future| future.cancel(init.io);
     for (runtimes.items, 0..) |runtime, i| tasks[i] = try init.io.concurrent(runAccount, .{ runtime, diagnostics });
     const started = std.Io.Clock.awake.now(init.io);

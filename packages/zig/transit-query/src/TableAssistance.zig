@@ -8,7 +8,7 @@ const a = q.Assistance;
 const Parser = f.SqlTyped;
 const max_pages = 128;
 pub const Source = struct { name: []const u8, schema: f.TableSchema.Schema };
-const Builder = struct {
+pub const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,
     quoted: bool,
@@ -16,7 +16,7 @@ const Builder = struct {
     exact: [a.max_items]bool = undefined,
     count: usize = 0,
     limited: bool = false,
-    fn add(self: *Builder, raw: []const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
+    pub fn add(self: *Builder, raw: []const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
         return self.addQualified(raw, null, kind, detail);
     }
     fn addQualified(self: *Builder, raw: []const u8, qualifier: ?[]const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
@@ -40,7 +40,7 @@ const Builder = struct {
         } else try writer.writeAll(raw);
         try a.offer(self.allocator, &self.items, &self.exact, &self.count, &self.limited, self.prefix, raw, writer.buffered(), kind, detail);
     }
-    fn clear(self: *Builder) void {
+    pub fn clear(self: *Builder) void {
         for (self.items[0..self.count]) |item| self.allocator.free(item.text);
     }
 };
@@ -52,15 +52,15 @@ fn quotedName(writer: *std.Io.Writer, name: []const u8) !void {
     }
     try writer.writeByte('"');
 }
-fn ignored(err: anyerror) !void {
+pub fn ignored(err: anyerror) !void {
     if (err == error.OutOfMemory) return err;
 }
-fn statement(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
+pub fn statement(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
     var parser = try Parser.init(allocator, text, null);
     if (try parser.takeWord("EXPLAIN")) return text[parser.lexer.start..];
     return text;
 }
-fn target(allocator: std.mem.Allocator, text: []const u8) !?[]const u8 {
+pub fn target(allocator: std.mem.Allocator, text: []const u8) !?[]const u8 {
     var parser = try Parser.init(allocator, text, null);
     if (parser.word("SELECT")) return try f.TableSelect.target(allocator, text);
     if (parser.word("UPDATE") or parser.word("INSERT") or parser.word("DELETE")) return (try f.TableDml.target(allocator, text)).name;
@@ -136,7 +136,7 @@ pub fn expectations(allocator: std.mem.Allocator, text: []const u8, definition: 
     }
     return editor;
 }
-fn suggestions(builder: *Builder, editor: Parser.Editor, definition: ?Source, qualifier: ?[]const u8) !void {
+pub fn suggestions(builder: *Builder, editor: Parser.Editor, definition: ?Source, qualifier: ?[]const u8) !void {
     if (editor.name_role == .column) if (definition) |value| {
         if (editor.qualifier) |actual| if (qualifier == null or !std.mem.eql(u8, actual.slice(), qualifier.?)) return;
         for (value.schema.columns) |column| {
@@ -182,8 +182,8 @@ fn suggestions(builder: *Builder, editor: Parser.Editor, definition: ?Source, qu
         if (text) |raw| try builder.add(raw, .symbol, "Table SQL grammar");
     };
 }
-const RelationalSource = struct { alias: []const u8, schema: f.TableSchema.Schema };
-fn relationalExpectations(allocator: std.mem.Allocator, text: []const u8, sources: []const RelationalSource) !Parser.Editor {
+pub const RelationalSource = struct { alias: []const u8, schema: f.TableSchema.Schema };
+pub fn relationalExpectations(allocator: std.mem.Allocator, text: []const u8, sources: []const RelationalSource) !Parser.Editor {
     var editor: Parser.Editor = .{};
     const Lookup = struct {
         sources: []const RelationalSource,
@@ -208,7 +208,7 @@ fn relationalExpectations(allocator: std.mem.Allocator, text: []const u8, source
     syntax.deinit();
     return editor;
 }
-fn relationalSuggestions(builder: *Builder, editor: Parser.Editor, sources: []const RelationalSource) !void {
+pub fn relationalSuggestions(builder: *Builder, editor: Parser.Editor, sources: []const RelationalSource) !void {
     if (editor.name_role == .column) for (sources) |source| {
         if (editor.qualifier) |alias| if (!std.mem.eql(u8, alias.slice(), source.alias)) continue;
         for (source.schema.columns) |column| {

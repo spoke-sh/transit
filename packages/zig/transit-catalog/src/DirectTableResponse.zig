@@ -101,7 +101,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .initialize => .initialized,
         .describe => .description,
         .namespace => .namespace,
-        .check => .checked,
+        .namespaces => .namespaces,
+        .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
         .preview => .preview,
@@ -113,6 +114,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             .insert, .update, .delete => .rows,
         },
         .pin => .pin,
+        .pin_status => .pin_state,
         .snapshot => .snapshot,
         .scan => .page,
         .release => .released,
@@ -164,6 +166,21 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try value.validate();
             if (value.retired or value.id != request.action.namespace or !std.meta.eql(value.scope, request.connection.scope)) return error.InvalidTableResponse;
         },
+        .namespaces => |value| {
+            try frontier(value.directory_position, 0);
+            var previous = request.action.namespaces.after orelse 0;
+            var ended = false;
+            for (value.entries) |slot| {
+                const entry = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                try entry.validate();
+                if (ended or entry.retired or !std.meta.eql(entry.scope, request.connection.scope) or entry.id <= previous) return error.InvalidTableResponse;
+                previous = entry.id;
+            }
+            if (value.next) |next| if (next <= (request.action.namespaces.after orelse 0) or next < previous) return error.InvalidTableResponse;
+        },
         .lookup => |maybe| if (maybe) |value| {
             try definition(request.connection, value.interpretation);
             try value.name.validate();
@@ -205,6 +222,14 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             };
             if (request.action != .operation and value == .not_observed) return error.InvalidTableResponse;
             try rows(binding, value);
+        },
+        .pin_state => |value| {
+            try value.position.validate();
+            if (value.position.next_lsn == 0 or (value.released and value.handle == null)) return error.InvalidTableResponse;
+            if (value.handle) |handle| {
+                if (!std.meta.eql(handle.owner, request.action.pin_status.owner)) return error.InvalidTableResponse;
+                try handle.content.validate();
+            }
         },
         .pin => |value| {
             try value.owner.validate();

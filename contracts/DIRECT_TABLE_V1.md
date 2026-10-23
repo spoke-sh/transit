@@ -176,9 +176,29 @@ neither; late cancellation returns the original commit.
 durable read root. `snapshot` returns its retained interpretation, schema,
 accepted frontier, logical-change frontier and row count. `scan` returns up to
 eight owned rows under an explicit encoded-byte budget, with a cursor bound to
-that retained root. It never substitutes the latest name or definition.
+that retained root and its last returned canonical 20-byte row identity. Rows
+are strictly increasing by identity, independent of their current physical
+locators. It never substitutes the latest name or definition.
 `release` records terminal pin release through reserved control capacity.
 Current CONNECT/USAGE/SELECT rights apply to every operation, including release.
+
+`pin_status` reads the original owner's handle, release state, current physical
+frontier and Table retirement state. It acquires nothing. Absence at a later
+frontier or after retirement proves the old exact-frontier acquisition cannot
+subsequently succeed. Absence at the original frontier remains unresolved;
+recovery may repeat only that original acquisition before releasing it.
+
+`check_set` accepts 1–16 tagged `access` or `snapshot` checks. Access checks use
+the same exact-definition/action requirements as `check`; snapshot checks verify
+the original live pin. The local owner excludes Table mutations during the set
+and rechecks the union of successful requirements under one current native
+policy revision after response buffering. Native guard capacity still bounds
+the union. The `checked` result carries no rows or common source cut.
+
+`namespaces` accepts an optional last-visited schema ID and returns at most eight
+authorized live schemas, a continuation and directory position. Empty filtered
+pages may continue. The position describes this directory observation and does
+not establish a data snapshot.
 
 Pages are transport batches over one source. Their row counts, source identity
 and continuation do not by themselves certify a completed query result or a

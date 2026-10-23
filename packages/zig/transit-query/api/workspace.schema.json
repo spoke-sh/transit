@@ -2733,7 +2733,7 @@
               "$ref": "#/$defs/Response/$defs/T21"
             },
             "resource_revision": {
-              "$ref": "#/$defs/Response/$defs/T3"
+              "$ref": "#/$defs/Response/$defs/T4"
             },
             "policy_revision": {
               "$ref": "#/$defs/Response/$defs/T5"
@@ -2766,7 +2766,8 @@
           "enum": [
             "unified_v1",
             "catalog_v1",
-            "configuration_v1"
+            "configuration_v1",
+            "direct_table_v1"
           ]
         },
         "T67": {
@@ -5074,7 +5075,7 @@
         "T143": {
           "type": "string",
           "enum": [
-            "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+            "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
           ]
         },
         "T144": {
@@ -6924,7 +6925,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"
+            "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
           ]
         },
         "T2": {

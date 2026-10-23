@@ -5,237 +5,168 @@ const Store = @import("store_test.zig");
 const t = std.testing;
 const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9, .namespace = 7, .role = 29 };
 const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 1024 * 1024, .pending_quota = 2 };
-fn intent(id: u64) !c.TableIntent {
-    const schema: c.fuze.TableSchema.Schema = .{ .object = id, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
-    const request: c.TableDdlRequest = .{ .principal = configuration.table_principal, .namespace = binding.namespace, .operation = id, .object = id, .expected_revision = 0, .name = try c.TableMetadata.Name.init("people"), .action = .{ .create = .{ .schema = schema } } };
-    return c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(.{ .realm = 1, .resource = binding.resource, .catalog = binding.catalog }, binding.owner, request, null), id);
+fn reference(id: u64) g.IntentReference.Reference {
+    const scope: c.protocol.DataLifecycle.Scope = .{ .realm = 1, .resource = binding.resource, .catalog = binding.catalog };
+    return .{ .definition = c.protocol.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = binding.owner, .principal = configuration.table_principal, .role = binding.role }, .namespace = binding.namespace, .content = .{ .bytes = 512, .sha256 = @splat(17) }, .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = scope, .principal = configuration.table_principal, .operation = id }, .target = .{ .scope = scope, .branch = 1, .object = id }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(9) } };
 }
-test "ledger DDL bindings retain drop targets and delegated alteration outcomes" {
-    const scope: c.TableMetadata.Scope = .{ .realm = 1, .resource = 8, .catalog = 1 };
-    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
-    const name = try c.TableMetadata.Name.init("people");
-    var schema_buffer: [c.fuze.TableSchema.max_bytes]u8 = undefined;
-    const basis: c.TableMetadata.Record = .{ .scope = scope, .object = 7, .revision = 1, .name = name, .schema = .{ .id = 1, .spec = try g.station.Publication.Digest.of(g.station.TablePages.schema_format, try schema.encode(&schema_buffer)) }, .schema_fingerprint = try schema.fingerprint(), .principal = 6, .operation = 1, .admitted_input = 2 };
-    const actions: []const @FieldType(c.TableDdlRequest, "action") = &.{ .{ .drop = .{} }, .{ .drop = .{ .if_exists = true } }, .{ .rename = try c.TableMetadata.Name.init("contacts") }, .{ .alter = .{ .schema = schema, .change = .{ .rename = .{ .column = 1, .name = "identifier" } } } } };
-    for (actions, 0..) |action, index| {
-        const missing = index == 1;
-        const request: c.TableDdlRequest = .{ .principal = 6, .operation = 20, .object = if (missing) 0 else 7, .expected_revision = if (missing) 0 else 1, .name = name, .action = action };
-        var saved = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(scope, 9, request, if (missing) null else basis), 20);
-        defer saved.deinit();
-        const encoded = try g.LedgerRecords.encode(try g.LedgerRecords.IntentBinding.from(&saved));
-        const bound = try (try g.LedgerRecords.decode(g.LedgerRecords.IntentBinding, encoded)).binding(20);
-        try t.expectEqualDeep(saved.header, bound.header);
-        try t.expectEqualDeep(saved.identity, bound.identity);
-        const altering = action == .alter;
-        const operation: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 6, .operation = 20, .object = request.object, .actual_object = request.object, .digest = saved.identity.ddl.digest, .kind = action, .state = if (altering) .delegated else if (missing) .unchanged else .applied, .metadata = if (missing) c.TableCatalogRecords.empty_reference else .{ .id = 1, .spec = try basis.spec() }, .table_digest = if (altering) @splat(9) else @splat(0), .admitted_input = 21, .completed_input = if (altering) 0 else 22 };
-        var outcome: c.TableClient.Outcome = .{ .ddl = .{ .operation = operation, .table = if (altering) .{ .reference = try operation.tableReference(), .admitted_input = 21, .completed_input = 22, .basis_revision = 1, .first_record = 1, .end_record = 1, .route = .alter, .state = .applied } else null } };
-        var terminal = try g.Terminal.fromOutcome(outcome);
-        try terminal.matches(bound);
-        try t.expectEqualDeep(terminal, try g.LedgerRecords.decode(g.Terminal, try g.LedgerRecords.encode(terminal)));
-        if (altering) {
-            outcome.ddl.table.?.state = .rejected;
-            outcome.ddl.table.?.rejection = .null_not_allowed;
-            terminal = try g.Terminal.fromOutcome(outcome);
-            try terminal.matches(bound);
-            try t.expectEqual(.rejected, terminal.summary());
-            outcome.ddl.table.?.reference.digest[0] ^= 1;
-            try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromOutcome(outcome));
-        }
+fn terminal(ref: g.IntentReference.Reference) !g.Terminal {
+    const schema: c.fuze.TableSchema.Schema = .{ .object = ref.binding.target.object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
+    var declaration = try c.storage.TableDeclaration.prepare(t.allocator, .{ .object = ref.binding.target, .revision = 1, .schema = schema, .properties = "" });
+    defer declaration.deinit();
+    return (try g.Terminal.fromResult(ref.binding, .{ .ddl = .{ .committed = .{ .binding = ref.binding, .resulting = try declaration.stored(), .outcome = .{ .position = .{ .partition = 10, .next_lsn = 1 }, .matched = 0, .affected = 0, .live_rows = 0 } } } })).?;
+}
+fn publish(store: *Store, ledger: g.Ledger, ref: g.IntentReference.Reference) !void {
+    var storage: [g.IntentReference.max_bytes]u8 = undefined;
+    const bytes = try g.IntentReference.encode(ref, &storage);
+    store.origin = configuration.ingress;
+    var turn = try store.capture();
+    try ledger.beginIntent(&turn, ref.binding.identity.operation, try g.station.Publication.Digest.of(g.LedgerRecords.intent_format, bytes));
+    try store.commit(turn);
+    var offset: u32 = 0;
+    while (offset < bytes.len) {
+        turn = try store.capture();
+        const count = @min(128, bytes.len - offset);
+        try ledger.intentPart(&turn, ref.binding.identity.operation, offset, bytes[offset..][0..count]);
+        try store.commit(turn);
+        offset += @intCast(count);
     }
+    store.origin = configuration.coordinator;
+    turn = try store.capture();
+    try t.expectError(error.PublicationNotPublished, ledger.admitIntent(t.allocator, &turn, ref.binding.identity.operation, store.generation));
+    store.origin = configuration.ingress;
+    turn = try store.capture();
+    try ledger.sealIntent(&turn, ref.binding.identity.operation);
+    try store.commit(turn);
 }
-test "ledger reserves identity and capacity before staged intent; only committed intent is admitted" {
+test "frozen direct reference rejects altered connection, content and incompatible canonical bytes" {
+    const ref = reference(19);
+    var storage: [g.IntentReference.max_bytes]u8 = undefined;
+    const bytes = try g.IntentReference.encode(ref, &storage);
+    try t.expectEqualDeep(ref, try g.IntentReference.decode(t.allocator, bytes));
+    for (0..bytes.len) |end| {
+        if (g.IntentReference.decode(t.allocator, bytes[0..end])) |_| return error.ExpectedTruncationFailure else |_| {}
+    }
+    storage[4] ^= 1;
+    try t.expectError(error.IncompatibleDefinition, g.IntentReference.decode(t.allocator, bytes));
+    storage[4] ^= 1;
+    const outcome = try terminal(ref);
+    try outcome.matches(ref.binding);
+    try t.expectEqualDeep(outcome, try g.LedgerRecords.decode(g.Terminal, try g.LedgerRecords.encode(outcome)));
+    var altered = ref;
+    altered.binding.target.object += 1;
+    try t.expectError(error.GatewayIdentityConflict, outcome.matches(altered.binding));
+    altered = ref;
+    altered.binding.intent[0] ^= 1;
+    try t.expectError(error.GatewayIdentityConflict, outcome.matches(altered.binding));
+}
+test "ledger gates direct dispatch durably and retains original binding through lost replies and replacement" {
     var store: Store = .{};
     defer store.deinit();
-    const signing_key = try c.protocol.Ed25519.KeyPair.generateDeterministic(@splat(31));
-    const config = configuration;
-    const ledger: g.Ledger = .{ .configuration = config };
+    const ledger: g.Ledger = .{ .configuration = configuration };
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = configuration.ingress;
     turn = try store.capture();
     const item = try ledger.begin(&turn, @splat(11), binding, @splat(0));
-    try t.expectEqual(turn.delivery.input.position, item.id);
     try store.commit(turn);
-    // Lost begin reply: nonce finds the original ID under a later input.
     turn = try store.capture();
     const before = turn.decision;
     try t.expectEqualDeep(item, try ledger.begin(&turn, @splat(11), binding, @splat(0)));
     try t.expectError(error.SqlTokenConflict, ledger.begin(&turn, @splat(11), binding, @splat(1)));
     try t.expectEqualDeep(before, turn.decision);
-    try t.expectEqual(binding.namespace, item.namespace);
-    try t.expectEqual(binding.role, item.selectedRole());
-    var changed_binding = binding;
-    changed_binding.role = null;
-    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding, @splat(0)));
-    changed_binding = binding;
-    changed_binding.namespace += 1;
-    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding, @splat(0)));
-    try t.expectEqualDeep(before, turn.decision);
-    var saved = try intent(item.id);
-    defer saved.deinit();
-    const spec = try g.station.Publication.Digest.of(g.LedgerRecords.intent_format, saved.bytes);
-    try ledger.beginIntent(&turn, item.id, spec);
-    try store.commit(turn);
-    for (0..(saved.bytes.len + 127) / 128) |index| {
-        turn = try store.capture();
-        const offset: u32 = @intCast(index * 128);
-        try ledger.intentPart(&turn, item.id, offset, saved.bytes[offset..][0..@min(128, saved.bytes.len - offset)]);
-        try store.commit(turn);
-    }
-    store.origin = configuration.coordinator;
-    turn = try store.capture();
-    try t.expectError(error.PublicationNotPublished, ledger.admitIntent(t.allocator, &turn, item.id, 1));
-    store.origin = configuration.ingress;
-    turn = try store.capture();
-    try ledger.sealIntent(&turn, item.id);
-    try store.commit(turn);
+    const ref = reference(item.id);
+    var changed = ref;
+    changed.connection.role = null;
+    try t.expectError(error.GatewayIdentityConflict, ledger.checkReference(item, changed));
+    changed = ref;
+    changed.namespace += 1;
+    try t.expectError(error.GatewayIdentityConflict, ledger.checkReference(item, changed));
+    try publish(&store, ledger, ref);
     store.origin = configuration.coordinator;
     turn = try store.capture();
     try t.expectError(error.StaleGatewayCoordinator, ledger.admitIntent(t.allocator, &turn, item.id, 2));
     try ledger.admitIntent(t.allocator, &turn, item.id, 1);
     try store.commit(turn);
     turn = try store.capture();
+    try t.expectEqual(item.id, (try ledger.activate(&turn, 1)).?.id);
+    try store.commit(turn);
+    turn = try store.capture();
+    try ledger.authorizeDispatch(&turn, item.id, 1);
     var committed = turn.committed();
-    const ready = try ledger.operation(&committed, item.id);
-    try t.expectEqual(g.LedgerRecords.Phase.ready, ready.phase);
-    try t.expectEqual(@as(u64, 0), ready.pending);
-    try t.expectEqual(@as(u64, 0), (try ledger.head(&committed)).sequence);
-    // A second slot is available; a third admission cannot discard either one.
+    try t.expectEqual(@as(u8, 0), (try ledger.operation(&committed, item.id)).published);
+    try store.commit(turn);
+    // The dispatch gate's response is lost. Replacement sees the committed bit
+    // and can only recover the exact reference; it cannot call the work unsent.
+    store.generation = 2;
+    turn = try store.capture();
+    try t.expectError(error.StaleGatewayCoordinator, ledger.authorizeDispatch(&turn, item.id, 1));
+    try ledger.authorizeDispatch(&turn, item.id, 2);
+    committed = turn.committed();
+    const active = try ledger.operation(&committed, item.id);
+    try t.expectEqual(@as(u8, 1), active.published);
+    try ref.requireSame(try ledger.readReference(t.allocator, &committed, active));
     store.origin = configuration.ingress;
     turn = try store.capture();
-    _ = try ledger.begin(&turn, @splat(12), binding, @splat(0));
-    try store.commit(turn);
-    turn = try store.capture();
-    const capacity_before = turn.decision;
-    try t.expectError(error.GatewayAdmissionCapacity, ledger.begin(&turn, @splat(13), binding, @splat(0)));
-    try t.expectEqualDeep(capacity_before, turn.decision);
-    try t.expectEqual(g.LedgerRecords.Phase.ready, (try ledger.operation(&turn, item.id)).phase);
-    // Only the fenced active coordinator may publish a signed step, and the
-    // exact committed pending record survives a lost seal or send response.
-    store.origin = configuration.coordinator;
-    turn = try store.capture();
-    _ = (try ledger.activate(&turn, 1)).?;
-    try store.commit(turn);
-    const payload = if (saved.body.len <= g.station.Frame.max_payload) try c.protocol.Value.init(saved.body) else try (c.TableControl.Command{ .begin = .{ .header = try saved.header.encode(), .namespace = saved.namespace, .spec = saved.spec } }).encode();
-    const native = c.protocol.Growth;
-    const step: c.TableClient.Prepared = .{ .version = 1, .definition = native.current_definition, .connection = .{ .scope = saved.header.scope, .owner = saved.header.owner, .principal = saved.header.principal, .namespace = binding.namespace, .role = binding.role }, .public_key = signing_key.public_key.toBytes(), .signed = try native.sign(.{ .realm = 1, .principal = configuration.table_principal, .sequence = 1, .command = .{ .send = .{ .pid = binding.owner, .role = binding.role, .value = try (g.station.Frame{ .kind = .cast, .payload = payload }).encode() } } }, signing_key) };
-    // A valid newly signed request cannot change the operation's selected role.
-    var switched = step;
-    switched.connection.role = 30;
-    switched.signed.request.command.send.role = 30;
-    switched.signed = try native.sign(switched.signed.request, signing_key);
-    const switched_record = try stage(&store, ledger, item.id, 1, switched);
-    turn = try store.capture();
-    try t.expectError(error.GatewayIdentityConflict, ledger.publishStep(t.allocator, &turn, item.id, 1, switched_record));
-    try ledger.abandonStep(&turn, item.id, 1, switched_record);
-    try store.commit(turn);
-    turn = try store.capture();
-    try ledger.collectAbandonedStep(&turn, item.id, 1, switched_record);
-    try store.commit(turn);
-    // A valid signature at a foreign sequence remains unpublished. Its abandoned
-    // attempt can be collected without ever changing/reusing its identity.
-    var foreign = step;
-    foreign.signed.request.sequence = 2;
-    foreign.signed = try native.sign(foreign.signed.request, signing_key);
-    const abandoned = try stage(&store, ledger, item.id, 1, foreign);
-    turn = try store.capture();
-    try t.expectError(error.GatewaySequenceConflict, ledger.publishStep(t.allocator, &turn, item.id, 1, abandoned));
-    try ledger.abandonStep(&turn, item.id, 1, abandoned);
-    try store.commit(turn);
-    turn = try store.capture();
-    try ledger.collectAbandonedStep(&turn, item.id, 1, abandoned);
-    try store.commit(turn);
-    var storage: [g.SavedStep.max_bytes]u8 = undefined;
-    const encoded = try g.SavedStep.encode(step, &storage);
-    const step_spec = try g.station.Publication.Digest.of(g.SavedStep.format, encoded);
-    turn = try store.capture();
-    const record = try ledger.beginStep(&turn, item.id, 1, step_spec);
-    try store.commit(turn);
-    for (0..(encoded.len + 127) / 128) |index| {
-        turn = try store.capture();
-        const offset: u32 = @intCast(index * 128);
-        try ledger.stepPart(&turn, item.id, 1, record, offset, encoded[offset..][0..@min(128, encoded.len - offset)]);
-        try store.commit(turn);
-    }
-    turn = try store.capture();
-    try ledger.publishStep(t.allocator, &turn, item.id, 1, record);
-    committed = turn.committed();
-    try t.expectEqual(@as(?c.TableClient.Prepared, null), try ledger.pendingStep(t.allocator, &committed, item.id));
-    // A generation change fences this discarded proposal. The replacement can
-    // validate the existing staged bytes and publish the same exact step.
-    store.generation = 2;
-    try t.expectError(error.StaleTestTurn, store.commit(turn));
-    turn = try store.capture();
-    try t.expectError(error.StaleGatewayCoordinator, ledger.publishStep(t.allocator, &turn, item.id, 1, record));
-    try ledger.publishStep(t.allocator, &turn, item.id, 2, record);
-    try store.commit(turn);
-    turn = try store.capture();
-    committed = turn.committed();
-    try t.expectEqualDeep(step, (try ledger.pendingStep(t.allocator, &committed, item.id)).?);
-    try t.expectError(error.GatewayUnresolvedStep, ledger.beginStep(&turn, item.id, 2, step_spec));
-    try ledger.recordReceipt(&turn, item.id, 2, record, .{ .position = 321 });
-    try store.commit(turn);
-    turn = try store.capture();
-    committed = turn.committed();
-    try t.expectEqual(@as(u64, 1), (try ledger.head(&committed)).sequence);
-    try t.expectEqualDeep(step, (try ledger.pendingStep(t.allocator, &committed, item.id)).?);
-    const observed_before = turn.decision;
-    try ledger.recordReceipt(&turn, item.id, 2, record, .{ .position = 321 });
-    try t.expectEqualDeep(observed_before, turn.decision);
-    try t.expectError(error.GatewayStepIdentityConflict, ledger.recordReceipt(&turn, item.id, 2, record, .{ .position = 322 }));
-    // An operator cannot manufacture processed-input evidence or completion.
-    store.origin = configuration.control;
-    turn = try store.capture();
-    try t.expectError(error.GatewayDenied, ledger.recordProcessed(t.allocator, &turn, item.id, 2, record, null));
-    try ledger.reserveRecovery(&turn, item.id, 2048);
+    try ledger.sessionRequest(&turn, item.id, .cancel);
     try store.commit(turn);
     store.origin = configuration.coordinator;
     turn = try store.capture();
-    try ledger.recordProcessed(t.allocator, &turn, item.id, 2, record, null);
+    try t.expectError(error.GatewayRequiresQualifiedCancellation, ledger.cancelUnsent(&turn, item.id, 2));
+    var outcome = try terminal(ref);
+    outcome.identity[0] ^= 1;
+    try t.expectError(error.GatewayIdentityConflict, ledger.complete(&turn, item.id, 2, outcome));
+    outcome.identity[0] ^= 1;
+    try ledger.complete(&turn, item.id, 2, outcome);
     try store.commit(turn);
     turn = try store.capture();
-    const processed_before = turn.decision;
-    try ledger.recordProcessed(t.allocator, &turn, item.id, 2, record, null);
-    try t.expectEqualDeep(processed_before, turn.decision);
-    const result: c.TableClient.Outcome = .{ .ddl = .{ .operation = .{ .scope = saved.header.scope, .principal = saved.header.principal, .operation = item.id, .object = item.id, .actual_object = item.id, .digest = saved.identity.ddl.digest, .kind = .create, .state = .applied, .metadata = .{ .id = 1, .spec = .{ .format = c.TableMetadata.format, .length = 200, .digest = @splat(3) } }, .admitted_input = 321, .completed_input = 322 } } };
-    try ledger.complete(&turn, item.id, 2, try g.Terminal.fromOutcome(result));
-    try store.commit(turn);
-    turn = try store.capture();
-    const terminal_before = turn.decision;
-    try ledger.complete(&turn, item.id, 2, try g.Terminal.fromOutcome(result));
-    try t.expectEqualDeep(terminal_before, turn.decision);
-    committed = turn.committed();
-    try t.expectEqual(g.LedgerRecords.Summary.applied, (try ledger.operation(&committed, item.id)).summary);
-    try t.expectEqual(@as(u64, 0), (try ledger.head(&committed)).active);
-    const remaining = (try ledger.discover(&committed, @splat(12))).?;
-    store.origin = configuration.control;
-    turn = try store.capture();
-    try ledger.request(&turn, remaining.id, .cancel);
-    try store.commit(turn);
-    store.origin = configuration.coordinator;
-    turn = try store.capture();
-    try ledger.cancelUnsent(&turn, remaining.id, 2);
-    try store.commit(turn);
-    turn = try store.capture();
-    committed = turn.committed();
-    try t.expectEqual(g.LedgerRecords.Phase.abandoned, (try ledger.operation(&committed, remaining.id)).phase);
-    try t.expectEqual(@as(u64, 0), (try ledger.head(&committed)).unsettled);
-    try t.expect(try ledger.indexed(&committed, .admission, 0) == null);
-    try t.expect(try ledger.indexed(&committed, .ready, 0) == null);
-    try t.expectEqual(@as(u64, 0), (try ledger.head(&committed)).reserved_bytes);
-    try t.expectEqual(@as(u64, 2), (try ledger.head(&committed)).operations);
-    try t.expect((try ledger.head(&committed)).used_bytes > saved.bytes.len);
-    store.origin = configuration.control;
-    turn = try store.capture();
-    try t.expectError(error.GatewayCapacityDecrease, ledger.increaseCapacity(&turn, 999, config.byte_quota, 2));
-    try ledger.increaseCapacity(&turn, 2000, 2 * config.byte_quota, 4);
-    try store.commit(turn);
-    store.origin = 99;
-    turn = try store.capture();
-    try t.expectError(error.GatewayDenied, ledger.begin(&turn, @splat(14), binding, @splat(0)));
+    try ledger.complete(&turn, item.id, 2, outcome);
+    outcome.next_lsn += 1;
+    try t.expectError(error.GatewayIdentityConflict, ledger.complete(&turn, item.id, 2, outcome));
+    try t.expectEqual(@as(u64, 0), (try ledger.head(&turn)).unsettled);
+    try t.expectEqual(.terminal, (try ledger.operation(&turn, item.id)).phase);
 }
-
+test "cancellation before dispatch abandons SQL work without fabricating a Table outcome" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ledger: g.Ledger = .{ .configuration = configuration };
+    var turn = try store.capture();
+    try ledger.initialize(&turn);
+    try store.commit(turn);
+    for (0..3) |phase| {
+        store.origin = configuration.ingress;
+        turn = try store.capture();
+        const item = try ledger.begin(&turn, @splat(@intCast(phase + 1)), binding, @splat(0));
+        try store.commit(turn);
+        if (phase != 0) {
+            try publish(&store, ledger, reference(item.id));
+            store.origin = configuration.coordinator;
+            turn = try store.capture();
+            try ledger.admitIntent(t.allocator, &turn, item.id, 1);
+            try store.commit(turn);
+            if (phase == 2) {
+                turn = try store.capture();
+                _ = try ledger.activate(&turn, 1);
+                try store.commit(turn);
+            }
+        }
+        store.origin = configuration.ingress;
+        turn = try store.capture();
+        try ledger.sessionRequest(&turn, item.id, .cancel);
+        try store.commit(turn);
+        store.origin = configuration.coordinator;
+        turn = try store.capture();
+        if (phase == 2) try t.expectError(error.GatewayRequiresQualifiedCancellation, ledger.authorizeDispatch(&turn, item.id, 1));
+        try ledger.cancelUnsent(&turn, item.id, 1);
+        try store.commit(turn);
+        turn = try store.capture();
+        const observed = try ledger.operation(&turn, item.id);
+        try t.expectEqual(.abandoned, observed.phase);
+        try t.expectEqual(.none, observed.summary);
+        try t.expectEqual(@as(u8, 0), observed.published);
+        try t.expectEqual(@as(u64, 0), (try ledger.head(&turn)).unsettled);
+    }
+}
 test "gateway discovery advances across appends with current authority and rejects foreign or backward cursors" {
     var store: Store = .{};
     defer store.deinit();
@@ -244,7 +175,7 @@ test "gateway discovery advances across appends with current authority and rejec
     config.byte_quota = 16 * 1024 * 1024;
     const ledger: g.Ledger = .{ .configuration = config };
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = config.ingress;
     for (0..27) |i| {
@@ -319,26 +250,12 @@ test "gateway discovery advances across appends with current authority and rejec
     try t.expectError(error.AccessDenied, ledger.list(&committed, first.next));
 }
 
-fn stage(store: *Store, ledger: g.Ledger, id: u64, generation: u64, step: c.TableClient.Prepared) !u64 {
-    var storage: [g.SavedStep.max_bytes]u8 = undefined;
-    const bytes = try g.SavedStep.encode(step, &storage);
-    var turn = try store.capture();
-    const record = try ledger.beginStep(&turn, id, generation, try g.station.Publication.Digest.of(g.SavedStep.format, bytes));
-    try store.commit(turn);
-    for (0..(bytes.len + 127) / 128) |index| {
-        turn = try store.capture();
-        const offset: u32 = @intCast(index * 128);
-        try ledger.stepPart(&turn, id, generation, record, offset, bytes[offset..][0..@min(128, bytes.len - offset)]);
-        try store.commit(turn);
-    }
-    return record;
-}
 test "typed operation index binds tokens once and retains owner identities through quota release" {
     var store: Store = .{};
     defer store.deinit();
     const ledger: g.Ledger = .{ .configuration = configuration };
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = configuration.ingress;
     turn = try store.capture();
@@ -375,4 +292,22 @@ test "typed operation index binds tokens once and retains owner identities throu
     store.denied = true;
     turn = try store.capture();
     try t.expectError(error.AccessDenied, g.SessionOperations.lookup(ledger, &turn, request.nonce, request.fingerprint));
+}
+
+test "SQL terminal rejects an acceptance position outside the frozen data expectation" {
+    const ref = reference(17);
+    const schema: c.fuze.TableSchema.Schema = .{ .object = ref.binding.target.object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
+    var declaration = try c.storage.TableDeclaration.prepare(t.allocator, .{ .object = ref.binding.target, .revision = 1, .schema = schema, .properties = "" });
+    defer declaration.deinit();
+    const stored = try declaration.stored();
+    var original = ref.binding;
+    original.action = .update;
+    original.expected_definition = stored.interpretation;
+    original.expected_data = .{ .partition = 10, .next_lsn = 20 };
+    var evidence: c.storage.TablePartition.Evidence = .{ .binding = original, .resulting = stored, .outcome = .{ .position = .{ .partition = 10, .next_lsn = 21 }, .matched = 1, .affected = 1, .live_rows = 1 } };
+    try t.expect((try g.Terminal.fromResult(original, .{ .rows = .{ .committed = evidence } })) != null);
+    evidence.outcome.position.partition = 11;
+    try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromResult(original, .{ .rows = .{ .committed = evidence } }));
+    evidence.outcome.position = original.expected_data.?;
+    try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromResult(original, .{ .rows = .{ .committed = evidence } }));
 }

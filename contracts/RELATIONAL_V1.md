@@ -9,7 +9,9 @@ source, permission, storage, clock or I/O.
 `RelationalSql` lowers finite SELECT into these same definitions through the
 shared lexer, identifiers, literals and predicate grammar. `RelationalExecution`
 executes over supplied ordered sources and external group storage. The query
-package's `RelationalQuery` owns interactive native Table cuts, current rights,
+package's `RelationalQuery` owns interactive native-resource cuts;
+`DirectRelationalQuery` owns local traversal over retained direct Table pins.
+Both validate current rights and use
 bounded allocation and private disk grouping. The query owners below compose
 these operators with captured jobs and maintained revisions. Foreign-language
 ABI admission remains separately defined. The small finite interpreter under `tests/` supplies an
@@ -49,7 +51,7 @@ Table schemas retain their descriptor/default/key bounds. These limits bound
 plans, not retained collections. Budgets explicitly declare resident, spill and
 result bytes, output rows, work steps and source pins. Resident/result/work must
 be positive. Zero spill forbids spilling; zero output rows allows only empty
-results. Pins cover every distinct source resource, at most two. Actual resource
+results. Pins cover every distinct atomic source domain, at most two. Actual resource
 enforcement belongs to the execution owner. Capacity pressure cannot truncate answers,
 discard accepted work or expire data.
 
@@ -124,9 +126,15 @@ joins have no representation in this profile.
 Prepared identity includes aliases, routing, full schema fingerprints (including
 names/defaults/keys), operators, outputs, predicates, lifetime and all budgets.
 Bound identity additionally includes one cut per alias in source order. Each
-cut has resource/revision, nonzero opaque root commitment and full schema hash.
-Missing cuts, resource/schema mismatches and inconsistent cuts for aliases of
-one resource reject. Different Tables sharing a resource also share its cut.
+cut has a mandatory domain, resource/revision, nonzero opaque root commitment
+and full schema hash. The domain is `native_resource` or `table_partition` with
+branch/object/partition identities. A direct Table revision is its accepted next
+LSN, not a native resource revision. Missing domains/cuts and resource/schema
+mismatches reject. Native aliases in one resource share its cut; direct aliases
+of one Table share its pin. Different direct Tables retain independent cuts even
+within one resource. Mixing domain kinds for one resource or aliasing a partition
+to a different object rejects. Prepared direct bindings must match each retained
+interpretation, including definition changes that preserve the column schema.
 
 An adapter must authenticate and retain the root and validate the schema at that
 cut. Nonzero hashes alone establish neither authenticity nor retention. Capture
@@ -160,7 +168,9 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
 6. Lifetime byte (interactive 0, captured 1, maintained 2), uint64 resident/spill/result bytes,
    output rows and work steps, then one-byte pin capacity.
 
-Bound bytes are domain, NUL, `bound`, NUL, prepared hash, then each cut's uint64
+Bound bytes are the hash domain, NUL, `bound`, NUL, prepared hash, then each
+cut's atomic-domain tag (native resource=0, Table partition=1). A Table tag adds
+little-endian uint64 branch/object/partition. Both tags then append uint64
 resource/revision and 32-byte root/schema commitments.
 
 `RelationalCodec` owns the canonical `FRP1` plan artifact. It contains the four

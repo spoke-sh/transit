@@ -277,7 +277,7 @@ validate1381.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false
 
 const schema366 = {"type":"object","additionalProperties":false,"properties":{"reference":{"$ref":"#/$defs/RelationalRequest/$defs/T9"},"ordinal":{"$ref":"#/$defs/RelationalRequest/$defs/T4"}},"required":["reference","ordinal"]};
 const schema367 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"#/$defs/RelationalRequest/$defs/T10"},"id":{"$ref":"#/$defs/RelationalRequest/$defs/T4"},"plan":{"$ref":"#/$defs/RelationalRequest/$defs/T4"},"basis":{"$ref":"#/$defs/RelationalRequest/$defs/T4"}},"required":["definition","id","plan","basis"]};
-const schema55 = {"type":"string","enum":["361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a"]};
+const schema55 = {"type":"string","enum":["b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"]};
 
 function validate1387(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -293,7 +293,7 @@ if(typeof data !== "string"){
 validate1387.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data === "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a")){
+if(!(data === "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9")){
 validate1387.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema55.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -995,7 +995,7 @@ if(typeof data !== "string"){
 validate1400.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data === "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a")){
+if(!(data === "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9")){
 validate1400.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema55.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -1060,7 +1060,7 @@ return errors === 0;
 }
 validate1406.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema375 = {"type":"string","enum":["per_resource_snapshot_vector","atomic"]};
+const schema375 = {"type":"string","enum":["per_resource_snapshot_vector","independent_table_snapshots","atomic"]};
 
 function validate1410(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -1076,7 +1076,7 @@ if(typeof data !== "string"){
 validate1410.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!((data === "per_resource_snapshot_vector") || (data === "atomic"))){
+if(!(((data === "per_resource_snapshot_vector") || (data === "independent_table_snapshots")) || (data === "atomic"))){
 validate1410.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema375.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }

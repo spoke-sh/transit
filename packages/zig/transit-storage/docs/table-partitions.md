@@ -135,12 +135,14 @@ admit only `none`/`utf8_binary` collations; other declared collations reject.
 
 ## Retained reads and physical flushing
 
-Two immutable ordered indexes share each accepted root. Point lookup hashes the
+Three immutable ordered indexes share each accepted root. Point lookup hashes the
 collation-aware storage key, then checks the full decoded key; a hash collision
 fails instead of substituting or overwriting a row. Keyless Tables use durable
-row identities. The scan index follows physical WAL/segment coordinates, so
-analytical traversal groups rows from the same segment. Its cursor is opaque;
-SQL ordering must come from the query plan.
+row identities. The physical scan index follows WAL/segment coordinates, grouping
+maintenance traversal by segment. A separate identity index maps each canonical
+20-byte row identity to its storage-key hash. Public retained pages follow that
+stable order, including mixed WAL/segment sources. Duplicate row identities
+reject before publication. SQL ordering still comes from its query plan.
 
 `TreeStore` defaults to sixteen resident index pages and a separate 64 MiB
 encoded staging-work budget. `TablePartition` caches at most one segment and one
@@ -153,7 +155,7 @@ must bound their result buffers and enclosing allocators separately.
 `flush` finds at most one bounded group of currently live WAL rows. It stages a
 segment, replaces their locators and publishes the replacement through the same
 Table WAL. It neither rewrites all manifests nor accumulates all historical rows
-in memory. The logical-change frontier does not advance for flush or pin control
+in memory. Flush preserves the identity index. The logical-change frontier does not advance for flush or pin control
 records; accepted definition changes do advance it. Existing read roots still address their original row versions.
 
 The segment encoder writes into its supplied output budget, including values
@@ -170,6 +172,13 @@ log. A lost acquisition reply can be recovered with the same owner and expected
 frontier. Reusing the owner with another frontier conflicts. Private snapshot
 bytes without an accepted pin confer no read capability.
 
+`pinState` observes the original handle, release state and current physical
+frontier without acquiring or releasing anything. An absent handle at a later
+frontier, or on a retired Table, establishes that its earlier exact-frontier
+request can no longer succeed. An absent handle at the original frontier leaves
+acquisition unresolved. Cleanup can repeat that original request and then release
+its handle; it cannot select a new owner or a newer frontier.
+
 `readSnapshot` verifies the current pin, exact content identity, original schema
 and current guard. `releaseSnapshot` records retirement of that handle and is
 idempotent. A retired handle cannot acquire another snapshot or serve a read.
@@ -179,12 +188,12 @@ the requested canonical row-byte budget (up to 16 MiB). Decoding scratch and
 transport envelopes have separate budgets. A first row larger than the requested
 allowance fails explicitly; a later row continues on the next page.
 
-Each cursor binds the immutable snapshot content and an existing physical scan
-key. It cannot continue another snapshot or current head. Returned values own
+Each cursor binds the immutable snapshot content and an existing 20-byte row
+identity. It cannot continue another snapshot or current head. Returned values own
 their memory across subsequent reads, cache eviction and owner destruction.
 The final guard runs after buffering, including empty completion. Pages expose
 the original definition, accepted position, logical-change frontier and total
-source-row count. End of this physical traversal is distinct from a query's
+source-row count. End of this source traversal is distinct from a query's
 terminal result and from a consistent multi-source snapshot.
 
 Data snapshots omit receipt, operation, pending and pin directories from their retained read basis, so

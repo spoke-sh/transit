@@ -37,7 +37,7 @@ test "exchange control codecs match independent fixed layouts and reject missing
 }
 fn cuts() ![2]f.Relational.Cut {
     var result: [2]f.Relational.Cut = undefined;
-    for (declarations, 0..) |source, i| result[i] = .{ .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
+    for (declarations, 0..) |source, i| result[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
     return result;
 }
 const Authority = struct {

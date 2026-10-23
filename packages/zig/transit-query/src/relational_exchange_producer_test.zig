@@ -13,7 +13,7 @@ const declarations = [_]f.Relational.Source{
 const plan: f.Relational.Plan = .{ .sources = &declarations, .join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } }, .outputs = &.{.{ .name = "v", .expression = .{ .column = .{ .source = 1, .id = 2 } } }}, .lifetime = .captured, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 } };
 fn cuts() ![2]f.Relational.Cut {
     var result: [2]f.Relational.Cut = undefined;
-    for (declarations, 0..) |source, i| result[i] = .{ .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
+    for (declarations, 0..) |source, i| result[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
     return result;
 }
 const Input = struct {
@@ -55,8 +55,8 @@ test "producer cursor matches independent mandatory-definition bytes" {
     };
     requested.budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
     const basis = [_]f.Relational.Cut{
-        .{ .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try declared[0].schema.fingerprint() },
-        .{ .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try declared[1].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 101, .revision = 7, .commitment = @splat(17), .schema = try declared[0].schema.fingerprint() },
+        .{ .domain = .native_resource, .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try declared[1].schema.fingerprint() },
     };
     const bound: f.Relational.Bound = .{ .plan = requested, .cuts = &basis };
     const fixture = try std.json.parseFromSlice(struct { cursor: []const u8 }, t.allocator, @embedFile("fixtures/relational-exchange.json"), .{ .ignore_unknown_fields = true });

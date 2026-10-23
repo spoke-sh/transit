@@ -22,22 +22,16 @@ pub const Part = struct {
     }
 };
 pub const Command = union(enum(u8)) {
-    initialize: u64 = 1,
+    initialize: void = 1,
     begin: struct { nonce: [16]u8, binding: g.Ledger.Binding, fingerprint: [32]u8 = @splat(0) } = 2,
     begin_intent: struct { operation: u64, spec: g.station.Publication.Spec } = 3,
     intent_part: struct { operation: u64, part: Part } = 4,
     seal_intent: u64 = 5,
     admit_intent: Qualified = 6,
     activate: u64 = 7,
-    begin_step: struct { target: Qualified, spec: g.station.Publication.Spec } = 8,
-    step_part: struct { target: Record, part: Part } = 9,
-    publish_step: Record = 10,
-    receipt: struct { target: Record, input: u64 } = 11,
-    processed: struct { target: Record, disposition: ?g.catalog.TableControl.Disposition } = 12,
+    dispatch: Qualified = 8,
     reconcile: u64 = 13,
     cancel: u64 = 14,
-    abandon_step: Record = 15,
-    collect_step: Record = 16,
     cancel_unsent: Qualified = 17,
     capacity: struct { operations: u64, bytes: u64, pending: u32 } = 18,
     reserve: struct { operation: u64, bytes: u64 } = 19,
@@ -51,10 +45,7 @@ pub const Command = union(enum(u8)) {
     pub fn validate(self: Command) !void {
         switch (self) {
             .intent_part => |value| try value.part.validate(),
-            .step_part => |value| try value.part.validate(),
             .begin_intent => |value| try value.spec.validate(),
-            .begin_step => |value| try value.spec.validate(),
-            .processed => |value| if (value.disposition) |detail| try detail.validate(),
             .complete => |value| try value.outcome.validate(),
             else => {},
         }
@@ -64,7 +55,7 @@ pub const Command = union(enum(u8)) {
         var buffer: [g.station.Frame.max_payload]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         try writer.writeAll("GSQ1");
-        try writer.writeAll(&g.SavedStep.definitionBytes());
+        try writer.writeAll(&p.Growth.definition_bytes);
         try write(&writer, self);
         return p.Value.init(writer.buffered());
     }
@@ -73,7 +64,7 @@ pub const Command = union(enum(u8)) {
         if (value.len > g.station.Frame.max_payload) return error.InvalidGatewayCommand;
         var reader: std.Io.Reader = .fixed(value.slice());
         if (!std.mem.eql(u8, try reader.take(4), "GSQ1")) return error.InvalidGatewayCommand;
-        if (!std.mem.eql(u8, try reader.take(32), &g.SavedStep.definitionBytes())) return error.IncompatibleDefinition;
+        if (!std.mem.eql(u8, try reader.take(32), &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
         const result = try read(&reader, Command);
         if (reader.bufferedLen() != 0) return error.InvalidGatewayCommand;
         try result.validate();
@@ -83,6 +74,7 @@ pub const Command = union(enum(u8)) {
 fn write(out: *std.Io.Writer, value: anytype) anyerror!void {
     const T = @TypeOf(value);
     switch (@typeInfo(T)) {
+        .void => {},
         .int => try out.writeInt(T, value, .little),
         .@"enum" => |info| try out.writeInt(info.tag_type, @backingInt(value), .little),
         .array => for (value) |item| try write(out, item),
@@ -102,6 +94,7 @@ fn write(out: *std.Io.Writer, value: anytype) anyerror!void {
 }
 fn read(input: *std.Io.Reader, comptime T: type) anyerror!T {
     return switch (@typeInfo(T)) {
+        .void => {},
         .int => try input.takeInt(T, .little),
         .@"enum" => |info| std.enums.fromInt(T, try input.takeInt(info.tag_type, .little)) orelse error.InvalidGatewayCommand,
         .array => |info| blk: {
@@ -151,10 +144,10 @@ pub const Disposition = struct {
 test "native gateway commands require exact definition, lengths, optional flags and owned parts" {
     const t = std.testing;
     var bytes: [128]u8 = @splat(13);
-    const command: Command = .{ .step_part = .{ .target = .{ .operation = 99, .generation = 2, .record = 3 }, .part = try Part.init(128, &bytes) } };
+    const command: Command = .{ .intent_part = .{ .operation = 99, .part = try Part.init(128, &bytes) } };
     var encoded = try command.encode();
     @memset(&bytes, 0);
-    try t.expectEqual(@as(u16, 194), encoded.len);
+    try t.expectEqual(@as(u16, 178), encoded.len);
     try t.expectEqualDeep(command, try Command.decode(encoded));
     for (0..encoded.len) |end| {
         if (Command.decode(try p.Value.init(encoded.slice()[0..end]))) |_| return error.ExpectedTruncationFailure else |_| {}
@@ -164,6 +157,6 @@ test "native gateway commands require exact definition, lengths, optional flags 
     encoded.data[4] ^= 1;
     encoded.len += 1;
     try t.expectError(error.InvalidGatewayCommand, Command.decode(encoded));
-    const complete: Command = .{ .complete = .{ .target = .{ .operation = 7, .generation = 2 }, .outcome = .{ .kind = .dml, .identity = @splat(1), .resource = 9, .principal = 11, .operation = 7, .object = 1, .admitted_input = 20, .completed_input = 21, .state = .applied, .matched = std.math.maxInt(u64), .changed = std.math.maxInt(u64) - 1, .route = 2 } } };
+    const complete: Command = .{ .complete = .{ .target = .{ .operation = 7, .generation = 2 }, .outcome = .{ .kind = .dml, .identity = @splat(1), .resource = 9, .principal = 11, .operation = 7, .object = 1, .partition = 20, .next_lsn = 21, .resulting_revision = 1, .state = .applied, .matched = std.math.maxInt(u64), .changed = std.math.maxInt(u64) - 1 } } };
     try t.expectEqualDeep(complete, try Command.decode(try complete.encode()));
 }

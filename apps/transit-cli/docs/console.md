@@ -135,7 +135,8 @@ The selected catalog admits a bounded INNER/LEFT equijoin over two Tables or a
 grouped single-Table query. Referenced columns use BIGINT/INT64. Projection,
 COUNT and ordered checked int64 SUM follow the
 [relational query profile](../../../docs/handbook/reference/queries.md). Resource cuts are
-an explicit per-resource snapshot vector, not an atomic cross-resource snapshot.
+an explicit vector of independent retained Table snapshots. Repeated aliases
+share one Table pin; separate Tables have no common atomic frontier.
 Current rights apply to every dependency, including empty inputs. The service
 owns private spill and bounded execution; closing a read releases its resources.
 Parameterized relational SQL, additional joins and captured relational resumption

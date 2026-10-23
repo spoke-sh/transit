@@ -22,7 +22,8 @@ source: ?*g.SourceSession = null,
 wire: g.station.client.Client,
 settings_wire: ?g.station.client.Client = null,
 settings_session: q.SettingsSession = .{},
-table: c.TableClient,
+table: c.DirectTableClient,
+namespace: u64,
 observer: g.Client,
 directory: std.Io.Dir,
 cancellation: *std.atomic.Value(bool),
@@ -35,7 +36,7 @@ diagnostics: ?*telemetry.Runtime = null,
 sql_diagnostic: ?f.SqlDiagnostic = null,
 execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
-pub const read_options: q.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+pub const read_options: q.RelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     native: g.Statement,
     probe: g.Probe,
@@ -74,8 +75,9 @@ pub const Prepared = union(enum) {
 };
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
-    batch: ?q.TableQuery.Batch = null,
+    value: union(enum) { single: q.DirectTableQuery, relational: *q.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
+    pins: [f.Relational.max_sources]?g.ReadPins.Record = @splat(null),
+    batch: ?q.DirectTableQuery.Batch = null,
     output: f.RelationalExecution.Output = undefined,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
@@ -84,9 +86,10 @@ pub const Read = struct {
         return switch (self.value) {
             .single => |*query| blk: {
                 const scan = &query.execution.scan;
-                break :blk .{ .table = .{ .realm = scan.connection.scope.realm, .resource = scan.view.resource, .catalog = scan.connection.scope.catalog, .owner = scan.connection.owner, .object = scan.definition.?.metadata.object, .revision = scan.view.revision, .commitment = try scan.fingerprint(), .schema = try query.compiled.plan.schema.fingerprint() } };
+                const source = scan.reader.basis;
+                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() } };
             },
-            .relational => |query| .{ .per_resource_snapshot_vector = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) },
+            .relational => |query| .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) },
             .source => |source| sourceBasis(source.query.basis),
             .captured => |captured| if (captured.basis) |value| sourceBasis(value) else null,
             else => null,
@@ -152,13 +155,14 @@ pub fn loadCredential(allocator: std.mem.Allocator, io: std.Io, account: *const 
     return parsed.value;
 }
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configuration, index: usize, runtime: *g.AccountRuntime, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, cancellation: *std.atomic.Value(bool), active: *std.atomic.Value(bool)) !*Self {
+    if (runtime.read_pins == null) return error.SqlReadRecoveryRequired;
     const account = &config.accounts[index];
     const binding = try account.database(database);
     const self = try allocator.create(Self);
     errdefer allocator.destroy(self);
     var directory = try std.Io.Dir.cwd().openDir(io, config.spill_directory, .{});
     errdefer directory.close(io);
-    self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.station.client.Client.init(allocator, io, config.native_url), .table = undefined, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .start = std.Io.Clock.awake.now(io), .milliseconds = config.limits.command_ms, .cancellation = cancellation } };
+    self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.station.client.Client.init(allocator, io, config.native_url), .table = undefined, .namespace = binding.namespace, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .start = std.Io.Clock.awake.now(io), .milliseconds = config.limits.command_ms, .cancellation = cancellation } };
     errdefer self.wire.deinit();
     // Database names borrow immutable configuration, never a startup frame.
     for (account.databases) |selected| if (std.mem.eql(u8, selected.name, database)) {
@@ -166,7 +170,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
         break;
     };
     self.wire.timeout_ms = config.request_timeout_ms;
-    self.table = .{ .transport = &self.wire, .connection = .{ .scope = .{ .realm = account.ledger.realm, .resource = binding.resource, .catalog = binding.catalog }, .owner = binding.owner, .principal = account.ledger.table_principal, .namespace = binding.namespace, .role = binding.role }, .key = runtime.coordinator.table_key, .reader = .{ .wire = &self.wire, .realm = account.ledger.realm, .principal = account.ledger.reader, .key = runtime.coordinator.reader_key } };
+    self.table = .{ .allocator = allocator, .authority = &self.wire, .service = &self.wire, .connection = .{ .scope = .{ .realm = account.ledger.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = account.ledger.table_principal, .role = binding.role }, .key = runtime.coordinator.table_key };
     self.observer = .{ .transport = &self.wire, .ledger = runtime.ledger, .principal = account.ledger.ingress, .key = runtime.ingress.key };
     try self.current();
     if (config.settings) |configured| {
@@ -197,7 +201,7 @@ fn currentOnce(self: *Self) !void {
     const native: g.station.client.AuthorizationClient = .{ .transport = &self.wire, .realm = self.account.ledger.realm, .principal = self.account.ledger.table_principal, .key = self.table.key, .role = self.table.connection.role };
     const identity = (try native.read(.identity)).body.authorization.body.identity;
     try credential.checkIdentity(identity.principal, identity.login_role, identity.credential_epoch);
-    _ = try self.fresh(c.TableClient.describeDatabase, .{&self.table});
+    _ = try self.table.require(.{ .namespace = self.namespace, .target = null, .access = .schema });
     const state = try self.observer.reader().query(.{ .process = self.account.ledger.owner });
     if (state.body != .process) return error.InvalidAuthorityResponse;
     const process = state.body.process.process;
@@ -258,12 +262,12 @@ pub fn selectDatabase(self: *Self, name: []const u8) !void {
     var candidate = self.table;
     candidate.connection.scope.resource = binding.resource;
     candidate.connection.scope.catalog = binding.catalog;
-    candidate.connection.owner = binding.owner;
-    candidate.connection.namespace = binding.namespace;
+    candidate.connection.audience = binding.owner;
     candidate.connection.role = binding.role;
-    _ = try candidate.describeDatabase();
+    _ = try candidate.require(.{ .namespace = binding.namespace, .target = null, .access = .schema });
     try self.selectSource(null);
     self.table = candidate;
+    self.namespace = binding.namespace;
     for (self.account.databases) |selected| if (std.mem.eql(u8, selected.name, name)) {
         self.database = selected.name;
         break;
@@ -287,7 +291,7 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
             return result;
         }
     }
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
@@ -302,7 +306,10 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.deadline.check(self.io);
     try self.current();
     switch (prepared.*) {
-        .native => |*statement| try self.fresh(g.Statement.validate, .{ statement, &self.table }),
+        .native => |*statement| {
+            if (statement.namespace != self.namespace) return error.CatalogIdentityConflict;
+            try self.fresh(g.Statement.validate, .{ statement, &self.table });
+        },
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
@@ -321,16 +328,17 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
-    // Failed acquisition owns its cleanup and has not advanced an iterator or
-    // disclosed a cursor. Transient admission pressure may retry this boundary;
-    // nextBatch never reopens a snapshot or repeats a partially consumed read.
-    return self.fresh(Self.acquireRead, .{ self, prepared, values });
+    // Acquisition persists each original request before dispatch. A failed
+    // attempt enters cleanup; this boundary never silently captures a new cut.
+    return self.acquireRead(prepared, values);
 }
+
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     try self.validate(prepared);
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
     read.* = .{ .host = self, .value = undefined };
+    errdefer self.releasePins(read);
     switch (prepared.*) {
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
         .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
@@ -338,13 +346,34 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
         .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
         .probe => |probe| read.value = .{ .probe = probe },
         .native => |*statement| {
-            var nonces: [f.Relational.max_sources][16]u8 = undefined;
-            try self.io.randomSecure(std.mem.asBytes(&nonces));
+            if (statement.kind() != .select) return error.ExpectedGatewayRead;
+            const count = if (statement.plan == .relational) statement.plan.relational.plan.sources.len else 1;
+            var snapshots: [f.Relational.max_sources]c.DirectTableProtocol.Snapshot = undefined;
+            for (0..count) |i| {
+                const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
+                var shared: ?usize = null;
+                for (read.pins[0..i], 0..) |slot, j| if (slot) |pin| if (std.meta.eql(pin.table, binding)) {
+                    shared = j;
+                    break;
+                };
+                if (shared) |j| {
+                    snapshots[i] = snapshots[j];
+                    continue;
+                }
+                const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
+                defer response.deinit();
+                const metadata = response.value.result.lookup orelse return error.TableDefinitionChanged;
+                try binding.check(self.table.connection, metadata);
+                read.pins[i] = try self.runtime.read_pins.?.acquire(self.table, binding, metadata.position);
+                snapshots[i] = try read.pins[i].?.snapshot();
+            }
             if (statement.plan == .relational) {
+                var nonce: [16]u8 = undefined;
+                try self.io.randomSecure(&nonce);
                 var path: [64]u8 = undefined;
-                const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonces[0]});
-                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, nonces, read_options, self.cancellation) };
-            } else read.value = .{ .single = try statement.openSelect(self.allocator, &self.table, values, nonces[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation) };
+                const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
+                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, snapshots[0..count], read_options, self.cancellation) };
+            } else read.value = .{ .single = try statement.openSelect(self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation) };
         },
     }
     return read;
@@ -355,11 +384,11 @@ pub fn closeRead(self: *Self, read: *Read) void {
     if (read.batch) |*batch| batch.deinit();
     switch (read.value) {
         .single => |*query| {
-            query.close() catch {};
+            query.close();
             query.deinit();
         },
         .relational => |query| {
-            query.close() catch {};
+            query.close();
             query.deinit();
         },
         .source => |*source| source.deinit(),
@@ -367,7 +396,19 @@ pub fn closeRead(self: *Self, read: *Read) void {
         .probe, .inspection => {},
         .settings => |*settings| settings.deinit(),
     }
+    self.releasePins(read);
     self.allocator.destroy(read);
+}
+fn releasePins(self: *Self, read: *Read) void {
+    for (&read.pins) |*slot| if (slot.*) |record| {
+        var client = self.table;
+        client.connection = record.table.connection;
+        self.runtime.read_pins.?.close(client, record) catch |err| {
+            self.runtime.read_cleanup_failure.store(@intFromError(err), .release);
+        };
+        slot.* = null;
+    };
+    self.runtime.notify();
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !struct { kind: g.Completion, count: u64, changed: u64 } {
     try self.validate(prepared);
@@ -382,11 +423,11 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     const terminal = try self.runtime.execute(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation);
     self.terminal = terminal;
     switch (terminal.state) {
-        .applied, .unchanged => {},
+        .applied => {},
         .rejected => return error.GatewayMutationRejected,
-        .cancelled, .upload_cancelled => return error.GatewayMutationCancelled,
+        .cancelled => return error.GatewayMutationCancelled,
     }
-    try self.validate(prepared);
+    try self.current();
     return .{ .kind = switch (prepared.native.kind()) {
         .insert => .insert,
         .update => .update,
@@ -424,18 +465,20 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
             const terminal = self.terminal orelse break :blk .{ "XX000".*, "Missing terminal observation" };
             break :blk switch (terminal.kind) {
                 .dml => switch (terminal.reason) {
-                    1, 2 => .{ "23505".*, "Row identity already exists" },
-                    3, 4 => .{ "23502".*, "Required value is missing or NULL" },
-                    5 => .{ "22001".*, "Character limit exceeded" },
-                    6, 7 => .{ "22003".*, "Value is out of range or inexact" },
+                    1, 2 => .{ "40001".*, "Table definition or data changed" },
+                    3 => .{ "23505".*, "Primary key already exists" },
+                    4 => .{ "02000".*, "Required row no longer exists" },
+                    5 => .{ "23000".*, "Row constraints rejected the mutation" },
+                    6 => .{ "54000".*, "Statement work budget exceeded" },
                     else => .{ "23000".*, "Table mutation rejected; inspect its recorded outcome" },
                 },
-                .ddl => if (terminal.route == 3) .{ "23000".*, "Schema change rejected; inspect its recorded Table outcome" } else switch (terminal.reason) {
+                .ddl => switch (terminal.reason) {
                     1 => .{ "42P07".*, "Table name already exists" },
-                    3 => .{ "42P01".*, "Table does not exist" },
-                    else => .{ "55000".*, "Table identity or schema changed" },
+                    2, 3, 4 => .{ "40001".*, "Table identity, definition or data changed" },
+                    5 => .{ "2BP01".*, "A registered dependency blocks the change" },
+                    6 => .{ "23000".*, "Schema constraints rejected the change" },
+                    else => .{ "55000".*, "Table declaration rejected" },
                 },
-                .upload => .{ "XX000".*, "Unexpected upload rejection" },
             };
         },
         error.GatewayMutationCancelled => .{ "57014".*, "Table operation cancelled" },

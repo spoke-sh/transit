@@ -412,7 +412,7 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
                     if (try g.query.SettingsAssistance.complete(allocator, try @import("SessionSettings.zig").client(host), assistance_request)) |settings| break :result settings;
                 }
                 if (host.source) |source| break :result (try g.query.Workspace.apply(allocator, &source.client, source.configuration.workspace, .{ .assist = assistance_request })).assistance;
-                break :result try g.query.TableAssistance.complete(allocator, &host.table, assistance_request);
+                break :result try g.query.DirectTableAssistance.complete(allocator, host.table, host.namespace, assistance_request);
             };
             const T = @FieldType(@FieldType(api.Response, "result"), "assistance");
             const items = try allocator.alloc(std.meta.Elem(@FieldType(T, "items")), result.items.len);
@@ -471,7 +471,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
             slot.acceptance_possible = true;
             const item = try host.runtime.admit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
-            return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, item.id }) };
+            return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, item.id }) };
         }
         const result = try host.write(prepared, values);
         return .{ .completion = .{ .kind = result.kind, .matched = result.count, .changed = result.changed } };
@@ -645,7 +645,7 @@ fn operationPage(host: *g.Session, after: u64) !g.SessionOperations.Page {
 }
 fn operationStatus(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
-        .table => try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, ref.id }),
+        .table => try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
         .captured => try g.CapturedOperations.status(host, ref.id),
     };

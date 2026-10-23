@@ -224,14 +224,16 @@ grouping by int64 columns, projection, COUNT and ordered checked int64 SUM.
 SQL declares int64 as BIGINT. Join nulls do not match; grouping places null keys
 together and before integer keys. Duplicate rows retain their multiplicity.
 
-`transit-query.RelationalQuery` seals a per-resource snapshot vector before
-execution. Aliases in one resource share its cut, while different resources may
-be captured at different times. This does not provide an atomic or causal shared
-snapshot. Every source's current rights still apply, including empty inputs.
-The [console configuration](../../../apps/transit-cli/docs/console.md#finite-relational-queries)
-describes this interactive profile. Its private disk group index and
-bounded operator state have separate resident, spill, work and result limits.
-Rows remain incomplete until terminal source/output checks succeed.
+The SQL service uses `DirectRelationalQuery` over independently retained Table
+partition cuts. Tables in one catalog need not share a frontier; repeated aliases
+of the same Table share one pin. Each cut records its atomic domain explicitly.
+`RelationalQuery` retains the separate native-resource snapshot-vector profile.
+Neither vector promises an atomic or causal cross-domain snapshot. Every source's
+current rights apply, including empty inputs. The
+[console configuration](../../../apps/transit-cli/docs/console.md#finite-relational-queries)
+describes interactive execution. Private disk grouping and bounded operator
+state have separate resident, spill, work and result limits. Rows remain
+incomplete until terminal source/output checks succeed.
 
 The Zig `RelationalCapture` owner provides a separate durable lifetime. An
 authenticated call admits a frozen plan and schema vector, retains its data cuts,
@@ -328,12 +330,20 @@ failures computed from cached source rows. Diagnostic construction or disclosure
 failure preserves the primary computation error and does not create durable work.
 These local witnesses are not saved outcomes for a durable captured query.
 
-Fuze executes outside kernel authority over signed native snapshot reads.
+Fuze executes outside kernel authority over authorized source reads. Direct
+Table reads retain a durable partition pin including accepted unflushed rows.
+The SQL service journals acquisition before dispatch and release before cleanup;
+its bounded recovery worker closes interrupted requests and earlier-generation
+pins under current rights. Denied cleanup retains its record. These pins do not
+expire with the native-resource lease described below. An ordinary SQL result
+still cannot resume after losing its session.
+
+The native-resource read profile uses signed snapshot requests.
 For console connections, execution lives in the shared SQL service. Low-level
 Query SDK callers execute in their own process. The authority
 does not execute SQL. There are no durable upload, execution-progress or result
-publication turns in this profile. Table, KV and Document share the existing
-finite compiler, source adapters and Arrow codecs. The contract provides:
+publication turns in this profile. Table, KV and Document adapters share finite compiler and Arrow interfaces.
+The native-resource snapshot contract provides:
 
 - One explicit source basis per session, bounded plan/buffers/cursor/pins and
   current authorization before disclosure. It is not a global snapshot.

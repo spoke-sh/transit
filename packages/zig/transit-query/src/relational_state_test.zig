@@ -11,7 +11,7 @@ const sources = [_]r.Source{.{ .alias = "t", .realm = 1, .resource = 7, .catalog
 const plan: r.Plan = .{ .sources = &sources, .group_by = &.{.{ .source = 0, .id = 1 }}, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = 4 * 1024 * 1024, .spill_bytes = 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 10000, .work_steps = 100000, .source_pins = 1 } };
 const Candidate = State.Candidate(*q.station.Turn);
 fn cut() ![1]r.Cut {
-    return .{.{ .resource = 7, .revision = 1, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() }};
+    return .{.{ .domain = .native_resource, .resource = 7, .revision = 1, .commitment = @splat(17), .schema = try sources[0].schema.fingerprint() }};
 }
 fn group(value: i64, count: u64) f.RelationalExecution.Group {
     var result: f.RelationalExecution.Group = .{ .key = .{ .len = 1 } };

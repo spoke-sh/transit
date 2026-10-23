@@ -106,3 +106,8 @@ test {
 }
 
 pub const SettingsJournal = @import("SettingsJournal.zig");
+
+pub const DirectRelationalCompilation = @import("DirectRelationalCompilation.zig");
+pub const DirectRelationalTables = @import("DirectRelationalTables.zig");
+pub const DirectRelationalQuery = @import("DirectRelationalQuery.zig");
+pub const DirectTableAssistance = @import("DirectTableAssistance.zig");

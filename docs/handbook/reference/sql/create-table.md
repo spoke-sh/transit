@@ -72,8 +72,9 @@ that Table. An exact retry recovers the original outcome; changed intent under
 an occupied operation identity rejects. A native send receipt establishes input
 admission, not successful creation.
 
-The SQL service saves exact intent and signed steps before sending. The console checks the original
-request after uncertainty and reports an unconfirmed outcome if necessary. A newly issued CREATE is new work. Current
+The SQL service saves the complete direct intent and commits its reference before
+dispatch. The console checks the original request after uncertainty and reports
+an unconfirmed outcome if necessary. A newly issued CREATE is new work. Current
 inspection rights govern outcome and metadata reads, including after later
 schema changes or name reuse.
 

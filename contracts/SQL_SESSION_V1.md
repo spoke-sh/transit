@@ -103,8 +103,11 @@ Requesting its successor acknowledges that batch and advances the same iterator;
 all other ordinals reject. At most one unacknowledged batch is retained per
 cursor. A duplicate concurrent fetch cannot advance the iterator twice.
 The final batch remains repeatable until closed or expired.
-Each data result carries its source basis: an explicit source cut, a Table cut,
-or the ordered per-resource snapshot vector. Settings and inspection results
+Each data result carries its source basis: an explicit source cut, a retained
+Table cut, or an ordered independent-Table snapshot vector. A Table basis binds
+its catalog/branch/object, exact definition, physical and logical frontiers,
+retained pin content, source commitment and schema. Independent Table cuts do
+not establish a common catalog-wide snapshot; repeated aliases share one pin. Settings and inspection results
 have no retained data basis. A basis identifies observed data; it grants no access.
 
 Lost/expired session or cursor state reports an incomplete result. The server
@@ -134,9 +137,10 @@ Only a complete frozen intent can become accepted execution. Retries return the
 original identity and state; they never compile fresh SQL for an existing token.
 A reservation interrupted before publication can remain incomplete. Status does
 not turn incompleteness into absence or dispatch new work. Explicit resume and
-the recovery worker act only on the original published intent and exact saved
-steps. Saved-step-before-dispatch, receipt-before-sequence-advance and processed
-input evidence remain separate boundaries.
+the recovery worker act only on the original published intent reference. Complete
+content staging, reference publication, committed dispatch eligibility, direct
+admission and terminal evidence are separate boundaries. A private native control
+receipt alone does not establish Table acceptance.
 
 Operation identity includes the persistent server instance in the envelope,
 account identity, owner kind and durable ID. `status` accepts a known operation
