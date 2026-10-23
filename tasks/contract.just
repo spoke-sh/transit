@@ -34,6 +34,7 @@ check:
     just contract::station-check
     just contract::logical-check
     just contract::table-service-check
+    just contract::direct-table-check
     just contract::configuration-check
     just contract::sql-session-check
     python3 -B bindings/generate.py
@@ -65,6 +66,12 @@ table-service-generate:
 
 table-service-check:
     zig build table-service-contract | python3 -B tests/table_service_contract.py
+
+direct-table-generate:
+    zig build direct-table-contract | python3 -B tests/direct_table_contract.py --write
+
+direct-table-check:
+    zig build direct-table-contract | python3 -B tests/direct_table_contract.py
 
 configuration-generate:
     zig build configuration-contract | python3 -B tests/configuration_contract.py --write

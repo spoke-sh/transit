@@ -10,6 +10,7 @@ const Self = @This();
 engine: *backend.DataAuthority.Engine,
 configuration: c.DirectCatalog.Configuration,
 proof: p.Authorization.Proof,
+observed: ?p.Authorization.Guard = null,
 
 pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalog.Configuration, proof: p.Authorization.Proof, request_digest: [32]u8) !Self {
     try configuration.validate();
@@ -21,6 +22,7 @@ pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalo
     const guard = initial.guard();
     _ = try guard.acquire(guard.context);
     guard.release(guard.context);
+    result.observed = initial.request;
     return result;
 }
 
@@ -40,9 +42,39 @@ fn makeGuard(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Aut
     const self = erased(context);
     try requested.validate();
     if (!std.meta.eql(requested.subject, self.policy().subject)) return error.InvalidAuthorizationCredential;
-    const owned = try allocator.create(backend.DataAuthority);
-    owned.* = self.authority(requested);
-    return owned.guard();
+    const owned = try allocator.create(ObservedGuard);
+    owned.* = .{ .policy = self, .authority = self.authority(requested) };
+    return .{ .context = owned, .acquire = ObservedGuard.acquire, .release = ObservedGuard.release };
+}
+
+/// Accumulate only successfully checked requirements. A filtered list entry's
+/// denied guard must not become a requirement for disclosing the allowed page.
+const ObservedGuard = struct {
+    policy: *Self,
+    authority: backend.DataAuthority,
+    fn acquire(context: *anyopaque) !c.storage.TablePartition.Guard.Fence {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        const guard = self.authority.guard();
+        const fence = try guard.acquire(guard.context);
+        errdefer guard.release(guard.context);
+        self.policy.observed = if (self.policy.observed) |previous| try previous.merge(self.authority.request) else self.authority.request;
+        return fence;
+    }
+    fn release(context: *anyopaque) void {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        const guard = self.authority.guard();
+        guard.release(guard.context);
+    }
+};
+
+/// Recheck all disclosed inputs after response buffering, including empty pages
+/// and the caller credential/resource lifetime. This does not execute any work.
+pub fn check(self: *Self) !u64 {
+    var value = self.authority(self.observed orelse return error.CatalogDenied);
+    const guard = value.guard();
+    const fence = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return fence.policy_epoch - 1;
 }
 
 fn registered(context: *anyopaque, kind: a.Kind, logical: u64) !?p.Authorization.Object {

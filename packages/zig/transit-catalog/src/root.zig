@@ -7,6 +7,7 @@ pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const DirectCatalog = @import("DirectCatalog.zig");
+pub const DirectTableProtocol = @import("DirectTableProtocol.zig");
 pub const OperationBinding = @import("OperationBinding.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
@@ -33,6 +34,7 @@ pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
 pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = DirectTableProtocol;
     _ = OperationBinding;
     _ = @import("direct_catalog_test.zig");
     _ = AuthorizationSql;

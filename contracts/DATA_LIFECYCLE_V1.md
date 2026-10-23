@@ -16,6 +16,10 @@ an authority accepted it. Installed Table operations retain their current
 owning runtime implements this acceptance protocol. No new SQL syntax, branch
 operation or transaction session is exposed by this contract.
 
+The separate [direct Table request contract](DIRECT_TABLE_V1.md) supplies signed
+envelopes and binary schema/row payloads for the internal node dispatcher. It
+reuses these identities and the current native authorization proof.
+
 ## Identity and interpretation
 
 | Type | Meaning |
