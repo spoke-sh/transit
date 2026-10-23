@@ -310,6 +310,11 @@ pub fn main(init: std.process.Init) !void {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);
             try RelationalFailures.run(init, fresh, &admin, profile.role, std.meta.stringToEnum(RelationalFailures.Case, args[2]["relational-failure-".len..]) orelse return error.UnknownProofPhase);
+        } else if (std.mem.startsWith(u8, args[2], "unified-boundary-")) {
+            var fresh = client;
+            fresh.key = try key(if (profile.captured != null) 59 else 29);
+            const boundaries = @import("direct_unified_boundaries.zig");
+            try boundaries.run(init, fresh, &admin, profile.role, std.meta.stringToEnum(boundaries.Case, args[2]["unified-boundary-".len..]) orelse return error.UnknownProofPhase);
         } else if (std.mem.eql(u8, args[2], "capture-exchanges")) {
             var fresh = client;
             fresh.key = try key(if (profile.captured != null) 59 else 29);

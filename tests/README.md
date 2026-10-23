@@ -185,6 +185,42 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Finite direct capture memory and retirement — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --unified-boundaries-only` passes five public cases
+under definition `38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`.
+An empty Table is captured, renamed and dropped before traversal completes; the
+verified empty result preserves its original schema. Explicit result retirement
+collects its publication while keeping the completed source pin closed. A stored
+600 KiB text value exceeds the normal 1 MiB decoding adapter, records a durable
+budget failure and remains readable through a separately acquired current pin.
+Explicit adapter and Arrow workspace exhaustion also retain the failure identity,
+close the original pin and preserve the stored row. Hosts are reconstructed
+during bounded progress. Separate client failures cover both the allocating
+writer's `WriteFailed` and the Table HTTP response allocator's `OutOfMemory`.
+Both leave the native proposal unchanged, produce no terminal query diagnostic,
+and permit the same query to complete with healthy memory.
+
+The schedule exposed a local allocating JSON writer returning `WriteFailed`
+instead of `OutOfMemory` while validating a saved grant. Capture now classifies
+either error as an adapter budget only when its own fixed allocator records
+exhaustion. Failed resize/remap probes do not establish that evidence. Twenty-nine
+selected query tests pass across capture, KV/Document sources and allocator
+classification. They preserve external publication and poisoned retained-read
+errors, exact budget/runtime witnesses, replay, cleanup and later healthy work.
+The current native retention encoding stores the input once as the job ID;
+failed native job records occupy 248 bytes. These checks replace the superseded
+actor-store Table capture/memory fixtures and retain native KV/Document coverage.
+The two direct native contract tests also pass, preserving exact checkpoint
+encoding and prepared scalar ownership.
+
+This focused schedule does not restart the node or inject lost native receipts.
+The full query unit build still fails at the unmigrated maintained actor-store
+fixture's call to `TableSource.from`; it is not reported as passing. The broader
+current-definition and installed caller checks remain pending. Documentation and
+diagnostic inventory/mapping checks pass separately.
+
 ## Direct Table exchange placement and borrowed reads — 2026-10-23
 
 `nix develop --command zig build test-direct-captured-query

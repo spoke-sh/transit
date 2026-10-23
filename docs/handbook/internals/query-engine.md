@@ -132,6 +132,18 @@ The chosen protocol costs additional bounded control turns and stores permanent
 operation identities. Source traversal owns at most eight decoded rows per page;
 the number of durable jobs does not set resident collection size.
 
+Allocation failure also needs an owner. A direct page read combines local schema
+and row decoding with HTTP work using the client's separate allocator. The
+[capture allocator](../../../packages/zig/transit-query/src/CaptureMemory.zig)
+records failed allocations from the fixed adapter buffer. Only that evidence
+allows `OutOfMemory`, or the allocating JSON writer's `WriteFailed`, to become a
+durable adapter-budget failure. A
+declined resize or remap can fall back to another allocation and is not such
+evidence. Native read poisoning and external allocation errors preserve the
+original attempt error, rolling back the proposed query progress. Inferring
+local exhaustion from every unpoisoned page error would incorrectly close work
+after a transient client failure.
+
 Captured relational execution applies this protocol independently to each
 distinct Table. Aliases of one exact declaration share a pin and cut; Tables in
 one catalog can still have different frontiers. The coordinator records the full

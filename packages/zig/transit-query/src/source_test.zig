@@ -3,10 +3,9 @@ const t = std.testing;
 const q = @import("root.zig");
 const m = q.fuze.Unified;
 const Definition = q.SourceDefinition;
-const tables = @import("catalog_store_test.zig");
 fn pageSource(definition: Definition, basis: q.Basis, cursor: q.UnifiedSource.Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, batch: *q.UnifiedSource.Batch) !void {
-    var plan = try tables.plan(allocator, definition, &.{0});
-    plan.source_basis = try basis.fingerprint();
+    var fields: [Definition.max_columns]q.fuze.Types.Field = undefined;
+    const plan: q.fuze.LogicalQuery.Plan = .{ .schema = try (try definition.schema(&fields)).cloneInto(allocator), .source_basis = try basis.fingerprint(), .projection = &.{0} };
     return q.UnifiedSource.page(definition, plan, basis, cursor, data, current, if (definition.source == .table) 17 else null, allocator, batch);
 }
 test "declared KV decoders retain full values and distinguish malformed bytes" {

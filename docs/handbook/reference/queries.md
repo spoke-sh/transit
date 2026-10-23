@@ -194,7 +194,9 @@ Native query hosts bound source decoding to 1 MiB and logical Arrow encoding to
 4 MiB per active step. Exhaustion records a specific query memory-budget failure,
 discards the candidate and releases its source pin. It does not stop the source
 owner or remove stored rows. Storage and general allocator failures remain
-infrastructure errors. These working-set limits are independent of Table value
+infrastructure errors, including allocation failures in the direct Table HTTP
+client. Those failures leave the attempt retryable without advancing the query.
+These working-set limits are independent of Table value
 and encoded-result limits.
 
 ## Finite draft evaluation

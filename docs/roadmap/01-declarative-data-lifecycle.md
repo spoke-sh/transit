@@ -157,6 +157,12 @@ workers, later attachments, broader exchange recovery and maintained
 credential-rotation cleanup schedules, older relational
 caller fixtures and broader qualification remain unfinished. The full query
 package remains unqualified during the cutover.
+The [finite capture boundary checks](../../tests/README.md#finite-direct-capture-memory-and-retirement--2026-10-23)
+now replace the old Table memory/retirement fixtures. They cover empty retained
+sources after DROP, adapter/Arrow exhaustion, preserved large stored rows,
+retryable separate-client allocation failures and explicit result retirement.
+Native KV/Document capture checks remain in place. A local allocating writer's
+failure now requires evidence of adapter exhaustion before closing the query.
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

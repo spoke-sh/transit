@@ -7,11 +7,9 @@ const m = q.fuze.Unified;
 const r = q.UnifiedRecords;
 const capture = q.UnifiedCapture;
 const Store = @import("source_store_test.zig");
-const tables = @import("catalog_store_test.zig");
 fn plan(allocator: std.mem.Allocator, definition: q.SourceDefinition, projection: []const u8, aggregate: m.Plan.Aggregate) !q.fuze.LogicalQuery.Plan {
-    var result = try tables.plan(allocator, definition, projection);
-    result.aggregate = aggregate;
-    return result;
+    var fields: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
+    return .{ .schema = try (try definition.schema(&fields)).cloneInto(allocator), .source_basis = try definition.fingerprint(), .projection = projection, .aggregate = aggregate };
 }
 const Source = struct {
     store: *Store,
@@ -257,52 +255,125 @@ fn drive(store: *Store, requests: *Store, job: r.Job, workspace: []u8) !void {
     }
     return error.CaptureDidNotFinish;
 }
-test "Table and accepted Document use the same retained capture manifest and cleanup" {
+test "bounded capture records local budgets while external and retained allocation failures stay retryable" {
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    const definition = try seedKV(&store, 1);
+    const bundle: q.Bundle = .{ .source = definition, .plan = try plan(arena.allocator(), definition, &.{1}, .rows), .limits = limits };
+    const reference = try request(&requests, bundle);
+    const access: Source = .{ .store = &requests };
+    const adapter = try arena.allocator().alloc(u8, q.UnifiedBehavior.adapter_bytes);
+    const workspace = try arena.allocator().alloc(u8, m.Arrow.working_bytes);
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    var behavior: q.UnifiedBehavior.Source = .{ .peer = 9, .initializer = 42, .resources = undefined, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
+    const handler = behavior.interface();
+    var turn = try store.capture();
+    try handler.initialize.?(handler.context, &turn);
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(definition) } });
+    try store.commit(turn);
+    const call: s.Frame = .{ .kind = .call, .correlation = 1, .payload = try reference.encode() };
+    var rejected = try frame(&store, 9, call);
+    try q.UnifiedBehavior.dispatchSource(&rejected, call, 9, 42, access, &.{}, workspace, &cancellation);
+    const failure = try q.QueryFailure.decode((try s.Frame.decode(rejected.decision.outputs[0].?.value)).payload);
+    try t.expectEqual(.adapter_memory_budget, failure.code);
+    try t.expectEqual(.admission, failure.stage);
+    for (rejected.decision.retain) |pin| try t.expect(pin == null);
+    try t.expectEqual(@as(usize, 0), countMutations(rejected));
+    try store.commit(rejected);
+
+    var ordinary = try frame(&store, 9, call);
+    const untouched = ordinary.decision;
+    try t.expectError(error.OutOfMemory, capture.start(&ordinary, reference, access, t.failing_allocator));
+    try t.expectEqualDeep(untouched, ordinary.decision);
+    const ExternalFailure = struct {
+        access: Source,
+        opens: *usize,
+        pub fn open(self: @This(), resource: u64) !Store.Reader {
+            self.opens.* += 1;
+            if (self.opens.* == 2) return error.OutOfMemory;
+            return self.access.open(resource);
+        }
+    };
+    var opens: usize = 0;
+    try t.expectError(error.OutOfMemory, capture.startBoundedDiagnostic(&ordinary, reference, ExternalFailure{ .access = access, .opens = &opens }, adapter, null));
+    try t.expectEqual(@as(usize, 2), opens);
+    try t.expectEqualDeep(untouched, ordinary.decision);
+
+    inline for (.{ q.QueryFailure.Code.adapter_memory_budget, q.QueryFailure.Code.arrow_workspace_budget }, 0..) |expected, index| {
+        const admission: s.Frame = .{ .kind = .call, .correlation = index + 2, .payload = try reference.encode() };
+        var next = try frame(&store, 9, admission);
+        const job = try capture.startBoundedDiagnostic(&next, reference, access, adapter, null);
+        try store.commit(next);
+        const message: s.Frame = .{ .kind = .cast, .payload = try (r.Continuation{ .job = job.id, .input = job.continuation }).encode() };
+        // The retained source reader fails after bundle decoding, inside the
+        // same page operation that also performs local adapter allocations.
+        const Poison = struct {
+            fn entries(_: *anyopaque, _: p.Growth.ReadVersion, _: ?p.Value, _: ?p.Value) anyerror!s.Turn.Page {
+                return error.OutOfMemory;
+            }
+        };
+        var poisoned = try frame(&store, 3, message);
+        poisoned.reader.version_entries = Poison.entries;
+        const before = poisoned.decision;
+        try t.expectError(error.OutOfMemory, capture.advanceBoundedDiagnostic(&poisoned, try r.Continuation.decode(message.payload), access, adapter, workspace, &cancellation, null));
+        try t.expectEqual(error.OutOfMemory, poisoned.read_error.?);
+        try t.expectEqualDeep(before, poisoned.decision);
+        next = try frame(&store, 3, message);
+        try q.UnifiedBehavior.dispatchSource(&next, message, 9, 42, access, if (expected == .adapter_memory_budget) &.{} else adapter, &.{}, &cancellation);
+        const failed = try capture.job(&next, job.id);
+        try t.expectEqual(expected, failed.failure.?.code);
+        try t.expectEqual(.execution, failed.failure.?.stage);
+        try t.expectEqual(@as(u64, 0), (try capture.checkpoint(&next, job.id)).progress.segments);
+        try store.commit(next);
+        try t.expect(store.versions.get(job.source.native).?.view.released_at != null);
+        var replay = try frame(&store, 3, message);
+        try q.UnifiedBehavior.dispatchSource(&replay, message, 9, 42, access, adapter, workspace, &cancellation);
+        try t.expectEqualDeep(failed.failure, (try capture.job(&replay, job.id)).failure);
+        try store.commit(replay);
+    }
+    const healthy_call: s.Frame = .{ .kind = .call, .correlation = 77, .payload = try reference.encode() };
+    var healthy = try frame(&store, 9, healthy_call);
+    const job = try capture.startBoundedDiagnostic(&healthy, reference, access, adapter, null);
+    try store.commit(healthy);
+    try drive(&store, &requests, job, workspace);
+    try verifyComplete(&store, &requests, job, 1, workspace);
+}
+test "accepted Document capture retains its manifest and cleanup" {
     var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer test_arena.deinit();
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
-    for ([_]bool{ false, true }) |document| {
-        var store: Store = .{};
-        defer store.deinit();
-        var requests: Store = .{ .resource = 8, .pid = 9 };
-        defer requests.deinit();
-        var definition: q.SourceDefinition = undefined;
-        var projections = [_]q.SourceDefinition.Projection{
-            .{ .column = .{ .name = try m.Name.init("item"), .type = .int64 }, .path = &.{}, .relative = true },
-            .{ .column = .{ .name = try m.Name.init("replica"), .type = .uint64 }, .path = &.{}, .relative = true, .mode = .element_replica },
-        };
-        const path = [_]q.document.Model.Name{try .init("items")};
-        if (document) {
-            const service: q.document.Service = .{ .resource = 7, .document = 17 };
-            var turn = try store.capture();
-            try service.create(&turn, 1, .{ .record_bytes = 4096, .staging_bytes = 4096, .staging_records = 1 });
-            try store.commit(turn);
-            const change = @import("source_test.zig").changeDocument;
-            try change(&store, service, 1, 1, 1, &.{.{ .assign = .{ .field = path[0], .value = .list } }});
-            for (0..12) |index| try change(&store, service, index + 2, 1, index + 2, &.{.{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .after = if (index == 0) .root else .{ .counter = index + 1, .replica = 1 }, .value = .{ .signed = @intCast(index) } } }});
-            definition = .{ .resource = 7, .source = .{ .document = .{ .reference = .{ .resource = 7, .document = 17, .epoch = 1, .type_revision = 1, .revision = 13 }, .expand = &path, .projections = &projections } } };
-        } else {
-            try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, value INT64)");
-            var found = try tables.source(&store);
-            defer found.deinit();
-            definition = .{ .resource = 7, .source = .{ .table = found.source } };
-            definition.source.table.row_type = try found.source.row_type.cloneInto(test_arena.allocator());
-            for (0..12) |index| {
-                const row: [2]q.fuze.Types.Values.Cell = @splat(.{ .value = .{ .atom = .{ .signed = @intCast(index) } } });
-                try tables.mutate(&store, index + 2, .{ .insert = &.{&row} });
-            }
-        }
-        const bundle = try Store.signQuery(q.Bundle{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
-        const job = try start(&store, &requests, bundle);
-        try drive(&store, &requests, job, workspace);
-        try verifyComplete(&store, &requests, job, 12, workspace);
-        var turn = try store.capture();
-        try capture.close(&turn, job.id, .retired);
-        try store.commit(turn);
-        try finishCleanup(&store, &requests, job, workspace);
-    }
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    var projections = [_]q.SourceDefinition.Projection{
+        .{ .column = .{ .name = try m.Name.init("item"), .type = .int64 }, .path = &.{}, .relative = true },
+        .{ .column = .{ .name = try m.Name.init("replica"), .type = .uint64 }, .path = &.{}, .relative = true, .mode = .element_replica },
+    };
+    const path = [_]q.document.Model.Name{try .init("items")};
+    const service: q.document.Service = .{ .resource = 7, .document = 17 };
+    var turn = try store.capture();
+    try service.create(&turn, 1, .{ .record_bytes = 4096, .staging_bytes = 4096, .staging_records = 1 });
+    try store.commit(turn);
+    const change = @import("source_test.zig").changeDocument;
+    try change(&store, service, 1, 1, 1, &.{.{ .assign = .{ .field = path[0], .value = .list } }});
+    for (0..12) |index| try change(&store, service, index + 2, 1, index + 2, &.{.{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .after = if (index == 0) .root else .{ .counter = index + 1, .replica = 1 }, .value = .{ .signed = @intCast(index) } } }});
+    const definition: q.SourceDefinition = .{ .resource = 7, .source = .{ .document = .{ .reference = .{ .resource = 7, .document = 17, .epoch = 1, .type_revision = 1, .revision = 13 }, .expand = &path, .projections = &projections } } };
+    const bundle = try Store.signQuery(q.Bundle{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
+    const job = try start(&store, &requests, bundle);
+    try drive(&store, &requests, job, workspace);
+    try verifyComplete(&store, &requests, job, 12, workspace);
+    turn = try store.capture();
+    try capture.close(&turn, job.id, .retired);
+    try store.commit(turn);
+    try finishCleanup(&store, &requests, job, workspace);
 }
+
 test "query budgets and cancellation discard candidates without leaking source pins" {
     var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer test_arena.deinit();
@@ -611,7 +682,8 @@ test "runtime failure commits its original frozen row witness atomically within 
     var reader = try store.capture();
     const failed = try capture.job(&reader, job.id);
     try t.expectEqualDeep(observed, failed.failure);
-    try t.expectEqual(@as(usize, 255), (try failed.encode()).len);
+    // The current retention tag stores the native input once, as the job ID.
+    try t.expectEqual(@as(usize, 248), (try failed.encode()).len);
     try t.expectEqualDeep(failed, try r.Job.decode(try failed.encode()));
     try t.expect(store.versions.get(job.source.native).?.view.released_at != null);
     var status: q.UnifiedRequest.Status = .{ .reference = job.request, .phase = .rejected, .correlation = 77, .failure = failed.failure };
@@ -648,7 +720,7 @@ test "policy changes retain observed metadata without reopening denied request p
         try t.expectEqual(@as(?u64, 1), original.source.?.expected);
         try t.expectEqual(if (reason == .policy_missing) @as(?u64, null) else @as(?u64, 2), original.source.?.actual);
         try t.expectEqualDeep(original, try q.QueryFailure.decode(try original.encode()));
-        try t.expectEqual(@as(usize, 255), (try rejected.encode()).len);
+        try t.expectEqual(@as(usize, 248), (try rejected.encode()).len);
         grant.revision = 3;
         grant.allow = true;
         try capture.setPolicy(&turn, grant);
@@ -659,35 +731,4 @@ test "policy changes retain observed metadata without reopening denied request p
         turn = try store.capture();
         try t.expectEqualDeep(original, (try capture.job(&turn, job.id)).failure.?);
     }
-}
-
-test "admitted Table jobs retain their schema through metadata rename and retirement" {
-    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
-    defer test_arena.deinit();
-    var store: Store = .{};
-    defer store.deinit();
-    var requests: Store = .{ .resource = 8, .pid = 9 };
-    defer requests.deinit();
-    try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, value INT64)");
-    var source = try tables.source(&store);
-    defer source.deinit();
-    const declaration: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = source.source } };
-    const bundle = try Store.signQuery(q.Bundle{ .source = declaration, .plan = try plan(test_arena.allocator(), declaration, &.{1}, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
-    const job = try start(&store, &requests, bundle);
-    var found = try tables.definition(&store);
-    defer found.deinit();
-    const renamed = try tables.ddl(&store, .{ .principal = 17, .operation = 2, .object = 100, .expected_revision = found.metadata.revision, .name = try q.catalog.TableMetadata.Name.init("items"), .action = .{ .rename = try q.catalog.TableMetadata.Name.init("renamed") } });
-    try t.expectEqual(.applied, renamed.operation.state);
-    const dropped = try tables.ddl(&store, .{ .principal = 17, .operation = 3, .object = 100, .expected_revision = renamed.operation.metadata.id, .name = try q.catalog.TableMetadata.Name.init("renamed"), .action = .{ .drop = .{} } });
-    try t.expectEqual(.applied, dropped.operation.state);
-    const workspace = try t.allocator.alloc(u8, q.fuze.LogicalArrow.working_bytes);
-    defer t.allocator.free(workspace);
-    try drive(&store, &requests, job, workspace);
-    try verifyComplete(&store, &requests, job, 0, workspace);
-    var current = try store.capture();
-    try capture.close(&current, job.id, .retired);
-    try store.commit(current);
-    try finishCleanup(&store, &requests, job, workspace);
-    current = try store.capture();
-    try t.expectEqual(.retired, (try capture.job(&current, job.id)).phase);
 }

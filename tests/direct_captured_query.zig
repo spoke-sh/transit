@@ -91,6 +91,7 @@ pub fn tableRows(allocator: std.mem.Allocator, client: c.DirectTableClient, role
     defer result.deinit();
     try t.expect(result.value.result.ddl == .committed);
     const created = result.value.result.ddl.committed;
+    if (changes.len == 0) return;
     var rows: w.Rows = .{ .binding = ddl.binding, .interpretation = created.resulting, .schema = encoded, .changes = changes, .ingestion = .point };
     rows.binding.action = .insert;
     rows.binding.identity.operation = operation + 1;
