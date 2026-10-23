@@ -22,6 +22,7 @@ system, storage, query, state, and execution models.
 
 | Task | Start here |
 | --- | --- |
+| Understand the proposed human and agent collaboration experience | [Business stories: evidence, branch proposals and meaningful change](docs/handbook/reference/collaborative-decisions.md) |
 | Define, query and evolve a dataset | [Local quickstart](docs/handbook/guides/quickstart.md), [Tables](docs/handbook/reference/tables.md) |
 | Choose a data representation | [Tables, KV and Documents](docs/handbook/reference/data-model.md#choose-a-data-representation) |
 | Compute a result or follow changes | [Query lifetimes](docs/handbook/reference/data-model.md#choose-a-computation-lifetime), [reactive views](docs/handbook/reference/reactive.md) |

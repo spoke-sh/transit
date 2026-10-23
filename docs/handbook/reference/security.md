@@ -5,6 +5,11 @@ may perform this operation now, and whether this worker owns the process
 generation needed to commit. A PID, resource reference, session, cursor or ticket
 answers none of them by itself.
 
+The [collaboration stories](collaborative-decisions.md#what-the-control--policy-plane-contributes)
+describe the proposed extension from native grants to enterprise identity,
+delegated agents and branch/publication policy. Those additions are not part of
+the implemented authorization profile described here.
+
 ## Principals, realms and grants
 
 Native authentication uses Ed25519 credentials bound to stable login roles.

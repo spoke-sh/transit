@@ -26,6 +26,7 @@ and evidence. SDKs has its own sidebar with shared semantics and language guides
 
 | User question | Start here |
 | --- | --- |
+| How could people and agents make better business decisions together? | [Stories about shared evidence, branches and meaningful activation](handbook/reference/collaborative-decisions.md), with current building blocks and proposed capabilities distinguished |
 | What data can I describe and change? | [Data model](handbook/reference/data-model.md), [Tables](handbook/reference/tables.md), [KV](handbook/reference/state.md), [Documents](handbook/reference/documents.md) |
 | What computation should run, and for how long? | [Computation lifetimes](handbook/reference/data-model.md#choose-a-computation-lifetime), [queries](handbook/reference/queries.md) |
 | Who may use it, and how long is it retained? | [Authorization](handbook/reference/security.md), [retention](handbook/reference/retention.md) |

@@ -24,17 +24,76 @@ the supported pieces and the gaps between them.
 | 4 | [Standards, collations and historical catalogs](04-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
 | 5 | [Managed computations and WAL-activated dataflows](05-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
 | 6 | [Multi-model and multi-format foreign relations](06-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
-| 7 | [Branches, merges and restore](07-branches-merges-and-restore.md) | Planned | Branch-head forks over durable pinned snapshots, logical three-way merges and forward restore |
+| 7 | [Branches, merges and restore](07-branches-merges-and-restore.md) | Planned | Branching within a realm over durable pinned versions, logical three-way merges and forward restore |
 | 8 | [Service and SDK coverage](08-service-and-sdk-coverage.md) | Planned | Broader types, sources and streaming interactions through shared contracts |
-| 9 | [Clustered execution and storage-disaggregated placement](09-clustered-execution.md) | Planned | Fenced lease transfer, verified object/NVMe range caching and locality-aware distributed query execution |
-| 10 | [Qualification and complete benchmarks](10-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
-| 11 | [Release distribution](11-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
+| 9 | [Enterprise identity and the Control & Policy Plane](09-control-and-policy-plane.md) | Planned | Trusted identity bindings, IAM membership lifecycle, bounded delegation and shared branch/publication authorization |
+| 10 | [Published business resources and consistent investigations](10-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy, shared typed results and one retained basis across related calls |
+| 11 | [Versioned proposals and reviewed publication](11-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
+| 12 | [MCP service and interactive Apps](12-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional views generated from shared published capabilities |
+| 13 | [Reactive context, subscriptions and agent activation](13-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions and tasks |
+| 14 | [Recorded outbound MCP and application guidance](14-recorded-mcp-integrations.md) | Planned | Governed external capabilities, captured observations, network-free replay and optional reviewed prompts/skills |
+| 15 | [Clustered execution and storage-disaggregated placement](15-clustered-execution.md) | Planned | Fenced lease transfer, verified object/NVMe range caching and locality-aware distributed query execution |
+| 16 | [Qualification and complete benchmarks](16-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
+| 17 | [Release distribution](17-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
 milestone trackers above.
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
+
+## Enterprise collaboration and MCP direction — 2026-10-23
+
+The outcome is governed collaboration over versioned, enriched business resources:
+people and agents inspect the same evidence, explore alternatives on branches,
+and publish changes only under the installation's policy. The
+[business stories](../handbook/reference/collaborative-decisions.md) explain that
+proposed experience and its current building blocks without requiring this plan.
+
+Milestones 1–8 retain their existing identities and delivered/remaining scope.
+Six independently reviewable milestones now precede clustered placement,
+qualification and release; those former milestones 9–11 move to 15–17 with their
+scope preserved. Every new milestone is Planned. This documentation records
+direction and acceptance gates, not executed runtime evidence.
+
+The sequence is linear, with explicit prerequisites per milestone. Contract work
+and a read-only MCP spike can start before all earlier implementations finish;
+an adapter may expose only the capabilities whose owning contracts and evidence
+are complete. Native branch operations use current realm authority; milestone 9
+adds enterprise identity/delegation integration and milestone 11 adds the shared
+proposal/approval experience. A protocol spike does not qualify those additions.
+
+| Shared contract | Delivery owner | Required boundary |
+| --- | --- | --- |
+| Identity, membership, delegation and access decisions | 9 | Trusted issuer/subject and actor/represented-subject bindings; current authority, membership freshness and explicit approval powers across every adapter |
+| Published resources and statement/results | 10 | Headless definitions, deliberate exposure, typed complete results, approved disclosure and a retained investigation basis independent of connections |
+| Branch histories and reviewed proposals | 7, 11 | Branching within one realm; frozen base/source/target and candidate; no copied grants or effects; no protected-destination bypass |
+| MCP and presentation bindings | 12 | Generated descriptions and views over shared owners; exact host/revision matrix; useful structured/text fallback |
+| Meaningful activation and durable interests | 5, 13 | Source changes, completed results and business conditions remain distinct; no implied agent execution from socket delivery |
+| External MCP observations and effects | 14 | Recorded intent/attempt/capture, explicit remote reconciliation, no network dispatch on replay |
+
+The Control & Policy Plane owns identity bindings, catalog definitions, access and
+publication policy. Data owners enforce reads and conditional writes; process
+and effect owners enforce activation and dispatch. Reasoning remains an
+application responsibility. A model's confidence, an App button or an MCP tool
+annotation supplies no authority.
+
+Branching is the versioning primitive within a realm. A branch has an identity,
+head and ancestry under the realm's current policy; it is not inherently an
+independent export or ownership boundary. A GitHub-like project/application fork
+relationship is a possible later collaboration feature, not a prerequisite or a
+synonym. Copy-on-write and manifest sharing are storage techniques. Historical
+data selection never restores historical permissions or executable effects.
+
+The first collaboration acceptance story uses one native dataset, one captured
+external source, a human and two delegated agents. Related queries retain one
+basis; agents publish different branch proposals; a report and App show the same
+evidence. Source changes mark old evidence without relabeling it. A branching-only
+installation rejects every merge and equivalent direct write. A separate approval
+profile publishes one exact reviewed candidate and recovers its outcome after a
+lost reply. Each owning milestone qualifies its part before the complete journey
+is claimed. No new top-level `transit` command or automatic catalog-wide MCP
+exposure is part of this direction.
 
 ## Reopened assessment — 2026-10-22
 
@@ -150,19 +209,19 @@ Sequence the recovery work as follows:
    to **Partitioned Policy/Data Logs**, **Fenced Partition Leases**, and
    **Multi-Writer OCC** over authorized conditional publication. Formal progress
    and metadata-complexity claims require scoped evidence.
-3. **Cut over live executables and activate derived views, multi-format foreign sources, branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[9](09-clustered-execution.md)).**
+3. **Cut over live executables and activate derived views, multi-format foreign sources, branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[15](15-clustered-execution.md)).**
    Wire the storage hierarchy, `.tseg` segments, write-through caches and immediate
    wakeups into the live node, SQL gateway and server executables; bind historical
    catalog snapshots to immutable manifest versions and collations;
    drive maintained SQL views, reactive watches and Station processes directly
    from `TransitLog` (`+row`/`-row`) delta streams; read Parquet, Arrow IPC,
    CSV/JSONL and mainframe fixed/variable (`FB`/`VB`) copybook datasets through
-   the shared `Fuze` segment boundary; implement branch-head forks over complete
+   the shared `Fuze` segment boundary; implement branch creation over complete
    durable snapshots and logical three-way merges over immutable state; and schedule distributed
    Station and `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](10-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](16-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -190,7 +249,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `11-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `17-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 

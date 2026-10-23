@@ -90,6 +90,12 @@ not authorize external work.
 
 ## Prerequisites and completion
 
+The later [reactive context milestone](13-reactive-context-and-agent-activation.md)
+uses this scheduling and completed-result evidence for business conditions,
+durable application interests and MCP subscriptions/tasks. This owner supplies
+computation progress; a changed source or delivered notification alone cannot
+establish that an agent ran or a business action completed.
+
 Historical operations consume [catalog contracts](04-standards-and-catalogs.md).
 Branch merge and SQL `MERGE` remain distinct. Fuze owns relational and incremental
 vector computation; Station and application owners coordinate stateful workflows

@@ -10,6 +10,11 @@ mechanisms underneath it.
 The [local quickstart](../guides/quickstart.md) demonstrates this model with a
 Table you create, query and evolve through the console.
 
+[From data to decisions](collaborative-decisions.md) develops the proposed
+application experience through stories about enriched resources, shared evidence,
+branching within a realm and controlled publication by humans and agents. Its
+availability table distinguishes that direction from the operations below.
+
 ```mermaid
 flowchart LR
   subgraph Declare["1. Declare Data, Computation & Policy"]
