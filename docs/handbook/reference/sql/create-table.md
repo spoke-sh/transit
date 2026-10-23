@@ -68,7 +68,10 @@ and DML resolve the published Table through the same configured owner.
 
 IF NOT EXISTS records an unchanged outcome for an existing name. It neither
 checks that the existing schema matches the proposed one nor alters or adopts
-that Table. An exact retry recovers the original outcome; changed intent under
+that Table. In the shared direct runtime, the unchanged outcome is a catalog
+name assertion bound to that exact existing definition and the complete proposed
+SQL. A definition/name change before acceptance rejects the frozen condition.
+An exact retry recovers the original outcome; changed intent under
 an occupied operation identity rejects. A native send receipt establishes input
 admission, not successful creation.
 

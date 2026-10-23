@@ -16,7 +16,10 @@ control. The registry does not automatically discover external application
 references. CASCADE is unsupported.
 
 IF EXISTS prepared against absence records that absence; it cannot later delete
-a Table created under the same name. A dropped name may be reused with a new
+a Table created under the same name. The shared direct runtime records an
+unchanged catalog assertion if the name is still absent at acceptance; a newly
+created name rejects the frozen condition. This carries no Table mutation or
+resulting definition revision. A dropped name may be reused with a new
 object identity. Exact retry and saved-status inspection stay attached to the
 original object, including after name reuse.
 

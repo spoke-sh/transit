@@ -229,6 +229,7 @@ pub const Action = union(enum) {
     check_set: []const ReadCheck,
     list: struct { namespace: u64, after: ?u64 },
     lookup: struct { namespace: u64, name: []const u8 },
+    name_assertion: struct { binding: c.NameAssertion.Binding, command: c.NameAssertion.Command },
     preview: Ddl,
     stage: struct { namespace: u64, intent: c.DirectTableIntent.Saved },
     admit_saved: c.DirectTableIntent.Reference,
@@ -267,9 +268,10 @@ pub const Request = struct {
         const mutation = switch (self.action) {
             .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .release => true,
             .operation => |value| value.command != .inspect,
+            .name_assertion => |value| value.command != .inspect,
             else => false,
         };
-        const control = self.action == .release or self.action == .pin_status or (self.action == .operation and self.action.operation.command != .execute);
+        const control = self.action == .release or self.action == .pin_status or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -282,6 +284,10 @@ pub const Request = struct {
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
             .initialize, .describe => {},
+            .name_assertion => |value| {
+                try value.binding.validate();
+                if (!std.meta.eql(value.binding.connection, connection)) return error.CatalogIdentityConflict;
+            },
             .stage => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (!std.meta.eql(value.intent.connection, connection)) return error.CatalogIdentityConflict;
@@ -382,6 +388,7 @@ pub const Result = union(enum) {
     staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
+    name_assertion: c.NameAssertion.Observation,
     preview: D.Preview,
     ddl: D.Observation,
     rows: P.OperationState,

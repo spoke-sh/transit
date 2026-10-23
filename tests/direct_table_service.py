@@ -53,7 +53,7 @@ def run(node, caller):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "pin_changed": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "pin_changed": False, "execute": None, "requests": 0, "commands": []}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -73,6 +73,14 @@ def run(node, caller):
                     data = response.read()
                     if self.path == "/table/v1":
                         fault["requests"] += 1
+                        assertion = envelope["action"].get("name_assertion")
+                        if assertion and assertion["binding"]["operation"] == 501 and assertion["command"] == "accept" and not fault["assertion_changed"]:
+                            assert response.status == 200, data
+                            parsed = json.loads(data)
+                            assert parsed["result"]["name_assertion"]["outcome"]["state"] == "unchanged"
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
+                            fault["assertion_changed"] = True
                         pin = envelope["action"].get("pin")
                         if pin and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
                             assert response.status == 200, data
@@ -116,6 +124,7 @@ def run(node, caller):
             subprocess.run([caller, endpoint, "write", str(profile)], check=True, timeout=180)
             assert fault["changed"]
             assert fault["pin_changed"]
+            assert fault["assertion_changed"]
             segments = list((root / "native").rglob("*.tseg"))
             assert segments, "Bulk acceptance created no .tseg object"
             stop(authority)
@@ -134,7 +143,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

@@ -9,10 +9,11 @@ const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const t = std.testing;
 const Lifecycle = @import("direct_table_lifecycle.zig");
+const Conditions = @import("direct_sql_conditions.zig");
 const SqlPins = @import("direct_sql_read_recovery.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null };
 const Admin = struct {
     client: *wire.Client,
     fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -250,15 +251,20 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
             try SqlPins.prepare(init, client, directory);
+            profile.conditions = try Conditions.prepare(init.gpa, client);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "recover")) {
             try SqlPins.recover(init, client, directory);
+            try Conditions.recover(init.gpa, client, &profile.conditions.?);
             try recover(init, client, &admin, profile, directory);
             var lifecycle = try Lifecycle.evolve(init.gpa, init.io, directory, client, profile.role);
             defer lifecycle.deinit();
             profile.lifecycle = lifecycle.value;
             try save(init, args[3], profile);
-        } else if (std.mem.eql(u8, args[2], "lifecycle")) try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true) else return error.UnknownProofPhase;
+        } else if (std.mem.eql(u8, args[2], "lifecycle")) {
+            try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true);
+            try Conditions.verify(client, profile.conditions.?);
+        } else return error.UnknownProofPhase;
     }
     try output.interface.print("Direct Table {s}: passed\n", .{args[2]});
     try output.interface.flush();

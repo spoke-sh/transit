@@ -95,8 +95,13 @@ cuts. [Recovery and binding evidence](../../tests/README.md#direct-sql-reference
 covers those component and HTTP paths, including lost pin replies, replacement,
 current denial and definition changes that preserve column schemas.
 
-Installed SQL fault/recovery qualification, conditional name-only DDL and default
-launcher provisioning remain unfinished. The launcher still provisions the actor
+Conditional name-only DDL now has a distinct catalog assertion path and SQL
+ledger representation; it carries a catalog acceptance position without
+fabricating a Table commit. Its [component and HTTP evidence](../../tests/README.md#conditional-sql-catalog-outcomes--2026-10-23)
+covers the SQL compiler, lost replies, restart, cancellation and name reuse.
+
+Installed SQL fault/recovery qualification and default launcher provisioning
+remain unfinished. The launcher still provisions the actor
 catalog. Dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
 completion matrix rows below is closed by this partial caller path.

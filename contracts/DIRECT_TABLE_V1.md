@@ -52,6 +52,25 @@ tightened constraint will succeed. Execution rechecks the accepted source and
 all row constraints. Inspect an existing operation for its past outcome; preview
 evaluates the proposal against current state.
 
+`name_assertion` records conditional DDL that requires no Table mutation. Its
+binding fixes the current definition, full connection, operation, namespace,
+name, action, expected definition and complete proposed declaration commitment.
+`create_if_not_exists` requires an exact existing definition; `drop_if_exists`
+requires an absent name. `inspect` is read-only. `accept` compares that frozen
+condition under the directory lock and current policy, then records `unchanged`
+or `rejected` with reason `condition_changed`. `cancel` records `cancelled` if
+there is no earlier outcome. All three terminal states retain a catalog WAL
+position; none is a Table mutation or advances its data frontier.
+
+Exact retries return the original outcome, including after rename, retirement or
+name reuse. A different binding under the same operation conflicts, including
+reuse as a Table operation. Current CONNECT/USAGE is required; CREATE also needs
+namespace CREATE and INSPECT on the original existing Table. A changed name's
+replacement is inspected only with current rights. Final policy checks fence
+publication and disclosure. A prepared condition and its commitment confer no
+rights and reserve no name. Ordinary CREATE/DROP branches use the Table DDL
+owner when a mutation is required.
+
 `initialize` initializes the configured catalog under its native owner;
 `describe`, `namespace`, `list` and `lookup` inspect current authorized definitions.
 Namespace inspection requires current CONNECT/USAGE; an absent namespace returns

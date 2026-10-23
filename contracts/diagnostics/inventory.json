@@ -3061,7 +3061,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 14,
+        "CatalogDenied": 18,
         "CatalogIdentityConflict": 2,
         "CatalogNameHashCollision": 1,
         "CatalogNamespaceMissing": 3,
@@ -3115,6 +3115,7 @@
         "admit()": "<inferred>",
         "admitRows()": "<inferred>",
         "applyRows()": "<inferred>",
+        "assertName()": "<inferred>",
         "attachRegistration()": "<inferred>",
         "available()": "<inferred>",
         "cancel()": "<inferred>",
@@ -3160,7 +3161,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 265,
+        "try": 294,
         "catch": 4
       },
       "imports": [
@@ -3201,7 +3202,7 @@
         "InvalidCatalogIdentity": 2,
         "InvalidDirectCatalogConfiguration": 1,
         "InvalidDirectCatalogEntry": 2,
-        "InvalidDirectCatalogHistory": 3,
+        "InvalidDirectCatalogHistory": 4,
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
@@ -3232,7 +3233,8 @@
         ],
         "Record.action": [
           "initialize",
-          "operation"
+          "operation",
+          "assertion"
         ]
       },
       "error_sets": {},
@@ -3258,7 +3260,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 38,
         "catch": 0
       },
       "imports": [
@@ -3268,20 +3270,22 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
-        "CatalogHistoryMissing": 3,
+        "CatalogHistoryMissing": 4,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
-        "DataIdentityConflict": 1,
+        "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidDirectCatalogHistory": 4,
-        "InvalidDirectCatalogOperation": 3,
-        "InvalidDirectCatalogTransition": 12,
+        "InvalidDirectCatalogOperation": 6,
+        "InvalidDirectCatalogTransition": 16,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "assertion()": "<inferred>",
+        "assertionAt()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
         "init()": "<inferred>",
@@ -3291,13 +3295,14 @@
         "publish()": "<inferred>",
         "ready()": "<inferred>",
         "receipt()": "<inferred>",
+        "receiptIdentity()": "<inferred>",
         "recover()": "<inferred>",
         "refresh()": "<inferred>",
         "successor()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 56,
         "catch": 1
       },
       "imports": [
@@ -3442,7 +3447,7 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 3,
-        "CatalogIdentityConflict": 2,
+        "CatalogIdentityConflict": 3,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
@@ -3467,6 +3472,7 @@
           "check_set",
           "list",
           "lookup",
+          "name_assertion",
           "preview",
           "stage",
           "admit_saved",
@@ -3513,6 +3519,7 @@
           "staged",
           "list",
           "lookup",
+          "name_assertion",
           "preview",
           "ddl",
           "rows",
@@ -3556,7 +3563,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 80,
+        "try": 81,
         "catch": 2
       },
       "imports": [
@@ -3595,7 +3602,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 40
+        "InvalidTableResponse": 41
       },
       "outcomes": {},
       "error_sets": {},
@@ -3611,7 +3618,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 61,
+        "try": 63,
         "catch": 0
       },
       "imports": [
@@ -3658,22 +3665,80 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/NameAssertion.zig": {
+      "errors": {
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogAssertion": 2
+      },
+      "outcomes": {
+        "Binding.action": [
+          "create_if_not_exists",
+          "drop_if_exists"
+        ],
+        "Command": [
+          "inspect",
+          "accept",
+          "cancel"
+        ],
+        "Observation": [
+          "not_observed",
+          "outcome"
+        ],
+        "Outcome.reason": [
+          "none",
+          "condition_changed"
+        ],
+        "Outcome.state": [
+          "unchanged",
+          "rejected",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Outcome.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/OperationBinding.zig": {
       "errors": {
+        "DataIdentityConflict": 3,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidOperationBinding": 6
       },
-      "outcomes": {},
+      "outcomes": {
+        "Stored": [
+          "data",
+          "name_assertion"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
+        "Stored.requireSame()": "<inferred>",
+        "Stored.validate()": "<inferred>",
         "claim()": "<inferred>",
+        "claimAssertion()": "<inferred>",
+        "claimStored()": "<inferred>",
         "key()": "<inferred>",
-        "lookup()": "<inferred>"
+        "lookup()": "<inferred>",
+        "lookupAssertion()": "<inferred>",
+        "lookupStored()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 17,
         "catch": 1
       },
       "imports": [
@@ -5087,6 +5152,7 @@
         "DirectTableReader.zig",
         "Inspection.zig",
         "Model.zig",
+        "NameAssertion.zig",
         "OperationBinding.zig",
         "Records.zig",
         "SchemaCatalog.zig",
@@ -12532,7 +12598,7 @@
           "deadline"
         ],
         "Definition": [
-          "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9"
+          "c0fdedd9d2abcfd2c2ab0d0bfccf9bb9bd67c3c8eb29f8e9dc0a10e9a4ee42ba"
         ],
         "Effect.phase": [
           "pending",
@@ -18421,7 +18487,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 80,
+        "try": 81,
         "catch": 16
       },
       "imports": [
@@ -18805,19 +18871,33 @@
     },
     "packages/zig/transit-sql/src/IntentReference.zig": {
       "errors": {
+        "CatalogIdentityConflict": 1,
+        "DataIdentityConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidGatewayIntent": 2
       },
-      "outcomes": {},
+      "outcomes": {
+        "Reference": [
+          "table",
+          "name_assertion"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
+        "Reference.admit()": "<inferred>",
+        "Reference.digest()": "<inferred>",
+        "Reference.operation()": "<inferred>",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Reference.workBytes()": "<inferred>",
+        "assertionDigest()": "<inferred>",
         "bindingDigest()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -18908,7 +18988,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 136,
+        "try": 137,
         "catch": 0
       },
       "imports": [
@@ -18939,7 +19019,8 @@
           "none",
           "applied",
           "rejected",
-          "cancelled"
+          "cancelled",
+          "unchanged"
         ]
       },
       "error_sets": {},
@@ -19421,8 +19502,7 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
-        "ConditionalCatalogOperationRequired": 1,
+        "CatalogIdentityConflict": 2,
         "ExpectedGatewayWrite": 2,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
@@ -19446,6 +19526,10 @@
           "native",
           "wire"
         ],
+        "Write": [
+          "table",
+          "name_assertion"
+        ],
         "plan": [
           "select",
           "dml",
@@ -19456,6 +19540,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Write.stage()": "<inferred>",
+        "Write.workBytes()": "<inferred>",
+        "assertion()": "<inferred>",
         "bindWrite()": "<inferred>",
         "checkValues()": "<inferred>",
         "openRelational()": "<inferred>",
@@ -19469,7 +19556,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 50,
         "catch": 1
       },
       "imports": [
@@ -19480,29 +19567,32 @@
     "packages/zig/transit-sql/src/Terminal.zig": {
       "errors": {
         "GatewayIdentityConflict": 1,
-        "InvalidGatewayTerminal": 11
+        "InvalidGatewayTerminal": 14
       },
       "outcomes": {
         "kind": [
           "ddl",
-          "dml"
+          "dml",
+          "catalog_assertion"
         ],
         "state": [
           "applied",
           "rejected",
-          "cancelled"
+          "cancelled",
+          "unchanged"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "base()": "<inferred>",
+        "fromReference()": "<inferred>",
         "fromResult()": "<inferred>",
         "matches()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 16,
         "catch": 0
       },
       "imports": [

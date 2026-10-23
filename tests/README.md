@@ -643,6 +643,38 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Conditional SQL catalog outcomes — 2026-10-23
+
+The direct catalog component passes **119/119** tests after adding exact name
+assertions. Disk tests cover lost replies, restart, rename/name reuse, changed
+intent and cross-kind identity rejection. Memory tests cover late authorization
+denial before publication, cancellation, and 129 assertions with one resident
+page. This catalog run precedes the subsequent HTTP/SQL wiring and definition
+regeneration; it is evidence for the component transition logic.
+
+With the shared definition derived from
+`transit.native.v1.conditional-catalog-evidence.2026-10-23`, the SQL package passes
+**29/29** tests in ReleaseSafe. The new cases verify the committed dispatch gate,
+replacement, original catalog evidence, unchanged summaries, rejection and
+cancellation, and rejection of fabricated Table terminals. Independent Python
+fixtures include absent-name outcomes and full-width object/log identifiers.
+An initial gateway compile exposed a missing unchanged-status projection; the
+corrected gateway passes `zig build check` (Debug, MaxRSS 423 MiB).
+
+`just test::direct-table-service` passes **370 typed HTTP calls**. The SQL compiler
+produces retained existing-name and absent-name assertions, and ordinary Table
+work for conditional DDL that does require mutation. The proxy corrupts the
+first assertion acceptance response. Inspection recovers its unchanged outcome;
+two node restarts preserve it, including after the original Table is dropped and
+its name reused. A previously absent name created before acceptance produces
+durable rejection; cancellation remains terminal. The earlier CRUD/DDL, query,
+read-pin, revocation and `.tseg` checks also pass. The later terminal bound
+correction is covered by the full-width SQL fixtures and gateway compilation.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass after regeneration. These proofs do not qualify an installed SQL listener,
+the default launcher, dependency enforcement or named-resource provisioning.
+
 ## Direct staged intent references — 2026-10-23
 
 The catalog package passes **116/116** tests in the pinned Linux Nix shell

@@ -69,10 +69,10 @@ fn terminal(init: std.process.Init, client: *g.Client, source: anytype, item: g.
     if (item.phase != .terminal) return null;
     const ledger = client.ledger;
     const reference = try ledger.readReference(init.gpa, source, item);
-    const table: g.catalog.DirectTableClient = .{ .allocator = init.gpa, .authority = client.transport, .service = client.transport, .connection = reference.connection, .key = key };
+    const table: g.catalog.DirectTableClient = .{ .allocator = init.gpa, .authority = client.transport, .service = client.transport, .connection = reference.connection(), .key = key };
     const response = try reference.operation(table, .inspect, 1);
     defer response.deinit();
-    const actual = (try g.Terminal.fromResult(reference.binding, response.value.result)) orelse return error.GatewayOperationNotTerminal;
+    const actual = (try g.Terminal.fromReference(reference, response.value.result)) orelse return error.GatewayOperationNotTerminal;
     const saved = try g.LedgerRecords.decode(g.Terminal, (try source.read(g.LedgerRecords.key('t', item.id, 0))) orelse return error.InvalidGatewayTerminal);
     if (!std.meta.eql(saved, actual)) return error.GatewayIdentityConflict;
     return actual;

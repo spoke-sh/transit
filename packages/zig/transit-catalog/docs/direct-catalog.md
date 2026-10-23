@@ -110,6 +110,17 @@ when cancellation is too late. `settle` explicitly removes completed work from
 the pending directory; it does not publish the Table or change its outcome.
 Inspection alone performs none of these transitions.
 
+`assertName` owns conditional outcomes that require no Table mutation. The
+binding freezes either an exact existing definition for CREATE IF NOT EXISTS or
+an absent name for DROP IF EXISTS, with a commitment to the complete proposed
+declaration. Its `inspect` command admits no work. `accept` serializes the final
+condition check and catalog record, returning unchanged or rejected; `cancel`
+records cancellation only if no prior terminal outcome exists. Every outcome
+retains its catalog position and current native authorization requirements.
+This path never advances a Table frontier. A later rename, drop or name reuse
+does not redirect retries. A condition that changes before acceptance rejects
+instead of switching to a Table mutation.
+
 Known constraint or expectation failures can become durable rejection records.
 Storage failure and uncertain append do not prove rejection. The owner recovers
 accepted history before further work and rejects a terminal operation that

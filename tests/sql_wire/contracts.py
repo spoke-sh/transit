@@ -92,9 +92,12 @@ def records():
                      stored_bytes=0, reservation=1024, cancel=0, reconcile=0, blocked=0,
                      summary='none', matched=0, changed=0)
     terminal = dict(kind='dml', identity=[13]*32, resource=9, principal=11, operation=7,
-                    object=99, state='applied', reason=0, matched=2**64-1, changed=2**64-2,
+                    object=2**64-1, state='applied', reason=0, matched=2**64-1, changed=2**64-2,
                     partition=32, next_lsn=33, resulting_revision=1)
+    assertion = dict(terminal, kind='catalog_assertion', object=0, state='unchanged',
+                     matched=0, changed=0, partition=2**64-1, next_lsn=2**64-1, resulting_revision=0)
     return dict(
+        assertion=record('GST1', assertion, [(k, {'catalog_assertion':3} if k == 'kind' else {'unchanged':4} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k == 'reason' else 'Q') for k in assertion]),
         head=record('GSH1', head, [(k, 'bytes' if k == 'configuration' else 'I' if k == 'pending_quota' else 'Q') for k in head]),
         operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('published','cancel','reconcile','blocked','role_present') else 'Q') for k in operation]),
         terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k == 'reason' else 'Q') for k in terminal]),

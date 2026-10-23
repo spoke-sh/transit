@@ -186,10 +186,48 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         },
     }
 }
-pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, operation: u64) !c.DirectTableIntent {
+pub const Write = union(enum) {
+    table: c.DirectTableIntent,
+    name_assertion: c.NameAssertion.Binding,
+    pub fn deinit(self: *Write) void {
+        if (self.* == .table) self.table.deinit();
+        self.* = undefined;
+    }
+    pub fn workBytes(self: *const Write) !u64 {
+        return switch (self.*) {
+            .table => |value| value.bytes.len,
+            .name_assertion => |value| (g.IntentReference.Reference{ .name_assertion = value }).workBytes(),
+        };
+    }
+    /// Staging the inline assertion is pure. Only the coordinator may accept it
+    /// after the native ledger has committed dispatch eligibility.
+    pub fn stage(self: *const Write, client: c.DirectTableClient, namespace: u64) !g.IntentReference.Reference {
+        return switch (self.*) {
+            .table => |*value| .{ .table = try value.stage(client, namespace) },
+            .name_assertion => |value| blk: {
+                try value.validate();
+                if (!std.meta.eql(value.connection, client.connection) or value.namespace != namespace) return error.CatalogIdentityConflict;
+                break :blk .{ .name_assertion = value };
+            },
+        };
+    }
+};
+fn assertion(self: *const Self, operation: u64, name: []const u8, expected: ?c.protocol.DataLifecycle.Definition) !Write {
+    // Exact source text commits every proposed clause, including a schema that
+    // will not be installed when CREATE IF NOT EXISTS observes an existing name.
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.sql.conditional.name.v1\x00");
+    hash.update(@tagName(self.dialect));
+    hash.update("\x00");
+    hash.update(self.text);
+    const value: c.NameAssertion.Binding = .{ .definition = c.protocol.Growth.current_definition, .connection = self.connection, .operation = operation, .namespace = self.namespace, .name = try .init(name), .action = if (expected != null) .create_if_not_exists else .drop_if_exists, .expected = expected, .intent = hash.finalResult() };
+    try value.validate();
+    return .{ .name_assertion = value };
+}
+pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, operation: u64) !Write {
     try self.validate(client);
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
-    if (self.plan == .dml) return self.plan.dml.bind(allocator, client.*, operation, values, .point, null);
+    if (self.plan == .dml) return .{ .table = try self.plan.dml.bind(allocator, client.*, operation, values, .point, null) };
     if (values.len != 0) return error.WireParameterCountMismatch;
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
@@ -199,16 +237,21 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Dir
     switch (self.plan) {
         .create => |value| {
             const create = value.statement.create;
-            // Conditional catalog outcomes require their own retained name
-            // expectation; never fabricate a Table commit for an absent object.
-            if (create.if_not_exists) return error.ConditionalCatalogOperationRequired;
+            if (create.if_not_exists) {
+                const response = try client.call(.{ .lookup = .{ .namespace = self.namespace, .name = create.name } });
+                defer response.deinit();
+                if (response.value.result.lookup) |existing| return self.assertion(operation, create.name, existing.interpretation.interpretation);
+            }
             const subject = try client.require(.{ .namespace = self.namespace, .target = null, .access = .create_table });
             var buffer: [f.TableSchema.max_bytes]u8 = undefined;
             ddl.name = create.name;
             ddl.action = .{ .create = .{ .owner = subject.role, .schema = try .encode(a, try (try create.bind(operation)).encode(&buffer)) } };
         },
         .ddl => |value| {
-            const definition = value.definition orelse return error.TableNotFound;
+            const definition = value.definition orelse {
+                if (value.compiled.statement == .drop and value.compiled.statement.drop.if_exists) return self.assertion(operation, value.compiled.statement.drop.name, null);
+                return error.TableNotFound;
+            };
             ddl.binding.target = definition.interpretation.interpretation.object;
             ddl.binding.expected_definition = definition.interpretation.interpretation;
             ddl.name = definition.name.slice();
@@ -233,7 +276,7 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Dir
         else => return error.ExpectedGatewayWrite,
     }
     ddl.binding.intent = try ddl.digest(a);
-    return c.DirectTableIntent.create(allocator, connection, .{ .ddl = ddl });
+    return .{ .table = try c.DirectTableIntent.create(allocator, connection, .{ .ddl = ddl }) };
 }
 fn wireCell(allocator: std.mem.Allocator, value: ?f.Types.Values.Cell, logical_type: f.Types.Type) !?c.DirectTableProtocol.Binary {
     const cell = value orelse return null;

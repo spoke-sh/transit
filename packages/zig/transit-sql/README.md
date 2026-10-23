@@ -47,6 +47,12 @@ intent reference, observes its original direct operation and explicitly admits,
 executes or cancels that same work. A lost response never allocates a replacement
 intent or resolves its target name again.
 
+Conditional CREATE on an existing Table and conditional DROP on an absent name
+retain an inline catalog name assertion. The catalog records unchanged, rejected
+or cancelled under the frozen condition and current rights. These outcomes carry
+a catalog acceptance position and zero row counts. Preparation and binding do
+not admit them; a changed condition rejects instead of selecting a new target.
+
 `AccountRuntime` composes that worker and coordinator with one bounded
 `ControlLane` per sequenced role. Connection cancellation releases its wait while
 the account retains and polls the exact pending ingress request. Concurrent ledger

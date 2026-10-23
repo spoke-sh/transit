@@ -78,6 +78,15 @@ Table mutations and configuration reloads retain their domain identities. Flight
 keeps its separate finite query adapter. The kernel native gateway still carries
 signed operations; the SQL session API is a distinct service boundary.
 
+The shared direct Table runtime handles `CREATE TABLE IF NOT EXISTS` and
+`DROP TABLE IF EXISTS` with frozen name conditions. If no Table mutation is
+needed, it retains an unchanged catalog outcome with zero row counts. The
+existing definition or absent name is checked again at acceptance; a concurrent
+change rejects the operation. Retrying its operation identity returns the
+original outcome under current rights, even after name reuse. This component
+behavior does not establish default launcher or installed transport support;
+their migration and integration checks remain incomplete.
+
 ### Diagnosing rejected SQL
 
 The console and Flight query adapter distinguish parse errors, unsupported

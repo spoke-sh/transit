@@ -310,14 +310,23 @@ input until the session clones/binds them.
 ## Frozen direct references and record upload
 
 `IntentReference` stores a canonical `GIR1` envelope: magic:4, mandatory current
-definition:32 and canonical JSON of `DirectTableIntent.Reference`, at most 4096
-bytes in total. The reference contains the definition, direct connection,
-namespace, complete neutral operation binding and exact content length/digest.
+definition:32 and canonical JSON of a tagged `table` or `name_assertion` reference,
+at most 4096 bytes in total. `table` contains `DirectTableIntent.Reference`: the
+definition, direct connection, namespace, complete neutral operation binding and
+exact content length/digest. `name_assertion` contains the complete inline
+`NameAssertion.Binding` from the [direct contract](DIRECT_TABLE_V1.md).
 Decoding is pure and rejects missing/foreign definitions, noncanonical JSON and
 invalid bindings. It never resolves a name, signs a request or admits execution.
 Complete `TDI1` content is staged with the direct owner before its reference is
 published. Current credentials authorize each direct request; the reference
 retains the original principal, selected role and work identity.
+
+CREATE IF NOT EXISTS on an existing Table and DROP IF EXISTS on an absent name
+produce name assertions. Their intent commitment is SHA-256 of
+`transit.sql.conditional.name.v1`, a zero byte, the dialect tag, a zero byte and
+the exact SQL text. It includes the proposed schema even when not installed.
+Preparation and binding admit no assertion. Explicit dispatch accepts or cancels
+it under the same durable SQL eligibility gate as Table operations.
 
 `Upload` composes SQL gateway publication domain 11 with 128-byte ingress parts.
 It temporarily retains a first half under publication key tag `h`, id=record ID,
@@ -351,7 +360,7 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 | GSN1 | Immutable nonce-to-operation identity and request fingerprint |
 | GSO1 | Frozen scope, preparation phase, reference commitment, permanent dispatch eligibility, reservation, controls and summary/counts |
 | GSB1 | Operation ID and SHA-256 commitment to the full canonical neutral operation binding |
-| GST1 | Direct DDL/DML kind, binding commitment, scope/operation/object, terminal state/reason, counts, acceptance position and resulting revision |
+| GST1 | Direct DDL/DML or catalog assertion kind, binding commitment, scope/operation/object, terminal state/reason, counts, acceptance position and resulting revision |
 | GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
 
 Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
@@ -368,12 +377,19 @@ cleared after uncertainty. The coordinator recovers the original direct outcome;
 a native control receipt is not SQL completion. Current rights govern terminal
 disclosure independently of the retained summary.
 
-GST1 kinds are DDL=1 and DML=2; states are applied=1, rejected=2 and cancelled=3.
+GST1 kinds are DDL=1, DML=2 and catalog assertion=3; states are applied=1,
+rejected=2, cancelled=3 and unchanged=4. GSO1 summaries use these state tags,
+with none=0 for operations without a terminal outcome.
 An applied result includes a nonzero partition, next LSN and resulting definition
-revision. Only DML has row counts. Rejected/cancelled outcomes contain no
-acceptance position or result counts. Before-dispatch abandonment has summary
-none and fabricates no direct terminal record. Conditional name-only DDL requires
-a separate catalog outcome contract and is not represented by object zero.
+revision. Only DML has row counts. Rejected/cancelled Table outcomes contain no
+acceptance position or result counts. A catalog assertion instead carries its
+nonzero catalog acceptance position for unchanged, rejected and cancelled;
+resulting revision and row counts are zero. Its object is the expected existing
+object, or zero for an absent-name assertion; zero never denotes a Table commit.
+Assertion reason tags are none=0 and condition_changed=1. Its binding commitment
+uses `transit.sql.catalog.assertion.binding.v1`, a zero byte and canonical JSON of
+the complete binding. Before-dispatch abandonment has summary none and fabricates
+no direct terminal record.
 
 Configuration fixes one to eight catalog bindings and a separate private ledger.
 Native grants remain explicit. Retained-count/content quotas are mandatory;

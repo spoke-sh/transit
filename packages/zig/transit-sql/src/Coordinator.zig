@@ -50,7 +50,7 @@ pub fn next(self: *Self) !Action {
     const reference = try ledger.readReference(self.allocator, &source, item);
     const observed = try reference.operation(self.table(item), .inspect, 1);
     defer observed.deinit();
-    if (try g.Terminal.fromResult(reference.binding, observed.value.result)) |terminal| return .{ .control = .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } } };
+    if (try g.Terminal.fromReference(reference, observed.value.result)) |terminal| return .{ .control = .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } } };
     if (item.blocked != 0) return .{ .blocked = item.id };
     return .{ .dispatch = .{ .operation = item.id, .reference = reference } };
 }
@@ -68,14 +68,15 @@ pub fn dispatch(self: *Self, action: Dispatch) !?g.Control.Command {
     const caller = self.table(item);
     const observed = try reference.operation(caller, .inspect, 1);
     defer observed.deinit();
-    if (try g.Terminal.fromResult(reference.binding, observed.value.result)) |terminal| return .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } };
+    if (try g.Terminal.fromReference(reference, observed.value.result)) |terminal| return .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } };
     const absent = switch (observed.value.result) {
         .ddl => |value| value == .not_observed,
         .rows => |value| value == .not_observed,
+        .name_assertion => |value| value == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
-    const response = if (absent) try reference.admit(caller) else try reference.operation(caller, if (item.cancel != 0) .cancel else .execute, 8);
+    const response = if (absent and !(reference == .name_assertion and item.cancel != 0)) try reference.admit(caller) else try reference.operation(caller, if (item.cancel != 0) .cancel else .execute, 8);
     defer response.deinit();
-    if (try g.Terminal.fromResult(reference.binding, response.value.result)) |terminal| return .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } };
+    if (try g.Terminal.fromReference(reference, response.value.result)) |terminal| return .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } };
     return null;
 }

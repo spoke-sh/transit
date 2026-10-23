@@ -133,7 +133,7 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
@@ -142,6 +142,11 @@ pub const Record = struct {
             .operation => |value| {
                 if (position == 0) return error.InvalidDirectCatalogHistory;
                 try value.validate(self.root.configuration);
+            },
+            .assertion => |value| {
+                try value.validate();
+                const connection = value.binding.connection;
+                if (position == 0 or !connection.matches(self.root.configuration) or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
             },
         }
     }

@@ -299,7 +299,7 @@ fn active(self: Self, turn: *s.Turn, id: u64, generation: u64) !r.Operation {
 pub fn checkReference(self: Self, item: r.Operation, reference: g.IntentReference.Reference) !void {
     try reference.validate();
     const connection: c.DirectTableProtocol.Connection = .{ .scope = .{ .realm = self.configuration.realm, .resource = item.resource, .catalog = item.catalog }, .branch = 1, .audience = item.owner, .principal = self.configuration.table_principal, .role = item.selectedRole() };
-    if (!std.meta.eql(connection, reference.connection) or reference.namespace != item.namespace or reference.binding.identity.operation != item.id or reference.content.bytes > self.configuration.intent_bytes) return error.GatewayIdentityConflict;
+    if (!std.meta.eql(connection, reference.connection()) or reference.namespace() != item.namespace or reference.identity().operation != item.id or try reference.workBytes() > self.configuration.intent_bytes) return error.GatewayIdentityConflict;
 }
 /// Publish dispatch eligibility before any direct admission attempt. A restart
 /// may repeat only the immutable original binding with current credentials.
