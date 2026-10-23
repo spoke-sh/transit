@@ -1,0 +1,65 @@
+//! Shared request coordination inside one exclusive local data owner. A catalog
+//! writer excludes row admission; independent Tables take shared directory access
+//! and separate bounded lock stripes. These locks contain no durable identities.
+const std = @import("std");
+const c = @import("transit_catalog");
+const backend = @import("transit_backend_local");
+const Service = @import("LocalTableService.zig");
+const w = c.DirectTableProtocol;
+pub const Protocol = w;
+const Self = @This();
+pub const Config = struct {
+    catalog: c.DirectCatalog.Configuration,
+    registrar: struct { principal: u64, seed_file: []const u8, role: ?u64 = null },
+};
+
+configuration: c.DirectCatalog.Configuration,
+registrar: @FieldType(Service, "registrar"),
+directory: std.Io.RwLock = .init,
+tables: [64]std.Io.Mutex = @splat(.init),
+
+pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
+    try config.catalog.validate();
+    if (config.catalog.scope.realm != engine.genesis.realm or config.registrar.principal > c.protocol.max_counter) return error.InvalidTableConfiguration;
+    if (config.registrar.role) |role| try c.protocol.Authorization.roleId(role);
+    const key = try @import("transit_client").readKey(allocator, io, config.registrar.seed_file);
+    const owner = engine.journal.backend;
+    var control: backend.DataStore = .{ .backend = owner, .control = true };
+    var data: backend.DataStore = .{ .backend = owner };
+    var catalog = try c.DirectCatalog.init(allocator, config.catalog, control.log(), control.objects(), data.log(), data.objects(), .{});
+    defer catalog.deinit();
+    // Validate retained configuration/history before listener readiness. This
+    // does not initialize or execute an application's catalog declaration.
+    try catalog.recover();
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role } };
+}
+fn exclusive(action: w.Action) bool {
+    return switch (action) {
+        .initialize, .admit_ddl => true,
+        .operation => |value| switch (value.binding.action) {
+            .create, .alter, .rename, .drop => value.command != .inspect,
+            .insert, .update, .delete => false,
+        },
+        else => false,
+    };
+}
+fn target(action: w.Action) ?u64 {
+    return switch (action) {
+        .admit_rows => |value| value.binding.target.object,
+        .operation => |value| value.binding.target.object,
+        .pin => |value| value.object.object,
+        .scan => |value| value.snapshot.object.object,
+        inline .snapshot, .release => |value| value.object.object,
+        else => null,
+    };
+}
+pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, request: w.Request, output: []u8) ![]const u8 {
+    const write = exclusive(request.action);
+    if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
+    defer if (write) self.directory.unlock(io) else self.directory.unlockShared(io);
+    const mutex = if (!write) if (target(request.action)) |object| &self.tables[@intCast(object % self.tables.len)] else null else null;
+    if (mutex) |lock| try lock.lock(io);
+    defer if (mutex) |lock| lock.unlock(io);
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar };
+    return service.execute(arena, request, output);
+}

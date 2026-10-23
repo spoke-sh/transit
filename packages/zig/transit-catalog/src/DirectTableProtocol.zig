@@ -204,6 +204,17 @@ pub const Request = struct {
     pub fn input(self: Request) Input {
         return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action };
     }
+    /// Transport hints classify a request attempt; the server validates its
+    /// parsed action and current rights before using reserved admission.
+    pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
+        const mutation = switch (self.action) {
+            .initialize, .admit_ddl, .admit_rows, .pin, .release => true,
+            .operation => |value| value.command != .inspect,
+            else => false,
+        };
+        const control = self.action == .release or (self.action == .operation and self.action.operation.command != .execute);
+        return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
+    }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();

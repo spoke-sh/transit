@@ -5,6 +5,7 @@ const backend = @import("transit_backend_local");
 const telemetry = @import("transit_observability").telemetry;
 const server = @import("NativeServer.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
+pub const TableHost = @import("LocalTableHost.zig");
 const Self = @This();
 pub const Store = backend.Store;
 pub const PageStore = backend.PageStore;
@@ -22,6 +23,7 @@ const Config = struct {
     accept_trace_parent: bool = false,
     request_metrics: bool = false,
     maintenance: ?Maintenance.Config = null,
+    table: ?TableHost.Config = null,
 };
 
 pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics: *telemetry.Runtime) !void {
@@ -56,6 +58,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var snapshot_epoch: [16]u8 = undefined;
     try init.io.randomSecure(&snapshot_epoch);
     engine.snapshot_epoch = snapshot_epoch;
+    var table: ?TableHost = if (config.table) |configured| try TableHost.init(init.gpa, init.io, configured, &engine) else null;
     const lanes = try init.gpa.alloc(Lane, 10);
     defer init.gpa.free(lanes);
     var initialized: usize = 0;
@@ -65,6 +68,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         lane.pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
         lane.engine.journal = &lane.journal;
         lane.engine.page_store = &lane.pages;
+        lane.table = if (table) |*value| value else null;
         initialized += 1;
     }
     if (config.maintenance) |configured| {
@@ -105,6 +109,7 @@ pub const Lane = struct {
     journal: Store,
     pages: PageStore,
     engine: Engine,
+    table: ?*TableHost = null,
     busy: bool = false,
     pages_epoch: u64 = 0,
     acquired_access: u64 = 0,

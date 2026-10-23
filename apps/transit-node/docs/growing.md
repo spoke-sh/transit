@@ -26,6 +26,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
 | `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the local node, or in Ursula's separate `--maintain` process |
+| `table` | Optional local direct Table owner: fixed catalog/native bindings and registrar credential reference; see below |
 
 Both providers use the same signed HTTP request handling, current-rights checks,
 snapshot registry and bounded request lanes. The local provider holds an
@@ -33,8 +34,26 @@ exclusive directory lock and persists native catalog/resource state through its
 [log and immutable object adapter](../../../packages/zig/transit-backend-local/README.md).
 It rejects a second owner and incompatible history. `--initialize` creates a new
 native authority; ordinary startup requires that authority to exist. This
-selection is also the installed local launcher's default. Direct Table storage
-requires its own executable integration.
+selection is also the installed local launcher's default. Its installed SQL
+configuration still uses the actor Table catalog. The separately configured
+direct Table route uses the same local physical owner.
+
+`table.catalog` is the `DirectCatalog.Configuration`: existing scope and native
+database/schema/Table domain bindings, branch one, service audience, database
+and initial namespace names, and its exclusive nonzero control partition.
+It allocates Table partitions above that control partition; reserve that range
+for this one catalog. Native authority uses partition zero. Retained catalog
+configuration/history is checked before readiness; startup does not initialize
+the catalog or execute its pending operations.
+
+`table.registrar` names `principal`, `seed_file` and an optional native `role`.
+The registrar must already have the native domain registration authority. The
+key reference grants nothing to the original Table caller; each registration
+step checks that caller again before native commitment. The signed `initialize`
+operation establishes the initial catalog under current native ownership.
+Configuration selects a service owner and storage placement, not application
+definitions or a second permission store. Ursula nodes do not provide this
+direct Table route.
 
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is
@@ -82,6 +101,24 @@ Public queries require current inspection rights plus resource/PID scope where
 applicable. Values remain opaque application bytes. Computation runs in the
 caller; the node validates identity, ordering, state dependencies and publication.
 Requests use the common bounded, cancelable HTTP loop and diagnostics.
+
+With `table` configured, `POST /table/v1` accepts the
+[direct Table contract](../../../contracts/DIRECT_TABLE_V1.md) through the same
+listener. Point and bulk row bytes bypass native actor inputs and resource-block
+frames. Catalog DDL excludes concurrent row admission; independent Table requests
+share directory access and use 64 bounded lock stripes. A stripe collision can
+serialize otherwise independent Tables. No per-row catalog root is published.
+The service opens a bounded Table/catalog view for each request; recovery cost
+currently grows with retained history even though resident caches stay bounded.
+
+Direct requests accept at most 8 MiB and buffer at most 16 MiB of response, in
+addition to bounded schema/row conversion, index caches and private storage work.
+They use the listener's ordinary request lanes. `X-Transit-Control: table` uses
+reserved admission only for exact operation inspection/cancellation and pin
+release; the parsed action is checked and native authorization still applies.
+It does not grant ordinary execution access to the reserve. Inspection and
+startup do not dispatch retained work. Explicit execution resumes it using its
+original operation identity.
 
 The listener allows 16 sockets, four active data requests and two reserved
 control requests. Health, commands and snapshot release/finish use the reserve.

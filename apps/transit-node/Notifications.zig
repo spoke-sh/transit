@@ -40,6 +40,9 @@ pub fn publish(self: *Self, io: std.Io, command: g.Command) void {
         if (relevant(scope, command)) slot.changed.broadcast(io);
     };
 }
+pub fn publishAll(self: *Self, io: std.Io) void {
+    for (&self.slots) |*slot| if (slot.scope != null) slot.changed.broadcast(io);
+}
 test "point publications avoid unrelated wakeups while controls invalidate all scopes" {
     const t = std.testing;
     const value = try @import("transit_client").protocol.Value.init("work");

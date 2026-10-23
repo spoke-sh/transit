@@ -27,6 +27,7 @@ diagnostics. `profile` is `native_v1`, including when omitted.
 | --- | --- |
 | `POST /v1/command` | Signed mutation or reconciliation of an accepted receipt |
 | `POST /v1/query` | Signed process, delivery, inspection, resource and snapshot reads |
+| `POST /table/v1` | Signed direct Table operations when the local `table` owner is configured |
 | `GET /health` | Refresh storage and report role readiness |
 
 The [service contract](../../contracts/SERVICE_V1.md) owns envelopes, signature
@@ -70,8 +71,7 @@ credentials nor provider access.
 `LocalCatalogPolicy` connects the internal direct catalog component to the same
 native role graph, credential checks and resource lifetime fence. It verifies
 the original caller's signed request context and the registered domain bindings;
-it supplies no new grant store. The HTTP dispatcher does not yet expose this
-component. `LocalCatalogRunner` resumes explicit CREATE execution through the
+it supplies no new grant store. `LocalCatalogRunner` resumes explicit CREATE execution through the
 existing native registration ledger. It prepares each native step, checks the
 original caller again, then commits only against that checked native head.
 Inspection does not run this helper. `just test::local-catalog` exercises this
@@ -81,7 +81,8 @@ composition with real signed native changes and local disk storage.
 inside that owner. The composition test drives declaration admission/execution,
 binary row writes, retained reads and release through its serialized envelopes.
 The dispatcher checks current rights after buffering the response; a concurrent
-revocation suppresses disclosure. Installed HTTP/SQL integration is unfinished.
+revocation suppresses disclosure. The local `table` setting exposes this dispatcher
+at `/table/v1`. The default launcher and installed SQL integration remain unfinished.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep

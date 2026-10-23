@@ -119,14 +119,14 @@ pub const Client = struct {
         return if (owned) std.json.Parsed(T) else T;
     }
     fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
-        const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
+        const command = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().operation else if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
             inline for (.{ "/v1/command", "/v1/query", "/v1/blocks", "/table/v1" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
             break :route "unmatched";
         };
         observation.event.method = "POST";
-        const mutation = std.mem.eql(u8, path, "/v1/command");
+        const mutation = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().mutation else std.mem.eql(u8, path, "/v1/command");
         if (mutation) observation.event.protocol_outcome = .uncertain;
         defer observation.finish();
         self.call_context = observation.span.context;
@@ -136,11 +136,15 @@ pub const Client = struct {
             observation.fail(err);
             if (self.last_status) |status| observation.event.status = @backingInt(status);
             if (self.last_rejection) |rejection| observation.event.error_type = @tagName(rejection);
-            if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) observation.event.protocol_outcome = .rejected;
+            // Domain services can deny final disclosure after accepting work.
+            // Their typed owner, not this HTTP exchange, determines the outcome.
+            if (!@hasDecl(@TypeOf(signed), "transport") or !mutation) {
+                if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) observation.event.protocol_outcome = .rejected;
+            }
             return err;
         };
         if (self.last_status) |status| observation.event.status = @backingInt(status);
-        observation.event.protocol_outcome = if (mutation) .receipt else .read;
+        observation.event.protocol_outcome = if (!mutation) .read else if (@hasDecl(@TypeOf(signed), "transport")) .none else .receipt;
         if (@hasField(@TypeOf(signed), "request")) {
             observation.event.realm = signed.request.realm;
             observation.event.sequence = signed.request.sequence;
@@ -242,13 +246,13 @@ pub const Client = struct {
             headers[header_count] = .{ .name = "traceparent", .value = &parent_header };
             header_count += 1;
         }
-        const control = if (@TypeOf(signed) == protocol.Growth.SignedQuery) switch (signed.query.kind) {
-            .close_snapshot => true,
-            .snapshot_read => |read| read.finish,
-            else => false,
-        } else false;
-        if (control) {
-            headers[header_count] = .{ .name = "x-transit-control", .value = "snapshot" };
+        const control: ?[]const u8 = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().control else if (@TypeOf(signed) == protocol.Growth.SignedQuery) switch (signed.query.kind) {
+            .close_snapshot => "snapshot",
+            .snapshot_read => |read| if (read.finish) "snapshot" else null,
+            else => null,
+        } else null;
+        if (control) |hint| {
+            headers[header_count] = .{ .name = "x-transit-control", .value = hint };
             header_count += 1;
         }
         var wait_buffer: [32]u8 = undefined;

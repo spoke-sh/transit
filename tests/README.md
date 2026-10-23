@@ -643,6 +643,36 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Direct Table HTTP owner and typed caller — 2026-10-22
+
+`nix develop --command just test::direct-table-service` passes against a temporary
+disk-backed local node. The independent Zig caller uses the signed public native
+and `DirectTableClient` APIs. Its 18 typed calls cover CREATE admission/execution,
+a 64 KiB point row, bulk INSERT, retained snapshot inspection, bounded scan and
+release. The proof observes a real `.tseg` object from the bulk commit and no
+actor send or turn commands for Table work.
+
+The proxy corrupts a successful execution reply's request context. The caller
+rejects that envelope and recovers the exact committed operation through
+inspection. After an actual node restart, both original outcomes remain exact;
+a pin acquired while the first row was unflushed still returns its original
+64 KiB binary value and one-row source. Later live data contains two rows.
+Ownership revocation denies both retained reads and outcome inspection; regrant
+permits explicit release. An execution request cannot use the reserved control
+lane hint. The owner shares native authority, storage quotas and process locking.
+
+The existing `zig build test-local-native-service -Doptimize=ReleaseSafe` proof
+also passes signed paged reads/turns, invalid replies, exact retry after restart,
+current revocation and in-owner maintenance after adding the direct route.
+Diagnostic error/outcome projections, the verification catalog and documentation
+links pass. These runs do not replace the final committed clean-suite check.
+
+This proves the configured local HTTP path. The default launcher and installed
+SQL still use the actor Table implementation. Complete CRUD/DDL over this route,
+concurrent request schedules, automatic point-row flushing, incremental recovery
+and physical collection are separate unfinished work. Every request currently
+replays its relevant catalog/Table history with bounded resident memory.
+
 ## Retained Table page reads — 2026-10-22
 
 The later storage suite passes **55/55 tests** after correcting conditional data
