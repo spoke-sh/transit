@@ -33,13 +33,17 @@ fn appendImpl(self: *Self, expected: u64, entry: core.growing.Entry, control: bo
     var out: std.Io.Writer = .fixed(&bytes);
     std.json.Stringify.value(entry, .{}, &out) catch return error.RecordTooLarge;
     const value_head = head(entry);
+    try self.backend.authority.lock(self.backend.io);
+    defer self.backend.authority.unlock(self.backend.io);
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
     const log = self.backend.wal.log();
     if (try log.tail(0) != expected) return false;
     try self.backend.reserve(storage.TransitLog.alignedFrameSize(out.buffered().len) + 128, control);
     self.observe.metrics.request_payload_bytes +|= out.buffered().len;
+    self.backend.accepted_native = null;
     _ = try log.append(0, expected, value_head.storage_epoch, value_head.authorization.revision + 1, if (entry == .genesis) .genesis else .process_turn, out.buffered());
+    self.backend.accepted_native = value_head;
     self.cached = .{ .at = expected, .entry = entry };
     if (self.lose_reply) return error.LostAcknowledgement;
     return true;
@@ -78,6 +82,27 @@ fn head(entry: core.growing.Entry) core.growing.Head {
         .genesis => |value| value.head,
         .operation => |value| value.next,
     };
+}
+
+/// Caller holds the physical owner mutex. Used to condition data acceptance on
+/// current policy/storage epochs without a CAS on unrelated native progress.
+pub fn currentHeadLocked(backend: *Backend) !core.growing.Head {
+    const log = backend.wal.log();
+    const next = try log.tail(0);
+    if (next == 0) return error.NativeAuthorityMissing;
+    if (backend.accepted_native) |accepted| if (accepted.position == next) return accepted;
+    var batch = try log.read(backend.allocator, 0, next - 1, 1);
+    defer batch.deinit();
+    if (batch.frames.len != 1 or batch.frames[0].header.lsn != next - 1 or batch.frames[0].payload.len > max_record_bytes) return error.InvalidHistory;
+    const frame = batch.frames[0];
+    const parsed = try std.json.parseFromSlice(core.growing.Entry, backend.allocator, frame.payload, .{});
+    defer parsed.deinit();
+    try validate(parsed.value, next - 1);
+    const current = head(parsed.value);
+    if (frame.header.partition_id != 0 or frame.header.kind != (if (next == 1) storage.TransitLog.FrameKind.genesis else .process_turn) or
+        frame.header.writer_epoch != current.storage_epoch or frame.header.policy_epoch != current.authorization.revision + 1) return error.InvalidHistory;
+    backend.accepted_native = current;
+    return current;
 }
 
 fn validate(entry: core.growing.Entry, at: u64) !void {

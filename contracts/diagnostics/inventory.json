@@ -2293,6 +2293,74 @@
         "transit_storage"
       ]
     },
+    "packages/zig/transit-backend-local/src/DataAuthority.zig": {
+      "errors": {
+        "AuthorityFenceAlreadyHeld": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "acquire()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "PageStore.zig",
+        "Store.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/DataStore.zig": {
+      "errors": {
+        "AuthorizationChanged": 1,
+        "DataExpectationRequired": 1,
+        "DataHistoryCollectionUnavailable": 2,
+        "MutableDataObjectUnavailable": 1,
+        "NativeFenceRequired": 1,
+        "NativePartitionReserved": 1,
+        "StaleStorageEpoch": 1,
+        "WalLsnConflict": 1,
+        "WalPayloadTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "appendImpl()": "<inferred>",
+        "conditional()": "<inferred>",
+        "delete()": "<inferred>",
+        "fence()": "<inferred>",
+        "head()": "<inferred>",
+        "headImpl()": "<inferred>",
+        "partition()": "<inferred>",
+        "put()": "<inferred>",
+        "putImpl()": "<inferred>",
+        "range()": "<inferred>",
+        "rangeImpl()": "<inferred>",
+        "read()": "<inferred>",
+        "readImpl()": "<inferred>",
+        "tail()": "<inferred>",
+        "tailImpl()": "<inferred>",
+        "trim()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "Backend.zig",
+        "Diagnostics.zig",
+        "Store.zig",
+        "std",
+        "transit_storage"
+      ]
+    },
     "packages/zig/transit-backend-local/src/Diagnostics.zig": {
       "errors": {
         "Conflict": 1
@@ -2358,8 +2426,9 @@
       "errors": {
         "HistoryReclaimed": 1,
         "IncompleteHistory": 1,
-        "InvalidHistory": 7,
+        "InvalidHistory": 9,
         "LostAcknowledgement": 1,
+        "NativeAuthorityMissing": 1,
         "NoCheckpointIntent": 2,
         "RecordTooLarge": 1,
         "WalHistoryTrimmed": 1
@@ -2369,6 +2438,7 @@
       "error_returns": {
         "appendControlled()": "<inferred>",
         "appendImpl()": "<inferred>",
+        "currentHeadLocked()": "<inferred>",
         "maintain()": "<inferred>",
         "maintainImpl()": "<inferred>",
         "read()": "<inferred>",
@@ -2379,7 +2449,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 21,
         "catch": 2
       },
       "imports": [
@@ -2402,6 +2472,8 @@
       },
       "imports": [
         "Backend.zig",
+        "DataAuthority.zig",
+        "DataStore.zig",
         "PageStore.zig",
         "Store.zig"
       ]

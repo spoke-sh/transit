@@ -5,7 +5,10 @@ partition. The constructor clones the schema and binds its fingerprint to a
 `DataLifecycle.Definition`. `recover` must succeed before any operation or read.
 The component is exercised through typed callers in its package tests. Installed
 SQL still uses the catalog's existing actor path; this component has no HTTP
-route, catalog name publisher, DDL rewrite or service authorization adapter yet.
+route, catalog name publisher or DDL rewrite yet. The
+[local backend](../../transit-backend-local/README.md) supplies a current native
+authorization/lifetime fence and quota-accounted log/object adapter, with
+separate composition tests. Public SQL integration remains required.
 
 ## Acceptance and observation
 

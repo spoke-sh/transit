@@ -517,6 +517,29 @@ transactions. This owner retains all WAL and objects and has no physical GC or
 trim operation. Pin tests therefore do not qualify a collector removing data
 concurrently. Existing actor Table callers remain until the public cutover.
 
+The subsequent `transit-backend-local` package suite passes composition checks
+using an actual native credential, signed original-subject proof and resource
+grant. An unrelated accepted native input leaves the data fence valid; two data
+partitions accept independently. Revocation rejects the old policy epoch, a
+native storage fence rejects the old storage epoch, and current resource
+retirement denies through the existing lifetime/dependency rules even when role
+permissions still exist. Native publication cannot acquire the exclusive side
+while a data authority guard holds its shared fence.
+
+A real native grant is revoked after private Table segment/index staging and
+before final acceptance. The whole batch remains absent, including its receipt;
+current observation is denied. Regrant permits the same exact operation, which
+survives replay. A separate physical-quota test denies data objects and log
+acceptance without changing the partition, while an explicitly selected control
+operation can use the reserve. These checks qualify the local adapter, not a
+public direct Table endpoint or SQL cutover.
+
+`nix develop --command just test::unit` and
+`nix develop --command zig build test-local-native-service -Doptimize=ReleaseSafe`
+pass after adding the shared authority fence. The public service proof covers
+signed native reads/turns, invalid replies, exact retry after restart, revocation
+and local maintenance; it does not exercise the unfinished direct Table route.
+
 ## Native authority over local storage — 2026-10-22
 
 `nix develop --command zig build test-local-native` passes against temporary
