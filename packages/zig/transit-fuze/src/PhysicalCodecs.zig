@@ -807,10 +807,13 @@ fn valuesEqual(expected: Types.Type, a: Values.Value, b: Values.Value) bool {
 fn writeCanonicalValue(writer: *std.Io.Writer, expected: Types.Type, val: Values.Value) !void {
     const field: Types.Field = .{ .name = "v", .type = expected, .nullable = true };
     const cell: Values.Cell = .{ .value = val };
-    var small: [4096]u8 = undefined;
-    const encoded = try Types.Codec.encodeBound(cell, field, &small);
-    try writer.writeInt(u32, @intCast(encoded.len), .little);
-    try writer.writeAll(encoded);
+    // Column encoders use a fixed segment budget. Encode into that remaining
+    // buffer, without imposing a separate 4 KiB limit on each logical value.
+    const start = writer.end;
+    try writer.writeInt(u32, 0, .little);
+    const encoded = try Types.Codec.encodeBound(cell, field, writer.buffer[writer.end..]);
+    std.mem.writeInt(u32, writer.buffer[start..][0..4], @intCast(encoded.len), .little);
+    writer.end += encoded.len;
 }
 
 fn readCanonicalValue(arena: std.mem.Allocator, reader: *std.Io.Reader, expected: Types.Type) !Values.Value {

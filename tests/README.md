@@ -477,6 +477,46 @@ incompatible, not a truncatable torn tail. Schemas, binding resources and
 independent signing fixtures are regenerated for the replacement shared
 definition. The old identifier remains in protocol rejection tests.
 
+## Table partition acceptance and retained read pins — 2026-10-22
+
+In the pinned development shell, `zig build test` passes in
+`packages/zig/transit-storage` and `packages/zig/transit-fuze` after adding
+[`TablePartition`](../packages/zig/transit-storage/docs/table-partitions.md).
+The storage cases exercise:
+
+- Exact point/bulk retry after a lost reply and real disk reopen, with altered
+  concrete content rejected under the original binding.
+- A staged two-row segment denied by the final injected policy fence: no rows,
+  receipt or WAL frame becomes accepted. A later authorized retry accepts both.
+- An underlying append that persists and then reports uncertainty: reads and
+  flushes refuse until recovery reconstructs the accepted operation.
+- Two competing Table roots: the stale candidate cannot publish; recovery sees
+  the winner and the original expected-data position remains stale.
+- 129 rows and receipts through one resident index page, flush and deletion,
+  then replay and a 128-row scan. The scan performs one segment read and one
+  row-group decode, rather than one per row. Earlier read roots retain their
+  original WAL row after checkpointing.
+- One 64-row statement containing 8 KiB values, with an accepted WAL frame above
+  512 KiB and a column page above 256 KiB. Exact segment reads agree; a group with
+  an unencodable long sort key remains eligible for range scanning.
+- Lost durable pin acquisition replies, disk reopen, unflushed read preservation
+  through flush/deletion, altered-frontier rejection, current denial and durable
+  idempotent release. Interrupted pre-publication pin staging leaves no pin; 129
+  durable pin records exceed the one-page cache.
+- Allocation-failure enumeration confirms that visibility allocations occur
+  before the durable acceptance record.
+
+The supporting immutable-index proof reopens 513 keys with one resident page,
+scans without a cache, preserves an earlier root, rejects missing/corrupt pages
+and cannot publish a failed private candidate. These are component proofs over
+the stated cache/operation bounds, not a total process RSS measurement.
+
+The guard is injected in these tests; they do not establish a live native policy
+adapter, catalog name/DDL publication, installed direct SQL or distributed
+transactions. This owner retains all WAL and objects and has no physical GC or
+trim operation. Pin tests therefore do not qualify a collector removing data
+concurrently. Existing actor Table callers remain until the public cutover.
+
 ## Native authority over local storage — 2026-10-22
 
 `nix develop --command zig build test-local-native` passes against temporary

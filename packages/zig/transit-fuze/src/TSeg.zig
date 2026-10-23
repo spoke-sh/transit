@@ -37,6 +37,9 @@ pub const ZoneMap = struct {
     /// `ebcdic_cp037`, and `icu`.
     pub fn mayMatch(self: ZoneMap, op: enum { eq, lt, le, gt, ge }, target_sort_key: []const u8) bool {
         if (self.value_count == 0) return false;
+        // A missing bound denotes an unindexed value group, not an empty group.
+        // Long or unsupported sort keys must never make range pruning unsound.
+        if (self.min_sort_key.len == 0 or self.max_sort_key.len == 0) return true;
         const cmp_min = std.mem.order(u8, target_sort_key, self.min_sort_key);
         const cmp_max = std.mem.order(u8, target_sort_key, self.max_sort_key);
         return switch (op) {
@@ -227,8 +230,6 @@ pub fn writeSegment(
     const group_footers = try arena.alloc(RowGroupFooter, group_count);
     const pk_entries = try arena.alloc(PkIndexEntry, sorted.len);
 
-    const page_scratch = try arena.alloc(u8, 256 * 1024);
-
     for (0..group_count) |gi| {
         const start_row: usize = gi * options.rows_per_group;
         const end_row: usize = @min(sorted.len, start_row + options.rows_per_group);
@@ -252,6 +253,7 @@ pub fn writeSegment(
             var zm: ZoneMap = .{};
             var min_key: ?[]const u8 = null;
             var max_key: ?[]const u8 = null;
+            var indexed = true;
 
             for (group_rows, 0..) |sr, ri| {
                 const cell = sr.row.cells[ci];
@@ -268,7 +270,9 @@ pub fn writeSegment(
                             if (max_key == null or std.mem.order(u8, sk, max_key.?) == .gt) {
                                 max_key = try arena.dupe(u8, sk);
                             }
-                        } else |_| {}
+                        } else |_| {
+                            indexed = false;
+                        }
                     },
                     .null => zm.null_count += 1,
                     .missing => zm.missing_count += 1,
@@ -276,16 +280,17 @@ pub fn writeSegment(
                     .conflict => zm.conflict_count += 1,
                 }
             }
-            zm.min_sort_key = min_key orelse "";
-            zm.max_sort_key = max_key orelse "";
+            zm.min_sort_key = if (indexed) min_key orelse "" else "";
+            zm.max_sort_key = if (indexed) max_key orelse "" else "";
+            if (!indexed) zm.bloom_mask = std.math.maxInt(u64);
             zone_maps[ci] = zm;
 
             try padTo64(&writer);
             const page_offset: u64 = @intCast(writer.buffered().len);
-            const encoded_page = try PhysicalCodecs.encodeColumnPage(arena, col, col_cells, page_scratch);
+            const encoded_page = try PhysicalCodecs.encodeColumnPage(arena, col, col_cells, writer.buffer[writer.end..]);
             var page_digest: [32]u8 = undefined;
             std.crypto.hash.sha2.Sha256.hash(encoded_page, &page_digest, .{});
-            try writer.writeAll(encoded_page);
+            writer.end += encoded_page.len;
             pages[ci] = .{
                 .offset = page_offset,
                 .length = @intCast(encoded_page.len),
