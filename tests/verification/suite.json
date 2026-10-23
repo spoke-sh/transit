@@ -41,6 +41,8 @@
       "test::pages",
       "test::growing",
       "test::growing-service",
+      "test::local-catalog",
+      "test::direct-table-service",
       "test::node-concurrency",
       "test::block-storage",
       "test::native-blocks",

@@ -3,8 +3,8 @@
 `DirectTableProtocol` defines signed Table declaration, row mutation, operation
 inspection and retained-read requests. The node's internal `LocalTableService`
 dispatches these requests through `DirectCatalog`, the Table storage owner and
-native authorization. Installed HTTP and SQL integration remains unfinished;
-this contract does not add a runnable route by itself. The
+native authorization. The local node's optional `table` setting serves
+`POST /table/v1`; its default launcher and SQL integration remain unfinished. The
 [generated schema](direct-table-v1.schema.json) reflects the owning Zig types.
 
 ## Requests and authority

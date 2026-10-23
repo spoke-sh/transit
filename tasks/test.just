@@ -22,6 +22,10 @@ local-native-service:
 local-catalog:
     zig build test-local-catalog
 
+# Real direct Table HTTP owner, typed caller, disk restart and uncertain replies.
+direct-table-service:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe
+
 # Primitive bytes/index proof; native authority and SQL integration are separate.
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe

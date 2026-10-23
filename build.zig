@@ -693,6 +693,7 @@ pub fn build(b: *std.Build) void {
             },
         }) });
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
@@ -1160,6 +1161,19 @@ pub fn build(b: *std.Build) void {
     local_service.has_side_effects = true;
     local_service.stdio = .inherit;
     b.step("test-local-native-service", "Prove the local native node with public signed callers and reply faults").dependOn(&local_service.step);
+    const direct_table_client = b.addExecutable(.{ .name = "transit-direct-table-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/direct_table_client.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+    }) });
+    const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_table_service.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_table_service.addArtifactArg(node_artifact);
+    direct_table_service.addArtifactArg(direct_table_client);
+    direct_table_service.has_side_effects = true;
+    direct_table_service.stdio = .inherit;
+    b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
     const growing_load = b.addExecutable(.{ .name = "transit-growing-load-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_load.zig"),
         .target = target,

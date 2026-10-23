@@ -72,6 +72,8 @@ pub fn Host(comptime Provider: type) type {
             before_block_bytes: u64 = 0,
             metrics: ?Work = null,
             work_failure: ?[]const u8 = null,
+            read_only: bool = true,
+            uncertain_mutation: bool = false,
 
             const Work = struct {
                 wait_ns: u64,
@@ -168,8 +170,13 @@ pub fn Host(comptime Provider: type) type {
                 self.observation.status = @backingInt(status);
                 if (@hasField(@TypeOf(value), "err")) {
                     self.observation.error_type = @tagName(value.err);
-                    self.observation.protocol_outcome = if (status == .service_unavailable) .uncertain else .rejected;
+                    self.observation.protocol_outcome = if (self.uncertain_mutation or status == .service_unavailable) .uncertain else .rejected;
                 }
+                return self.jsonBytes(request, status, bytes);
+            }
+            fn jsonBytes(self: *Server, request: *std.http.Server.Request, status: std.http.Status, bytes: []const u8) !void {
+                self.finishWork();
+                self.observation.status = @backingInt(status);
                 var metric_buffer: [768]u8 = undefined;
                 var metric_writer: std.Io.Writer = .fixed(&metric_buffer);
                 var headers: [2]std.http.Header = undefined;
@@ -184,6 +191,58 @@ pub fn Host(comptime Provider: type) type {
                 }
                 try request.respond(bytes, .{ .status = status, .keep_alive = true, .extra_headers = headers[0..count] });
                 self.observation.written = true;
+            }
+
+            fn table(self: *Server, request: *std.http.Server.Request) !void {
+                if (comptime @hasDecl(Provider, "TableHost")) {
+                    const w = Provider.TableHost.Protocol;
+                    const owner = self.lane.table orelse return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+                    if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+                    if (try http.header(request, "x-transit-wait") != null) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    const control = if (try http.header(request, "x-transit-control")) |hint| blk: {
+                        if (!std.mem.eql(u8, hint, "table")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                        break :blk true;
+                    } else false;
+                    var arena = std.heap.ArenaAllocator.init(self.allocator);
+                    defer arena.deinit();
+                    const allocator = arena.allocator();
+                    const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(w.max_request_bytes)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
+                    const parsed = w.Request.parse(allocator, bytes) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    if (control and parsed.value.transport().control == null) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    self.read_only = !parsed.value.transport().mutation;
+                    self.uncertain_mutation = !self.read_only;
+                    self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
+                    self.observation.realm = parsed.value.connection.scope.realm;
+                    self.observation.operation = parsed.value.transport().operation;
+                    const output = try allocator.alloc(u8, w.max_response_bytes);
+                    self.beginWork();
+                    const before = self.engine.head.position;
+                    const executed = execution: {
+                        defer {
+                            // Registrar commits share native authority with public
+                            // commands. Even a later failure must wake native waits.
+                            if (self.engine.head.position != before) {
+                                self.mutex.lockUncancelable(self.io);
+                                defer self.mutex.unlock(self.io);
+                                self.position.* = @max(self.position.*, self.engine.head.position);
+                                self.context.syncFromLane(self.lane);
+                                self.changed.publishAll(self.io);
+                            }
+                        }
+                        break :execution owner.execute(self.io, self.engine, &arena, parsed.value, output);
+                    };
+                    const response = executed catch |err| switch (err) {
+                        error.CatalogDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
+                        error.DataIdentityConflict, error.CatalogObjectBusy, error.TableDefinitionChanged, error.TableDataChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
+                        error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
+                        error.InvalidTableBinary, error.TablePayloadTooLarge, error.InvalidTableMutationIntent, error.UnsupportedTableMutationShape, error.TableBatchTooLarge, error.InvalidTableReadBudget, error.InvalidTableCursor, error.InvalidTableSnapshotCursor, error.TableReadBudgetTooSmall, error.InvalidTableKey, error.TableSchemaChanged => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
+                        else => return self.failure(request, err),
+                    };
+                    // Typed results distinguish admission, commitment and reads;
+                    // a successful HTTP exchange alone is not a native receipt.
+                    self.observation.protocol_outcome = if (self.read_only) .read else .none;
+                    return self.jsonBytes(request, .ok, response);
+                } else return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
                 const denied = switch (err) {
@@ -231,10 +290,11 @@ pub fn Host(comptime Provider: type) type {
             pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
                 defer self.finishWork();
                 const route: []const u8 = route: {
-                    inline for (.{ "/health", "/v1/command", "/v1/query", "/v1/blocks" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
+                    inline for (.{ "/health", "/v1/command", "/v1/query", "/v1/blocks", "/table/v1" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
                     break :route "unmatched";
                 };
                 self.observation.received(request, route, self.accept_trace_parent);
+                if (std.mem.eql(u8, route, "/table/v1")) return self.table(request);
                 const control = if (try http.header(request, "x-transit-control")) |value| control: {
                     if (!std.mem.eql(u8, value, "snapshot")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                     break :control true;
@@ -451,7 +511,7 @@ pub fn Host(comptime Provider: type) type {
             }
             pub fn isControl(_: *@This(), request: *std.http.Server.Request) bool {
                 return std.mem.eql(u8, request.head.target, "/v1/command") or
-                    (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
+                    (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") or std.mem.eql(u8, value, "table") else false);
             }
             pub fn connectionError(self: *@This(), err: anyerror, started: bool) void {
                 if (!started and err != error.EndOfStream) self.diagnostics.event(.{ .name = "transit.http.connection", .level = .debug, .error_type = @errorName(err) });
@@ -471,8 +531,8 @@ pub fn Host(comptime Provider: type) type {
                 server.snapshots = &self.snapshots;
                 server.observation = .{ .span = self.diagnostics.begin(.server, null) };
                 var failure: ?anyerror = null;
-                const read_only = !std.mem.eql(u8, request.head.target, "/v1/command");
-                defer server.observation.finish("transit.http.request", failure, if (failure) |err| err == error.Canceled else false, read_only);
+                server.read_only = !std.mem.eql(u8, request.head.target, "/v1/command");
+                defer server.observation.finish("transit.http.request", failure, if (failure) |err| err == error.Canceled else false, server.read_only);
                 server.handle(request) catch |err| {
                     failure = err;
                     return err;

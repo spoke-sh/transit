@@ -48,10 +48,11 @@ rejection/cancellation and exact Table result observation. Row admission,
 execution, inspection and cancellation use each Table's own durable operation
 directories without publishing a catalog root. Its name visibility
 comes from the accepted Table declaration. The
-[direct catalog guide](docs/direct-catalog.md) explains its internal API,
-authorization callbacks, recovery and bounds. Public service/SQL integration and
-native registration orchestration remain unfinished; the installed caller still
-uses the actor path below.
+[direct catalog guide](docs/direct-catalog.md) explains its API, authorization,
+recovery and bounds. `DirectTableClient` signs exact typed requests to the local
+node's configured `/table/v1` owner, which resumes native registration under the
+original caller's current rights. The default launcher and installed SQL caller
+still use the actor path below; that migration remains unfinished.
 
 `TableBehavior` accepts initialization and administrator controls, staged Table
 commands, continuation and qualified cancellation/cleanup. It records control or
