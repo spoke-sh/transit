@@ -49,6 +49,12 @@ for the boundary between the direction and today's operations.
 
 ## Work with data
 
+The [business stories](../reference/collaborative-decisions.md) follow a delivery
+manager, a reviewer and an operations lead using shared evidence to answer
+questions, compare branch proposals and respond to meaningful changes. They
+describe the proposed human/agent collaboration experience and identify its
+available building blocks separately from capabilities still to be implemented.
+
 | Need | Start here |
 | --- | --- |
 | Store records with typed columns, keys and defaults | [Tables and schema evolution](../reference/tables.md) |

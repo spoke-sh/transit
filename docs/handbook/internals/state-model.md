@@ -143,9 +143,14 @@ from every external copy. Historical details remain in the
 
 This section is design analysis, researched on 2026-09-29 against Transit
 `113588b6`. It asks how application data and its interpretation can branch without
-forking execution authority. Historical catalogs, writable branches and generic
+duplicating execution authority. Historical catalogs, writable branches and generic
 merge are not implemented. The analysis extends the existing state/publication
 model; it does not qualify a new storage or recovery capability.
+
+The terminology and authority boundaries below are clarified on 2026-10-23:
+branching is a primitive within one realm, while independent export and a
+project/application fork relationship have separate semantics. This is a design
+clarification; it supplies no new branch implementation or measured evidence.
 
 ### Lessons from Dolt and Neon
 
@@ -221,6 +226,16 @@ a snapshot creates a reference to that accepted state, not another SQL transacti
 commit. A mutable branch selector resolves once to a concrete head per statement;
 continuations and accepted operations retain that exact identity.
 
+Branching is the versioning primitive within a realm in this model. The realm
+continues to own identity and authorization; a branch is not inherently a new
+ownership or export boundary. A project/application fork relationship, analogous
+to a hosting service's collaboration feature, could be layered above branches.
+Its ownership and cross-realm semantics are separate questions. Branch policy
+can allow creation/edit/sharing while prohibiting every merge and equivalent
+write to a protected destination. A human-approved profile additionally needs
+approval bound to an exact candidate and destination expectation; a branch or
+UI selection alone supplies no approval evidence.
+
 ### Coherent catalogs require a publication boundary
 
 The existing one-resource turn can atomically accept a branch head and its staged
@@ -243,22 +258,25 @@ schema-only branch contains empty data by construction; its omitted rows do not
 mean that all parent rows were deleted during a later schema merge. Its data
 lineage and schema lineage therefore need separate inclusion metadata.
 
-### A cheap fork still needs a resource contract (and how `.tseg` manifests realize it)
+### Branch creation and shared storage
 
 Transit already uses immutable pages, but that is insufficient for cheap writable
-forks when pages live inside a shared global B-tree root. The
+branches when pages live inside a shared global B-tree root. The
 [retained-version contract](../../../contracts/READ_VERSIONS_V1.md) binds reads to
 current owners, grants and source lifetimes. Its captured root covers a shared
 catalog and can retain unrelated pages. It neither grants another writer access
 to that root nor exposes selective resource cloning and page reclamation.
 
-Start by defining a generic data export/fork operation: frozen source snapshot,
-destination scope, current source-read and branch/export policy, new resource
-and writer identity, independent destination permissions, quotas and an exact
-receipt. A bounded materialized copy can establish its semantics first. A
-copy-on-write implementation must prove the same result while sharing only
-eligible immutable data objects. It must not copy the global authority catalog,
-grants, principal sequences, retired identities or pending control records.
+The proposed branch-creation operation binds a frozen source snapshot, realm,
+new branch identity/head, branch-scoped catalog interpretation, current source
+and branch-creation permissions, storage lifetime, quotas and an exact receipt.
+Branch access and any inheritance follow explicitly defined current realm policy;
+creation neither freezes permissions nor establishes an independent export.
+A bounded materialized copy can serve as a correctness oracle for the same
+logical branch semantics. A copy-on-write implementation must prove equivalent
+writes, deletes, reads and retained reachability while sharing eligible immutable
+data. Neither implementation copies grants, principal sequences, retired
+identities or pending control records into new authority.
 
 In the target [four-tier storage architecture](storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ),
 committed table state is represented by an immutable **Manifest ($M_v$)**
@@ -282,7 +300,7 @@ flowchart LR
   Main --> S2
   Main --> S3Main
 
-  Trial["Branch 'trial' Manifest v1\n(O(1) fork from v10 + seg_03_trial, del_02_trial)"] --> S1
+  Trial["Branch 'trial' Manifest v1\n(O(1) branch publication from v10 + seg_03_trial, del_02_trial)"] --> S1
   Trial --> S2
   Trial --> S3Branch
 
@@ -291,7 +309,7 @@ flowchart LR
   Trial --> Merge
 ```
 
-1. **$O(1)$ Manifest Fork:** Creating a branch writes a new branch manifest
+1. **$O(1)$ Branch-Head Publication:** Creating a branch writes a new branch manifest
    head (`refs/heads/trial -> manifest/v1`) referencing the exact same `.tseg`
    and `.tdel` object keys as the base snapshot $M_{v}$, and allocates an
    independent `TransitLog` partition for the branch's subsequent writes. Zero
@@ -311,21 +329,23 @@ flowchart LR
      footer primary-key B-tree indexes and `.tdel` bitmaps under the column's
      declared collation $\kappa$.
 
-Export declarations must identify application data separately from framework
+Branchable data declarations must identify application data separately from framework
 records sharing its KV resource. An opaque byte copy cannot establish that an
 arbitrary application's continuation is safe to execute. Such state remains
 read-only evidence unless its owner supplies a validated branch initializer and
 explicit fresh runtime bindings. The kernel checks generic authority and
 publication rules; it does not infer application behavior from stored bytes.
 
-Distinguish a borrowed historical reference from a published independent copy.
-Borrowed reads keep the source's current permission and lifetime constraints.
+Independent export is a separate operation from branching within a realm. It
+needs its own destination/ownership and disclosure contract. Distinguish a
+borrowed historical reference from a published independent copy: borrowed reads
+keep the source's current permission and lifetime constraints.
 An explicitly authorized independent export gives the destination its own data
 ownership: later source revocation does not erase that copy, and source retirement
 does not authorize deleting segments it still owns. Physical sharing must preserve
 this same declared logical-copy contract. It cannot silently convert a borrowed
 reference into an independent copy or extend the original resource's hard expiry.
-The current API implements retained reads, not this independent fork operation.
+The current API implements retained reads, not writable branching or independent export.
 
 Copy-on-write needs deletion markers, correct source/child overlays or resource
 roots, bounded ancestry lookup, durable segment ownership and race-safe reclamation.
@@ -396,7 +416,7 @@ The desired improvement is a declared, inspectable closure across schema, data,
 graphs, Documents and captured computations, with explicit merge and effect
 boundaries. This is a testable target, not measured superiority over Dolt or Neon.
 Full snapshots must reproduce their historical names/types/view definitions;
-forks must isolate writes and deletes; schema-only promotion must preserve target
+branches must isolate writes and deletes; schema-only promotion must preserve target
 rows; stale merges must reject; and revocation, expiry and retirement must never
 be undone by selecting old application data.
 
@@ -411,7 +431,7 @@ fresh callers, not only an in-memory manifest test.
 No such branch proof or benchmark ran for this analysis. Reproduction begins at
 the stated Transit/peer revisions and the existing state, retained-read,
 publication and migration proofs linked above; those prove only their existing
-profiles. Open questions are per-resource fork/storage interfaces, catalog
+profiles. Open questions are branch/storage interfaces, catalog
 closure across independent owners, typed merge coverage and retained artifact
 availability. Supporting application schema revisions within the current
 descriptor format is compatible with a single current v1 contract; it does not

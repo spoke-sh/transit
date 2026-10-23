@@ -14,6 +14,7 @@ export const sections: Section[] = [
     label: "Start here",
     pages: [
       guide("introduction", "What is Transit?"),
+      reference("collaborative-decisions", "From data to decisions with people and agents"),
       guide("quickstart", "Run Transit locally"),
       guide("choose-interface", "Choose an interface"),
       reference("interfaces", "Interface and architecture map"),
