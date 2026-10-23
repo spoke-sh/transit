@@ -79,6 +79,43 @@ identity. Immutable conflicts compare the full stored binding; they never adopt
 the caller's new target. Claim lifetime is independent of a human name or the
 target's later retirement, and no cleanup operation is exposed.
 
+### Direct catalog publication contract
+
+The direct catalog component implements DDL admission and name publication;
+installed service/SQL integration remains unfinished. Its control partition
+owns immutable paged directories of objects, candidate names, operation records
+and pending work. This directory is separate from each Table's data partition;
+independent row writes do not change its root. The initial local profile uses
+one configured catalog, branch one and disjoint control/data partition IDs.
+
+A catalog operation freezes its binding and canonical intent before admission.
+The catalog persists the intent and any required name reservation before calling
+the Table owner. A candidate name resolves only when the referenced Table's
+accepted, non-retired declaration contains that exact namespace/name. Staging a
+declaration or accepting a reservation cannot publish a Table. RENAME makes the
+new name visible and the old name unavailable at the same Table acceptance;
+DROP makes its current name unavailable at that acceptance. Reusing an available
+name allocates a different object and partition. Earlier operation bindings,
+definitions and retained read roots never follow the replacement.
+
+The Table log remains the authority for the successful result. Catalog cleanup
+or a delayed reply must recover the original accepted declaration and outcome,
+not infer success from a reserved name or use the latest Table definition.
+Pending reservations block competing changes until an exact accepted result or
+a recorded rejection/cancellation settles them. An uncertain Table append must
+be recovered and checked before recording rejection or cancellation. A late
+cancellation returns the committed result; it cannot undo it. Private staging
+failure preserves admitted intent and its recovery identity.
+
+The service serializes catalog DDL and checks current native authorization at
+admission, publication and disclosure. Native database/schema/Table domains
+remain the policy authority; native registration and catalog publication are
+distinct durable steps. Names, object directories and operation claims grant no
+rights. Read-only inspection starts no provisioning or execution. Listing across
+Table heads is an independent observation vector, not a catalog-consistent data
+snapshot. Retained single-Table reads bind that Table's accepted declaration and
+data together; cross-owner transactions require their own coordination contract.
+
 The initial execution domain is one Table owner and one statement/batch. The
 owner serializes accepted changes and checks definition/data expectations and
 the selected statement's conflicts at its commit point. Validation/rewrite work
