@@ -65,7 +65,7 @@ def run(node, cli, host, service, transit, report=None, serving_example=None, la
         generation = system.native_query({'process': pid})['body']['process']['process']['generation']
         system.command({'own': {'pid': pid, 'expected_generation': generation, 'worker': 20}})
         generation += 1
-        domains = [apply({'register_domain': {'registrar': 20, 'actions': mask}}) for mask in (1, 3, 15)]
+        domains = [apply({'register_domain': {'registrar': 20, 'actions': mask, 'lifetime_resource': resource}}) for mask in (1, 3, 15)]
         scope = dict(realm=72, resource=resource, catalog=1)
         def binding(kind, identity):
             return list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(definition) + struct.pack('<QQQBQ', 72, resource, 1, kind, identity)).digest())

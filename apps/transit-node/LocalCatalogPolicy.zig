@@ -93,6 +93,8 @@ fn registered(context: *anyopaque, kind: a.Kind, logical: u64) !?p.Authorization
     defer owner.authority.unlockShared(owner.io);
     try self.engine.refresh();
     var store = try self.engine.authorization();
+    const domain = (try store.domain(self.configuration.authority.domain(kind))) orelse return error.InvalidCatalogConfiguration;
+    if (domain.lifetime_resource != self.configuration.scope.resource) return error.InvalidCatalogConfiguration;
     return store.bound(self.configuration.authority.domain(kind), try a.binding(self.configuration.scope, kind, logical));
 }
 

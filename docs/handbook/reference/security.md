@@ -80,6 +80,15 @@ objects. CONNECT and USAGE precede each Table privilege check; role ownership
 governs ALTER and DROP. Metadata visibility follows the current object's grants
 or ownership. Names and backing-resource associations do not inherit privileges.
 
+Root may explicitly bind an authorization domain to a native resource's
+lifetime. The binding is immutable and grants no access to that resource.
+Protected guard checks require both current rights and a usable bound resource;
+a privilege decision alone does not establish usability. Direct Table database,
+schema and Table domains bind their catalog resource, so later native query
+publication checks the source lifetime even when the query runs in a different
+state resource. Native transitions use their recorded time sample and existing
+commit fence; see the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
+
 The [Table service](../../../apps/transit-table-service/README.md) lets a restricted
 caller use one Table without raw access to the shared catalog resource. Its
 private storage identity reads bytes while a separate, action-bound caller proof

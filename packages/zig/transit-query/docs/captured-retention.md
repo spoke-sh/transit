@@ -16,10 +16,23 @@ needs admission, source traversal and result publication integration.
    pin-owner claim. Commit these with the admitted job's acquisition eligibility.
    A second job cannot reuse that pin owner. Preparation performs no remote work.
 3. `acquire` reads only committed eligibility before calling the direct owner.
-   It retains the original signed grant, exact frontier and pin owner. Its handle
-   becomes a native metadata mutation; publish that handle with the job's source
+   It retains the original signed grant, exact frontier and pin owner. It also
+   obtains the data owner's exact native database/schema/Table authority
+   references. Its handle and authority
+   become a native metadata mutation; publish that handle with the job's source
    evidence before starting traversal. A lost reply or failed native commit is
    recovered by repeating this exact acquisition.
+   Before publishing each subsequent native progress/result commit,
+   `authorizeExecution` checks those references under the bundle's independently
+   bound execution subject. The subject must retain the original caller, role
+   and credential epoch; its audience belongs to the query worker. This supplies
+   the native commit fence even when the preceding direct read has already
+   returned rows. Current result disclosure remains a separate authorization.
+   The direct catalog requires these authority domains to bind its native
+   resource lifetime. The native guard therefore checks that source prerequisite
+   independently of the computation's state resource and without raw source
+   access. Native preparation uses its recorded time sample; a changed policy or
+   resource state invalidates the prepared commit through the existing fence.
 4. Commit `beginClose` with the job's transition away from reading its input.
    This one metadata mutation also handles an acquisition with an unknown reply.
    A worker restart alone cannot make this transition.
@@ -55,7 +68,8 @@ its explicit retention policy permits cleanup.
 
 The original grant uses the mandatory current-definition `TRG1` encoding.
 `QTP1` stores phase, resource, worker, job and source ordinal with that grant;
-`QTH1` stores a mandatory current definition and the original pin content
-length/digest. Reads reject partial fragments, identity changes and incompatible
+`QTH1` stores a mandatory current definition, the original pin content
+length/digest and the three native authority IDs. Reads reject partial fragments,
+identity changes and incompatible
 definitions. Loading a record carries no permission: remote actions authenticate
 the worker's own key and recheck the original caller's current authority.

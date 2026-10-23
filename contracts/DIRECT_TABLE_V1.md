@@ -247,6 +247,16 @@ neither; late cancellation returns the original commit.
 
 ## Retained reads and binary payloads
 
+A `snapshot` source includes mandatory `authority` references for the native
+database, schema and Table objects used by its read checks. These are identifiers,
+not cached permissions. `DirectReadAuthority.guard` constructs CONNECT, USAGE and
+SELECT requirements under an independently bound subject. A durable computation
+uses these exact objects in its native progress/result commit so a policy change
+after reading rows can still reject publication. Result disclosure uses its own
+current subject. The original executor proof and a fresh result-reader proof
+remain distinct. The direct owner rechecks its observed rights before returning
+the source; the publisher must separately submit the native guard.
+
 `pin` binds the original principal and exact expected Table frontier to a
 durable read root. `snapshot` returns its retained interpretation, schema,
 accepted frontier, logical-change frontier and row count. `scan` returns up to

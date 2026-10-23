@@ -174,6 +174,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 .changed_lsn = found.root.changed_lsn,
                 .row_count = found.root.live_rows,
                 .schema = try schema(allocator, found.schema.schema),
+                .authority = try catalog.readAuthority(value.object, value.handle.owner, policy),
             } };
         },
         .scan => |value| {

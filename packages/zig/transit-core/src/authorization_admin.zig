@@ -205,7 +205,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         .register_domain => |value| {
             if (actor.role != a.root_role) return error.Forbidden;
             const created = try store.allocate();
-            try store.putDomain(.{ .id = created, .registrar = value.registrar, .actions = value.actions, .revision = id });
+            try store.putDomain(.{ .id = created, .registrar = value.registrar, .actions = value.actions, .lifetime_resource = value.lifetime_resource, .revision = id });
             change.outcome.created_id = created;
         },
         .register_object => |value| {

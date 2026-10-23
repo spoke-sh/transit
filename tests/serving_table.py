@@ -39,7 +39,7 @@ def provision_catalog(realm, resource, key, send, query, readers=()):
     owner = apply({'create_role': dict(name=b'serving-owner'.hex(), login=True, create_role=False)})
     apply({'bind_credential': dict(principal=33, role=owner, public_key=key.public, pid=None)})
     apply({'grant': dict(object=dict(kind='realm', id=0), grantee=owner, privileges=20, grant_options=0)})
-    domains = [apply({'register_domain': dict(registrar=78, actions=mask)}) for mask in (1, 3, 15)]
+    domains = [apply({'register_domain': dict(registrar=78, actions=mask, lifetime_resource=resource)}) for mask in (1, 3, 15)]
     def binding(kind, identity):
         return list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + current_definition()
             + struct.pack('<QQQBQ', realm, resource, 1, kind, identity)).digest())

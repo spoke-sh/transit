@@ -375,7 +375,7 @@ pub const Definition = struct {
     row_count: u64,
     schema: Binary,
 };
-pub const Source = struct { snapshot: Snapshot, interpretation: c.storage.TableDeclaration.Stored, accepted: d.Position, changed_lsn: u64, row_count: u64, schema: Binary };
+pub const Source = struct { snapshot: Snapshot, interpretation: c.storage.TableDeclaration.Stored, accepted: d.Position, changed_lsn: u64, row_count: u64, schema: Binary, authority: c.DirectReadAuthority };
 pub const Page = struct {
     pub const json_schema_sequence_bounds = .{ .rows = 8 };
     snapshot: Snapshot,

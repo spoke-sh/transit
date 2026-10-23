@@ -14,8 +14,9 @@ pub const Basis = struct {
     accepted: d.Position,
     changed_lsn: u64,
     row_count: u64,
+    authority: c.DirectReadAuthority,
     fn from(source: w.Source) Basis {
-        return .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count };
+        return .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority };
     }
 };
 pub const Batch = struct {
@@ -51,6 +52,7 @@ fn init(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source
     try source.snapshot.handle.content.validate();
     try source.interpretation.validate();
     try source.accepted.validate();
+    try source.authority.validate();
     if (!std.meta.eql(source.snapshot.object, source.interpretation.interpretation.object) or
         source.accepted.next_lsn == 0 or source.changed_lsn > source.accepted.next_lsn) return error.InvalidTableResponse;
     const bytes = try source.schema.decode(allocator, f.TableSchema.max_bytes);
@@ -153,6 +155,7 @@ test "retained reader binds pages, complete consumption and original schema with
         .changed_lsn = 2,
         .row_count = 3,
         .schema = try w.Binary.encode(alloc, try schema.encode(&scratch)),
+        .authority = .{ .database = 11, .schema = 12, .table = 13 },
     };
     var reader = try init(t.allocator, connection, source);
     defer reader.deinit();

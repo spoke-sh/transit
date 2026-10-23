@@ -18,7 +18,8 @@ test "policy pages reopen without resident role arrays and preserve object kind 
     }
     const resource: a.ObjectRef = .{ .kind = .resource, .id = 42 };
     const table: a.ObjectRef = .{ .kind = .domain, .id = 42 };
-    try store.putDomain(.{ .id = 1, .registrar = 7, .actions = 3, .revision = 1 });
+    try store.putDomain(.{ .id = 1, .registrar = 7, .actions = 3, .lifetime_resource = null, .revision = 1 });
+    try t.expectError(error.InvalidAuthorizationDomain, store.putDomain(.{ .id = 1, .registrar = 7, .actions = 3, .lifetime_resource = 9, .revision = 1 }));
     try store.putObject(.{ .reference = resource, .owner = 0, .registrar = 0, .actions = 3, .revision = 1 });
     try store.putObject(.{ .reference = table, .owner = 0, .registrar = 7, .domain = 1, .actions = 3, .revision = 1 });
     for (1..20) |id| try store.putGrant(.{ .id = id, .object = table, .grantee = 1, .grantor = 0, .privileges = 1, .revision = 1 });

@@ -837,6 +837,21 @@ pub fn snapshotDefinition(self: *Self, allocator: std.mem.Allocator, object: d.O
     return access.view.table.inspectSnapshot(allocator, handle, access.current);
 }
 
+/// Resolve exactly the native objects whose current rights guard this source.
+/// This does not grant access or acquire a pin. A computation uses these same
+/// references in its own native publication guard after reading direct rows.
+pub fn readAuthority(self: *Self, object: d.Object, owner: d.Operation, policy: Policy) !c.DirectReadAuthority {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
+    defer access.view.deinit();
+    const namespace = try self.schema(access.view.properties.namespace);
+    const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
+    try result.validate();
+    try check(access.current);
+    return result;
+}
+
 pub fn scanRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.SnapshotPage {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();

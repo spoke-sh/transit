@@ -82,6 +82,25 @@ each domain's registrar principal and action mask. That registrar or native root
 can create an object; root bootstrap still records the domain's registrar as the
 object registrar. Ownership alone never allows a registrar substitution.
 
+`register_domain.lifetime_resource` optionally binds the domain to a native
+resource's usability. Root alone sets this immutable prerequisite; the persisted
+domain always includes the field, including an explicit `null` for an unbound
+domain. It grants no resource privileges or associations. A successful `Guard`
+also checks each required domain's bound resource and its lifetime dependencies.
+Privilege `decision` inspection remains an authority decision, not a resource
+usability check. Direct Table database, schema and Table domains must all bind
+the configured catalog resource.
+An expired or absent bound resource denies the guard. Storage or clock failures
+remain unavailable observations. A turn rejected by this guard after exact-retry
+lookup uses `AuthorizationSubjectDenied`, permitting the worker to reconsider
+the same input without treating an uncertain earlier commit as rejected.
+
+Native turns evaluate these prerequisites using their recorded time sample.
+Policy or resource changes invalidate a prepared publication through the native
+commit fence. A deadline passing after preparation does not resample that
+prepared transition's time; a later preparation uses its own sample. Public
+current guard checks obtain a time sample when a bound lifetime requires one.
+
 A registrar may supply an immutable 32-byte binding key and optional parent
 object. These opaque values establish no inherited access. The binding is unique
 within its domain and survives retirement. The native registration index records

@@ -6,7 +6,7 @@ const p = c.protocol;
 const w = c.DirectTableProtocol;
 const t = std.testing;
 
-pub const State = struct { grant: c.DirectReadDelegation, snapshot: ?w.Snapshot };
+pub const State = struct { grant: c.DirectReadDelegation, snapshot: ?w.Snapshot, authority: c.DirectReadAuthority };
 
 fn executor(original: c.DirectTableClient, grant: c.DirectReadDelegation) !c.DirectTableClient {
     var client = original;
@@ -25,6 +25,10 @@ pub fn prepare(client: c.DirectTableClient) !State {
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer current.deinit();
     const basis = current.value.result.lookup.?;
+    const configuration = try client.call(.describe);
+    defer configuration.deinit();
+    const profile = configuration.value.result.description.authority;
+    try t.expectEqual(profile.initial_schema, basis.namespace);
     const grant = try c.DirectReadDelegation.prepare(client, .{
         .definition = p.Growth.current_definition,
         .connection = client.connection,
@@ -46,7 +50,7 @@ pub fn prepare(client: c.DirectTableClient) !State {
     // The proxy corrupts the successful reply. Retain the original grant;
     // acquisition recovery waits until after the node is restarted.
     try t.expectError(error.InvalidTableResponse, delegated.call(acquisition(grant)));
-    return .{ .grant = grant, .snapshot = null };
+    return .{ .grant = grant, .snapshot = null, .authority = .{ .database = profile.database, .schema = profile.initial_schema_authority, .table = basis.authorization } };
 }
 
 pub fn recover(client: c.DirectTableClient, state: *State) !void {
@@ -67,6 +71,12 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
     defer reader.deinit();
     try t.expectEqualDeep(state.grant.binding.interpretation, reader.basis.interpretation.interpretation);
     try t.expectEqualDeep(state.grant.binding.expected, reader.basis.accepted);
+    try t.expectEqualDeep(state.authority, reader.basis.authority);
+    // The caller checks the returned references through the native owner. An
+    // executor's publication uses a separate proof addressed to its worker;
+    // this Table-service proof does not grant inspection of that audience.
+    const native: c.station.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
+    _ = try native.read(.{ .check = try reader.basis.authority.guard(.{ .signed = state.grant.proof }) });
     try t.expectEqual(@as(u64, 2), reader.basis.row_count);
     var page = (try reader.next(delegated, .{})).?;
     defer page.deinit();

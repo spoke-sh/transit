@@ -210,7 +210,7 @@ fn provisionAuthorization(self: *Self) !void {
                 0 => .{ .create_role = .{ .name = try .init("local_owner"), .login = true } },
                 1 => .{ .bind_credential = .{ .principal = caller, .role = done[0].?, .public_key = self.caller_key.public_key.toBytes() } },
                 2 => .{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = done[0].?, .privileges = p.permission(.inspect) | p.permission(.send) } },
-                3, 4, 5 => .{ .register_domain = .{ .registrar = table_registrar, .actions = tables.actions(switch (index) {
+                3, 4, 5 => .{ .register_domain = .{ .registrar = table_registrar, .lifetime_resource = scope.resource, .actions = tables.actions(switch (index) {
                     3 => .database,
                     4 => .schema,
                     else => .table,
