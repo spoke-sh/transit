@@ -584,6 +584,55 @@ test "named role native grants remain process scoped and current reads fence pol
     _ = try f.engine.submit(try f.worker(2, .{ .send = .{ .pid = first, .value = .{} } }));
 }
 
+test "domain lifetime bindings fence independent native publication without raw resource access" {
+    const a = core.protocol.Authorization;
+    const Clock = struct {
+        now: u64 = 100,
+        fn read(context: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(context))).now };
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var clock: Clock = .{};
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const writer = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = writer, .owned = false, .deadline_ms = 150 } });
+    const worker = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .own = .{ .pid = worker, .expected_generation = 0, .worker = 0 } });
+    const input = try f.root(.{ .send = .{ .pid = worker, .value = .{} } });
+    const role = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("domain-reader"), .login = true } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = role, .public_key = f.worker_key.public_key.toBytes() } });
+    const domain = (try f.authorization(.{ .register_domain = .{ .registrar = 0, .actions = 1, .lifetime_resource = resource } })).?;
+    const object: a.ObjectRef = .{ .kind = .domain, .id = (try f.authorization(.{ .register_object = .{ .domain = domain, .owner = 0 } })).? };
+    _ = try f.authorization(.{ .grant = .{ .object = object, .grantee = role, .privileges = 1 } });
+    const proof = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 65536, .credential_epoch = (try f.engine.principal(65536)).credential_epoch, .role = role, .audience = worker, .context = @splat(9) }, f.worker_key);
+    var guard: a.Guard = .{ .subject = .{ .signed = proof }, .requirements = @splat(null) };
+    guard.requirements[0] = .{ .object = object, .privileges = 1 };
+    try t.expectError(error.Forbidden, f.query(65536, .{ .resource = resource }));
+    _ = try f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    const process = try f.engine.process(worker);
+    const command: g.Command = .{ .turn = .{ .pid = worker, .generation = process.generation, .input = input, .expected_revision = process.revision, .authorization = guard } };
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = command }, f.root_key);
+    const prepared = try f.engine.prepare(signed);
+    clock.now = 150;
+    // Role membership/privileges still permit the action; its explicitly bound
+    // backing resource is no longer usable. No maintenance is needed to deny it.
+    _ = try f.query(65536, .{ .authorization = .{ .kind = .{ .decision = .{ .object = object, .privileges = 1 } } } });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    try t.expectError(error.AuthorizationSubjectDenied, f.engine.submit(signed));
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(worker)).consumed);
+    _ = try f.root(.{ .expire_resource = resource });
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    var policy = try f.engine.authorization();
+    try t.expectEqual(resource, (try policy.domain(domain)).?.lifetime_resource.?);
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(worker)).consumed);
+}
+
 test "original subject proofs bind context and current guards fence every source and publication" {
     const a = core.protocol.Authorization;
     var f: Fixture = .{};

@@ -27,6 +27,7 @@ pub const Slot = struct {
     }
 };
 pub const Phase = enum(u8) { acquiring = 1, closing = 2, closed = 3 };
+pub const Retained = struct { handle: Handle, authority: c.DirectReadAuthority };
 pub const Record = struct {
     phase: Phase,
     resource: u64,
@@ -145,22 +146,30 @@ pub fn prepare(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, grant: Gra
     try turn.write(slot.key(0), try p.Value.init(bytes[0..p.Value.max_bytes]));
     try turn.write(slot.key(1), try p.Value.init(bytes[p.Value.max_bytes..]));
 }
-fn handle(turn: *Turn, record: Record) !?Handle {
+fn evidence(turn: *Turn, record: Record) !?Retained {
     var current = turn.committed();
     const value = (try current.read(record.slot.key(2))) orelse return null;
-    if (value.len != 76 or !std.mem.eql(u8, value.data[0..4], "QTH1")) return error.InvalidQueryRecord;
+    if (value.len != 100 or !std.mem.eql(u8, value.data[0..4], "QTH1")) return error.InvalidQueryRecord;
     if (!std.mem.eql(u8, value.data[4..36], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
-    const result: Handle = .{ .owner = record.grant.binding.owner, .content = .{ .bytes = std.mem.readInt(u64, value.data[36..44], .little), .sha256 = value.data[44..76].* } };
-    _ = try record.snapshot(result);
+    const result: Retained = .{
+        .handle = .{ .owner = record.grant.binding.owner, .content = .{ .bytes = std.mem.readInt(u64, value.data[36..44], .little), .sha256 = value.data[44..76].* } },
+        .authority = .{ .database = std.mem.readInt(u64, value.data[76..84], .little), .schema = std.mem.readInt(u64, value.data[84..92], .little), .table = std.mem.readInt(u64, value.data[92..100], .little) },
+    };
+    _ = try record.snapshot(result.handle);
+    try result.authority.validate();
     return result;
 }
-fn saveHandle(turn: *Turn, record: Record, value: Handle) !void {
-    _ = try record.snapshot(value);
-    var bytes: [76]u8 = undefined;
+fn saveHandle(turn: *Turn, record: Record, value: Retained) !void {
+    _ = try record.snapshot(value.handle);
+    try value.authority.validate();
+    var bytes: [100]u8 = undefined;
     bytes[0..4].* = "QTH1".*;
     bytes[4..36].* = p.Growth.definition_bytes;
-    std.mem.writeInt(u64, bytes[36..44], value.content.bytes, .little);
-    bytes[44..].* = value.content.sha256;
+    std.mem.writeInt(u64, bytes[36..44], value.handle.content.bytes, .little);
+    bytes[44..76].* = value.handle.content.sha256;
+    std.mem.writeInt(u64, bytes[76..84], value.authority.database, .little);
+    std.mem.writeInt(u64, bytes[84..92], value.authority.schema, .little);
+    std.mem.writeInt(u64, bytes[92..100], value.authority.table, .little);
     const encoded = try p.Value.init(&bytes);
     if (try turn.read(record.slot.key(2))) |existing| {
         if (!existing.eql(encoded)) return error.SourceChanged;
@@ -194,11 +203,13 @@ const Remote = struct {
         result.delegation = grant;
         return result;
     }
-    fn pin(self: Remote, grant: Grant) !Handle {
+    fn pin(self: Remote, grant: Grant) !Retained {
         const client = try self.delegated(grant);
         const response = try client.call(.{ .pin = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected } });
         defer response.deinit();
-        return response.value.result.pin;
+        const source = try client.call(.{ .snapshot = .{ .object = grant.binding.interpretation.object, .handle = response.value.result.pin } });
+        defer source.deinit();
+        return .{ .handle = response.value.result.pin, .authority = source.value.result.snapshot.authority };
     }
     fn close(self: Remote, grant: Grant, known: ?Handle) !void {
         const client = try self.delegated(grant);
@@ -213,11 +224,25 @@ pub fn acquire(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.
 fn acquireWith(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, remote: anytype) !c.DirectTableProtocol.Snapshot {
     const record = try require(allocator, turn, slot);
     if (record.phase != .acquiring or (try read(allocator, turn, slot)).?.phase != .acquiring) return error.QueryClosed;
-    const known = try handle(turn, record);
+    const known = try evidence(turn, record);
     const retained = try remote.pin(record.grant);
     if (known) |old| if (!std.meta.eql(old, retained)) return error.SourceChanged;
     try saveHandle(turn, record, retained);
-    return record.snapshot(retained);
+    return record.snapshot(retained.handle);
+}
+/// Fence a later native progress/result commit with the exact policy objects
+/// observed at direct capture. The enclosing bundle binds this execution proof
+/// to its worker and immutable request before calling here.
+pub fn authorizeExecution(allocator: std.mem.Allocator, turn: *Turn, slot: Slot) !void {
+    const record = try require(allocator, turn, slot);
+    const retained = (try evidence(turn, record)) orelse return error.IncompleteSource;
+    const subject = try turn.authorizationSubject(record.grant.binding.connection.principal);
+    if (subject != .signed) return error.QueryDenied;
+    const original = record.grant.proof.claim;
+    const current = subject.signed.claim;
+    if (current.definition != original.definition or current.realm != original.realm or current.principal != original.principal or
+        current.credential_epoch != original.credential_epoch or current.role != original.role) return error.QueryDenied;
+    _ = try turn.requireAuthorization(try retained.authority.guard(subject));
 }
 /// Reconcile only a committed closing decision. Failure leaves cleanup pending;
 /// publishing closed state is a separate native commit, safe to retry after loss.
@@ -228,7 +253,8 @@ fn settleWith(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, remote: any
     const record = try require(allocator, turn, slot);
     if (record.phase == .closed) return;
     if (record.phase != .closing) return error.QueryActive;
-    try remote.close(record.grant, try handle(turn, record));
+    const known = try evidence(turn, record);
+    try remote.close(record.grant, if (known) |value| value.handle else null);
     try phase(allocator, turn, record, .closed);
 }
 
@@ -243,14 +269,14 @@ test "captured Table pins require committed admission and closure across lost re
             calls: usize = 0,
             denied: bool = false,
             lose_reply: bool = false,
-            fn pin(self: *@This(), grant: Grant) !Handle {
+            fn pin(self: *@This(), grant: Grant) !Retained {
                 self.calls += 1;
                 try t.expectEqualDeep(self.expected, grant);
                 if (self.denied) return error.AccessDenied;
                 if (self.released) return error.TableSnapshotReleased;
                 if (self.retained == null) self.retained = .{ .owner = grant.binding.owner, .content = .{ .bytes = 80, .sha256 = @splat(3) } };
                 if (self.lose_reply) return error.ReadFailed;
-                return self.retained.?;
+                return .{ .handle = self.retained.?, .authority = .{ .database = 11, .schema = 12, .table = 13 } };
             }
             fn close(self: *@This(), grant: Grant, known: ?Handle) !void {
                 self.calls += 1;
@@ -264,7 +290,7 @@ test "captured Table pins require committed admission and closure across lost re
         fn createGrant() !Grant {
             const binding: Grant.Binding = .{
                 .definition = p.Growth.current_definition,
-                .connection = .{ .scope = .{ .realm = 1, .resource = 9, .catalog = 1 }, .branch = 1, .audience = 20, .principal = 21, .role = 22 },
+                .connection = .{ .scope = .{ .realm = 1, .resource = 9, .catalog = 1 }, .branch = 1, .audience = 20, .principal = 21, .role = 21 },
                 .executor = 2,
                 .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 9, .catalog = 1 }, .branch = 1, .object = 30 }, .revision = 1, .digest = @splat(1) },
                 .expected = .{ .partition = 31, .next_lsn = 5 },
@@ -275,11 +301,11 @@ test "captured Table pins require committed admission and closure across lost re
                 .definition = p.Growth.current_definition,
                 .realm = 1,
                 .principal = 21,
-                .role = 22,
-                .credential_epoch = 3,
+                .role = 21,
+                .credential_epoch = 1,
                 .audience = 20,
                 .context = try binding.context(t.allocator),
-            }, try p.Ed25519.KeyPair.generateDeterministic(@splat(4))) };
+            }, try c.testing.Authority.key(21)) };
         }
     };
     for ([_]bool{ false, true }) |publish_handle| {
@@ -321,6 +347,29 @@ test "captured Table pins require committed admission and closure across lost re
         turn = try restart.capture();
         try t.expectEqualDeep(first, try acquireWith(t.allocator, &turn, slot, &remote));
         if (publish_handle) try restart.commit(turn);
+        if (publish_handle) {
+            try restart.setRights(.{ .principal = 21 });
+            var claim = grant.proof.claim;
+            claim.audience = restart.pid;
+            claim.context = @splat(34);
+            const execution: p.Authorization.Subject = .{ .signed = try p.Authorization.Proof.sign(claim, try c.testing.Authority.key(21)) };
+            turn = try restart.capture();
+            try turn.bindAuthorizationSubject(execution);
+            try authorizeExecution(t.allocator, &turn, slot);
+            try t.expectEqualDeep(try (c.DirectReadAuthority{ .database = 11, .schema = 12, .table = 13 }).guard(execution), turn.decision.authorization.?);
+            // A current denial prevents publishing buffered computation state.
+            try restart.grantObject(21, 13, 0);
+            turn = try restart.capture();
+            try turn.bindAuthorizationSubject(execution);
+            try t.expectError(error.AccessDenied, authorizeExecution(t.allocator, &turn, slot));
+            try t.expect(turn.decision.authorization == null);
+            try restart.grantObject(21, 13, c.TableAuthority.select);
+            // A new credential epoch cannot renew the original execution.
+            claim.credential_epoch += 1;
+            turn = try restart.capture();
+            try turn.bindAuthorizationSubject(.{ .signed = try p.Authorization.Proof.sign(claim, try c.testing.Authority.key(21)) });
+            try t.expectError(error.QueryDenied, authorizeExecution(t.allocator, &turn, slot));
+        }
         turn = try restart.capture();
         try beginClose(t.allocator, &turn, slot);
         try t.expectError(error.QueryClosed, acquireWith(t.allocator, &turn, slot, &remote));

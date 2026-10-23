@@ -220,10 +220,14 @@ pub const Domain = struct {
     id: Id,
     registrar: Id,
     actions: Privileges,
+    /// Explicit native lifetime prerequisite for this domain's operations.
+    /// It grants no resource read/write access and is immutable after creation.
+    lifetime_resource: ?Id,
     revision: u64,
     enabled: bool = true,
     pub fn validate(self: Domain) !void {
         if (self.id == 0 or self.id >= public_role or self.registrar > p.max_counter or self.actions == 0) return error.InvalidAuthorizationDomain;
+        if (self.lifetime_resource) |resource| if (resource == 0 or resource > p.max_counter) return error.InvalidAuthorizationDomain;
         try mask(self.actions);
         try revision(self.revision);
     }
@@ -331,7 +335,7 @@ pub const Action = union(enum) {
     membership: struct { member: Id, role: Id, admin: ?bool = null, inherit: ?bool = null, set: ?bool = null },
     revoke_membership: struct { id: Id, option: ?MembershipOption = null, behavior: RevokeBehavior = .restrict },
     revoke_role: struct { member: Id, role: Id, option: ?MembershipOption = null, behavior: RevokeBehavior = .restrict },
-    register_domain: struct { registrar: Id, actions: Privileges },
+    register_domain: struct { registrar: Id, actions: Privileges, lifetime_resource: ?Id = null },
     register_object: struct { domain: Id, owner: Id, schema: ?ObjectRef = null, binding: ?[32]u8 = null },
     transfer_object: struct { object: ObjectRef, owner: Id },
     retire_object: ObjectRef,

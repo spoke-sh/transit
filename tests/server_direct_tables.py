@@ -21,13 +21,16 @@ def gateway_lookup(fixture, record):
     identity = post(port, '/v1/query', native(key, record['realm'], 10,
         dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
     body = dict(definition=record['definition'], connection=connection, nonce=[71]*16,
-                action=dict(lookup=dict(namespace=1, name='items')))
+                action=dict(lookup=dict(namespace=1, name='items')), delegation=None)
     context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
     claim = dict(definition=record['definition'], realm=record['realm'], principal=10,
                  credential_epoch=identity['credential_epoch'], role=None,
                  audience=connection['audience'], context=list(context))
     signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
     request = dict(body, proof=dict(claim=claim, signature=signature))
+    missing_delegation = dict(request)
+    del missing_delegation['delegation']
+    post(port, '/table/v1', missing_delegation, expected=400)
     result = post(port, '/table/v1', request)
     assert result['result']['lookup']['interpretation']['interpretation']['object']['object'] == 1
     # Ordinary Table reads cannot consume the reserved control lane via a hint.

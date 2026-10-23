@@ -49,7 +49,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c"
+            "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
           ]
         },
         "T2": {
@@ -3185,7 +3185,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c"
+            "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
           ]
         },
         "T2": {
@@ -3441,7 +3441,7 @@
               ],
               "properties": {
                 "page": {
-                  "$ref": "#/$defs/Response/$defs/T68"
+                  "$ref": "#/$defs/Response/$defs/T69"
                 }
               }
             },
@@ -4822,7 +4822,8 @@
             "accepted",
             "changed_lsn",
             "row_count",
-            "schema"
+            "schema",
+            "authority"
           ],
           "properties": {
             "snapshot": {
@@ -4842,6 +4843,9 @@
             },
             "schema": {
               "$ref": "#/$defs/Response/$defs/T38"
+            },
+            "authority": {
+              "$ref": "#/$defs/Response/$defs/T68"
             }
           },
           "required": [
@@ -4850,7 +4854,8 @@
             "accepted",
             "changed_lsn",
             "row_count",
-            "schema"
+            "schema",
+            "authority"
           ],
           "x-transit-defaults": {}
         },
@@ -4876,6 +4881,32 @@
           "x-transit-defaults": {}
         },
         "T68": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "database",
+            "schema",
+            "table"
+          ],
+          "properties": {
+            "database": {
+              "$ref": "#/$defs/Response/$defs/T4"
+            },
+            "schema": {
+              "$ref": "#/$defs/Response/$defs/T4"
+            },
+            "table": {
+              "$ref": "#/$defs/Response/$defs/T4"
+            }
+          },
+          "required": [
+            "database",
+            "schema",
+            "table"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T69": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4905,13 +4936,13 @@
               "$ref": "#/$defs/Response/$defs/T4"
             },
             "rows": {
-              "$ref": "#/$defs/Response/$defs/T69"
+              "$ref": "#/$defs/Response/$defs/T70"
             },
             "encoded_bytes": {
-              "$ref": "#/$defs/Response/$defs/T72"
+              "$ref": "#/$defs/Response/$defs/T73"
             },
             "next": {
-              "$ref": "#/$defs/Response/$defs/T73"
+              "$ref": "#/$defs/Response/$defs/T74"
             }
           },
           "required": [
@@ -4926,14 +4957,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T69": {
+        "T70": {
           "type": "array",
           "maxItems": 8,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T70"
+            "$ref": "#/$defs/Response/$defs/T71"
           }
         },
-        "T70": {
+        "T71": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4941,7 +4972,7 @@
           ],
           "properties": {
             "base64": {
-              "$ref": "#/$defs/Response/$defs/T71"
+              "$ref": "#/$defs/Response/$defs/T72"
             }
           },
           "required": [
@@ -4949,28 +4980,28 @@
           ],
           "x-transit-defaults": {}
         },
-        "T71": {
+        "T72": {
           "type": "string",
           "maxLength": 5592408
         },
-        "T72": {
+        "T73": {
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "x-transit-bits": 32,
           "x-transit-signed": false
         },
-        "T73": {
+        "T74": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T74"
+              "$ref": "#/$defs/Response/$defs/T75"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T74": {
+        "T75": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4982,7 +5013,7 @@
               "$ref": "#/$defs/Response/$defs/T29"
             },
             "after": {
-              "$ref": "#/$defs/Response/$defs/T75"
+              "$ref": "#/$defs/Response/$defs/T76"
             }
           },
           "required": [
@@ -4991,7 +5022,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T75": {
+        "T76": {
           "type": "array",
           "minItems": 20,
           "maxItems": 20,
@@ -5033,7 +5064,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c"
+            "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
           ]
         },
         "T2": {

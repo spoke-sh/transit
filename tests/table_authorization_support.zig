@@ -9,9 +9,9 @@ pub fn login(comptime c: type, admin: anytype, name: []const u8, principal: u64,
 }
 pub fn profile(comptime c: type, admin: anytype, scope: c.Model.Scope, registrar: u64, owner: u64) !c.TableAuthority.Profile {
     const a = c.TableAuthority;
-    const database_domain = (try admin.authorization(.{ .register_domain = .{ .registrar = registrar, .actions = a.connect } })).?;
-    const schema_domain = (try admin.authorization(.{ .register_domain = .{ .registrar = registrar, .actions = a.usage | a.create } })).?;
-    const table_domain = (try admin.authorization(.{ .register_domain = .{ .registrar = registrar, .actions = a.table_actions } })).?;
+    const database_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.connect } })).?;
+    const schema_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.usage | a.create } })).?;
+    const table_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.table_actions } })).?;
     const database = (try admin.authorization(.{ .register_object = .{ .domain = database_domain, .owner = owner, .binding = try a.binding(scope, .database, 0) } })).?;
     const schema = (try admin.authorization(.{ .register_object = .{ .domain = schema_domain, .owner = owner, .schema = a.reference(database), .binding = try a.binding(scope, .schema, 1) } })).?;
     return .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = schema };

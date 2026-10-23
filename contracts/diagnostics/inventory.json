@@ -3201,6 +3201,7 @@
         "pinRowsDefined()": "<inferred>",
         "pinState()": "<inferred>",
         "preview()": "<inferred>",
+        "readAuthority()": "<inferred>",
         "record()": "<inferred>",
         "recover()": "<inferred>",
         "registration()": "<inferred>",
@@ -3222,7 +3223,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 297,
+        "try": 301,
         "catch": 4
       },
       "imports": [
@@ -3368,6 +3369,26 @@
       },
       "imports": [
         "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectReadAuthority.zig": {
+      "errors": {
+        "InvalidCatalogConfiguration": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "guard()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -3686,7 +3707,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 22,
         "catch": 1
       },
       "imports": [
@@ -3713,7 +3734,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 64,
         "catch": 2
       },
       "imports": [
@@ -5240,6 +5261,7 @@
         "DeclarativeCatalog.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
+        "DirectReadAuthority.zig",
         "DirectReadDelegation.zig",
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
@@ -12148,7 +12170,7 @@
         "InvalidAuthorizationChange": 1,
         "InvalidAuthorizationCredential": 4,
         "InvalidAuthorizationCursor": 1,
-        "InvalidAuthorizationDomain": 2,
+        "InvalidAuthorizationDomain": 3,
         "InvalidAuthorizationGrant": 4,
         "InvalidAuthorizationName": 1,
         "InvalidAuthorizationObject": 6,
@@ -12772,7 +12794,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c\""
+          "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
         ],
         "Effect.phase": [
           "pending",
@@ -13749,10 +13771,11 @@
     "packages/zig/transit-query/src/CapturedTablePin.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
+        "IncompleteSource": 1,
         "InvalidQueryRecord": 7,
         "QueryActive": 1,
         "QueryClosed": 1,
-        "QueryDenied": 2,
+        "QueryDenied": 4,
         "QueryNamespaceInUse": 3,
         "QueryNotFound": 2,
         "SourceChanged": 3
@@ -13776,8 +13799,9 @@
         "Slot.validate()": "<inferred>",
         "acquire()": "<inferred>",
         "acquireWith()": "<inferred>",
+        "authorizeExecution()": "<inferred>",
         "beginClose()": "<inferred>",
-        "handle()": "<inferred>",
+        "evidence()": "<inferred>",
         "inspect()": "<inferred>",
         "ownerClaim()": "<inferred>",
         "ownerKey()": "<inferred>",
@@ -13791,7 +13815,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 65,
+        "try": 73,
         "catch": 1
       },
       "imports": [

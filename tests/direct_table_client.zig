@@ -53,9 +53,9 @@ fn provision(admin: *Admin) !Profile {
     _ = try admin.change(.{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
     const executor_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("table-reader"), .login = true } })).?;
     _ = try admin.change(.{ .bind_credential = .{ .principal = 102, .role = executor_role, .public_key = (try key(31)).public_key.toBytes() } });
-    const database_domain = (try admin.change(.{ .register_domain = .{ .registrar = 0, .actions = c.TableAuthority.connect } })).?;
-    const schema_domain = (try admin.change(.{ .register_domain = .{ .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
-    const table_domain = (try admin.change(.{ .register_domain = .{ .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const database_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
+    const schema_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
+    const table_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
     const scope: d.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try admin.change(.{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try admin.change(.{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;

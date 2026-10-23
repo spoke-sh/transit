@@ -185,6 +185,43 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Retained-source publication authority — 2026-10-23
+
+The current shared definition is
+`f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677`.
+Direct snapshot replies require exact native database/schema/Table authority IDs;
+captured pin records retain those IDs for later native publication guards.
+Authorization domains now persist an explicit, immutable optional resource
+lifetime prerequisite. The previous definition rejects; contracts, binding
+resources and independent signing/record fixtures have been regenerated.
+
+The core ReleaseSafe suite passes 122 tests. Its native authority fixture gives
+a caller domain access without raw source-resource access, prepares an independent
+worker's guarded turn, advances the source deadline, verifies definite guard
+denial without maintenance, then materializes expiry and rejects the old prepared
+commit. Reopening the engine preserves the binding and denial. This uses the
+in-memory page/journal fixture; it does not claim a wall-clock resample after a
+transition is prepared. The policy store also rejects lifetime-binding changes.
+
+The query ReleaseSafe suite passes 142 tests, including retained policy IDs,
+current Table revocation and rejection of a replacement execution credential
+epoch. The local native catalog proof passes. The public direct HTTP proof passes
+475 typed calls, checks returned authority IDs through the native guard API, and
+preserves exact delegated source/closure behavior across three restarts.
+`just contract::check`, diagnostic mappings, inferred-error boundaries and 3,387
+outcome projections pass. Documentation checks pass 5,491 links across 559 files.
+
+`just test::server-direct-tables` also passes with a fresh installed local
+server: default publication, CRUD/DDL with the old query worker stopped, abrupt
+restart, preserved bootstrap intent, deliberate deletion and name reuse. Its
+manually signed gateway request now supplies the required `delegation: null`;
+omitting the field is explicitly rejected. The first run exposed that stale
+fixture and failed before SQL execution; the corrected full run passes.
+
+These proofs establish source authority and retention components. Captured-query
+admission, traversal, result publication and physical Table collection still
+require integration and qualification.
+
 ## Durable-computation pin ownership component — 2026-10-23
 
 `zig build test -Doptimize=ReleaseSafe --summary all` in

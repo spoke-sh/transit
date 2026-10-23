@@ -246,6 +246,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (!std.meta.eql(value.owner, request.action.pin.owner)) return error.InvalidTableResponse;
         },
         .snapshot => |value| {
+            try value.authority.validate();
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
             if (!std.meta.eql(value.snapshot, request.action.snapshot)) return error.InvalidTableResponse;
             try definition(request.connection, value.interpretation);

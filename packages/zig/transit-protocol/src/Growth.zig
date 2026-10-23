@@ -7,7 +7,7 @@ pub const version = 1;
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
 /// SHA-256 of transit.native.v1.neutral-column-representations.2026-10-23.
 pub const Definition = enum {
-    @"64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c",
+    f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -833,6 +833,8 @@ test "native responses require the current contract definition even with a v1 la
         "228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830",
         // Fixed two-column Tables, before general schema/lifecycle and ABI cutover.
         "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+        // Before retained sources carried exact native publication authority.
+        "64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c",
         // Before mandatory neutral encoding/collation fields and native SDK layouts.
         "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964",
         // Before mandatory scoped read delegations and executor authentication.

@@ -11,6 +11,7 @@ pub const DirectTableProtocol = @import("DirectTableProtocol.zig");
 pub const DirectTableClient = @import("DirectTableClient.zig");
 pub const DirectAuthorizationSql = @import("DirectAuthorizationSql.zig");
 pub const DirectReadDelegation = @import("DirectReadDelegation.zig");
+pub const DirectReadAuthority = @import("DirectReadAuthority.zig");
 pub const DirectTableBinding = @import("DirectTableBinding.zig");
 pub const DirectTableIntent = @import("DirectTableIntent.zig");
 pub const DirectTableIntentStore = @import("DirectTableIntentStore.zig");
