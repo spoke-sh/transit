@@ -189,6 +189,40 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
     } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
 }
 
+/// Current action rights for frozen operation work, including a retired target.
+/// Unlike preparation, this does not demand a current definition: admission and
+/// recovery preserve the original expectation and its eventual recorded result.
+pub fn checkOperation(self: *Self, binding: d.Binding, namespace_id: u64, policy: Policy) !void {
+    try self.requireInitialized();
+    try self.original(policy, binding);
+    try c.Model.nativeId(namespace_id);
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    try check(try self.guard(arena.allocator(), policy, null, null, .database));
+    const namespace_value = try self.schema(namespace_id);
+    try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
+    if (binding.action == .create) {
+        const native = try policy.registered(policy.context, .table, binding.target.object);
+        const target: ?a.Table = if (native) |value| .{ .id = binding.target.object, .schema = namespace_id, .authorization = value.reference.id } else null;
+        try check(try self.guard(arena.allocator(), policy, namespace_value, target, .create_table));
+        return;
+    }
+    const target_entry = try self.entry(binding.target.object) orelse return error.CatalogDenied;
+    if (target_entry.seed == null) return error.CatalogDenied;
+    var view = try self.open(self.allocator, target_entry, false);
+    defer view.deinit();
+    if (view.properties.namespace != namespace_id or view.table.root.next_lsn == 0) return error.CatalogDenied;
+    const access: a.Access = switch (binding.action) {
+        .insert => .insert,
+        .update => .update,
+        .delete => .delete,
+        .alter, .rename => .alter,
+        .drop => .drop,
+        .create => unreachable,
+    };
+    try check(try self.guard(arena.allocator(), policy, namespace_value, view.properties.target(binding.target.object), access));
+}
+
 pub fn initialize(self: *Self, policy: Policy) !void {
     try self.store.refresh();
     var arena = std.heap.ArenaAllocator.init(self.allocator);

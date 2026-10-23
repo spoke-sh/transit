@@ -8,7 +8,7 @@ const w = c.DirectTableProtocol;
 const f = c.fuze;
 const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
-pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, prepared: c.DirectTableBinding };
+pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, staged: c.DirectTableIntent.Reference, prepared: c.DirectTableBinding };
 pub const OwnedState = struct {
     arena: std.heap.ArenaAllocator,
     value: State,
@@ -57,12 +57,18 @@ fn ddl(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Ddl) 
     const unobserved = try client.call(.{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
     defer unobserved.deinit();
     try t.expect(unobserved.value.result.ddl == .not_observed);
-    const admitted = try client.call(.{ .admit_ddl = work });
+    var saved = try c.DirectTableIntent.create(allocator, client.connection, .{ .ddl = work });
+    defer saved.deinit();
+    const staged = try saved.stage(client, work.namespace);
+    const after_stage = try saved.operation(client, .inspect, 1);
+    defer after_stage.deinit();
+    try t.expect(after_stage.value.result.ddl == .not_observed);
+    const admitted = try staged.admit(client);
     defer admitted.deinit();
     try t.expect(admitted.value.result.ddl == .admitted);
     return (try execute(client, work.binding)).ddl.committed;
 }
-const PredicateWork = struct { outcomes: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary };
+const PredicateWork = struct { outcomes: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, staged: c.DirectTableIntent.Reference };
 fn preparedReads(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     const before = try lookup(client, "events");
     defer before.deinit();
@@ -125,7 +131,18 @@ fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !Pre
         defer unobserved.deinit();
         try t.expect(unobserved.value.result.rows == .not_observed);
         result.intents[i] = try w.Binary.encode(allocator, work.bytes);
-        const admitted = try work.admit(client);
+        const staged = try work.stage(client, 1);
+        try staged.requireSame(try work.stage(client, 1));
+        const after_staging = try lookup(client, "events");
+        defer after_staging.deinit();
+        try t.expectEqualDeep(after.value.result.lookup.?.position, after_staging.value.result.lookup.?.position);
+        const still_unobserved = try staged.operation(client, .inspect, 1);
+        defer still_unobserved.deinit();
+        try t.expect(still_unobserved.value.result.rows == .not_observed);
+        var missing = staged;
+        missing.content.sha256[0] ^= 1;
+        try t.expectError(error.AuthorityUnavailable, missing.admit(client));
+        const admitted = try staged.admit(client);
         defer admitted.deinit();
         try t.expect(admitted.value.result.rows == .admitted);
         const executed = try work.operation(client, .execute, 32);
@@ -136,7 +153,7 @@ fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !Pre
         try t.expectEqual(count, result.outcomes[i].outcome.affected);
         var restored = try c.DirectTableIntent.restore(allocator, work.bytes);
         defer restored.deinit();
-        const repeated = try restored.admit(client);
+        const repeated = try (try restored.reference(1)).admit(client);
         defer repeated.deinit();
         try t.expectEqualDeep(result.outcomes[i], repeated.value.result.rows.committed);
         if (i == 0) try preparedReads(allocator, client);
@@ -146,6 +163,7 @@ fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !Pre
     var pending = try pending_template.bind(allocator, client, 14, &.{.{ .signed = 42 }}, .bulk, null);
     defer pending.deinit();
     result.unsubmitted = try w.Binary.encode(allocator, pending.bytes);
+    result.staged = try pending.stage(client, 1);
     return result;
 }
 fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.Binary {
@@ -210,7 +228,7 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     create_binding.expected_data = null;
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
     const predicates = try predicateWork(alloc, client);
-    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .prepared = prepared };
+    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .staged = predicates.staged, .prepared = prepared };
     try verify(allocator, client, state, false);
     return .{ .arena = arena, .value = state };
 }
@@ -266,11 +284,12 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
     defer allocator.free(pending_bytes);
     var pending = try c.DirectTableIntent.restore(allocator, pending_bytes);
     defer pending.deinit();
+    try state.staged.requireSame(try pending.reference(1));
     const unseen = try pending.operation(client, .inspect, 1);
     defer unseen.deinit();
     try t.expect(unseen.value.result.rows == .not_observed);
     if (release) {
-        const admitted = try pending.admit(client);
+        const admitted = try state.staged.admit(client);
         defer admitted.deinit();
         try t.expect(admitted.value.result.rows == .admitted);
         const completed = try pending.operation(client, .execute, 32);

@@ -165,6 +165,13 @@ without resolving a name or executing work. `admit` and `operation` keep
 admission, execution, inspection and cancellation explicit. Template destruction
 does not invalidate bound work, and restoring work does not renew its basis.
 
+`DirectTableIntent.stage` stores that work directly and returns a small immutable
+reference for an orchestrator's control ledger. Staging leaves operation and
+Table state unchanged. `Reference.admit` verifies current rights and the retained
+bytes before calling the ordinary acceptance owner. `DirectTableIntentStore` is
+the internal content verifier; it supplies no authorization by itself. References
+cannot fetch payloads or replace unavailable bytes with freshly compiled work.
+
 Directories and operation indexes use immutable B-tree pages. The default cache
 holds 16 pages; tests also use one. The default private index-work allowance is
 64 MiB per operation. Canonical request objects are bounded to 4 MiB and control

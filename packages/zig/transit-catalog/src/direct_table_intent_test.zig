@@ -112,3 +112,29 @@ test "direct saved work rejects incompatible missing noncanonical and truncated 
     defer recovered.deinit();
     try t.expectEqualDeep(saved.binding(), recovered.binding());
 }
+
+test "private staged work checks complete content and operation binding without admission" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var intent = try I.fromDml(t.allocator, connection, try metadata(arena.allocator()), 8, .{ .name = "events", .schema = schema, .action = .delete }, .bulk);
+    defer intent.deinit();
+    var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    const reference = try c.DirectTableIntentStore.stage(objects.objectStore(), &intent, 1);
+    try reference.requireSame(try c.DirectTableIntentStore.stage(objects.objectStore(), &intent, 1));
+    try t.expectEqual(@as(usize, 1), objects.objects.items.len);
+    var restored = try c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), reference);
+    defer restored.deinit();
+    try t.expectEqualSlices(u8, intent.bytes, restored.bytes);
+    var changed = reference;
+    changed.binding.identity.operation += 1;
+    try t.expectError(error.DataIdentityConflict, c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), changed));
+    changed = reference;
+    changed.content.bytes += 1;
+    try t.expectError(error.InvalidTableIntent, c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), changed));
+    changed = reference;
+    changed.content.sha256[0] ^= 1;
+    try t.expectError(error.TableIntentMissing, c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), changed));
+    objects.objects.items[0].bytes[I.prefix_bytes] ^= 1;
+    try t.expectError(error.InvalidTableIntent, c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), reference));
+}

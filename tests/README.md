@@ -643,6 +643,31 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Direct staged intent references — 2026-10-23
+
+The catalog package passes **116/116** tests in the pinned Linux Nix shell
+(one minute, MaxRSS 69 MiB). Immutable staging is idempotent; loading rejects
+altered bindings, lengths, commitments, missing objects and corrupt bytes.
+`just test::local-catalog` passes staging and admission with an UPDATE-only
+caller. Staging leaves the Table frontier unchanged, and revoking schema access
+prevents admission through a previously staged reference.
+
+`just test::direct-table-service` passes **250 typed HTTP calls**. DDL and
+parameterized INSERT/UPDATE/DELETE stage directly before admission; repeated
+staging preserves the exact reference and creates no operation record. A missing
+staged object reports unavailability. A staged DELETE remains unadmitted across
+restart and is first admitted using only its retained reference afterward.
+The existing two-restart CRUD/DDL, retained-source, revocation and finite-query
+checks also pass. An initial local test compilation had a duplicate variable
+name; only the subsequent complete runs are counted here.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass. The shared definition derives from
+`transit.native.v1.direct-intent-reference.2026-10-23`; the previous definition
+remains an explicit rejection case. This establishes the transport/storage
+boundary for small SQL control references. The installed SQL ledger still needs
+to adopt it, and staged-object cleanup is not implemented.
+
 ## Prepared SELECT over retained direct Tables — 2026-10-23
 
 Query `zig build test --summary all` passes **141/141** tests in the pinned Linux

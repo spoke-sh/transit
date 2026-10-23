@@ -46,7 +46,7 @@ fn schema(allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Bin
     defer allocator.free(buffer);
     return w.Binary.encode(allocator, try value.encode(buffer));
 }
-fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action) !w.Result {
+fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action) anyerror!w.Result {
     switch (action) {
         .initialize => {
             try catalog.initialize(policy);
@@ -86,6 +86,21 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             return .{ .list = .{ .entries = page.entries, .next = next, .directory_position = page.directory_position, .consistency = .independent } };
         },
         .preview => |value| return .{ .preview = try catalog.preview(try value.native(allocator, self.configuration), policy) },
+        .stage => |value| {
+            try catalog.checkOperation(value.intent.work.binding(), value.namespace, policy);
+            // CREATE additionally checks selection of its frozen owner role;
+            // preview also validates the exact DDL shape without admission.
+            if (value.intent.work == .ddl) _ = try catalog.preview(try value.intent.work.ddl.native(allocator, self.configuration), policy);
+            var intent = try c.DirectTableIntent.create(allocator, value.intent.connection, value.intent.work);
+            defer intent.deinit();
+            return .{ .staged = try c.DirectTableIntentStore.stage(catalog.data_objects, &intent, value.namespace) };
+        },
+        .admit_saved => |reference| {
+            try catalog.checkOperation(reference.binding, reference.namespace, policy);
+            var intent = try c.DirectTableIntentStore.load(allocator, catalog.data_objects, reference);
+            defer intent.deinit();
+            return self.apply(allocator, catalog, policy, intent.parsed.value.work.action());
+        },
         .admit_ddl => |value| {
             _ = try catalog.admit(try value.native(allocator, self.configuration), policy);
             return .{ .ddl = try catalog.status(value.binding, policy) };

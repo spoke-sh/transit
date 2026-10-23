@@ -98,6 +98,23 @@ role; credential rotation can supply a new proof for the same operation.
 and cancellation use its original binding. No helper automatically retries an
 uncertain attempt, refreshes a data expectation or recompiles a saved statement.
 
+`stage` sends a namespace and complete saved intent directly to the data owner.
+The owner checks current action rights, validates the complete work and stores
+its canonical bytes as an immutable `direct-intents/<sha256>.data` object under
+data quota. The returned reference contains the mandatory definition, original
+connection, namespace, operation binding and complete content length/hash.
+Staging creates no operation claim, admission, reservation or Table WAL record.
+Repeated identical staging returns the same reference. Its bytes remain private;
+there is no public payload-fetch operation.
+
+`admit_saved` checks current original-caller rights before loading that reference,
+verifies its complete content and binding, then invokes the same DDL or row
+admission owner. A staged reference is neither admission nor a capability.
+Missing or corrupt work stays unavailable; the owner never reconstructs it from
+SQL. Current revocation can prevent admission after successful staging. A control
+ledger can retain this bounded reference while the full payload travels directly
+to storage. Staged objects remain retained; no collector is implemented here.
+
 `admit_ddl` freezes namespace, name, exact binding and CREATE/ALTER/RENAME/DROP
 intent. CREATE carries the selected owner and binary FTS1 schema; ALTER uses
 shared column IDs, types, codecs and collations. Optional defaults carry typed
