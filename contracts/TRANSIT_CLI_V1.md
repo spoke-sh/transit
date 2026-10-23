@@ -7,8 +7,9 @@ The local server runs on Linux x86_64.
 ## Command and compatibility boundary
 
 `transit server [--config PATH] [--no-ui]` runs one local installation in the
-foreground; `serve` is an equivalent alias. `transit console [--config PATH] [--format table|json]` opens an
-explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input. `--help` and `--version` need no configuration,
+foreground. `transit console [--config PATH] [--format table|json]` opens an
+explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input.
+These are the only public commands. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
 Version output identifies the executable and command-contract version; it is
@@ -47,12 +48,9 @@ the defining rc file; later paths replace the whole connection reference.
 `TRANSIT_CONSOLE_CONFIG` overrides rc selection and explicit `--config` wins.
 `--format` overrides rc mode, then the connection's format, then table mode.
 
-Connection and management files use versioned YAML by default, at most 64 KiB.
-Explicit `.json` files remain supported. Application declarations and replacement
-files accept the same YAML subset; exported connection files use YAML unless
-the output path ends in `.json`. Machine responses, bootstrap and recovery
-records retain their neutral JSON formats. `.transitrc` remains a dot-command
-startup script modeled after `.duckdbrc`, not a YAML configuration.
+Connection files use versioned YAML by default, at most 64 KiB. Explicit `.json`
+files remain supported. Machine responses, bootstrap and recovery records retain
+neutral JSON formats. `.transitrc` contains dot-command startup settings.
 Paths within them resolve against their file. Credentials, native IDs and trust
 settings never merge across connections. Private keys are referenced by files,
 never command arguments. Diagnostics name fields or roles without printing
@@ -63,9 +61,7 @@ or next step when useful. Known option errors name the option; unknown arguments
 use positions without echoing their values. Configuration decoding reports the
 file and parser location; semantic validation names fields. Known reasons use
 plain language, while untranslated failures retain their identifiers. Exhausted
-restarts remain distinct from the underlying role failure. Root and application
-group help list commands; each command, including application operations, has
-offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
+restarts remain distinct from the underlying role failure. Root help lists `server` and `console`; each command has offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
 are not a versioned machine schema. Recovery advice preserves saved identity and
 never treats uncertainty as proof of rejection.
 
@@ -82,11 +78,8 @@ shutdown. Machine records go to stdout and diagnostics to stderr; JSON mode has
 no banner or prompt. Broken stdout ends presentation without deleting accepted
 work.
 
-`query`, `transit-admin`, `kubectl-transit` and the existing launcher commands
-retain their separate configuration and protocols. The query shell uses dot
-commands and are omitted from the primary command list. No alias silently changes a
-single-line shell into a multiline console, adopts a launcher installation or
-changes a connection's authority or installs an application. These separate commands remain supported.
+`transit-admin`, `kubectl-transit` and launcher tools retain their own configuration
+and protocols. They are separate executables, not `transit` commands.
 
 ## Explicit SQL bindings
 
@@ -102,50 +95,11 @@ fields and malformed scalar representations reject. Source templates retain the
 [parameter contract](SQL_PARAMETERS_V1.md), including their smaller admitted
 placeholder profile; catalog parameters use the shared Table compiler.
 
-The separate `transit query` shell also accepts `.execute FILE`, requires its
-ordinary `.new ID` selection and retains its own upload/retry artifacts.
-Console captured execution uses the service-owned operation ledger instead.
+Console captured execution uses the service-owned operation ledger.
 After admission, changing or deleting an input file cannot change that original
 work. `.status` and `.resume` select its token or operation identity; reconnect
 never recompiles or resubmits SQL automatically. Bindings are not session defaults
 and parameter values are not added to dot-command history.
-
-## Local file queries
-
-`transit file-query --format csv|jsonl -c SQL [OPTIONS] FILE...` explicitly
-acquires local paths/stdin into quota-limited, private unlinked disk captures on
-Linux x86_64. It checks single-member gzip headers/checksums when `--gzip` is
-selected. Local OS access supplies authority; the command does not send native
-commands, create a durable job or refetch during replay. Discovery freezes exact
-content, options, schema and evidence before any result record. Fuze owns shared
-SQL lowering, typed conversion, predicate and aggregate semantics.
-
-The [file-query guide](../apps/transit-cli/docs/file-query.md) owns exact flags,
-logical schema JSON, quotas, format limits and output records. Stdout is a
-versioned JSON-lines stream with schema/binding/plan evidence, provisional rows
-and a terminal completion record. Missing completion or a failed exit invalidates
-the prefix. Full input validation continues past LIMIT/projection. Exact integers,
-decimals and five states use the neutral logical codec; no host-float rounding is
-permitted. No saved configuration or native protocol compatibility field changes.
-SIGINT/SIGTERM return 130 after local capture cleanup; broken output returns 1.
-
-## Explicit catalog commands
-
-`transit catalog` composes the shared [catalog caller](DECLARATIVE_CATALOG_V1.md).
-`capabilities` and scoped `compile` are offline. `describe` reads current metadata;
-`prepare-initialize`, `prepare-create` and `prepare-policy` save signed commands
-without dispatch. `submit` alone sends the exact saved command. `observe` reads
-its input processing, `disposition` reads control/rejected-input outcomes, and
-`status` reads the original creation receipt. Admission and processing do not
-establish Table publication. Current native and catalog rights remain independent.
-
-Compilation/preparation require new private output files with file/directory sync
-and no replacement. Later calls validate typed compiled fields against their
-canonical bytes. Prepared input restores the original signed string under the
-current definition. Unknown outcomes retain the same artifact for exact retry;
-no replacement preparation, automatic dispatch or implicit provisioning occurs.
-The [catalog guide](../apps/transit-cli/docs/catalog.md) owns configuration,
-command syntax, input envelopes, numeric bounds and recovery examples.
 
 ## Local server and recovery
 
@@ -259,7 +213,8 @@ Operational server events use the shared telemetry-v1 envelope with
 `logging.format` (`text` by default or `json`) and `logging.level` (`info` by
 default). These settings require restart and follow the conventional
 `TRANSIT_LOGGING__FORMAT` / `TRANSIT_LOGGING__LEVEL` overrides. They configure
-stderr independently of command diagnostics selected with `--diagnostics=json`.
+operational stderr logs. Command and input errors are human-readable on stderr;
+there is no global diagnostics-format option.
 TTY stdout does not receive readiness JSON; readable readiness and endpoint
 events appear on stderr. Non-TTY stdout retains one JSON readiness record per
 successful startup/recovery cycle, even when logging is off. SQL readiness is

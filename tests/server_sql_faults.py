@@ -1,6 +1,7 @@
 """Exact local SQL setup recovery at native commit/response boundaries."""
 import ctypes
 import json
+from operation_helpers import operations
 import os
 from pathlib import Path
 import shutil
@@ -90,7 +91,7 @@ def run(cli, node, host, board, gateway):
         worker_profile.write_text(json.dumps(dict(version=1, url=control['native_url'],
             seed_file=str(fixture.installation / 'sql/accounts/owner/worker.seed'),
             connection=dict(definition=control['definition'], realm=control['ledger']['realm'], principal=control['ledger']['worker']))))
-        observed = json.loads(call([fixture.cli, 'auth', 'read', '--config', worker_profile, '--file', query], retry_observation=True))['observation']['body']['authorization']
+        observed = json.loads(call([operations(), 'auth', 'read', '--config', worker_profile, '--file', query], retry_observation=True))['observation']['body']['authorization']
         change = fixture.root / 'disable-worker.json'
         change.write_text(json.dumps(dict(expected_revision=observed['revision'], action=dict(disable_credential=dict(
             principal=control['ledger']['worker'], expected_epoch=observed['body']['identity']['credential_epoch'])))))
@@ -101,7 +102,7 @@ def run(cli, node, host, board, gateway):
         assert status['service']['postgres_port'] is None
         denied = json.loads(path.read_text())['journal']
         assert denied['pending'] is None and denied['rejected'] is not None
-        call([fixture.cli, 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml', '--file', query], retry_observation=True)
+        call([operations(), 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml', '--file', query], retry_observation=True)
         print('Local SQL: revoked worker remains revoked; rejected ownership releases the root sequence and core administration stays available.', flush=True)
         success = True
     finally:

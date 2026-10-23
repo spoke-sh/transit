@@ -34,7 +34,7 @@ draft conflicts, invalid cursors, corrupt manifests/segments/coverage and
 unavailable authority. Inspection failures retain the selected query namespace,
 realm and requester resource in the diagnostic and its action targets. They do
 not establish whether earlier work completed. A refused status read preserves
-the shell's saved command and query selection; result disclosure still requires
+the caller's saved command and query selection; result disclosure still requires
 current access.
 
 Read failures identify whether retrying that read is appropriate. An unconfirmed
@@ -87,11 +87,8 @@ bindings. Do not coerce missing/conflict into null or a successful empty result.
 Native query transports do not admit CSV/JSONL sources. Fuze's local Zig
 [file-source API](../../../packages/zig/transit-fuze/docs/file-sources.md) supports
 bounded discovery/decoding over host-authorized immutable bytes; it does not
-acquire files or create a durable query job. The
-local [file-query command](../../../apps/transit-cli/docs/file-query.md) explicitly
-captures regular files, gzip or stdin and executes finite SQL against those bytes.
-It returns provisional logical JSON rows followed by verified completion; it
-does not use native durable acceptance. The
+acquire files or create a durable query job. Hosts own capture, result presentation
+and completion evidence. The
 [type and discovery reference](sql/types.md#schema-discovery-and-binding) describes
 frozen file bindings, exact logical types and each interface's admission limits.
 

@@ -1,6 +1,4 @@
 //! Offline command help. Human prose never shares a machine-result stream.
-const std = @import("std");
-const AppOptions = @import("AppOptions.zig");
 
 pub const root =
     \\Transit
@@ -10,15 +8,10 @@ pub const root =
     \\Commands:
     \\  server    Run a local server
     \\  console   Open an SQL console
-    \\  app       Manage installed applications
-    \\  catalog   Compile, prepare, submit and inspect catalog operations
-    \\  auth      Preview, apply and recover declarative authorization changes
-    \\  file-query  Query captured CSV or JSONL files with a frozen schema
     \\
     \\Options:
     \\  --help     Show this help
     \\  --version  Show version
-    \\  --diagnostics=json  Emit structured errors (place before COMMAND)
     \\
     \\Run transit COMMAND --help for command options.
     \\
@@ -39,7 +32,6 @@ pub const server =
     \\Board starts by default with configuration version 1; --no-ui disables it.
     \\Paths in the configuration resolve relative to its file.
     \\
-    \\Alias: serve
     \\Creates a missing or empty installation; otherwise opens or resumes it.
     \\Set startup.require_existing: true to require retained installation data.
     \\Configuration: apps/transit-cli/docs/server.md
@@ -73,79 +65,3 @@ pub const console =
     \\Use console .help for write routes and exact recovery after interruption.
     \\
 ;
-pub fn query() []const u8 {
-    return
-    \\Open the single-line KV/Table/Document query shell.
-    \\
-    \\Usage: transit query CONFIG
-    \\
-    \\Arguments:
-    \\  CONFIG  Query configuration file (required)
-    \\
-    \\Options:
-    \\  --help  Show this help
-    \\
-    \\SQL runs on Enter. .help lists session commands.
-    \\Configuration: apps/transit-cli/docs/unified-query.md
-    \\
-    ;
-}
-pub const app =
-    \\Manage installed applications.
-    \\
-    \\Usage: transit app COMMAND [OPTIONS]
-    \\
-    \\Commands:
-    \\  install  Submit an application installation
-    \\  replace  Submit a conditional role replacement
-    \\  retry    Retry a saved request with its original operation ID
-    \\  status   Read application state and a receipt page
-    \\  connect  Export a named caller connection
-    \\
-    \\Options:
-    \\  --help  Show this help
-    \\
-    \\Run transit app COMMAND --help for command options.
-    \\
-;
-pub fn application(io: std.Io, mode: AppOptions.Mode) !void {
-    var buffer: [4096]u8 = undefined;
-    var writer = std.Io.File.stdout().writerStreaming(io, &buffer);
-    const out = &writer.interface;
-    try out.print("{s}\n\nUsage: {s}{s}\n\nOptions:\n  --config PATH       Management configuration YAML file (required)\n", .{
-        switch (mode) {
-            .install => "Submit an application installation.",
-            .replace => "Submit a conditional role replacement.",
-            .retry => "Retry the original saved application request.",
-            .status => "Read application state and a receipt page.",
-            .connect => "Export a named caller connection.",
-        },
-        AppOptions.usage(mode),
-        switch (mode) {
-            .status => " [--after INDEX] [--operation ID]",
-            .connect => " [--output FILE] [--operation ID]",
-            else => "",
-        },
-    });
-    switch (mode) {
-        .install => try out.writeAll("  --file DECLARATION  Application declaration file (required)\n"),
-        .replace => try out.writeAll("  --file REPLACEMENT  Role replacement file (required)\n"),
-        .status, .connect => try out.writeAll("  --application NAME  Installed application name (required)\n"),
-        .retry => {},
-    }
-    if (mode == .connect) try out.writeAll("  --caller NAME       Caller connection name (required)\n  --output FILE       Write the connection to this file (default: stdout)\n");
-    if (mode == .status) try out.writeAll("  --after INDEX       Receipt page index, 0-4294967295 (default: 0)\n");
-    try out.writeAll(if (mode == .status or mode == .connect)
-        "  --operation ID      Read request identity (default: read)\n"
-    else
-        "  --operation ID      Durable operation identity (required)\n");
-    try out.writeAll("  --help              Show this help\n");
-    switch (mode) {
-        .install, .replace => try out.writeAll("\nThe request is saved before submission. Acceptance does not mean completion.\nAfter an unknown outcome, use app retry with the same config and operation ID.\nArtifact paths resolve relative to --file; omitted hashes are computed locally.\n"),
-        .retry => try out.writeAll("\nUse the original configuration and operation ID to retry the saved signed request.\n"),
-        .status => try out.writeAll("\nUse the previous page's next index as --after to read another receipt page.\n"),
-        .connect => try out.writeAll("\nThe connection refers to the caller's seed file; it contains no private key.\n"),
-    }
-    try out.writeAll("\nConfiguration: apps/transit-cli/docs/applications.md\n");
-    try out.flush();
-}

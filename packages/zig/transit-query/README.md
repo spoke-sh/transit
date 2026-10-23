@@ -204,7 +204,7 @@ See the [local server guide](../../../apps/transit-cli/docs/server.md).
 operation recovery with a private scoped resource reader. Every request binds
 the original caller's current credential, selected role, connection and action.
 `MediatedTableClient.call` returns an owned response; release it with `deinit`.
-`MediatedTableBridge` shares the catalog CLI/ABI lifecycle, keeping pending
+`MediatedTableBridge` shares the catalog caller/ABI lifecycle, keeping pending
 mutation bytes with the caller. The caller signs and explicitly submits native
 mutations. See the [service guide](../../../apps/transit-table-service/README.md)
 for configuration, limits, trust and recovery.

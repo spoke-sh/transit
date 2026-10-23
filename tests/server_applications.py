@@ -2,6 +2,7 @@
 """Separately built consumer over public CLI/configuration, with owned disk faults."""
 import ctypes
 import json
+from operation_helpers import operations
 import os
 from pathlib import Path
 import select
@@ -45,7 +46,7 @@ class Applications(Fixture):
     def app(self, mode, *args, expect=None):
         deadline = time.monotonic() + 15
         while True:
-            result = subprocess.run([self.cli, 'app', mode, '--config', str(self.management), *map(str, args)],
+            result = subprocess.run([operations(), 'app', mode, '--config', str(self.management), *map(str, args)],
                 capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()), env={'PATH': '/unavailable'})
             # Status and connection export only read native authority. During
             # deliberate storage/authority loss the
@@ -83,7 +84,7 @@ class Applications(Fixture):
 
 def provision_authority(fixture, operator, connections):
     """Use the example's recoverable public authorization provisioning."""
-    capabilities = json.loads(subprocess.check_output([fixture.cli, 'auth', 'capabilities'], text=True))
+    capabilities = json.loads(subprocess.check_output([operations(), 'auth', 'capabilities'], text=True))
     caller = json.loads(connections['operator'].read_text())
     administrator = fixture.root / 'authorization-admin.json'
     administrator.write_text(json.dumps(dict(version=1, url=caller['url'],

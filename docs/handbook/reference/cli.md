@@ -2,9 +2,8 @@
 
 `transit server` runs a local installation. `transit console` opens server-managed
 SQL sessions for queries, Table DDL/DML and catalog operations.
-The executable also currently exposes application management, native recovery
-and local file-query commands, listed below. `transit-admin` and `kubectl-transit`
-are separate administration and runtime tools. Commands assume `transit` is on `PATH`.
+`transit-admin` and `kubectl-transit` are separate administration and runtime
+tools. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
 ## Commands
@@ -12,33 +11,14 @@ Use the [local quickstart](../guides/quickstart.md) for prerequisites and startu
 ```text
 transit --help
 transit --version
-transit serve [--config FILE] [--no-ui]
 transit server [--config FILE] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
-transit query FILE
-transit catalog COMMAND [OPTIONS]
-transit auth COMMAND [OPTIONS]
-transit file-query --format csv|jsonl -c SQL [OPTIONS] FILE...
-transit app install --config FILE --file DECLARATION --operation ID
-transit app replace --config FILE --file REPLACEMENT --operation ID
-transit app retry --config FILE --operation ID
-transit app status --config FILE --application NAME [--after INDEX]
-transit app connect --config FILE --application NAME --caller NAME [--output FILE]
 ```
 
 | Command | Input and outcome |
 | --- | --- |
-| `serve`, `server` | Aliases. Run the local supervisor in the foreground. Missing or empty installation directories are initialized automatically. The local profile starts Board by default; `--no-ui` runs headlessly |
+| `server` | Run the local supervisor in the foreground. Missing or empty installation directories are initialized automatically. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
-| `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
-| `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../../apps/transit-cli/docs/catalog.md) |
-| `auth` | [Preview, save, explicitly apply and recover native authorization changes](../../../apps/transit-cli/docs/authorization.md) |
-| `file-query` | [Run finite SQL over captured CSV/JSONL files or stdin](../../../apps/transit-cli/docs/file-query.md) |
-| `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
-| `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
-| `app retry` | Retry the original frozen management request after uncertainty |
-| `app status` | Read sampled deployment state and bounded receipt pages; pass the prior `next` as `--after` |
-| `app connect` | Export a named caller connection, with a seed-file reference rather than an installer/root key |
 
 The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`) or `/etc/transit/transit.yaml`; `--config`
@@ -97,68 +77,21 @@ role failure. Routine errors omit redundant implementation codes and labeled
 `PATH` denotes a file path. A diagnostic never initializes an installation
 or submits an operation.
 
-### Structured errors
+### Result formatting and errors
 
-Result formatting and error formatting are independent:
-
-| Option | Output it controls | Default |
-| --- | --- | --- |
-| `transit console --format table\|json` | SQL results on stdout | Table, unless rc or connection settings select JSON |
-| `transit --diagnostics=json COMMAND` | Structured errors on stderr, including invocation and configuration failures | Human-readable errors |
-
-`console --format json` alone leaves errors human-readable. The global
-`--diagnostics=json` option lets scripts read error codes, locations, outcome
-evidence and recovery actions without parsing prose. It is an error renderer,
-not a debug or verbosity switch, and does not configure server logging.
-It is processed before command dispatch, so it can also describe failures before
-a console session opens.
-
-Place `--diagnostics=json` before the command to emit one bounded
-[Diagnostic v1](../../../contracts/DIAGNOSTICS_V1.md) JSON object per failure on
-stderr. For JSON SQL results and structured errors together:
-
-```sh
-transit --diagnostics=json console --format json -c 'SELECT COUNT(*) FROM items'
-```
-
-Result stdout and exit statuses keep their command-specific formats. The
-structured error contains the semantic code, primary cause, stage, known outcome,
-execution evidence, original identity and applicable recovery actions. It is
-context for a decision, never a receipt or authorization. SQL compilation,
-recorded query failures, mutation/catalog rejection and explicit send failures
-use their shared owner projections. An unmapped cause is explicitly internal;
-it does not acquire a guessed domain outcome. Optional rendering failure retains
-an available owner decision and otherwise reports that the diagnostic is unavailable.
-
-Invocation errors identify the argument ordinal in the original command line
-and known option name, without echoing unknown arguments or configuration
-values. File paths preserve UTF-8 or explicitly escaped POSIX bytes. An absent
-source coordinate does not become a fabricated line-one location. File record
-ordinals are distinct from physical lines. Script SQL offsets are absolute
-UTF-8 byte coordinates and include the number of previously completed commands.
-
-With console timing enabled, stderr also contains a separate `{"timing": ...}`
-JSON record after the diagnostic, with milliseconds by phase. Terminal prompts,
-interactive editing and server child logs retain their own formats; use batch
-console input when consuming stderr as a JSON record stream. Human diagnostics
-remain the default.
+`transit console --format table|json` selects SQL results on stdout. Errors and
+timing remain human-readable on stderr, including invocation and configuration
+failures before a session opens. Server operational logs use `logging.format`
+and `logging.level` in server configuration.
 
 ### Help hierarchy
 
-Bare `transit` and `transit --help` list commands with short descriptions.
-`transit app --help` lists application operations; `transit auth --help` lists
-authorization operations; `transit catalog --help` lists catalog operations. Command help, including
-`transit app install --help` and each other application operation, shows its
-supported options, defaults and configuration guide. `server` is the canonical
-name in server help; `serve` is listed as an alias.
-
-Help requires no configuration file, credentials, network or running server.
-It skips required-option checks but still rejects malformed supplied arguments,
-unknown options and duplicates. Help and version output exit successfully on
-stdout. The query shell accepts its standalone `--help` invocation.
-Other commands' configuration links in help name repository guides; installed
-bundles need not contain those relative paths. Console help uses `.help` and
-console inspection commands. The CLI has no `--verbose` option.
+Bare `transit` and `transit --help` list `server` and `console`.
+`transit server --help` and `transit console --help` show their options and defaults.
+Help requires no configuration, credentials, network or running server. It
+still rejects malformed supplied arguments, unknown options and duplicates.
+Help and version output exit successfully on stdout. Console `.help` provides
+statement and session assistance. The CLI has no verbosity or diagnostics switch.
 
 ### Coordinates that lead to the problem
 
@@ -173,13 +106,10 @@ console inspection commands. The CLI has no `--verbose` option.
 | Listener cannot be bound | Configuration file, port field and exact loopback address/port |
 | Server role cannot reach readiness | Installation path, role and underlying failure; check that role's configured executable, port and storage permissions before restarting |
 
-Invocation diagnostics cover `server`/`serve`, `console`, `app`, `auth`, `catalog`,
-`file-query` and the query shell. File decoding coordinates cover server, console,
-application management and catalog configuration/artifacts. Server/console startup adds validated field coordinates,
-listener failures and recovery advice. Other failures retain the useful command or
-file context and an explanation or untranslated error identifier; the CLI does
-not claim a more specific cause than it can establish. Query-shell configuration and in-session result formats
-retain their separate contracts.
+Invocation diagnostics cover `server` and `console`. File decoding coordinates
+cover their configuration and SQL inputs. Startup adds validated field
+coordinates, listener failures and recovery advice. Other failures retain useful
+command or file context and an explanation or error identifier.
 
 ### Next steps preserve evidence
 
@@ -202,7 +132,7 @@ for first startup and restarts. Set
 
 Top-level failures write diagnostics to stderr and leave stdout available for
 machine records. Help/version write to stdout and exit 0. Invocation and
-server/console/management configuration errors exit 2; runtime failures exit 1;
+server/console configuration errors exit 2; runtime failures exit 1;
 an interrupted batch query exits 130 after resolved cancellation. Ctrl-C during
 interactive SQL returns to the prompt. Console results use stdout; console errors,
 including query failures, use stderr. Prompts and human diagnostic prose stay off machine stdout.
@@ -250,8 +180,7 @@ current native and catalog rights. `KIND` is `table`, `configuration` or
 `captured`; a bare ID selects a Table operation. In a fresh session, `.status`
 lists authorized retained operations. The [console guide](../../../apps/transit-cli/docs/console.md#input-commands-and-results)
 defines controls and source selection. `.new`, `.retry`, `.advance`, `.next`
-and manual recovery exports are not console commands. `query` keeps its separate
-explicit native protocol and recovery commands.
+and manual recovery exports are not console commands.
 
 `.edit` is interactive-only, skips dot commands in history and opens a blank
 file when no SQL is available. Configure `$EDITOR`, including a wait argument
@@ -262,23 +191,10 @@ submits nothing. The [external editor guide](../../../apps/transit-cli/docs/cons
 defines temporary files, argument parsing and the statement limit. This is a
 fresh SQL submission under current rights; exact recovery uses `.resume`.
 
-## Catalog commands
-
-`transit catalog` saves general Table SQL or typed intent, prepares one signed
-step at a time and explicitly submits original saved bytes. CREATE compilation
-is offline; other statements resolve an authorized object and exact schema.
-`next`, `observe`, `progress` and `status` keep input admission, processing,
-upload state and terminal domain outcomes distinct. Lifecycle cancellation and
-candidate cleanup have explicit saved controls; neither undoes publication.
-The [catalog guide](../../../apps/transit-cli/docs/catalog.md) defines flags,
-private artifacts, metadata pages and recovery after uncertainty.
-
 ## Configuration, output and recovery
 
 Use [server configuration](../../../apps/transit-cli/docs/server.md),
-[application installation](../../../apps/transit-cli/docs/applications.md),
-[console configuration](../../../apps/transit-cli/docs/console.md) and
-[source configuration](../../../apps/transit-cli/docs/unified-query.md) for exact
+[console configuration](../../../apps/transit-cli/docs/console.md) for exact
 fields, paths and bounds. Configuration alone never creates a grant.
 
 Console JSON output keeps prompts and diagnostics off stdout. Full-width

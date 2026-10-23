@@ -2,13 +2,11 @@
 const std = @import("std");
 const wire = @import("transit_query").wire;
 const A = wire.Application;
-const Files = @import("server/Files.zig");
-const Config = @import("server/Config.zig");
-const Diagnostic = @import("Diagnostic.zig");
+const Files = @import("cli_support").Files;
+const Config = @import("cli_support").Config;
+const Diagnostic = @import("cli_support").Diagnostic;
 pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic) !void {
-    if (args.len == 0 or (args.len == 1 and std.mem.eql(u8, args[0], "--help"))) return std.Io.File.stdout().writeStreamingAll(init.io, @import("Help.zig").app);
     const options = try @import("AppOptions.zig").parse(args, report);
-    if (options.help) return @import("Help.zig").application(init.io, options.mode);
     const mode = options.mode;
     const flags = options.flags;
     const allocator = init.arena.allocator();
@@ -18,7 +16,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
         report.configurationFailure(err);
         return error.InvalidConfigurationPath;
     };
-    var config = try @import("Settings.zig").readTyped(A.Management, init, absolute, report);
+    var config = try @import("cli_support").Settings.readTyped(A.Management, init, absolute, report);
     if (config.version != 1) return report.invalidField("version", "must be 1", "Use the management configuration emitted by the server.");
     config.seed_file = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.seed_file });
     config.recovery_directory = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.recovery_directory });
@@ -53,7 +51,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
             .install => {
                 report.atFile(flags.file.?);
                 const path = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.file.?, allocator);
-                var declaration = try @import("Settings.zig").readTyped(A.Declaration, init, path, report);
+                var declaration = try @import("cli_support").Settings.readTyped(A.Declaration, init, path, report);
                 const roles = try allocator.dupe(A.Role, declaration.roles);
                 for (roles) |*role| try resolveArtifact(init, &role.artifact, std.fs.path.dirname(path).?);
                 declaration.roles = roles;
@@ -63,7 +61,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
             .replace => {
                 report.atFile(flags.file.?);
                 const path = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.file.?, allocator);
-                var replacement = try @import("Settings.zig").readTyped(A.Replacement, init, path, report);
+                var replacement = try @import("cli_support").Settings.readTyped(A.Replacement, init, path, report);
                 try resolveArtifact(init, &replacement.artifact, std.fs.path.dirname(path).?);
                 request.command = .{ .replace = replacement };
             },
@@ -93,7 +91,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
         defer response.deinit();
         if (flags.output) |destination| {
             report.atFile(destination);
-            return @import("Settings.zig").write(init, destination, response.value);
+            return @import("cli_support").Settings.write(init, destination, response.value);
         }
         try output(init, response.value);
     } else {
@@ -118,5 +116,5 @@ fn output(init: std.process.Init, value: anytype) !void {
     var buffer: [8192]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     const text = try wire.protocol.Json.valueAlloc(init.arena.allocator(), value);
-    try @import("Output.zig").write(init, &writer.interface, try std.fmt.allocPrint(init.arena.allocator(), "{s}\n", .{text}));
+    try @import("cli_support").Output.write(init, &writer.interface, try std.fmt.allocPrint(init.arena.allocator(), "{s}\n", .{text}));
 }

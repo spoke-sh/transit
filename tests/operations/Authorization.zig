@@ -7,41 +7,15 @@ const p = wire.protocol;
 const B = wire.AuthorizationBridge;
 const Change = wire.AuthorizationChange;
 const Set = wire.AuthorizationSet;
-const Diagnostic = @import("Diagnostic.zig");
+const Diagnostic = @import("cli_support").Diagnostic;
 const Recovery = @import("RecoveryFiles.zig");
-const Files = @import("server/Files.zig");
-pub const Config = struct { version: u8, connection: B.Connection, url: []const u8, seed_file: []const u8, request_timeout_ms: u32 = 5000 };
+const Files = @import("cli_support").Files;
+pub const Config = @import("cli_support").AuthorizationProfile;
 pub const Kind = enum { change, changeset };
 pub const Saved = struct { definition: p.Growth.Definition, kind: Kind, record: []const u8, preview: ?p.Authorization.Preview = null };
 pub const Mode = enum { capabilities, read, prepare, @"prepare-plan", @"prepare-set", next, submit, observe, recover, abandon, apply };
 const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, steps: ?[]const u8 = null };
-pub const Options = struct { mode: Mode, flags: Flags = .{}, steps: u8 = 16, help: bool = false };
-pub const help =
-    \\Inspect, preview and explicitly apply declarative authorization.
-    \\
-    \\Usage: transit auth COMMAND --config PATH --file INPUT [--output NEW_FILE]
-    \\
-    \\  capabilities   Show local support; no configuration or file needed
-    \\  read           Read one native authorization query from INPUT
-    \\  prepare        Preview {expected_revision, action}; save a signed begin
-    \\  prepare-plan   Prepare an authorization plan compiled by catalog SQL
-    \\  prepare-set    Seal scoped grant intents and prepare their first change
-    \\  next           Save the next exact step or report a terminal outcome
-    \\  submit         Submit the exact pending step in a saved file once
-    \\  observe        Read the original admitted change's status and action
-    \\  recover        Resolve a pending receipt using the current credential
-    \\  abandon        Prepare closure of a resolved, unpublished candidate
-    \\  apply          Advance the saved file in place, checkpointing every step
-    \\
-    \\prepare, prepare-plan, prepare-set, next, recover and abandon require --output NEW_FILE.
-    \\Existing output files are refused. Read/submit/observe print JSON.
-    \\apply accepts --steps 1..64 (default 16), reports pending at its budget,
-    \\and locks its saved file. Only submit and apply send commands.
-    \\An unknown outcome retains the exact pending request for recovery.
-    \\SQL names are resolved before preparation; a stale policy basis is rejected.
-    \\Configuration and recovery: apps/transit-cli/docs/authorization.md
-    \\
-;
+pub const Options = struct { mode: Mode, flags: Flags = .{}, steps: u8 = 16 };
 fn writes(mode: Mode) bool {
     return mode == .prepare or mode == .@"prepare-plan" or mode == .@"prepare-set" or mode == .next or mode == .recover or mode == .abandon;
 }
@@ -51,20 +25,14 @@ fn allowed(mode: Mode, field: []const u8) bool {
     return mode != .capabilities;
 }
 pub fn parse(args: []const []const u8, report: *Diagnostic) !Options {
-    report.command = "transit auth";
-    report.help = "transit auth --help";
+    report.command = "authorization fixture";
     report.atArgument(2, null);
     if (args.len == 0) return report.invalidInvocation("an authorization command is required");
     var result: Options = .{ .mode = std.meta.stringToEnum(Mode, args[0]) orelse return report.invalidArgument("unknown authorization command") };
     var i: usize = 1;
     while (i < args.len) {
         report.atArgument(i + 2, null);
-        if (std.mem.eql(u8, args[i], "--help")) {
-            if (result.help) return report.invalidArgument("help can only be specified once");
-            result.help = true;
-            i += 1;
-            continue;
-        }
+
         var found = false;
         inline for (@typeInfo(Flags).@"struct".field_names) |field| {
             if (std.mem.eql(u8, args[i], "--" ++ field)) {
@@ -84,7 +52,7 @@ pub fn parse(args: []const []const u8, report: *Diagnostic) !Options {
         if (result.steps == 0 or result.steps > 64) return report.invalidOption("steps must be between 1 and 64");
     }
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        if (!result.help and !std.mem.eql(u8, field, "steps") and allowed(result.mode, field) and @field(result.flags, field) == null) {
+        if (!std.mem.eql(u8, field, "steps") and allowed(result.mode, field) and @field(result.flags, field) == null) {
             report.atArgument(null, "--" ++ field);
             return report.invalidOption("is required");
         }
@@ -121,14 +89,12 @@ fn attempt(init: std.process.Init, transport: *wire.Client, key: p.Ed25519.KeyPa
     };
 }
 pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic) !void {
-    if (args.len == 0 or (args.len == 1 and std.mem.eql(u8, args[0], "--help"))) return std.Io.File.stdout().writeStreamingAll(init.io, help);
     const options = try parse(args, report);
-    if (options.help) return std.Io.File.stdout().writeStreamingAll(init.io, help);
     if (options.mode == .capabilities) return output(init, B.Result{ .capabilities = .{} });
     const alloc = init.arena.allocator();
     report.atFile(options.flags.config.?);
     const absolute = try std.Io.Dir.cwd().realPathFileAlloc(init.io, options.flags.config.?, alloc);
-    const config = try @import("Settings.zig").readTyped(Config, init, absolute, report);
+    const config = try @import("cli_support").Settings.readTyped(Config, init, absolute, report);
     if (config.version != 1) return report.invalidField("version", "must be 1", null);
     try config.connection.validate();
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return report.invalidField("request_timeout_ms", "must be between 1 and 60000", null);

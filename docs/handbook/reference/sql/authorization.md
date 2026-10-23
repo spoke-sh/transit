@@ -1,9 +1,8 @@
 # Role and schema administration
 
 The dedicated authorization compiler resolves SQL to a reviewable typed plan.
-`transit catalog compile-authorization` and the Table bridge/service
-`compile_authorization` operation share this compiler. Native policy changes use
-the explicit [administration lifecycle](../../../../apps/transit-cli/docs/authorization.md);
+The Table bridge/service `compile_authorization` operation uses this compiler. Native policy changes use
+the explicit [administration lifecycle](../../../../packages/zig/transit-client/docs/authorization.md);
 schema changes use the catalog owner. The query console, Board query worksheet
 and Flight SQL retain their separate query interfaces.
 

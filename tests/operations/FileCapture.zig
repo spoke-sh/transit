@@ -2,7 +2,7 @@
 //! captures, checked gzip, and cancellation. No network or durable acceptance.
 const std = @import("std");
 const f = @import("transit_query").fuze;
-const Signals = @import("Signals.zig");
+const Signals = @import("cli_support").Signals;
 const Self = @This();
 io: std.Io,
 file: std.Io.File,

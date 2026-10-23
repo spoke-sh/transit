@@ -26,7 +26,7 @@ class Console:
     """One persistent process, bounded simultaneous stdout/stderr draining."""
     def __init__(self, fixture, config=None, executable=None):
         args = ([executable, str(config)] if executable else
-                [fixture.cli, '--diagnostics=json', 'console', '--no-rc', '--format', 'json',
+                [fixture.cli, 'console', '--no-rc', '--format', 'json',
                  *(['--config', str(config)] if config else [])])
         self.process = subprocess.Popen(args, cwd=fixture.root, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE,

@@ -179,18 +179,7 @@ the first error. Dot commands occupy their own line. Prompts, timing and errors
 use stderr; SQL results use stdout.
 
 `--format table|json` and `.mode table|json` select SQL result presentation.
-They do not change error formatting. Errors are human-readable by default;
-the global `--diagnostics=json` option selects structured errors on stderr and
-must appear before `console`. For JSON SQL results and structured errors together:
-
-```sh
-transit --diagnostics=json console --format json -c 'SELECT COUNT(*) FROM items'
-```
-
-The diagnostics option also covers invocation and configuration failures before
-a session opens. It does not enable debug logging. See the
-[structured error reference](../../../docs/handbook/reference/cli.md#structured-errors)
-for the error schema and other stderr output.
+Errors remain human-readable on stderr.
 
 | Command | Purpose |
 | --- | --- |
@@ -222,8 +211,7 @@ before fetching the next and never accumulates an entire result.
 
 `.timer on` reports client-observed submission, waiting, fetching and rendering
 time. It is not a server engine or pure network measurement. `.show` prints aligned
-text preferences even in JSON mode. The low-level `transit query` interface keeps
-its separate explicit native recovery protocol; it is not a console fallback.
+text preferences even in JSON mode.
 
 ## Terminal editing and history
 
@@ -273,8 +261,7 @@ token. Use `.resume` with the original identity to recover accepted work.
 The service reports SQLSTATE, an error code and structured compiler evidence when
 available. Syntax and binding failures occur before admission. Compiler locations
 use statement-relative byte offsets; details derive from the failing compilation,
-without extra stored-value reads. `--diagnostics=json` selects the shared bounded
-diagnostic envelope on stderr independently of result formatting.
+without extra stored-value reads. Errors render this evidence as human-readable text on stderr.
 
 Transport failure does not establish whether a write was accepted. The console
 prints its original request token on uncertainty. Inspect that token or list

@@ -16,7 +16,7 @@ from cold_storage import ColdStore
 from storage import Fixture, free_port, wait_ready
 from unified_abi import Native as Query, Failure
 from catalog_abi import Native as Catalog
-from catalog_cli import Cli
+from catalog_helpers import Cli
 
 
 def run(node, host, proof, library, cli, *, sdks=()):
@@ -364,9 +364,8 @@ def run(node, host, proof, library, cli, *, sdks=()):
             # Autonomous continuations are explicitly delivered from here on.
             courier = start('courier', [host, str(root/'courier.json')])
             catalog_args = [cli, 'console', '--no-rc', '--config', str(root/'catalog-console.json')]
-            def console_run(sql=None, data=None, code=0, structured=False):
+            def console_run(sql=None, data=None, code=0):
                 args = catalog_args + (['-c', sql] if sql is not None else [])
-                if structured: args.insert(1, '--diagnostics=json')
                 result = subprocess.run(args, input=data, env=fixture.env, capture_output=True, text=True, timeout=180)
                 assert result.returncode == code, (result.returncode, result.stdout, result.stderr)
                 return result
@@ -393,11 +392,6 @@ def run(node, host, proof, library, cli, *, sdks=()):
             human = console_run(data=".mode table\nINSERT INTO items (value,id) VALUES ('atomic',101),('duplicate',1);\n", code=1)
             assert not human.stdout and human.stderr.count('Constraint Error:') == 1, human
             assert 'Duplicate key "id: 1"' in human.stderr and '.resume' not in human.stderr, human.stderr
-            structured = console_run("INSERT INTO items (value,id) VALUES ('atomic',101),('duplicate',1)", code=1, structured=True)
-            detail = json.loads(structured.stderr)
-            assert detail['code'] == 'table.primary_key_conflict' and detail['outcome'] == 'rejected', detail
-            facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
-            assert facts['key'] == {'text':'1'} and facts['input_row'] == {'unsigned':'2'}, facts
             assert facts['column'] == {'text':'id'}, facts
             assert catalog_rows(console_run('SELECT * FROM items').stdout) == current
             send_fault.update(lose=True, recovered=False)

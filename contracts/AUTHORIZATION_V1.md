@@ -6,7 +6,7 @@ inspection. [Authorization.zig](../packages/zig/transit-protocol/src/Authorizati
 owns the types; the native schema reflects them. The catalog and explicit Table
 service enforce database/schema/Table privileges. The dedicated SQL compiler
 lowers selected administration to native policy and catalog schema operations;
-the neutral client and `transit auth` provide preview and explicit apply/recovery.
+the neutral client provides preview and explicit apply/recovery.
 The native capability alone does not advertise a Table service or establish an
 adapter's original-subject profile.
 

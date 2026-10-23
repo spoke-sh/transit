@@ -16,7 +16,7 @@ endpoint. It validates the verified native result before producing primitive Arr
 | Submission | Finite authenticated Publication upload; 25,069-byte canonical bundle, 128-byte parts |
 | Values | All logical type families and five explicit cell states in nested Arrow |
 | Reads | Current authorized publication reads with ordered digest/row/byte verification |
-| Shell | `transit query CONFIG`; explicit frozen bundle/token recovery |
+| Native callers | `UnifiedClient`; explicit frozen bundle/token recovery |
 | Board | Separate `query` credentials; one configured source and budgets |
 | Language callers | Public SDKs over the shared Zig native/port implementation |
 | Flight / Flight SQL / ADBC | Int64 Table projection/count/sum; explicit checked conversion to primitive Arrow, as defined by the [client/type matrix](../../transit-flight/docs/compatibility.md) |

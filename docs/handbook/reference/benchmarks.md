@@ -156,7 +156,7 @@ Benchmark coverage follows its exact contracts and does not enable new syntax.
 Explicit catalog APIs support named Table publication, controls and exact saved
 recovery, plus typed lookup, definition reads and bounded listings in all ten
 [language SDKs](sdks.md#catalog-callers). The
-[catalog CLI](../../../apps/transit-cli/docs/catalog.md) shares the Zig owner.
+[catalog caller](../../../packages/zig/transit-catalog/README.md) shares the Zig owner.
 These implemented publication and metadata paths remain unmeasured here;
 compiling a declaration does not measure their admission, authorization, commit
 or transport costs.

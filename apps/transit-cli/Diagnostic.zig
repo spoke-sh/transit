@@ -3,15 +3,10 @@ const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
 emitted: bool = false,
-format: enum { human, json } = .human,
-argument_offset: usize = 0,
 style: @import("Style.zig") = .{},
 envelope: ?@import("transit_query").protocol.Diagnostic = null,
 input: ?@import("InputPosition.zig") = null,
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
-write: ?@import("WriteDiagnostic.zig") = null,
-source: ?@import("FileDiagnostic.zig") = null,
-query: ?@import("QueryDiagnostic.zig") = null,
 timing: ?@import("Timing.zig").Report = null,
 argument: ?usize = null,
 option: ?[]const u8 = null,
@@ -37,9 +32,6 @@ pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) 
 pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) void {
     self.envelope = null;
     self.sql = null;
-    self.write = null;
-    self.source = null;
-    self.query = null;
     self.presentation = .general;
     self.summary = summary;
     self.next = next;
@@ -66,7 +58,7 @@ pub fn configurationFailure(self: *Self, cause: anyerror) void {
     self.presentation = .configuration;
 }
 pub fn atArgument(self: *Self, index: ?usize, option: ?[]const u8) void {
-    self.argument = if (index) |value| value + self.argument_offset else null;
+    self.argument = index;
     self.option = option;
 }
 pub fn atFile(self: *Self, file: []const u8) void {
@@ -181,27 +173,13 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
-    if (self.format == .json) {
-        const value = self.structured(err) catch @import("StructuredDiagnostic.zig").fallback(self, err);
-        try std.json.Stringify.value(value, .{ .escape_unicode = true }, out);
-        return out.writeByte('\n');
-    }
     try self.renderFailure(out, err);
     if (self.input) |input| try input.render(out);
-}
-pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.Diagnostic {
-    return @import("StructuredDiagnostic.zig").project(self, err);
 }
 fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.envelope) |value| {
         if (value.validate()) |_| return @import("EnvelopeDiagnostic.zig").render(value, out) else |_| {}
     }
-    if (self.write) |diagnostic| return diagnostic.render(out, self.style);
-    if (self.query) |query| {
-        if (query.failure == null or (query.failure.?.runtime == null and query.failure.?.source == null)) try self.style.text(out, .failure, "error: ");
-        return query.render(out);
-    }
-    if (self.source) |diagnostic| return diagnostic.render(out, err, self.style);
     if (self.sql) |original| {
         var diagnostic = original;
         if (self.input) |input| if (input.sql) {
@@ -311,7 +289,7 @@ fn reason(err: anyerror) []const u8 {
 pub fn reportTiming(self: *Self) void {
     const timing = self.timing orelse return;
     self.timing = null;
-    timing.emit(self.format == .json);
+    timing.emit();
 }
 pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
     defer self.reportTiming();
@@ -338,7 +316,7 @@ fn adviceFor(err: anyerror) ?Advice {
         error.ConsoleRecoveryInUse, error.ManagementClientInUse => .{ "another client holds the recovery lock", "Close the other client using this recovery location, then reconnect with the same configuration." },
         error.ConsoleRecoveryIdentityMismatch, error.RecoveryIdentityMismatch => .{ "saved intent belongs to a different configured identity", "Use the original configuration and recovery file together; do not resubmit the operation under a new identity." },
         error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
-        error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Retry the saved request with the same configuration and operation ID:\n  transit app retry --config PATH --operation ID" },
+        error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Resubmit the original saved signed request through the application client. Preserve its operation ID and configuration." },
         error.InteractiveQueryCancelled => .{ "query cancelled", "Run the statement again to start a fresh snapshot." },
         error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect .status or recover saved intent with .resume." },
         error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use .resume for pending signed intent; do not resubmit SQL after an uncertain outcome." },
@@ -369,7 +347,7 @@ test "unknown failures retain identifiers and recovery advice retains exact iden
     const cases = .{
         .{ Self{ .command = "transit server", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
         .{ Self{ .summary = "cannot complete this step", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
-        .{ Self{ .command = "transit app install" }, error.ApplicationOutcomeUnknown, &.{ "outcome is unknown", "saved request", "same configuration and operation ID", "transit app retry --config PATH --operation ID" } },
+        .{ Self{}, error.ApplicationOutcomeUnknown, &.{ "outcome is unknown", "saved signed request", "operation ID", "configuration" } },
         .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{ "not cancelled", ".status", ".resume" } },
         .{ Self{ .command = "transit console" }, error.InteractiveQueryCancelled, &.{ "query cancelled", "fresh snapshot" } },
         // Exhaustion must replace a transient retry message and retain the cause.

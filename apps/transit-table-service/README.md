@@ -56,13 +56,13 @@ bytes; it does not ask for a replacement sequence. Service restart does not
 erase accepted native work or its catalog outcome.
 
 `MediatedTableClient` and `MediatedTableBridge` provide the shared Zig caller and
-neutral catalog lifecycle. The catalog CLI selects this boundary with
+neutral catalog lifecycle. A catalog caller selects this boundary with
 `table_service_url`. It authenticates each action using the caller's current
 credential and retains owned response strings/rows until the response is freed.
 Status and recovery use current object visibility and the original saved bytes.
 Callers need no native process inspection or raw-resource reads. Writers require
 an explicit native send capability to the catalog PID in addition to their Table
-privileges. `transit catalog receipt` recovers exact native admission with the
+privileges. The catalog `receipt` operation recovers exact native admission with the
 current credential, including after rotation; an absent receipt leaves the
 pending command unchanged. The service does not expose initialization or raw
 dependency provisioning to restricted callers.
@@ -70,7 +70,7 @@ Recovery verifies the complete retained send against its native receipt before
 reporting processing. A supplied position alone cannot establish admission or
 completion, even when the mailbox has already advanced beyond it.
 
-The CLI and neutral catalog caller retry an unsubmitted read or preparation
+Neutral catalog callers retry an unsubmitted read or preparation
 when a dependent resource or authorization revision changes. They make at most
 eight retries within the configured caller timeout, release each failed read's
 workspace and repeat current authorization. The saved intent and any explicit

@@ -1,17 +1,11 @@
 //! Projection only: no reads, retries, authority decisions or captured secrets.
 const std = @import("std");
 const d = @import("transit_query").protocol.Diagnostic;
-const Cli = @import("Diagnostic.zig");
+const Cli = @import("cli_support").Diagnostic;
 
 pub fn project(self: Cli, err: anyerror) !d {
     var result = if (self.envelope) |value|
         value
-    else if (self.write) |write|
-        write.envelope
-    else if (self.query) |query|
-        try query.structured()
-    else if (self.source) |source|
-        try source.structured(err)
     else if (self.sql) |sql|
         try sql.structured()
     else
@@ -27,7 +21,7 @@ pub fn project(self: Cli, err: anyerror) !d {
 /// A failure to add optional presentation evidence cannot change the original
 /// known outcome. Strip optional context and actions, retain the owner decision.
 pub fn fallback(self: Cli, err: anyerror) d {
-    var result = if (self.envelope) |value| value else if (self.write) |value| value.envelope else if (self.query) |value| value.structured() catch null else null;
+    var result = self.envelope;
     if (result) |*value| {
         value.facts = @splat(null);
         value.location = null;

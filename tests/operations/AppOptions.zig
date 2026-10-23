@@ -1,37 +1,29 @@
 //! Validate all application arguments before reading files or creating intent.
 const std = @import("std");
-const Diagnostic = @import("Diagnostic.zig");
+const Diagnostic = @import("cli_support").Diagnostic;
 pub const Mode = enum { install, replace, retry, status, connect };
 pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, operation: ?[]const u8 = null, application: ?[]const u8 = null, caller: ?[]const u8 = null, output: ?[]const u8 = null, after: ?[]const u8 = null };
-pub const Options = struct { mode: Mode, flags: Flags, after: u32 = 0, help: bool = false };
+pub const Options = struct { mode: Mode, flags: Flags, after: u32 = 0 };
 pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
-    diagnostic.command = "transit app";
-    diagnostic.help = "transit app --help";
+    diagnostic.command = "application fixture";
     diagnostic.atArgument(2, null);
+    if (args.len == 0) return error.InvalidInvocation;
     const mode = std.meta.stringToEnum(Mode, args[0]) orelse return diagnostic.invalidArgument("unknown application subcommand");
     switch (mode) {
         inline else => |value| {
-            diagnostic.command = "transit app " ++ @tagName(value);
-            diagnostic.help = "transit app " ++ @tagName(value) ++ " --help";
+            diagnostic.command = "application fixture " ++ @tagName(value);
         },
     }
     var result: Options = .{ .mode = mode, .flags = .{} };
     var i: usize = 1;
     while (i < args.len) {
         diagnostic.atArgument(i + 2, null);
-        if (std.mem.eql(u8, args[i], "--help")) {
-            diagnostic.option = "--help";
-            if (result.help) return diagnostic.invalidOption("can only be specified once");
-            result.help = true;
-            i += 1;
-            continue;
-        }
+
         var found = false;
         inline for (@typeInfo(Flags).@"struct".field_names) |field| {
             if (std.mem.eql(u8, args[i], "--" ++ field)) {
                 diagnostic.option = "--" ++ field;
                 if (!allowed(mode, field)) {
-                    diagnostic.show_help = true;
                     return diagnostic.invalidOption("is not supported by this command");
                 }
                 if (@field(result.flags, field) != null) return diagnostic.invalidOption("can only be specified once");
@@ -53,24 +45,15 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
             (std.mem.eql(u8, field, "operation") and (mode == .install or mode == .replace or mode == .retry)) or
             (std.mem.eql(u8, field, "application") and (mode == .status or mode == .connect)) or
             (std.mem.eql(u8, field, "caller") and mode == .connect);
-        if (!result.help and required and @field(result.flags, field) == null) {
+        if (required and @field(result.flags, field) == null) {
             diagnostic.atArgument(null, "--" ++ field);
-            diagnostic.usage = usage(mode);
             return diagnostic.invalidOption("is required");
         }
     }
     diagnostic.atArgument(null, null);
     return result;
 }
-pub fn usage(mode: Mode) []const u8 {
-    return switch (mode) {
-        .install => "transit app install --config PATH --file DECLARATION --operation ID",
-        .replace => "transit app replace --config PATH --file REPLACEMENT --operation ID",
-        .retry => "transit app retry --config PATH --operation ID",
-        .status => "transit app status --config PATH --application NAME",
-        .connect => "transit app connect --config PATH --application NAME --caller NAME",
-    };
-}
+
 fn allowed(mode: Mode, field: []const u8) bool {
     if (std.mem.eql(u8, field, "file")) return mode == .install or mode == .replace;
     if (std.mem.eql(u8, field, "application")) return mode == .status or mode == .connect;

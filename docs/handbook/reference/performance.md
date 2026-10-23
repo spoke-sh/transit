@@ -609,7 +609,7 @@ requirement. A fast read that skips these boundaries does not qualify the design
 
 ## Schema on demand measurements
 
-Local CSV/JSONL discovery, finite queries and explicit CLI capture have a
+Local CSV/JSONL discovery, finite queries and explicit test-host capture have a
 [reproducible comparison matrix](../../../tests/fuze_benchmarks/README.md) and
 [recorded baseline and budgets](../../../tests/fuze_benchmarks/results/2026-09-30/README.md).
 DuckDB 1.5.2 (build `8a5851971f`) and PyArrow 23.0.0 are pinned development

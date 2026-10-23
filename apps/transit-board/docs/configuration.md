@@ -134,7 +134,7 @@ routes and interactive joins/groups through its own optional `relational` field.
 Queries are disabled unless `query` is configured. The object contains
 `seed_file`, `connection` (realm, principal, source, resource, requester, requests),
 and the `workspace` source/name/limits object from the
-[SQL shell guide](../../transit-cli/docs/unified-query.md). This example selects
+[SQL shell guide](../../../packages/zig/transit-query/docs/unified-client.md). This example selects
 an explicitly configured KV decoder:
 
 ```json

@@ -806,7 +806,7 @@
         "packages/zig/transit-query/src/UnifiedClient.zig",
         "packages/zig/transit-query/src/UnifiedBehavior.zig",
         "apps/transit-query-host/main.zig",
-        "apps/transit-cli/main.zig"
+        "tests/operations/main.zig"
       ],
       "profile": "M13 public query v1 over growing v3",
       "tasks": [
@@ -1442,7 +1442,7 @@
         "packages/zig/transit-station/src/TableWrite.zig",
         "packages/zig/transit-station/src/TableStatement.zig",
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
-        "apps/transit-cli/Catalog.zig",
+        "tests/operations/Catalog.zig",
         "apps/transit-station-host/main.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1/table-dml-v1",
@@ -1539,10 +1539,10 @@
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
         "apps/transit-station-host/main.zig",
         "tests/catalog_abi.py",
-        "apps/transit-cli/Catalog.zig",
-        "apps/transit-cli/CatalogOptions.zig",
-        "apps/transit-cli/RecoveryFiles.zig",
-        "tests/catalog_cli.py",
+        "tests/operations/Catalog.zig",
+        "tests/operations/CatalogOptions.zig",
+        "tests/operations/RecoveryFiles.zig",
+        "tests/catalog_helpers.py",
         "tests/cli_diagnostics.py",
         "sdks/python/transit-station/transit_station/catalog.py",
         "tests/python_catalog_sdk.py",

@@ -145,7 +145,7 @@ retaining full-width identities. All ten SDKs also expose exact-name lookup,
 immutable definition reads and ordered pages of at most eight definitions.
 Continue with the original mandatory-definition cursor; a changed revision
 requires a fresh listing. Every metadata call rechecks current inspection and
-native rights. The [catalog CLI](../../../apps/transit-cli/docs/catalog.md) uses the same
+native rights. The [catalog caller](../../../packages/zig/transit-catalog/README.md) uses the same
 Zig owner; query connections do not enable administration.
 
 ## Rules that travel across languages
@@ -162,7 +162,7 @@ Zig owner; query connections do not enable administration.
 
 Use [caller and SDK semantics](callers.md) for authority, scoped turns, native
 ownership, scheduling and exact recovery.
-`transit app` installs separately compiled Zig workers. Other SDKs provide client
+The local application service installs separately compiled Zig workers. Other SDKs provide client
 and framework APIs; the local supervisor has no worker adapter for those languages.
 
 ### Structured failure details

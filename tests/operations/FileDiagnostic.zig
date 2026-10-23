@@ -19,7 +19,7 @@ schema_failure: ?f.Types.Diagnostic = null,
 capture_failure: ?@import("FileCapture.zig").Failure = null,
 output_budget: ?f.FileSource.BudgetDiagnostic = null,
 
-pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("Style.zig")) !void {
+pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("cli_support").Style) !void {
     try style.text(out, .failure, "error: File Query Error");
     try out.print(":\n{s} ({s})\n", .{ if (self.location.conversion != null and err == error.Overflow) "The input scalar is outside the declared type's range." else self.explanation(err), @errorName(err) });
     if (self.capture_failure) |capture| {

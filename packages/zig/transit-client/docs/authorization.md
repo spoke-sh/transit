@@ -55,8 +55,8 @@ a receipt; `restore`, `next`, `recover_pending`, `observe` and `abandon` preserv
 the retained identity. Returned strings belong to the result arena/buffer.
 Post-dispatch allocation failure remains an uncertain outcome.
 
-Neutral input is bounded to 256 KiB. The [CLI guide](../../../../apps/transit-cli/docs/authorization.md)
-describes private durable files and explicit bounded application of these steps.
+Neutral input is bounded to 256 KiB. The host owns durable record files and
+schedules each explicit step through this shared lifecycle.
 
 ## Scoped changesets
 

@@ -2,8 +2,7 @@
 
 The catalog owns general typed Table names, immutable schema metadata, DDL and
 DML routing above Station. `TableCatalog`, `TableBehavior` and `TableClient`
-implement one current contract. SQL, the console, the explicit catalog CLI,
-the native ABI/port and enabled SDK callers share its typed intents and outcomes.
+implement one current contract. SQL, the console, the native ABI/port and enabled SDK callers share its typed intents and outcomes.
 The [Table schema](TABLE_SCHEMA_V1.md), [data](TABLE_DATA_V1.md),
 [DDL](TABLE_DDL_V1.md) and [DML](TABLE_DML_V1.md) contracts own their respective
 value and transition semantics. Query owners use the accepted metadata commitment

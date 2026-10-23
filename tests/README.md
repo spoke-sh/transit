@@ -1,5 +1,34 @@
 # Validation and evidence
 
+## Two-command Transit CLI
+
+The installed `transit` exposes `server` and `console`. The removed command
+routes and global diagnostics option reject before configuration or execution.
+`tests/cli_diagnostics.py` exercises the real binary's help, validation, privacy,
+configuration and SQL error rendering, including all removed routes.
+
+Native authorization, catalog, application and file-source proofs use private
+callers in `tests/operations/`. Build wiring passes the fixture directly or places
+it under `zig-out/tests/` through the explicit `test-operation-fixture` target.
+It is excluded from the default build installation, runtime `apps` target and
+release bundles. It has no user help or supported public interface.
+`tests/operation_diagnostics.py` retains private artifact validation and bounded
+source-error evidence independently of the installed CLI. File capture and
+structured error projection live with these helpers; unused CLI error renderers
+and JSON timing output are removed.
+
+Executed focused checks: 192 real CLI cases and 127 native helper cases pass.
+The file-source proof also passes its 190 cases, including immutable capture,
+checked gzip, cancellation and a 192 MiB input under a 96 MiB address-space limit.
+The native public-query proof also passes exact signed retry, fenced restart,
+busy admission, cancellation and current read-time revocation through the helper.
+`just test::server` passes its full lifecycle in 307.53 seconds, including console
+SQL, `.edit` and lost-reply recovery. `just test::server-applications` passes
+installation, replacement and retained recovery in 383.44 seconds through the
+private application caller.
+`just check` passes the shared unit tests, diagnostics and terminal proofs,
+generated contracts, frontend checks and documentation production build.
+
 Dated sections below summarize checks at their recorded source revisions. Obsolete
 raw transcripts and dependent manifests were removed during repository cleanup;
 the summaries retain measured outcomes and limits, but do not claim those archived

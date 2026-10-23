@@ -1,7 +1,7 @@
 # Data types and cell states
 
 Native SQL reads the types in an explicitly declared query source. The local
-[file-query command](../../../../apps/transit-cli/docs/file-query.md) separately
+[Fuze file source API](../../../../packages/zig/transit-fuze/README.md) separately
 resolves a frozen CSV/JSONL schema before compiling SQL. Neither creates a
 resource from application bytes. Query types, SQL literal
 syntax, offline declaration types and published Table schemas have different coverage.
@@ -22,7 +22,7 @@ positive/negative floating zero.
 Recursive descriptor validation can retain an owned first-failure witness with
 the exact descriptor-member path, violated rule, supplied values and measured
 budget. File queries expose this context in human and structured diagnostics;
-see the [schema-file guide](../../../../apps/transit-cli/docs/file-query.md#schemas-and-exact-values).
+see the [schema-file guide](../../../../packages/zig/transit-fuze/README.md).
 
 General catalog Tables and native finite/session/durable queries carry these
 logical descriptors and values. The enabled language SDKs own typed logical
@@ -38,7 +38,7 @@ SQL casts and nested comparison syntax remain unsupported. Fuze's local Zig
 [file-source API](../../../../packages/zig/transit-fuze/docs/file-sources.md)
 supplies explicit, sampled, full and raw CSV/JSONL discovery/decoding. Native
 query transports do not acquire those sources. Local `FileQuery` plans and the
-file-query command can project their logical values, with exactly typed six-scalar
+file source caller can project their logical values, with exactly typed six-scalar
 SQL comparison literals and int64 SUM. See the [type contract](../../../../contracts/FUZE_TYPES_V1.md)
 for precise admitted conversions, temporal representations and resident bounds.
 
@@ -70,7 +70,7 @@ Read SQL has a separately selected comparison-literal profile. Native general
 Table comparisons bind constants to the declared scalar type. Explicit uint64
 and float64 suffixes remain available; file and configured scalar-source query
 profiles keep their documented exact scalar operands. SQL file-reading functions
-are unsupported: the file-query command captures and binds inputs explicitly.
+are unsupported: the file source caller captures and binds inputs explicitly.
 Accepted Document fields retain their explicit projection; Table JSON does not
 add Document merge semantics or SQL JSON-path expressions.
 
@@ -138,7 +138,7 @@ batch. A value can be valid logically and too large for a selected transport.
 | Surface | Admitted types and behavior |
 | --- | --- |
 | Zig logical types, neutral codecs and enabled typed SDK owners | All logical families above; exact owned values and selected conversions/traits |
-| Zig file sources and local CLI | Frozen CSV/JSONL schemas up to 128 root fields; logical projection, selected scalar predicates, COUNT and int64 SUM; explicit host capture |
+| Zig file sources and host adapter | Frozen CSV/JSONL schemas up to 128 root fields; logical projection, selected scalar predicates, COUNT and int64 SUM; explicit host capture |
 | Native finite/session/durable query plans | Logical schemas up to 128 columns over declared KV/Table/Document sources; no file acquisition |
 | Catalog publication and stored Tables | General typed schemas, typed defaults, optional single/composite primary keys, selected CREATE/ALTER/DROP and atomic DML |
 | Board and native/foreign query SDKs | Views/callers of the admitted native contracts; no separate inference authority or implicit write grants |
@@ -154,7 +154,7 @@ follow the [v1 hard-cutover policy](../versioning.md).
 
 Schema on demand resolves one explicit interpretation before publishing rows.
 The host first acquires immutable content with a verified length/SHA-256 and
-current access checks. Fuze performs no file or network I/O. The local CLI
+current access checks. Fuze performs no file or network I/O. The host adapter
 captures regular files, gzip or stdin into private, unlinked disk files under
 separate encoded/expanded quotas. These captures are ephemeral, with no durable
 job recovery or implicit refetch on replay.

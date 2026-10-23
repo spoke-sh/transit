@@ -2,49 +2,15 @@
 const std = @import("std");
 const f = @import("transit_query").fuze;
 const Capture = @import("FileCapture.zig");
-const Signals = @import("Signals.zig");
-const Diagnostic = @import("Diagnostic.zig");
+const Signals = @import("cli_support").Signals;
+const Diagnostic = @import("cli_support").Diagnostic;
 pub const definition = "transit.fuze.file-output.v1.2026-09-30";
-pub const help =
-    \\Query explicit local files or captured stdin with a frozen schema.
-    \\
-    \\Usage: transit file-query --format csv|jsonl -c SQL [OPTIONS] FILE...
-    \\
-    \\  -c SQL                  One finite SELECT over the name input
-    \\  --format csv|jsonl       Required; JSONL also accepts NDJSON objects
-    \\  --mode MODE              sampled (default), explicit, full or raw
-    \\  --schema PATH            Neutral logical type JSON; full/partial override
-    \\  --mismatch POLICY        fail (default) or type_error
-    \\  --sample-records N       Discovery limit (default 1024)
-    \\  --sample-bytes N         Discovery bytes (default 1048576)
-    \\  --max-bytes N            Total expanded capture/scan quota (default 1 GiB)
-    \\  --max-encoded-bytes N    Total encoded capture quota (default 1 GiB)
-    \\  --max-records N          Scan record quota (default 100000000)
-    \\  --max-record-bytes N     Record bound, at most 65536 (default 65536)
-    \\  --max-fields N           Field bound, at most 128 (default 128)
-    \\  --delimiter CHAR         CSV delimiter (default comma)
-    \\  --quote CHAR             CSV quote (default double quote)
-    \\  --no-header              Generate CSV column names
-    \\  --null-token TEXT        One unquoted CSV null token (default none)
-    \\  --gzip                   All inputs use one gzip member; verify checksums
-    \\  --output json|arrow      Lossless JSON (default) or logical Arrow IPC stream
-    \\  --batch-rows N           Arrow batch rows, 1 to 8 (default 8)
-    \\  --help                   Offline help; validates supplied options
-    \\
-    \\Use - for stdin once; -- ends options. At most 128 files. Named paths must
-    \\be regular files; pipe other streams to stdin. TMPDIR selects spool storage.
-    \\Captures are private, unlinked disk files, removed on exit or cancellation.
-    \\JSON records preserve exact numbers and five states. Rows are provisional
-    \\until the complete record. No durable job, installation or network is used.
-    \\
-;
 const Options = struct {
     source: f.FileSource.Options = .{ .format = .csv },
     encoded_quota: u64 = 1024 * 1024 * 1024,
     schema: ?[]const u8 = null,
     sql: ?[]const u8 = null,
     gzip: bool = false,
-    help: bool = false,
     paths: [128][]const u8 = undefined,
     path_count: usize = 0,
     null_token: [1][]const u8 = undefined,
@@ -75,7 +41,7 @@ fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
             result.path_count += 1;
             continue;
         }
-        const names = [_][]const u8{ "--help", "--gzip", "--no-header", "-c", "--format", "--mode", "--schema", "--mismatch", "--sample-records", "--sample-bytes", "--max-bytes", "--max-encoded-bytes", "--max-records", "--max-record-bytes", "--max-fields", "--delimiter", "--quote", "--null-token", "--output", "--batch-rows" };
+        const names = [_][]const u8{ "--gzip", "--no-header", "-c", "--format", "--mode", "--schema", "--mismatch", "--sample-records", "--sample-bytes", "--max-bytes", "--max-encoded-bytes", "--max-records", "--max-record-bytes", "--max-fields", "--delimiter", "--quote", "--null-token", "--output", "--batch-rows" };
         const index = for (names, 0..) |name, n| {
             if (std.mem.eql(u8, name, arg)) break n;
         } else return diagnostic.invalidArgument("unexpected input");
@@ -83,11 +49,10 @@ fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
         const mask = @as(u32, 1) << @as(u5, @intCast(index));
         if (seen & mask != 0) return diagnostic.invalidOption("can only be specified once");
         seen |= mask;
-        if (index < 3) {
+        if (index < 2) {
             switch (index) {
-                0 => result.help = true,
-                1 => result.gzip = true,
-                2 => result.source.dialect.header = false,
+                0 => result.gzip = true,
+                1 => result.source.dialect.header = false,
                 else => unreachable,
             }
             continue;
@@ -96,50 +61,50 @@ fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
         if (i == args.len) return diagnostic.invalidOption("requires a value");
         const value = args[i];
         switch (index) {
-            3 => {
+            2 => {
                 if (value.len == 0 or value.len > 65536) return diagnostic.invalidOption("requires one SQL statement of at most 65536 bytes");
                 result.sql = value;
             },
-            4 => result.source.format = std.meta.stringToEnum(@TypeOf(result.source.format), value) orelse return diagnostic.invalidOption("must be csv or jsonl"),
-            5 => result.source.mode = std.meta.stringToEnum(f.FileSource.Mode, value) orelse return diagnostic.invalidOption("must be explicit, sampled, full or raw"),
-            6 => {
+            3 => result.source.format = std.meta.stringToEnum(@TypeOf(result.source.format), value) orelse return diagnostic.invalidOption("must be csv or jsonl"),
+            4 => result.source.mode = std.meta.stringToEnum(f.FileSource.Mode, value) orelse return diagnostic.invalidOption("must be explicit, sampled, full or raw"),
+            5 => {
                 if (value.len == 0) return diagnostic.invalidOption("requires a file path");
                 result.schema = value;
             },
-            7 => result.source.mismatch = std.meta.stringToEnum(f.FileSource.Mismatch, value) orelse return diagnostic.invalidOption("must be fail or type_error"),
-            8...14 => {
+            6 => result.source.mismatch = std.meta.stringToEnum(f.FileSource.Mismatch, value) orelse return diagnostic.invalidOption("must be fail or type_error"),
+            7...13 => {
                 if (value.len == 0) return diagnostic.invalidOption("requires a positive decimal integer");
                 for (value) |byte| if (!std.ascii.isDigit(byte)) return diagnostic.invalidOption("requires a positive decimal integer");
                 const number = std.fmt.parseInt(u64, value, 10) catch return diagnostic.invalidOption("exceeds the integer range");
                 if (number == 0) return diagnostic.invalidOption("requires a positive integer");
                 switch (index) {
-                    8 => result.source.sample_records = number,
-                    9 => result.source.sample_bytes = number,
-                    10 => result.source.max_scan_bytes = number,
-                    11 => result.encoded_quota = number,
-                    12 => result.source.max_records = number,
-                    13 => {
+                    7 => result.source.sample_records = number,
+                    8 => result.source.sample_bytes = number,
+                    9 => result.source.max_scan_bytes = number,
+                    10 => result.encoded_quota = number,
+                    11 => result.source.max_records = number,
+                    12 => {
                         if (number > 65536) return diagnostic.invalidOption("must be at most 65536");
                         result.source.max_record_bytes = @intCast(number);
                     },
-                    14 => {
+                    13 => {
                         if (number > 128) return diagnostic.invalidOption("must be at most 128");
                         result.source.max_fields = @intCast(number);
                     },
                     else => unreachable,
                 }
             },
-            15, 16 => {
+            14, 15 => {
                 if (value.len != 1 or value[0] < 0x20 or value[0] >= 0x7f) return diagnostic.invalidOption("requires one printable ASCII character");
-                if (index == 15) result.source.dialect.delimiter = value[0] else result.source.dialect.quote = value[0];
+                if (index == 14) result.source.dialect.delimiter = value[0] else result.source.dialect.quote = value[0];
             },
-            17 => {
+            16 => {
                 if (value.len > 1024 or !std.unicode.utf8ValidateSlice(value)) return diagnostic.invalidOption("requires UTF-8 of at most 1024 bytes");
                 result.null_token[0] = value;
                 result.has_null = true;
             },
-            18 => result.output = std.meta.stringToEnum(@TypeOf(result.output), value) orelse return diagnostic.invalidOption("must be json or arrow"),
-            19 => {
+            17 => result.output = std.meta.stringToEnum(@TypeOf(result.output), value) orelse return diagnostic.invalidOption("must be json or arrow"),
+            18 => {
                 if (value.len != 1 or value[0] < '1' or value[0] > '8') return diagnostic.invalidOption("must be 1 to 8");
                 result.batch_rows = value[0] - '0';
             },
@@ -149,10 +114,10 @@ fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
     diagnostic.atArgument(null, null);
     if (result.source.dialect.delimiter == result.source.dialect.quote) return diagnostic.invalidInvocation("--delimiter and --quote must be different characters");
     try result.source.validate();
-    if (result.source.format == .jsonl and (seen & ((1 << 2) | (1 << 15) | (1 << 16) | (1 << 17))) != 0) return diagnostic.invalidInvocation("CSV options require --format csv");
-    if (result.output != .arrow and seen & (1 << 19) != 0) return diagnostic.invalidInvocation("--batch-rows requires --output arrow");
+    if (result.source.format == .jsonl and (seen & ((1 << 1) | (1 << 14) | (1 << 15) | (1 << 16))) != 0) return diagnostic.invalidInvocation("CSV options require --format csv");
+    if (result.output != .arrow and seen & (1 << 18) != 0) return diagnostic.invalidInvocation("--batch-rows requires --output arrow");
     if ((result.source.mode == .explicit and result.schema == null) or (result.source.mode == .raw and result.schema != null)) return diagnostic.invalidInvocation("explicit mode requires --schema; raw mode rejects it");
-    if (!result.help and (seen & (1 << 4) == 0 or result.sql == null or result.path_count == 0)) return diagnostic.invalidInvocation("--format, -c and at least one source path are required");
+    if (seen & (1 << 3) == 0 or result.sql == null or result.path_count == 0) return diagnostic.invalidInvocation("--format, -c and at least one source path are required");
     return result;
 }
 fn emit(init: std.process.Init, value: anytype, diagnostic: *?f.FileSource.BudgetDiagnostic) !void {
@@ -188,11 +153,9 @@ fn writeOutput(bytes: []const u8) !void {
         offset += @intCast(written);
     }
 }
-pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagnostic) !void {
-    diagnostic.command = "transit file-query";
-    diagnostic.help = "transit file-query --help";
+pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagnostic, source: *?@import("FileDiagnostic.zig")) !void {
+    diagnostic.command = "file fixture";
     var options = try parse(args, diagnostic);
-    if (options.help) return std.Io.File.stdout().writeStreamingAll(init.io, help);
     if (options.has_null) options.source.dialect.null_tokens = &options.null_token;
     var signals = try Signals.install();
     defer signals.close();
@@ -207,7 +170,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var output_started = false;
     var limited = false;
     errdefer if (diagnostic.sql == null) {
-        diagnostic.source = .{ .stage = stage, .capture_failure = if (stage == .capture) capture_failure else null, .schema_file = schema_file, .schema_read_failure = schema_read_failure, .schema_failure = schema_failure, .output_budget = output_budget, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
+        source.* = .{ .stage = stage, .capture_failure = if (stage == .capture) capture_failure else null, .schema_file = schema_file, .schema_read_failure = schema_read_failure, .schema_failure = schema_failure, .output_budget = output_budget, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
     };
     var explicit: ?f.Types.Decoded = null;
     defer if (explicit) |*owner| owner.deinit();
@@ -249,7 +212,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var context: f.Sql.Binding = .{};
     var compiled = f.FileQuery.compileDiagnostic(init.gpa, options.sql.?, "input", &binding, &context) catch |err| {
         diagnostic.sql = f.SqlDiagnostic.bound(options.sql.?, err, false, context);
-        if (diagnostic.sql) |*failure| failure.hint = "Use the source name input and columns in the file schema. Run transit file-query --help for supported syntax, schema and type options.";
+        if (diagnostic.sql) |*failure| failure.hint = "Use the source name input and columns in the file schema.";
         return err;
     };
     defer compiled.deinit();

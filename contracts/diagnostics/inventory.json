@@ -155,211 +155,6 @@
         "transit_station_app"
       ]
     },
-    "apps/transit-cli/AppOptions.zig": {
-      "errors": {},
-      "outcomes": {
-        "Mode": [
-          "install",
-          "replace",
-          "retry",
-          "status",
-          "connect"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "parse()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 1
-      },
-      "imports": [
-        "Diagnostic.zig",
-        "std"
-      ]
-    },
-    "apps/transit-cli/Application.zig": {
-      "errors": {
-        "ApplicationArtifactChanged": 1,
-        "ConflictingApplicationOperation": 1,
-        "FileNotFound": 1,
-        "InvalidConfigurationPath": 1,
-        "InvalidCredentialFile": 1,
-        "ManagementClientInUse": 1,
-        "RecoveryIdentityMismatch": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "output()": "<inferred>",
-        "resolveArtifact()": "<inferred>",
-        "run()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 33,
-        "catch": 5
-      },
-      "imports": [
-        "AppOptions.zig",
-        "Diagnostic.zig",
-        "Help.zig",
-        "Output.zig",
-        "Settings.zig",
-        "server/Config.zig",
-        "server/Files.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/Authorization.zig": {
-      "errors": {
-        "AuthorizationFileInUse": 1,
-        "IncompatibleDefinition": 1,
-        "InvalidAuthorizationChange": 1,
-        "InvalidCredentialFile": 1,
-        "StaleAuthorizationRevision": 1
-      },
-      "outcomes": {
-        "Kind": [
-          "change",
-          "changeset"
-        ],
-        "Mode": [
-          "capabilities",
-          "read",
-          "prepare",
-          "@\"prepare-plan\"",
-          "@\"prepare-set\"",
-          "next",
-          "submit",
-          "observe",
-          "recover",
-          "abandon",
-          "apply"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "apply()": "<inferred>",
-        "applySet()": "<inferred>",
-        "attempt()": "<inferred>",
-        "checkpoint()": "<inferred>",
-        "checkpointSet()": "<inferred>",
-        "output()": "<inferred>",
-        "parse()": "<inferred>",
-        "read()": "<inferred>",
-        "run()": "<inferred>",
-        "saved()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 56,
-        "catch": 12
-      },
-      "imports": [
-        "Diagnostic.zig",
-        "RecoveryFiles.zig",
-        "Settings.zig",
-        "server/Files.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/Catalog.zig": {
-      "errors": {
-        "AccessDenied": 1,
-        "ArtifactSyncFailed": 1,
-        "ArtifactTooLarge": 1,
-        "CatalogArtifactMismatch": 1,
-        "CatalogArtifactSyncFailed": 1,
-        "CatalogArtifactTooLarge": 1,
-        "CatalogOutcomeUnknown": 1,
-        "Conflict": 3,
-        "IncompatibleDefinition": 1,
-        "InvalidCatalogPage": 6,
-        "InvalidConfiguration": 1,
-        "InvalidConfigurationPath": 1,
-        "InvalidCredentialFile": 1,
-        "Rejected": 3
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "actionFromInput()": "<inferred>",
-        "apply()": "<inferred>",
-        "artifact()": "<inferred>",
-        "loadIntent()": "<inferred>",
-        "mediatedQuery()": "<inferred>",
-        "output()": "<inferred>",
-        "publish()": "<inferred>",
-        "run()": "<inferred>",
-        "uncertain()": "anyerror",
-        "validatePage()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 58,
-        "catch": 22
-      },
-      "imports": [
-        "CatalogOptions.zig",
-        "Diagnostic.zig",
-        "RecoveryFiles.zig",
-        "Settings.zig",
-        "std",
-        "transit_catalog",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/CatalogOptions.zig": {
-      "errors": {},
-      "outcomes": {
-        "Mode": [
-          "capabilities",
-          "describe",
-          "lookup",
-          "definition",
-          "list",
-          "query",
-          "compile",
-          "@\"compile-authorization\"",
-          "@\"prepare-schema\"",
-          "prepare",
-          "next",
-          "@\"prepare-initialize\"",
-          "@\"prepare-dependency\"",
-          "@\"prepare-resume\"",
-          "cancel",
-          "cleanup",
-          "@\"cancel-upload\"",
-          "@\"collect-upload\"",
-          "submit",
-          "receipt",
-          "observe",
-          "disposition",
-          "progress",
-          "status"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "help()": "<inferred>",
-        "parse()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 5
-      },
-      "imports": [
-        "Diagnostic.zig",
-        "std",
-        "transit_catalog"
-      ]
-    },
     "apps/transit-cli/ConfigurationProbe.zig": {
       "errors": {
         "InvalidProbeArguments": 1
@@ -562,10 +357,6 @@
         "UnknownField": 1
       },
       "outcomes": {
-        "format": [
-          "human",
-          "json"
-        ],
         "presentation": [
           "general",
           "invocation",
@@ -588,23 +379,18 @@
         "quoted()": "<inferred>",
         "readJson()": "<inferred>",
         "render()": "<inferred>",
-        "renderFailure()": "<inferred>",
-        "structured()": "<inferred>"
+        "renderFailure()": "<inferred>"
       },
-      "open_error_set_uses": 19,
+      "open_error_set_uses": 18,
       "propagation": {
-        "try": 60,
-        "catch": 7
+        "try": 58,
+        "catch": 6
       },
       "imports": [
         "EnvelopeDiagnostic.zig",
-        "FileDiagnostic.zig",
         "InputPosition.zig",
-        "QueryDiagnostic.zig",
-        "StructuredDiagnostic.zig",
         "Style.zig",
         "Timing.zig",
-        "WriteDiagnostic.zig",
         "std",
         "transit_query"
       ]
@@ -666,313 +452,17 @@
         "std"
       ]
     },
-    "apps/transit-cli/FileCapture.zig": {
-      "errors": {
-        "CaptureQuotaExceeded": 2,
-        "EndOfStream": 2,
-        "FileQueryInterrupted": 1,
-        "GzipHeaderTooLarge": 3,
-        "GzipTrailingData": 1,
-        "InvalidGzipChecksum": 1,
-        "InvalidGzipHeader": 1,
-        "InvalidGzipHeaderCrc": 1,
-        "NonRegularSourcePath": 1,
-        "ReadFailed": 1,
-        "SourceChanged": 1,
-        "SourceOpenFailed": 1,
-        "SourceReadFailed": 2
-      },
-      "outcomes": {
-        "Failure.phase": [
-          "source_open",
-          "source_stat",
-          "capture_directory",
-          "capture_create",
-          "capture_unlink",
-          "source_read",
-          "capture_write",
-          "decompress",
-          "capture_read"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "CheckedReader.stream()": "std . Io . Reader . StreamError",
-        "acquire()": "<inferred>",
-        "acquireDiagnostic()": "<inferred>",
-        "check()": "<inferred>",
-        "expand()": "<inferred>",
-        "expandInner()": "<inferred>",
-        "gzipHeader()": "<inferred>",
-        "read()": "<inferred>",
-        "temporary()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 25,
-        "catch": 4
-      },
-      "imports": [
-        "Signals.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/FileCodes.zig": {
-      "errors": {
-        "ArrowSegmentTooLarge": 1,
-        "ArrowShapeTooLarge": 1,
-        "ArrowWorkspaceExceeded": 1,
-        "BatchBudgetExceeded": 1,
-        "BrokenPipe": 1,
-        "Cancelled": 1,
-        "CaptureQuotaExceeded": 1,
-        "CellTooLarge": 1,
-        "CodecBudgetExceeded": 1,
-        "Denied": 1,
-        "DuplicateField": 1,
-        "DuplicateProjection": 1,
-        "EmptyJsonRecord": 1,
-        "EndOfStream": 1,
-        "FailedQuery": 1,
-        "FailedSource": 1,
-        "FieldBudgetExceeded": 1,
-        "FileNotFound": 1,
-        "FileQueryInterrupted": 1,
-        "GzipHeaderTooLarge": 1,
-        "GzipTrailingData": 1,
-        "HeaderNameBudgetExceeded": 1,
-        "IncompatibleDefinition": 1,
-        "IncompatibleTypes": 1,
-        "IncompleteHuffmanTree": 1,
-        "IncompleteSource": 1,
-        "Inexact": 1,
-        "InferenceDepthExceeded": 1,
-        "InferenceNameBudgetExceeded": 1,
-        "InferenceNodeBudgetExceeded": 1,
-        "InferenceWorkExceeded": 1,
-        "InvalidArrayLength": 1,
-        "InvalidBatchBudget": 1,
-        "InvalidBlockType": 1,
-        "InvalidCharacter": 1,
-        "InvalidCode": 1,
-        "InvalidColumnCount": 1,
-        "InvalidConflict": 1,
-        "InvalidCsvQuote": 1,
-        "InvalidDate": 1,
-        "InvalidDecimal": 1,
-        "InvalidDialect": 1,
-        "InvalidDynamicBlockHeader": 1,
-        "InvalidEnumTag": 1,
-        "InvalidExplicitSchema": 1,
-        "InvalidFieldCount": 1,
-        "InvalidFieldName": 1,
-        "InvalidFramerState": 1,
-        "InvalidGzipChecksum": 1,
-        "InvalidGzipHeader": 1,
-        "InvalidGzipHeaderCrc": 1,
-        "InvalidHexEncoding": 1,
-        "InvalidInferenceValue": 1,
-        "InvalidIntegerEncoding": 1,
-        "InvalidJson": 1,
-        "InvalidLineEnding": 1,
-        "InvalidLiteral": 1,
-        "InvalidMapKey": 1,
-        "InvalidMatch": 1,
-        "InvalidNumber": 1,
-        "InvalidOutputNames": 1,
-        "InvalidProjection": 1,
-        "InvalidProvenance": 1,
-        "InvalidQuerySchema": 1,
-        "InvalidRecordBudget": 1,
-        "InvalidSourceBudget": 1,
-        "InvalidSourceCount": 1,
-        "InvalidSourceEvidence": 1,
-        "InvalidTime": 1,
-        "InvalidTimestamp": 1,
-        "InvalidTypeEncoding": 1,
-        "InvalidUnion": 1,
-        "InvalidUtf8": 1,
-        "InvalidUuid": 1,
-        "InvalidValueEncoding": 1,
-        "JsonByteBudgetExceeded": 1,
-        "JsonDepthExceeded": 1,
-        "JsonFieldBudgetExceeded": 1,
-        "JsonObjectRequired": 1,
-        "JsonTokenBudgetExceeded": 1,
-        "LengthMismatch": 1,
-        "LiteralTooLarge": 1,
-        "MapKeyOrder": 1,
-        "MissingCsvHeader": 1,
-        "MissingEndOfBlockCode": 1,
-        "MissingField": 1,
-        "MissingRequiredField": 1,
-        "NoSpaceLeft": 1,
-        "NonFiniteValue": 1,
-        "NonRegularSourcePath": 1,
-        "NonScalarCast": 1,
-        "NullNotAllowed": 1,
-        "OutOfMemory": 1,
-        "OutputRecordTooLarge": 1,
-        "OutputWriteFailed": 1,
-        "Overflow": 1,
-        "OversubscribedHuffmanTree": 1,
-        "PlanTooLarge": 1,
-        "QueryConflict": 1,
-        "QueryTypeError": 1,
-        "RaggedCsvRow": 1,
-        "ReadFailed": 1,
-        "RecordTooLarge": 1,
-        "SourceBudgetExceeded": 1,
-        "SourceChanged": 1,
-        "SourceOpenFailed": 1,
-        "SourceReadFailed": 1,
-        "SourceWorkExceeded": 1,
-        "StreamTooLong": 1,
-        "SyntaxError": 1,
-        "TypeBudgetExceeded": 1,
-        "TypeMismatch": 1,
-        "UnexpectedEndOfInput": 1,
-        "UnexpectedToken": 1,
-        "UnknownColumn": 1,
-        "UnknownField": 1,
-        "UnresolvedSchema": 1,
-        "UnsupportedAggregate": 1,
-        "UnsupportedAtomType": 1,
-        "UnsupportedComparison": 1,
-        "UnsupportedCsvType": 1,
-        "UnsupportedLiteralType": 1,
-        "UnsupportedQueryType": 1,
-        "UnsupportedVectorCpu": 1,
-        "UnterminatedCsvQuote": 1,
-        "ValueBudgetExceeded": 1,
-        "WriteFailed": 1,
-        "WrongStoredBlockNlen": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/FileDiagnostic.zig": {
-      "errors": {
-        "ArrowSegmentTooLarge": 3,
-        "ArrowShapeTooLarge": 1,
-        "ArrowWorkspaceExceeded": 3,
-        "BrokenPipe": 1,
-        "DuplicateField": 2,
-        "EndOfStream": 1,
-        "FileQueryInterrupted": 2,
-        "IncompatibleDefinition": 2,
-        "InvalidColumnCount": 1,
-        "InvalidEnumTag": 2,
-        "MissingField": 2,
-        "OutOfMemory": 3,
-        "OutputWriteFailed": 1,
-        "Overflow": 3,
-        "RecordTooLarge": 2,
-        "SourceBudgetExceeded": 2,
-        "SourceWorkExceeded": 2,
-        "StreamTooLong": 1,
-        "UnexpectedToken": 2,
-        "UnknownField": 2,
-        "UnresolvedSchema": 1,
-        "WriteFailed": 5
-      },
-      "outcomes": {
-        "Stage": [
-          "capture",
-          "schema",
-          "compile",
-          "execute"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "bounded()": "<inferred>",
-        "quoted()": "<inferred>",
-        "render()": "<inferred>",
-        "structured()": "<inferred>"
-      },
-      "open_error_set_uses": 3,
-      "propagation": {
-        "try": 146,
-        "catch": 0
-      },
-      "imports": [
-        "FileCapture.zig",
-        "FileCodes.zig",
-        "StructuredDiagnostic.zig",
-        "Style.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/FileQuery.zig": {
-      "errors": {
-        "ArrowSegmentTooLarge": 1,
-        "ArrowWorkspaceExceeded": 1,
-        "IncompleteSource": 2,
-        "InvalidExplicitSchema": 1,
-        "OutOfMemory": 1,
-        "OutputRecordTooLarge": 1,
-        "OutputWriteFailed": 3,
-        "StreamTooLong": 1,
-        "WriteFailed": 2
-      },
-      "outcomes": {
-        "Options.output": [
-          "json",
-          "arrow"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "arrowBatch()": "anyerror",
-        "arrowError()": "anyerror",
-        "arrowOutput()": "<inferred>",
-        "emit()": "<inferred>",
-        "parse()": "<inferred>",
-        "run()": "<inferred>",
-        "writeOutput()": "<inferred>"
-      },
-      "open_error_set_uses": 3,
-      "propagation": {
-        "try": 34,
-        "catch": 6
-      },
-      "imports": [
-        "Diagnostic.zig",
-        "FileCapture.zig",
-        "FileDiagnostic.zig",
-        "Signals.zig",
-        "std",
-        "transit_query"
-      ]
-    },
     "apps/transit-cli/Help.zig": {
       "errors": {},
       "outcomes": {},
       "error_sets": {},
-      "error_returns": {
-        "application()": "<inferred>"
-      },
+      "error_returns": {},
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 0,
         "catch": 0
       },
-      "imports": [
-        "AppOptions.zig",
-        "std"
-      ]
+      "imports": []
     },
     "apps/transit-cli/History.zig": {
       "errors": {
@@ -1116,47 +606,6 @@
       "imports": [
         "Diagnostic.zig",
         "Options.zig",
-        "std"
-      ]
-    },
-    "apps/transit-cli/QueryDiagnostic.zig": {
-      "errors": {
-        "InvalidQueryDiagnostic": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "render()": "<inferred>",
-        "structured()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 15,
-        "catch": 0
-      },
-      "imports": [
-        "EnvelopeDiagnostic.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/RecoveryFiles.zig": {
-      "errors": {
-        "ArtifactSyncFailed": 1,
-        "ArtifactTooLarge": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "create()": "<inferred>",
-        "createBounded()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 6,
-        "catch": 0
-      },
-      "imports": [
         "std"
       ]
     },
@@ -1307,82 +756,6 @@
         "transit_query"
       ]
     },
-    "apps/transit-cli/StructuredDiagnostic.zig": {
-      "errors": {
-        "AccessDenied": 1,
-        "ApplicationOutcomeUnknown": 2,
-        "AuthorityRollback": 1,
-        "AuthorityTimeout": 1,
-        "BrokenPipe": 1,
-        "CatalogCancellationUnsupported": 1,
-        "CatalogCursorChanged": 1,
-        "CatalogDenied": 1,
-        "CatalogNameNotFound": 1,
-        "CatalogOutcomeUnknown": 2,
-        "ConnectionRefused": 1,
-        "ConnectionResetByPeer": 1,
-        "ConnectionTimedOut": 1,
-        "ConsoleCatalogRequired": 2,
-        "ConsoleCommandFailed": 1,
-        "ConsoleInterrupted": 1,
-        "ConsoleOutputTimeout": 1,
-        "ConsoleQueryInterrupted": 1,
-        "ConsoleRecoveryIdentityMismatch": 1,
-        "ConsoleRecoveryInUse": 1,
-        "ConsoleRecoveryRequired": 2,
-        "ConsoleRecoverySyncFailed": 1,
-        "ConsoleRecoveryWriteFailed": 1,
-        "ConsoleWriterRequired": 2,
-        "EditRequiresTerminal": 2,
-        "FileQueryInterrupted": 1,
-        "InstallationIdentityMismatch": 1,
-        "InstallationInUse": 1,
-        "InstallationSyncFailed": 1,
-        "InteractiveQueryCancelled": 1,
-        "InvalidConfiguration": 2,
-        "InvalidConfigurationPath": 2,
-        "InvalidCredentialFile": 2,
-        "InvalidEditCommand": 2,
-        "InvalidInvocation": 1,
-        "InvalidQueryInput": 2,
-        "InvalidTimingCommand": 2,
-        "ManagementClientInUse": 1,
-        "MutationDenied": 1,
-        "MutationOutcomeUnknown": 2,
-        "NoPendingSubmission": 1,
-        "NoQuery": 1,
-        "NoSavedWrite": 1,
-        "NoSpaceLeft": 1,
-        "OutOfMemory": 1,
-        "QueryDenied": 1,
-        "QueryInputTooLarge": 2,
-        "RecoveryIdentityMismatch": 1,
-        "StorageIdentityMismatch": 1,
-        "Timeout": 1,
-        "UnknownCommand": 1,
-        "UnknownConsoleCommand": 2,
-        "UnknownHelpTopic": 2,
-        "UnsupportedFormat": 1,
-        "WriteFailed": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "general()": "<inferred>",
-        "pathFact()": "<inferred>",
-        "project()": "<inferred>"
-      },
-      "open_error_set_uses": 3,
-      "propagation": {
-        "try": 20,
-        "catch": 4
-      },
-      "imports": [
-        "Diagnostic.zig",
-        "std",
-        "transit_query"
-      ]
-    },
     "apps/transit-cli/Style.zig": {
       "errors": {},
       "outcomes": {
@@ -1413,6 +786,28 @@
       "imports": [
         "std",
         "transit_query"
+      ]
+    },
+    "apps/transit-cli/Support.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Diagnostic.zig",
+        "Output.zig",
+        "Settings.zig",
+        "Signals.zig",
+        "SqlInput.zig",
+        "Style.zig",
+        "server/AuthorizationProfile.zig",
+        "server/Config.zig",
+        "server/Files.zig"
       ]
     },
     "apps/transit-cli/TableRecovery.zig": {
@@ -1521,97 +916,17 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
-        "catch": 6
+        "catch": 4
       },
       "imports": [
         "Output.zig",
         "std"
       ]
     },
-    "apps/transit-cli/Unified.zig": {
-      "errors": {
-        "AccessDenied": 1,
-        "ConsoleInterrupted": 1,
-        "DocumentHistoryGap": 1,
-        "DocumentResyncRequired": 1,
-        "DocumentRetired": 1,
-        "InvalidConfiguration": 1,
-        "InvalidQueryIdentity": 1,
-        "NamespaceRequired": 3,
-        "NoPendingSubmission": 2,
-        "QueryComplete": 1,
-        "QueryDenied": 1,
-        "QueryInputRejected": 1,
-        "QuerySourceUnavailable": 1,
-        "QueryUploadIdentityConflict": 2,
-        "QueryWaitTimedOut": 1,
-        "ResourceUnavailable": 1,
-        "UnknownCommand": 1,
-        "UnresolvedSubmission": 6
-      },
-      "outcomes": {
-        "Session.format": [
-          "json",
-          "table"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Session.checkInterrupt()": "<inferred>",
-        "Session.checkpoint()": "<inferred>",
-        "Session.checkpoint_fn()": "anyerror",
-        "advance()": "<inferred>",
-        "command()": "<inferred>",
-        "executeSql()": "<inferred>",
-        "json()": "<inferred>",
-        "run()": "<inferred>",
-        "savedDiagnostic()": "<inferred>",
-        "settle()": "<inferred>",
-        "submit()": "<inferred>",
-        "submitAndAdvance()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 82,
-        "catch": 3
-      },
-      "imports": [
-        "Diagnostic.zig",
-        "Settings.zig",
-        "SqlInput.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/WriteDiagnostic.zig": {
-      "errors": {
-        "InvalidConsoleRecovery": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "quoted()": "<inferred>",
-        "render()": "<inferred>",
-        "tableInput()": "<inferred>",
-        "tableOutcome()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 34,
-        "catch": 0
-      },
-      "imports": [
-        "Style.zig",
-        "std",
-        "transit_catalog",
-        "transit_query"
-      ]
-    },
     "apps/transit-cli/main.zig": {
       "errors": {
         "ConsoleInterrupted": 1,
         "ConsoleQueryInterrupted": 1,
-        "FileQueryInterrupted": 1,
         "InteractiveQueryCancelled": 1,
         "InvalidConfiguration": 1,
         "InvalidConfigurationPath": 1,
@@ -1632,15 +947,9 @@
         "catch": 1
       },
       "imports": [
-        "Application.zig",
-        "Authorization.zig",
-        "Catalog.zig",
         "Console.zig",
         "Diagnostic.zig",
-        "FileQuery.zig",
-        "Help.zig",
         "Options.zig",
-        "Unified.zig",
         "server/Gateway.zig",
         "server/Process.zig",
         "server/Server.zig",
@@ -1740,6 +1049,20 @@
         "Provider.zig",
         "std",
         "transit_http_server",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/AuthorizationProfile.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
         "transit_query"
       ]
     },
@@ -2291,7 +1614,7 @@
         "catch": 3
       },
       "imports": [
-        "../Authorization.zig",
+        "AuthorizationProfile.zig",
         "Files.zig",
         "Installation.zig",
         "SqlJournal.zig",

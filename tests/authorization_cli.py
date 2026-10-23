@@ -1,8 +1,9 @@
-"""Public administration CLI, C ABI and host recovery on disk-backed Ursula."""
+"""Private administration caller, C ABI and host recovery on disk-backed Ursula."""
 import argparse
 import ctypes
 import hashlib
 import json
+from operation_helpers import operations
 from pathlib import Path
 import subprocess
 import time
@@ -24,7 +25,7 @@ def run(node, signer, transit, library, host, report):
                                          seed_file=system.seed.name, request_timeout_ms=30000)))
 
         def invoke(mode, source, *args, ok=True):
-            result = subprocess.run([str(transit), '--diagnostics=json', 'auth', mode,
+            result = subprocess.run([operations(), '--structured', 'auth', mode,
                                      '--config', str(config), '--file', str(source), *map(str, args)],
                                     capture_output=True, text=True, timeout=90)
             assert (result.returncode == 0) == ok, (result.returncode, result.stdout, result.stderr)
@@ -91,7 +92,7 @@ def run(node, signer, transit, library, host, report):
         invalid.write_text(json.dumps(foreign))
         invoke('apply', invalid, ok=False)
         assert system.native_query({'identity': {}}) == before
-        print('Authorization CLI: private checkpoints, bounded apply, exact restart recovery and stale/foreign rejection passed.', flush=True)
+        print('Authorization caller: private checkpoints, bounded apply, exact restart recovery and stale/foreign rejection passed.', flush=True)
 
         realm_object = {'kind': 'realm', 'id': 0}
         group = query({'resolve': b'cli-budgeted'.hex()})['body']['resolve']['id']

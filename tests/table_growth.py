@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import time
 
-from catalog_cli import Cli
+from catalog_helpers import Cli
 
 
 def qualify(count, cli, root, url, call, execute, applied, restart, actors):

@@ -305,8 +305,6 @@ def main():
             invoke(['--format', format, '-c', 'SELECT * FROM input', '-'], data_in, 1, env)
         for args in [[], ['--unknown-secret'], ['--format', 'csv', '--format', 'csv'], ['--format', 'jsonl', '--delimiter', ','], ['--help', '--max-fields', '129'], ['--mode', 'explicit', '--help']]:
             invoke(args, expected=2, env=env)
-        help_result = subprocess.run([CLI, 'file-query', '--help'], capture_output=True, env=env, timeout=10)
-        assert help_result.returncode == 0 and b'TMPDIR' in help_result.stdout and not help_result.stderr
         # SQL context and late file failures retain precise, independent
         # coordinates without manufacturing success after a prefix or LIMIT.
         for sql, fragments in [
@@ -411,7 +409,7 @@ def main():
         assert records[1]['row']['value']['structure'][0]['value']['atom']['unsigned'] == str(total)
         assert list(spool.iterdir()) == []
         CASES += 1
-    print(f'File query: {CASES} real CLI cases; independent exact codecs/results, checked gzip, quotas, cancellation/cleanup, immutable capture and 192 MiB input under 96 MiB address-space limit passed.')
+    print(f'File query: {CASES} native helper cases; independent exact codecs/results, checked gzip, quotas, cancellation/cleanup, immutable capture and 192 MiB input under 96 MiB address-space limit passed.')
 
 
 if __name__ == '__main__':

@@ -362,7 +362,7 @@
   },
   "external_fallbacks": {
     "file": {
-      "source": "apps/transit-cli/FileDiagnosticTests.zig",
+      "source": "tests/operations/FileDiagnosticTests.zig",
       "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
     },
     "sql-table-ddl": {

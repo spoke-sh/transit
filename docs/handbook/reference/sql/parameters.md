@@ -61,7 +61,7 @@ ownership and cancellation for each host language.
 The [console](../../../../apps/transit-cli/docs/console.md#typed-query-parameters)
 accepts `--parameters FILE` with `-c SQL`, or `.execute FILE` with a JSON query
 object containing `sql` and optional `parameters`. The
-[durable SQL shell](../../../../apps/transit-cli/docs/unified-query.md) accepts the
+[durable SQL shell](../../../../packages/zig/transit-query/docs/unified-client.md) accepts the
 same query file after selecting a fresh namespace. These input files request
 new compilations; uncertain work recovers from its original saved bundle and
 command without reopening the input file.
