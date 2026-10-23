@@ -185,6 +185,18 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Exact direct pin closure — 2026-10-23
+
+`just test::direct-table-service` passes 474 typed HTTP calls under definition
+`64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c`.
+SQL recovery uses the common direct client's explicit closure operation. The
+fixture exercises uncertain acquisition and release, restart, current denial,
+and retained pins after rewrite, retirement and name reuse. Recovery without a
+known handle rejects a different acquisition frontier for both the original
+caller and its delegated executor; the original retained reader remains usable.
+Diagnostic mapping and inferred-error checks pass. This qualifies exact remote
+closure, not captured-job admission or the decision that a durable job has ended.
+
 ## Neutral physical schemas across language callers — 2026-10-23
 
 The shared current-v1 definition is

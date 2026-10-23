@@ -21,6 +21,15 @@ definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route.
 
+`closeOriginalPin` explicitly reconciles an original acquisition or release with
+an uncertain reply. Persist the decision to close before calling it, and retain
+that record until success. It uses at most three exchanges: status, exact original
+acquisition if needed, and release. A later frontier proves that an absent pin
+cannot still be acquired; at the original frontier, acquisition plus release
+establishes a terminal pin record. Current denial or unavailable storage leaves
+cleanup pending. This operation does not decide whether work has finished or
+whether a restart permits cleanup; the caller owns that lifecycle decision.
+
 For explicitly delegated reads, the original caller prepares a
 `DirectReadDelegation` naming one executor, exact Table definition/frontier and
 pin owner. It acquires nothing. The executor sets that delegation on its
