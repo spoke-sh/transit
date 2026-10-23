@@ -185,6 +185,26 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Installed direct lifecycle, rollback and capacity — 2026-10-23
+
+`just test::server-faults` passes the complete server lifecycle (361.57 seconds)
+and bootstrap/gateway/rollback faults (45.28 seconds) in the pinned Nix shell.
+The lost-caller and lost-status fixtures now refuse direct Table execution
+through the private forwarding boundary. The run preserves exact operation
+recovery, configuration history, revocation, deliberately dropped Tables,
+process replacement, transport reuse and bounded shutdown. Removing mandatory
+direct bootstrap fields rejects the retained installation without rewriting it.
+Restoring an older private native-store snapshot is refused against the recorded
+recovery position.
+
+`just test::server-capacity` also passes (30.08 seconds). Its private ext4 volume
+reaches actual `ENOSPC` after direct admission. Observation and shutdown remain
+finite; after space is released and the manager restarts, the same operation
+finishes with matched/changed counts of one and exactly one row. The container
+uses private executable copies with the pinned Nix ELF interpreter. This run
+does not qualify application capacity, SDKs, captured-query migration or
+automatic Table flushing.
+
 ## Installed direct execution recovery — 2026-10-23
 
 `just test::server-direct-faults` passes using a private forwarding process that

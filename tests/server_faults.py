@@ -58,7 +58,9 @@ def gateway_hosts(fixture):
 
 def reusable_connections(fixture):
     for role in ('gateway', 'node'):
-        port = fixture.config['ports'][role]
+        # Exercise the actual node listener's reuse/admission contracts when
+        # this fixture has a separate proxy for selective direct-write faults.
+        port = fixture.boundary.upstream if role == 'node' and hasattr(fixture, 'boundary') else fixture.config['ports'][role]
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=3)
         try:
             peer = None
@@ -345,8 +347,9 @@ def rollback(cli, node, host):
         fixture.ready()
         fixture.stop()
         old = fixture.record()
-        for name in ("wal", "cold"):
-            shutil.copytree(fixture.installation / name, fixture.root / (name + "-snapshot"))
+        native = fixture.installation / 'data/native'
+        snapshot = fixture.root / 'native-snapshot'
+        shutil.copytree(native, snapshot)
         fixture.start()
         fixture.ready()
         fixture.console(".schema\n.quit\n")
@@ -359,9 +362,8 @@ def rollback(cli, node, host):
         with owned_node.open("r+b") as file:
             file.truncate(original_size)
         # This is a negative rollback test, not a supported backup/restore flow.
-        for name in ("wal", "cold"):
-            shutil.rmtree(fixture.installation / name)
-            shutil.copytree(fixture.root / (name + "-snapshot"), fixture.installation / name)
+        shutil.rmtree(native)
+        shutil.copytree(snapshot, native)
         fixture.refusal("retained authority is older than the recorded recovery position")
         assert fixture.record()["provision"] == old["provision"]
         success = True

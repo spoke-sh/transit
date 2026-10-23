@@ -7,112 +7,79 @@ import os
 from pathlib import Path
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
 
-from server import Fixture, children, command
-
-
 def inside(mount, cli, node, host):
-    from table_console import TableConsole, atom
+    from table_console import atom
     from server_faults import response
+    from server_direct_boundary import FaultFixture
+    from server_direct_faults import pending, terminal
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
-    fixture = Fixture(cli, node, host, parent=mount)
-    reserve = Path(mount) / "reserve"
-    filler = Path(mount) / "filler"
+    fixture = FaultFixture(cli, node, host, parent=mount)
+    reserve, filler = Path(mount) / "reserve", Path(mount) / "filler"
     with reserve.open("xb") as file:
         os.posix_fallocate(file.fileno(), 0, 512 * 1024**2)
         os.fsync(file.fileno())
-    shell = None
     started = time.monotonic()
     try:
         fixture.start()
         fixture.ready()
         original = fixture.record()
-        config = fixture.console_config()
-        console_path = Path("/proof/console.json")
-        console_path.write_text(json.dumps(config))
-        owner = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
-        os.kill(owner, signal.SIGSTOP)
-        shell = TableConsole(fixture.cli, console_path)
-        shell.process.stdin.write(b"INSERT INTO items (id, value) VALUES (1, 100);\n"); shell.process.stdin.flush()
-        deadline = time.monotonic() + 30
-        while True:
-            pending = [item for item in fixture.sql_operations() if item['phase'] not in ('terminal', 'abandoned')]
-            if pending:
-                accepted = pending[-1]
-                break
-            assert time.monotonic() < deadline, "mutation was not admitted"
-            time.sleep(.005)
-        assert accepted['outcome'] is None
-        os.kill(shell.process.pid, signal.SIGSTOP)
-        available = os.statvfs(mount).f_bavail * os.statvfs(mount).f_frsize
-        # Match the physical-capacity foundation: retain 4 MiB for bounded
-        # control metadata, then prove a real 32 MiB allocation gets ENOSPC.
+        identity, binding = pending(fixture, fixture.boundary, 1)
+        # Freeze after durable SQL dispatch and direct admission. The independent
+        # caller is gone; the server owns the complete original intent/reference.
+        stat = os.statvfs(mount)
+        available = stat.f_bavail * stat.f_frsize
         with filler.open("xb") as file:
-            os.posix_fallocate(file.fileno(), 0, available - 4 * 1024**2)
+            try:
+                os.posix_fallocate(file.fileno(), 0, available - stat.f_frsize)
+            except OSError as error:
+                # Concurrent owned background writes can consume the last block
+                # between statvfs and fallocate. That is the intended real fault.
+                assert error.errno == errno.ENOSPC, error
             os.fsync(file.fileno())
         probe = Path(mount) / "enospc-probe"
-        with probe.open("xb") as file:
-            try:
+        try:
+            with probe.open("xb") as file:
                 os.posix_fallocate(file.fileno(), 0, 32 * 1024**2)
-            except OSError as error:
-                assert error.errno == errno.ENOSPC, error
-            else:
-                raise AssertionError("Expected actual ext4 ENOSPC")
-        probe.unlink()
-        # Let the admitted Table owner encounter provider pressure. The console
-        # can disappear; the service retains the original accepted identity.
-        os.kill(owner, signal.SIGCONT)
+        except OSError as error:
+            assert error.errno == errno.ENOSPC, error
+        else:
+            raise AssertionError("Expected actual ext4 ENOSPC")
+        probe.unlink(missing_ok=True)
+        fixture.boundary.resume()
         time.sleep(3)
-        # Read/control attempts stay finite even while provider writes refuse.
+        # Pressure may prevent control writes too. Observation must stay finite;
+        # neither an unavailable response nor shutdown is a terminal write result.
         attempt = time.monotonic()
         try:
             status, _ = response(fixture, "/health")
             assert status in (200, 503)
         except (OSError, ConnectionError):
-            pass  # A stopped installation is visibly unavailable, not ready.
+            pass
         assert time.monotonic() - attempt < 7
-        shell.process.send_signal(signal.SIGCONT)
-        shell.process.send_signal(signal.SIGTERM)
-        shell.process.wait(timeout=10)
-        for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr):
-            stream.close()
-        shell = None
-        fixture.stop()
+        fixture.stop(kill=True)
         filler.unlink()
         reserve.unlink()
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        shell = TableConsole(fixture.cli, console_path)
-        outcome = fixture.sql_session(dict(resume=accepted['identity']))['operation']
-        deadline = time.monotonic() + 90
-        while outcome['phase'] != 'terminal':
-            assert time.monotonic() < deadline, outcome
-            time.sleep(.05)
-            outcome = fixture.sql_session(dict(status=dict(operation=accepted['identity'])))['operation']
-        assert outcome['identity'] == accepted['identity'] and outcome['outcome'] == 'applied', outcome
-        assert outcome['matched'] == outcome['changed'] == 1, outcome
-        assert atom(shell.call('SELECT COUNT(*) FROM items;'), 'unsigned') == '1'
-        row = shell.call('SELECT id, value FROM items;')['rows'][0]
+        outcome = terminal(fixture, identity)
+        assert outcome['outcome'] == 'applied' and outcome['matched'] == outcome['changed'] == 1, outcome
+        assert int(identity['id']) == binding['identity']['operation']
+        assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '1'
+        row = fixture.console('SELECT id, value FROM items;\n')[-1]['rows'][0]
         assert [cell['value']['atom']['signed'] for cell in row] == ['1', '100'], row
-        shell.close()
-        shell = None
         fixture.stop()
-        print(f"Transit server physical capacity: accepted Table mutation, real ENOSPC, finite control/shutdown and exact identity/count recovery passed in {time.monotonic()-started:.2f}s", flush=True)
+        print(f"Transit server physical capacity: admitted direct write, real ENOSPC, finite observation/shutdown and exact identity/count recovery passed in {time.monotonic()-started:.2f}s", flush=True)
     finally:
-        if shell is not None:
-            if shell.process.poll() is None:
-                shell.process.kill()
-            shell.process.wait(timeout=10)
-        # Make space available for fixture diagnostics/cleanup on failure too.
         filler.unlink(missing_ok=True)
         reserve.unlink(missing_ok=True)
+        fixture.boundary.resume()
         fixture.cleanup()
 
 
@@ -121,18 +88,32 @@ def run(cli, node, host, *application):
     repo = Path(__file__).resolve().parents[1]
     image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
     tools = {name: str(Path(shutil.which(name) or "missing").resolve(strict=True))
-             for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4")}
+             for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4", "patchelf")}
     python = str(Path(sys.executable).resolve(strict=True))
     assert all(path.startswith("/nix/store/") for path in [*tools.values(), python])
     root = Path(tempfile.mkdtemp(prefix="transit-server-capacity-", dir="/var/tmp"))
     name = "transit-server-capacity-" + uuid.uuid4().hex[:12]
+    # Source-built ELFs name the host's /lib loader while their dependencies
+    # come from the pinned Nix environment. Patch only private executable copies
+    # so this container does not combine its older libc with those dependencies.
+    interpreter = subprocess.check_output([tools['patchelf'], '--print-interpreter', python], text=True).strip()
+    assert interpreter.startswith('/nix/store/') and Path(interpreter).is_file()
+    binaries = root / 'bin'
+    binaries.mkdir()
+    sources = [Path(path).resolve() for path in (cli, node, host, *application)]
+    sources += [Path(cli).resolve().parent / name for name in ('transit-board', 'transit-sql-gateway')]
+    for source in sources:
+        destination = binaries / source.name
+        assert not destination.exists(), destination
+        shutil.copy2(source, destination)
+        subprocess.run([tools['patchelf'], '--set-interpreter', interpreter, str(destination)], check=True)
     with (root / "disk.img").open("xb") as file:
         file.truncate(2 * 1024**3)
     (root / "mount").mkdir()
     subprocess.run([tools["mkfs.ext4"], "-q", "-F", "-m", "0", str(root / "disk.img")], check=True, timeout=30)
     q = shlex.quote
     command = [python, "-B", str(repo / "tests/server_capacity.py"), "--inside-application" if application else "--inside", "/proof/mount",
-               *[str(Path(path).resolve()) for path in (cli, node, host, *application)]]
+               *['/proof/bin/' + Path(path).name for path in (cli, node, host, *application)]]
     script = f'''set -euo pipefail
 {q(tools['mount'])} -o loop /proof/disk.img /proof/mount
 trap '{q(tools['umount'])} /proof/mount' EXIT
