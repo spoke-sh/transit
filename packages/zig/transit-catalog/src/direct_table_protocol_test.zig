@@ -41,13 +41,19 @@ test "direct Table request proof binds the complete typed action and current def
 }
 
 test "direct Table delegation consumes independent caller and executor signatures" {
-    const Fixture = struct { request: w.Request, caller_key: [32]u8, executor_key: [32]u8 };
+    const Fixture = struct { request: w.Request, caller_key: [32]u8, executor_key: [32]u8, retained_grant: []const u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-delegation-v1.json"));
     defer parsed.deinit();
     const request = parsed.value.request;
     try request.validate(t.allocator);
     try request.proof.verify(parsed.value.executor_key);
     try request.delegation.?.proof.verify(parsed.value.caller_key);
+    const retained = try (w.Binary{ .base64 = parsed.value.retained_grant }).decode(t.allocator, c.DirectReadDelegation.encoded_bytes);
+    defer t.allocator.free(retained);
+    try t.expectEqualSlices(u8, retained, &try request.delegation.?.encode(t.allocator));
+    const restored = try c.DirectReadDelegation.decode(t.allocator, retained);
+    try t.expectEqualDeep(request.delegation.?, restored);
+    try restored.proof.verify(parsed.value.caller_key);
     try t.expectEqual(@as(u64, 4), request.connection.principal);
     try t.expectEqual(@as(u64, 9), request.proof.claim.principal);
     var changed = request;

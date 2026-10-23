@@ -3,6 +3,7 @@ import copy
 import base64
 import hashlib
 import json
+import struct
 from pathlib import Path
 import sys
 import tempfile
@@ -57,7 +58,18 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     executor_claim = {**claim, "principal": 9, "context": list(executor_context)}
     executor = Key(Path(directory), "public-executor-key", 31)
     delegated_request = {**delegated_input, "proof": {"claim": executor_claim, "signature": executor.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(executor_claim)).digest())}}
-    delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public}
+    # Canonical retained grant: explicit definition/epoch and original signature.
+    # Redundant object/claim scope fields are constrained to the connection.
+    retained_grant = (
+        b"TRG1" + bytes.fromhex(definition)
+        + struct.pack("<QQQQQQBQ", 42, 3, 2**64 - 1, 1, 5, 4, 0, 0)
+        + struct.pack("<QQQ", 9, 7, 2) + bytes([3] * 32)
+        + struct.pack("<QQQ", 9, 10, 2**64 - 1) + bytes([11] * 32)
+        + struct.pack("<Q", 1) + delegation_context + bytes(delegated_proof["signature"])
+    )
+    assert len(retained_grant) == 309
+    delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public,
+                         "retained_grant": base64.b64encode(retained_grant).decode()}
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,

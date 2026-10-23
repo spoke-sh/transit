@@ -68,6 +68,14 @@ not yet apply them. Closing a computation leaves its source available for other
 queries until the pin owner explicitly releases it. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
 for pin acquisition, authority and recovery.
 
+`CapturedTablePin` supplies native-state retention for durable computations.
+It commits the original grant and a permanent pin-owner claim before permitting
+direct acquisition. An independently committed closing decision precedes remote
+release; unknown replies retain the same grant, owner and frontier for recovery.
+Worker generation changes do not authorize closure. Its
+[retention guide](docs/captured-retention.md) defines the commit boundaries and
+bounds. The existing captured-query behavior is not yet connected to this owner.
+
 `DirectRelationalCompilation` prepares the finite relational profile against
 current direct definitions. `DirectRelationalQuery.openPreparedRetained` receives
 the original pins and owns the cloned plan, bounded readers and private spill.

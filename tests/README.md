@@ -185,6 +185,27 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Durable-computation pin ownership component — 2026-10-23
+
+`zig build test -Doptimize=ReleaseSafe --summary all` in
+`packages/zig/transit-query` passes 142 tests. The new `CapturedTablePin` reference
+model checks committed eligibility before direct acquisition, duplicate pin-owner
+rejection, original grants across worker replacement, lost acquisition replies,
+lost native handle commits, committed closure before release, cleanup denial,
+lost release replies and lost native closed-state commits. Both known-handle and
+unknown-handle closure paths pass. Partial records and another executor reject.
+The fixture uses the native `Turn` proposal API with an in-memory reference store
+and modeled remote outcomes; it is not a disk-recovery or end-to-end capture proof.
+
+The catalog's focused ReleaseSafe suites for `direct Table` and `direct read
+delegation` pass. `just contract::direct-table-check` independently checks the
+309-byte retained grant with Python/OpenSSL bytes and original caller signatures.
+Diagnostic mapping/error checks and 5,490 local links across 559 files pass.
+The current shared definition remains
+`64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c`;
+these additive retention records do not replace an existing stored format.
+Captured-query admission, traversal and verified-result integration remain open.
+
 ## Exact direct pin closure — 2026-10-23
 
 `just test::direct-table-service` passes 474 typed HTTP calls under definition
