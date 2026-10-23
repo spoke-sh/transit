@@ -317,6 +317,14 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
     const local_native_tests = b.addRunArtifact(b.addTest(.{ .root_module = local_backend.module("transit_backend_local") }));
+    const local_catalog_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
+    }) }));
+    b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
+    test_step.dependOn(&local_catalog_tests.step);
     test_step.dependOn(&local_native_tests.step);
     b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
     const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{

@@ -67,6 +67,13 @@ the public client. The [runtime controller](../transit-runtime-controller/README
 reconciles physical placement through Substrate. Workers need neither Ursula
 credentials nor provider access.
 
+`LocalCatalogPolicy` connects the internal direct catalog component to the same
+native role graph, credential checks and resource lifetime fence. It verifies
+the original caller's signed request context and the registered domain bindings;
+it supplies no new grant store. The HTTP dispatcher does not yet expose this
+component. `just test::local-catalog` exercises this composition with real signed
+native changes and local disk storage.
+
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
 raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)

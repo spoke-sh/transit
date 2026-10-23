@@ -18,6 +18,10 @@ node-concurrency:
 local-native-service:
     zig build test-local-native-service
 
+# Verify direct catalog lifecycle against signed native registration and policy.
+local-catalog:
+    zig build test-local-catalog
+
 # Primitive bytes/index proof; native authority and SQL integration are separate.
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe
