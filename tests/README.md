@@ -185,6 +185,45 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Maintained direct Table queries — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --maintained-only` passes under current definition
+`fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52`.
+The private disk-backed node runs both a self-join and a join of independent
+Tables in one catalog. Each unprivileged executor stores native query progress
+outside the catalog resource. The schedule loses the native handle commit after
+remote history acquisition, restarts, and recovers the exact original lease.
+Accepted changes during backfill do not replace the initial two-row result.
+Twelve cancelled row operations form a physical history prefix longer than one
+page; a second restart preserves the committed scan cursor inside that prefix.
+
+Explicit wakeups publish the next two logical acceptances, including a no-op,
+as separate complete revisions. The verified result reader and exact-successor
+delta reader agree on their checkpoints; a changed count has a paired before/
+after delta and the no-op has no delta. An empty interval creates no revision.
+Cancellation closes every original lease, preserves disclosure of complete
+results, and does not preserve source permission after revocation. Restoration
+permits a fresh read; retirement requires a consumer reset. An earlier run found
+that removing the scan record used the application-key deletion API; switching
+to the internal framework write API preserves the reserved-key guard. The
+passing schedule includes both logical selection and empty-interval removal.
+
+The query filters `direct history records`, `maintained control`, and `exchange
+authorization` pass 13 tests. They cover full-width Table positions, exact source
+record/vector encoding, scan alias consistency, control cursor bounds and
+exchange authorization binding. These codec inputs do not assert storage
+admission. The catalog ReleaseSafe suite passes 123 tests, and the storage
+history-retention filter passes two tests. All current generators and independent
+contract/signing fixtures regenerate successfully after the definition change.
+
+The prior default captured-query schedule passed its captured phases under this
+definition before reaching the scan-removal defect. The successful focused run
+does not execute installed SDK consumers or qualify their current artifacts.
+Maintained gap/overflow/exchange and credential-rotation cleanup schedules,
+older relational consumers, the full query package and repository checks remain
+pending. The two-row cases do not establish throughput or catch-up performance.
+
 ## Direct Table history retention — 2026-10-23
 
 The storage ReleaseSafe `Table history retention` filter passes two tests after

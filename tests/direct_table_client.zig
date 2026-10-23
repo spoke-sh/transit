@@ -12,11 +12,12 @@ const Lifecycle = @import("direct_table_lifecycle.zig");
 const Conditions = @import("direct_sql_conditions.zig");
 const SqlPins = @import("direct_sql_read_recovery.zig");
 const Captured = @import("direct_captured_query.zig");
+const Maintained = @import("direct_maintained_query.zig");
 const Delegation = @import("direct_table_delegation.zig");
 const History = @import("direct_table_history.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, maintained: ?[2]Maintained.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -291,6 +292,18 @@ pub fn main(init: std.process.Init) !void {
             var fresh = client;
             fresh.key = try key(59);
             try Captured.relational(init, fresh, &admin);
+        } else if (std.mem.eql(u8, args[2], "maintained-initialize")) {
+            (try client.call(.initialize)).deinit();
+            _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = profile.role, .privileges = p.permission(.inspect) } });
+        } else if (std.mem.eql(u8, args[2], "maintained-prepare")) {
+            var fresh = client;
+            if (profile.captured != null) fresh.key = try key(59);
+            profile.maintained = .{ try Maintained.prepare(init, fresh, &admin, profile.role, false), try Maintained.prepare(init, fresh, &admin, profile.role, true) };
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "maintained-resume") or std.mem.eql(u8, args[2], "maintained-backfill")) {
+            var fresh = client;
+            if (profile.captured != null) fresh.key = try key(59);
+            for (profile.maintained.?) |state| try Maintained.recover(init, fresh, &admin, state, std.mem.eql(u8, args[2], "maintained-backfill"));
         } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
             var fresh = client;
             fresh.key = try key(59);

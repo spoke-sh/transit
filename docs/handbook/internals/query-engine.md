@@ -524,19 +524,31 @@ operator or rewrite can claim equivalence. Existing
 The implementation question is whether a consumer can keep an exact relation
 while a query restarts between small native writes and its inputs continue to
 change. The selected model is `R_k = Q(B_k)`: each basis contains one complete
-Table-history position per resource, each result uses the same canonical finite
-semantics, and each delta is the ordered difference from `R_(k-1)` to `R_k`.
-This scope excludes event-time finality and distributed write authority.
+logical direct Table position per distinct Table, each result uses the same
+canonical finite semantics, and each delta is the ordered difference from
+`R_(k-1)` to `R_k`. Aliases of one Table share a cut; two Tables in one catalog
+remain independent. This scope excludes event-time finality, a catalog-wide
+transaction and distributed write authority.
 
 [RelationalHistory](../../../packages/zig/transit-query/src/RelationalHistory.zig)
-obtains each logical Table root from complete retained history under a fresh
-current authorized resource view. Its resource commitment includes every required
-Table at the selected coordinate. Thus two required Tables changed by one native
-commit cannot enter different sides of the basis. A recorded choice between
-resources establishes processing order without assuming a global snapshot.
-The argument assumes the Table owner preserves complete predecessor records and
-accepted immutable pages; gaps fail explicitly. A stored hash is evidence to
-validate, not authority to read it.
+obtains each logical Table root through an original-caller history lease and
+exact WAL record commitment. The complete source record also binds its physical
+schema, declaration, row count, last logical row-change position and native
+authority references. Query progress lives in an independent native resource.
+A recorded choice between Tables establishes processing order without a global
+snapshot. The argument assumes the Table owner preserves complete predecessor
+records and accepted immutable objects; gaps fail explicitly. A stored hash is
+evidence to validate, not authority to read it.
+
+Physical history and logical revisions have separate coordinates. A wake records
+an upper bound for each Table and starts a bounded scan after the preceding
+logical cut. Admission, cancellation, flush and other storage records may produce
+an empty page. Persisting that page's cursor permits replacement to continue
+without rescanning the same prefix. Selecting a logical acceptance records a new
+full source vector before computation. An accepted no-op has its own WAL
+commitment even when its rows and last row-change coordinate are unchanged.
+Treating all physical records as results would invent revisions; collapsing
+unchanged logical acceptances would lose the selected transaction granularity.
 
 [RelationalMaintenance](../../../packages/zig/transit-query/src/RelationalMaintenance.zig)
 first records a successor basis, then reconstructs bounded finite work from its
@@ -545,8 +557,9 @@ remain private until one root publication binds their complete coverage. By
 induction over that root publication, the visible result is either the prior
 complete `R_(k-1)` or the complete `Q(B_k)`. Losing a proposal does not change the
 root. Losing a receipt requires the original native retry; regenerating a new
-submission is not part of this argument. The native current-view guards keep
-source policy checks conditional on the resource state used at acceptance.
+submission is not part of this argument. Direct reads check the original
+caller's current rights; native authorization guards fence subsequent progress
+and result publication. A lease preserves data, never continuing permission.
 
 The delta merge compares stable identities, then values. A changed output ordinal
 without changed values creates no logical delta. A same-identity value change is
@@ -575,11 +588,17 @@ ordered-overflow counterexample above. Those optimizations must agree with this
 complete-basis construction; they cannot coalesce logical revisions or skip an
 earlier failure whose arithmetic would fit at a later basis.
 
-The [maintained proof ledger](../../../tests/README.md#maintained-relational-revisions)
-records reproducible reference-store and native schedules separately, including
-unfinished qualification. The reference store tests proposal reconstruction,
-no-op coverage and failed-successor preservation; they do not prove durability.
-Native disk evidence, lag/state measurements and faults bound stronger claims.
+The [proof ledger](../../../tests/README.md) records executed schedules and their
+source definitions and reproduction commands. The
+[direct query runner](../../../tests/direct_captured_query.py) starts private
+local nodes and drives the signed direct service with native computation progress; its
+maintained cases cover aliases and independent Tables. Pure source/vector record
+checks cover interpretation, full-width coordinates and malformed bytes.
+Earlier actor-backed reference-store and native schedules establish their
+recorded profile only; they do not qualify this direct migration. Gap, overflow,
+exchange, cleanup-rotation, lag/state and broader fault schedules must be
+qualified separately before transferring their claims. Finite small-row checks
+establish neither sustainable catch-up nor performance at large cardinalities.
 
 ### Immutable names and query attribution
 
@@ -672,12 +691,13 @@ failed host attempts and each separate fault/capacity schedule.
 
 Which evidence can the current plan safely carry into future historical or
 shared dataflows? The implemented bound plan contains exact source identities,
-schemas, resource cuts and a definition fingerprint. Same-resource aliases
-must share one cut. The maintained vector records complete Table transactions,
+schemas, explicit native or Table-partition cuts and a definition fingerprint.
+Same-Table aliases must share one cut. The maintained vector records complete
+logical Table acceptances,
 including no-output progress. These facts let the present two-input executor
 distinguish a completed result from an observed prefix. The
 [relational contract](../../../contracts/RELATIONAL_V1.md#source-basis-and-lifetime)
-and [history tests](../../../packages/zig/transit-query/src/relational_history_test.zig)
+and [history record checks](../../../packages/zig/transit-query/src/RelationalHistoryRecord.zig)
 are the implementation evidence for that boundary.
 
 A future join of two versions of one resource needs two explicitly qualified

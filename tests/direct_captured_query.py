@@ -13,7 +13,9 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None):
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False):
+    if maintained_only and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
+        raise ValueError("maintained-only does not run installed captured consumers")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-capture-") as directory:
         root = Path(directory)
@@ -80,7 +82,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/table/v1" and envelope["delegation"]:
+                    if self.path == "/table/v1" and envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "snapshot":
                         action = next(iter(envelope["action"]))
                         fault = "cleanup_release" if action == "release" and envelope.get("closure") else action
                         if fault in faults and not faults[fault]:
@@ -138,23 +140,37 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
-            subprocess.run([caller, endpoint, "capture-prepare", str(profile)], check=True, timeout=240)
-            consumers(endpoint, "prepare")
-            for phase in ("capture-uncertain-pin", "capture-uncertain-release"):
+            if maintained_only:
+                subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
+            else:
+                subprocess.run([caller, endpoint, "capture-prepare", str(profile)], check=True, timeout=240)
+                consumers(endpoint, "prepare")
+                for phase in ("capture-uncertain-pin", "capture-uncertain-release"):
+                    stop(authority)
+                    authority = None
+                    authority = start()
+                    subprocess.run([caller, endpoint, phase, str(profile)], check=True, timeout=240)
+                assert faults["pin"] and faults["release"], faults
                 stop(authority)
                 authority = None
                 authority = start()
-                subprocess.run([caller, endpoint, phase, str(profile)], check=True, timeout=240)
-            assert faults["pin"] and faults["release"], faults
+                subprocess.run([caller, endpoint, "capture-resume", str(profile)], check=True, timeout=240)
+                assert all(faults.values()), faults
+                subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=120)
+                subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)
+            subprocess.run([caller, endpoint, "maintained-prepare", str(profile)], check=True, timeout=240)
             stop(authority)
             authority = None
             authority = start()
-            subprocess.run([caller, endpoint, "capture-resume", str(profile)], check=True, timeout=240)
-            assert all(faults.values()), faults
-            subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=120)
-            subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)
+            subprocess.run([caller, endpoint, "maintained-backfill", str(profile)], check=True, timeout=600)
+            stop(authority)
+            authority = None
+            authority = start()
+            subprocess.run([caller, endpoint, "maintained-resume", str(profile)], check=True, timeout=600)
             consumers(endpoint, "result")
-            print("Direct captured query: independent worker resource, durable pre-acquisition restart, uncertain pin acquisition/release, original unflushed cuts, wide/nested Fuze/Arrow traversal after ALTER/DROP/name reuse, composite-key hit/absence, shared-alias and independent-Table relational capture, executor without Table rights, released-pin result disclosure, current revocation/restoration and separately authorized cleanup after credential rotation passed.")
+            print("Direct maintained query: original acquisition recovery, bounded physical history progress across node replacement, initial backfill, alias and independent Table cuts, accepted no-op revisions, paired deltas, original lease cleanup, post-closure disclosure, current revocation/restoration and retirement passed.")
+            if not maintained_only:
+                print("Direct captured query: independent worker resource, durable pre-acquisition restart, uncertain pin acquisition/release, original unflushed cuts, wide/nested Fuze/Arrow traversal after ALTER/DROP/name reuse, composite-key hit/absence, shared-alias and independent-Table relational capture, executor without Table rights, released-pin result disclosure, current revocation/restoration and separately authorized cleanup after credential rotation passed.")
         except BaseException:
             log.flush()
             log.seek(0)
@@ -175,6 +191,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("node")
     parser.add_argument("caller")
+    parser.add_argument("--maintained-only", action="store_true")
     parser.add_argument("--python-native")
     parser.add_argument("--ruby-host")
     parser.add_argument("--java-packages")

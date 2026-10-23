@@ -11,6 +11,8 @@ const Turn = s.Turn;
 const Pub = s.Publication;
 const Ref = s.PublicationReference;
 const History = q.RelationalHistory;
+const Pin = q.CapturedTablePin;
+const Client = q.catalog.DirectTableClient;
 pub const resident_base = 4 * History.resident_bytes + 3 * q.RelationalBundle.max_bytes + 4 * f.RelationalCheckpoint.max_bytes + 4 * f.RelationalOutput.max_bytes + 2 * f.RelationalDelta.max_bytes + 3 * r.Manifest.max_bytes;
 pub const Advance = enum { progress, complete, idle, closed, duplicate };
 pub fn head(source: anytype, identity: r.Identity) !r.Head {
@@ -62,16 +64,16 @@ pub fn readBasis(source: anytype, bundle: q.RelationalBundle, stored: r.Head) !H
     var vector: History.Vector = .{ .request = try bundle.fingerprint(), .count = stored.count };
     for (vector.entries[0..stored.count], stored.positions[0..stored.count], 0..) |*entry, position, i| {
         const value = (try source.read(r.key('b', stored.id, try stored.successor(), i))) orelse return error.MissingQueryProgress;
-        entry.* = .{ .position = position, .record = try s.TableHistory.Record.decode(value) };
+        entry.* = .{ .position = position, .record = try History.Record.decode(bundle.sources[i], bundle.retention[i], value) };
     }
     try vector.validate(bundle);
     return vector;
 }
-fn writeBasis(turn: *Turn, stored: *r.Head, vector: History.Vector) !void {
+fn writeBasis(turn: *Turn, bundle: q.RelationalBundle, stored: *r.Head, vector: History.Vector) !void {
     stored.count = vector.count;
     for (vector.entries[0..vector.count], 0..) |entry, i| {
         stored.positions[i] = entry.position;
-        try turn.write(r.key('b', stored.id, try stored.successor(), i), try entry.record.encode());
+        try turn.write(r.key('b', stored.id, try stored.successor(), i), try entry.record.encode(bundle.sources[i], bundle.retention[i]));
     }
 }
 fn schedule(turn: *Turn, stored: *r.Head) !void {
@@ -110,11 +112,11 @@ pub fn selectExchanges(turn: *Turn, identity: r.Identity, request: Ref) !void {
 const Exchanged = q.RelationalExchange.Sources(*Turn, *History);
 /// Attach complete coverage for the already accepted basis and wake its owner.
 /// Hosts authenticate this control separately from the activation caller.
-pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, workspace: []u8) !void {
+pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, clients: []const Client, workspace: []u8) !void {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     var stored = try head(turn, identity);
-    if (stored.request_version.pid != turn.delivery.pid or (stored.phase != .admitted and stored.phase != .running)) return error.InvalidMaintainedRecord;
+    if (stored.request_version.pid != turn.delivery.pid or (stored.phase != .running)) return error.InvalidMaintainedRecord;
     if (!try exchangeSelected(turn, identity, stored.request)) return error.InvalidRelationalExchange;
     const grant = (try q.RelationalCapture.policy(turn, stored.peer)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != stored.policy_revision or grant.requests != stored.request.resource) return error.QueryDenied;
@@ -125,7 +127,7 @@ pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, workspac
     try memory(bundle, workspace, true);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     try bundle.bindSubject(turn, stored.peer, stored.request.resource, grant.principal);
-    var history = try History.open(turn, fixed.allocator(), bundle, grant.principal, try readBasis(turn, bundle, stored), 1);
+    var history = try History.open(turn, fixed.allocator(), bundle, try readBasis(turn, bundle, stored), clients, 1);
     var inputs: Exchanged = .{ .reader = turn, .authority = &history, .id = exchange, .bound = history.bound() };
     try inputs.validate(history.bound());
     const value = try (r.ExchangeInput{ .binding = try history.bound().fingerprint(), .exchange = exchange }).encode();
@@ -136,8 +138,9 @@ pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, workspac
     try schedule(turn, &stored);
 }
 /// Explicit activation by the configured caller. Admission retains the exact
-/// request and records both source heads with the root in at most four writes.
-pub fn start(turn: *Turn, request: Ref, workspace: []u8) !r.Head {
+/// request and source count. Later committed turns make acquisition eligible
+/// and retain each exact direct lease before publishing a source vector.
+pub fn start(turn: *Turn, request: Ref, clients: []const Client, workspace: []u8) !r.Head {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     for (decision.mutations) |mutation| if (mutation != null) return error.QueryAfterMutation;
@@ -157,15 +160,17 @@ pub fn start(turn: *Turn, request: Ref, workspace: []u8) !r.Head {
     try memory(bundle, workspace, try exchangeSelected(turn, identity, request));
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     try bundle.bindSubject(turn, peer, request.resource, grant.principal);
-    if (bundle.sources[0].scope.resource != turn.view.resource or bundle.sources[0].owner != turn.delivery.pid) return error.RelationalSourceChanged;
+    if (clients.len != bundle.sources.len) return error.InvalidRelationalSources;
+    for (bundle.retention, clients, 0..) |retention, client, i| {
+        if (try bundle.sourceOrdinal(i) != i) continue;
+        try Pin.authorizeAdmission(turn, retention, client);
+    }
     if ((try request.publication().inspect(&current, request.record)).publisher != peer) return error.UnexpectedQueryPublisher;
     try current.requireCurrent();
     const request_version = try current.retain();
-    const vector = try History.capture(turn, fixed.allocator(), bundle, grant.principal);
-    var stored: r.Head = .{ .id = turn.delivery.input.position, .peer = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .request = request, .request_version = request_version, .continuation = turn.delivery.input.position, .count = vector.count };
+    var stored: r.Head = .{ .id = turn.delivery.input.position, .peer = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .request = request, .request_version = request_version, .continuation = turn.delivery.input.position, .count = @intCast(bundle.sources.len) };
     if (try turn.read(Pub.key(.query_result, stored.namespace(), 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
     _ = try q.RelationalState.create(turn, stored.namespace());
-    try writeBasis(turn, &stored, vector);
     try schedule(turn, &stored);
     // Admission settles the activation call. Later revisions have their own
     // immutable identities and are observed through the revision reader.
@@ -193,7 +198,7 @@ pub fn close(turn: *Turn, identity: r.Identity, phase: enum { cancelled, failed,
         .retired => .retired,
     };
     if (failure) |cause| try turn.write(r.key('f', stored.id, try stored.successor(), 0), try cause.encode());
-    try turn.write(identity.address(), try stored.encode());
+    if (stored.cleanup_cursor < stored.count) try schedule(turn, &stored) else try turn.write(identity.address(), try stored.encode());
 }
 fn failed(turn: *Turn, stored: r.Head, err: anyerror) !Advance {
     if (turn.read_error != null) return err;
@@ -201,30 +206,81 @@ fn failed(turn: *Turn, stored: r.Head, err: anyerror) !Advance {
     try close(turn, stored.identity(), .failed, cause);
     return .closed;
 }
+fn terminal(phase: r.Phase) bool {
+    return phase == .failed or phase == .cancelled or phase == .retired;
+}
+/// Closure preserves completed revisions and their immutable source evidence.
+/// One original pin transition commits per input. Denial/outage leaves the
+/// explicit cursor pending without a self-retry loop or a renewed read grant.
+pub fn retryCleanup(turn: *Turn, identity: r.Identity, clients: []const Client, workspace: []u8) !void {
+    const decision = turn.decision;
+    errdefer turn.decision = decision;
+    var stored = try head(turn, identity);
+    if (stored.request_version.pid != turn.delivery.pid) return error.InvalidMaintainedRecord;
+    if (!terminal(stored.phase)) return error.QueryActive;
+    if (clients.len != stored.count) return error.InvalidRelationalSources;
+    if (stored.cleanup_cursor == stored.count) return;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace);
+    const slot: Pin.Slot = .{ .job = stored.id, .source = stored.cleanup_cursor };
+    if (try Pin.inspect(fixed.allocator(), turn, slot)) |pin| {
+        if (pin.phase == .acquiring) {
+            try Pin.beginClose(fixed.allocator(), turn, slot);
+            try schedule(turn, &stored);
+            return;
+        }
+        if (pin.phase == .closing) {
+            const client = clients[stored.cleanup_cursor];
+            Pin.settle(fixed.allocator(), turn, slot, client) catch |err| {
+                if (q.wire.Client.unavailable(err) or err == error.AccessDenied or
+                    (err == error.Conflict and (client.authority.last_rejection == .StaleAuthorizationCredential or client.service.last_rejection == .StaleAuthorizationCredential))) return;
+                return err;
+            };
+        }
+    }
+    stored.cleanup_cursor += 1;
+    if (stored.cleanup_cursor < stored.count) try schedule(turn, &stored) else try turn.write(identity.address(), try stored.encode());
+}
+/// An authenticated terminal control may supply current closure permission.
+/// It cannot renew execution, change the selected vector or acquire a new cut.
+pub fn authorizeCleanup(turn: *Turn, identity: r.Identity, ordinal: u32, client: Client, authorization: q.catalog.DirectReadDelegation.Closure, workspace: []u8) !void {
+    const decision = turn.decision;
+    errdefer turn.decision = decision;
+    var stored = try head(turn, identity);
+    if (stored.request_version.pid != turn.delivery.pid or ordinal >= stored.count) return error.InvalidMaintainedRecord;
+    if (!terminal(stored.phase)) return error.QueryActive;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace);
+    const slot: Pin.Slot = .{ .job = stored.id, .source = ordinal };
+    if (try Pin.inspect(fixed.allocator(), turn, slot) != null) try Pin.authorizeCleanup(fixed.allocator(), turn, slot, client, authorization);
+    if (stored.cleanup_cursor < stored.count) try schedule(turn, &stored);
+}
 /// A durable self-continuation advances active work. An authenticated host may
 /// explicitly wake an idle query with wake(); invalidation is only a wakeup.
-pub fn advance(turn: *Turn, continuation: r.Continuation, workspace: []u8) !Advance {
+pub fn advance(turn: *Turn, continuation: r.Continuation, clients: []const Client, workspace: []u8) !Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     const stored = try head(turn, continuation.identity);
     if (stored.request_version.pid != turn.delivery.pid or try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.UnexpectedQueryContinuation;
     const frame = try s.Frame.decode(turn.delivery.input.value);
     if (frame.kind != .cast or !frame.payload.eql(try continuation.encode())) return error.InvalidQueryContinuation;
-    if (stored.phase != .admitted and stored.phase != .running) return .duplicate;
     if (continuation.input < stored.continuation) return .duplicate;
     if (continuation.input != stored.continuation) return error.InvalidQueryContinuation;
-    return advanceInner(turn, stored, workspace, false) catch |err| {
+    if (stored.phase == .failed or stored.phase == .cancelled or stored.phase == .retired) {
+        try retryCleanup(turn, stored.identity(), clients, workspace);
+        return .closed;
+    }
+    if (stored.phase == .idle) return .duplicate;
+    return advanceInner(turn, stored, clients, workspace, false) catch |err| {
         turn.decision = decision;
         return failed(turn, stored, err);
     };
 }
-pub fn wake(turn: *Turn, identity: r.Identity, workspace: []u8) !Advance {
+pub fn wake(turn: *Turn, identity: r.Identity, clients: []const Client, workspace: []u8) !Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     const stored = try head(turn, identity);
     if (stored.request_version.pid != turn.delivery.pid) return error.InvalidMaintainedRecord;
     if (stored.phase != .idle) return .duplicate;
-    return advanceInner(turn, stored, workspace, true) catch |err| {
+    return advanceInner(turn, stored, clients, workspace, true) catch |err| {
         turn.decision = decision;
         return failed(turn, stored, err);
     };
@@ -243,7 +299,7 @@ const Groups = struct {
         return self.index.next(self.candidate, after);
     }
 };
-fn advanceInner(turn: *Turn, stored: r.Head, workspace: []u8, waking: bool) !Advance {
+fn advanceInner(turn: *Turn, stored: r.Head, clients: []const Client, workspace: []u8, waking: bool) !Advance {
     const grant = (try q.RelationalCapture.policy(turn, stored.peer)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != stored.policy_revision or grant.requests != stored.request.resource) return error.QueryDenied;
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
@@ -255,19 +311,68 @@ fn advanceInner(turn: *Turn, stored: r.Head, workspace: []u8, waking: bool) !Adv
     try memory(bundle, workspace, exchanged);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     try bundle.bindSubject(turn, stored.peer, stored.request.resource, grant.principal);
+    if (clients.len != bundle.sources.len) return error.InvalidRelationalSources;
+    if (stored.phase == .admitted) {
+        var next = stored;
+        if (stored.acquired == stored.count) {
+            const captured = try History.capture(turn, allocator, bundle, stored.id, clients);
+            try writeBasis(turn, bundle, &next, captured);
+            next.phase = .running;
+        } else if (try bundle.sourceOrdinal(stored.acquired) != stored.acquired) {
+            next.acquired += 1;
+        } else {
+            try Pin.authorizeAdmission(turn, bundle.retention[stored.acquired], clients[stored.acquired]);
+            try Pin.prepare(allocator, turn, .{ .job = stored.id, .source = stored.acquired }, bundle.retention[stored.acquired]);
+            next.phase = .acquiring;
+        }
+        try schedule(turn, &next);
+        return .progress;
+    }
+    if (stored.phase == .acquiring) {
+        const basis = try Pin.acquire(allocator, turn, .{ .job = stored.id, .source = stored.acquired }, clients[stored.acquired]);
+        _ = try bundle.sources[stored.acquired].basis(basis, bundle.plan.sources[stored.acquired].schema);
+        try Pin.authorizeSource(turn, bundle.retention[stored.acquired], basis.authority);
+        var next = stored;
+        next.acquired += 1;
+        next.phase = .admitted;
+        try schedule(turn, &next);
+        return .progress;
+    }
     const previous = try manifest(turn, bundle, stored);
+    const scan_key = r.key('s', stored.id, try stored.successor(), 0);
     if (waking) {
-        const next = (try History.successor(turn, bundle, grant.principal, previous.?.vector, stored.preference)) orelse return .idle;
+        const scan = try History.begin(turn, bundle, previous.?.vector, stored.preference, clients);
         var proposed = stored;
-        proposed.phase = .admitted;
-        proposed.preference = (stored.preference + 1) % stored.count;
-        try writeBasis(turn, &proposed, next);
+        proposed.phase = .seeking;
+        try turn.write(scan_key, try scan.encode(bundle, previous.?.vector));
+        try schedule(turn, &proposed);
+        return .progress;
+    }
+    if (stored.phase == .seeking) {
+        const scan = try History.Scan.decode(bundle, previous.?.vector, (try turn.read(scan_key)) orelse return error.MissingQueryProgress);
+        var proposed = stored;
+        switch (try History.successor(turn, bundle, previous.?.vector, scan, clients)) {
+            .idle => {
+                proposed.phase = .idle;
+                proposed.preference = scan.preference;
+                try turn.write(scan_key, null);
+                try turn.write(proposed.identity().address(), try proposed.encode());
+                return .idle;
+            },
+            .pending => |progress| try turn.write(scan_key, try progress.encode(bundle, previous.?.vector)),
+            .next => |selected| {
+                try writeBasis(turn, bundle, &proposed, selected.vector);
+                proposed.preference = selected.preference;
+                proposed.phase = .running;
+                try turn.write(scan_key, null);
+            },
+        }
         try schedule(turn, &proposed);
         return .progress;
     }
     const vector = try readBasis(turn, bundle, stored);
     const data = try allocator.create(History);
-    data.* = try History.open(turn, allocator, bundle, grant.principal, vector, 1);
+    data.* = try History.open(turn, allocator, bundle, vector, clients, 1);
     const work = try readWork(turn, stored);
     if (exchanged) {
         // Waiting consumes no new source rows and creates no private operator

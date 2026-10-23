@@ -437,10 +437,12 @@ wait closure, retained evidence and duplicate handling.
 
 The typed Zig `RelationalMaintenance` owner publishes a complete result for each
 recorded Table-history basis, including no-op transaction coverage. It captures
-an initial basis, backfills while later history remains durable, then advances
-one eligible resource transaction at a time. Required Tables in one resource
-move together. Different resources have an explicit vector and recorded processing
-order; this is not a global or causal snapshot.
+an initial direct Table basis, backfills while later history remains durable,
+then advances one eligible logical Table acceptance at a time. Same-Table aliases
+share a cut; distinct Tables remain independent, including within one catalog.
+Bounded storage-only traversal has a durable cursor and publishes no result
+revision. Source vectors record the processing order without a global snapshot
+claim. Native query progress is independent of the Table catalog resource.
 
 The owner recomputes each basis with the same finite relational executor and
 stages an ordered paired delta against the previous complete result. One commit
@@ -452,7 +454,7 @@ identity. Current source rights remain necessary even for noncontributing inputs
 
 Activation and wakeups are explicit authenticated host operations. The owner does
 not supply a background daemon, automatic SQL activation, or an event-time finality
-claim. Its first-source owner placement, workspace/state budgets and cumulative
+claim. Its direct retention grants, workspace/state budgets and cumulative
 retention costs are described in the
 [maintained caller guide](../../../packages/zig/transit-query/docs/relational-maintenance.md).
 
@@ -461,8 +463,10 @@ manifest. A partial delivery cannot replace the consumer's relation. After
 terminal coverage validation, save its position atomically with applying the
 complete transaction. Resume requests the next recorded revision; pending keeps
 the old position, and a mismatch requires explicit reset. Cancellation or failure
-preserves previous complete results; retirement makes them unavailable. Every
-read rechecks current policy and native/catalog rights to all sources.
+preserves previous complete results and schedules closure of the original history
+leases; retirement makes results unavailable. Cleanup progress remains separate
+from result completion. Every read rechecks current policy and source rights,
+including after source leases close.
 
 ## Explicit query exchanges
 

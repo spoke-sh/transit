@@ -62,25 +62,14 @@ pub fn bind(self: Self, turn: *q.station.Turn, assignment: Assignment, bundle: q
 
 test "exchange authorization binds original caller, complete basis and exact worker assignment" {
     const t = std.testing;
-    const tables = @import("catalog_store_test.zig");
+    var fixture = try @import("direct_query_fixture_test.zig").init(t.allocator, .captured, false);
+    defer fixture.deinit();
+    const bundle = fixture.bundle;
+    const basis = fixture.vector;
+    const key = try q.catalog.testing.Authority.key(17);
     var store: q.testing.Store = .{};
     defer store.deinit();
-    try tables.create(&store, "CREATE TABLE items (k BIGINT, v BIGINT)");
-    var found = try tables.definition(&store);
-    defer found.deinit();
-    var source = try q.TableSource.from(t.allocator, tables.configuration, found);
-    defer source.deinit();
-    const declarations = [_]q.fuze.Relational.Source{
-        .{ .alias = "l", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = found.schema.schema },
-        .{ .alias = "r", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = found.schema.schema },
-    };
-    var bundle: q.RelationalBundle = .{ .sources = &.{ source.source, source.source }, .plan = .{ .sources = &declarations, .join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } }, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1048576, .output_rows = 1000, .work_steps = 10000, .source_pins = 1 } } };
-    const key = try q.catalog.testing.Authority.key(17);
-    var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
-    const query_context = try q.QueryAuthorization.context(9, 10, try bundle.encode(&bytes));
-    bundle.authorization = .{ .requester = 9, .requests = 10, .proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 17, .credential_epoch = 1, .role = 17, .audience = 3, .context = query_context }, key) };
-    var turn = try tables.turn(&store);
-    const basis = try q.RelationalHistory.capture(&turn, t.allocator, bundle, 17);
+    var turn = try store.capture();
     const assignment: Assignment = .{ .exchange = 99, .producer = 31, .options = .{ .partitions = 7, .workers = 3, .worker = 1, .batch = 4, .epoch = 1, .quota = 1048576 } };
     var claim = bundle.authorization.?.proof.claim;
     claim.audience = assignment.producer;
@@ -105,7 +94,7 @@ test "exchange authorization binds original caller, complete basis and exact wor
         try t.expectError(error.QueryDenied, changed.subject(assignment, bundle, basis));
     }
     var changed_basis = basis;
-    for (changed_basis.entries[0..changed_basis.count]) |*entry| entry.position += 1;
+    for (changed_basis.entries[0..changed_basis.count]) |*entry| entry.record.basis.snapshot.handle.content.sha256[0] ^= 1;
     try t.expectError(error.QueryDenied, saved.subject(assignment, bundle, changed_basis));
     var foreign = bundle;
     foreign.authorization.?.proof.signature[0] ^= 1;
