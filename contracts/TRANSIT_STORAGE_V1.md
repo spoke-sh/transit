@@ -342,10 +342,16 @@ point reads/deletes require that identity, not an empty primary key.
    `footer_offset` (`u64`), `footer_length` (`u32`), and the first 12 bytes of the
    schema's `layoutFingerprint`.
 2. **Column Pages (`64-byte` aligned)**: For each row group and column, a
-   `"TCP1"` physical column page encoded with the column's declared
+   `"TCP1"`, the mandatory 32-byte shared definition, u8 encoding, u32 row count,
+   one state byte per row, state details and physical values. The page uses the column's declared
    `TableSchema.Encoding` (`plain`, `bitpacked`, `rle`, `dictionary`, `fsst`,
    `comp`, `comp_3`, `zoned`, `ibm_hfp`, `ebcdic`), preserving all five cell states
    (`value`, `null`, `missing`, `type_error`, `conflict`).
+   The decoder requires the exact definition and encoding, at most 65,536 rows,
+   complete framing with no trailing bytes, valid run/dictionary bounds and
+   non-overflowing bitpacked offsets. The
+   [schema representation profile](TABLE_SCHEMA_V1.md#physical-representation-and-collation)
+   defines admissible types and lossless value constraints.
 3. **Footer (`"TSF1"`, `64-byte` aligned at `footer_offset`)**:
    - Mandatory 32-byte shared contract definition immediately after `"TSF1"`.
    - Segment metadata and full 32-byte `layout_fingerprint`.

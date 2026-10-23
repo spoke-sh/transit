@@ -8,126 +8,26 @@ const TableSchema = @import("TableSchema.zig");
 pub const Collation = TableSchema.Collation;
 pub const max_sort_key_bytes: usize = 4096;
 
-/// Bijective US/Canada EBCDIC CP037 -> ASCII/Latin-1 translation table.
-/// In EBCDIC CP037, lowercase 'a'..'z' (0x81..0xA9) sort BEFORE uppercase
-/// 'A'..'Z' (0xC1..0xE9), which sort BEFORE digits '0'..'9' (0xF0..0xF9).
-pub const ebcdic037_to_latin1: [256]u8 = blk: {
-    var table: [256]u8 = undefined;
-    for (0..256) |i| table[i] = @intCast(i);
-    // Standard CP037 printable mappings
-    table[0x40] = ' ';
-    table[0x4B] = '.';
-    table[0x4C] = '<';
-    table[0x4D] = '(';
-    table[0x4E] = '+';
-    table[0x4F] = '|';
-    table[0x50] = '&';
-    table[0x5A] = '!';
-    table[0x5B] = '$';
-    table[0x5C] = '*';
-    table[0x5D] = ')';
-    table[0x5E] = ';';
-    table[0x60] = '-';
-    table[0x61] = '/';
-    table[0x6B] = ',';
-    table[0x6C] = '%';
-    table[0x6D] = '_';
-    table[0x6E] = '>';
-    table[0x6F] = '?';
-    table[0x79] = '`';
-    table[0x7A] = ':';
-    table[0x7B] = '#';
-    table[0x7C] = '@';
-    table[0x7D] = '\'';
-    table[0x7E] = '=';
-    table[0x7F] = '"';
-    // Lowercase a-i (0x81..0x89), j-r (0x91..0x99), s-z (0xA2..0xA9)
-    for (0..9) |k| table[0x81 + k] = @intCast('a' + k);
-    for (0..9) |k| table[0x91 + k] = @intCast('j' + k);
-    for (0..8) |k| table[0xA2 + k] = @intCast('s' + k);
-    table[0xA1] = '~';
-    table[0xAD] = '[';
-    table[0xBD] = ']';
-    table[0xC0] = '{';
-    table[0xD0] = '}';
-    table[0xE0] = '\\';
-    table[0x5F] = '^';
-    // Uppercase A-I (0xC1..0xC9), J-R (0xD1..0xD9), S-Z (0xE2..0xE9)
-    for (0..9) |k| table[0xC1 + k] = @intCast('A' + k);
-    for (0..9) |k| table[0xD1 + k] = @intCast('J' + k);
-    for (0..8) |k| table[0xE2 + k] = @intCast('S' + k);
-    // Digits 0-9 (0xF0..0xF9)
-    for (0..10) |k| table[0xF0 + k] = @intCast('0' + k);
-    break :blk table;
-};
+const Ebcdic = @import("Ebcdic037.zig");
+pub const ebcdic037_to_latin1 = Ebcdic.to_latin1;
+pub const latin1_to_ebcdic037 = Ebcdic.from_latin1;
 
-pub const latin1_to_ebcdic037: [256]u8 = blk: {
-    var inv: [256]u8 = undefined;
-    for (0..256) |i| inv[i] = @intCast(i);
-    inv[' '] = 0x40;
-    inv['.'] = 0x4B;
-    inv['<'] = 0x4C;
-    inv['('] = 0x4D;
-    inv['+'] = 0x4E;
-    inv['|'] = 0x4F;
-    inv['&'] = 0x50;
-    inv['!'] = 0x5A;
-    inv['$'] = 0x5B;
-    inv['*'] = 0x5C;
-    inv[')'] = 0x5D;
-    inv[';'] = 0x5E;
-    inv['^'] = 0x5F;
-    inv['-'] = 0x60;
-    inv['/'] = 0x61;
-    inv[','] = 0x6B;
-    inv['%'] = 0x6C;
-    inv['_'] = 0x6D;
-    inv['>'] = 0x6E;
-    inv['?'] = 0x6F;
-    inv['`'] = 0x79;
-    inv[':'] = 0x7A;
-    inv['#'] = 0x7B;
-    inv['@'] = 0x7C;
-    inv['\''] = 0x7D;
-    inv['='] = 0x7E;
-    inv['"'] = 0x7F;
-    for (0..9) |k| inv['a' + k] = @intCast(0x81 + k);
-    for (0..9) |k| inv['j' + k] = @intCast(0x91 + k);
-    for (0..8) |k| inv['s' + k] = @intCast(0xA2 + k);
-    inv['~'] = 0xA1;
-    inv['['] = 0xAD;
-    inv[']'] = 0xBD;
-    inv['{'] = 0xC0;
-    inv['}'] = 0xD0;
-    inv['\\'] = 0xE0;
-    for (0..9) |k| inv['A' + k] = @intCast(0xC1 + k);
-    for (0..9) |k| inv['J' + k] = @intCast(0xD1 + k);
-    for (0..8) |k| inv['S' + k] = @intCast(0xE2 + k);
-    for (0..10) |k| inv['0' + k] = @intCast(0xF0 + k);
-    break :blk inv;
-};
+pub fn validate(collation: Collation) !void {
+    if (collation == .icu_root) return error.UnsupportedColumnCollation;
+}
+pub fn validateBytes(bytes: []const u8, collation: Collation) !void {
+    try validate(collation);
+    if (collation == .ebcdic_cp037) try Ebcdic.validate(bytes);
+}
 
 pub inline fn asciiLower(byte: u8) u8 {
     return if (byte >= 'A' and byte <= 'Z') byte + ('a' - 'A') else byte;
 }
 
-/// UCA-like primary weight for a byte: whitespace/control < punctuation < digits < case-folded letters.
-/// Secondary weight breaks ties on case (lowercase before uppercase) so ordering is deterministic.
-fn ucaPrimaryWeight(byte: u8) u8 {
-    if (byte >= 'a' and byte <= 'z') return 0x80 + (byte - 'a');
-    if (byte >= 'A' and byte <= 'Z') return 0x80 + (byte - 'A');
-    if (byte >= '0' and byte <= '9') return 0x60 + (byte - '0');
-    return byte;
-}
-
-fn ucaSecondaryWeight(byte: u8) u8 {
-    if (byte >= 'A' and byte <= 'Z') return 2;
-    if (byte >= 'a' and byte <= 'z') return 1;
-    return 0;
-}
-
 /// Compare two UTF-8 / binary slices under the declared Collation.
-pub fn compareBytes(left: []const u8, right: []const u8, collation: Collation) std.math.Order {
+pub fn compareBytes(left: []const u8, right: []const u8, collation: Collation) !std.math.Order {
+    try validateBytes(left, collation);
+    try validateBytes(right, collation);
     switch (collation) {
         .none, .utf8_binary => return std.mem.order(u8, left, right),
         .ascii_ci => {
@@ -140,36 +40,21 @@ pub fn compareBytes(left: []const u8, right: []const u8, collation: Collation) s
             return std.math.order(left.len, right.len);
         },
         .ebcdic_cp037 => {
-            const min_len = @min(left.len, right.len);
-            for (left[0..min_len], right[0..min_len]) |l, r| {
-                const el = latin1_to_ebcdic037[l];
-                const er = latin1_to_ebcdic037[r];
-                if (el != er) return std.math.order(el, er);
+            var l = try Ebcdic.Iterator.init(left);
+            var r = try Ebcdic.Iterator.init(right);
+            while (try l.next()) |lb| {
+                const rb = try r.next() orelse return .gt;
+                if (lb != rb) return std.math.order(lb, rb);
             }
-            return std.math.order(left.len, right.len);
+            return if (try r.next() != null) .lt else .eq;
         },
-        .icu_root => {
-            const min_len = @min(left.len, right.len);
-            // Pass 1: primary case-insensitive weights
-            for (left[0..min_len], right[0..min_len]) |l, r| {
-                const pl = ucaPrimaryWeight(l);
-                const pr = ucaPrimaryWeight(r);
-                if (pl != pr) return std.math.order(pl, pr);
-            }
-            if (left.len != right.len) return std.math.order(left.len, right.len);
-            // Pass 2: secondary case weights
-            for (left, right) |l, r| {
-                const sl = ucaSecondaryWeight(l);
-                const sr = ucaSecondaryWeight(r);
-                if (sl != sr) return std.math.order(sl, sr);
-            }
-            return .eq;
-        },
+        .icu_root => return error.UnsupportedColumnCollation,
     }
 }
 
 /// Compare two validated Atoms under the column's logical type and collation.
 pub fn compareAtom(left: Values.Atom, right: Values.Atom, expected: Types.Type, collation: Collation) !std.math.Order {
+    try validate(collation);
     try Types.Semantics.validate(left, expected);
     try Types.Semantics.validate(right, expected);
     return switch (left) {
@@ -213,6 +98,7 @@ fn stateRank(state: Types.State) u8 {
 /// Total order over 5-state Cells (`missing < null < type_error < conflict < value`),
 /// respecting the column's declared Collation when both cells are `.value`.
 pub fn compareCell(left: Values.Cell, right: Values.Cell, expected: Types.Type, collation: Collation) !std.math.Order {
+    try validate(collation);
     const rl = stateRank(std.meta.activeTag(left));
     const rr = stateRank(std.meta.activeTag(right));
     if (rl != rr) return std.math.order(rl, rr);
@@ -247,17 +133,11 @@ fn writeCollatedBytes(writer: *std.Io.Writer, bytes: []const u8, collation: Coll
             try writer.writeAll(&.{ 0x00, 0x00 });
         },
         .ebcdic_cp037 => {
-            for (bytes) |b| try writeStuffedByte(writer, latin1_to_ebcdic037[b]);
+            var iterator = try Ebcdic.Iterator.init(bytes);
+            while (try iterator.next()) |byte| try writeStuffedByte(writer, byte);
             try writer.writeAll(&.{ 0x00, 0x00 });
         },
-        .icu_root => {
-            for (bytes) |b| try writeStuffedByte(writer, ucaPrimaryWeight(b));
-            // Separator between primary and secondary weights; because primary weights
-            // are byte-stuffed (>= 0x00FF or >= 0x01), 0x00 0x01 orders shorter strings first.
-            try writer.writeAll(&.{ 0x00, 0x01 });
-            for (bytes) |b| try writer.writeByte(ucaSecondaryWeight(b) + 1);
-            try writer.writeAll(&.{ 0x00, 0x00 });
-        },
+        .icu_root => return error.UnsupportedColumnCollation,
     }
 }
 

@@ -755,6 +755,7 @@ fuze-types:
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
+    python3 -B tests/column_codecs.py
     python3 -B tests/table_schema.py
     python3 -B tests/table_storage.py
     python3 -B tests/table_catalog.py

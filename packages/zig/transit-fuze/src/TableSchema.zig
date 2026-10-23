@@ -3,7 +3,7 @@
 const std = @import("std");
 const t = @import("Types.zig");
 const v = t.Values;
-pub const definition = "transit.table.schema.v1.2026-10-05";
+pub const definition = "transit.table.schema.v1.2026-10-23";
 pub const max_columns = 128;
 pub const max_bytes = 65536;
 pub const ColumnId = u64;
@@ -44,29 +44,44 @@ pub const Column = struct {
         return .{ .name = self.name, .type = self.type, .nullable = self.nullable };
     }
     pub fn validateEncodingAndCollation(self: Column) !void {
-        const is_integer = switch (self.type) {
-            .int8, .int16, .int32, .int64, .int128, .uint8, .uint16, .uint32, .uint64, .uint128 => true,
+        const is_integer64 = switch (self.type) {
+            .int8, .int16, .int32, .int64, .uint8, .uint16, .uint32, .uint64 => true,
+            else => false,
+        };
+        const is_signed64 = switch (self.type) {
+            .int8, .int16, .int32, .int64 => true,
             else => false,
         };
         const valid_encoding = switch (self.encoding) {
             .plain => true,
-            .bitpacked => is_integer or self.type == .boolean,
+            .bitpacked => is_integer64 or self.type == .boolean,
             .rle, .dictionary => keyType(self.type),
-            .fsst, .ebcdic => self.type == .utf8 or self.type == .binary,
-            .comp => is_integer,
-            .comp_3, .zoned => is_integer or self.type == .decimal,
+            .fsst => self.type == .utf8 or self.type == .binary,
+            .ebcdic => self.type == .utf8,
+            .comp => is_signed64,
+            .comp_3, .zoned => is_signed64 or (self.type == .decimal and self.type.decimal.precision <= 31),
             .ibm_hfp => self.type == .float32 or self.type == .float64,
         };
         if (!valid_encoding) return error.IncompatibleColumnEncoding;
         const valid_collation = switch (self.collation) {
             .none => true,
-            .utf8_binary, .ascii_ci, .ebcdic_cp037, .icu_root => self.type == .utf8,
+            .utf8_binary, .ascii_ci, .ebcdic_cp037 => self.type == .utf8,
+            .icu_root => return error.UnsupportedColumnCollation,
         };
         if (!valid_collation) return error.IncompatibleColumnCollation;
     }
     pub fn validateCell(self: Column, cell: v.Cell) !void {
+        try self.validateEncodingAndCollation();
         try cell.validate(self.field(), .{});
         try stored(cell);
+        if (cell == .value) {
+            switch (self.encoding) {
+                .ibm_hfp => _ = try @import("IbmHfp.zig").encode64(cell.value.atom.float),
+                .ebcdic => try @import("Ebcdic037.zig").validate(cell.value.atom.bytes),
+                else => {},
+            }
+            if (self.type == .utf8) try @import("Collation.zig").validateBytes(cell.value.atom.bytes, self.collation);
+        }
         if (self.max_characters) |maximum| {
             if (cell == .value) {
                 if (self.type != .utf8 or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidCharacterLimit;

@@ -111,6 +111,12 @@ execution is refused, preserving the original write across caller/manager loss.
 The [broader installed lifecycle and capacity proofs](../../tests/README.md#installed-direct-lifecycle-rollback-and-capacity--2026-10-23)
 also pass against the direct boundary, including revocation, native-history
 rollback refusal and original-write recovery after physical exhaustion.
+The [physical representation proof](../../tests/README.md#lossless-physical-column-admission-and-public-sql--2026-10-23)
+now checks supported codec ranges, complete CP037 conversion, signed floating
+zero, unsupported-profile rejection and SQL equivalence over retained WAL/segment
+cuts. Incompatible physical schemas/pages use replaced current-v1 definitions.
+The neutral JSON schema adapter explicitly rejects physical attributes until
+the SDK contract can preserve them; non-binary SQL collation remains unsupported.
 Captured-query and language SDK migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
