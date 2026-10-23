@@ -154,6 +154,24 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     const released = try dispatch(&service, .{ .release = snapshot });
     defer released.deinit();
     try t.expect(released.value.result == .released);
+    // Predicate evaluation is private work under UPDATE, not a SELECT disclosure.
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
+    _ = try change(engine, .{ .grant = .{ .object = c.TableAuthority.reference(native_table), .grantee = owner_role, .privileges = c.TableAuthority.update } });
+    const basis = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
+    defer basis.deinit();
+    var compiled = try c.fuze.TableDml.compile(alloc, "UPDATE through_dispatch SET id = 13 WHERE id = 12", ddl.name, schema, null);
+    defer compiled.deinit();
+    var statement: w.Statement = .{ .binding = work.binding, .interpretation = selected.interpretation, .schema = schema_wire, .plan = try w.Binary.encode(alloc, try c.fuze.TableDmlCodec.encode(alloc, compiled.plan, &buffer)) };
+    statement.binding.identity.operation = 204;
+    statement.binding.expected_data = basis.value.result.lookup.?.position;
+    statement.binding.intent = try statement.digest(alloc);
+    const private_admission = try dispatch(&service, .{ .admit_statement = statement });
+    defer private_admission.deinit();
+    try t.expect(private_admission.value.result.rows == .admitted);
+    const private_result = try dispatch(&service, .{ .operation = .{ .binding = statement.binding, .command = .execute, .steps = 1 } });
+    defer private_result.deinit();
+    try t.expectEqual(@as(u64, 1), private_result.value.result.rows.committed.outcome.affected);
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .pin = .{ .object = binding.target, .owner = .{ .scope = config.scope, .principal = 101, .operation = 205 }, .expected = private_result.value.result.rows.committed.outcome.position } }));
 }
 
 test "local catalog checks real native registrations, current ownership and exact request proof" {

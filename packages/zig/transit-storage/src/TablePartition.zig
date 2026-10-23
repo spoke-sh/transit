@@ -40,6 +40,9 @@ pub const Options = struct {
     resident_pages: usize = 16,
     index_work_bytes: usize = 64 * 1024 * 1024,
     segment_cache_bytes: usize = f.TSeg.max_segment_bytes,
+    /// Total decoded visits across statement passes, independent of Table size.
+    statement_scan_rows: u64 = 1_000_000,
+    statement_scan_bytes: u64 = 64 * 1024 * 1024,
     /// Same physical namespace, with quota reserved for cancellation/rejection.
     control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
 };
@@ -104,7 +107,7 @@ lose_reply: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
-    if (partition == 0 or options.index_work_bytes == 0) return error.InvalidTableIdentity;
+    if (partition == 0 or options.index_work_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0) return error.InvalidTableIdentity;
     var owned = try Declaration.prepare(allocator, definition);
     errdefer owned.deinit();
     var index = try TreeStore.init(allocator, objects, options.resident_pages);
@@ -390,7 +393,7 @@ pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
     var intent = try Dml.load(self.allocator, self.objects, operation.intent);
     defer intent.deinit();
     try intent.request.binding.requireSame(binding);
-    const outcome = self.apply(binding, intent.request.changes, intent.request.ingestion, guard) catch |err| {
+    const outcome = (if (intent.request.statement) |plan| self.applyStatement(operation, plan, guard) else self.apply(binding, intent.request.changes, intent.request.ingestion, guard)) catch |err| {
         var rejected = operation;
         rejected.phase = .rejected;
         rejected.reason = switch (err) {
@@ -399,7 +402,7 @@ pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => .duplicate_key,
             error.TableRowMissing => .missing_row,
             error.TableRowIdentityChanged => .invalid_rows,
-            error.StorageCandidateTooLarge => .work_limit,
+            error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge => .work_limit,
             else => return err,
         };
         return self.writeOperation(rejected, guard);
@@ -660,6 +663,138 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
         .ingestion = if (ingestion == .point) .point else .bulk,
     } } };
     try self.publish(record, if (ingestion == .point) rows.buffered() else &.{}, guard);
+    try self.reply();
+    return outcome;
+}
+
+const StatementBudget = struct {
+    rows: u64,
+    bytes: u64,
+    fn visit(self: *StatementBudget, bytes: usize) !void {
+        if (self.rows == 0 or bytes > self.bytes) return error.TableStatementScanLimit;
+        self.rows -= 1;
+        self.bytes -= bytes;
+    }
+};
+
+fn statementEncode(row: f.TableRow.Row, schema: f.TableSchema.Schema, buffer: []u8) ![]const u8 {
+    return row.encode(schema, buffer) catch |err| return if (err == error.WriteFailed) error.TableBatchTooLarge else err;
+}
+
+fn statementReplacement(plan: f.TableDml.Plan, original: f.TableRow.Row, original_bytes: []const u8, cells: []f.Types.Values.Cell, buffer: []u8) !?f.TableRow.Row {
+    const row: f.TableRow.Row = .{ .identity = original.identity, .cells = try plan.schema.update(original.cells, plan.action.update, cells) };
+    if (std.mem.eql(u8, original_bytes, try statementEncode(row, plan.schema, buffer))) return null;
+    return row;
+}
+
+/// A retained predicate is evaluated privately under its frozen logical basis.
+/// Remove changed keys before adding replacements so collisions with survivors
+/// and across groups reject the entire statement. No selected-row collection
+/// grows with durable cardinality; each pass uses a page and one bounded group.
+fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guard: Guard) !Outcome {
+    try self.ready();
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        if (self.root.retired) return error.TableRetired;
+        try requireAdmissionBasis(self.root, operation);
+    }
+    if (plan.action == .insert or operation.binding.expected_data == null) return error.InvalidTableStatementIntent;
+    if (!std.mem.eql(u8, &try plan.schema.fingerprint(), &self.root.schema_fingerprint)) return error.TableSchemaChanged;
+    var budget: StatementBudget = .{ .rows = self.options.statement_scan_rows, .bytes = self.options.statement_scan_bytes };
+    const before_bytes = try self.allocator.alloc(u8, max_row_bytes);
+    defer self.allocator.free(before_bytes);
+    const after_bytes = try self.allocator.alloc(u8, max_row_bytes);
+    defer self.allocator.free(after_bytes);
+    var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+    try self.index.begin(self.options.index_work_bytes);
+    defer self.index.end();
+    var next = self.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    var matched: u64 = 0;
+    var affected: u64 = 0;
+    var cursor: ?pages.Key = null;
+    while (true) {
+        const batch = try self.scan(self.root, cursor);
+        for (batch.entries) |slot| if (slot) |entry| {
+            var owned = try self.readRow(self.allocator, self.root, entry.key, entry.value);
+            defer owned.deinit();
+            const row = owned.row();
+            const encoded = try statementEncode(row, plan.schema, before_bytes);
+            try budget.visit(encoded.len);
+            if (!try plan.matches(row.cells)) continue;
+            matched += 1;
+            if (plan.action == .update and try statementReplacement(plan, row, encoded, &cells, after_bytes) == null) continue;
+            affected += 1;
+            next.rows = try self.tree().remove(next.rows, entry.key);
+            next.scan_rows = try self.tree().remove(next.scan_rows, try (try r.Locator.decode(entry.value)).scanKey());
+        };
+        cursor = batch.next orelse break;
+    }
+    if (plan.action == .delete) {
+        next.live_rows -= affected;
+    } else if (affected != 0) {
+        cursor = null;
+        var done = false;
+        var written: u64 = 0;
+        while (!done) {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const a = arena.allocator();
+            var rows: std.ArrayList(f.TableRow.Row) = .empty;
+            var bytes: usize = 0;
+            group: while (rows.items.len < max_changes) {
+                const batch = try self.scan(self.root, cursor);
+                for (batch.entries) |slot| if (slot) |entry| {
+                    // Unselected rows are freed immediately, even when a group
+                    // spans arbitrarily many unselected input pages.
+                    var owned = try self.readRow(self.allocator, self.root, entry.key, entry.value);
+                    defer owned.deinit();
+                    const original = owned.row();
+                    const encoded = try statementEncode(original, plan.schema, before_bytes);
+                    try budget.visit(encoded.len);
+                    if (try plan.matches(original.cells)) {
+                        if (try statementReplacement(plan, original, encoded, &cells, after_bytes)) |row| {
+                            const length = (try statementEncode(row, plan.schema, after_bytes)).len;
+                            if (length > max_row_bytes - bytes or rows.items.len == max_changes) break :group;
+                            const copy = try a.alloc(f.Types.Values.Cell, row.cells.len);
+                            for (row.cells, copy) |value, *target| target.* = try f.Types.Values.cloneValidated(a, value);
+                            try rows.append(a, .{ .identity = row.identity, .cells = copy });
+                            bytes += length;
+                        }
+                    }
+                    cursor = try (try r.Locator.decode(entry.value)).scanKey();
+                };
+                if (batch.next == null) {
+                    done = true;
+                    break;
+                }
+            }
+            if (rows.items.len == 0) {
+                if (!done) return error.TableBatchTooLarge;
+                break;
+            }
+            const segment = try self.stageSegment(a, plan.schema, next.next_segment, rows.items);
+            next.next_segment = try std.math.add(u64, next.next_segment, 1);
+            for (segment.footer.pk_index) |entry| {
+                const key = try r.rowKey(entry.pk_sort_key);
+                if (try self.tree().get(next.rows, key) != null) return error.DuplicatePrimaryKey;
+                const locator: r.Locator = .{ .kind = .segment, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
+                next.rows = try self.tree().put(next.rows, key, try locator.encode());
+                next.scan_rows = try self.tree().put(next.scan_rows, try locator.scanKey(), try locator.scanValue(key));
+                written += 1;
+            }
+        }
+        if (written != affected) return error.InvalidTableHistory;
+    }
+    const key = try r.operationKey(operation.binding.identity);
+    var pointer: [8]u8 = undefined;
+    std.mem.writeInt(u64, &pointer, self.root.next_lsn, .little);
+    next.receipts = try self.tree().put(next.receipts, key, try pages.Value.init(&pointer));
+    next.pending = try self.tree().remove(next.pending, key);
+    if (affected != 0) next.changed_lsn = next.next_lsn;
+    const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = matched, .affected = affected, .live_rows = next.live_rows };
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .binding = operation.binding, .changes = operation.intent.sha256, .outcome = outcome, .ingestion = .bulk } } }, &.{}, guard);
     try self.reply();
     return outcome;
 }

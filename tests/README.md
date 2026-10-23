@@ -656,6 +656,37 @@ contracts, binding resources and independent signing fixtures were replaced
 together; the full contract check passes. The low-level concrete mutation
 primitive remains internal to the storage owner.
 
+## Frozen SQL predicate mutations — 2026-10-23
+
+The pinned storage suite passes **58/58 tests** with typed predicate intents and
+private bounded execution. Run it with
+`nix develop --command sh -c 'cd packages/zig/transit-storage && zig build test --summary all'`.
+Its disk case
+creates 1,400 rows, retains a snapshot, admits a compiled UPDATE, closes the
+physical stores, reopens them, loses the final execution reply and verifies one
+acceptance record for all 1,400 changes. Another reopen returns the exact outcome;
+a no-op matches all rows without changing the logical frontier, and DELETE
+removes all 1,400 rows while the original pin remains readable.
+
+The failure case records terminal rejection for a late key collision, stale data
+and exhausted row/byte budgets. Revocation at publication leaves the original
+rows and admitted work intact. The suite used one resident index page, took
+about **14 minutes** in Debug and reported **56 MiB** maximum resident memory.
+That duration includes the whole suite and disk synchronization; it is not a
+statement latency benchmark. Per-row immutable index publication still causes
+substantial write amplification.
+
+The catalog suite passes **110/110 tests**, including typed plan/digest binding,
+predicate preservation, missing-data-basis rejection and action mismatch.
+`just test::local-catalog` passes private UPDATE under an UPDATE-only native
+Table grant while denying SELECT pin acquisition. The shared-definition cutover
+also passes the full contract check and diagnostic boundary/outcome checks.
+`just test::direct-table-service` passes **139 typed HTTP calls**, including
+primary-key UPDATE and two predicate DELETEs, exact re-admission after commit,
+and original outcomes after another service restart. The existing concrete
+CRUD/DDL, finite SELECT, retained-pin and revocation cases still pass.
+These checks do not establish the default launcher or SQL gateway cutover.
+
 ## Finite SQL over retained direct Tables — 2026-10-23
 
 The query package passes **140/140 tests**, including its native catalog-query

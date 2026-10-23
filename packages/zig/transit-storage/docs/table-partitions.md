@@ -113,7 +113,27 @@ change; removing a missing key reports neither. Every receipt retains the
 original counts. SQL lowering must preserve row identity for unchanged rows and
 must supply the correct source expectation for predicates and read/modify/write.
 
-## Reads, caches and flushing
+## Typed predicate mutations
+
+Typed predicate mutations use the same admission and outcome owner.
+`TableDmlIntent.Request.statement` carries a complete Fuze UPDATE/DELETE plan,
+an exact stored interpretation and a required data-frontier expectation.
+Execution checks the retained logical basis, removes changed keys privately and
+stages replacement rows in groups of at most 1,024 rows and 4 MiB. Each row keeps
+its identity. The final WAL append publishes every row/index change and the
+operation receipt together. No-op matches retain their old physical locators and
+logical-change frontier. A rejected or interrupted attempt publishes no prefix.
+
+Statement selection remains private under the action's Table privilege; it does
+not acquire a public SELECT pin. UPDATE reads the original immutable root twice;
+DELETE reads it once. `statement_scan_rows` defaults to 1,000,000 decoded row
+visits and `statement_scan_bytes` to 64 MiB of canonical input row bytes across
+all passes, including re-read group boundaries. Exhaustion records `work_limit`.
+The separate index work budget and physical quota still apply. These are
+operation quotas, not limits on retained Table cardinality. Predicates currently
+admit only `none`/`utf8_binary` collations; other declared collations reject.
+
+## Retained reads and physical flushing
 
 Two immutable ordered indexes share each accepted root. Point lookup hashes the
 collation-aware storage key, then checks the full decoded key; a hash collision

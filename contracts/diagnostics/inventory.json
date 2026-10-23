@@ -3321,7 +3321,7 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 3,
-        "DataIdentityConflict": 1,
+        "DataIdentityConflict": 2,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
         "InvalidCatalogCursor": 1,
@@ -3332,8 +3332,8 @@
         "InvalidTableCursor": 1,
         "InvalidTableReadBudget": 1,
         "TableBatchTooLarge": 1,
-        "TablePayloadTooLarge": 5,
-        "TableSchemaChanged": 1
+        "TablePayloadTooLarge": 6,
+        "TableSchemaChanged": 2
       },
       "outcomes": {
         "Action": [
@@ -3344,6 +3344,7 @@
           "preview",
           "admit_ddl",
           "admit_rows",
+          "admit_statement",
           "operation",
           "pin",
           "snapshot",
@@ -3410,11 +3411,13 @@
         "Request.validate()": "<inferred>",
         "Rows.digest()": "<inferred>",
         "Rows.native()": "<inferred>",
+        "Statement.digest()": "<inferred>",
+        "Statement.native()": "<inferred>",
         "validateSnapshot()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 67,
         "catch": 2
       },
       "imports": [
@@ -12381,7 +12384,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"04fb672449029157eed66ce316d0d55d0b12bbbeddb07c3f337fb9f7b95ab036\""
+          "@\"a6ca7686cc7bdd39ff47373f000221d6e0ccf91ed1ac2cf4c56e0f60fb250f92\""
         ],
         "Effect.phase": [
           "pending",
@@ -24330,13 +24333,21 @@
         "IncompatibleDefinition": 1,
         "InvalidInsertRowIdentity": 1,
         "InvalidTableKey": 4,
-        "InvalidTableMutationIntent": 11,
+        "InvalidTableMutationIntent": 12,
+        "InvalidTableStatementIntent": 1,
         "TableBatchTooLarge": 1,
         "TableMutationIntentMissing": 1,
+        "TableSchemaChanged": 1,
         "UnsupportedTableAction": 1,
-        "UnsupportedTableMutationShape": 3
+        "UnsupportedTableMutationShape": 3,
+        "UnsupportedTableStatementCollation": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Metadata.work": [
+          "rows",
+          "statement"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Request.validate()": "<inferred>",
@@ -24347,7 +24358,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 51,
         "catch": 0
       },
       "imports": [
@@ -24444,13 +24455,13 @@
       "errors": {
         "DataIdentityConflict": 11,
         "DuplicateBatchKey": 3,
-        "DuplicatePrimaryKey": 4,
+        "DuplicatePrimaryKey": 5,
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
         "InvalidTableBasis": 2,
         "InvalidTableDeclaration": 1,
-        "InvalidTableHistory": 26,
+        "InvalidTableHistory": 27,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 2,
         "InvalidTableOperation": 16,
@@ -24459,10 +24470,11 @@
         "InvalidTableRowReference": 15,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 2,
+        "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
-        "TableBatchTooLarge": 2,
+        "TableBatchTooLarge": 5,
         "TableDataChanged": 5,
         "TableDefinitionChanged": 4,
         "TableHistoryMissing": 5,
@@ -24472,14 +24484,16 @@
         "TableOperationsPending": 1,
         "TableReadBudgetTooSmall": 1,
         "TableRecoveryRequired": 1,
-        "TableRetired": 5,
+        "TableRetired": 6,
         "TableRowIdentityChanged": 2,
         "TableRowMissing": 2,
-        "TableSchemaChanged": 1,
+        "TableSchemaChanged": 2,
         "TableSegmentMissing": 1,
         "TableSnapshotNotPinned": 1,
         "TableSnapshotReleased": 3,
-        "UnsupportedTableAction": 2
+        "TableStatementScanLimit": 2,
+        "UnsupportedTableAction": 2,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Edit": [
@@ -24503,8 +24517,10 @@
       "error_returns": {
         "Guard.acquire()": "anyerror",
         "ReadLimits.validate()": "<inferred>",
+        "StatementBudget.visit()": "<inferred>",
         "admit()": "<inferred>",
         "apply()": "<inferred>",
+        "applyStatement()": "<inferred>",
         "cancel()": "<inferred>",
         "changeDefinition()": "<inferred>",
         "expectations()": "<inferred>",
@@ -24543,12 +24559,14 @@
         "scope()": "<inferred>",
         "segmentKey()": "<inferred>",
         "stageSegment()": "<inferred>",
+        "statementEncode()": "<inferred>",
+        "statementReplacement()": "<inferred>",
         "writeOperation()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 296,
-        "catch": 3
+        "try": 343,
+        "catch": 4
       },
       "imports": [
         "TableChanges.zig",

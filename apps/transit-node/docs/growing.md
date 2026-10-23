@@ -55,6 +55,14 @@ Configuration selects a service owner and storage placement, not application
 definitions or a second permission store. Ursula nodes do not provide this
 direct Table route.
 
+`table.statement_scan_rows` defaults to 1,000,000 decoded row visits and
+`table.statement_scan_bytes` to 64 MiB of canonical input bytes per typed
+UPDATE/DELETE execution attempt. Both must be positive and count all passes,
+including group-boundary re-reads. These deployment work quotas do not constrain
+retained Table cardinality. Exceeding either records a `work_limit` rejection
+without publishing a row prefix. Index staging and physical storage quotas are
+separate. The default launcher still needs its direct Table SQL cutover.
+
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is
 unset by default. These are finite deployment quotas, independent of retained

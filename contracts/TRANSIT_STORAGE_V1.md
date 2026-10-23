@@ -129,9 +129,13 @@ DDL requires an empty pending-operation index.
 
 Frozen row work has `TDMLREQ1` at `0..8`, mandatory definition bytes at `8..40`,
 and a little-endian `u32` metadata length at `40..44`. At most 4 KiB of JSON
-metadata encodes binding, original stored declaration, ingestion and `u16` change
-count. The complete object fits 4 MiB and is addressed by its SHA-256 at
-`table-intents/<digest>.data`. Each ordered change is either tag `1`, an expectation
+metadata encodes binding, original stored declaration, ingestion, mandatory
+`work` (`rows` or `statement`) and `u16` change count. The complete object fits
+4 MiB and is addressed by its SHA-256 at `table-intents/<digest>.data`.
+Statement work requires zero concrete changes and bulk ingestion. Its remaining
+bytes are one complete FDM1 typed UPDATE/DELETE plan under the original schema;
+the expected data frontier is mandatory. Row work contains ordered changes.
+Each ordered change is either tag `1`, an expectation
 byte (`0` absent, `1` present, `2` any), little-endian `u32` row length and typed
 binary row; tag `2`, little-endian `u32` storage-key length and key bytes; or tag
 `3`, little-endian `u32` original-key length and key bytes followed by a
