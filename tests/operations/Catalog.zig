@@ -6,47 +6,13 @@ const B = c.TableBridge;
 const V = c.TableValues;
 const p = c.protocol;
 const Options = @import("CatalogOptions.zig");
-const Diagnostic = @import("Diagnostic.zig");
+const Diagnostic = @import("cli_support").Diagnostic;
 const Config = struct { version: u8, connection: B.Connection, url: ?[]const u8 = null, table_service_url: ?[]const u8 = null, table_service_limits: c.station.client.Client.OwnedLimits = .{}, seed_file: ?[]const u8 = null, request_timeout_ms: u32 = 5000 };
 const CompiledFile = struct { compiled: B.Compiled };
 const PreparedFile = struct { prepared: []const u8 };
 const PageFile = struct { page: V.Page };
-pub const help =
-    \\Compile, prepare, submit and inspect general typed Table operations.
-    \\
-    \\Usage: transit catalog COMMAND [OPTIONS]
-    \\
-    \\Commands:
-    \\  capabilities        Read local capabilities without configuration or I/O
-    \\  describe            Read current authorized configuration and policy
-    \\  lookup, definition  Read live or exact historical Table metadata
-    \\  list                Read one page; optionally continue a saved page
-    \\  query               Execute finite SQL through the configured Table service
-    \\  compile             Bind SQL to a new private saved intent (CREATE is offline)
-    \\  compile-authorization Resolve role/privilege/schema SQL to a reviewable plan
-    \\  prepare-schema      Save a signed schema lifecycle plan for explicit submit
-    \\  prepare             Bind a typed request to a new private saved intent
-    \\  next                Save the next signed step, or report running/terminal state
-    \\  prepare-initialize  Save an explicit initialization command
-    \\  prepare-dependency  Save a conditional dependency registration
-    \\  prepare-resume      Save a continuation for the original operation
-    \\  cancel, cleanup     Save an operation cancellation or candidate cleanup
-    \\  cancel-upload       Save upload cancellation, separate from operation outcome
-    \\  collect-upload      Save bounded closed-upload cleanup
-    \\  submit              Submit the exact command in a saved artifact
-    \\  receipt             Recover an exact receipt using the current credential
-    \\  observe, disposition Observe processing and the separate input disposition
-    \\  progress            Observe a saved intent and its exact admitted step
-    \\  status              Inspect the original intent's upload and domain outcome
-    \\
-    \\Only submit sends a command; retry the same file after an unknown outcome.
-    \\Run transit catalog COMMAND --help for required options.
-    \\
-;
 pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagnostic) !void {
-    if (args.len == 0 or (args.len == 1 and std.mem.eql(u8, args[0], "--help"))) return std.Io.File.stdout().writeStreamingAll(init.io, help);
     const options = try Options.parse(args, diagnostic);
-    if (options.help) return Options.help(init.io, options.mode);
     if (options.mode == .capabilities) return output(init, .{ .capabilities = .{} });
     const alloc = init.arena.allocator();
     diagnostic.atFile(options.flags.config.?);
@@ -54,7 +20,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         diagnostic.configurationFailure(err);
         return error.InvalidConfigurationPath;
     };
-    const tree = try @import("Settings.zig").read(init, absolute, diagnostic);
+    const tree = try @import("cli_support").Settings.read(init, absolute, diagnostic);
     const bytes = try std.json.Stringify.valueAlloc(alloc, tree, .{});
     const parsed = p.Json.parseFromSlice(Config, alloc, bytes) catch |err| return diagnostic.invalidFieldCause(err, "configuration", "contains an invalid or missing field", null);
     defer parsed.deinit();
@@ -197,7 +163,7 @@ fn apply(io: std.Io, arena: *std.heap.ArenaAllocator, session: *B.Session, clien
     }
 }
 fn uncertain(diagnostic: *Diagnostic, cause: anyerror) anyerror {
-    diagnostic.setFailure(cause, "the catalog command's outcome is unknown", "Keep the original prepared file and retry it with the same configuration:\n  transit catalog submit --config PATH --file PREPARED\nDo not prepare a replacement command or infer application from a missing response.");
+    diagnostic.setFailure(cause, "the catalog command's outcome is unknown", "Keep the original prepared artifact and resubmit its exact signed bytes through the same catalog caller. Do not prepare replacement work or infer application from a missing response.");
     return error.CatalogOutcomeUnknown;
 }
 fn artifact(comptime T: type, init: std.process.Init, path: []const u8, limit: usize, diagnostic: *Diagnostic) !T {

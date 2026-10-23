@@ -120,8 +120,7 @@ native IDs remain bounded JSON numbers. Every output belongs to the supplied
 arena. Destruction must release that ownership, including partial allocations.
 
 The [native ABI/port](../transit-station-bindings/docs/catalog.md), all enabled
-language SDKs, [explicit catalog CLI](../../../apps/transit-cli/docs/catalog.md)
-and [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+language SDKs and [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 compose this shared owner. `transit-query.TableQuery` supplies catalog-routed
 finite typed snapshots; durable query delegation has its own current policy.
 Neither query routing nor CREATE grants subsequent DML authority.

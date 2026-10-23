@@ -84,7 +84,6 @@ class Fixture:
         self.path = self.root / "transit.yaml"
         self.path.write_text(json.dumps(self.config))
         self.no_ui = True
-        self.alias = "server"
         self.process = None
         self.logs = []
         self.activation = None
@@ -112,7 +111,7 @@ class Fixture:
         assert self.process is None
         log = (self.root / f"manager-{len(self.logs)}.stderr").open("wb")
         self.logs.append(log)
-        args = [self.cli, self.alias, "--config", str(self.path)]
+        args = [self.cli, "server", "--config", str(self.path)]
         if self.no_ui:
             args.append("--no-ui")
         self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
@@ -170,7 +169,7 @@ class Fixture:
         self.process = None
 
     def refusal(self, message):
-        args = [self.cli, self.alias, "--config", str(self.path)]
+        args = [self.cli, "server", "--config", str(self.path)]
         if self.no_ui:
             args.append("--no-ui")
         result = subprocess.run(args, capture_output=True, text=True, timeout=30, env={"PATH": "/unavailable"})

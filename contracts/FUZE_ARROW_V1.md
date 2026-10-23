@@ -1,7 +1,7 @@
 # Fuze logical Arrow v1
 
 This contract defines logical-value IPC export from `transit_fuze.LogicalArrow`
-and `transit file-query --output arrow`, and canonical segment decoding through
+and canonical segment decoding through
 `transit_fuze.LogicalInspect`. Native durable query results use this encoding
 through the [unified query contract](UNIFIED_QUERY_V1.md); Flight retains its own
 int64 output profile. Each source and transport owns its admission bounds.

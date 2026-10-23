@@ -16180,10 +16180,10 @@
       }
     },
     "file.caller": {
-      "source": "apps/transit-cli/FileCodes.zig",
+      "source": "tests/operations/FileCodes.zig",
       "registry_kind": "error",
-      "projection": "apps/transit-cli/FileDiagnostic.zig",
-      "profile": "Local file CLI and typed file execution failures",
+      "projection": "tests/operations/FileDiagnostic.zig",
+      "profile": "Private file caller and typed file execution failures",
       "context": "No optional row/value witness in this fixture; exact witnesses remain owner/CLI tests.",
       "disclosure": "Caller file data only; no authority or external effects.",
       "durable_evidence": "None; incomplete local results never imply a saved operation.",

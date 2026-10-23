@@ -143,7 +143,7 @@ an uncertain earlier write needs recovery, not repetition.
 See the [console guide](../../../apps/transit-cli/docs/console.md) for output,
 remote HTTP/TLS connections and recovery, and the [SQL reference](../reference/sql.md)
 for admitted statements. Role and grant changes use the separate
-[administration interface](../../../apps/transit-cli/docs/authorization.md).
+[administration interface](../../../packages/zig/transit-client/docs/authorization.md).
 
 ## Stop and resume
 

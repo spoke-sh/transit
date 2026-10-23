@@ -749,7 +749,7 @@ def run(node, proof, host, cli, station_host, *arguments):
             console('DROP TABLE console_output')
             from typed_table_bridge import run as bridge_proof
             bridge_result = bridge_proof(station_host, url, root, readers, lambda sql: call('select', sql))
-            from catalog_cli import qualify as cli_proof
+            from catalog_helpers import qualify as cli_proof
             def lose_cli_send():
                 nonlocal armed
                 armed = 'send'
@@ -811,7 +811,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                 maximum_record_bytes=max(map(len, archived_heads.values())),
                 paired_changes=len(changes), restart=True, current_denial=True)
             print(json.dumps(dict(profile='table-history-native', **history_measurements)))
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, prepared_parameters=prepared_parameters, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), disclosure=dict(samples=disclosure_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_helpers=cli_result, installed=installed, logical_types=logical_types, prepared_parameters=prepared_parameters, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), disclosure=dict(samples=disclosure_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()
             for worker in workers:

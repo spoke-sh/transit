@@ -38,7 +38,7 @@ need explicit identity, current read authorization and a bounded source basis.
 The statement alone defines none of those runtime bindings.
 
 Executable SQL uses an explicitly configured [query source](../queries.md#source-declarations).
-Use [source configuration](../../../../apps/transit-cli/docs/unified-query.md) for
+Use [source configuration](../../../../packages/zig/transit-query/docs/unified-client.md) for
 the supported KV/Table/Document path and [connectors](../connectors.md) for
 recorded remote observations. Neither interface enables this SQL declaration.
 

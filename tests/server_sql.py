@@ -2,6 +2,7 @@
 import argparse
 import ctypes
 import json
+from operation_helpers import operations
 import os
 from pathlib import Path
 import secrets
@@ -58,7 +59,7 @@ def apply(fixture, input_path, name, mode='prepare'):
     saved = fixture.root / f'{name}.saved.json'
     deadline = time.monotonic()+60
     while True:
-        prepared = subprocess.run([fixture.cli, 'auth', mode, '--config', str(profile), '--file', str(input_path), '--output', str(saved)], capture_output=True, text=True, timeout=40)
+        prepared = subprocess.run([operations(), 'auth', mode, '--config', str(profile), '--file', str(input_path), '--output', str(saved)], capture_output=True, text=True, timeout=40)
         if prepared.returncode == 0:
             break
         # A generated proposal can lag another explicit policy publication by
@@ -69,7 +70,7 @@ def apply(fixture, input_path, name, mode='prepare'):
         assert (refreshed or unavailable) and not saved.exists() and time.monotonic() < deadline, prepared.stderr
         time.sleep(.3)
     for _ in range(16):
-        result = json.loads(call([fixture.cli, 'auth', 'apply', '--config', profile, '--file', saved, '--steps', '64'], retry_observation=True))
+        result = json.loads(call([operations(), 'auth', 'apply', '--config', profile, '--file', saved, '--steps', '64'], retry_observation=True))
         if not result.get('pending'):
             assert result.get('terminal', {}).get('status') == 'published', result
             return result
@@ -79,7 +80,7 @@ def apply(fixture, input_path, name, mode='prepare'):
 def policy(fixture, sql, name):
     source, plan = fixture.root / f'{name}.sql', fixture.root / f'{name}.plan.json'
     source.write_text(sql)
-    call([fixture.cli, 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', source, '--output', plan], retry_observation=True)
+    call([operations(), 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', source, '--output', plan], retry_observation=True)
     return apply(fixture, plan, name, 'prepare-plan')
 
 
@@ -208,7 +209,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         mysql("INSERT INTO shared_rows (id,label) VALUES (1,'unauthorized')", 'writer', reject=True)
         discovery = fixture.root / 'discovery.sql'
         discovery.write_text('GRANT SELECT ON TABLE public.shared_rows TO reader;')
-        assert 'CatalogDenied' in denied([fixture.cli, 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', discovery, '--output', fixture.root / 'ungranted-discovery.json'])
+        assert 'CatalogDenied' in denied([operations(), 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', discovery, '--output', fixture.root / 'ungranted-discovery.json'])
         apply(fixture, fixture.installation / 'sql/catalog-access.json', 'catalog-discovery', 'prepare-set')
         policy(fixture, 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;', 'writer-data')
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-data')

@@ -6,7 +6,7 @@ const w = q.Workspace;
 const m = q.fuze.Unified;
 const Config = struct { url: []const u8, seed_file: []const u8, connection: q.UnifiedClient.Connection, workspace: w.Config, request_timeout_ms: u32 = 5000 };
 pub const Session = struct {
-    diagnostic: ?*@import("Diagnostic.zig") = null,
+    diagnostic: ?*@import("cli_support").Diagnostic = null,
     namespace: ?u64 = null,
     bundle: [q.Bundle.max_bytes]u8 = undefined,
     length: usize = 0,
@@ -38,8 +38,8 @@ fn json(out: *std.Io.Writer, value: anytype) !void {
     try std.json.Stringify.value(value, .{ .escape_unicode = true }, out);
     try out.writeByte('\n');
 }
-pub fn run(init: std.process.Init, path: []const u8, diagnostic: *@import("Diagnostic.zig")) !void {
-    const config = try @import("Settings.zig").readTyped(Config, init, path, diagnostic);
+pub fn run(init: std.process.Init, path: []const u8, diagnostic: *@import("cli_support").Diagnostic, structured: bool) !void {
+    const config = try @import("cli_support").Settings.readTyped(Config, init, path, diagnostic);
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
@@ -52,7 +52,6 @@ pub fn run(init: std.process.Init, path: []const u8, diagnostic: *@import("Diagn
     var input = std.Io.File.stdin().reader(init.io, &input_buffer);
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try output.interface.writeAll("Transit unified query — .new ID then SQL. .help lists commands.\n");
     try output.interface.flush();
     while (try input.interface.takeDelimiter('\n')) |raw| {
         const line = std.mem.trim(u8, raw, " \t\r");
@@ -69,16 +68,15 @@ pub fn run(init: std.process.Init, path: []const u8, diagnostic: *@import("Diagn
                 session.cursor = null;
                 session.complete = false;
             }
-            if (diagnostic.format == .json) {
+            if (structured) {
                 if (diagnostic.sql == null) diagnostic.envelope = savedDiagnostic(session, err) catch null;
-                diagnostic.emit(init.io, err);
+                @import("Diagnostic.zig").emit(diagnostic.*, init.io, err, true, null);
             } else try json(&output.interface, .{ .err = @errorName(err), .uncertain = session.pending != null });
         };
         try output.interface.flush();
     }
 }
 pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, line: []const u8, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
-    if (std.mem.eql(u8, line, ".help")) return out.writeAll(".sources .schema .info .execute FILE .new ID .resume ID .status .advance .next .cancel .retire .collect .bundle .restore-bundle HEX .pending .restore TOKEN .retry .quit\nSQL compiles and uploads explicitly. .execute FILE reads sql and optional parameters from a JSON query object.\n.advance continues committed upload progress.\nA receipt is input admission; .status reports result completion. .next reads one verified page.\nSave .bundle and .pending before disconnecting after uncertainty; restoring both keeps the frozen upload and signed identity.\n.new requires a fresh positive namespace. .quit never cancels durable work.\n");
     if (std.mem.eql(u8, line, ".sources") or std.mem.eql(u8, line, ".schema")) return json(out, try w.apply(allocator, client, config, .describe));
     if (std.mem.eql(u8, line, ".info")) {
         _ = try client.describe(try config.source.native(allocator));
@@ -160,7 +158,7 @@ pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClie
         session.pending = try q.Bridge.prepared(allocator, prepared.token);
         session.length = 0;
     } else {
-        const Input = @import("SqlInput.zig");
+        const Input = @import("cli_support").SqlInput;
         const request: Input.Request = if (try Input.commandPath(allocator, line)) |path|
             try Input.read(Input.Request, init, allocator, path)
         else ordinary: {
@@ -173,7 +171,7 @@ pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClie
 }
 /// Only new work reaches compilation. Recovery paths keep the saved bundle
 /// and signed operation and never reopen a parameter file or rebind its values.
-pub fn executeSql(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, request: @import("SqlInput.zig").Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+pub fn executeSql(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, request: @import("cli_support").SqlInput.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
     const id = session.namespace orelse return error.NamespaceRequired;
     if (session.length != 0 or try client.status(id) != null) return error.QueryUploadIdentityConflict;

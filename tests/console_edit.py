@@ -233,10 +233,7 @@ def check(binary):
         assert result.returncode == 1 and b'.edit requires an interactive terminal' in result.stderr and not result.stdout, result
         result = subprocess.run([binary, 'console', '--no-rc', '--config', str(config)], input=b'.edit file.sql\n', capture_output=True, timeout=10)
         assert result.returncode == 1 and b'.edit does not accept arguments' in result.stderr, result
-        result = subprocess.run([binary, '--diagnostics=json', 'console', '--no-rc', '--config', str(config)], input=b'.edit\n', capture_output=True, timeout=10)
-        detail = json.loads(result.stderr)
-        assert result.returncode == 1 and detail['code'] == 'cli.invalid_invocation' and detail['outcome'] == 'not_submitted', result
-    print('Console .edit: real editor/PTY, saved unchanged/changed/atomic SQL, quit, failed SQL history, empty history, failure/signal/invalid output, cleanup and stream isolation passed.')
+
 
 
 def local_edit(binary, cwd):

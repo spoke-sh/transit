@@ -224,7 +224,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or ((word(text, first, "CREATE") or word(text, first, "ALTER") or word(text, first, "DROP")) and (word(text, second, "ROLE") or word(text, second, "SCHEMA") or word(text, second, "DATABASE") or word(text, second, "DEFAULT"))) or ((word(text, first, "SET") or word(text, first, "RESET")) and word(text, second, "ROLE"))) {
         var parsed = @import("AuthorizationSql.zig").compile(std.heap.page_allocator, text, &location) catch |err| return authorization(text, err, location);
         parsed.deinit();
-        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "This query interface does not apply authorization changes", .hint = "Compile a reviewable plan with transit catalog compile-authorization, then use the explicit native or schema administration lifecycle." };
+        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "This query interface does not apply authorization changes", .hint = "Compile a reviewable plan through the Table bridge compile_authorization operation, then use the explicit native or schema administration lifecycle." };
     } else if (word(text, first, "CREATE") and (word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK"))) {
         result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution; its submitted syntax has not been validated", .hint = grammar_hint };
     } else if (word(text, first, "SHOW") or word(text, first, "DESCRIBE") or word(text, first, "EXPLAIN")) {

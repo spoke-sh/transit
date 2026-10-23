@@ -2,6 +2,7 @@
 import argparse
 import ctypes
 import json
+from operation_helpers import operations
 import os
 from pathlib import Path
 import shutil
@@ -151,7 +152,7 @@ sql:
         control = json.loads((folder / 'control.json').read_text())
         identity = json.loads((folder / 'verifier.json').read_text())
         query = fixture.root / 'identity.json'; query.write_text('{"identity":{}}')
-        observed = json.loads(call([fixture.cli, 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml',
+        observed = json.loads(call([operations(), 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml',
                                    '--file', query], retry_observation=True))['observation']['body']['authorization']
         change = fixture.root / 'disable-owner.json'
         change.write_text(json.dumps(dict(expected_revision=observed['revision'], action=dict(disable_credential=dict(

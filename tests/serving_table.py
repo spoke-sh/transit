@@ -9,7 +9,7 @@ from pathlib import Path
 import struct
 import time
 
-from catalog_cli import Cli
+from catalog_helpers import Cli
 
 TABLE_LIMITS = dict(record_bytes=4096, staging_bytes=32768, staging_records=8)
 

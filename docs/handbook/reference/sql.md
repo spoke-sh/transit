@@ -179,7 +179,7 @@ metadata and console dot commands do not establish equivalent SQL support.
 
 ## Query examples
 
-Configure an authorized [query source](../../../apps/transit-cli/docs/unified-query.md)
+Configure an authorized [query source](../../../packages/zig/transit-query/docs/unified-client.md)
 before submitting SQL. The examples use `items`, with int64 `id` and nullable
 int64 `value` columns. Configure a declared query source or create the Table in
 the authorized console catalog:

@@ -148,21 +148,18 @@ login merely because its configuration changed.
 For an account with `bootstrap_owner: false` (the default), setup publishes
 reviewable proposals under `.transit/sql/accounts/<name>/`. At `awaiting_role`,
 prepare/apply `create-role.json`; at `awaiting_binding`, prepare/apply
-`bind-credential.json`. For example, for a separately configured `reader`:
-
-```sh
-transit auth prepare --config .transit/sql/authorization.yaml \
-  --file .transit/sql/accounts/reader/bind-credential.json \
-  --output reader-binding.saved.json
-transit auth apply --config .transit/sql/authorization.yaml \
-  --file reader-binding.saved.json --steps 64
-```
+`bind-credential.json`. Use the shared
+[authorization client](../../../packages/zig/transit-client/docs/authorization.md)
+with the generated administrator profile. Prepare the typed action at its
+recorded policy revision, persist the signed record, then explicitly submit and
+observe each step until publication. The CLI does not provide administration
+commands, and these proposals cannot be executed as console SQL.
 
 Inspect the preparation preview. If apply reports `pending`, repeat apply on the
 same saved file until it reports a published terminal outcome. A rejected unsent
 proposal with `StaleAuthorizationRevision` needs a refreshed proposal and review.
 Do not prepare another operation to recover a lost reply. The
-[authorization guide](authorization.md) explains exact recovery.
+[authorization guide](../../../packages/zig/transit-client/docs/authorization.md) explains exact recovery.
 
 New roles start without data rights. Grant their database/schema access and
 Table privileges explicitly using the examples below. The generated
@@ -224,8 +221,7 @@ status is `awaiting_role`. Prepare/apply its generated `create-role.json` using
 the workflow above, then its `bind-credential.json`. These are explicit policy
 changes; startup does not create SQL login roles or rebind revoked credentials.
 
-After binding, review and apply `access.json` with `transit auth prepare-set`
-instead of `prepare`. It grants the role the catalog-process transport rights,
+After binding, review `access.json` and prepare it through `AuthorizationSet`. It grants the role the catalog-process transport rights,
 settings inspection, database CONNECT and schema USAGE. It grants no Table
 SELECT/INSERT/UPDATE/DELETE or schema CREATE privilege. Repeat bounded apply on
 the saved changeset until all intents finish.
@@ -233,12 +229,8 @@ the saved changeset until all intents finish.
 Catalog name resolution requires CONNECT and schema USAGE even for a policy
 administrator. First review and explicitly apply the generated discovery grant:
 
-```sh
-transit auth prepare-set --config .transit/sql/authorization.yaml \
-  --file .transit/sql/catalog-access.json --output catalog-access.saved.json
-transit auth apply --config .transit/sql/authorization.yaml \
-  --file catalog-access.saved.json --steps 64
-```
+Use the same shared authorization lifecycle to prepare and apply
+`.transit/sql/catalog-access.json` as a scoped changeset.
 
 This grants CONNECT on the local database and USAGE on its public schema to the
 administrator's selected root role. It grants no Table data privileges. Repeat
@@ -251,16 +243,12 @@ Then put the desired Table grant in `writer.sql`:
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;
 ```
 
-Compile and apply it:
-
-```sh
-transit catalog compile-authorization --config .transit/sql/catalog.yaml \
-  --file writer.sql --output writer.plan.json
-transit auth prepare-plan --config .transit/sql/authorization.yaml \
-  --file writer.plan.json --output writer.saved.json
-transit auth apply --config .transit/sql/authorization.yaml \
-  --file writer.saved.json --steps 64
-```
+Compile the statement through the Table bridge/service `compile_authorization`
+operation under the selected catalog binding. Check that the resolved plan
+matches the selected realm, principal and role. Convert it to its native action
+and use the authorization bridge `prepare` action with the recorded policy
+revision. Persist the resulting record and explicitly submit/observe its steps
+through the shared client.
 
 Use the same workflow for `GRANT SELECT ON TABLE public.shared_rows TO reader;`
 and for REVOKE. Authorization SQL uses this dedicated public compiler and apply

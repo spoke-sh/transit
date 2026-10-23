@@ -1,16 +1,11 @@
 # Local server
 
-`transit serve` is an alias for `transit server`, with the same options and
-recovery contract. Commands assume the complete local bundle is installed with
-`transit` on `PATH`; see the [quickstart](../../../docs/handbook/guides/quickstart.md).
-The bundle supplies the CLI and matching native neighborhood artifacts.
-
 `transit server` creates a private installation when its directory is missing
 or empty, then runs it in the foreground. The same command opens an existing
 installation or resumes its recorded setup. Version 1 starts and supervises a
 separate `transit-board` process
 by default. Its frontend assets are bundled inside the Board executable. Add
-`--no-ui` to either command name for a headless invocation. The server runs on
+`--no-ui` for a headless invocation. The server runs on
 Linux x86_64 in a trusted single-user placement. Kubernetes/Substrate remains
 the reference isolation profile. Executed recovery and capacity evidence belongs
 in the [test guide](../../../tests/README.md).
@@ -81,8 +76,7 @@ connections; wait for `sql.status` with `operation="accepting"` or inspect the f
 
 On a terminal, readiness appears in stderr logs. Redirected or piped stdout
 retains the JSON ready-record stream for scripts, independently of log format
-and level. `--diagnostics=json` selects structured command/input errors before
-the server starts; operational logs use `logging.format`. Log filtering or a
+and level. Command/input errors are human-readable; operational logs use `logging.format`. Log filtering or a
 failed sink can hide a readiness notice, so automation uses stdout or probes.
 
 ## Defaults and configuration
@@ -439,8 +433,8 @@ separate opt-in contracts and are not enabled by this server profile.
 ```sh
 transit server --config transit.yaml
 # After stopping, resume headlessly, then enable Board again:
-transit serve --config transit.yaml --no-ui
-transit serve --config transit.yaml
+transit server --config transit.yaml --no-ui
+transit server --config transit.yaml
 ```
 
 For headless operation add `--no-ui`, including on first startup. The installation

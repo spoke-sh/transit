@@ -89,7 +89,6 @@ def run(package):
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     try:
-        fixture.alias = 'serve'
         fixture.start()
         report = fixture.ready()
         assert report['board_url'] == fixture.board_url

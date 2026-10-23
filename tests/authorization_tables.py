@@ -3,6 +3,7 @@ import argparse
 import hashlib
 from http.client import HTTPConnection
 import json
+from operation_helpers import operations
 import os
 from pathlib import Path
 import struct
@@ -172,20 +173,20 @@ def run(node, cli, host, service, transit, report=None, serving_example=None, la
         schema_sql = system.root / 'schema.sql'
         schema_sql.write_text('CREATE SCHEMA reporting AUTHORIZATION CURRENT_USER')
         schema_plan_file = system.root / 'schema-plan.json'
-        compilation = subprocess.run([str(transit), 'catalog', 'compile-authorization', '--config', str(catalog_config),
+        compilation = subprocess.run([operations(), 'catalog', 'compile-authorization', '--config', str(catalog_config),
             '--file', str(schema_sql), '--output', str(schema_plan_file), '--operation', '50', '--schema', '2'],
             capture_output=True, text=True, timeout=30)
         assert compilation.returncode == 0, (compilation.returncode, compilation.stdout, compilation.stderr)
         plan = json.loads(schema_plan_file.read_text())['authorization_plan']
         assert plan == sql_plan(schema_sql.read_text(), 50, 2)
         step_file = system.root / 'schema-step.json'
-        prepared = subprocess.run([str(transit), 'catalog', 'prepare-schema', '--config', str(catalog_config),
+        prepared = subprocess.run([operations(), 'catalog', 'prepare-schema', '--config', str(catalog_config),
             '--file', str(schema_plan_file), '--output', str(step_file)], capture_output=True, text=True, timeout=30)
         assert prepared.returncode == 0, (prepared.returncode, prepared.stdout, prepared.stderr)
         saved_schema = json.loads(json.loads(prepared.stdout)['prepared'])
         candidate = call({'schema_plan_prepare': dict(plan=plan, sequence=owner_sequence())})['result']['candidate']['request']
         assert saved_schema['signed']['request'] == candidate
-        subprocess.run([str(transit), 'catalog', 'submit', '--config', str(catalog_config), '--file', str(step_file)],
+        subprocess.run([operations(), 'catalog', 'submit', '--config', str(catalog_config), '--file', str(step_file)],
                        capture_output=True, text=True, check=True, timeout=30)
         assert schema_outcome(plan)['state'] == 'applied'
         first_schema = call({'schema_lookup': 'reporting'})['result']['schema']
@@ -308,7 +309,7 @@ def run(node, cli, host, service, transit, report=None, serving_example=None, la
         configure_reader()
 
         def mediated(mode, *args, ok=True):
-            result = subprocess.run([str(transit), '--diagnostics=json', 'catalog', mode,
+            result = subprocess.run([operations(), '--structured', 'catalog', mode,
                 '--config', str(mediated_config), *map(str, args)], capture_output=True, text=True, timeout=90)
             assert (result.returncode == 0) == ok, (mode, result.returncode, result.stdout, result.stderr)
             return json.loads(result.stdout) if ok else result

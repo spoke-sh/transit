@@ -50,7 +50,7 @@ raise that capacity or discard history to complete.
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all six lane reports at the same committed revision |
-| `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared CLI/ABI/host administration against disk-backed authority |
+| `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
 | `just bindings::authorization` | Build all ten SDKs and run installed grant/use/revoke lifecycles through the private Table service without raw resource access |
 | `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
@@ -71,7 +71,7 @@ raise that capacity or discard history to complete.
 | `just launchers::local::down`, `reset` | Stop while preserving data, or explicitly delete a stopped installation; Compose has the same tasks |
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
-| `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
+| `just test::public-query` | Exercise the native query callers/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::named-relational` | Check independent named-query records, separate publication/authorization/activation and captured/maintained native recovery on disk |
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |

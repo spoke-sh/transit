@@ -1,5 +1,6 @@
-"""General Table CLI invocations using only original private recovery artifacts."""
+"""Private Table test caller using original recovery artifacts."""
 import json
+from operation_helpers import operations
 from pathlib import Path
 import stat
 import subprocess
@@ -30,10 +31,10 @@ class Cli:
                 actual = actual['next']
             if actual == value:
                 return path
-        raise AssertionError('Recovery must use the original saved CLI artifact')
+        raise AssertionError('Recovery must use the original saved test artifact')
 
     def invoke(self, command, arguments):
-        result = subprocess.run([self.executable, '--diagnostics=json', 'catalog', command, *map(str, arguments)], cwd=self.root, capture_output=True, text=True, timeout=45)
+        result = subprocess.run([operations(), '--structured', 'catalog', command, *map(str, arguments)], cwd=self.root, capture_output=True, text=True, timeout=45)
         if result.returncode:
             assert not result.stdout and result.returncode == 1, result.stderr
             diagnostic = json.loads(result.stderr)

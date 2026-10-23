@@ -23,31 +23,23 @@ example. In a second terminal with `transit` on `PATH`, from the repository root
 (the parent of `.cache/docs-start` in this walkthrough):
 
 ```sh
-export TRANSIT_MANAGEMENT="$PWD/.cache/docs-start/.transit/management.yaml"
 (cd examples/work-items && zig build -Doptimize=ReleaseSafe)
 export WORK_ITEMS="$PWD/examples/work-items/zig-out/bin"
-cd .cache/docs-start
 "$WORK_ITEMS/work-items" manifest "$WORK_ITEMS/transit-work-items" > application.json
-transit app install --config "$TRANSIT_MANAGEMENT" --file application.json --operation install-1
-transit app status --config "$TRANSIT_MANAGEMENT" --application work-items
 ```
 
-Poll `status` until `installed` is true and the role is `ready`. Native
-provisioning, worker readiness and domain initialization are separate states.
-The installation [declaration contract](../../../contracts/APPLICATION_INSTALLATION_V1.md)
-defines roles, resource names, permissions, callers and initialization frames.
+Submit the declaration through the shared `Application` client using the local
+server's management profile. Save the signed install request before dispatch;
+observe `status` until `installed` is true and the role is `ready`. The
+[local application guide](../../../apps/transit-cli/docs/applications.md) describes
+this API workflow. `transit` has no application-management command.
 
 ## Use the application as a caller
 
-From `.cache/docs-start`, keeping the exported variables from the previous step:
-
-```sh
-transit app connect --config "$TRANSIT_MANAGEMENT" \
-  --application work-items --caller writer --output writer.json
-transit app connect --config "$TRANSIT_MANAGEMENT" \
-  --application work-items --caller inspector --output inspector.json
-"$WORK_ITEMS/work-items" inspector.json inspect
-```
+Use management `connect` requests to obtain the named writer and inspector
+connections, and save their neutral JSON responses privately as `writer.json`
+and `inspector.json`. They reference scoped caller keys. Native provisioning,
+worker readiness and domain initialization are separate states.
 
 Wait until `inspect` shows an initialized domain head before sending a write:
 

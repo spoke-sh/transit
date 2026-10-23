@@ -17,13 +17,11 @@ Catalog initialization follows explicit authorization provisioning after those
 identities exist. Worker replacement reads the retained catalog configuration;
 it does not create roles, register domains or restore grants.
 
+Obtain the three named connections through management `connect` requests and
+save the responses as `operator.json`, `writer.json` and `inspector.json` before
+running these domain commands:
+
 ```sh
-transit app connect --config /absolute/local-transit/management.json \
-  --application work-items --caller operator --output operator.json
-transit app connect --config /absolute/local-transit/management.json \
-  --application work-items --caller writer --output writer.json
-transit app connect --config /absolute/local-transit/management.json \
-  --application work-items --caller inspector --output inspector.json
 mkdir -m 700 work-items-authorization
 ./zig-out/bin/work-items provision-authority admin.json \
   operator.json writer.json inspector.json work-items-authorization catalog-authority.json
@@ -38,7 +36,7 @@ mkdir -m 700 work-items-authorization
 ./zig-out/bin/work-items operator.json inspect
 ```
 
-`admin.json` uses the public `transit auth` configuration: version 1, native URL,
+`admin.json` uses the shared authorization connection profile: version 1, native URL,
 current-definition connection with the application's realm and principal 0,
 and an explicit root `seed_file`. Keep it private. Provisioning binds the three
 exported callers to their current native roles, creates an ordinary NOLOGIN owner

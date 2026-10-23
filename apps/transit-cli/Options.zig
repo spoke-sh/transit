@@ -26,13 +26,13 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     if (args.len == 0) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--help")) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--version")) return .{ .command = .version };
-    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server") or std.mem.eql(u8, args[0], "serve")) .server else {
+    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server")) .server else {
         diagnostic.atArgument(1, null);
         return diagnostic.invalidArgument("unknown command or misplaced global option");
     } };
     const server = result.command == .server;
-    diagnostic.command = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve" else "transit server") else "transit console";
-    diagnostic.help = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve --help" else "transit server --help") else "transit console --help";
+    diagnostic.command = if (server) "transit server" else "transit console";
+    diagnostic.help = if (server) "transit server --help" else "transit console --help";
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -103,20 +103,17 @@ test "connection options override the environment and server discovery is indepe
     try std.testing.expectEqualStrings("other.json", explicit.path.?);
     try std.testing.expectError(error.InvalidInvocation, parseWithConsoleConfig(&.{ "console", "--config", "one", "--config", "two" }, "/local/console.json"));
     try std.testing.expect((try parseWithConsoleConfig(&.{"server"}, "/local/console.json")).path == null);
-    try std.testing.expect((try parseWithConsoleConfig(&.{"serve"}, "/local/console.json")).path == null);
-    const server = try parse(&.{ "serve", "--config", "server.json" });
+    const server = try parse(&.{ "server", "--config", "server.json" });
     try std.testing.expectEqual(.server, server.command);
     try std.testing.expect((try parseWithConsoleConfig(&.{ "console", "--help" }, null)).help);
 }
 
-test "both server aliases default to UI and accept only one opt-out" {
-    for ([_][]const u8{ "server", "serve" }) |alias| {
-        try std.testing.expect(!(try parse(&.{ alias, "--config", "server.json" })).no_ui);
-        try std.testing.expect((try parse(&.{ alias, "--config", "server.json", "--no-ui" })).no_ui);
-        try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--initialize" }));
-        try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--no-ui", "--no-ui" }));
-        try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--ui" }));
-    }
+test "server defaults to UI and accepts only one opt-out" {
+    try std.testing.expect(!(try parse(&.{ "server", "--config", "server.json" })).no_ui);
+    try std.testing.expect((try parse(&.{ "server", "--config", "server.json", "--no-ui" })).no_ui);
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{ "server", "--initialize" }));
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{ "server", "--config", "server.json", "--no-ui", "--no-ui" }));
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{ "server", "--config", "server.json", "--ui" }));
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "console", "--config", "console.json", "--no-ui" }));
 }
 

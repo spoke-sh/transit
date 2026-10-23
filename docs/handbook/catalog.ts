@@ -50,25 +50,13 @@ export const sections: Section[] = [
     pages: [
       reference("cli", "Transit CLI"),
       reference("configuration", "Configuration and settings"),
-      page(
-        "apps/transit-cli/docs/authorization.md",
-        "guides/authorization",
-        "Administer roles and grants",
-      ),
-      page("apps/transit-cli/docs/catalog.md", "guides/catalog", "Use Tables and recover writes"),
       page("apps/transit-cli/docs/console.md", "guides/console", "Use the console"),
-      page("apps/transit-cli/docs/file-query.md", "guides/file-query", "Query CSV and JSONL files"),
       page("apps/transit-cli/docs/server.md", "guides/server", "Configure a local server"),
       page("apps/transit-cli/docs/sql.md", "guides/local-sql", "Connect with psql and mysql"),
       page(
         "apps/transit-cli/docs/applications.md",
         "guides/install-applications",
         "Install and replace applications",
-      ),
-      page(
-        "apps/transit-cli/docs/unified-query.md",
-        "guides/query",
-        "Query recovery and source configuration",
       ),
     ],
   },

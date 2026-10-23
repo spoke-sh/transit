@@ -69,7 +69,7 @@
 
 # Application management is enabled by default. Use applications: null to
 # disable its admission endpoint. Limits: 1..64 applications, 1..256 roles each.
-# Install application definitions with the existing transit app workflow;
+# Install application definitions through the shared Application client;
 # this block configures management, not application definitions or connectors.
 # applications:
 #   port: 19106

@@ -16,7 +16,7 @@ def run(host, url, root, readers, query):
     connection["scope"]["catalog"] = str(connection["scope"]["catalog"])
     config = root / "bridge-host.json"
     config.write_text(json.dumps(dict(url=url, seed_file=str(root / "caller.seed"),
-                                     catalog_client=dict(connection=connection, timeout_ms=5000))))
+                                     catalog_helpersent=dict(connection=connection, timeout_ms=5000))))
     def open_bridge():
         child = subprocess.Popen([host, str(config)], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

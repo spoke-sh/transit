@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import re
 
-from diagnostic_inventory import ROOT, inventory, production, tokens
+from diagnostic_inventory import ROOT, inventory, production, source, tokens
 
 MANIFEST = ROOT / 'contracts/diagnostics/mappings.json'
 ENTRY = re.compile(r'\. cause = error \. (\w+) , \. code = ("(?:\\.|[^"\\])*") , \. category = \. (\w+)')
@@ -166,6 +166,12 @@ def self_test(manifest, surface, files):
 def main():
     manifest = json.loads(MANIFEST.read_text())
     surface = inventory()
+    # Private callers still prove library error mappings. Check their explicitly
+    # named sources without counting test code as installed production owners.
+    for boundary in manifest['boundaries']:
+        for path in [boundary['registry'], *boundary['owners']]:
+            if path.startswith('tests/'):
+                surface['sources'][path] = source((ROOT / path).read_text())
     paths = set(surface['sources'])
     for boundary in manifest['boundaries']:
         paths.update((boundary['registry'], boundary['projection']))

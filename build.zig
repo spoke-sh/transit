@@ -65,7 +65,13 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     }) });
     b.step("mutation-latency-client", "Build the persistent public mutation caller control").dependOn(&b.addInstallArtifact(mutation_latency_client, .{}).step);
-    const file_capture = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/FileCapture.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} });
+    const cli_support = b.createModule(.{
+        .root_source_file = b.path("apps/transit-cli/Support.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") } },
+    });
+    const file_capture = b.createModule(.{ .root_source_file = b.path("tests/operations/FileCapture.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "cli_support", .module = cli_support } } });
     const file_benchmark = b.addExecutable(.{ .name = "transit-file-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/fuze_benchmarks/main.zig"),
         .target = target,
@@ -103,7 +109,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_board_api", .module = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize }).module("transit_board_api") }, .{ .name = "transit_flight", .module = flight.module("transit_flight") }, .{ .name = "diagnostic_cases", .module = b.createModule(.{ .root_source_file = diagnostic_cases_file, .target = target, .optimize = optimize }) }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_exchange", .module = exchange.module("transit_exchange") } },
     }) });
     b.step("diagnostic-outcomes", "Build executable semantic outcome projections").dependOn(&b.addInstallArtifact(diagnostic_outcomes, .{}).step);
-    const file_diagnostic_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/FileDiagnosticTests.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} });
+    const file_diagnostic_module = b.createModule(.{ .root_source_file = b.path("tests/operations/FileDiagnosticTests.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "cli_support", .module = cli_support } } });
     const file_diagnostics = b.addExecutable(.{ .name = "transit-file-diagnostics", .root_module = file_diagnostic_module });
     const diagnostic_outcomes_test = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostic_outcomes_test.addFileArg(b.path("tests/diagnostic_outcomes.py"));
@@ -777,7 +783,7 @@ pub fn build(b: *std.Build) void {
     http_worker_test.has_side_effects = true;
     http_worker_test.stdio = .inherit;
     b.step("test-http-worker", "Prove durable HTTP capture and unknown-outcome recovery").dependOn(&http_worker_test.step);
-    var query_shell: *std.Build.Step.Compile = undefined;
+    var transit_cli: *std.Build.Step.Compile = undefined;
     inline for (.{ .{ "transit-query-host", "transit-query-host" }, .{ "transit", "transit-cli" } }) |entry| {
         const app = b.addExecutable(.{ .name = entry[0], .root_module = b.createModule(.{
             .root_source_file = b.path("apps/" ++ entry[1] ++ "/main.zig"),
@@ -800,13 +806,25 @@ pub fn build(b: *std.Build) void {
             app.root_module.addImport("transit_sql_client", sql_client.module("transit_sql_client"));
             app.root_module.addImport("transit_tls_server", tls_server.module("transit_tls_server"));
         }
-        if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
+        if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else transit_cli = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
         apps_step.dependOn(&install.step);
         build_test_step.dependOn(&app.step);
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
+    const operation_module = b.createModule(.{
+        .root_source_file = b.path("tests/operations/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{ .{ .name = "cli_support", .module = cli_support }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") } },
+    });
+    const operations = b.addExecutable(.{ .name = "operation-fixture", .root_module = operation_module });
+    // Only this explicit test target copies the helper; it never enters bin/.
+    const operation_install = b.addInstallArtifact(operations, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } });
+    b.step("test-operation-fixture", "Build private native operation test helpers").dependOn(&operation_install.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = operation_module })).step);
     const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
         .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") },
         .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
@@ -819,22 +837,29 @@ pub fn build(b: *std.Build) void {
     b.step("test-cli-lifecycle", "Prove console recovery and bounded local process mechanics").dependOn(&lifecycle_test.step);
     const diagnostics_test = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostics_test.addFileArg(b.path("tests/cli_diagnostics.py"));
-    diagnostics_test.addArtifactArg(query_shell);
+    diagnostics_test.addArtifactArg(transit_cli);
     diagnostics_test.has_side_effects = true;
     diagnostics_test.stdio = .inherit;
     b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
+    const operation_diagnostics = b.addSystemCommand(&.{ "python3", "-B" });
+    operation_diagnostics.addFileArg(b.path("tests/operation_diagnostics.py"));
+    operation_diagnostics.addArtifactArg(operations);
+    operation_diagnostics.has_side_effects = true;
+    operation_diagnostics.stdio = .inherit;
+    b.step("test-operation-diagnostics", "Check native helper artifacts and file failure evidence").dependOn(&operation_diagnostics.step);
+    diagnostics_test.step.dependOn(&operation_diagnostics.step);
     const console_input_gate = b.addLibrary(.{ .name = "transit-console-input-gate", .linkage = .dynamic, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     console_input_gate.root_module.addCSourceFile(.{ .file = b.path("tests/console_input_gate.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
     const history_test = b.addSystemCommand(&.{ "python3", "-B" });
     history_test.addFileArg(b.path("tests/console_history.py"));
-    history_test.addArtifactArg(query_shell);
+    history_test.addArtifactArg(transit_cli);
     history_test.addArtifactArg(console_input_gate);
     history_test.has_side_effects = true;
     history_test.stdio = .inherit;
     b.step("test-console-history", "Check real terminal history, persistence and external editing").dependOn(&history_test.step);
     const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
-    file_query_test.addArtifactArg(query_shell);
+    file_query_test.addArtifactArg(operations);
     file_query_test.has_side_effects = true;
     file_query_test.stdio = .inherit;
     b.step("test-file-query", "Prove captured CSV/JSONL queries, gzip, quotas and cancellation").dependOn(&file_query_test.step);
@@ -848,28 +873,31 @@ pub fn build(b: *std.Build) void {
     unified_codec_test.addArtifactArg(logical_arrow_proof);
     const logical_arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
     logical_arrow_test.addFileArg(b.path("tests/fuze_logical_arrow.py"));
-    logical_arrow_test.addArtifactArg(query_shell);
+    logical_arrow_test.addArtifactArg(operations);
     logical_arrow_test.addArtifactArg(logical_arrow_proof);
     logical_arrow_test.has_side_effects = true;
     logical_arrow_test.stdio = .inherit;
     b.step("test-logical-arrow", "Independently check logical type/state Arrow export").dependOn(&logical_arrow_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
-    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| server_test.addArtifactArg(artifact);
     if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
+    server_test.step.dependOn(&operation_install.step);
     server_test.has_side_effects = true;
     server_test.step.dependOn(&lifecycle_test.step);
     server_test.stdio = .inherit;
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
     const logging_test = b.addSystemCommand(&.{ "python3", "-B" });
     logging_test.addFileArg(b.path("tests/server_logging.py"));
-    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| logging_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| logging_test.addArtifactArg(artifact);
+    logging_test.step.dependOn(&operation_install.step);
     logging_test.has_side_effects = true;
     logging_test.stdio = .inherit;
     b.step("test-server-logging", "Qualify terminal and machine logs across local services").dependOn(&logging_test.step);
     const lifetime_test = b.addSystemCommand(&.{ "python3", "-B" });
     lifetime_test.addFileArg(b.path("tests/server_sql_lifetimes.py"));
-    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| lifetime_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| lifetime_test.addArtifactArg(artifact);
+    lifetime_test.step.dependOn(&operation_install.step);
     lifetime_test.has_side_effects = true;
     lifetime_test.stdio = .inherit;
     b.step("test-server-sql-lifetimes", "Qualify idle SQL connections, native leases and partial frame deadlines").dependOn(&lifetime_test.step);
@@ -883,15 +911,16 @@ pub fn build(b: *std.Build) void {
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
         } else {
-            for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+            for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
         }
+        run.step.dependOn(&operation_install.step);
         run.has_side_effects = true;
         run.stdio = .inherit;
         b.step(proof[0], "Qualify configured local SQL enrollment, clients and retained recovery").dependOn(&run.step);
     }
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, query_shell }) |artifact| serving_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, transit_cli }) |artifact| serving_test.addArtifactArg(artifact);
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
@@ -907,6 +936,7 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");
     if (b.option(bool, "serving-reactive-limits", "Qualify reactive capacity, cursor and expiry limits") orelse false) serving_test.addArg("--reactive-limits");
     if (b.option(bool, "serving-reactive-browser", "Qualify the real browser reactive bootstrap and transports") orelse false) serving_test.addArg("--reactive-browser");
+    serving_test.step.dependOn(&operation_install.step);
     serving_test.has_side_effects = true;
     serving_test.stdio = .inherit;
     b.step("test-serving", "Qualify durable HTTP service admission and recovery").dependOn(&serving_test.step);
@@ -946,10 +976,10 @@ pub fn build(b: *std.Build) void {
     b.step("test-flight", "Qualify real finite queries with independent Flight and ADBC clients").dependOn(&flight_test.step);
     const public_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     public_query_test.addFileArg(b.path("tests/public_query.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, query_shell, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, operations, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
-    b.step("test-public-query", "Qualify the public query hosts and signed shell over disk Ursula").dependOn(&public_query_test.step);
+    b.step("test-public-query", "Qualify public query hosts and native callers over disk Ursula").dependOn(&public_query_test.step);
     const unified_query = b.addExecutable(.{ .name = "transit-unified-query-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/unified_query.zig"),
         .target = target,
@@ -974,9 +1004,9 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArg("--example");
         unified_query_test.addArtifactArg(query_example);
     }
-    if (b.option(bool, "unified-shell", "Include the actual v1 SQL shell in unified recovery") orelse false) {
+    if (b.option(bool, "unified-shell", "Include the native query test driver in unified recovery") orelse false) {
         unified_query_test.addArg("--shell");
-        unified_query_test.addArtifactArg(query_shell);
+        unified_query_test.addArtifactArg(operations);
     }
     if (b.option(bool, "unified-compound", "Recover a filtering Boolean program across installed callers") orelse false) unified_query_test.addArg("--compound");
     if (b.option(bool, "unified-board", "Include Board's v1 query API in unified recovery") orelse false) {
@@ -1191,9 +1221,10 @@ pub fn build(b: *std.Build) void {
     typed_table_native.addArtifactArg(node_artifact);
     typed_table_native.addArtifactArg(typed_table_proof);
     typed_table_native.addArtifactArg(query_host);
-    typed_table_native.addArtifactArg(query_shell);
+    typed_table_native.addArtifactArg(transit_cli);
     typed_table_native.addArtifactArg(station_host);
     typed_table_native.addPassthruArgs();
+    typed_table_native.step.dependOn(&operation_install.step);
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
@@ -1233,11 +1264,12 @@ pub fn build(b: *std.Build) void {
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, query_shell }) |artifact| {
+    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, transit_cli }) |artifact| {
         sql_wire_gateway.addArtifactArg(artifact);
         sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
     }
     sql_wire_gateway.addPassthruArgs();
+    sql_wire_gateway.step.dependOn(&operation_install.step);
     sql_wire_gateway.has_side_effects = true;
     sql_wire_gateway.stdio = .inherit;
     b.step("test-sql-wire-gateway", "Exercise database clients against native gateway owners").dependOn(&sql_wire_gateway.step);
@@ -1283,8 +1315,9 @@ pub fn build(b: *std.Build) void {
     combined_table_test.addArtifactArg(query_host);
     combined_table_test.addArtifactArg(unified_query);
     combined_table_test.addArtifactArg(station_bindings.artifact("transit_station"));
-    combined_table_test.addArtifactArg(query_shell);
+    combined_table_test.addArtifactArg(transit_cli);
     combined_table_test.addPassthruArgs();
+    combined_table_test.step.dependOn(&operation_install.step);
     combined_table_test.has_side_effects = true;
     combined_table_test.stdio = .inherit;
     b.step("test-table-query-writer", "Prove combined Table initialization and interleaved query/mutation recovery").dependOn(&combined_table_test.step);

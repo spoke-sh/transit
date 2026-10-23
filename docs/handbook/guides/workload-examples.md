@@ -29,7 +29,7 @@ The linked example guides own their build and fixture commands, including
 language toolchains and disk-store/container prerequisites. Their full fixture
 runs can take minutes and use disposable synthetic installations.
 
-The local `transit app` supervisor currently hosts Zig workers. The other language
+The local application supervisor currently hosts Zig workers. The other language
 examples use their own public SDK runners; installing a Python package or Node
 tarball does not register a worker with that supervisor.
 

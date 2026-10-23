@@ -243,17 +243,17 @@ authorization:
 
 # Public administration CLI and neutral C/host lifecycle, with disk restart.
 authorization-cli:
-    zig build transit-node transit-admin transit client-abi transit-client-host
+    zig build test-operation-fixture transit-node transit-admin transit client-abi transit-client-host
     python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
 # Table isolation, original subjects, rotation and revocation across disk restart.
 authorization-tables *args:
-    zig build transit-node transit-admin transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit-node transit-admin transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
     python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
-    zig build transit-node transit-admin transit transit-query-host transit-table-service serving-example
+    zig build test-operation-fixture transit-node transit-admin transit transit-query-host transit-table-service serving-example
     python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
@@ -564,6 +564,7 @@ server-sql-faults:
 # Installed bundle and adjacent dependency discovery outside the checkout.
 server-sql-package:
     nix build .#transit-local --out-link .cache/transit-sql-package
+    zig build test-operation-fixture -Doptimize=ReleaseSafe
     python3 -B tests/server_sql.py --bundle .cache/transit-sql-package
 
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
@@ -670,13 +671,13 @@ work-items-placement profile="compose":
 
 # Separately compiled consumer, scoped installation and disk-backed replacement.
 server-applications:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Lost native and migration replies, current revocation and management admission.
 server-application-faults:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/server_application_faults.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 

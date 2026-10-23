@@ -49,7 +49,7 @@ class Native:
 class Port:
     def __init__(self, host, root, url, connection):
         config = root/'catalog-client-port.json'
-        config.write_text(json.dumps(dict(url=url,seed_file=str(root/'caller.seed'),catalog_client=dict(connection=connection,timeout_ms=10000))))
+        config.write_text(json.dumps(dict(url=url,seed_file=str(root/'caller.seed'),catalog_helpersent=dict(connection=connection,timeout_ms=10000))))
         self.child = subprocess.Popen([host,str(config)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,bufsize=0)
 
     def call(self, action):
@@ -97,7 +97,7 @@ def check_profiles(host, root, url, connection):
                   generation=1, association='data', failure_policy='stop')
     for name, extra in [('local', dict(local_codec=True)), ('mutation', dict(mutation_client=mutation)),
                         ('query', dict(query_client=query)), ('server', dict(growing_server=server))]:
-        config = dict(url=url, seed_file=str(root/'caller.seed'), catalog_client=catalog, **extra)
+        config = dict(url=url, seed_file=str(root/'caller.seed'), catalog_helpersent=catalog, **extra)
         path = root/f'catalog-conflict-{name}.json'
         path.write_text(json.dumps(config))
         child = subprocess.run([host,str(path)],capture_output=True,text=True,timeout=15)

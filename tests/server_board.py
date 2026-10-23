@@ -90,7 +90,6 @@ def lifecycle(cli, node, host, board, worker, operator):
     print(f'Board server proof: {fixture.root}', flush=True)
     try:
         fixture.no_ui = True
-        fixture.alias = 'serve'
         fixture.start()
         fixture.ready()
         initial = fixture.record()
@@ -110,7 +109,6 @@ def lifecycle(cli, node, host, board, worker, operator):
         hidden_id = fixture.active('hidden')['resources'][0]['id']
         fixture.stop()
         fixture.no_ui = False
-        fixture.alias = 'server'
         fixture.start()
         fixture.ready()
         fixture.active()
@@ -184,7 +182,6 @@ def lifecycle(cli, node, host, board, worker, operator):
             fixture.ready()
             fixture.stop()
         fixture.no_ui = False
-        fixture.alias = 'serve'
         fixture.start()
         fixture.ready()
         fixture.active()

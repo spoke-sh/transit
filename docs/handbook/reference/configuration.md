@@ -218,7 +218,7 @@ console makes this check on its first SQL statement.
 The installation's registered configuration domain has three independent
 privileges: inspection (bit 1), protected provenance (bit 2) and reload (bit 4).
 The initial local owner owns this object; normal starts never restore grants.
-Use the existing [authorization administration](../../../apps/transit-cli/docs/authorization.md)
+Use the existing [authorization administration](../../../packages/zig/transit-client/docs/authorization.md)
 workflow to prepare/apply native domain grants or revocations. The explicit
 management binding names the domain object. No new GRANT/REVOKE configuration
 syntax or CLI command is introduced.

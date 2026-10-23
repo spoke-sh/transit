@@ -1,4 +1,4 @@
-"""Actual signed SQL shell: current capabilities, exact results and lifecycle."""
+"""Private signed-query test driver: capabilities, results and recovery."""
 import json
 import os
 import selectors
@@ -11,7 +11,6 @@ class Shell:
         self.process = subprocess.Popen([binary, 'query', str(root/'shell.json')],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.buffer = b''
-        self.read(json_line=False)
 
     def read(self, json_line=True):
         while b'\n' not in self.buffer:
