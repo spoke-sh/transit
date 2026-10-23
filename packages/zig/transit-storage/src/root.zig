@@ -13,6 +13,7 @@ pub const TableMemtable = @import("TableMemtable.zig");
 pub const TreeStore = @import("TreeStore.zig");
 pub const TableDeclaration = @import("TableDeclaration.zig");
 pub const TablePartition = @import("TablePartition.zig");
+pub const TableDmlIntent = @import("TableDmlIntent.zig");
 
 test {
     _ = TransitLog;
@@ -30,4 +31,6 @@ test {
     _ = @import("memtable_recovery_test.zig");
     _ = @import("tree_store_test.zig");
     _ = @import("table_partition_test.zig");
+    _ = @import("table_dml_intent_test.zig");
+    _ = @import("table_operation_test.zig");
 }

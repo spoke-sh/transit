@@ -68,6 +68,40 @@ again after staging before acceptance. The component supplies no credential,
 grant or policy store. The service must also serialize accesses to each owner.
 Epoch integers alone do not authorize an operation.
 
+## Durable row operations
+
+`admit` stores a complete `TableDmlIntent` and publishes its binding, content
+identity and observed data basis in the Table WAL. Admission publishes no rows.
+Its operation and pending directories use the same bounded immutable page store
+as row indexes. A staged intent without an admission record grants no execution
+authority. INSERT requires absent-key puts. UPDATE supports present-key puts or
+an explicit original key and replacement row, including
+atomic exchanges of primary keys. It preserves the original row identity and
+rejects collisions with surviving or other replacement rows. DELETE requires
+removes; the admitted shape cannot perform another action under the selected
+privilege.
+
+`perform` loads the original intent and publishes the row changes, receipt and
+removal from pending work atomically. It does not resolve names or recompile a
+statement. A constraint failure records a terminal rejection. Storage failure,
+missing intent and uncertain append leave the outcome unresolved; they do not
+authorize replacement work. `cancel` records a terminal cancellation only for
+admitted work. Once rows are committed, it returns that original result.
+`operationState` and bounded `pendingOperations` inspect without executing.
+Definition changes reject while any admitted row operation remains pending.
+
+Admission checks an optional exact accepted frontier. Execution preserves that
+frozen expectation: later logical changes invalidate conditional work, while
+intervening admissions, receipts, pins and physical flushing do not. Work without
+a data-frontier expectation still checks its definition and concrete row
+constraints. It is not a predicate-serializable SQL transaction.
+
+Outcomes distinguish matched rows from changed rows. Replacing a row with
+identical canonical bytes reports a match without new row bytes or a logical
+change; removing a missing key reports neither. Every receipt retains the
+original counts. SQL lowering must preserve row identity for unchanged rows and
+must supply the correct source expectation for predicates and read/modify/write.
+
 ## Reads, caches and flushing
 
 Two immutable ordered indexes share each accepted root. Point lookup hashes the
@@ -108,7 +142,7 @@ bytes without an accepted pin confer no read capability.
 `readSnapshot` verifies the current pin, exact content identity, original schema
 and current guard. `releaseSnapshot` records retirement of that handle and is
 idempotent. A retired handle cannot acquire another snapshot or serve a read.
-Data snapshots omit receipt/pin directories from their retained read basis, so
+Data snapshots omit receipt, operation, pending and pin directories from their retained read basis, so
 they do not recursively retain earlier pin owners.
 
 This owner retains its entire WAL and all immutable objects. It exposes no trim,

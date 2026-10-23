@@ -148,7 +148,9 @@ fn entry(self: *Self, object: u64) !?r.Entry {
 fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool) !View {
     var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed orelse return error.CatalogRegistrationRequired);
     defer seed.deinit();
-    var table = try P.init(allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, self.options.table);
+    var options = self.options.table;
+    options.control = .{ .log = self.store.log, .objects = self.store.objects };
+    var table = try P.init(allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
     errdefer table.deinit();
     try table.recover();
     const properties = try Properties.decode(allocator, table.declaration.definition.properties);
@@ -314,7 +316,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name)) reason = .object_conflict else if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) reason = .stale_definition else if (request.binding.expected_data) |expected| {
             if (expected.partition != view.table.root.partition or expected.next_lsn != view.table.root.next_lsn) reason = .stale_data;
         }
-        if (reason == .none and try self.pending(object, current)) reason = .object_conflict;
+        if (reason == .none and (view.table.root.pending != null or try self.pending(object, current))) reason = .object_conflict;
     } else reason = .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
     if (reason == .none and (request.intent.action == .create or request.intent.action == .rename) and !try self.available(request.intent.namespace, proposed_name, object, current)) reason = .name_conflict;
@@ -487,10 +489,27 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     return .{ .committed = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome } };
 }
 
-/// Direct, frozen row changes use their own partition and identity claim. No
-/// catalog directory root is published on this path. Durable pending/rejected
-/// DML control is a separate unfinished boundary; errors here are not receipts.
-pub fn apply(self: *Self, binding: d.Binding, changes: []const P.Change, ingestion: P.Ingestion, policy: Policy) !P.Outcome {
+/// Row admission and outcomes belong to the Table partition. None of these
+/// operations publishes a catalog root or resolves the current name again.
+pub fn admitRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
+    return self.rowOperation(request.binding, .admit, request, policy);
+}
+pub fn performRows(self: *Self, binding: d.Binding, policy: Policy) !P.OperationState {
+    return self.rowOperation(binding, .perform, null, policy);
+}
+pub fn rowStatus(self: *Self, binding: d.Binding, policy: Policy) !P.OperationState {
+    return self.rowOperation(binding, .status, null, policy);
+}
+pub fn cancelRows(self: *Self, binding: d.Binding, policy: Policy) !P.OperationState {
+    return self.rowOperation(binding, .cancel, null, policy);
+}
+pub fn applyRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
+    const admitted = try self.admitRows(request, policy);
+    if (admitted != .admitted) return admitted;
+    return self.performRows(request.binding, policy);
+}
+
+fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, status, cancel }, request: ?s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
     try self.requireInitialized();
     try self.original(policy, binding);
     const access: a.Access = switch (binding.action) {
@@ -500,16 +519,23 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const P.Change, ingesti
         else => return error.UnsupportedTableAction,
     };
     const target = try self.entry(binding.target.object) orelse return error.CatalogDenied;
-    var view = try self.open(self.allocator, target, false);
+    var view = try self.open(self.allocator, target, action == .cancel);
     defer view.deinit();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const current = try self.guard(arena.allocator(), policy, try self.schema(view.properties.namespace), view.properties.target(target.object), access);
     try check(current);
-    try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
-    if (try view.table.observeEvidence(binding, current)) |_| return view.table.apply(binding, changes, ingestion, current);
-    if (try self.pending(target.object, current)) return error.CatalogObjectBusy;
-    return view.table.apply(binding, changes, ingestion, current);
+    if (action == .admit) {
+        try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
+        if (try view.table.operationState(binding, current) == .not_observed and try self.pending(target.object, current)) return error.CatalogObjectBusy;
+    }
+    view.table.lose_reply = self.lose_table_reply;
+    return switch (action) {
+        .admit => view.table.admit(request.?, current),
+        .perform => view.table.perform(binding, current),
+        .status => view.table.operationState(binding, current),
+        .cancel => view.table.cancel(binding, current),
+    };
 }
 
 fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !void {

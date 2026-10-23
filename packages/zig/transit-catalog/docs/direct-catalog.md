@@ -87,9 +87,15 @@ records to 16 KiB. These limits bound one operation and resident work, not the
 number of durable Tables or operations. All accepted history and objects remain
 retained; this owner supplies no collector.
 
-`apply` accepts already frozen row changes directly, with exact binding and
-Table receipt checks. Durable pending/rejected/cancelled DML, schema lifecycle
-beyond the initial namespace, the service registration loop, dependency
+`admitRows`, `performRows`, `rowStatus` and `cancelRows` use the Table's durable
+operation records under current native rights. `applyRows` composes admission
+and execution for callers that want both. The request includes the original
+stored declaration and concrete rows; execution never re-resolves its name.
+Row admission blocks while DDL is pending; DDL admission rejects while the Table
+has pending row work. Neither row admission nor its outcome changes the catalog
+directory root. Terminal row controls use the configured control quota handles.
+
+Schema lifecycle beyond the initial namespace, the service registration loop, dependency
 RESTRICT, public SQL/typed adapters and service scheduling remain unfinished.
 The [Table storage owner](../../transit-storage/docs/table-partitions.md) defines
 row/DDL acceptance, rewrite and pin behavior. The

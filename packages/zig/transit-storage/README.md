@@ -9,7 +9,7 @@ The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
-durable snapshot pins, policy-authorized trimming or multi-process Table commits.
+collector races, policy-authorized trimming or multi-process Table commits.
 
 ## Modules
 
@@ -47,6 +47,8 @@ durable snapshot pins, policy-authorized trimming or multi-process Table commits
 - `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
   record for rows, paged indexes and exact operation receipts. It supports point
   WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
+  Frozen row admission, rejection and cancellation share that Table WAL; row
+  acceptance atomically clears pending work and records matched/changed counts.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
 

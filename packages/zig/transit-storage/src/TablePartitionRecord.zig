@@ -23,6 +23,9 @@ pub const Root = struct {
     scan_rows: ?pages.Reference = null,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
+    /// Required on disk: older roots must not silently lose admitted work.
+    operations: ?pages.Reference,
+    pending: ?pages.Reference,
     live_rows: u64 = 0,
 
     pub fn declared(self: Root) Declaration.Stored {
@@ -39,11 +42,34 @@ pub const Root = struct {
 
 pub const Outcome = struct {
     position: d.Position,
+    matched: u64,
     affected: u64,
     live_rows: u64,
 };
 
 pub const Receipt = struct { binding: d.Binding, changes: [32]u8, outcome: Outcome };
+
+pub const Operation = struct {
+    binding: d.Binding,
+    intent: d.Content,
+    basis: struct { interpretation: d.Definition, position: d.Position, changed_lsn: u64 },
+    phase: enum { admitted, rejected, cancelled },
+    reason: enum { none, definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit },
+
+    pub fn validate(self: Operation) !void {
+        try self.binding.validate();
+        try self.intent.validate();
+        try self.basis.interpretation.validate();
+        try self.basis.position.validate();
+        if (!std.meta.eql(self.binding.target, self.basis.interpretation.object) or
+            self.basis.changed_lsn > self.basis.position.next_lsn or
+            (self.phase == .rejected) != (self.reason != .none)) return error.InvalidTableOperation;
+        switch (self.binding.action) {
+            .insert, .update, .delete => {},
+            else => return error.InvalidTableOperation,
+        }
+    }
+};
 
 pub const Record = struct {
     definition: p.Growth.Definition,
@@ -61,6 +87,7 @@ pub const Record = struct {
             changes: [32]u8,
             outcome: Outcome,
         },
+        operation: Operation,
         checkpoint,
         pin: struct { owner: d.Operation, basis: d.Content },
         release: struct { owner: d.Operation, basis: d.Content },
@@ -84,12 +111,19 @@ pub const Record = struct {
                     value.outcome.position.partition != self.root.partition or
                     value.outcome.position.next_lsn != self.root.next_lsn or
                     value.outcome.live_rows != self.root.live_rows or
+                    value.outcome.affected > value.outcome.matched or
                     (value.outcome.affected != 0 and self.root.changed_lsn != self.root.next_lsn)) return error.InvalidTableHistory;
             },
             inline .pin, .release => |value| {
                 try value.owner.validate();
                 try value.basis.validate();
                 if (!std.meta.eql(value.owner.scope, self.root.interpretation.object.scope)) return error.InvalidTableHistory;
+            },
+            .operation => |value| {
+                try value.validate();
+                if (!std.meta.eql(value.binding.target, self.root.interpretation.object) or
+                    value.basis.position.partition != self.root.partition or
+                    value.basis.position.next_lsn >= self.root.next_lsn) return error.InvalidTableHistory;
             },
             .checkpoint => {},
         }

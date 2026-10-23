@@ -37,6 +37,8 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: 
     var basis = root;
     basis.pins = null;
     basis.receipts = null;
+    basis.operations = null;
+    basis.pending = null;
     var writer: std.Io.Writer = .fixed(bytes[header_bytes..][0..r.max_metadata_bytes]);
     try std.json.Stringify.value(Metadata{ .owner = owner, .root = basis }, .{}, &writer);
     const metadata = writer.buffered();

@@ -65,6 +65,57 @@ fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentSt
     return result;
 }
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+
+test "direct catalog serializes row admission against DDL without a catalog write or inspection side effect" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 2 }, .target = create.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, .intent = @splat(3) };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const request: s.TableDmlIntent.Request = .{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &cells }, .expect = .absent } }}, .ingestion = .bulk };
+    const before = catalog.store.root;
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.admitRows(request, access.policy()));
+    catalog.lose_table_reply = false;
+    try catalog.recover();
+    try t.expect((try catalog.rowStatus(binding, access.policy())) == .admitted);
+    try t.expectEqualDeep(before, catalog.store.root);
+    try view.table.recover();
+    try t.expectEqual(@as(u64, 0), view.table.root.live_rows);
+    const conflict = try edit(&view, 3, .{ .rename = try a.Name.init("other") });
+    try t.expectEqual(.object_conflict, (try catalog.admit(conflict, access.policy())).reason);
+    const after_ddl = catalog.store.root;
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.performRows(binding, access.policy()));
+    try t.expectError(error.CatalogDenied, catalog.rowStatus(binding, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.performRows(binding, access.policy()));
+    catalog.lose_table_reply = false;
+    const committed = (try catalog.rowStatus(binding, access.policy())).committed;
+    try t.expectEqual(@as(u64, 1), committed.outcome.affected);
+    try t.expectEqualDeep(committed, (try catalog.cancelRows(binding, access.policy())).committed);
+    try t.expectEqualDeep(after_ddl, catalog.store.root);
+    try view.table.recover();
+    const rename = try edit(&view, 4, .{ .rename = try a.Name.init("other") });
+    _ = try catalog.admit(rename, access.policy());
+    _ = try catalog.perform(rename.binding, access.policy());
+    try t.expectEqualDeep(committed, (try catalog.applyRows(request, access.policy())).committed);
+}
+
 fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
     const intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
@@ -114,7 +165,7 @@ test "direct catalog reservations publish names only through Table acceptance an
         defer view.deinit();
         const row = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
         const data_binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 10 }, .target = create.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(8) };
-        _ = try catalog.apply(data_binding, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 10, .ordinal = 0 }, .cells = &row }, .expect = .absent } }}, .point, access.policy());
+        _ = try catalog.applyRows(.{ .binding = data_binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 10, .ordinal = 0 }, .cells = &row }, .expect = .absent } }}, .ingestion = .point }, access.policy());
         try view.table.recover();
         try t.expectEqual(published_at, catalog.store.root.next_lsn);
         rename = try edit(&view, 2, .{ .rename = try a.Name.init("renamed") });
@@ -215,7 +266,8 @@ test "direct catalog ALTER admission blocks conflicting data and final denial pr
     try t.expect((try catalog.status(alteration.binding, access.policy())) == .not_observed);
     _ = try catalog.admit(alteration, access.policy());
     const data_binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 20 }, .target = create.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(8) };
-    try t.expectError(error.CatalogObjectBusy, catalog.apply(data_binding, &.{}, .point, access.policy()));
+    const rows: s.TableDmlIntent.Request = .{ .binding = data_binding, .interpretation = view.table.root.declared(), .changes = &.{}, .ingestion = .point };
+    try t.expectError(error.CatalogObjectBusy, catalog.admitRows(rows, access.policy()));
     try catalog.recover();
     try t.expect((try catalog.status(alteration.binding, access.policy())) == .admitted);
     const before_table = try wal.log().tail(view.table.root.partition);
@@ -227,7 +279,7 @@ test "direct catalog ALTER admission blocks conflicting data and final denial pr
     try t.expect((try catalog.perform(alteration.binding, access.policy())) == .committed);
     const again = try catalog.perform(alteration.binding, access.policy());
     try t.expectEqual(@as(u64, 2), again.committed.resulting.interpretation.revision);
-    try t.expectError(error.TableDefinitionChanged, catalog.apply(data_binding, &.{}, .point, access.policy()));
+    try t.expectEqual(.definition_changed, (try catalog.admitRows(rows, access.policy())).rejected.reason);
 }
 
 test "direct catalog directories and operations grow past one resident page with independent listing cuts" {
@@ -292,7 +344,7 @@ test "direct catalog rejected ALTER preserves the accepted rows and cannot be re
     defer before.deinit();
     const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 2 }, .target = create.binding.target, .action = .insert, .expected_definition = before.table.root.interpretation, .expected_data = null, .intent = @splat(1) };
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
-    _ = try catalog.apply(binding, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &cells }, .expect = .absent } }}, .point, access.policy());
+    _ = try catalog.applyRows(.{ .binding = binding, .interpretation = before.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &cells }, .expect = .absent } }}, .ingestion = .point }, access.policy());
     try before.table.recover();
     const alteration = try edit(&before, 3, .{ .alter = .{ .add = .{ .name = "required", .type = .int64, .nullable = false } } });
     _ = try catalog.admit(alteration, access.policy());

@@ -43,6 +43,85 @@ fn key(value: i128, buffer: []u8) ![]const u8 {
     return f.Collation.encodePrimaryKeySortKey(schema, &.{.{ .value = .{ .atom = .{ .signed = value } } }}, false, buffer);
 }
 
+test "Table no-op receipts preserve logical data and report original matched and changed rows after restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const fields = [_]f.TableSchema.Column{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+        .{ .id = 2, .name = "value", .type = .int64, .nullable = false },
+    };
+    const definition: s.TableDeclaration.Definition = .{ .object = object, .revision = 1, .schema = .{ .object = 7, .revision = 1, .next_column = 3, .columns = &fields, .primary_key = &.{1} }, .properties = "" };
+    const first = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = 10 } } } };
+    const second = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 2 } } }, .{ .value = .{ .atom = .{ .signed = 20 } } } };
+    const changed_second = [_]f.Types.Values.Cell{ second[0], .{ .value = .{ .atom = .{ .signed = 21 } } } };
+    const first_row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &first };
+    const second_row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 1 }, .cells = &second };
+    var access: Access = .{};
+    var saved: p.DataLifecycle.Binding = undefined;
+    var original: P.Root = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer table.deinit();
+        try table.recover();
+        _ = try table.apply(binding(&table, 1), &.{ .{ .put = .{ .row = first_row, .expect = .absent } }, .{ .put = .{ .row = second_row, .expect = .absent } } }, .point, access.guard());
+        original = table.root;
+        saved = binding(&table, 2);
+        saved.action = .update;
+        saved.expected_data = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.apply(saved, &.{.{ .put = .{ .row = first_row, .expect = .present } }}, .point, access.guard()));
+        try t.expectEqualDeep(original.rows, table.root.rows);
+        try t.expectEqualDeep(original.scan_rows, table.root.scan_rows);
+        try t.expectEqual(original.changed_lsn, table.root.changed_lsn);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    const repeated = try table.apply(saved, &.{.{ .put = .{ .row = first_row, .expect = .present } }}, .point, access.guard());
+    try t.expectEqual(@as(u64, 1), repeated.matched);
+    try t.expectEqual(@as(u64, 0), repeated.affected);
+    try t.expectEqual(@as(u64, 2), repeated.position.next_lsn);
+    var accepted = try wal.log().read(t.allocator, 17, 1, 1);
+    defer accepted.deinit();
+    try t.expectEqual(@as(usize, 0), (try r.decode(t.allocator, accepted.frames[0].payload, 1)).rows.len);
+    var bulk = binding(&table, 3);
+    bulk.action = .update;
+    const unchanged = try table.apply(bulk, &.{.{ .put = .{ .row = second_row, .expect = .present } }}, .bulk, access.guard());
+    try t.expectEqual(@as(u64, 1), unchanged.matched);
+    try t.expectEqual(@as(u64, 0), unchanged.affected);
+    try t.expectEqual(original.next_segment, table.root.next_segment);
+    try t.expectEqual(original.changed_lsn, table.root.changed_lsn);
+    var mixed = binding(&table, 4);
+    mixed.action = .update;
+    const updated: f.TableRow.Row = .{ .identity = second_row.identity, .cells = &changed_second };
+    const result = try table.apply(mixed, &.{ .{ .put = .{ .row = first_row, .expect = .present } }, .{ .put = .{ .row = updated, .expect = .present } } }, .point, access.guard());
+    try t.expectEqual(@as(u64, 2), result.matched);
+    try t.expectEqual(@as(u64, 1), result.affected);
+    try t.expectEqual(result.position.next_lsn, table.root.changed_lsn);
+    var bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    var row = (try table.get(t.allocator, try key(2, &bytes), access.guard())).?;
+    defer row.deinit();
+    try t.expectEqual(@as(i128, 21), row.row().cells[1].value.atom.signed);
+    var old = (try table.getAt(t.allocator, original, try key(2, &bytes))).?;
+    defer old.deinit();
+    try t.expectEqual(@as(i128, 20), old.row().cells[1].value.atom.signed);
+    try t.expectEqualDeep(repeated, (try table.observe(saved, access.guard())).?);
+    var missing = binding(&table, 5);
+    missing.action = .delete;
+    const missed = try table.apply(missing, &.{.{ .remove = try key(99, &bytes) }}, .point, access.guard());
+    try t.expectEqual(@as(u64, 0), missed.matched);
+    try t.expectEqual(@as(u64, 0), missed.affected);
+    try t.expectEqual(result.position.next_lsn, table.root.changed_lsn);
+}
+
 test "Table acceptance recovers the exact point and bulk result after a lost reply" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
