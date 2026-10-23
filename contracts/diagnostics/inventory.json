@@ -3374,8 +3374,8 @@
     },
     "packages/zig/transit-catalog/src/DirectReadDelegation.zig": {
       "errors": {
-        "IncompatibleDefinition": 1,
-        "InvalidTableDelegation": 3,
+        "IncompatibleDefinition": 2,
+        "InvalidTableDelegation": 6,
         "TableDelegationDenied": 5
       },
       "outcomes": {},
@@ -3384,6 +3384,8 @@
         "Binding.context()": "<inferred>",
         "Binding.validate()": "<inferred>",
         "allow()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
         "prepare()": "<inferred>",
         "requirePin()": "<inferred>",
         "requireSource()": "<inferred>",
@@ -3391,7 +3393,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 60,
         "catch": 0
       },
       "imports": [
@@ -13744,6 +13746,59 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/CapturedTablePin.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueryRecord": 7,
+        "QueryActive": 1,
+        "QueryClosed": 1,
+        "QueryDenied": 2,
+        "QueryNamespaceInUse": 3,
+        "QueryNotFound": 2,
+        "SourceChanged": 3
+      },
+      "outcomes": {
+        "Phase": [
+          "acquiring",
+          "closing",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Record.check()": "<inferred>",
+        "Record.decode()": "<inferred>",
+        "Record.encode()": "<inferred>",
+        "Record.snapshot()": "<inferred>",
+        "Remote.close()": "<inferred>",
+        "Remote.delegated()": "<inferred>",
+        "Remote.pin()": "<inferred>",
+        "Slot.validate()": "<inferred>",
+        "acquire()": "<inferred>",
+        "acquireWith()": "<inferred>",
+        "beginClose()": "<inferred>",
+        "handle()": "<inferred>",
+        "inspect()": "<inferred>",
+        "ownerClaim()": "<inferred>",
+        "ownerKey()": "<inferred>",
+        "phase()": "<inferred>",
+        "prepare()": "<inferred>",
+        "read()": "<inferred>",
+        "require()": "<inferred>",
+        "saveHandle()": "<inferred>",
+        "settle()": "<inferred>",
+        "settleWith()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 65,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/CatalogQueryOwner.zig": {
       "errors": {
         "CatalogConfigurationChanged": 1,
@@ -16752,6 +16807,7 @@
         "Basis.zig",
         "Bridge.zig",
         "Bundle.zig",
+        "CapturedTablePin.zig",
         "CatalogQueryOwner.zig",
         "ComputePool.zig",
         "Decoder.zig",

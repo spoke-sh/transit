@@ -41,6 +41,72 @@ pub const Binding = struct {
 binding: Binding,
 proof: p.Authorization.Proof,
 
+/// Bounded canonical storage for the original grant. Repeated claim fields are
+/// constrained by validate; decoding never supplies a missing definition/epoch.
+pub const encoded_bytes = 309;
+pub fn encode(self: Self, allocator: std.mem.Allocator) ![encoded_bytes]u8 {
+    try self.validate(allocator);
+    var bytes: [encoded_bytes]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&bytes);
+    try writer.writeAll("TRG1");
+    try writer.writeAll(&p.Growth.definition_bytes);
+    const connection = self.binding.connection;
+    inline for (.{ "realm", "resource", "catalog" }) |field| try writer.writeInt(u64, @field(connection.scope, field), .little);
+    try writer.writeInt(u64, connection.branch, .little);
+    try writer.writeInt(u64, connection.audience, .little);
+    try writer.writeInt(u64, connection.principal, .little);
+    try writer.writeByte(@intFromBool(connection.role != null));
+    try writer.writeInt(u64, connection.role orelse 0, .little);
+    try writer.writeInt(u64, self.binding.executor, .little);
+    try writer.writeInt(u64, self.binding.interpretation.object.object, .little);
+    try writer.writeInt(u64, self.binding.interpretation.revision, .little);
+    try writer.writeAll(&self.binding.interpretation.digest);
+    try writer.writeInt(u64, self.binding.expected.partition, .little);
+    try writer.writeInt(u64, self.binding.expected.next_lsn, .little);
+    try writer.writeInt(u64, self.binding.owner.operation, .little);
+    try writer.writeAll(&self.binding.purpose);
+    try writer.writeInt(u64, self.proof.claim.credential_epoch, .little);
+    try writer.writeAll(&self.proof.claim.context);
+    try writer.writeAll(&self.proof.signature);
+    std.debug.assert(writer.end == bytes.len);
+    return bytes;
+}
+pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
+    if (bytes.len != encoded_bytes) return error.InvalidTableDelegation;
+    var reader: std.Io.Reader = .fixed(bytes);
+    if (!std.mem.eql(u8, try reader.take(4), "TRG1")) return error.InvalidTableDelegation;
+    if (!std.mem.eql(u8, try reader.take(32), &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+    var connection: w.Connection = .{
+        .scope = .{ .realm = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little), .catalog = try reader.takeInt(u64, .little) },
+        .branch = try reader.takeInt(u64, .little),
+        .audience = try reader.takeInt(u64, .little),
+        .principal = try reader.takeInt(u64, .little),
+        .role = null,
+    };
+    const present = try reader.takeByte();
+    const role = try reader.takeInt(u64, .little);
+    if (present > 1 or (present == 0 and role != 0)) return error.InvalidTableDelegation;
+    if (present == 1) connection.role = role;
+    const executor = try reader.takeInt(u64, .little);
+    const interpretation: d.Definition = .{
+        .object = .{ .scope = connection.scope, .branch = connection.branch, .object = try reader.takeInt(u64, .little) },
+        .revision = try reader.takeInt(u64, .little),
+        .digest = (try reader.takeArray(32)).*,
+    };
+    const expected: d.Position = .{ .partition = try reader.takeInt(u64, .little), .next_lsn = try reader.takeInt(u64, .little) };
+    const operation = try reader.takeInt(u64, .little);
+    const purpose = (try reader.takeArray(32)).*;
+    const result: Self = .{
+        .binding = .{ .definition = p.Growth.current_definition, .connection = connection, .executor = executor, .interpretation = interpretation, .expected = expected, .owner = .{ .scope = connection.scope, .principal = connection.principal, .operation = operation }, .purpose = purpose },
+        .proof = .{
+            .claim = .{ .definition = p.Growth.current_definition, .realm = connection.scope.realm, .principal = connection.principal, .role = connection.role, .audience = connection.audience, .credential_epoch = try reader.takeInt(u64, .little), .context = (try reader.takeArray(32)).* },
+            .signature = (try reader.takeArray(64)).*,
+        },
+    };
+    try result.validate(allocator);
+    return result;
+}
+
 pub fn validate(self: Self, allocator: std.mem.Allocator) !void {
     try self.binding.validate();
     try self.proof.claim.validate();
@@ -110,6 +176,14 @@ test "direct read delegation binds one caller role, executor, definition, pin an
     }, key) };
     try original.validate(t.allocator);
     try original.proof.verify(key.public_key.toBytes());
+    var encoded = try original.encode(t.allocator);
+    try t.expectEqualDeep(original, try decode(t.allocator, &encoded));
+    try t.expectError(error.InvalidTableDelegation, decode(t.allocator, encoded[0 .. encoded.len - 1]));
+    encoded[4] ^= 1;
+    try t.expectError(error.IncompatibleDefinition, decode(t.allocator, &encoded));
+    encoded = try original.encode(t.allocator);
+    encoded[110] ^= 1;
+    try t.expectError(error.InvalidTableDelegation, decode(t.allocator, &encoded));
     try original.requirePin(binding.interpretation.object, binding.owner);
     var other = binding.owner;
     other.operation += 1;

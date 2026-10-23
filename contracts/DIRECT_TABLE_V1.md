@@ -46,6 +46,21 @@ disclosure from cached data. Local destruction does not release the durable pin.
 
 ### Delegated retained reads
 
+`DirectReadDelegation.encode` retains the original grant in a canonical 309-byte
+`TRG1` record. It contains the four-byte magic, mandatory 32-byte current
+definition, connection scope (realm/resource/catalog), branch, audience,
+principal, role-present byte and role value, executor, object ID, definition
+revision and 32-byte digest, partition and accepted frontier, pin operation,
+32-byte purpose, credential epoch, 32-byte claim context and 64-byte signature,
+in that order. All integers are unsigned 64-bit little-endian except the
+one-byte role flag. An absent role has flag/value zero. Object and pin scope,
+pin principal and repeated claim fields must match the connection; decoding
+reconstructs only these constrained duplicates. Missing, foreign, truncated,
+noncanonical or context-inconsistent records reject. Loading performs no
+acquisition and does not establish current authorization or verify an unknown
+signer's public key. The data owner still checks the original signature and
+current caller/executor credentials on every request.
+
 `DirectReadDelegation` contains a `binding` and original-caller `proof`. The binding
 fields, in canonical order, are the current `definition`, original `connection`,
 `executor` principal, exact `interpretation`, `expected` Table frontier, pin
