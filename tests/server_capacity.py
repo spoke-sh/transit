@@ -34,10 +34,6 @@ def inside(mount, cli, node, host):
         fixture.ready()
         original = fixture.record()
         config = fixture.console_config()
-        config["seed_file"] = str(fixture.installation / "caller.seed")
-        # Client intent persistence is independent of the provider volume being
-        # filled. Both remain explicitly configured private paths.
-        config["writes"] = {"recovery_file": "/proof/client-recovery.json"}
         console_path = Path("/proof/console.json")
         console_path.write_text(json.dumps(config))
         owner = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
@@ -46,14 +42,13 @@ def inside(mount, cli, node, host):
         shell.process.stdin.write(b"INSERT INTO items (id, value) VALUES (1, 100);\n"); shell.process.stdin.flush()
         deadline = time.monotonic() + 30
         while True:
-            record_path = Path(config["writes"]["recovery_file"])
-            if record_path.exists():
-                accepted = json.loads(record_path.read_text())
-                if accepted["input"] is not None:
-                    break
-            assert time.monotonic() < deadline, "mutation receipt was not persisted"
+            pending = [item for item in fixture.sql_operations() if item['phase'] not in ('terminal', 'abandoned')]
+            if pending:
+                accepted = pending[-1]
+                break
+            assert time.monotonic() < deadline, "mutation was not admitted"
             time.sleep(.005)
-        assert not accepted['complete'] and accepted['operation'] is not None
+        assert accepted['outcome'] is None
         os.kill(shell.process.pid, signal.SIGSTOP)
         available = os.statvfs(mount).f_bavail * os.statvfs(mount).f_frsize
         # Match the physical-capacity foundation: retain 4 MiB for bounded
@@ -71,7 +66,7 @@ def inside(mount, cli, node, host):
                 raise AssertionError("Expected actual ext4 ENOSPC")
         probe.unlink()
         # Let the admitted Table owner encounter provider pressure. The console
-        # keeps its original persisted receipt/intent outside the filled volume.
+        # can disappear; the service retains the original accepted identity.
         os.kill(owner, signal.SIGCONT)
         time.sleep(3)
         # Read/control attempts stay finite even while provider writes refuse.
@@ -88,8 +83,6 @@ def inside(mount, cli, node, host):
         for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr):
             stream.close()
         shell = None
-        recovery = json.loads(record_path.read_text())
-        assert recovery["operation"] == accepted["operation"] and recovery["input"] == accepted["input"]
         fixture.stop()
         filler.unlink()
         reserve.unlink()
@@ -97,9 +90,14 @@ def inside(mount, cli, node, host):
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
         shell = TableConsole(fixture.cli, console_path)
-        outcome = shell.call(".resume")['table_operation']
-        assert outcome['phase'] == 'applied' and outcome['counts'] == dict(matched='1', changed='1'), outcome
-        assert json.loads(record_path.read_text())['operation'] == accepted['operation']
+        outcome = fixture.sql_session(dict(resume=accepted['identity']))['operation']
+        deadline = time.monotonic() + 90
+        while outcome['phase'] != 'terminal':
+            assert time.monotonic() < deadline, outcome
+            time.sleep(.05)
+            outcome = fixture.sql_session(dict(status=dict(operation=accepted['identity'])))['operation']
+        assert outcome['identity'] == accepted['identity'] and outcome['outcome'] == 'applied', outcome
+        assert outcome['matched'] == outcome['changed'] == 1, outcome
         assert atom(shell.call('SELECT COUNT(*) FROM items;'), 'unsigned') == '1'
         row = shell.call('SELECT id, value FROM items;')['rows'][0]
         assert [cell['value']['atom']['signed'] for cell in row] == ['1', '100'], row

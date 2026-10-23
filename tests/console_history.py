@@ -13,6 +13,8 @@ import threading
 from console_terminal import Terminal, ANSI
 from console_signals import check as check_signals
 from console_edit import check as check_edit
+from console_help import check as check_help
+from console_outcomes import check as check_outcomes
 from sql_sessions.editor_peer import peer as session_peer
 
 
@@ -180,3 +182,6 @@ def check(binary, signal_gate):
 if __name__ == '__main__':
     check(str(Path(sys.argv[1]).resolve()), Path(sys.argv[2]).resolve())
     check_edit(str(Path(sys.argv[1]).resolve()))
+
+    check_help(str(Path(sys.argv[1]).resolve()))
+    check_outcomes(str(Path(sys.argv[1]).resolve()))

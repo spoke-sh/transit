@@ -178,7 +178,10 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
 }
 fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.envelope) |value| {
-        if (value.validate()) |_| return @import("EnvelopeDiagnostic.zig").render(value, out) else |_| {}
+        if (value.validate()) |_| {
+            if (std.mem.eql(u8, self.command, "transit console")) return @import("EnvelopeDiagnostic.zig").renderConsole(value, out);
+            return @import("EnvelopeDiagnostic.zig").render(value, out);
+        } else |_| {}
     }
     if (self.sql) |original| {
         var diagnostic = original;
@@ -318,8 +321,8 @@ fn adviceFor(err: anyerror) ?Advice {
         error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
         error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Resubmit the original saved signed request through the application client. Preserve its operation ID and configuration." },
         error.InteractiveQueryCancelled => .{ "query cancelled", "Run the statement again to start a fresh snapshot." },
-        error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect .status or recover saved intent with .resume." },
-        error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use .resume for pending signed intent; do not resubmit SQL after an uncertain outcome." },
+        error.ConsoleInterrupted => .{ "statement interrupted", null },
+        error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding statement result." },
         else => null,
     };
 }
@@ -348,7 +351,7 @@ test "unknown failures retain identifiers and recovery advice retains exact iden
         .{ Self{ .command = "transit server", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
         .{ Self{ .summary = "cannot complete this step", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
         .{ Self{}, error.ApplicationOutcomeUnknown, &.{ "outcome is unknown", "saved signed request", "operation ID", "configuration" } },
-        .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{ "not cancelled", ".status", ".resume" } },
+        .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{"statement interrupted"} },
         .{ Self{ .command = "transit console" }, error.InteractiveQueryCancelled, &.{ "query cancelled", "fresh snapshot" } },
         // Exhaustion must replace a transient retry message and retain the cause.
         .{ Self{ .summary = "server role failed; retrying the same installation", .next = "Wait for readiness.", .cause = error.ChildExited, .role = "courier" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "child process exited", "role courier", "same configuration" } },

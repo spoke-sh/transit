@@ -40,13 +40,11 @@ def run(fixture):
         for value in results(map(json.loads, result.stdout.splitlines())):
             if 'schema' in value:
                 output.extend(records(value))
-            elif 'operation' in value:
-                operation = value['operation']
-                assert operation['identity']['kind'] == 'configuration', operation
-                owner = bytes(operation['owner_operation']).hex()
-                row = sql(f"SELECT * FROM transit_config_reloads() WHERE operation = '{owner}'")[0]
-                assert row['phase'] == operation['configuration_phase'], (row, operation)
-                output.append(dict(outcome=row))
+            elif 'completion' in value and 'outcome' in value['completion']:
+                assert value['completion']['outcome'] in ('applied', 'unchanged')
+        if statement == 'SELECT transit_reload_conf()':
+            row = sql("SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1")[0]
+            output.append(dict(outcome=row))
         return output
     def setting(name):
         return sql(f"SELECT name, value, configured_value, pending_restart, source_line FROM transit_settings() WHERE name = '{name}'")[0]

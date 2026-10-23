@@ -150,8 +150,22 @@ fn perform(self: *Self, path: []const u8, body: []const u8, output: *std.Io.Writ
     if (std.mem.startsWith(u8, self.endpoint, "unix:")) return self.local(path, body, output);
     const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.endpoint, path });
     defer self.allocator.free(url);
-    const response = try self.http.fetch(.{ .location = .{ .url = url }, .method = .POST, .payload = body, .headers = .{ .content_type = .{ .override = "application/json" } }, .redirect_behavior = .not_allowed, .keep_alive = true, .response_writer = output });
-    if (response.status != .ok) return error.InvalidSqlHttpResponse;
+    var request = try self.http.request(.POST, try std.Uri.parse(url), .{ .headers = .{ .content_type = .{ .override = "application/json" }, .accept_encoding = .{ .override = "identity" } }, .redirect_behavior = .not_allowed, .keep_alive = true });
+    defer request.deinit();
+    request.transfer_encoding = .{ .content_length = body.len };
+    var writer = try request.sendBodyUnflushed(&.{});
+    try writer.writer.writeAll(body);
+    try writer.end();
+    try request.connection.?.flush();
+    var headers: [8192]u8 = undefined;
+    var response = try request.receiveHead(&headers);
+    if (response.head.status != .ok or response.head.content_encoding != .identity) return error.InvalidSqlHttpResponse;
+    // The pinned std.http.fetch assumes every ReadFailed has a body error.
+    // Cancellation of its underlying reader can leave that optional unset.
+    _ = response.reader(&.{}).streamRemaining(output) catch |err| switch (err) {
+        error.ReadFailed => return response.bodyErr() orelse error.Canceled,
+        else => return err,
+    };
 }
 fn local(self: *Self, path: []const u8, body: []const u8, output: *std.Io.Writer) !void {
     if (self.unix == null) {

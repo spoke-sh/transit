@@ -32,6 +32,9 @@ pub const Slot = struct {
     present: bool = false,
     native: bool = true,
     opening: bool = false,
+    // Protected by the session borrower. A validation/session-setting failure
+    // must not be presented as an uncertain durable admission.
+    acceptance_possible: bool = false,
     id: api.Id = @splat(0),
     account: usize = 0,
     mutex: std.Io.Mutex = .init,
@@ -226,7 +229,7 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
             .binding => "22023".*,
             .limit => "54000".*,
         } else info.state;
-        return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and diagnostic == null) .control else .never } });
+        return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null) .control else .never } });
     };
     return self.response(allocator, result);
 }
@@ -425,10 +428,17 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
 }
 fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @FieldType(api.Action, "execute")) !@FieldType(api.Response, "result") {
     const host = slot.host.?;
+    slot.acceptance_possible = false;
 
     if (slot.cursor != null) return error.SqlResultActive;
     const digest = if (input.token != null) try api.fingerprint(allocator, self.instance, host.account.ledger.account, host.database, host.sourceName(), input) else null;
-    if (input.token) |token| if (try host.fresh(g.ConfigurationOperations.find, .{ host, token, digest })) |item| return .{ .operation = try operationStatus(host, item) };
+    if (input.token) |token| {
+        // A reused token may already have accepted work even when observation
+        // fails. A successful absence check precedes all new preparation.
+        slot.acceptance_possible = true;
+        if (try host.fresh(g.ConfigurationOperations.find, .{ host, token, digest })) |item| return .{ .operation = try operationStatus(host, item) };
+        slot.acceptance_possible = false;
+    }
     const prepared = if (input.statement) |id| (try findStatement(slot, id)).prepared else try host.prepare(input.sql.?);
     var owned = input.statement == null;
     defer if (owned) host.destroy(prepared);
@@ -450,13 +460,18 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     }
     try host.bind(prepared, values);
     if (input.captured and prepared.* == .source) {
+        slot.acceptance_possible = true;
         return .{ .operation = try g.CapturedOperations.admit(host, &prepared.source, values, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
     }
     if (input.captured and prepared.* == .native and !prepared.mutation()) return error.CapturedSourceRequired;
-    if (prepared.* == .settings and prepared.settings.plan.statement == .reload) return .{ .operation = try g.ConfigurationOperations.admit(host, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
+    if (prepared.* == .settings and prepared.settings.plan.statement == .reload) {
+        slot.acceptance_possible = true;
+        return .{ .operation = try g.ConfigurationOperations.admit(host, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
+    }
     if (prepared.mutation()) {
         if (prepared.* == .native) {
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
+            slot.acceptance_possible = true;
             const item = try host.runtime.admit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
             return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, item.id }) };
         }

@@ -27,7 +27,7 @@ pub const Response = struct {
     items: []const Item,
 };
 /// Shared console vocabulary; dispatchers must reject unimplemented operations.
-pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show, timer, execute };
+pub const Meta = enum { connect, edit, execute, help, info, mode, quit, schema, show, sources, tables, timer };
 const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,
@@ -163,7 +163,8 @@ pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     } else if (std.mem.eql(u8, request.sql[1..end], "schema")) {
         try builder.add("writer", .meta, "Inspect the configured authorized Table writer");
     } else if (std.mem.eql(u8, request.sql[1..end], "help")) {
-        for ([_][]const u8{ "SQL", "INSERT", "UPDATE", "DELETE", "CREATE TABLE", "ALTER TABLE", "DROP TABLE" }) |topic| try builder.add(topic, .meta, "Local SQL help");
+        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add(command, .meta, "Console command help");
+        for ([_][]const u8{ "--all", "sql", "settings", "shortcuts", "INSERT", "UPDATE", "DELETE", "CREATE TABLE", "ALTER TABLE", "DROP TABLE" }) |topic| try builder.add(topic, .meta, "Local help topic");
     } else if (std.mem.eql(u8, request.sql[1..end], "timer")) {
         try builder.add("on", .meta, "Enable query timing");
         try builder.add("off", .meta, "Disable query timing");

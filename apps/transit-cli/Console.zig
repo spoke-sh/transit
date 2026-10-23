@@ -21,7 +21,6 @@ pub const Config = struct {
     instance: ?api.Instance = null,
     request_timeout_ms: u32 = 30000,
     format: Options.Format = .table,
-    execution: enum { interactive, captured } = .interactive,
     fn native(self: Config) sdk.Client.Config {
         var result: sdk.Client.Config = undefined;
         inline for (@typeInfo(sdk.Client.Config).@"struct".field_names) |field| @field(result, field) = @field(self, field);
@@ -70,6 +69,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     };
     try client.open(config.native(), if (password) |bytes| std.mem.trimEnd(u8, bytes, "\r\n") else null);
     defer {
+        client.timeout_ms = @min(client.timeout_ms, 1000);
         if (client.call(.close)) |reply| reply.deinit() else |_| {}
     }
     config.instance = client.instance;
@@ -85,7 +85,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
     var display: Console.Display = .{ .format = preferences.format orelse config.format };
-    var console: Console = .{ .init = init, .session = &display, .client = &client, .control = &control, .config = config, .out = &output.interface, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic };
+    var console: Console = .{ .init = init, .session = &display, .client = &client, .control = &control, .config = config, .password = if (password) |bytes| std.mem.trimEnd(u8, bytes, "\r\n") else null, .out = &output.interface, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.executeWithParameters(sql, parameters);
@@ -115,6 +115,8 @@ pub const Console = struct {
     client: *sdk.Client,
     control: *sdk.Client,
     config: Config,
+    password: ?[]const u8 = null,
+    session_lost: bool = false,
     out: *std.Io.Writer,
     batch: bool,
     preferences: Preferences,
@@ -123,9 +125,9 @@ pub const Console = struct {
     had_error: bool = false,
     access_lost: bool = false,
     query_interrupted: bool = false,
-    last_token: ?api.Token = null,
-    last_operation: ?api.OperationId = null,
+    active_token: ?api.Token = null,
     pub fn keepalive(self: *Console) !void {
+        if (self.session_lost) return;
         const last = self.client.last_call orelse return;
         if (last.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() < @max(1, self.client.lease_ms / 3)) return;
         const reply = try self.client.call(.touch);
@@ -151,7 +153,7 @@ pub const Console = struct {
         self.access_lost = std.mem.eql(u8, &failure.sqlstate, "42501") or std.mem.eql(u8, &failure.sqlstate, "28000");
         const summary = try std.fmt.allocPrint(self.init.arena.allocator(), "SQL service: {s} ({s})", .{ failure.code, failure.sqlstate });
         self.diagnostic.summary = summary;
-        self.diagnostic.next = if (failure.retry == .control or failure.retry == .same_token) "Use .status to inspect the original operation. Repeating SQL submits new work." else null;
+        self.diagnostic.next = null;
         return error.SqlServiceError;
     }
     pub fn assist(self: *Console, allocator: std.mem.Allocator, request: q.Assistance.Request) !q.Assistance.Response {
@@ -171,8 +173,10 @@ pub const Console = struct {
         const text = std.mem.trim(u8, raw, " \t\r\n");
         if (text.len == 0) return true;
         if (std.mem.eql(u8, text, ".quit")) return false;
+        if (self.session_lost and !isMeta(text)) return self.diagnostic.fail(error.SqlSessionExpired, "SQL session was lost; reconnect before running another statement", "Start a new console or use .connect FILE. Session settings must be selected again.");
         self.query_interrupted = false;
         self.diagnostic.summary = null;
+        self.diagnostic.cause = null;
         self.diagnostic.next = null;
         self.diagnostic.sql = null;
         self.diagnostic.envelope = null;
@@ -180,7 +184,6 @@ pub const Console = struct {
             self.had_error = true;
             if (self.diagnostic.summary == null) {
                 self.diagnostic.summary = "SQL request could not complete";
-                if (self.last_token) |token| self.diagnostic.next = try std.fmt.allocPrint(self.init.arena.allocator(), "Original request token: {s}. Use .status token:{s} after reconnecting. Repeating SQL submits new work.", .{ std.fmt.bytesToHex(token, .lower), std.fmt.bytesToHex(token, .lower) });
             }
             if (self.batch or Signals.terminating()) return err;
             self.diagnostic.emit(self.init.io, err);
@@ -231,7 +234,7 @@ pub const Console = struct {
     }
     fn query(self: *Console, text: []const u8, parameters: ?Input.Parameters) !void {
         var timing = @import("Timing.zig").start(self.init, self.preferences.timing);
-        timing.interactive = self.config.execution == .interactive;
+        timing.interactive = false;
         defer {
             if (timing.finish()) |report| self.diagnostic.timing = report;
         }
@@ -258,52 +261,40 @@ pub const Console = struct {
         }
         var token: api.Token = undefined;
         try self.init.io.randomSecure(&token);
-        self.last_token = token;
-        self.last_operation = null;
+        self.active_token = token;
+        defer self.active_token = null;
+        var pending = sdk.Pending.init(self.control, token);
         timing.enter(.submit);
-        var reply = try self.call(.{ .execute = .{ .sql = text, .parameters = values, .token = token, .captured = self.config.execution == .captured } });
-        defer reply.deinit();
-        try self.checked(reply.value);
-        if (reply.value.result == .operation) {
-            var operation = reply.value.result.operation;
-            self.last_operation = operation.identity;
+        var reply = self.call(.{ .execute = .{ .sql = text, .parameters = values, .token = token } }) catch |err| {
             timing.enter(.wait);
-            const started = std.Io.Clock.awake.now(self.init.io);
-            while (operation.phase != .terminal and operation.phase != .abandoned and !operation.blocked) {
-                if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 270000) {
-                    try self.showOperation(operation);
-                    return error.SqlOperationWaitEnded;
-                }
-                if (Signals.interrupted()) {
-                    self.query_interrupted = true;
-                    return error.ConsoleInterrupted;
-                }
-                try self.init.io.sleep(.fromMilliseconds(25), .awake);
-                const status = try self.control.call(.{ .status = .{ .operation = operation.identity } });
-                defer status.deinit();
-                try self.checked(status.value);
-                if (status.value.result != .operation) return error.InvalidSqlResponse;
-                operation = status.value.result.operation;
-            }
-            try self.showOperation(operation);
-            if (operation.phase != .terminal) return error.SqlOperationIncomplete;
-            if (operation.outcome == .rejected or operation.outcome == .cancelled or operation.outcome == .partial) return error.SqlOperationRejected;
-            if (operation.identity.kind != .captured or operation.outcome != .applied) return;
-            const result = try self.call(.{ .result = operation.identity });
-            reply.deinit();
-            reply = result;
-            try self.checked(reply.value);
+            return self.finishPending(&pending, err == error.ConsoleInterrupted);
+        };
+        defer reply.deinit();
+        if (reply.value.result == .operation) {
+            try pending.observe(reply.value.result.operation);
+            pending.milliseconds = 270000;
+            timing.enter(.wait);
+            return self.finishPending(&pending, false);
         }
+        if (reply.value.result == .err and (reply.value.result.err.retry == .control or reply.value.result.err.retry == .same_token)) {
+            if (reply.value.result.err.operation) |value| try pending.observe(value);
+            timing.enter(.wait);
+            return self.finishPending(&pending, false);
+        }
+        try self.checked(reply.value);
+        self.active_token = null;
         if (reply.value.result == .completion) {
-            self.last_token = null;
             if (self.session.format == .json) return self.json(reply.value.result);
-            return self.out.print("{s}\n", .{@tagName(reply.value.result.completion.kind)});
+            const value = reply.value.result.completion;
+            switch (value.kind) {
+                .insert, .update, .delete => return self.out.print("{d} rows changed; {d} matched\n", .{ value.changed, value.matched }),
+                else => return self.out.writeAll("Statement completed.\n"),
+            }
         }
         return self.consume(&reply, &timing);
     }
     fn consume(self: *Console, reply: *std.json.Parsed(api.Response), timing: *@import("Timing.zig")) !void {
         if (reply.value.result != .batch) return error.InvalidSqlResponse;
-        self.last_token = null;
         const cursor = reply.value.result.batch.cursor;
         if (self.session.format == .json) {
             var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
@@ -315,10 +306,14 @@ pub const Console = struct {
             if (self.control.call(.{ .close_result = cursor })) |closed| closed.deinit() else |_| {}
         }
         var rows: u64 = 0;
+        errdefer {
+            if (self.diagnostic.summary == null) self.diagnostic.summary = "Query result is incomplete";
+            self.diagnostic.next = "The rows already displayed are only a partial result.";
+        }
         while (true) {
             const batch = reply.value.result.batch;
             timing.enter(.render);
-            try self.render(batch);
+            if (batch.rows.len != 0 or rows == 0) try self.render(batch);
             rows += batch.rows.len;
             if (batch.complete) break;
             timing.enter(.fetch);
@@ -351,32 +346,69 @@ pub const Console = struct {
         }
         try @import("Output.zig").write(self.init, self.out, "");
     }
-    fn showOperation(self: *Console, value: api.Operation) !void {
-        self.last_token = value.token;
-        self.last_operation = value.identity;
-        self.diagnostic.envelope = value.diagnostic;
-        if (self.session.format == .json) try self.json(.{ .operation = value }) else try self.out.print("Operation {s}:{d}: {s}/{s}; matched {d}, changed {d}; token {s}\n", .{ @tagName(value.identity.kind), value.identity.id, @tagName(value.phase), if (value.outcome) |outcome| @tagName(outcome) else "pending", value.matched, value.changed, std.fmt.bytesToHex(value.token, .lower) });
-        try self.out.flush();
+    fn stopRead(self: *Console) void {
+        const prior = self.control.timeout_ms;
+        self.control.timeout_ms = @min(prior, 1000);
+        defer self.control.timeout_ms = prior;
+        if (self.control.call(.{ .cancel = .{ .query = @splat(0) } })) |reply| reply.deinit() else |_| {}
     }
-    fn target(self: *Console, text: []const u8) !api.Target {
-        if (text.len == 0) {
-            if (self.last_operation) |id| return .{ .operation = id };
-            if (self.last_token) |token| return .{ .token = token };
-            return error.NoQuery;
+    fn awaitPending(self: *Console, pending: *sdk.Pending, cancel: bool) anyerror!api.Operation {
+        const Event = union(enum) { reply: anyerror!api.Operation, signal: anyerror!void };
+        var events: [2]Event = undefined;
+        var selection: std.Io.Select(Event) = .init(self.init.io, &events);
+        defer selection.cancelDiscard();
+        try selection.concurrent(.signal, poll, .{self.init.io});
+        try selection.concurrent(.reply, sdk.Pending.settle, .{ pending, self.control, self.config.native(), self.password, cancel });
+        switch (try selection.await()) {
+            .reply => |reply| return reply,
+            .signal => |result| {
+                try result;
+                selection.cancelDiscard();
+                self.query_interrupted = true;
+                if (Signals.terminating() or cancel) return error.SqlOutcomeUnknown;
+                Signals.clear();
+                return self.awaitPending(pending, true);
+            },
         }
-        if (std.mem.startsWith(u8, text, "token:")) {
-            var token: api.Token = undefined;
-            if (text.len != 38) return error.InvalidSqlToken;
-            _ = std.fmt.hexToBytes(&token, text[6..]) catch return error.InvalidSqlToken;
-            return .{ .token = token };
+    }
+    fn finishPending(self: *Console, pending: *sdk.Pending, cancel: bool) !void {
+        defer self.session_lost = self.session_lost or pending.session_lost;
+        const value = self.awaitPending(pending, cancel) catch |err| {
+            self.access_lost = self.access_lost or err == error.SqlObservationDenied;
+            self.diagnostic.envelope = null;
+            self.diagnostic.summary = if (err == error.SqlObservationDenied) "Permissions prevented confirming the statement outcome" else "Could not confirm whether the statement completed";
+            self.diagnostic.next = "Running it again may apply changes twice.";
+            return if (self.query_interrupted) error.ConsoleInterrupted else error.SqlOutcomeUnknown;
+        };
+        self.diagnostic.envelope = value.diagnostic;
+        switch (value.outcome orelse return error.SqlOutcomeUnknown) {
+            .rejected => {
+                self.diagnostic.summary = "Statement was rejected";
+                return error.SqlOperationRejected;
+            },
+            .cancelled => {
+                self.diagnostic.summary = "Statement was cancelled";
+                return error.ConsoleInterrupted;
+            },
+            .partial => {
+                self.diagnostic.summary = "Statement completed only partially";
+                self.diagnostic.next = "Inspect the affected settings before making further changes.";
+                return error.SqlOperationPartial;
+            },
+            .applied, .unchanged => {},
         }
-        var kind: @FieldType(api.OperationId, "kind") = .table;
-        var identifier = text;
-        if (std.mem.indexOfScalar(u8, text, ':')) |colon| {
-            kind = std.meta.stringToEnum(@FieldType(api.OperationId, "kind"), text[0..colon]) orelse return error.InvalidSqlOperationReference;
-            identifier = text[colon + 1 ..];
+        if (self.session.format == .json) {
+            try self.json(.{ .completion = .{ .outcome = value.outcome.?, .matched = value.matched, .changed = value.changed, .pending_restart = value.configuration_phase == .pending_restart } });
+        } else {
+            try self.out.writeAll("Statement completed.");
+            if (value.matched != 0 or value.changed != 0) try self.out.print(" Matched {d}; changed {d}.", .{ value.matched, value.changed });
+            if (value.configuration_phase == .pending_restart) try self.out.writeAll(" Some settings require a server restart.");
+            try self.out.writeByte('\n');
         }
-        return .{ .operation = .{ .account = self.client.account.?, .kind = kind, .id = try std.fmt.parseInt(u64, identifier, 10) } };
+        if (self.query_interrupted and self.batch) {
+            try @import("Output.zig").write(self.init, self.out, "");
+            return self.diagnostic.fail(error.ConsoleInterrupted, "Statement completed before interruption; remaining input was not executed", null);
+        }
     }
     fn dispatch(self: *Console, text: []const u8, a: std.mem.Allocator) !void {
         if (@import("ExternalEditor.zig").isCommand(text)) {
@@ -384,7 +416,13 @@ pub const Console = struct {
             self.diagnostic.summary = @import("ExternalEditor.zig").message(err);
             return err;
         }
-        if (std.mem.eql(u8, text, ".help") or std.mem.startsWith(u8, text, ".help ")) return @import("ConsoleHelp.zig").write(self, std.mem.trim(u8, text[5..], " \t"));
+        if (std.mem.eql(u8, text, ".help") or std.mem.startsWith(u8, text, ".help ") or std.mem.startsWith(u8, text, ".help\t")) {
+            @import("ConsoleHelp.zig").write(self.out, text[5..]) catch |err| {
+                if (err == error.UnknownHelpTopic) self.diagnostic.summary = "Unknown help topic. Use .help, .help --all or .help COMMAND.";
+                return err;
+            };
+            return;
+        }
         if (std.mem.startsWith(u8, text, ".connect ")) {
             if (self.batch) return error.ConnectionSwitchRequiresTerminal;
             self.next_connection = try self.init.arena.allocator().dupe(u8, try Preferences.argument(a, text[9..]));
@@ -411,51 +449,6 @@ pub const Console = struct {
             try self.checked(reply.value);
             if (reply.value.result != .context) return error.InvalidSqlResponse;
             return self.json(reply.value.result.context);
-        }
-        inline for (.{ "status", "resume", "cancel" }) |command| {
-            const prefix = "." ++ command;
-            if (std.mem.eql(u8, text, prefix) or std.mem.startsWith(u8, text, prefix ++ " ")) {
-                const argument = std.mem.trim(u8, text[prefix.len..], " \t");
-                if (comptime std.mem.eql(u8, command, "status")) {
-                    if (std.mem.eql(u8, argument, "all") or (argument.len == 0 and self.last_operation == null and self.last_token == null)) {
-                        var after: u64 = 0;
-                        while (true) {
-                            const reply = try self.control.call(.{ .operations = .{ .after = after } });
-                            defer reply.deinit();
-                            try self.checked(reply.value);
-                            if (reply.value.result != .operations) return error.InvalidSqlResponse;
-                            for (reply.value.result.operations.entries) |item| try self.showOperation(item);
-                            after = reply.value.result.operations.next orelse break;
-                        }
-                        return;
-                    }
-                }
-                const selected = try self.target(argument);
-                const action: api.Action = if (comptime std.mem.eql(u8, command, "status")) .{ .status = selected } else if (comptime std.mem.eql(u8, command, "cancel")) .{ .cancel = selected } else blk: {
-                    if (selected == .operation) break :blk .{ .@"resume" = selected.operation };
-                    const status = try self.control.call(.{ .status = selected });
-                    defer status.deinit();
-                    try self.checked(status.value);
-                    if (status.value.result != .operation) return error.InvalidSqlResponse;
-                    break :blk .{ .@"resume" = status.value.result.operation.identity };
-                };
-                const reply = try self.control.call(action);
-                defer reply.deinit();
-                try self.checked(reply.value);
-                if (reply.value.result != .operation) return error.InvalidSqlResponse;
-                try self.showOperation(reply.value.result.operation);
-                if (comptime std.mem.eql(u8, command, "resume")) {
-                    const operation = reply.value.result.operation;
-                    if (operation.identity.kind == .captured and operation.outcome == .applied) {
-                        var result = try self.call(.{ .result = operation.identity });
-                        defer result.deinit();
-                        try self.checked(result.value);
-                        var timing = @import("Timing.zig").start(self.init, self.preferences.timing);
-                        try self.consume(&result, &timing);
-                    }
-                }
-                return;
-            }
         }
         return error.UnknownConsoleCommand;
     }

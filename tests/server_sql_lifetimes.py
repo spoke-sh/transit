@@ -160,7 +160,7 @@ def run(cli, node, host, board, gateway):
         connect()
         console = TableConsole(fixture.cli, cwd=fixture.root)
         result = console.call('INSERT INTO items (id,value) VALUES (1,100);')
-        assert result['operation']['outcome'] == 'applied', result
+        assert result['completion']['outcome'] == 'applied', result
         pg_port = str(fixture.config['sql']['postgres']['port'])
         with (fixture.root/'psql.stderr').open('wb') as log:
             psql = subprocess.Popen(['psql', '-XqAt', '-h', '127.0.0.1', '-p', pg_port, '-U', 'owner', '-d', 'transit'],
