@@ -36,8 +36,8 @@ def fixtures():
     pending = b'RXP1' + contract + struct.pack('<BQQ', 0, route(7, 7), 0) + remote
     accepted = b'RXA1' + contract + remote + local
     row = b'RXR1' + contract + local + b'\1'
-    producer = b'RXB1' + contract + bytes([19]) * 32 + struct.pack('<6QB', 88, 4, 8, 65536, 1024, 0, 1) + remote
-    assert len(producer) == 189
+    producer = b'RXB1' + contract + bytes([19]) * 32 + struct.pack('<8QB', 88, 4, 8, 65536, 1024, 0, 3, 7, 1) + remote
+    assert len(producer) == 205
     cursor = b'RXW1' + contract + binding + struct.pack('<9QBB', 99, 7, 3, 1, 1, 0, 3, 1, 8, 4, 1) + struct.pack('>QQI', 1, 3, 0)
     assert len(cursor) == 162
     assert tuple(map(len, [head, channel, pending, accepted, row])) == (175, 107, 125, 180, 109)

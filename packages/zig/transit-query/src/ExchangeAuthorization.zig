@@ -17,6 +17,8 @@ pub const Assignment = struct {
         try q.UnifiedRecords.identity(self.producer);
         try basis.validate(bundle);
         const options = self.options;
+        try options.receiver.validate();
+        if (options.receiver.owner != (try original(bundle)).audience) return error.QueryDenied;
         if (options.partitions == 0 or options.workers == 0 or options.worker >= options.workers or options.batch == 0 or options.batch > q.fuze.RelationalExchange.max_rows or options.epoch == 0 or options.quota == 0) return error.InvalidRelationalExchange;
         _ = try std.math.mul(u64, options.partitions, bundle.sources.len);
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -24,7 +26,7 @@ pub const Assignment = struct {
         var bytes: [q.RelationalHistory.Vector.max_bytes]u8 = undefined;
         hash.update(try basis.encode(bundle, &bytes));
         var number: [8]u8 = undefined;
-        inline for (.{ self.exchange, self.producer, options.partitions, options.workers, options.worker, @as(u64, options.batch), options.epoch, options.quota }) |value| {
+        inline for (.{ self.exchange, self.producer, options.receiver.owner, options.receiver.resource, options.partitions, options.workers, options.worker, @as(u64, options.batch), options.epoch, options.quota }) |value| {
             std.mem.writeInt(u64, &number, value, .little);
             hash.update(&number);
         }
@@ -48,6 +50,21 @@ pub fn prepare(client: q.wire.AuthorizationClient, assignment: Assignment, bundl
     if (!sameCaller(claim, bound.signed.claim)) return error.QueryDenied;
     return .{ .assignment = assignment, .proof = bound.signed };
 }
+pub fn readBinding(self: Self, bundle: q.RelationalBundle, basis: q.RelationalHistory.Vector, ordinal: usize, executor: u64) !q.catalog.DirectReadDelegation.Borrow.Binding {
+    _ = try self.subject(self.assignment, bundle, basis);
+    if (ordinal >= bundle.sources.len) return error.InvalidRelationalSources;
+    const record = basis.entries[ordinal].record;
+    return .{ .executor = executor, .target = if (record.point()) |point|
+        .{ .history = .{ .object = record.basis.snapshot.object, .point = point } }
+    else
+        .{ .snapshot = record.basis.snapshot }, .purpose = try self.assignment.context(bundle, basis) };
+}
+/// The original caller explicitly authorizes this worker credential to read
+/// the assignment's exact source cut, without granting pin lifecycle control.
+pub fn prepareRead(self: Self, client: q.catalog.DirectTableClient, bundle: q.RelationalBundle, basis: q.RelationalHistory.Vector, ordinal: usize, executor: u64) !q.catalog.DirectReadDelegation.Borrow {
+    const binding = try self.readBinding(bundle, basis, ordinal, executor);
+    return q.catalog.DirectReadDelegation.Borrow.prepare(client, bundle.retention[ordinal], binding);
+}
 /// Check the exact query/basis/layout before the native turn authenticates the
 /// proof and fences current privileges. This check alone grants no access.
 pub fn subject(self: Self, assignment: Assignment, bundle: q.RelationalBundle, basis: q.RelationalHistory.Vector) !p.Authorization.Subject {
@@ -70,7 +87,7 @@ test "exchange authorization binds original caller, complete basis and exact wor
     var store: q.testing.Store = .{};
     defer store.deinit();
     var turn = try store.capture();
-    const assignment: Assignment = .{ .exchange = 99, .producer = 31, .options = .{ .partitions = 7, .workers = 3, .worker = 1, .batch = 4, .epoch = 1, .quota = 1048576 } };
+    const assignment: Assignment = .{ .exchange = 99, .producer = 31, .options = .{ .receiver = .{ .owner = bundle.authorization.?.proof.claim.audience, .resource = 900 }, .partitions = 7, .workers = 3, .worker = 1, .batch = 4, .epoch = 1, .quota = 1048576 } };
     var claim = bundle.authorization.?.proof.claim;
     claim.audience = assignment.producer;
     claim.context = try assignment.context(bundle, basis);
@@ -80,6 +97,11 @@ test "exchange authorization binds original caller, complete basis and exact wor
     inline for (.{ "exchange", "producer" }) |field| {
         var changed = assignment;
         @field(changed, field) += 1;
+        try t.expectError(error.QueryDenied, saved.subject(changed, bundle, basis));
+    }
+    inline for (.{ "owner", "resource" }) |field| {
+        var changed = assignment;
+        @field(changed.options.receiver, field) += 1;
         try t.expectError(error.QueryDenied, saved.subject(changed, bundle, basis));
     }
     inline for (.{ "partitions", "workers", "worker", "batch", "epoch", "quota" }) |field| {

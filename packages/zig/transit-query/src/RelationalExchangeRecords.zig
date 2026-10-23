@@ -243,31 +243,45 @@ pub const Row = struct {
         return result;
     }
 };
+/// Immutable destination for one exchange, independent of its Table owners.
+pub const Receiver = struct {
+    owner: u64,
+    resource: u64,
+    pub fn validate(self: Receiver) !void {
+        try q.UnifiedRecords.identity(self.owner);
+        try q.UnifiedRecords.identity(self.resource);
+    }
+};
 pub const Producer = struct {
     id: u64,
     owner: u64,
     resource: u64,
     binding: [32]u8,
+    receiver: Receiver,
     limit: u64,
     charged: u64,
     last: u64 = 0,
     pending: ?Ref = null,
-    pub const base_bytes = 189 + 28 + 32 + 27;
+    pub const base_bytes = 205 + 28 + 32 + 27;
     pub fn charge(spec: q.station.Publication.Spec) u64 {
         return @as(u64, spec.length) + 2 * (125 + 28) + 104 + (@as(u64, spec.chunks()) + 1) * 27;
     }
     const fields = .{ "id", "owner", "resource", "limit", "charged", "last" };
     pub fn encode(self: Producer) !p.Value {
+        try self.receiver.validate();
+        if (self.receiver.resource == self.resource) return error.InvalidRelationalExchange;
         if (self.id == 0 or self.owner == 0 or self.resource == 0 or self.limit < x.max_bytes or self.charged < base_bytes or self.charged > self.limit) return error.InvalidRelationalExchange;
         if (self.pending) |reference| {
             if (reference.record <= self.last or reference.resource != self.resource or reference.namespace != self.id or reference.domain != .query_exchange or reference.spec.format != segment_format or reference.spec.length < 111 or reference.spec.length > x.max_bytes) return error.InvalidRelationalExchange;
             if (charge(reference.spec) > self.charged - base_bytes) return error.InvalidRelationalExchange;
         }
-        var bytes: [189]u8 = undefined;
+        var bytes: [205]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try start(&writer, "RXB1");
         try writer.writeAll(&self.binding);
         try writeInts(&writer, self, fields);
+        try writer.writeInt(u64, self.receiver.owner, .little);
+        try writer.writeInt(u64, self.receiver.resource, .little);
         try writer.writeByte(@intFromBool(self.pending != null));
         if (self.pending) |reference| try writer.writeAll((try reference.encode()).slice()) else try writer.splatByteAll(0, 72);
         return p.Value.init(writer.buffered());
@@ -279,6 +293,7 @@ pub const Producer = struct {
         var result: Producer = undefined;
         result.binding = (try reader.takeArray(32)).*;
         try readInts(&reader, &result, fields);
+        result.receiver = .{ .owner = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little) };
         const present = try reader.takeByte();
         if (present > 1) return error.InvalidRelationalExchange;
         const encoded = try reader.take(72);

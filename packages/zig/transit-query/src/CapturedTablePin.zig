@@ -257,7 +257,7 @@ const Remote = struct {
     fn delegated(self: Remote, grant: Grant) !c.DirectTableClient {
         const connection = self.client.connection;
         const original = grant.binding.connection;
-        if (self.client.delegation != null or self.client.closure != null or connection.principal != grant.binding.executor or connection.role != null or
+        if (self.client.delegation != null or self.client.closure != null or self.client.borrow != null or connection.principal != grant.binding.executor or connection.role != null or
             !std.meta.eql(connection.scope, original.scope) or connection.branch != original.branch or connection.audience != original.audience) return error.QueryDenied;
         var result = self.client;
         result.connection = original;
@@ -289,6 +289,18 @@ const Remote = struct {
 /// separately establish committed retention before using this route for work.
 pub fn delegatedClient(client: c.DirectTableClient, grant: Grant) !c.DirectTableClient {
     return (Remote{ .client = client }).delegated(grant);
+}
+/// Borrowed exchange routes never inherit the coordinator's cleanup capability.
+pub fn borrowedClient(client: c.DirectTableClient, grant: Grant, borrow: Grant.Borrow) !c.DirectTableClient {
+    const connection = client.connection;
+    const original = grant.binding.connection;
+    if (client.delegation != null or client.closure != null or client.borrow != null or connection.principal != borrow.binding.executor or connection.role != null or
+        !std.meta.eql(connection.scope, original.scope) or connection.branch != original.branch or connection.audience != original.audience) return error.QueryDenied;
+    var result = client;
+    result.connection = original;
+    result.delegation = grant;
+    result.borrow = borrow;
+    return result;
 }
 /// The configured executor's own key authenticates the original caller's saved
 /// grant. Acquisition only follows committed admission and preserves its cut.

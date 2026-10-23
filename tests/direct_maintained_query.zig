@@ -9,13 +9,13 @@ const w = c.DirectTableProtocol;
 const r = q.RelationalMaintenanceRecords;
 const support = @import("direct_captured_query.zig");
 pub const State = struct { worker: support.Provision, principal: u64, seed: u8, bundle: w.Binary, identity: r.Identity, job: u64, independent: bool };
-fn executor(client: c.DirectTableClient, state: State) !c.DirectTableClient {
+pub fn executor(client: c.DirectTableClient, state: State) !c.DirectTableClient {
     var result = client;
     result.connection.principal = state.principal;
     result.key = try support.key(state.seed);
     return result;
 }
-fn source(client: c.DirectTableClient, state: State) !s.client.ResourceReader.Reader {
+pub fn source(client: c.DirectTableClient, state: State) !s.client.ResourceReader.Reader {
     const reader: s.client.ResourceReader = .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key };
     return reader.open(state.worker.resource);
 }
@@ -23,7 +23,7 @@ fn observed(client: c.DirectTableClient, state: State) !r.Head {
     var reader = try source(client, state);
     return q.RelationalMaintenance.head(&reader, state.identity);
 }
-fn host(client: c.DirectTableClient, state: State) !s.GenServer {
+pub fn host(client: c.DirectTableClient, state: State) !s.GenServer {
     var result = try s.GenServer.init(.{ .client = client.authority, .realm = 42, .principal = state.principal, .pid = state.worker.pid, .generation = state.worker.generation, .key = try support.key(state.seed) }, "state");
     result.failure_policy = .stop;
     return result;
@@ -34,14 +34,17 @@ fn step(init: std.process.Init, owner: *s.GenServer, behavior: *support.Relation
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
 }
 pub fn prepare(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, independent: bool) !State {
+    return prepareWithExchange(init, client, admin, role, independent, false);
+}
+pub fn prepareWithExchange(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, independent: bool, exchanged: bool) !State {
     const alloc = init.arena.allocator();
-    const principal: u64 = if (independent) 108 else 107;
-    const seed: u8 = if (independent) 79 else 73;
+    const principal: u64 = if (exchanged) 140 else if (independent) 108 else 107;
+    const seed: u8 = if (exchanged) 112 else if (independent) 79 else 73;
     var worker = try support.provision(admin, principal, seed);
-    const left = if (independent) "maintained_left" else "maintained_alias";
+    const left = if (exchanged) "exchange_input" else if (independent) "maintained_left" else "maintained_alias";
     const right = if (independent) "maintained_right" else left;
-    const object: u64 = if (independent) 71 else 70;
-    const operation: u64 = if (independent) 643 else 640;
+    const object: u64 = if (exchanged) 90 else if (independent) 71 else 70;
+    const operation: u64 = if (exchanged) 1100 else if (independent) 643 else 640;
     try support.table(alloc, client, role, object, left, operation, 2);
     if (independent) try support.table(alloc, client, role, 72, right, 646, 2);
     _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
@@ -69,7 +72,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     const body = try bundle.encode(&bytes);
     var state: State = .{ .worker = worker, .principal = principal, .seed = seed, .bundle = try .encode(alloc, body), .identity = undefined, .job = 0, .independent = independent };
     const client_set = [_]c.DirectTableClient{ try executor(client, state), try executor(client, state) };
-    var behavior: support.RelationalHost = .{ .bundle = bundle, .bytes = body, .reference = try bundle.reference(worker.resource, 1), .clients = &client_set, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024) };
+    var behavior: support.RelationalHost = .{ .exchanged = exchanged, .bundle = bundle, .bytes = body, .reference = try bundle.reference(worker.resource, 1), .clients = &client_set, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024) };
     var running = try host(client, state);
     try support.send(client, worker.pid, try .init("configure"));
     try support.send(client, worker.pid, try .init("upload"));
@@ -117,7 +120,7 @@ fn mutation(init: std.process.Init, client: c.DirectTableClient, name: []const u
     }
     try t.expectEqual(@as(u64, if (id == 999) 0 else 1), result.value.result.rows.committed.outcome.affected);
 }
-fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, state: State, revision: u64, expected: u128) !q.RelationalRevision.Position {
+pub fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, state: State, revision: u64, expected: u128) !q.RelationalRevision.Position {
     const options: q.RelationalRevision.Options = .{ .owner = state.worker.pid, .resource = state.worker.resource, .identity = state.identity, .revision = revision, .requests = 4000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
     var reader = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(100 + revision)));

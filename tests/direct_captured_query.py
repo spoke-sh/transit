@@ -13,10 +13,10 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False):
-    if (maintained_only or relational_failures_only or source_pages_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False):
+    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
         raise ValueError("focused runs do not run installed captured consumers")
-    if sum((maintained_only, relational_failures_only, source_pages_only)) > 1:
+    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only)) > 1:
         raise ValueError("choose one focused schedule")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-capture-") as directory:
@@ -151,7 +151,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
-            if maintained_only or relational_failures_only or source_pages_only:
+            if maintained_only or relational_failures_only or source_pages_only or exchanges_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
             else:
                 subprocess.run([caller, endpoint, "capture-prepare", str(profile)], check=True, timeout=240)
@@ -169,7 +169,10 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 assert all(faults.values()), faults
                 subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                 subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)
-            if source_pages_only:
+            if exchanges_only:
+                subprocess.run([caller, endpoint, "capture-exchanges", str(profile)], check=True, timeout=900)
+                print("Direct exchanges: independent receiver/worker placement, exact borrowed history cuts, maintained attachment, host reconstruction and lease cleanup passed.", flush=True)
+            elif source_pages_only:
                 subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                 print("Direct retained source pages: wide/nested values, original interpretation, signed predicate boundaries, point-hit/absence, unsafe pushdown rejection and current permission passed.", flush=True)
             elif not relational_failures_only:
@@ -183,13 +186,15 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 authority = start()
                 subprocess.run([caller, endpoint, "maintained-resume", str(profile)], check=True, timeout=600)
                 print("Direct maintained query: original acquisition recovery, bounded physical history progress across node replacement, initial backfill, alias and independent Table cuts, accepted no-op revisions, paired deltas, original lease cleanup, post-closure disclosure, current revocation/restoration and retirement passed.", flush=True)
-            if not maintained_only and not source_pages_only:
+            if not maintained_only and not source_pages_only and not exchanges_only:
                 for case in ("captured_work", "captured_spill", "captured_overflow", "maintained_overflow", "maintained_gap"):
                     subprocess.run([caller, endpoint, "relational-failure-" + case, str(profile)], check=True, timeout=600)
                 assert history_gap
                 print("Direct relational failures: work/spill bounds, captured and maintained ordered-overflow witnesses, permanent history-coverage rejection, preserved prior results and original lease cleanup passed.", flush=True)
+            if not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only)):
+                subprocess.run([caller, endpoint, "capture-exchanges", str(profile)], check=True, timeout=900)
             consumers(endpoint, "result")
-            if not maintained_only and not relational_failures_only and not source_pages_only:
+            if not maintained_only and not relational_failures_only and not source_pages_only and not exchanges_only:
                 print("Direct captured query: independent worker resource, durable pre-acquisition restart, uncertain pin acquisition/release, original unflushed cuts, wide/nested Fuze/Arrow traversal after ALTER/DROP/name reuse, composite-key hit/absence, shared-alias and independent-Table relational capture, executor without Table rights, released-pin result disclosure, current revocation/restoration and separately authorized cleanup after credential rotation passed.")
         except BaseException:
             log.flush()
@@ -214,6 +219,7 @@ if __name__ == "__main__":
     parser.add_argument("--maintained-only", action="store_true")
     parser.add_argument("--relational-failures-only", action="store_true")
     parser.add_argument("--source-pages-only", action="store_true")
+    parser.add_argument("--exchanges-only", action="store_true")
     parser.add_argument("--python-native")
     parser.add_argument("--ruby-host")
     parser.add_argument("--java-packages")

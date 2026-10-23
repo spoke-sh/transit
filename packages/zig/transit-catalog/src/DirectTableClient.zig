@@ -18,6 +18,8 @@ delegation: ?c.DirectReadDelegation = null,
 /// Current original-caller permission to close a saved delegation. This never
 /// renews read authority for the accepted computation.
 closure: ?c.DirectReadDelegation.Closure = null,
+/// Saved read-only permission for a distinct executor and one exact cut.
+borrow: ?c.DirectReadDelegation.Borrow = null,
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
 /// Current rights and exact interpretation only. This prepares no mutation or
@@ -34,14 +36,19 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
         if (!std.meta.eql(delegation.binding.connection, self.connection)) return error.InvalidTableDelegation;
         try delegation.allow(action);
     }
+    if (self.borrow) |borrow| {
+        if (self.delegation == null or self.closure != null) return error.InvalidTableDelegation;
+        _ = try borrow.proof(self.delegation.?, self.allocator);
+        try borrow.allow(action);
+    }
     if (self.closure != null) {
         if (self.delegation == null) return error.InvalidTableDelegation;
         try c.DirectReadDelegation.Closure.allow(action);
     }
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure };
-    const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow };
+    const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const proof = (try authority.proof(self.connection.audience, try w.Request.context(input, self.allocator))).signed;
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .proof = proof };
     try request.validate(self.allocator);
     return request;
 }

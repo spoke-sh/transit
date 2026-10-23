@@ -550,6 +550,7 @@ pub const RelationalHost = struct {
     reference: s.PublicationReference,
     clients: []const c.DirectTableClient,
     workspace: []u8,
+    exchanged: bool = false,
     pub const correlation_key = p.Value.init("direct-relational-correlation") catch unreachable;
     pub const wake_key = p.Value.init("direct-relational-wake") catch unreachable;
     pub const collected_key = p.Value.init("direct-relational-collected") catch unreachable;
@@ -580,6 +581,7 @@ pub const RelationalHost = struct {
             if (ready) {
                 const correlation = try turn.call(turn.delivery.pid, try self.reference.encode(), null);
                 try turn.write(correlation_key, q.UnifiedRecords.identityValue(correlation));
+                if (self.exchanged) try q.RelationalMaintenance.selectExchanges(turn, .{ .peer = turn.delivery.pid, .correlation = correlation }, self.reference);
             } else try turn.cast(turn.delivery.pid, frame.payload);
             return;
         }

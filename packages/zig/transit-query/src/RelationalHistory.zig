@@ -13,7 +13,7 @@ turn: *q.station.Turn,
 allocator: std.mem.Allocator,
 bundle: q.RelationalBundle,
 vector: Vector,
-clients: []const c.DirectTableClient,
+clients: [r.max_sources]c.DirectTableClient,
 cuts: [r.max_sources]r.Cut = undefined,
 reads: u64 = 0,
 read_limit: u64,
@@ -141,6 +141,28 @@ pub fn capture(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.Re
     return vector;
 }
 pub fn open(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.RelationalBundle, vector: Vector, clients: []const c.DirectTableClient, read_limit: u64) !Self {
+    try vector.validate(bundle);
+    var routes: [r.max_sources]c.DirectTableClient = undefined;
+    for (bundle.sources, 0..) |_, i| routes[i] = try route(bundle, clients, i);
+    return openRouted(turn, allocator, bundle, vector, routes, read_limit);
+}
+/// Workers use their own credentials and the original caller's exact borrowed
+/// reads. The saved assignment binds the native PID and immutable destination.
+pub fn openExchange(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.RelationalBundle, vector: Vector, clients: []const c.DirectTableClient, authorization: q.ExchangeAuthorization, borrows: []const c.DirectReadDelegation.Borrow, read_limit: u64) !Self {
+    const decision = turn.decision;
+    errdefer turn.decision = decision;
+    try vector.validate(bundle);
+    if (clients.len != bundle.sources.len or borrows.len != clients.len) return error.InvalidRelationalSources;
+    try authorization.bind(turn, authorization.assignment, bundle, vector);
+    var routes: [r.max_sources]c.DirectTableClient = undefined;
+    for (clients, borrows, 0..) |client, borrow, i| {
+        const expected = try authorization.readBinding(bundle, vector, i, turn.delivery.principal);
+        if (!std.meta.eql(expected, borrow.binding)) return error.QueryDenied;
+        routes[i] = try Pin.borrowedClient(client, bundle.retention[i], borrow);
+    }
+    return openRouted(turn, allocator, bundle, vector, routes, read_limit);
+}
+fn openRouted(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.RelationalBundle, vector: Vector, clients: [r.max_sources]c.DirectTableClient, read_limit: u64) !Self {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try vector.validate(bundle);
@@ -152,7 +174,7 @@ pub fn open(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.Relat
         if (source.scope.realm != turn.delivery.realm) return error.CrossRealmRelationalQuery;
         try checkSchema(entry.record, declared.schema);
         if (try bundle.sourceOrdinal(i) != i) continue;
-        var reader = try read(allocator, try route(bundle, clients, i), entry.record);
+        var reader = try read(allocator, clients[i], entry.record);
         reader.deinit();
     }
     try self.validate(self.bound());
@@ -173,7 +195,7 @@ pub fn next(self: *Self, ordinal: u8, after: ?r.RowIdentity) !?f.RelationalExecu
     if (self.reads == self.read_limit) return error.RelationalWorkBudget;
     self.reads += 1;
     try self.validate(self.bound());
-    const client = try route(self.bundle, self.clients, ordinal);
+    const client = self.clients[ordinal];
     var reader = try read(self.allocator, client, self.vector.entries[ordinal].record);
     defer reader.deinit();
     var batch = reader.readAfter(client, after, .{ .rows = 1 }) catch |err| return Pin.readFailure(client, err);

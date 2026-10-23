@@ -259,8 +259,9 @@ pub const Request = struct {
     action: Action,
     delegation: ?c.DirectReadDelegation,
     closure: ?c.DirectReadDelegation.Closure = null,
+    borrow: ?c.DirectReadDelegation.Borrow = null,
     proof: p.Authorization.Proof,
-    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null };
+    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
         const bytes = try p.Json.valueAlloc(allocator, value);
         defer allocator.free(bytes);
@@ -271,7 +272,7 @@ pub const Request = struct {
         return hash.finalResult();
     }
     pub fn input(self: Request) Input {
-        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure };
+        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow };
     }
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
@@ -296,12 +297,18 @@ pub const Request = struct {
             if (!std.meta.eql(delegation.binding.connection, connection)) return error.InvalidTableDelegation;
             try delegation.allow(self.action);
         }
+        if (self.borrow) |borrow| {
+            if (self.closure != null) return error.InvalidTableDelegation;
+            const original = self.delegation orelse return error.InvalidTableDelegation;
+            _ = try borrow.proof(original, allocator);
+            try borrow.allow(self.action);
+        }
         if (self.closure) |closure| {
             const original = self.delegation orelse return error.InvalidTableDelegation;
             _ = try closure.proof(original, allocator);
             try c.DirectReadDelegation.Closure.allow(self.action);
         }
-        const principal = if (self.delegation) |delegation| delegation.binding.executor else connection.principal;
+        const principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else connection.principal;
         const role: ?u64 = if (self.delegation != null) null else connection.role;
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;

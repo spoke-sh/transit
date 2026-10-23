@@ -471,8 +471,11 @@ including after source leases close.
 ## Explicit query exchanges
 
 Typed Zig hosts can route frozen source rows into logical partitions and stage
-them in bounded segments. The receiver shares the first Table owner's resource;
-producers have explicit PIDs and separate resources under the same authority.
+them in bounded segments. Receiver and producers have explicit PIDs and separate
+resources under the same authority, independently of the Table catalog owners.
+Workers use their own credentials and original-caller grants for exact retained
+cuts. These borrowed reads confer no acquisition, history advancement or cleanup
+permission; the coordinator owns the source leases.
 Each accepted segment has a receiver-owned copy and an exact deduplication
 identity. Consumption separately indexes its rows and returns credits. Every
 partition, including an empty one, must publish and consume terminal coverage

@@ -26,8 +26,8 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     const context = try w.Request.context(request.input(), allocator);
     const original = if (request.closure) |closure|
         try closure.proof(request.delegation.?, allocator)
-    else if (request.delegation) |delegation| delegation.proof else request.proof;
-    const original_context = if (request.closure != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
+    else if (request.borrow) |borrow| try borrow.proof(request.delegation.?, allocator) else if (request.delegation) |delegation| delegation.proof else request.proof;
+    const original_context = if (request.closure != null or request.borrow != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
     var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
     const owner = self.engine.journal.backend;
     var control: backend.DataStore = .{ .backend = owner, .control = true };

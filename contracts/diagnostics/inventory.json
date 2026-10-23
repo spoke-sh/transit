@@ -3399,6 +3399,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectReadBorrow.zig": {
+      "errors": {
+        "InvalidTableDelegation": 3,
+        "TableDelegationDenied": 3
+      },
+      "outcomes": {
+        "Target": [
+          "snapshot",
+          "history"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.context()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "allow()": "<inferred>",
+        "prepare()": "<inferred>",
+        "proof()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectReadDelegation.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -3432,6 +3461,7 @@
         "catch": 0
       },
       "imports": [
+        "DirectReadBorrow.zig",
         "root.zig",
         "std"
       ]
@@ -3463,7 +3493,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {
-        "InvalidTableDelegation": 2,
+        "InvalidTableDelegation": 3,
         "InvalidTableResponse": 6
       },
       "outcomes": {},
@@ -3478,7 +3508,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -3589,7 +3619,7 @@
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
         "InvalidTableCursor": 2,
-        "InvalidTableDelegation": 2,
+        "InvalidTableDelegation": 4,
         "InvalidTableKey": 1,
         "InvalidTableReadBudget": 4,
         "TableBatchTooLarge": 1,
@@ -3708,7 +3738,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 96,
+        "try": 98,
         "catch": 2
       },
       "imports": [
@@ -3777,7 +3807,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 82,
+        "try": 83,
         "catch": 7
       },
       "imports": [
@@ -12838,7 +12868,7 @@
           "deadline"
         ],
         "Definition": [
-          "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
+          "@\"38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8\""
         ],
         "Effect.phase": [
           "pending",
@@ -13844,7 +13874,7 @@
         "InvalidQueryRecord": 8,
         "QueryActive": 3,
         "QueryClosed": 2,
-        "QueryDenied": 7,
+        "QueryDenied": 8,
         "QueryIdentityMismatch": 1,
         "QueryNamespaceInUse": 3,
         "QueryNotFound": 3,
@@ -13878,6 +13908,7 @@
         "authorizeExecution()": "<inferred>",
         "authorizeSource()": "<inferred>",
         "beginClose()": "<inferred>",
+        "borrowedClient()": "<inferred>",
         "delegatedClient()": "<inferred>",
         "evidence()": "<inferred>",
         "inspect()": "<inferred>",
@@ -14239,7 +14270,8 @@
     "packages/zig/transit-query/src/ExchangeAuthorization.zig": {
       "errors": {
         "InvalidRelationalExchange": 1,
-        "QueryDenied": 5
+        "InvalidRelationalSources": 1,
+        "QueryDenied": 6
       },
       "outcomes": {},
       "error_sets": {},
@@ -14248,11 +14280,13 @@
         "bind()": "<inferred>",
         "original()": "<inferred>",
         "prepare()": "<inferred>",
+        "prepareRead()": "<inferred>",
+        "readBinding()": "<inferred>",
         "subject()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -14884,10 +14918,10 @@
         "QueryNamespaceInUse": 2,
         "QueryNotFound": 1,
         "RelationalExchangeClosed": 2,
-        "RelationalExchangeConflict": 11,
-        "RelationalExchangePending": 3,
+        "RelationalExchangeConflict": 12,
+        "RelationalExchangePending": 4,
         "RelationalResidentBudget": 2,
-        "RelationalSourceChanged": 5,
+        "RelationalSourceChanged": 4,
         "RelationalSpillBudget": 6,
         "UnexpectedQueryPublisher": 2
       },
@@ -14915,12 +14949,13 @@
         "createProducer()": "<inferred>",
         "head()": "<inferred>",
         "offer()": "<inferred>",
+        "producerState()": "<inferred>",
         "receive()": "<inferred>",
         "register()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 141,
+        "try": 146,
         "catch": 1
       },
       "imports": [
@@ -14957,7 +14992,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 68,
         "catch": 4
       },
       "imports": [
@@ -14968,7 +15003,7 @@
     "packages/zig/transit-query/src/RelationalExchangeRecords.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidRelationalExchange": 18
+        "InvalidRelationalExchange": 19
       },
       "outcomes": {},
       "error_sets": {},
@@ -14988,6 +15023,7 @@
         "Pending.encode()": "<inferred>",
         "Producer.decode()": "<inferred>",
         "Producer.encode()": "<inferred>",
+        "Receiver.validate()": "<inferred>",
         "Row.decode()": "<inferred>",
         "Row.encode()": "<inferred>",
         "done()": "<inferred>",
@@ -15000,7 +15036,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 104,
+        "try": 111,
         "catch": 1
       },
       "imports": [
@@ -15016,8 +15052,9 @@
         "InvalidQueryBudget": 1,
         "InvalidRelationalHistory": 14,
         "InvalidRelationalSourceRow": 2,
-        "InvalidRelationalSources": 3,
+        "InvalidRelationalSources": 4,
         "QueryCaptureRequired": 3,
+        "QueryDenied": 1,
         "RelationalResidentBudget": 1,
         "RelationalSourceChanged": 4,
         "RelationalWorkBudget": 1,
@@ -15046,6 +15083,8 @@
         "checkSchema()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
+        "openExchange()": "<inferred>",
+        "openRouted()": "<inferred>",
         "read()": "<inferred>",
         "route()": "<inferred>",
         "successor()": "<inferred>",
@@ -15053,7 +15092,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 98,
         "catch": 7
       },
       "imports": [

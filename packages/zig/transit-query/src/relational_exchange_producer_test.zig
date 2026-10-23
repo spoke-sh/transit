@@ -80,7 +80,7 @@ test "durable producer cursor resumes bounded scans and pending segments across 
             defer store.deinit();
             var source: Input = .{};
             var turn = try store.capture();
-            try Producer.create(&turn, bound, &source, 99, .{ .partitions = 7, .workers = workers, .worker = worker, .batch = batch, .epoch = 3, .quota = plan.budgets.spill_bytes });
+            try Producer.create(&turn, bound, &source, 99, .{ .receiver = .{ .owner = 77, .resource = 700 }, .partitions = 7, .workers = workers, .worker = worker, .batch = batch, .epoch = 3, .quota = plan.budgets.spill_bytes });
             try store.commit(turn);
             var finished = false;
             for (0..10000) |step| {
@@ -96,7 +96,7 @@ test "durable producer cursor resumes bounded scans and pending segments across 
                 }
                 var notice: ?r.Pending = null;
                 for (turn.decision.outputs) |slot| if (slot) |output| {
-                    try t.expectEqual(declarations[0].owner, output.pid);
+                    try t.expectEqual(@as(u64, 77), output.pid);
                     notice = try r.Pending.decode((try q.station.Frame.decode(output.value)).payload);
                 };
                 try store.commit(turn);
@@ -125,7 +125,7 @@ test "durable producer cursor resumes bounded scans and pending segments across 
                     // does not prevent receiving a valid own-resource ack.
                     source.denied = true;
                     try t.expectError(error.CatalogDenied, Producer.retry(&turn, bound, &source, 99, record));
-                    turn.delivery.input.origin = .{ .process = .{ .pid = declarations[0].owner, .turn = 1, .output = 0 } };
+                    turn.delivery.input.origin = .{ .process = .{ .pid = 77, .turn = 1, .output = 0 } };
                     turn.delivery.input.value = try (q.station.Frame{ .kind = .cast, .payload = try record.encode() }).encode();
                     try Producer.acknowledge(&turn, bound, 99, record);
                     try store.commit(turn);

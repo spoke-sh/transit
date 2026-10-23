@@ -677,7 +677,7 @@ with pinned Fuze/query package tests and the independent Python exchange fixture
 checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
 the reference-store schedule exercises nine partition/batch combinations,
 duplicate acknowledgement, denied producer rereads, credit and quota pressure.
-The native exchange task separately runs producer and receiver hosts against
+The historical native exchange task ran producer and receiver hosts against
 disk Ursula with bounded hot/cache storage and a local cold store.
 It loses accepted staging/acceptance replies, reconstructs workers, restarts the
 node/store and publishes the maintained result for two partition/worker layouts.
@@ -686,6 +686,18 @@ does not establish cardinality scaling or sustainable throughput. Native
 generation replacement with the same credential is also distinct from recorded
 handoff and credential retirement. The ledger retains the precise measurements,
 failed host attempts and each separate fault/capacity schedule.
+
+The direct-source implementation separates the receiver PID/resource from Table
+ownership. Its signed assignment includes that destination, and both producer
+retry and receiver acceptance check the recorded destination. Each producer
+borrows only the assignment's exact direct cut. The caller signs the original
+lease grant plus the worker, target and assignment commitment; the data owner
+checks current caller/executor authority before and after reading. Workers cannot
+release the coordinator's lease or select later history through this permission.
+This separates read distribution from retention ownership without sharing the
+coordinator's credential. It adds one explicit caller signature per source and
+worker assignment. The earlier native host must be migrated before its historical
+fault evidence qualifies the direct-source implementation.
 
 ### Boundary for historical and shared execution
 
