@@ -6,6 +6,7 @@ pub const fuze = station.fuze;
 pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");
+pub const OperationBinding = @import("OperationBinding.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const SchemaCatalog = @import("SchemaCatalog.zig");
@@ -31,6 +32,7 @@ pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
 pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = OperationBinding;
     _ = AuthorizationSql;
     _ = TableAuthority;
     _ = TableAttempt;

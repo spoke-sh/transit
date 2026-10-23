@@ -34,6 +34,15 @@ grant. There is no catalog-local permission store. Current native authority is
 checked during work and disclosure, including the original credential epoch and
 selected role. Names, retained roots and prepared artifacts grant no permission.
 
+`OperationBinding` supplies an internal immutable operation-to-target claim for
+direct data owners. It reserves the complete neutral binding across object and
+branch identities, without a global catalog-root update per data write. The
+service must authorize the original caller before claiming or reading it. This
+claim alone establishes no operation admission or result; those belong to the
+owning acceptance log. The existing installed actor caller does not use this
+primitive. Its exact layout belongs to the
+[data lifecycle contract](../../../contracts/DATA_LIFECYCLE_V1.md#frozen-intent-and-acceptance).
+
 `TableBehavior` accepts initialization and administrator controls, staged Table
 commands, continuation and qualified cancellation/cleanup. It records control or
 rejected-input dispositions independently of the original operation outcome.

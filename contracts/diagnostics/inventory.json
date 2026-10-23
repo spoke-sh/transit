@@ -3097,6 +3097,29 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/OperationBinding.zig": {
+      "errors": {
+        "ImmutableObjectConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidOperationBinding": 6
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "claim()": "<inferred>",
+        "key()": "<inferred>",
+        "lookup()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Records.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -4478,6 +4501,7 @@
         "DeclarativeCatalog.zig",
         "Inspection.zig",
         "Model.zig",
+        "OperationBinding.zig",
         "Records.zig",
         "SchemaCatalog.zig",
         "TableAttempt.zig",
@@ -23919,6 +23943,7 @@
         "init()": "<inferred>",
         "loadSegment()": "<inferred>",
         "observe()": "<inferred>",
+        "observeEvidence()": "<inferred>",
         "observed()": "<inferred>",
         "pin()": "<inferred>",
         "publish()": "<inferred>",
@@ -23941,7 +23966,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 211,
+        "try": 212,
         "catch": 1
       },
       "imports": [

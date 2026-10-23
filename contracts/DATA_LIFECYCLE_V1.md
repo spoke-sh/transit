@@ -59,6 +59,26 @@ saved work must not resolve a current name or replace an expectation implicitly.
 Preview validates proposed work without reserving a name, retaining permission
 or admitting an operation. The owner revalidates at acceptance.
 
+The catalog's internal `OperationBinding` storage primitive reserves this exact
+binding across object partitions. Its immutable key hashes the operation's realm,
+resource, catalog, principal and operation ID; its verified bytes retain every
+binding field, including target branch and object. Different content at that key
+conflicts. This per-operation identity claim needs no catalog-wide root CAS.
+The caller must authorize the request before claiming or disclosing it. A claim
+is neither durable operation admission nor a committed/rejected/cancelled result;
+only the owning operation log establishes those states. The primitive is not an
+installed service endpoint.
+
+Claim bytes are `TOPBIND1` at `0..8`, the mandatory shared definition at `8..40`,
+then the canonical typed `Binding` JSON, within a total 4 KiB budget. The key is
+`data-operations/<digest>.data`, where the digest is SHA-256 over the domain
+`transit.catalog.operation.binding.v1` followed by a zero byte and five
+little-endian `u64` values: realm, resource, catalog, principal and operation.
+Lookup verifies the full object digest, current definition and exact operation
+identity. Immutable conflicts compare the full stored binding; they never adopt
+the caller's new target. Claim lifetime is independent of a human name or the
+target's later retirement, and no cleanup operation is exposed.
+
 The initial execution domain is one Table owner and one statement/batch. The
 owner serializes accepted changes and checks definition/data expectations and
 the selected statement's conflicts at its commit point. Validation/rewrite work

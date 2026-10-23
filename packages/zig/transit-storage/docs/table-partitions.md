@@ -54,8 +54,11 @@ the durable append. An uncertain append blocks reads and mutations until replay.
 complete neutral binding and a digest of every ordered concrete change, its
 expectation and row bytes. DDL comparison includes the exact edit and property
 bytes. Accepted DML retries use their original schema after ALTER or DROP; they
-do not revalidate old input under the current schema. No retry resolves a name. The enclosing catalog must
-bind operation identity to its target before dispatching to a partition; this
+do not revalidate old input under the current schema. No retry resolves a name.
+`observeEvidence` also returns the original resulting declaration reference,
+including its exact revision and retirement state. A later ALTER or DROP cannot
+substitute its current metadata for an earlier operation's result.
+The enclosing catalog must bind operation identity to its target before dispatching to a partition; this
 storage component alone does not arbitrate one operation across different Tables.
 
 The injected `Guard` must check current rights, object/resource retirement and
