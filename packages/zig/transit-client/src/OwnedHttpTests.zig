@@ -26,21 +26,26 @@ test "owned HTTP responses retain nested data after transport destruction and en
     var threaded: Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
     defer threaded.deinit();
     const io = threaded.io();
-    for ([_]u32{ 1024, 16 }) |bound| {
+    for ([_]u32{ 16 * 1024 * 1024, 16 }) |bound| {
         var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
         defer listener.deinit(io);
         const url = try std.fmt.allocPrint(t.allocator, "http://127.0.0.1:{d}", .{listener.socket.address.getPort()});
         defer t.allocator.free(url);
         var task = try io.concurrent(Peer.run, .{ io, &listener, @as(u32, 0) });
         defer _ = task.cancel(io) catch {};
-        var client = wire.Client.init(t.allocator, io, url);
+        // The wire ceiling is not an eager allocation requirement. This small
+        // body must fit an allocator much smaller than either maximum buffer.
+        const workspace = try t.allocator.alloc(u8, 1024 * 1024);
+        defer t.allocator.free(workspace);
+        var bounded: std.heap.FixedBufferAllocator = .init(workspace);
+        var client = wire.Client.init(bounded.allocator(), io, url);
         var alive = true;
         defer if (alive) client.deinit();
         client.timeout_ms = 1000;
         if (bound == 16) {
             try t.expectError(error.WriteFailed, client.callOwned(Payload, "/table/v1", .{ .nonce = [_]u8{ 97, 97 } }, .{ .response_bytes = bound }));
         } else {
-            const parsed = try client.callOwned(Payload, "/table/v1", .{ .nonce = [_]u8{ 97, 97 } }, .{ .response_bytes = bound });
+            const parsed = try client.callOwned(Payload, "/table/v1", .{ .nonce = [_]u8{ 97, 97 } }, .{ .request_bytes = 8 * 1024 * 1024, .response_bytes = bound });
             defer parsed.deinit();
             client.deinit();
             alive = false;

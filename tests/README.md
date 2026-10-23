@@ -255,6 +255,18 @@ additional helper boundaries and propagation counts; public errors are unchanged
 `just check` passes, including native units, CLI and terminal checks, generated
 contracts, frontend checks and the documentation production build.
 
+## Bounded direct HTTP client allocation — 2026-10-23
+
+`nix develop --command zig build test -Doptimize=ReleaseSafe` in
+`packages/zig/transit-client` passes. A real HTTP exchange with an 8 MiB request
+ceiling and 16 MiB response ceiling completes under a 1 MiB fixed allocator
+when its actual payload is small. The response remains usable after transport
+destruction. Tests also cover oversized requests before dispatch, response
+overflow, incremental growth to an exact byte limit, and timeout cleanup.
+This verifies allocation follows payload size while preserving wire ceilings;
+it does not qualify installed SQL or imply that maximum-sized exchanges fit
+every caller's resident budget.
+
 ## Frontend dependency installation during builds — 2026-10-23
 
 In the pinned Nix development shell, `just build release-safe` passes starting
