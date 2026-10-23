@@ -11915,7 +11915,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830\""
+          "@\"9ecf03c83a3bd5e82dc87da5756ba71a1a2ed3d7ab1e8a9dbbb2033f6f87d66c\""
         ],
         "Effect.phase": [
           "pending",
@@ -23739,6 +23739,37 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/TableDeclaration.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidTableDeclaration": 9,
+        "TableDeclarationMissing": 1,
+        "TableDeclarationTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Definition.encode()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Owned.stored()": "<inferred>",
+        "Stored.validate()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "prepare()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 37,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TableManifest.zig": {
       "errors": {
         "CorruptTableManifest": 1,
@@ -23821,33 +23852,36 @@
     },
     "packages/zig/transit-storage/src/TablePartition.zig": {
       "errors": {
-        "DataIdentityConflict": 5,
+        "DataIdentityConflict": 6,
         "DuplicateBatchKey": 1,
-        "DuplicatePrimaryKey": 1,
+        "DuplicatePrimaryKey": 2,
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
         "InvalidTableBasis": 2,
-        "InvalidTableHistory": 4,
+        "InvalidTableDeclaration": 1,
+        "InvalidTableHistory": 19,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 1,
-        "InvalidTableReceipt": 3,
+        "InvalidTableReceipt": 2,
         "InvalidTableRowReference": 12,
         "InvalidTableSegment": 2,
         "LostAcknowledgement": 1,
         "TableAlreadyExists": 1,
-        "TableBatchTooLarge": 1,
+        "TableBatchTooLarge": 2,
         "TableDataChanged": 2,
         "TableDefinitionChanged": 1,
-        "TableHistoryMissing": 3,
+        "TableHistoryMissing": 4,
         "TableKeyHashCollision": 3,
+        "TableNotCreated": 2,
         "TableRecoveryRequired": 1,
+        "TableRetired": 4,
         "TableRowMissing": 1,
         "TableSchemaChanged": 1,
         "TableSegmentMissing": 1,
         "TableSnapshotNotPinned": 1,
         "TableSnapshotReleased": 2,
-        "UnsupportedTableAction": 1
+        "UnsupportedTableAction": 2
       },
       "outcomes": {
         "Change": [
@@ -23858,6 +23892,11 @@
           "absent",
           "present",
           "any"
+        ],
+        "Edit": [
+          "rename",
+          "alter",
+          "drop"
         ],
         "Ingestion": [
           "point",
@@ -23872,6 +23911,7 @@
       "error_returns": {
         "Guard.acquire()": "anyerror",
         "apply()": "<inferred>",
+        "changeDefinition()": "<inferred>",
         "expectations()": "<inferred>",
         "flush()": "<inferred>",
         "get()": "<inferred>",
@@ -23889,8 +23929,11 @@
         "ready()": "<inferred>",
         "recover()": "<inferred>",
         "releaseSnapshot()": "<inferred>",
+        "reply()": "<inferred>",
         "requireBasis()": "<inferred>",
         "requirePin()": "<inferred>",
+        "requireTransition()": "<inferred>",
+        "rewrite()": "<inferred>",
         "scan()": "<inferred>",
         "scope()": "<inferred>",
         "segmentKey()": "<inferred>",
@@ -23898,10 +23941,11 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 156,
+        "try": 211,
         "catch": 1
       },
       "imports": [
+        "TableDeclaration.zig",
         "TablePartitionRecord.zig",
         "TableSnapshot.zig",
         "TransitLog.zig",
@@ -23915,8 +23959,9 @@
     "packages/zig/transit-storage/src/TablePartitionRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableHistory": 5,
+        "InvalidTableHistory": 6,
         "InvalidTableKey": 1,
+        "InvalidTableReceipt": 1,
         "InvalidTableRoot": 1,
         "InvalidTableRowReference": 2,
         "RecordTooLarge": 2
@@ -23928,6 +23973,7 @@
         ],
         "Record.action": [
           "mutation",
+          "declaration",
           "checkpoint",
           "pin",
           "release"
@@ -23943,6 +23989,7 @@
         "Locator.encode()": "<inferred>",
         "Locator.scanKey()": "<inferred>",
         "Locator.scanValue()": "<inferred>",
+        "Record.receipt()": "<inferred>",
         "Record.validate()": "<inferred>",
         "Root.validate()": "<inferred>",
         "decode()": "<inferred>",
@@ -23956,6 +24003,7 @@
         "catch": 0
       },
       "imports": [
+        "TableDeclaration.zig",
         "TreeStore.zig",
         "std",
         "transit_protocol"
@@ -23980,10 +24028,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 21,
         "catch": 0
       },
       "imports": [
+        "TableDeclaration.zig",
         "TablePartitionRecord.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
@@ -24126,6 +24175,7 @@
         "NvmeCache.zig",
         "PartitionLease.zig",
         "S3ObjectStore.zig",
+        "TableDeclaration.zig",
         "TableManifest.zig",
         "TableMemtable.zig",
         "TablePartition.zig",

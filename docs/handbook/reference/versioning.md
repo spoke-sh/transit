@@ -66,7 +66,10 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 The shared definition binds local WAL directory and partition metadata, every
 WAL frame, segment footer, deletion vector and Table manifest. It also binds
-keyless segment ordering by stable row identity. Readers reject missing or
+keyless segment ordering by stable row identity. Table acceptance roots require
+exact immutable declarations, separate row-schema fingerprints, retirement and
+monotonic segment identities. Name revisions cannot substitute for row-schema
+revisions. Earlier roots missing these fields reject without a default or reset. Readers reject missing or
 foreign artifact definitions before interpretation. The local disk owner rejects its earlier unmarked layout and missing
 or foreign definitions. It does not convert old logs. Preserve them with their
 matching build before an explicitly chosen fresh installation or a separately

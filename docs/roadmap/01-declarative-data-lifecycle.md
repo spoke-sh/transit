@@ -52,6 +52,21 @@ The transcript review is complete and this planning revision is authorized.
 The [shared contract gates](README.md#firm-scope-and-contract-gates) identify
 engineering decisions that must precede dependent implementation.
 
+## Implementation in progress
+
+The feature branch supplies the neutral data operation/snapshot contract, local
+native persistence and a default local launcher backed by the native local
+owner. Its direct Table storage component has atomic point/bulk acceptance,
+paged row/receipt/pin indexes, bounded flushes, durable read pins and
+CREATE/ALTER/RENAME/DROP definition transitions under the existing native
+authorization fence. The scoped [executed evidence](../../tests/README.md#table-definition-acceptance-and-retained-interpretation--2026-10-22)
+distinguishes these component and native-adapter checks from public integration.
+
+The installed Table path still uses the actor catalog. Catalog name publication,
+durable admission/rejection/cancellation, public typed/SQL cutover, named resource
+provisioning and computation evidence remain unfinished. None of the completion
+matrix rows below is closed by the storage component alone.
+
 ## Catalog, transaction and snapshot scope
 
 [#125](https://github.com/spoke-sh/transit/issues/125) defines the

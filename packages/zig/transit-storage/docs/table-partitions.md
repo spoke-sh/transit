@@ -1,17 +1,21 @@
 # Table partition ownership
 
-`TablePartition` accepts concrete row mutations for one Table interpretation and
-partition. The constructor clones the schema and binds its fingerprint to a
-`DataLifecycle.Definition`. `recover` must succeed before any operation or read.
+`TablePartition` accepts concrete row mutations and definition changes for one
+Table and partition. The constructor clones a private declaration. Its complete
+content hash binds the `DataLifecycle.Definition`; the row-schema fingerprint is
+separate. `recover` must succeed before any operation or read. Opening an existing
+partition loads its accepted declaration, including schema, properties and
+retirement; the constructor template cannot replace persisted interpretation.
 The component is exercised through typed callers in its package tests. Installed
 SQL still uses the catalog's existing actor path; this component has no HTTP
-route, catalog name publisher or DDL rewrite yet. The
+route or catalog name publisher. The
 [local backend](../../transit-backend-local/README.md) supplies a current native
 authorization/lifetime fence and quota-accounted log/object adapter, with
 separate composition tests. Public SQL integration remains required.
 
 ## Acceptance and observation
 
+A fresh partition requires an accepted CREATE, which can include initial rows.
 `apply` takes a frozen `DataLifecycle.Binding`, up to 1,024 concrete changes,
 the point/bulk ingestion choice, and an authorization guard. Changes support
 insertion with an absent-key expectation, replacement with a present-key
@@ -19,6 +23,24 @@ expectation, explicit upsert and deletion. A batch cannot target the same key
 twice. Its encoded rows fit the 4 MiB WAL payload after reserving the 44-byte
 envelope and 16 KiB metadata budget. These are operation bounds, independent of
 the number of durable rows, receipts and pins.
+
+`changeDefinition` accepts RENAME, ALTER and DROP against the frozen expected
+definition and optional data frontier. RENAME preserves row indexes and schema;
+its full definition revision advances. ALTER applies the shared schema evolution
+rules, streams every source row into groups of at most 1,024 rows and the encoded
+row-byte budget, and builds private replacement indexes. New-key collisions and
+row validation failures leave the previous definition and all rows visible. One
+acceptance publishes the new declaration, both indexes and the receipt. The
+64 MiB default index-work budget applies to the complete attempt and can be
+configured independently of the fixed resident cache. This synchronous component
+has no durable pending rewrite or automatic restart of rejected private staging.
+
+DROP records permanent retirement and preserves receipts and retained read
+bases. New mutations, current reads and new pin acquisition reject retirement;
+exact retries and observations still require the current guard. Retained pins
+can read their original schemas and be released when the guard permits. Name
+reservation, replacement identities and explicit dependency RESTRICT remain
+the enclosing catalog's responsibilities.
 
 The owner validates constraints against the accepted root. It stages immutable
 index pages and, for bulk ingestion, one bounded `.tseg`. It then acquires the
@@ -30,7 +52,9 @@ the durable append. An uncertain append blocks reads and mutations until replay.
 
 `observe` returns the exact original result. Retry comparison includes the
 complete neutral binding and a digest of every ordered concrete change, its
-expectation and row bytes. It never resolves a name. The enclosing catalog must
+expectation and row bytes. DDL comparison includes the exact edit and property
+bytes. Accepted DML retries use their original schema after ALTER or DROP; they
+do not revalidate old input under the current schema. No retry resolves a name. The enclosing catalog must
 bind operation identity to its target before dispatching to a partition; this
 storage component alone does not arbitrate one operation across different Tables.
 
@@ -62,7 +86,7 @@ must bound their result buffers and enclosing allocators separately.
 segment, replaces their locators and publishes the replacement through the same
 Table WAL. It neither rewrites all manifests nor accumulates all historical rows
 in memory. The logical-change frontier does not advance for flush or pin control
-records. Existing read roots still address their original row versions.
+records; accepted definition changes do advance it. Existing read roots still address their original row versions.
 
 The segment encoder writes into its supplied output budget, including values
 larger than 4 KiB and column pages larger than 256 KiB. If any value lacks a

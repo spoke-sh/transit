@@ -477,6 +477,47 @@ incompatible, not a truncatable torn tail. Schemas, binding resources and
 independent signing fixtures are regenerated for the replacement shared
 definition. The old identifier remains in protocol rejection tests.
 
+## Table definition acceptance and retained interpretation — 2026-10-22
+
+After rebasing on `origin/main` at `adb18139`, `zig build test` passes all 43
+storage package cases and all 10 local-backend package cases in the pinned Nix
+shell. `just contract::check` passes after regenerating the shared current
+identifier, schemas, language bindings and independent signing/byte fixtures.
+The complete `nix develop --command just check` also passes, including the root
+unit suite, 558 CLI diagnostic cases, the rebased external-editor proof, frontend
+checks and the documentation production build. Its existing reactive-client lint
+warning and benchmark SQLite resource warnings remain warnings, not failed gates.
+
+The added storage cases cover:
+
+- An accepted CREATE, RENAME, ALTER and DROP through the typed storage owner,
+  lost DDL replies, exact retry after actual disk reopen, and altered retry
+  content rejection. Rename changes the full definition while preserving the
+  row schema and WAL row references. Recovery loads persisted metadata instead
+  of substituting the opening template.
+- Accepted DML retried under its original schema after ALTER and DROP. Durable
+  pins acquired before and after rename retain their one-column schema after
+  the live schema gains a column; authorized release survives restart.
+- A 1,028-row ALTER through a one-page index cache, producing two replacement
+  segments. A final injected authorization denial publishes no successor or
+  receipt; the authorized retry publishes all rows in one acceptance record.
+- A collation change that would merge `A` and `a` rejects without publishing
+  either the schema or rewritten rows. This is a duplicate-key safety case,
+  not independent qualification of all declared collation profiles.
+- Missing declaration objects, a foreign definition with a recomputed valid
+  content hash, and roots missing mandatory interpretation fields reject.
+  Failed recovery preserves accepted WAL and blocks further reads.
+- Allocation-failure enumeration leaves both the old metadata and accepted
+  root unchanged on pre-commit failure; successful acceptance needs no
+  subsequent allocation to install the new declaration.
+
+These are storage and native-adapter proofs. They do not establish catalog name
+publication, durable pending/rejected/cancelled operations, installed direct SQL,
+physical collection or named KV/Document/computation execution. The storage
+owner retains all WAL and immutable objects. The full definition revision is
+separate from row-schema revision in its new persisted format; prior formats
+are rejected by the coordinated shared-definition cutover.
+
 ## Table partition acceptance and retained read pins — 2026-10-22
 
 In the pinned development shell, `zig build test` passes in
