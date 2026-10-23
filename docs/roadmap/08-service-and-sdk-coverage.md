@@ -35,6 +35,14 @@ values to ordinary NULLs.
   multiple users. Viewer authentication, upstream grants and application rights
   remain separate responsibilities.
 
+Enterprise identity/delegation is owned by the
+[Control & Policy Plane milestone](09-control-and-policy-plane.md).
+The [published-resource milestone](10-published-resources-and-investigations.md)
+owns shared result/investigation semantics; [MCP and Apps](12-mcp-service-and-apps.md)
+adapt them to selected hosts. This milestone's existing native adapter work may
+proceed independently; it must not imply those new access or collaboration
+profiles are already supported. Extend parity only after each owner qualifies it.
+
 ## Completion evidence
 
 Use pinned independent peers and real installed clients. Qualify revocation, slow

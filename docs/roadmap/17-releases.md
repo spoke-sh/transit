@@ -1,4 +1,4 @@
-# 11. Release distribution
+# 17. Release distribution
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -23,6 +23,11 @@ Existing [Nix packages](../../nix/README.md) and
    application installation and compatible worker replacement. State the released
    object kinds and lifecycle capabilities explicitly; an installed server alone
    does not complete onboarding.
+6. Package the qualified MCP endpoint and App assets with their shared contracts,
+   identity configuration and exact host/extension support matrix. Exercise one
+   published business resource from an installed agent host without repository
+   state. Preserve the public `transit server` / `transit console` command boundary;
+   any separately justified stdio bridge has an explicit packaging owner.
 
 ## Release gate
 
@@ -31,7 +36,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](10-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](16-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.

@@ -1,4 +1,4 @@
-# 10. Qualification and complete benchmarks
+# 16. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -20,6 +20,16 @@ remains a gate for every preceding milestone.
 - Extend deterministic schedules and external faults at new storage, historical,
   branching and distributed boundaries. Save reproducible counterexamples and
   check forbidden outcomes as well as eventual success.
+- Qualify the shared enterprise journey across SQL, SDK, MCP and browser callers:
+  delegated identity, authorized resource discovery, one retained investigation
+  basis, isolated branch proposals, denied merges and reviewed publication.
+  Include identity-provider outages, stale membership, offboarding, agent attempts
+  to approve their own work, destination movement and lost acceptance replies.
+- Verify MCP host/version/extension combinations independently, including useful
+  text-only results, Apps, subscriptions and tasks. Compare every representation
+  with the same typed result and source basis. Measure result correctness,
+  freshness, disclosure boundaries and bounded activation cost; tool counts and
+  successful connections are not outcome evidence.
 - Build full benchmark drivers after prerequisites exist: generators/scales,
   variants, schemas, result/transaction oracles, load/refresh/concurrency schedules
   and disk recovery.
@@ -56,4 +66,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](11-releases.md).
+and immutable release links remain part of [release distribution](17-releases.md).
