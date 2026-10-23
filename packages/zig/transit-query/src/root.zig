@@ -12,6 +12,7 @@ pub const TableService = @import("TableService.zig");
 pub const MediatedTableClient = @import("MediatedTableClient.zig");
 pub const MediatedTableBridge = @import("MediatedTableBridge.zig");
 pub const TableQuery = @import("TableQuery.zig").Query(true);
+pub const DirectTableQuery = @import("DirectTableQuery.zig");
 pub const TablePrepared = @import("TablePrepared.zig");
 /// Independent row evaluator for proofs and measurements, never a query mode.
 pub const ReferenceTableQuery = @import("TableQuery.zig").Query(false);

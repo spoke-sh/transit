@@ -41,6 +41,26 @@ the next call. Explicit
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
 
+`DirectTableQuery.openRetained` executes the shared finite Fuze SELECT compiler
+over an existing signed direct Table pin. The caller supplies the explicit SQL
+source name and retains the pin separately; opening, closing and destruction
+never acquire, replace or release it. The source fingerprint binds its original
+schema, accepted/logical-change positions, row count and pin content. Each result
+batch rechecks current rights after computation, including LIMIT 0, aggregates
+and repeated completion. Returned result batches own at most eight rows and
+16 MiB of canonical cells. Request limits charge both the current-credential read
+and direct Table call; result row/byte budgets are separate from source pages
+and compute memory. Cancellation and read failures leave incomplete results.
+
+This direct caller accepts the finite Transit SELECT profile over one explicit
+retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
+collations reject before execution because the shared logical evaluator does
+not yet apply them. Closing a computation leaves its source available for other
+queries until the pin owner explicitly releases it. The default launcher, SQL
+gateway, prepared parameters, relational sources and durable query jobs do not
+use this owner yet. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
+for pin acquisition, authority and recovery.
+
 Table scans own their bounded entry, index-node and block caches in heap storage.
 Moving a scan into its query owner transfers that storage; it does not copy bulk
 buffers through the calling stack. Destruction releases the caches, including

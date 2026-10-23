@@ -125,7 +125,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, finite SQL filter/count, exact lost-reply recovery, retained pins across rewrite/drop/recreation and two restarts, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

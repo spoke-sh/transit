@@ -13439,6 +13439,65 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/DirectTableQuery.zig": {
+      "errors": {
+        "FailedQuery": 2,
+        "IncompleteSource": 1,
+        "InvalidQueryBudget": 2,
+        "QueryClosed": 1,
+        "QueryResultBudget": 5,
+        "UnsupportedTableQueryCollation": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "next()": "<inferred>",
+        "nextBatch()": "<inferred>",
+        "openRetained()": "<inferred>",
+        "prepareRow()": "<inferred>",
+        "schema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
+      },
+      "imports": [
+        "DirectTableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/DirectTableScan.zig": {
+      "errors": {
+        "Cancelled": 2,
+        "IncompleteSource": 2,
+        "InvalidQueryBudget": 1,
+        "QueryClosed": 1,
+        "QueryPageBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "charge()": "<inferred>",
+        "checkCancellation()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "rejected()": "anyerror",
+        "validateCurrent()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 7,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/Draft.zig": {
       "errors": {
         "InvalidQueryDraft": 12,
@@ -16176,6 +16235,7 @@
         "CatalogQueryOwner.zig",
         "ComputePool.zig",
         "Decoder.zig",
+        "DirectTableQuery.zig",
         "Draft.zig",
         "Editor.zig",
         "ExchangeAuthorization.zig",

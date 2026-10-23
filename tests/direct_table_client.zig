@@ -1,6 +1,7 @@
 //! Real public typed caller; no node, core, backend or provider imports.
 const std = @import("std");
 const c = @import("transit_catalog");
+const q = @import("transit_query");
 const wire = c.station.client;
 const p = c.protocol;
 const g = p.Growth;
@@ -152,11 +153,14 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer current.deinit();
     try t.expectEqual(@as(u64, 2), current.value.result.lookup.?.row_count);
+    var empty_query = try q.DirectTableQuery.openRetained(init.gpa, client, saved.snapshot, "events", "SELECT id FROM events LIMIT 0", .{ .requests = 100, .rows = 10, .result_bytes = 1024 }, null, null, .{});
+    defer empty_query.deinit();
     const native_table = (try admin.query(.{ .binding = .{ .domain = profile.catalog.authority.table_domain, .key = try c.TableAuthority.binding(profile.catalog.scope, .table, 7) } })).body.authorization.body.binding.?.reference.id;
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
     try t.expectError(error.AccessDenied, reader.check(client));
     try t.expectError(error.AccessDenied, reader.next(client, .{}));
+    try t.expectError(error.AccessDenied, empty_query.nextBatch(8));
     try t.expectError(error.AccessDenied, inspect(client, saved.insert));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = profile.role } });
     try reader.check(client);
