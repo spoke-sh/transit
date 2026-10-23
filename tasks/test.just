@@ -190,6 +190,7 @@ packages:
     cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit-core && zig build test
     cd packages/zig/transit-backend-ursula && zig build test
+    cd packages/zig/transit-backend-local && zig build test
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
 
@@ -226,6 +227,7 @@ packages-build:
     cd packages/zig/transit-protocol && zig build check
     cd packages/zig/transit-core && zig build check
     cd packages/zig/transit-backend-ursula && zig build check
+    cd packages/zig/transit-backend-local && zig build check
     cd packages/zig/transit-client && zig build check
     cd packages/zig/transit-runtime-substrate && zig build check
 

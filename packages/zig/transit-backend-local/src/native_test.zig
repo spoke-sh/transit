@@ -1,0 +1,248 @@
+const std = @import("std");
+const t = std.testing;
+const core = @import("transit_core");
+const backend = @import("root.zig");
+const g = core.protocol.Growth;
+const Engine = core.growing.Engine(backend.Store, backend.PageStore);
+
+fn rootKey() !core.Ed25519.KeyPair {
+    return core.Ed25519.KeyPair.generateDeterministic(@splat(17));
+}
+fn genesis() !core.growing.Genesis {
+    return .{ .realm = 42, .root_key = (try rootKey()).public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true };
+}
+fn submit(engine: *Engine, command: g.Command) !u64 {
+    const sequence = (try engine.principal(0)).sequence + 1;
+    return engine.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = sequence, .command = command }, try rootKey()));
+}
+fn query(engine: *Engine, kind: @FieldType(g.Query, "kind")) !g.Response {
+    return engine.query(try g.signQuery(.{ .realm = 42, .principal = 0, .kind = kind }, try rootKey()));
+}
+fn clock(_: *anyopaque) anyerror!core.Time.Sample {
+    return .{ .unix_ms = 100 };
+}
+
+test "native publication survives a lost reply and restart without repeating accepted work" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const intent = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, try rootKey());
+    var accepted_head: core.growing.Head = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 2);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+        journal.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, engine.submit(intent));
+        journal.lose_reply = false;
+        try engine.refresh();
+        accepted_head = engine.head;
+        try t.expectEqual(@as(u64, 2), try journal.tail());
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.open(&journal, &pages, try genesis());
+    try t.expect(std.meta.eql(accepted_head, engine.head));
+    try t.expectEqual(@as(u64, 1), try engine.submit(intent));
+    try t.expectEqual(@as(u64, 2), try journal.tail());
+    try t.expectEqual(@as(u64, 1), (try engine.process(1)).pid);
+}
+
+test "native pages and immutable blocks grow beyond a one-page cache and reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var root: ?core.pages.Reference = null;
+    var block: core.blocks.Reference = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 1);
+        defer pages.deinit();
+        const tree: core.pages.Tree(backend.PageStore) = .{ .store = &pages };
+        for (0..129) |i| {
+            try pages.begin(1, false);
+            var key: [8]u8 = undefined;
+            std.mem.writeInt(u64, &key, i, .big);
+            root = try tree.mutate(root, &.{.{ .key = try core.pages.Key.init(&key), .value = try core.pages.Value.init(&key) }});
+            try pages.finish();
+        }
+        try pages.begin(1, false);
+        block = try pages.stageBlock(try core.protocol.Blocks.Spec.of("document bytes"), "document bytes");
+        try pages.finish();
+        try t.expect(pages.misses > 1);
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    const tree: core.pages.Tree(backend.PageStore) = .{ .store = &pages };
+    for (0..129) |i| {
+        var key: [8]u8 = undefined;
+        std.mem.writeInt(u64, &key, i, .big);
+        const value = (try tree.get(root, try core.pages.Key.init(&key))).?;
+        try t.expectEqualSlices(u8, &key, value.slice());
+    }
+    var output: [64]u8 = undefined;
+    try t.expectEqualStrings("document bytes", try pages.loadBlock(block, &output));
+}
+
+test "local quota reserves control capacity and never turns a failed candidate into visibility" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 0);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+    const accepted = engine.head;
+    owner.limits.bytes = owner.allocated;
+    try t.expectError(error.StorageQuota, submit(&engine, .{ .spawn = .{} }));
+    try t.expect(std.meta.eql(accepted, engine.head));
+    try t.expectEqual(@as(u64, 1), try journal.tail());
+    try t.expectEqual(@as(u64, 0), (try engine.principal(0)).sequence);
+    // The explicit checkpoint is a control operation. Exhausted data admission
+    // cannot prevent its publication or authorize deleting other objects.
+    _ = try submit(&engine, .{ .checkpoint = {} });
+    try journal.maintain(engine.head);
+    try t.expectEqual(@as(u64, 2), try journal.tail());
+}
+
+test "local native turn atomically recovers state, blocks, input progress, outputs and undispatched effect" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var pid: u64 = undefined;
+    var resource: u64 = undefined;
+    var accepted: u64 = undefined;
+    var intent: g.SignedRequest = undefined;
+    const row_key = try core.Value.init("row");
+    const block_key = try core.Value.init("document");
+    var clock_context: u8 = 0;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 2);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+        engine.clock = .{ .context = &clock_context, .read = clock };
+        pid = try submit(&engine, .{ .spawn = .{} });
+        resource = try submit(&engine, .{ .create_resource = .{ .writer = pid } });
+        _ = try submit(&engine, .{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+        _ = try submit(&engine, .{ .associate = .{ .pid = pid, .name = try core.Value.init("data"), .resource = resource } });
+        _ = try submit(&engine, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+        const input = try submit(&engine, .{ .send = .{ .pid = pid, .value = .{} } });
+        const process = try engine.process(pid);
+        const view = try submit(&engine, .{ .open_view = .{ .pid = pid, .generation = process.generation, .input = input, .expected_revision = process.revision, .resource = resource, .revision = resource, .deadline_ms = 150 } });
+        var batch: core.protocol.Blocks.Batch = .{};
+        try batch.put(block_key, "verified document payload");
+        const turn: g.Turn = .{
+            .pid = pid,
+            .generation = process.generation,
+            .input = input,
+            .expected_revision = process.revision,
+            .views = .{ view, null, null, null },
+            .write_view = view,
+            .mutations = .{ .{ .key = row_key, .value = core.Value.integer(42) }, null, null, null },
+            .blocks = batch.mutations,
+            .outputs = .{ .{ .pid = pid, .value = try core.Value.init("outcome") }, null, null, null },
+            .effect = try core.Value.init("recorded intent"),
+        };
+        intent = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .{ .turn = turn } }, try rootKey());
+        const prepared = try engine.prepareWithBlocks(intent, &batch.body);
+        accepted = engine.head.position;
+        try t.expectEqual(@as(u64, 0), (try engine.process(pid)).consumed);
+        try t.expectEqual(@as(u64, 0), (try query(&engine, .{ .resource = resource })).body.resource.entries);
+        try t.expectEqual(@as(u64, 0), engine.head.outputs);
+        journal.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, engine.commit(prepared));
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.open(&journal, &pages, try genesis());
+    engine.clock = .{ .context = &clock_context, .read = clock };
+    const writes = pages.created;
+    try t.expectEqual(accepted, try engine.submit(intent));
+    try t.expectEqual(writes, pages.created);
+    try t.expectEqual(@as(u64, 1), (try engine.process(pid)).consumed);
+    try t.expectEqual(@as(u64, 1), engine.head.outputs);
+    const data = (try query(&engine, .{ .resource = resource })).body.resource;
+    try t.expectEqual(@as(u64, 1), data.entries);
+    try t.expectEqual(@as(u64, 1), data.block_entries);
+    const rows = try query(&engine, .{ .read_entries = .{ .resource = resource, .keys = .{ row_key, null, null, null, null, null, null, null } } });
+    try t.expectEqual(@as(i64, 42), try rows.body.read_entries.entries[0].?.value.asInteger());
+    const effects = try query(&engine, .{ .effects = .{ .pid = pid } });
+    try t.expectEqual(.pending, effects.body.effects.entries[0].?.phase);
+    try t.expectEqual(@as(?u64, null), effects.body.effects.entries[0].?.attempt);
+    const read: g.Query = .{ .realm = 42, .principal = 0, .kind = .{ .block_entries = .{ .source = .{ .resource = .{ .id = resource, .revision = data.revision } }, .keys = .{ block_key, null, null, null, null, null, null, null } } } };
+    var result: g.BlockRead.Response = undefined;
+    result.response = try engine.queryBlocks(try g.signQuery(read, try rootKey()), {}, &result.blocks);
+    try g.BlockRead.verify(&result, read);
+    try t.expectEqualStrings("verified document payload", result.blocks.slice());
+    _ = try submit(&engine, .{ .checkpoint = {} });
+    try journal.maintain(engine.head);
+    // Receipt identity survives physical removal of its old log entry.
+    try t.expectEqual(accepted, try engine.submit(intent));
+    _ = try submit(&engine, .{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = 0 } });
+    try t.expectError(error.Forbidden, engine.queryBlocks(try g.signQuery(read, try rootKey()), {}, &result.blocks));
+    try t.expectEqual(@as(u32, 0), result.blocks.len);
+}
+
+test "native owner rejects a second owner, foreign marker and unrelated object history" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        try t.expectError(error.NativeStorageInUse, backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{}));
+    }
+    {
+        const marker = try tmp.dir.openFile(t.io, "native/.native-owner", .{ .mode = .read_write });
+        defer marker.close(t.io);
+        try marker.writePositionalAll(t.io, "x", 8);
+        try marker.sync(t.io);
+    }
+    try t.expectError(error.IncompatibleDefinition, backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{}));
+    {
+        var objects = try @import("transit_storage").LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "unrelated");
+        defer objects.deinit();
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash("accepted elsewhere", &digest, .{});
+        _ = try objects.objectStore().putImmutable("existing", "accepted elsewhere", digest);
+    }
+    try t.expectError(error.NativeStorageUnmarked, backend.Backend.open(t.allocator, t.io, tmp.dir, "unrelated", .{}));
+}
+
+test "two native candidates share only conditional WAL acceptance" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages_a = try backend.PageStore.init(&owner, 1);
+    defer pages_a.deinit();
+    var pages_b = try backend.PageStore.init(&owner, 1);
+    defer pages_b.deinit();
+    var journal_a: backend.Store = .{ .backend = &owner };
+    var journal_b: backend.Store = .{ .backend = &owner };
+    var a = try Engine.bootstrap(&journal_a, &pages_a, try genesis());
+    var b = try Engine.open(&journal_b, &pages_b, try genesis());
+    const first = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{ .code = 2 } } }, try rootKey());
+    const second = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{ .code = 3 } } }, try rootKey());
+    const proposed_a = try a.prepare(first);
+    const proposed_b = try b.prepare(second);
+    try t.expectEqual(@as(u64, 1), try journal_a.tail());
+    _ = try a.commit(proposed_a);
+    try t.expectError(error.Conflict, b.commit(proposed_b));
+    try b.refresh();
+    try t.expectEqual(@as(u64, 2), (try b.process(1)).code);
+    try t.expectEqual(@as(u64, 2), try journal_b.tail());
+    try t.expect(std.meta.eql(a.head, b.head));
+}

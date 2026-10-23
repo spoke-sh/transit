@@ -37,6 +37,7 @@
         .transit_protocol = .{ .path = "packages/zig/transit-protocol" },
         .transit_core = .{ .path = "packages/zig/transit-core" },
         .transit_backend_ursula = .{ .path = "packages/zig/transit-backend-ursula" },
+        .transit_backend_local = .{ .path = "packages/zig/transit-backend-local" },
         .transit_client = .{ .path = "packages/zig/transit-client" },
         .transit_runtime_substrate = .{ .path = "packages/zig/transit-runtime-substrate" },
     },

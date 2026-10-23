@@ -477,6 +477,34 @@ incompatible, not a truncatable torn tail. Schemas, binding resources and
 independent signing fixtures are regenerated for the replacement shared
 definition. The old identifier remains in protocol rejection tests.
 
+## Native authority over local storage — 2026-10-22
+
+`nix develop --command zig build test-local-native` passes against temporary
+POSIX directories using the existing core authority engine and the new
+[local adapter](../packages/zig/transit-backend-local/README.md). It covers:
+
+- Lost native append replies followed by exclusive reopen and exact retry,
+  without another process or repeated staging.
+- 129 paged keys and immutable block bytes recovered through a one-page cache.
+- Data quota exhaustion preserving the old head and caller sequence, with a
+  control checkpoint still admitted through the reserve.
+- One turn atomically publishing a KV mutation, an immutable block, consumed
+  input, an output and an undispatched effect intent. Before commit none is
+  visible; after a lost reply/restart all are recovered. Physical history trim
+  preserves the exact receipt, and current resource revocation denies a later
+  block read and clears its output buffer.
+- Competing private candidates from two engine instances: one conditional WAL
+  acceptance, one conflict, and the same recovered winner.
+- Exclusive native ownership, foreign owner markers and refusal to initialize
+  native authority alongside unrelated existing object data.
+
+The root unit suite passes after carrying control-reserve eligibility in the
+core's prepared transition. The local package joins that suite and standalone
+package checks. These are native storage/authority component proofs; they do
+not qualify installed node/launcher composition, a Document service lifecycle,
+standalone payload publication, retained-root physical collection, power-loss
+behavior or direct Table SQL execution.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),

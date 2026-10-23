@@ -239,6 +239,7 @@ pub fn build(b: *std.Build) void {
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
+    const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
@@ -315,6 +316,9 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
+    const local_native_tests = b.addRunArtifact(b.addTest(.{ .root_module = local_backend.module("transit_backend_local") }));
+    test_step.dependOn(&local_native_tests.step);
+    b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
     const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/local_objects.zig"),
         .target = target,

@@ -211,3 +211,38 @@ memtable visibility precede asynchronous flushing in the point-write profile.
 Do not flush every INSERT just to satisfy the artifact test. Qualification must
 distinguish accepted WAL-only state from flushed state and exercise both recovery
 paths, with observable progress explaining the difference.
+
+
+## Native local persistence implementation contract
+
+The local adapter keeps the existing deterministic native authority engine and
+its paged copy-on-write catalogs. This delivery changes persistence, not the
+meaning of a native turn or its one-KV-resource boundary. The adapter owns one
+exclusive local directory and serializes access to its local WAL handle. Native
+control/process transitions initially retain their current shared sequencing;
+direct Table data partitions have a separate acceptance owner. A Table-only
+mirror cannot satisfy this contract.
+
+| Durable owner | Local representation | Visibility / recovery authority |
+| --- | --- | --- |
+| Native catalog, policy, sequences and operation receipts | Immutable verified native pages | Roots in the accepted native WAL entry |
+| Process input progress, outputs, effects and retirement | Existing core records in the same paged catalog | The same native entry atomically publishes the complete transition |
+| KV and Document state | Existing resource roots and immutable blocks | Native resource mutations and input/output progress retain their existing commit boundary |
+| Captured versions and views | Existing durable records and referenced roots | No object collection without accounting for these retained roots |
+| Staged pages/blocks | Private immutable objects | Staging never publishes a resource; failed/conflicting candidates remain unreachable |
+
+Each accepted native entry uses partition zero of `TransitLog`; the latest
+complete entry supplies the published catalog/policy roots. Epochs and expected
+LSNs bind append. Log trim requires the already accepted native history floor,
+retains the latest entry, and does not collect referenced objects. Restart opens
+the existing authority; missing, corrupt or incompatible history is an error.
+Replay reads state and never dispatches effects.
+
+Pages and blocks use bounded verified object reads and a configured page cache.
+Operation candidate bounds and an explicit physical allocation quota apply
+before staging. A control reserve remains available after ordinary data
+admission stops. Uncertain writes retain their reservation until restart can
+recount actual files; quota pressure never permits expiry or cleanup. Staged and
+superseded objects remain until a separately qualified retained-root collector
+can reclaim them. This is an implementation contract, not evidence that the
+installed node or launcher already uses this adapter.
