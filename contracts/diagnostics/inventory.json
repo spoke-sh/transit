@@ -3415,6 +3415,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableReader.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "InvalidTableReadBudget": 1,
+        "InvalidTableResponse": 12,
+        "TableSnapshotReleased": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "consume()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "release()": "<inferred>",
+        "requireClient()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -4902,6 +4930,7 @@
         "DirectCatalog.zig",
         "DirectTableClient.zig",
         "DirectTableProtocol.zig",
+        "DirectTableReader.zig",
         "Inspection.zig",
         "Model.zig",
         "OperationBinding.zig",

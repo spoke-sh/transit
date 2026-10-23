@@ -643,6 +643,22 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Retained typed Table reader — 2026-10-23
+
+The catalog suite passes **107/107 tests** with `DirectTableReader`. Its new
+case rejects changed accepted/logical-change positions, premature completion,
+and invalid final-row bytes without advancing the cursor. It checks exact source
+row consumption and decodes binary values under the retained schema. Allocation
+checking covers partial-page decode failure.
+
+`just test::direct-table-service` passes with **24 typed HTTP calls** after the
+reader is wired into the independent caller. The retained source is consumed
+after restart, including its original unflushed 64 KiB row. Current revocation
+denies both cached-result checks and a completed reader's next call. Explicit
+release is repeatable, reopening a released handle returns `QueryExpired`, and
+a changed connection is rejected locally. Diagnostic error/outcome checks and
+documentation links pass. SQL does not use this reader yet.
+
 ## Direct Table HTTP owner and typed caller — 2026-10-22
 
 `nix develop --command just test::direct-table-service` passes against a temporary
