@@ -685,6 +685,7 @@ pub fn build(b: *std.Build) void {
         }) });
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "transit-admin")) cli_artifact = app;
@@ -1142,6 +1143,14 @@ pub fn build(b: *std.Build) void {
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
+    const local_service = b.addSystemCommand(&.{ "python3", "-B" });
+    local_service.addFileArg(b.path("tests/growing_service.py"));
+    local_service.addArg("--local");
+    local_service.addArtifactArg(node_artifact);
+    local_service.addArtifactArg(growing_client);
+    local_service.has_side_effects = true;
+    local_service.stdio = .inherit;
+    b.step("test-local-native-service", "Prove the local native node with public signed callers and reply faults").dependOn(&local_service.step);
     const growing_load = b.addExecutable(.{ .name = "transit-growing-load-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_load.zig"),
         .target = target,

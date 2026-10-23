@@ -14,6 +14,10 @@ unit:
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe
 
+# Real local native node and signed caller faults, with no external store.
+local-native-service:
+    zig build test-local-native-service
+
 # Primitive bytes/index proof; native authority and SQL integration are separate.
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe

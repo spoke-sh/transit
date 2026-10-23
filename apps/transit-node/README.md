@@ -1,7 +1,8 @@
 # transit-node
 
 The Transit authority executable composes [transit-core](../../packages/zig/transit-core/README.md),
-the [Ursula backend](../../packages/zig/transit-backend-ursula/README.md), signed
+the configured [local](../../packages/zig/transit-backend-local/README.md) or
+[Ursula](../../packages/zig/transit-backend-ursula/README.md) storage backend, signed
 HTTP ingress and a trusted clock. It validates and commits protocol operations;
 application handlers run in callers.
 
@@ -38,7 +39,7 @@ Incompatible histories and saved operations reject under the
 The listener allows 16 connections, four ordinary requests, four notification
 waits and two reserved control requests, with 64 sequential exchanges per
 connection. Each admitted request owns an execution lane with its own engine,
-provider client and bounded caches. Immutable reads and preparation overlap;
+provider state and bounded caches. Immutable reads and preparation overlap;
 conditional journal append serializes accepted successors. A competing
 publication can return `Conflict`; uncertain outcomes still require the original
 request identity. This does not create independent write shards or establish
@@ -55,8 +56,12 @@ caller without an implicit retry. Hosts use `Client.contended` to distinguish an
 from expiry, fencing or a conflicting request identity, while retaining exact
 pending commands through their own bounded scheduling policy.
 
-Run `--maintain` separately for authorized lifetime, collection and checkpoint
-work. The [courier](../transit-delivery/README.md) delivers committed outputs via
+With Ursula storage, run `--maintain` separately for authorized lifetime,
+collection and checkpoint work. The local node currently rejects `--maintain`
+and `request_metrics: true`; local maintenance requires composition inside its
+exclusive owner. Selecting local storage does not change launcher defaults or
+move Table operations onto direct segment storage. The
+[courier](../transit-delivery/README.md) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
 reconciles physical placement through Substrate. Workers need neither Ursula
 credentials nor provider access.

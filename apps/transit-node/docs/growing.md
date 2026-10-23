@@ -17,13 +17,25 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | --- | --- |
 | `profile` | Literal `native_v1`, also the default |
 | `genesis` | Exact expected v1 genesis |
-| `ursula_url`, `bucket`, `journal` | Private provider location |
+| `local_directory` | Local native storage directory; select this instead of the three Ursula fields |
+| `ursula_url`, `bucket`, `journal` | Private Ursula provider location when `local_directory` is absent |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
 | `resident_pages` | Decoded page cache slots per execution lane, default 512, configurable 0–4096; ten lanes plus the bootstrap/maintenance context synchronize verified cache entries at lane boundaries; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
-| `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
+| `storage` | Shared storage candidate/allocation limits and maintenance settings; does not select a provider |
+| `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false; the local node currently rejects true |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
-| `maintenance` | Configuration for the separate `--maintain` process, below |
+| `maintenance` | Ursula configuration for the separate `--maintain` process, below; the local node does not accept this field |
+
+Both providers use the same signed HTTP request handling, current-rights checks,
+snapshot registry and bounded request lanes. The local provider holds an
+exclusive directory lock and persists native catalog/resource state through its
+[log and immutable object adapter](../../../packages/zig/transit-backend-local/README.md).
+It rejects a second owner and incompatible history. `--initialize` creates a new
+native authority; ordinary startup requires that authority to exist. This
+selection is explicit node configuration; installed launcher defaults still
+select Ursula. Direct Table storage and local automatic maintenance require
+their own executable integration.
 
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is

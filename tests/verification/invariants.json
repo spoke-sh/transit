@@ -514,6 +514,8 @@
       "owner": "docs/handbook/reference/callers.md",
       "implementation": [
         "apps/transit-node/Native.zig",
+        "apps/transit-node/NativeServer.zig",
+        "apps/transit-node/Local.zig",
         "packages/zig/transit-client/src/root.zig",
         "packages/zig/transit-protocol/src/Growth.zig",
         "tests/growing_client.zig",
