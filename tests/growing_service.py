@@ -156,6 +156,9 @@ def main(node, caller, station_caller=None, query_caller=None, quota_caller=None
         station(node, station_caller)
         query_capture(node, query_caller)
         quota(node, quota_caller)
+    else:
+        from local_native_maintenance import run as local_maintenance
+        local_maintenance(node, caller)
 
 
 if __name__ == "__main__":

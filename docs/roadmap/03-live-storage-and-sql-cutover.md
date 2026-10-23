@@ -253,6 +253,6 @@ recount actual files; quota pressure never permits expiry or cleanup. Staged and
 superseded objects remain until a separately qualified retained-root collector
 can reclaim them. The adapter and explicit `transit-node` `local_directory`
 composition now pass native turn/restart and signed public-caller fault proofs.
-The installed launcher default, local maintenance, standalone payload ownership
+The installed launcher default, standalone payload ownership
 and direct Table SQL integration remain incomplete. See the scoped
 [executed evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22).

@@ -25,7 +25,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `storage` | Shared storage candidate/allocation limits and maintenance settings; does not select a provider |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
-| `maintenance` | Ursula configuration for the separate `--maintain` process, below; the local node does not accept this field |
+| `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the local node, or in Ursula's separate `--maintain` process |
 
 Both providers use the same signed HTTP request handling, current-rights checks,
 snapshot registry and bounded request lanes. The local provider holds an
@@ -34,8 +34,7 @@ exclusive directory lock and persists native catalog/resource state through its
 It rejects a second owner and incompatible history. `--initialize` creates a new
 native authority; ordinary startup requires that authority to exist. This
 selection is explicit node configuration; installed launcher defaults still
-select Ursula. Direct Table storage and local automatic maintenance require
-their own executable integration.
+select Ursula. Direct Table storage requires its own executable integration.
 
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is
@@ -126,13 +125,23 @@ share one conditional publication journal per realm.
 
 ## Background maintenance
 
-Run `transit-node CONFIG.json --maintain` as a separate trusted process. Its
+With Ursula, run `transit-node CONFIG.json --maintain` as a separate trusted process. Its
 `maintenance` configuration supplies a dedicated full-width `principal` and
 `seed_file`, with `interval_ms` (default 1000) and `operation_timeout_ms` (default
 5000), both 1–60000. Use a separate principal from application and administrative
 request producers. Each step reauthenticates its key and requires current
 realm-wide admin, effect and delivery permissions; it does not require send,
 execute or mailbox inspection permission. Raw storage remains privileged.
+
+With local storage, setting `maintenance` starts the same bounded lifecycle scan
+inside the node's exclusive storage owner. It has a private engine and bounded
+page cache, and shares the local owner's serialized publication boundary with
+request lanes. Shutdown joins both tasks before closing storage. Local
+`--maintain` rejects: a second process cannot acquire the directory while the
+node owns it. Authorized accepted-floor trimming survives restart; unlimited
+retention and the history-trim opt-in are unchanged. Local immutable objects
+remain retained, and `storage.maintenance.compact: true` rejects. Standalone
+payload reclamation reports unavailable without recording a deletion outcome.
 
 The process rotates through processes, resources and indexed pending effects/
 outputs, inspecting one record from a bounded page per step. Its disposable
@@ -206,6 +215,10 @@ individual system calls. Trimming includes its verification reads.
 
 
 ## Physical storage budgets and maintenance
+
+The following allocation ledger and physical collection details apply to
+Ursula. Local allocation accounting and retained-object limits are described in
+the [local backend](../../../packages/zig/transit-backend-local/README.md).
 
 The native configuration accepts `storage.limits.bytes` (default 8 GiB),
 `storage.limits.control_bytes` (64 MiB) and `storage.limits.candidate_bytes`
