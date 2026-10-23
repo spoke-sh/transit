@@ -90,3 +90,40 @@ test "direct Table row conversion preserves full width values and action constra
     work.binding.intent[0] ^= 1;
     try t.expectError(error.DataIdentityConflict, work.native(alloc));
 }
+
+test "direct Table responses reject unrelated requests, altered receipts and malformed phases" {
+    _ = &c.DirectTableClient.call;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = 3, .catalog = 1 };
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns }, .properties = "" });
+    defer declaration.deinit();
+    const stored = try declaration.stored();
+    const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 4, .operation = 1 }, .target = declaration.definition.object, .action = .update, .expected_definition = stored.interpretation, .expected_data = .{ .partition = 2, .next_lsn = 8 }, .intent = @splat(3) };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .principal = 4, .role = null, .audience = 5 }, .nonce = @splat(1), .action = .{ .operation = .{ .binding = binding, .command = .inspect, .steps = 1 } } };
+    const context = try w.Request.context(input, alloc);
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .result = .{ .rows = .{ .committed = .{ .binding = binding, .resulting = stored, .outcome = .{ .position = .{ .partition = 2, .next_lsn = 9 }, .matched = 1, .affected = 0, .live_rows = 1 } } } } };
+    try c.DirectTableClient.validateResponse(alloc, request, response);
+    var altered = response;
+    altered.context[0] ^= 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
+    altered.result.rows.committed.binding.identity.operation += 1;
+    try t.expectError(error.DataIdentityConflict, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
+    altered.result.rows.committed.outcome.affected = 2;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
+    altered.result.rows.committed.outcome.position.partition += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
+    altered.result = .{ .rows = .{ .admitted = .{ .binding = binding, .intent = .{ .bytes = 1, .sha256 = @splat(4) }, .basis = .{ .interpretation = stored.interpretation, .position = binding.expected_data.?, .changed_lsn = 8 }, .phase = .cancelled, .reason = .none } } };
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+    altered = response;
+    altered.result = .released;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
+}
