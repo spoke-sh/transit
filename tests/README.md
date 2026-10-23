@@ -185,6 +185,43 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Lossless physical column admission and public SQL — 2026-10-23
+
+The Fuze package's ReleaseSafe suite passes after replacing the shared definition
+with `f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982`
+and the standalone Table schema definition with
+`transit.table.schema.v1.2026-10-23`. Physical pages require the current binary
+definition; missing/foreign definitions and the previous schema definition reject.
+`just test::table-schema` passes the independent fixtures and standalone checks.
+The CP037 oracle covers every scalar U+0000–U+00FF and all 65,536 scalar pairs;
+HFP fixtures use independent rational arithmetic and exact floating bits.
+Mainframe page fixtures include signed 64-bit extrema. Regressions cover signed
+zero through RLE/dictionary/HFP, unsupported descriptors, unmappable characters,
+HFP range limits, trailing data and bitpacked overflow. The neutral JSON schema
+adapter rejects physical attributes instead of dropping them.
+
+`just test::direct-table-service` passes 420 typed calls against the real node.
+Its added Table uses bitpacked integers and CP037 text. Retained SQL reads agree
+for WAL-only and mixed WAL/segment cuts before and after restart, including
+accents, punctuation, NUL and control scalars. ALTER of a separate column
+containing `€` to CP037 records a durable constraint rejection without changing
+the definition or logical-data frontier. A later ASCII_CI definition is usable
+by storage but rejects direct SQL evaluation; old binary-collated pins retain
+their original semantics. Existing reply-loss, CRUD/DDL, revocation and retained
+query proofs also pass.
+
+The focused storage run
+`zig build test -Doptimize=ReleaseSafe '-Dtest-filter=physical value constraints'`
+also passes in `packages/zig/transit-storage`. Rejected CP037/HFP rows leave the
+WAL frontier and root unchanged; accepted integer extrema, a 31-digit decimal,
+CP037 text and floating negative zeros agree between retained WAL and flushed
+segment rows after disk reopen.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass. This evidence does not establish non-binary SQL comparisons, ICU, other
+codepages, neutral SDK physical descriptors or Arrow page borrowing. The disk
+storage suite is recorded separately when its complete run finishes.
+
 ## Installed direct lifecycle, rollback and capacity — 2026-10-23
 
 `just test::server-faults` passes the complete server lifecycle (361.57 seconds)

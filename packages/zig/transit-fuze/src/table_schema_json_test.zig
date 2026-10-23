@@ -5,6 +5,18 @@ const s = @import("TableSchema.zig");
 const ddl = @import("TableDdl.zig");
 const p = @import("transit_protocol");
 
+test "neutral schema refuses physical attributes it cannot preserve" {
+    var arena = std.heap.ArenaAllocator.init(e.allocator);
+    defer arena.deinit();
+    for ([_]s.Column{
+        .{ .id = 1, .name = "v", .type = .utf8, .encoding = .ebcdic },
+        .{ .id = 1, .name = "v", .type = .utf8, .collation = .ascii_ci },
+    }) |column| {
+        const schema: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{column} };
+        try e.expectError(error.UnsupportedNeutralColumnRepresentation, j.foreign(&arena, schema));
+    }
+}
+
 test "neutral Table schema matches independently encoded JSON and FTS1" {
     const Fixture = struct { schema_hex: []const u8, schema_json: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, e.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });

@@ -12,7 +12,7 @@ import struct
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
-DEFINITION = b'transit.table.schema.v1.2026-10-05'
+DEFINITION = b'transit.table.schema.v1.2026-10-23'
 TYPES = b'transit.fuze.types.v1.2026-09-30'
 ROWS = b'transit.table.row.v1.2026-10-05'
 

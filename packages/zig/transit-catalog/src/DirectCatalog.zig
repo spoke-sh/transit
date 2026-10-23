@@ -715,6 +715,7 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
             error.TableDefinitionChanged => .stale_definition,
             error.TableDataChanged => .stale_data,
             error.DuplicatePrimaryKey, error.MissingRequiredField, error.NullNotAllowed, error.Overflow, error.TableRetired => .constraint,
+            error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => .constraint,
             else => return err,
         };
         try self.terminal(observed.admitted, .rejected, reason, current);

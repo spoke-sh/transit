@@ -10,7 +10,7 @@ const TSeg = @import("TSeg.zig");
 const VectorKernel = @import("VectorKernel.zig");
 const LogicalQuery = @import("LogicalQuery.zig");
 
-test "Collation: order-preserving sort keys agree with compareBytes across all four collations" {
+test "Collation: order-preserving sort keys agree with compareBytes across supported collations" {
     const samples = [_][]const u8{
         "",
         "a",
@@ -27,13 +27,13 @@ test "Collation: order-preserving sort keys agree with compareBytes across all f
     };
 
     // 1. In EBCDIC CP037, lowercase 'a' (0x81) < uppercase 'A' (0xC1) < digit '0' (0xF0)
-    try std.testing.expectEqual(std.math.Order.lt, Collation.compareBytes("a", "A", .ebcdic_cp037));
-    try std.testing.expectEqual(std.math.Order.lt, Collation.compareBytes("A", "0", .ebcdic_cp037));
-    try std.testing.expectEqual(std.math.Order.gt, Collation.compareBytes("a", "A", .utf8_binary));
-    try std.testing.expectEqual(std.math.Order.gt, Collation.compareBytes("A", "0", .utf8_binary));
-    try std.testing.expectEqual(std.math.Order.eq, Collation.compareBytes("Apple", "apple", .ascii_ci));
+    try std.testing.expectEqual(std.math.Order.lt, try Collation.compareBytes("a", "A", .ebcdic_cp037));
+    try std.testing.expectEqual(std.math.Order.lt, try Collation.compareBytes("A", "0", .ebcdic_cp037));
+    try std.testing.expectEqual(std.math.Order.gt, try Collation.compareBytes("a", "A", .utf8_binary));
+    try std.testing.expectEqual(std.math.Order.gt, try Collation.compareBytes("A", "0", .utf8_binary));
+    try std.testing.expectEqual(std.math.Order.eq, try Collation.compareBytes("Apple", "apple", .ascii_ci));
 
-    const collations = [_]Collation.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037, .icu_root };
+    const collations = [_]Collation.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037 };
     for (collations) |coll| {
         for (samples) |left| {
             for (samples) |right| {

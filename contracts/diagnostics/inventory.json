@@ -3092,6 +3092,8 @@
         "CatalogRegistrationRequired": 3,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 2,
+        "IbmHfpOverflow": 1,
+        "IbmHfpUnderflow": 1,
         "InvalidCatalogConfiguration": 1,
         "InvalidDirectCatalogCompletion": 1,
         "InvalidDirectCatalogEntry": 3,
@@ -3107,6 +3109,7 @@
         "TableDataChanged": 1,
         "TableDefinitionChanged": 2,
         "TableRetired": 1,
+        "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 1
       },
       "outcomes": {
@@ -7216,25 +7219,30 @@
         "InvalidColumnCount": 1,
         "InvalidKeyColumnCount": 1,
         "MissingPrimaryKey": 1,
-        "UnorderedType": 4
+        "UnorderedType": 4,
+        "UnsupportedColumnCollation": 3
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "appendSortKey()": "<inferred>",
         "compareAtom()": "<inferred>",
+        "compareBytes()": "<inferred>",
         "compareCell()": "<inferred>",
         "encodePrimaryKeySortKey()": "<inferred>",
         "encodeSortKey()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateBytes()": "<inferred>",
         "writeCollatedBytes()": "<inferred>",
         "writeStuffedByte()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 41,
         "catch": 0
       },
       "imports": [
+        "Ebcdic037.zig",
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
@@ -7353,6 +7361,28 @@
       "propagation": {
         "try": 0,
         "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/Ebcdic037.zig": {
+      "errors": {
+        "UnrepresentableEbcdic037": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Iterator.init()": "<inferred>",
+        "Iterator.next()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
       },
       "imports": [
         "std"
@@ -7609,6 +7639,28 @@
       },
       "imports": [
         "PredicateTruth.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/IbmHfp.zig": {
+      "errors": {
+        "IbmHfpOverflow": 1,
+        "IbmHfpUnderflow": 1,
+        "InvalidIbmHfpValue": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "encode64()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Types.zig",
+        "Values.zig",
         "std"
       ]
     },
@@ -8169,22 +8221,21 @@
     },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
-        "BufferTooSmall": 3,
+        "BufferTooSmall": 1,
         "ColumnEncodingMismatch": 1,
-        "ColumnPageRowLimitExceeded": 1,
+        "ColumnPageRowLimitExceeded": 2,
         "Comp3Overflow": 2,
         "Comp4Overflow": 3,
-        "IbmHfpOverflow": 1,
         "IncompatibleColumnEncoding": 3,
-        "InvalidBitpackedPage": 1,
-        "InvalidColumnPage": 7,
+        "IncompatibleDefinition": 1,
+        "InvalidBitpackedPage": 3,
+        "InvalidColumnPage": 10,
         "InvalidComp3Length": 1,
         "InvalidComp4Length": 1,
-        "InvalidDictionaryCode": 1,
-        "InvalidFsstStream": 4,
+        "InvalidDictionaryCode": 2,
+        "InvalidFsstStream": 5,
         "InvalidFsstTable": 2,
-        "InvalidIbmHfpValue": 1,
-        "InvalidRlePage": 2,
+        "InvalidRlePage": 3,
         "InvalidZonedLength": 1,
         "ZonedOverflow": 2
       },
@@ -8194,7 +8245,6 @@
         "decodeBitpackedValues()": "<inferred>",
         "decodeColumnPage()": "<inferred>",
         "decodeDictionaryValues()": "<inferred>",
-        "decodeEbcdic037()": "<inferred>",
         "decodeFsstValues()": "<inferred>",
         "decodeRleValues()": "<inferred>",
         "encodeBitpackedValues()": "<inferred>",
@@ -8202,25 +8252,27 @@
         "encodeComp3()": "<inferred>",
         "encodeComp4()": "<inferred>",
         "encodeDictionaryValues()": "<inferred>",
-        "encodeEbcdic037()": "<inferred>",
         "encodeFsstValues()": "<inferred>",
-        "encodeIbmHfp64()": "<inferred>",
         "encodeRleValues()": "<inferred>",
         "encodeZoned()": "<inferred>",
         "readCanonicalValue()": "<inferred>",
+        "u64ToScalarCell()": "<inferred>",
+        "validateValue()": "<inferred>",
         "writeCanonicalValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 99,
-        "catch": 7
+        "try": 111,
+        "catch": 10
       },
       "imports": [
-        "Collation.zig",
+        "Ebcdic037.zig",
+        "IbmHfp.zig",
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/PredicateMachine.zig": {
@@ -10108,6 +10160,7 @@
         "TableSchemaTooLarge": 4,
         "TableTypeError": 1,
         "UnknownColumn": 2,
+        "UnsupportedColumnCollation": 1,
         "UnsupportedPrimaryKeyType": 1,
         "UnsupportedTableSchemaDefinition": 1,
         "WriteFailed": 1
@@ -10164,10 +10217,13 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 93,
+        "try": 97,
         "catch": 2
       },
       "imports": [
+        "Collation.zig",
+        "Ebcdic037.zig",
+        "IbmHfp.zig",
         "Types.zig",
         "std"
       ]
@@ -10181,6 +10237,7 @@
         "JsonByteBudgetExceeded": 1,
         "OutOfMemory": 1,
         "TableSchemaTooLarge": 1,
+        "UnsupportedNeutralColumnRepresentation": 1,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -12641,7 +12698,7 @@
           "deadline"
         ],
         "Definition": [
-          "dbeaf8ee99483d030ed06e8779be25af19f74d7c794591e180c8906a55b456dd"
+          "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982"
         ],
         "Effect.phase": [
           "pending",

@@ -842,82 +842,70 @@ current policy (`policy_epoch`).
 
 ### Logical types and physical codecs and collation semantics
 
-A foundational design requirement for querying both cloud-native columnar tables
-and legacy enterprise/mainframe datasets without silent data corruption is the
-strict separation of three orthogonal column properties:
+The question is whether a Table value keeps its meaning when WAL rows become
+column pages or an index compares text. The model separates logical type
+$\tau$, physical encoding $\epsilon$ and collation $\kappa$. Encoding changes
+bytes; it must not change the accepted logical value. Collation determines
+ordering and equality; it is independent of whether the text is stored as UTF-8,
+CP037 or a compressed symbol stream. The
+[representation contract](../../../contracts/TABLE_SCHEMA_V1.md#physical-representation-and-collation)
+owns admitted combinations and value limits.
 
-1. **Logical Type ($\tau$):** The mathematical domain of the value in `Fuze`
-   (`int64`, `decimal128(p, s)`, `float64`, `utf8`, `bytes`, `timestamp`, `bool`),
-   wrapped in Transit's five-state cell algebra:
-   $$\text{Cell}(\tau) \;=\; \text{Value}(\tau) \;\mid\; \text{Null} \;\mid\; \text{Missing} \;\mid\; \text{TypeError}(\text{code}) \;\mid\; \text{Conflict}$$
-2. **Physical Encoding ($\epsilon$):** The byte-level representation in `.tseg`
-   segments or foreign dataset records, decoded into canonical `Batch.zig`
-   lanes by composable Zig codecs:
+`TableSchema` validates both descriptors and value-dependent representability
+before a row can enter the Table WAL. This is necessary because postponing an
+encoding error until flush would leave accepted rows permanently unflushable.
+Packed/zoned decimal therefore admits at most 31 decimal digits, and binary
+COMP admits signed integers through 64 bits. HFP accepts only its normalized
+range, converts the binary significand exactly and preserves signed zero.
+Out-of-range values reject instead of rounding or underflowing to zero. RLE and
+dictionary distinguish floating zero signs because compression must preserve
+stored bytes even though SQL equality treats those zeros as equal.
 
-   | Physical Codec | Representation | Target Logical Vector & SIMD Decode Strategy |
-   | --- | --- | --- |
-   | `PLAIN_ARROW` | 64-byte-aligned fixed/variable buffers | Zero-copy `mmap` / `preadv` slice |
-   | `BITPACK_FOR` / `RLE` | Frame-of-reference bit-packed integers and run-length runs | Vectorized SIMD unpack / run expansion |
-   | `DICTIONARY` / `FSST` | Dictionary codes or Fast Static Symbol Table (`<= 255` 1–8B symbols) | Late materialization on codes; branchless 256-entry symbol table expansion for strings |
-   | `COMP3` (`PACKED_DECIMAL`) | 2 decimal digits per byte (`0x0`–`0x9` nibbles) + trailing sign nibble (`0xC`/`0xF` `+`, `0xD` `-`) | SIMD nibble unpack (`vpshufb`/`tbl` + multiply-add) into `decimal128(p, s)` or `int64`; invalid nibbles (`> 9`) or invalid sign (`< 0xA`) emit `TypeError` |
-   | `ZONED` (`DISPLAY`) | 1 digit per byte (`0xF0`–`0xF9` in EBCDIC) with overpunched sign in final/leading byte (`0xC0`–`0xC9` `+`, `0xD0`–`0xD9` `-`) | Sign-zone extraction + ASCII/decimal fold into `decimal128(p, s)` |
-   | `COMP` / `COMP-4` | Big-endian 2, 4 or 8-byte two's-complement binary integer with implied scale | `@byteSwap` into `int64` / `decimal128(p, s)` |
-   | `IBM_HFP` (`COMP-1`/`2`) | IBM System/360 base-16 floating point ($m \times 16^{e - 64}$) | Exact base-16 to IEEE-754 base-2 exponent normalization (`float64`) |
-   | `EBCDIC_CP037` / `CP1047` / `CP500` | Fixed or variable-length EBCDIC codepage bytes | Preserved in physical bytes for EBCDIC predicates or transcoded via 256-byte lookup table to UTF-8 |
+[`Ebcdic037`](../../../packages/zig/transit-fuze/src/Ebcdic037.zig) uses the full
+[Unicode-hosted CP037 table 2.00](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT),
+including controls and Latin-1 scalars. Encoding iterates UTF-8 codepoints;
+reinterpreting UTF-8 bytes as Latin-1 would corrupt accented text. CP037 has a
+256-scalar repertoire; unrepresentable characters reject. Decoding may expand
+each physical byte to two UTF-8 bytes. `icu_root` rejects: a byte-weight
+approximation cannot establish a Unicode collation version or locale contract.
+Other codepages, PAD SPACE and versioned Unicode collation need explicit
+contracts before admission.
 
-3. **Collation ($\kappa$):** The total preorder $\preceq_\kappa$ and equivalence
-   relation $\equiv_\kappa$ governing `<, \le, =, \ge, >`, `BETWEEN`, `MIN`/`MAX`,
-   `ORDER BY`, `GROUP BY` and join key hashing/equality:
+[`PhysicalCodecs`](../../../packages/zig/transit-fuze/src/PhysicalCodecs.zig)
+writes bounded `TCP1` pages with the shared definition identifier. Decoding
+checks complete framing and codec identity. Foreign mainframe decoders expose
+invalid or inexact values as `type_error`; they do not silently substitute a
+number. General pages retain five-state cells, while ordinary Table acceptance
+rejects stored error/conflict states. These are different input profiles.
+Plain pages currently use canonical logical value envelopes; they are not
+borrowed Arrow buffers. The symbol-table codec is Transit-owned and does not
+claim upstream FSST format compatibility. SIMD mainframe conversion and Arrow
+page borrowing remain storage/query extensions, not consequences of an encoding
+name.
 
-   | Collation | Ordering & Padding Law | Primary Use Case |
-   | --- | --- | --- |
-   | `UCS_BASIC` / `UTF8_BINARY` | Lexicographical unsigned byte order (`'0' [0x30] < 'A' [0x41] < 'a' [0x61]`), `NO PAD` | Default cloud-native UTF-8 ordering |
-   | `EBCDIC_037_PAD` / `EBCDIC_1047_NOPAD` | Native EBCDIC codepage weight (`'a' [0x81] < 'A' [0xC1] < '0' [0xF0]`); `PAD SPACE` (`0x40`) for fixed `PIC X(n)` | Exact compatibility with z/OS DB2, VSAM KSDS and COBOL `SORT` |
-   | `ASCII_CI` | Case-folded ASCII order (`'a' == 'A'`), `NO PAD` | Case-insensitive identifiers and keys |
-   | `UCA_<version>_<locale>` | Unicode Collation Algorithm (UTS #10) with pinned DUCET version | Locale-sensitive human sorting |
+For valid text in an admitted collation, the implementation must establish
+$u \preceq_\kappa v$ if and only if
+`memcmp(sort_key(u, κ), sort_key(v, κ)) <= 0`. `Collation` uses the same CP037
+mapping for comparisons and keys, and folds only ASCII A–Z for `ascii_ci`.
+Zone maps and primary-key indexes consume these keys. A predicate can use their
+bounds only when it has the same collation. Direct SQL currently rejects
+non-binary text collations before evaluation, including UPDATE/DELETE predicate
+plans. It does not infer correct hash/group/join semantics from storage support.
+The neutral JSON schema adapter likewise rejects physical descriptors it cannot
+carry, while the direct Table interface retains complete schema bytes.
 
-#### Why collation must bind to Zone Maps and B-Tree indexes
-
-In `EBCDIC`, lowercase letters precede uppercase letters and digits sort last
-(`'a' < 'A' < '0'`), which is the exact inverse of ASCII/UTF-8 (`'0' < 'A' < 'a'`).
-If a `.tseg` segment computed its row-group Zone Map `(min, max)` or its embedded
-primary-key B-tree index using `UCS_BASIC` byte order while a query evaluated
-`WHERE acct_code BETWEEN 'A000' AND '9999' COLLATE EBCDIC_037_PAD`, zone-map
-pruning would falsely discard matching row groups (an unsound optimization).
-
-Therefore, for any column with declared collation $\kappa$:
-- Every `.tseg` Zone Map stores $\min_\kappa$ and $\max_\kappa$ ordered under
-  $\preceq_\kappa$. Row-group pruning is enabled for predicate $\text{col} \;\text{op}_\sigma\; c$
-  **if and only if** the predicate collation $\sigma$ equals the column's indexed
-  collation $\kappa$.
-- The `.tseg` embedded primary-key B-tree index stores **order-preserving sort
-  keys** $\text{sort\_key}(v, \kappa)$ such that:
-  $$u \preceq_\kappa v \;\Longleftrightarrow\; \text{memcmp}(\text{sort\_key}(u, \kappa), \text{sort\_key}(v, \kappa)) \le 0$$
-  This allows `Fuze` B-tree lookups and radix/merge sorts to execute at raw byte
-  comparison speed while strictly honoring `EBCDIC`, `PAD SPACE` or `UCA` rules.
-- Hash joins and hash aggregations hash the canonical collation key
-  $\text{hash}(\text{sort\_key}(v, \kappa))$ rather than raw UTF-8 bytes so that
-  values equivalent under $\equiv_\kappa$ (such as trailing-space-padded
-  `PIC X(10)` keys) always map to the same hash bucket.
-
-#### Lossless mainframe `REDEFINES` and dirty-record handling via 5-state cells
-
-Mainframe COBOL datasets frequently contain two phenomena that crash standard
-two-state (`value`/`null`) vectorized engines:
-1. **Uninitialised or sentinel bytes in numeric fields:** Spaces (`0x40` in
-   EBCDIC) or `HIGH-VALUES` (`0xFF`) stored inside a `COMP-3` or `ZONED` field.
-2. **Untagged or tag-switched `REDEFINES` unions:** The same byte range in a
-   fixed record is interpreted as schema variant $A$ when `REC-TYPE = '1'` and
-   variant $B$ when `REC-TYPE = '2'`.
-
-Because `.tseg` and `Fuze`'s `Batch.zig` carry a native 5-state tag per cell
-(`value`, `null`, `missing`, `type_error`, `conflict`):
-- When a `REDEFINES` branch has a declared `WHEN` discriminator that does not
-  match the current row, its columns emit `missing` (`IS MISSING`).
-- When an active numeric field contains invalid BCD nibbles (`0x404040` or
-  `0xFFFFFF`), the SIMD `COMP-3` decoder sets the cell tag to `type_error`
-  without aborting the batch scan, allowing SQL queries to filter, audit or
-  route dirty records declaratively (`WHERE balance IS TYPE_ERROR`).
+The independent [fixture generator](../../../tests/column_codecs.py) uses
+Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.
+[Column tests](../../../packages/zig/transit-fuze/src/column_codec_test.zig)
+compare exact page bytes, every CP037 scalar pair, floating bit patterns and
+malformed inputs. The [disk test](../../../packages/zig/transit-storage/src/table_partition_test.zig)
+checks rejection before WAL acceptance and compares retained WAL rows with
+flushed segment rows after reopen. Reproduce with `just test::table-schema` and
+`zig build test -Doptimize=ReleaseSafe` in `packages/zig/transit-fuze` and
+`packages/zig/transit-storage`, inside the pinned development shell. The
+[proof ledger](../../../tests/README.md) records executed results separately.
+These selected fixtures establish no universal SQL collation or foreign-record
+import profile.
 
 ### Function coloring is an effect and trait system
 

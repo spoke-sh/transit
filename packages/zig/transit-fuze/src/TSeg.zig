@@ -34,7 +34,7 @@ pub const ZoneMap = struct {
     /// Return whether this row group may contain rows matching `(op, target_sort_key)`.
     /// Zone map bounds (`min_sort_key`, `max_sort_key`) are encoded using the column's
     /// declared `Collation`, so range pruning is sound for `utf8_binary`, `ascii_ci`,
-    /// `ebcdic_cp037`, and `icu`.
+    /// and `ebcdic_cp037`. ICU profiles reject at schema admission.
     pub fn mayMatch(self: ZoneMap, op: enum { eq, lt, le, gt, ge }, target_sort_key: []const u8) bool {
         if (self.value_count == 0) return false;
         // A missing bound denotes an unindexed value group, not an empty group.

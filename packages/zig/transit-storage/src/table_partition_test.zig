@@ -9,6 +9,77 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "physical value constraints precede WAL acceptance and exact values survive flush and reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const fields = [_]f.TableSchema.Column{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false, .encoding = .bitpacked },
+        .{ .id = 2, .name = "text", .type = .utf8, .nullable = false, .encoding = .ebcdic },
+        .{ .id = 3, .name = "rate", .type = .float64, .encoding = .ibm_hfp },
+        .{ .id = 4, .name = "rle", .type = .float64, .encoding = .rle },
+        .{ .id = 5, .name = "dictionary", .type = .float64, .encoding = .dictionary },
+        .{ .id = 6, .name = "packed", .type = .int64, .encoding = .comp_3 },
+        .{ .id = 7, .name = "zoned", .type = .{ .decimal = .{ .precision = 31, .scale = 2 } }, .encoding = .zoned },
+        .{ .id = 8, .name = "binary", .type = .int64, .encoding = .comp },
+    };
+    const definition: s.TableDeclaration.Definition = .{ .object = object, .revision = 1, .schema = .{ .object = 7, .revision = 1, .next_column = 9, .columns = &fields, .primary_key = &.{1} }, .properties = "" };
+    const cells = [_]f.Types.Values.Cell{
+        .{ .value = .{ .atom = .{ .signed = 1 } } },
+        .{ .value = .{ .atom = .{ .bytes = "é£¬^\x00\u{0085}ÿ" } } },
+        .{ .value = .{ .atom = .{ .float = -0.0 } } },
+        .{ .value = .{ .atom = .{ .float = -0.0 } } },
+        .{ .value = .{ .atom = .{ .float = -0.0 } } },
+        .{ .value = .{ .atom = .{ .signed = std.math.minInt(i64) } } },
+        .{ .value = .{ .atom = .{ .decimal = -9999999999999999999999999999999 } } },
+        .{ .value = .{ .atom = .{ .signed = std.math.maxInt(i64) } } },
+    };
+    var access: Access = .{};
+    var retained: P.Root = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer table.deinit();
+        try table.recover();
+        const row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &cells };
+        _ = try table.apply(binding(&table, 1), &.{.{ .put = .{ .row = row, .expect = .absent } }}, .point, access.guard());
+        retained = table.root;
+        const tail = try wal.log().tail(17);
+        var invalid = cells;
+        invalid[0].value.atom.signed = 2;
+        invalid[1].value.atom.bytes = "€";
+        const bad: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &invalid };
+        try t.expectError(error.UnrepresentableEbcdic037, table.apply(binding(&table, 2), &.{.{ .put = .{ .row = bad, .expect = .absent } }}, .point, access.guard()));
+        invalid[1] = cells[1];
+        invalid[2].value.atom.float = 0x1p-261;
+        try t.expectError(error.IbmHfpUnderflow, table.apply(binding(&table, 2), &.{.{ .put = .{ .row = bad, .expect = .absent } }}, .bulk, access.guard()));
+        try t.expectEqual(tail, try wal.log().tail(17));
+        try t.expectEqualDeep(retained, table.root);
+        try t.expectEqual(@as(usize, 1), try table.flush(access.guard()));
+        try t.expectEqual(retained.changed_lsn, table.root.changed_lsn);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    var key_buffer: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    const row_key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &cells, true, &key_buffer);
+    var before = (try table.getAt(t.allocator, retained, row_key)).?;
+    defer before.deinit();
+    var after = (try table.get(t.allocator, row_key, access.guard())).?;
+    defer after.deinit();
+    try t.expect(before == .wal and after == .segment);
+    for ([_]f.TableRow.Row{ before.row(), after.row() }) |actual| {
+        try t.expectEqualDeep(@as([]const f.Types.Values.Cell, &cells), actual.cells);
+        for (actual.cells[2..5]) |cell| try t.expectEqual(@as(u64, 1) << 63, @as(u64, @bitCast(cell.value.atom.float)));
+    }
+}
+
 const Access = struct {
     calls: usize = 0,
     released: usize = 0,

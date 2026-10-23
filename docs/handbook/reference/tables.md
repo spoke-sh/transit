@@ -28,6 +28,19 @@ Tables contain 1–128 ordered named columns with the shared
 `utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `icu_root`). Encodings and collations
 are validated against the column's logical type and committed into the schema
 layout fingerprint so physical layout or collation evolution is tracked explicitly.
+The [representation contract](../../../contracts/TABLE_SCHEMA_V1.md#physical-representation-and-collation)
+defines admitted type/codec pairs. CP037 accepts UTF-8 scalars U+0000–U+00FF;
+HFP accepts exactly representable values in its normalized range and preserves
+signed zero. Unrepresentable values reject before mutation acceptance. Text
+collations use no space padding. `icu_root` rejects explicitly.
+
+The direct typed interface preserves physical descriptors in its schema bytes.
+The neutral JSON schema adapter rejects non-default descriptors it cannot
+represent. SQL does not admit ENCODING or COLLATE declarations, and direct SQL
+reads and predicate mutations reject non-binary text collations. Typed point
+operations and storage sort keys support `ascii_ci` and `ebcdic_cp037` without
+implying those query semantics.
+
 Omitted nullability means nullable. A declared
 single or composite PRIMARY KEY implies NOT NULL; column position creates no
 constraint. Without a primary key, stable internal row identities preserve

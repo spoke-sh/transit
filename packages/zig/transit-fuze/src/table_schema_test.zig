@@ -148,6 +148,9 @@ test "schema codec requires the exact definition and canonical flags" {
     buffer[5] ^= 1;
     try expect.expectError(error.UnsupportedTableSchemaDefinition, s.decode(expect.allocator, encoded));
     _ = try schema.encode(&buffer);
+    @memcpy(buffer[5..][0..s.definition.len], "transit.table.schema.v1.2026-10-05");
+    try expect.expectError(error.UnsupportedTableSchemaDefinition, s.decode(expect.allocator, encoded));
+    _ = try schema.encode(&buffer);
     buffer[encoded.len] = 0;
     try expect.expectError(error.InvalidTableSchemaEncoding, s.decode(expect.allocator, buffer[0 .. encoded.len + 1]));
     // Locate the first nullable flag independently of the decoder.

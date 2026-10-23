@@ -31,6 +31,20 @@ child and depth budgets across all columns. These are per-operation bounds,
 independent of Table or catalog cardinality. Defaults count toward the schema's
 encoded-byte bound.
 
+Physical encoding and collation are independent column properties. The
+[representation contract](../../../../contracts/TABLE_SCHEMA_V1.md#physical-representation-and-collation)
+lists exact admitted pairs and value restrictions. `validateCell` checks
+representability before storage acceptance: CP037 rejects characters outside
+its repertoire, and HFP rejects overflow or underflow. `icu_root` rejects;
+the implementation supplies no locale-sensitive approximation.
+
+`PhysicalCodecs` writes definition-bound `TCP1` pages. Integer packed/zoned
+codecs preserve their admitted range; RLE, dictionary and HFP preserve floating
+zero signs. CP037 conversion consumes UTF-8 scalars and produces valid UTF-8
+on decode. Its complete mapping includes controls and Latin-1 characters.
+`Collation` uses the same CP037 weights for comparison and sort keys, and folds
+only ASCII A–Z for `ascii_ci`. Sort keys use no space padding.
+
 `encode` writes canonical `FTS1` bytes. `decode` and `clone` return an arena-owned
 schema; `deinit` frees names, recursive descriptors and defaults. Decoding rejects
 truncation, trailing bytes, noncanonical boolean flags and a missing or foreign
@@ -44,6 +58,9 @@ and `native` copy complete values into an explicit enclosing arena. The JSON
 input limit is 2 MiB and the canonical schema still has a 64 KiB bound. The
 [reflected schema](../api/logical-table-schema.schema.json) describes structural
 shape; shared semantic validators enforce identities, keys, types and defaults.
+The JSON envelope supports plain encoding and default collation; exporting
+physical attributes rejects explicitly. `FTS1` preserves the full attributes
+used by the direct Table interface.
 
 The [Table schema contract](../../../../contracts/TABLE_SCHEMA_V1.md) owns the
 exact envelope, identity and validation rules.
