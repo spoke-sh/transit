@@ -47,6 +47,14 @@ intent reference, observes its original direct operation and explicitly admits,
 executes or cancels that same work. A lost response never allocates a replacement
 intent or resolves its target name again.
 
+Temporary direct-operation transport failures, current direct-access denial and
+allocation pressure retain the original operation for another bounded recovery
+pass. They do not mark a healthy native ledger owner unavailable. The gateway
+reports changes in that condition as `sql.operation.recovery_blocked`; it does
+not log row values or credentials. Status, cancellation and unrelated reads
+still perform their own current checks. A lost native generation, invalid
+binding or malformed response continues to stop the account owner.
+
 Conditional CREATE on an existing Table and conditional DROP on an absent name
 retain an inline catalog name assertion. The catalog records unchanged, rejected
 or cancelled under the frozen condition and current rights. These outcomes carry

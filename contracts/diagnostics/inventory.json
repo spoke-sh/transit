@@ -2084,7 +2084,7 @@
         "recoverSessions()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 20,
+      "open_error_set_uses": 21,
       "propagation": {
         "try": 160,
         "catch": 19
@@ -18880,32 +18880,41 @@
     },
     "packages/zig/transit-sql/src/Coordinator.zig": {
       "errors": {
+        "AccessDenied": 1,
         "GatewayIdentityConflict": 1,
         "GatewayOperationInactive": 1,
         "GatewayOwnerUnavailable": 1,
         "InvalidAuthorityResponse": 1,
         "InvalidGatewayInventory": 1,
         "InvalidGatewayTerminal": 1,
+        "OutOfMemory": 1,
         "StaleGatewayCoordinator": 1
       },
       "outcomes": {
         "Action": [
           "idle",
           "blocked",
+          "data_blocked",
           "control",
           "dispatch"
+        ],
+        "Result": [
+          "pending",
+          "data_blocked",
+          "control"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "blockedData()": "<inferred>",
         "dispatch()": "<inferred>",
         "fence()": "<inferred>",
         "next()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 22,
-        "catch": 0
+        "try": 21,
+        "catch": 3
       },
       "imports": [
         "root.zig",

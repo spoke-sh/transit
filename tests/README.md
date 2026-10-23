@@ -185,6 +185,22 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Installed direct execution recovery — 2026-10-23
+
+`just test::server-direct-faults` passes using a private forwarding process that
+returns HTTP 503 only for direct Table execution. Native ledger traffic, direct
+metadata, inspection and cancellation remain available. A new console inspects
+the original pending operation and reads the unchanged Table. After killing the
+waiting console and manager, startup recovers with execution still refused;
+the next observed binding matches the original. Removing the fault permits that
+same write to finish with matched/changed counts of one. A second blocked write
+is cancelled, remains cancelled across restart and contributes no rows.
+
+The fixture joins its supervised processes and adopted node descendants. The
+SQL package unit tests also pass in ReleaseSafe. This proof covers selective
+execution unavailability, not a complete loss of the shared native authority or
+Table metadata service, physical exhaustion, captured queries or SDK migration.
+
 ## Stable console completion menus — 2026-10-24
 
 `just check` passes with the idle-refresh timer removed. Real PTYs keep local

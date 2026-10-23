@@ -12,7 +12,16 @@ table_key: p.Ed25519.KeyPair,
 generation: u64,
 admission_after: u64 = 0,
 pub const Dispatch = struct { operation: u64, reference: g.IntentReference.Reference };
-pub const Action = union(enum) { idle, blocked: u64, control: g.Control.Command, dispatch: Dispatch };
+pub const DataBlocked = struct { operation: u64, cause: anyerror };
+pub const Action = union(enum) { idle, blocked: u64, data_blocked: DataBlocked, control: g.Control.Command, dispatch: Dispatch };
+pub const Result = union(enum) { pending, data_blocked: DataBlocked, control: g.Control.Command };
+/// Only failures from a direct owner exchange enter this classification. A
+/// native ledger/generation fence failure still propagates to the account owner.
+fn blockedData(operation: u64, cause: anyerror) !DataBlocked {
+    if (g.station.client.Client.unavailable(cause) or cause == error.AccessDenied or cause == error.OutOfMemory)
+        return .{ .operation = operation, .cause = cause };
+    return cause;
+}
 pub fn deinit(_: *Self) void {}
 
 pub fn fence(self: *Self) !void {
@@ -48,7 +57,7 @@ pub fn next(self: *Self) !Action {
     if (item.phase != .active) return error.InvalidGatewayInventory;
     if (item.published == 0) return .{ .control = if (item.cancel != 0) .{ .cancel_unsent = self.target(item.id) } else .{ .dispatch = self.target(item.id) } };
     const reference = try ledger.readReference(self.allocator, &source, item);
-    const observed = try reference.operation(self.table(item), .inspect, 1);
+    const observed = reference.operation(self.table(item), .inspect, 1) catch |err| return .{ .data_blocked = try blockedData(item.id, err) };
     defer observed.deinit();
     if (try g.Terminal.fromReference(reference, observed.value.result)) |terminal| return .{ .control = .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } } };
     if (item.blocked != 0) return .{ .blocked = item.id };
@@ -57,7 +66,7 @@ pub fn next(self: *Self) !Action {
 /// Recheck committed eligibility immediately before the attempt. Each call is
 /// an explicit admission or execution of already frozen work. Unavailability
 /// leaves that eligibility intact; no successor intent or Table ID is allocated.
-pub fn dispatch(self: *Self, action: Dispatch) !?g.Control.Command {
+pub fn dispatch(self: *Self, action: Dispatch) !Result {
     try self.fence();
     var source = try self.client.source();
     const ledger = self.client.ledger;
@@ -66,17 +75,17 @@ pub fn dispatch(self: *Self, action: Dispatch) !?g.Control.Command {
     const reference = try ledger.readReference(self.allocator, &source, item);
     try reference.requireSame(action.reference);
     const caller = self.table(item);
-    const observed = try reference.operation(caller, .inspect, 1);
+    const observed = reference.operation(caller, .inspect, 1) catch |err| return .{ .data_blocked = try blockedData(item.id, err) };
     defer observed.deinit();
-    if (try g.Terminal.fromReference(reference, observed.value.result)) |terminal| return .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } };
+    if (try g.Terminal.fromReference(reference, observed.value.result)) |terminal| return .{ .control = .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } } };
     const absent = switch (observed.value.result) {
         .ddl => |value| value == .not_observed,
         .rows => |value| value == .not_observed,
         .name_assertion => |value| value == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
-    const response = if (absent and !(reference == .name_assertion and item.cancel != 0)) try reference.admit(caller) else try reference.operation(caller, if (item.cancel != 0) .cancel else .execute, 8);
+    const response = (if (absent and !(reference == .name_assertion and item.cancel != 0)) reference.admit(caller) else reference.operation(caller, if (item.cancel != 0) .cancel else .execute, 8)) catch |err| return .{ .data_blocked = try blockedData(item.id, err) };
     defer response.deinit();
-    if (try g.Terminal.fromReference(reference, response.value.result)) |terminal| return .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } };
-    return null;
+    if (try g.Terminal.fromReference(reference, response.value.result)) |terminal| return .{ .control = .{ .complete = .{ .target = self.target(item.id), .outcome = terminal } } };
+    return .pending;
 }

@@ -560,6 +560,9 @@ server:
 server-direct-tables:
     zig build test-server-direct-tables -Doptimize=ReleaseSafe
 
+server-direct-faults:
+    zig build test-server-direct-faults -Doptimize=ReleaseSafe
+
 # Terminal text, JSON collectors, settings propagation and standalone failures.
 server-logging:
     zig build test-server-logging -Doptimize=ReleaseSafe
