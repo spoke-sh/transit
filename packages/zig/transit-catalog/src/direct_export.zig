@@ -13,6 +13,8 @@ pub fn main(init: std.process.Init) !void {
         try out.objectField(name);
         try c.protocol.Schema.writeRecursiveAt(@field(c.DirectTableProtocol, name), &out, .{ .text_max_length = 256, .sequence_max_length = 128, .output = comptime std.mem.eql(u8, name, "Response") }, "/$defs/" ++ name);
     }
+    try out.objectField("SavedIntent");
+    try c.protocol.Schema.writeRecursiveAt(c.DirectTableIntent.Saved, &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/SavedIntent");
     try out.endObject();
     try out.endObject();
     try writer.interface.writeByte('\n');

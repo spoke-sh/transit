@@ -156,6 +156,15 @@ do not call them yet.
 
 ## Bounds and remaining integration
 
+`DirectTablePreparedDml.prepare` and `bind` use current public metadata and
+action rights. Binding returns a `DirectTableIntent` that independently owns
+the typed payload, original connection and exact operation expectations.
+`DirectTableIntent.fromDml` also lowers an already typed Fuze plan without I/O.
+Save its complete bytes before admission; `restore` validates those bytes
+without resolving a name or executing work. `admit` and `operation` keep
+admission, execution, inspection and cancellation explicit. Template destruction
+does not invalidate bound work, and restoring work does not renew its basis.
+
 Directories and operation indexes use immutable B-tree pages. The default cache
 holds 16 pages; tests also use one. The default private index-work allowance is
 64 MiB per operation. Canonical request objects are bounded to 4 MiB and control

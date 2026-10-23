@@ -8,7 +8,15 @@ const w = c.DirectTableProtocol;
 const f = c.fuze;
 const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
-pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, prepared: c.DirectTableBinding };
+pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, prepared: c.DirectTableBinding };
+pub const OwnedState = struct {
+    arena: std.heap.ArenaAllocator,
+    value: State,
+    pub fn deinit(self: *OwnedState) void {
+        self.arena.deinit();
+        self.* = undefined;
+    }
+};
 
 fn execute(client: c.DirectTableClient, original: d.Binding) !w.Result {
     const response = try client.call(.{ .operation = .{ .binding = original, .command = .execute, .steps = 32 } });
@@ -54,40 +62,60 @@ fn ddl(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Ddl) 
     try t.expect(admitted.value.result.ddl == .admitted);
     return (try execute(client, work.binding)).ddl.committed;
 }
-fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) ![4]E {
-    const response = try lookup(client, "events");
-    defer response.deinit();
-    var basis = response.value.result.lookup.?;
-    var schema = try f.TableSchema.decode(allocator, try basis.schema.decode(allocator, f.TableSchema.max_bytes));
-    defer schema.deinit();
-    const scratch = try allocator.alloc(u8, f.TableDmlCodec.max_bytes);
-    defer allocator.free(scratch);
-    const exact = binding(client, 10, .insert, basis);
-    var inserts: [2]w.RowChange = undefined;
-    for (&inserts, 0..) |*change, i| {
-        const row: f.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(exact.identity, @intCast(i)), .cells = &.{ .{ .value = .{ .atom = .{ .signed = @intCast(i + 1) } } }, .{ .value = .{ .atom = .{ .bytes = "predicate" } } } } };
-        change.* = .{ .insert = try w.Binary.encode(allocator, try row.encode(schema.schema, scratch)) };
-    }
-    var results: [4]E = undefined;
-    results[0] = try rows(allocator, client, .{ .binding = exact, .interpretation = basis.interpretation, .schema = basis.schema, .changes = &inserts, .ingestion = .point });
-    basis.position = results[0].outcome.position;
-    for ([_][]const u8{ "UPDATE events SET id = 3 WHERE id = 1", "DELETE FROM events WHERE id = 2", "DELETE FROM events WHERE id = 3" }, 0..) |sql, i| {
-        var compiled = try f.TableDml.compile(allocator, sql, "events", schema.schema, null);
-        defer compiled.deinit();
-        var work: w.Statement = .{ .binding = binding(client, 11 + i, if (i == 0) .update else .delete, basis), .interpretation = basis.interpretation, .schema = basis.schema, .plan = try w.Binary.encode(allocator, try f.TableDmlCodec.encode(allocator, compiled.plan, scratch)) };
-        work.binding.intent = try work.digest(allocator);
-        const admitted = try client.call(.{ .admit_statement = work });
+const PredicateWork = struct { outcomes: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary };
+fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !PredicateWork {
+    var result: PredicateWork = undefined;
+    const statements = [_][]const u8{
+        "INSERT INTO events (id, payload) VALUES ($1, $2), ($3, $4)",
+        "UPDATE events SET id = $1 WHERE id = $2",
+        "DELETE FROM events WHERE id = $1",
+        "DELETE FROM events WHERE id = $1",
+    };
+    const operands = [_][]const ?f.Types.Values.Atom{
+        &.{ .{ .signed = 1 }, .{ .bytes = "predicate" }, .{ .signed = 2 }, null },
+        &.{ .{ .signed = 3 }, .{ .signed = 1 } },
+        &.{.{ .signed = 2 }},
+        &.{.{ .signed = 3 }},
+    };
+    for (statements, operands, 0..) |sql, values, i| {
+        const before = try lookup(client, "events");
+        defer before.deinit();
+        var work: c.DirectTableIntent = undefined;
+        {
+            var prepared = try c.DirectTablePreparedDml.prepare(allocator, client, 1, sql, .transit, null);
+            defer prepared.deinit();
+            try t.expectEqual(values.len, prepared.parameterTypes().len);
+            work = try prepared.bind(allocator, client, 10 + i, values, .point, null);
+        }
+        defer work.deinit();
+        const after = try lookup(client, "events");
+        defer after.deinit();
+        try t.expectEqualDeep(before.value.result.lookup.?.position, after.value.result.lookup.?.position);
+        const unobserved = try work.operation(client, .inspect, 1);
+        defer unobserved.deinit();
+        try t.expect(unobserved.value.result.rows == .not_observed);
+        result.intents[i] = try w.Binary.encode(allocator, work.bytes);
+        const admitted = try work.admit(client);
         defer admitted.deinit();
         try t.expect(admitted.value.result.rows == .admitted);
-        results[i + 1] = (try execute(client, work.binding)).rows.committed;
-        try t.expectEqual(@as(u64, 1), results[i + 1].outcome.matched);
-        try t.expectEqual(@as(u64, 1), results[i + 1].outcome.affected);
-        const repeated = try client.call(.{ .admit_statement = work });
+        const executed = try work.operation(client, .execute, 32);
+        defer executed.deinit();
+        result.outcomes[i] = executed.value.result.rows.committed;
+        const count: u64 = if (i == 0) 2 else 1;
+        try t.expectEqual(count, result.outcomes[i].outcome.matched);
+        try t.expectEqual(count, result.outcomes[i].outcome.affected);
+        var restored = try c.DirectTableIntent.restore(allocator, work.bytes);
+        defer restored.deinit();
+        const repeated = try restored.admit(client);
         defer repeated.deinit();
-        try t.expectEqualDeep(results[i + 1], repeated.value.result.rows.committed);
-        basis.position = results[i + 1].outcome.position;
+        try t.expectEqualDeep(result.outcomes[i], repeated.value.result.rows.committed);
     }
-    return results;
+    var pending_template = try c.DirectTablePreparedDml.prepare(allocator, client, 1, "DELETE FROM events WHERE id = ?", .mysql, null);
+    defer pending_template.deinit();
+    var pending = try pending_template.bind(allocator, client, 14, &.{.{ .signed = 42 }}, .bulk, null);
+    defer pending.deinit();
+    result.unsubmitted = try w.Binary.encode(allocator, pending.bytes);
+    return result;
 }
 fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.Binary {
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = id } } }, .{ .value = .{ .atom = .{ .bytes = "" } } } };
@@ -96,9 +124,9 @@ fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.B
     defer allocator.free(scratch);
     return w.Binary.encode(allocator, try row.storageKey(schema, scratch));
 }
-pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64) !State {
+pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64) !OwnedState {
     var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
+    errdefer arena.deinit();
     const alloc = arena.allocator();
     const initial = try lookup(client, "events");
     defer initial.deinit();
@@ -150,14 +178,20 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     create_binding.expected_definition = null;
     create_binding.expected_data = null;
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
-    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = try predicateWork(alloc, client), .prepared = prepared };
+    const predicates = try predicateWork(alloc, client);
+    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .prepared = prepared };
     try verify(allocator, client, state, false);
-    return state;
+    return .{ .arena = arena, .value = state };
 }
 pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: State, release: bool) !void {
     try t.expectError(error.AccessDenied, state.prepared.require(client, .read));
-    for (state.statements) |result| {
-        const response = try client.call(.{ .operation = .{ .binding = result.binding, .command = .inspect, .steps = 1 } });
+    for (state.statements, state.intents) |result, encoded| {
+        const bytes = try encoded.decode(allocator, c.DirectTableIntent.max_bytes);
+        defer allocator.free(bytes);
+        var restored = try c.DirectTableIntent.restore(allocator, bytes);
+        defer restored.deinit();
+        try t.expectEqualDeep(result.binding, restored.binding());
+        const response = try restored.operation(client, .inspect, 1);
         defer response.deinit();
         try t.expectEqualDeep(result, response.value.result.rows.committed);
     }
@@ -197,8 +231,27 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
     defer replacement.deinit();
     try t.expectEqual(@as(u64, 8), replacement.value.result.lookup.?.interpretation.interpretation.object.object);
     try t.expectEqual(@as(u64, 0), replacement.value.result.lookup.?.row_count);
+    const pending_bytes = try state.unsubmitted.decode(allocator, c.DirectTableIntent.max_bytes);
+    defer allocator.free(pending_bytes);
+    var pending = try c.DirectTableIntent.restore(allocator, pending_bytes);
+    defer pending.deinit();
+    const unseen = try pending.operation(client, .inspect, 1);
+    defer unseen.deinit();
+    try t.expect(unseen.value.result.rows == .not_observed);
     if (release) {
-        const empty = try pin(client, 93, replacement.value.result.lookup.?);
+        const admitted = try pending.admit(client);
+        defer admitted.deinit();
+        try t.expect(admitted.value.result.rows == .admitted);
+        const completed = try pending.operation(client, .execute, 32);
+        defer completed.deinit();
+        try t.expectEqual(@as(u64, 0), completed.value.result.rows.committed.outcome.matched);
+        try t.expectEqual(@as(u64, 0), completed.value.result.rows.committed.outcome.affected);
+        // A new pin requires the exact physical frontier, even after unchanged
+        // SQL advances only operation/control history.
+        const current = try lookup(client, "events");
+        defer current.deinit();
+        try t.expectEqual(replacement.value.result.lookup.?.changed_lsn, current.value.result.lookup.?.changed_lsn);
+        const empty = try pin(client, 93, current.value.result.lookup.?);
         var reader = try c.DirectTableReader.open(allocator, client, empty);
         defer reader.deinit();
         var page = (try reader.next(client, .{})).?;

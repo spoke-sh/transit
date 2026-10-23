@@ -1,5 +1,6 @@
 """Independent signed request vectors and reflected direct Table envelope checks."""
 import copy
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -75,4 +76,27 @@ def persist(path, content):
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-v1.json",
         (json.dumps(fixture, ensure_ascii=False, indent=2) + "\n").encode())
-print("Direct Table: reflected envelopes, exact wide integers, mandatory proof/definition, independent signed request passed.")
+
+# The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
+# the saved envelope uses the public JSON writer's exact array representation.
+native_intent = {"namespace": 1, "name": {"len": 6, "bytes": "events" + "\0" * 57}, "action": {"drop": {}}}
+intent_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(native_intent)).digest()
+target = {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}
+binding = {
+    "definition": definition,
+    "identity": {"scope": target["scope"], "principal": 4, "operation": 2**64 - 1},
+    "target": target, "action": "drop",
+    "expected_definition": {"object": target, "revision": 2, "digest": [3] * 32},
+    "expected_data": {"partition": 9, "next_lsn": 10}, "intent": list(intent_digest),
+}
+saved = {"definition": definition, "connection": request_input["connection"], "work": {"ddl": {"binding": binding, "namespace": 1, "name": "events", "action": {"drop": {}}}}}
+saved_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SavedIntent"})
+saved_validator.validate(saved)
+for field in ("definition", "connection", "work"):
+    invalid = copy.deepcopy(saved)
+    del invalid[field]
+    assert not saved_validator.is_valid(invalid), field
+saved_bytes = b"TDI1" + bytes.fromhex(definition) + canonical(saved)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-intent-v1.json",
+        (json.dumps({"saved": saved, "base64": base64.b64encode(saved_bytes).decode()}, ensure_ascii=False, indent=2) + "\n").encode())
+print("Direct Table: reflected envelopes, exact wide integers, mandatory proof/definition, independent signed request and saved intent passed.")

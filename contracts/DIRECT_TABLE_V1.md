@@ -75,6 +75,29 @@ reject validation, and DROP/name reuse cannot retarget it. Every use still needs
 current action rights. This binding is neither a data snapshot nor a prepared
 SQL execution artifact.
 
+`DirectTablePreparedDml` prepares INSERT, UPDATE and DELETE through Fuze's shared
+typed template compiler. It checks the exact definition and requested mutation
+right before and after compilation. Binding rechecks that identity, validates
+typed parameters and returns independent `DirectTableIntent` bytes without
+admission. Numbered Transit/PostgreSQL parameters and MySQL positional parameters
+use the existing dialect rules. INSERT derives row identities from the new
+operation; UPDATE/DELETE freeze the observed logical basis through its accepted
+frontier. Parameter binding never becomes a recovery operation.
+
+Saved intents start with `TDI1`, the 32-byte current definition, then canonical
+JSON of mandatory `definition`, `connection` and `work` fields in that order.
+`work` is exactly one of `ddl`, `rows` or `statement`, carrying the corresponding
+complete admission payload. The reflected `SavedIntent` schema describes that
+JSON. The maximum is 36 bytes plus the 8 MiB request bound. Loading rejects
+incompatible, missing, malformed, truncated and noncanonical envelopes, validates
+the owning payload and intent digest, and performs no network operation. Saved
+bytes contain neither SQL nor credentials. The connection retains the selected
+role; credential rotation can supply a new proof for the same operation.
+
+`admit` submits the saved work once. Explicit `operation` inspection, execution
+and cancellation use its original binding. No helper automatically retries an
+uncertain attempt, refreshes a data expectation or recompiles a saved statement.
+
 `admit_ddl` freezes namespace, name, exact binding and CREATE/ALTER/RENAME/DROP
 intent. CREATE carries the selected owner and binary FTS1 schema; ALTER uses
 shared column IDs, types, codecs and collations. Optional defaults carry typed

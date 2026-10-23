@@ -3956,6 +3956,1914 @@
           }
         }
       }
+    },
+    "SavedIntent": {
+      "$ref": "#/$defs/SavedIntent/$defs/T0",
+      "$defs": {
+        "T0": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "connection",
+            "work"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/SavedIntent/$defs/T1"
+            },
+            "connection": {
+              "$ref": "#/$defs/SavedIntent/$defs/T2"
+            },
+            "work": {
+              "$ref": "#/$defs/SavedIntent/$defs/T6"
+            }
+          },
+          "required": [
+            "definition",
+            "connection",
+            "work"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T1": {
+          "type": "string",
+          "enum": [
+            "b801d844954d7d395d6af53ac922cc07f39dd158f77d9c45ce62c6624178e47e"
+          ]
+        },
+        "T2": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "scope",
+            "branch",
+            "audience",
+            "principal",
+            "role"
+          ],
+          "properties": {
+            "scope": {
+              "$ref": "#/$defs/SavedIntent/$defs/T3"
+            },
+            "branch": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "audience": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "principal": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "role": {
+              "$ref": "#/$defs/SavedIntent/$defs/T5"
+            }
+          },
+          "required": [
+            "scope",
+            "branch",
+            "audience",
+            "principal",
+            "role"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T3": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "realm",
+            "resource",
+            "catalog"
+          ],
+          "properties": {
+            "realm": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "resource": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "catalog": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            }
+          },
+          "required": [
+            "realm",
+            "resource",
+            "catalog"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T4": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "T5": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T6": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "ddl"
+              ],
+              "properties": {
+                "ddl": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T7"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rows"
+              ],
+              "properties": {
+                "rows": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "statement"
+              ],
+              "properties": {
+                "statement": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T67"
+                }
+              }
+            }
+          ]
+        },
+        "T7": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "binding",
+            "namespace",
+            "name",
+            "action"
+          ],
+          "properties": {
+            "binding": {
+              "$ref": "#/$defs/SavedIntent/$defs/T8"
+            },
+            "namespace": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "name": {
+              "$ref": "#/$defs/SavedIntent/$defs/T18"
+            },
+            "action": {
+              "$ref": "#/$defs/SavedIntent/$defs/T19"
+            }
+          },
+          "required": [
+            "binding",
+            "namespace",
+            "name",
+            "action"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T8": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "identity",
+            "target",
+            "action",
+            "expected_definition",
+            "expected_data",
+            "intent"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/SavedIntent/$defs/T1"
+            },
+            "identity": {
+              "$ref": "#/$defs/SavedIntent/$defs/T9"
+            },
+            "target": {
+              "$ref": "#/$defs/SavedIntent/$defs/T10"
+            },
+            "action": {
+              "$ref": "#/$defs/SavedIntent/$defs/T11"
+            },
+            "expected_definition": {
+              "$ref": "#/$defs/SavedIntent/$defs/T12"
+            },
+            "expected_data": {
+              "$ref": "#/$defs/SavedIntent/$defs/T16"
+            },
+            "intent": {
+              "$ref": "#/$defs/SavedIntent/$defs/T14"
+            }
+          },
+          "required": [
+            "definition",
+            "identity",
+            "target",
+            "action",
+            "expected_definition",
+            "expected_data",
+            "intent"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T9": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "scope",
+            "principal",
+            "operation"
+          ],
+          "properties": {
+            "scope": {
+              "$ref": "#/$defs/SavedIntent/$defs/T3"
+            },
+            "principal": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "operation": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            }
+          },
+          "required": [
+            "scope",
+            "principal",
+            "operation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T10": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "scope",
+            "branch",
+            "object"
+          ],
+          "properties": {
+            "scope": {
+              "$ref": "#/$defs/SavedIntent/$defs/T3"
+            },
+            "branch": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "object": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            }
+          },
+          "required": [
+            "scope",
+            "branch",
+            "object"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T11": {
+          "type": "string",
+          "enum": [
+            "create",
+            "alter",
+            "rename",
+            "drop",
+            "insert",
+            "update",
+            "delete"
+          ]
+        },
+        "T12": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SavedIntent/$defs/T13"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T13": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "object",
+            "revision",
+            "digest"
+          ],
+          "properties": {
+            "object": {
+              "$ref": "#/$defs/SavedIntent/$defs/T10"
+            },
+            "revision": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "digest": {
+              "$ref": "#/$defs/SavedIntent/$defs/T14"
+            }
+          },
+          "required": [
+            "object",
+            "revision",
+            "digest"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T14": {
+          "type": "array",
+          "minItems": 32,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/SavedIntent/$defs/T15"
+          }
+        },
+        "T15": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "T16": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SavedIntent/$defs/T17"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T17": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "partition",
+            "next_lsn"
+          ],
+          "properties": {
+            "partition": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "next_lsn": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            }
+          },
+          "required": [
+            "partition",
+            "next_lsn"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T18": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "T19": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "create"
+              ],
+              "properties": {
+                "create": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T20"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "alter"
+              ],
+              "properties": {
+                "alter": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T23"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rename"
+              ],
+              "properties": {
+                "rename": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T18"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "drop"
+              ],
+              "properties": {
+                "drop": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            }
+          ]
+        },
+        "T20": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "owner",
+            "schema"
+          ],
+          "properties": {
+            "owner": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "schema": {
+              "$ref": "#/$defs/SavedIntent/$defs/T21"
+            }
+          },
+          "required": [
+            "owner",
+            "schema"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T21": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "base64"
+          ],
+          "properties": {
+            "base64": {
+              "$ref": "#/$defs/SavedIntent/$defs/T22"
+            }
+          },
+          "required": [
+            "base64"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T22": {
+          "type": "string",
+          "maxLength": 5592408
+        },
+        "T23": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "add"
+              ],
+              "properties": {
+                "add": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T24"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "drop"
+              ],
+              "properties": {
+                "drop": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T4"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rename"
+              ],
+              "properties": {
+                "rename": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "default"
+              ],
+              "properties": {
+                "default": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T54"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "nullable"
+              ],
+              "properties": {
+                "nullable": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T55"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T56"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "physical"
+              ],
+              "properties": {
+                "physical": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T57"
+                }
+              }
+            }
+          ]
+        },
+        "T24": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "name",
+            "type",
+            "nullable",
+            "default",
+            "max_characters",
+            "encoding",
+            "collation"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/SavedIntent/$defs/T18"
+            },
+            "type": {
+              "$ref": "#/$defs/SavedIntent/$defs/T25"
+            },
+            "nullable": {
+              "$ref": "#/$defs/SavedIntent/$defs/T45"
+            },
+            "default": {
+              "$ref": "#/$defs/SavedIntent/$defs/T49"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/SavedIntent/$defs/T50"
+            },
+            "encoding": {
+              "$ref": "#/$defs/SavedIntent/$defs/T51"
+            },
+            "collation": {
+              "$ref": "#/$defs/SavedIntent/$defs/T52"
+            }
+          },
+          "required": [
+            "name",
+            "type",
+            "nullable",
+            "default",
+            "max_characters",
+            "encoding",
+            "collation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T25": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int64"
+              ],
+              "properties": {
+                "int64": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint64"
+              ],
+              "properties": {
+                "uint64": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float64"
+              ],
+              "properties": {
+                "float64": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int8"
+              ],
+              "properties": {
+                "int8": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int16"
+              ],
+              "properties": {
+                "int16": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int32"
+              ],
+              "properties": {
+                "int32": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int128"
+              ],
+              "properties": {
+                "int128": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint8"
+              ],
+              "properties": {
+                "uint8": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint16"
+              ],
+              "properties": {
+                "uint16": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint32"
+              ],
+              "properties": {
+                "uint32": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint128"
+              ],
+              "properties": {
+                "uint128": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float32"
+              ],
+              "properties": {
+                "float32": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T27"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date"
+              ],
+              "properties": {
+                "date": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time"
+              ],
+              "properties": {
+                "time": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp"
+              ],
+              "properties": {
+                "timestamp": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T29"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T43"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T46"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T48"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T29"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T26"
+                }
+              }
+            }
+          ]
+        },
+        "T26": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T27": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "precision",
+            "scale"
+          ],
+          "properties": {
+            "precision": {
+              "$ref": "#/$defs/SavedIntent/$defs/T15"
+            },
+            "scale": {
+              "$ref": "#/$defs/SavedIntent/$defs/T15"
+            }
+          },
+          "required": [
+            "precision",
+            "scale"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T28": {
+          "type": "string",
+          "enum": [
+            "civil",
+            "utc"
+          ]
+        },
+        "T29": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/SavedIntent/$defs/T30"
+          }
+        },
+        "T30": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "name",
+            "type",
+            "nullable",
+            "optional"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/SavedIntent/$defs/T31"
+            },
+            "type": {
+              "$ref": "#/$defs/SavedIntent/$defs/T32"
+            },
+            "nullable": {
+              "$ref": "#/$defs/SavedIntent/$defs/T39"
+            },
+            "optional": {
+              "$ref": "#/$defs/SavedIntent/$defs/T39"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ],
+          "x-transit-defaults": {
+            "nullable": false,
+            "optional": false
+          }
+        },
+        "T31": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "T32": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int64"
+              ],
+              "properties": {
+                "int64": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint64"
+              ],
+              "properties": {
+                "uint64": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float64"
+              ],
+              "properties": {
+                "float64": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int8"
+              ],
+              "properties": {
+                "int8": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int16"
+              ],
+              "properties": {
+                "int16": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int32"
+              ],
+              "properties": {
+                "int32": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int128"
+              ],
+              "properties": {
+                "int128": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint8"
+              ],
+              "properties": {
+                "uint8": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint16"
+              ],
+              "properties": {
+                "uint16": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint32"
+              ],
+              "properties": {
+                "uint32": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint128"
+              ],
+              "properties": {
+                "uint128": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float32"
+              ],
+              "properties": {
+                "float32": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T34"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date"
+              ],
+              "properties": {
+                "date": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time"
+              ],
+              "properties": {
+                "time": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp"
+              ],
+              "properties": {
+                "timestamp": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T29"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T37"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T42"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T29"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T33"
+                }
+              }
+            }
+          ]
+        },
+        "T33": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T34": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "precision",
+            "scale"
+          ],
+          "properties": {
+            "precision": {
+              "$ref": "#/$defs/SavedIntent/$defs/T35"
+            },
+            "scale": {
+              "$ref": "#/$defs/SavedIntent/$defs/T35"
+            }
+          },
+          "required": [
+            "precision",
+            "scale"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T35": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "T36": {
+          "type": "string",
+          "enum": [
+            "civil",
+            "utc"
+          ]
+        },
+        "T37": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "type",
+            "nullable"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/SavedIntent/$defs/T38"
+            },
+            "nullable": {
+              "$ref": "#/$defs/SavedIntent/$defs/T39"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "x-transit-defaults": {
+            "nullable": false
+          }
+        },
+        "T38": {
+          "$ref": "#/$defs/SavedIntent/$defs/T32"
+        },
+        "T39": {
+          "type": "boolean"
+        },
+        "T40": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "element",
+            "length"
+          ],
+          "properties": {
+            "element": {
+              "$ref": "#/$defs/SavedIntent/$defs/T37"
+            },
+            "length": {
+              "$ref": "#/$defs/SavedIntent/$defs/T41"
+            }
+          },
+          "required": [
+            "element",
+            "length"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T41": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "T42": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "key",
+            "value"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/SavedIntent/$defs/T38"
+            },
+            "value": {
+              "$ref": "#/$defs/SavedIntent/$defs/T37"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T43": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "type",
+            "nullable"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/SavedIntent/$defs/T44"
+            },
+            "nullable": {
+              "$ref": "#/$defs/SavedIntent/$defs/T45"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "x-transit-defaults": {
+            "nullable": false
+          }
+        },
+        "T44": {
+          "$ref": "#/$defs/SavedIntent/$defs/T25"
+        },
+        "T45": {
+          "type": "boolean"
+        },
+        "T46": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "element",
+            "length"
+          ],
+          "properties": {
+            "element": {
+              "$ref": "#/$defs/SavedIntent/$defs/T43"
+            },
+            "length": {
+              "$ref": "#/$defs/SavedIntent/$defs/T47"
+            }
+          },
+          "required": [
+            "element",
+            "length"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T47": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "T48": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "key",
+            "value"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/SavedIntent/$defs/T44"
+            },
+            "value": {
+              "$ref": "#/$defs/SavedIntent/$defs/T43"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T49": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SavedIntent/$defs/T21"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T50": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SavedIntent/$defs/T47"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T51": {
+          "type": "string",
+          "enum": [
+            "plain",
+            "bitpacked",
+            "rle",
+            "dictionary",
+            "fsst",
+            "comp",
+            "comp_3",
+            "zoned",
+            "ibm_hfp",
+            "ebcdic"
+          ]
+        },
+        "T52": {
+          "type": "string",
+          "enum": [
+            "none",
+            "utf8_binary",
+            "ascii_ci",
+            "ebcdic_cp037",
+            "icu_root"
+          ]
+        },
+        "T53": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "name"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "name": {
+              "$ref": "#/$defs/SavedIntent/$defs/T18"
+            }
+          },
+          "required": [
+            "column",
+            "name"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T54": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "value": {
+              "$ref": "#/$defs/SavedIntent/$defs/T49"
+            }
+          },
+          "required": [
+            "column",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T55": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "value": {
+              "$ref": "#/$defs/SavedIntent/$defs/T45"
+            }
+          },
+          "required": [
+            "column",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T56": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "type",
+            "max_characters"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "type": {
+              "$ref": "#/$defs/SavedIntent/$defs/T25"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/SavedIntent/$defs/T50"
+            }
+          },
+          "required": [
+            "column",
+            "type",
+            "max_characters"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T57": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "encoding",
+            "collation"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "encoding": {
+              "$ref": "#/$defs/SavedIntent/$defs/T51"
+            },
+            "collation": {
+              "$ref": "#/$defs/SavedIntent/$defs/T52"
+            }
+          },
+          "required": [
+            "column",
+            "encoding",
+            "collation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T58": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "binding",
+            "interpretation",
+            "schema",
+            "changes",
+            "ingestion"
+          ],
+          "properties": {
+            "binding": {
+              "$ref": "#/$defs/SavedIntent/$defs/T8"
+            },
+            "interpretation": {
+              "$ref": "#/$defs/SavedIntent/$defs/T59"
+            },
+            "schema": {
+              "$ref": "#/$defs/SavedIntent/$defs/T21"
+            },
+            "changes": {
+              "$ref": "#/$defs/SavedIntent/$defs/T61"
+            },
+            "ingestion": {
+              "$ref": "#/$defs/SavedIntent/$defs/T66"
+            }
+          },
+          "required": [
+            "binding",
+            "interpretation",
+            "schema",
+            "changes",
+            "ingestion"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T59": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "interpretation",
+            "content",
+            "schema_fingerprint",
+            "retired"
+          ],
+          "properties": {
+            "interpretation": {
+              "$ref": "#/$defs/SavedIntent/$defs/T13"
+            },
+            "content": {
+              "$ref": "#/$defs/SavedIntent/$defs/T60"
+            },
+            "schema_fingerprint": {
+              "$ref": "#/$defs/SavedIntent/$defs/T14"
+            },
+            "retired": {
+              "$ref": "#/$defs/SavedIntent/$defs/T45"
+            }
+          },
+          "required": [
+            "interpretation",
+            "content",
+            "schema_fingerprint",
+            "retired"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T60": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "bytes",
+            "sha256"
+          ],
+          "properties": {
+            "bytes": {
+              "$ref": "#/$defs/SavedIntent/$defs/T4"
+            },
+            "sha256": {
+              "$ref": "#/$defs/SavedIntent/$defs/T14"
+            }
+          },
+          "required": [
+            "bytes",
+            "sha256"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T61": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/SavedIntent/$defs/T62"
+          }
+        },
+        "T62": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "insert"
+              ],
+              "properties": {
+                "insert": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T63"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "update"
+              ],
+              "properties": {
+                "update": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T65"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "delete"
+              ],
+              "properties": {
+                "delete": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T63"
+                }
+              }
+            }
+          ]
+        },
+        "T63": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "base64"
+          ],
+          "properties": {
+            "base64": {
+              "$ref": "#/$defs/SavedIntent/$defs/T64"
+            }
+          },
+          "required": [
+            "base64"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T64": {
+          "type": "string",
+          "maxLength": 5592408
+        },
+        "T65": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "key",
+            "row"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/SavedIntent/$defs/T63"
+            },
+            "row": {
+              "$ref": "#/$defs/SavedIntent/$defs/T63"
+            }
+          },
+          "required": [
+            "key",
+            "row"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T66": {
+          "type": "string",
+          "enum": [
+            "point",
+            "bulk"
+          ]
+        },
+        "T67": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "binding",
+            "interpretation",
+            "schema",
+            "plan"
+          ],
+          "properties": {
+            "binding": {
+              "$ref": "#/$defs/SavedIntent/$defs/T8"
+            },
+            "interpretation": {
+              "$ref": "#/$defs/SavedIntent/$defs/T59"
+            },
+            "schema": {
+              "$ref": "#/$defs/SavedIntent/$defs/T21"
+            },
+            "plan": {
+              "$ref": "#/$defs/SavedIntent/$defs/T21"
+            }
+          },
+          "required": [
+            "binding",
+            "interpretation",
+            "schema",
+            "plan"
+          ],
+          "x-transit-defaults": {}
+        }
+      }
     }
   }
 }
