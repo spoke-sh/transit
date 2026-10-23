@@ -3109,6 +3109,7 @@
       "error_returns": {
         "Policy.make_guard()": "anyerror",
         "Policy.registered()": "anyerror",
+        "admissionReason()": "<inferred>",
         "admit()": "<inferred>",
         "admitRows()": "<inferred>",
         "applyRows()": "<inferred>",
@@ -3130,6 +3131,7 @@
         "perform()": "<inferred>",
         "performRows()": "<inferred>",
         "pinRows()": "<inferred>",
+        "preview()": "<inferred>",
         "record()": "<inferred>",
         "recover()": "<inferred>",
         "registration()": "<inferred>",
@@ -3151,7 +3153,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 199,
+        "try": 214,
         "catch": 2
       },
       "imports": [
@@ -3324,6 +3326,7 @@
         "InvalidAuthorizationCredential": 1,
         "InvalidCatalogCursor": 1,
         "InvalidCatalogStepBudget": 1,
+        "InvalidDirectCatalogOperation": 1,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
         "InvalidTableCursor": 1,
@@ -3338,6 +3341,7 @@
           "describe",
           "list",
           "lookup",
+          "preview",
           "admit_ddl",
           "admit_rows",
           "operation",
@@ -3371,6 +3375,7 @@
           "description",
           "list",
           "lookup",
+          "preview",
           "ddl",
           "rows",
           "pin",
@@ -3409,7 +3414,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 56,
+        "try": 57,
         "catch": 2
       },
       "imports": [
@@ -3448,7 +3453,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 25
+        "InvalidTableResponse": 33
       },
       "outcomes": {},
       "error_sets": {},
@@ -3463,7 +3468,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 46,
         "catch": 0
       },
       "imports": [
@@ -12376,7 +12381,7 @@
           "deadline"
         ],
         "Definition": [
-          "ca3da62f10ff4dbe279871b62429d49d235b7f821c23cf0dee497b02c683485b"
+          "b4c2e47f8dac6fff59724ee96a6e95af0134c065b9895eb5303c4a1155f09b04"
         ],
         "Effect.phase": [
           "pending",

@@ -643,6 +643,30 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Direct Table preview — 2026-10-23
+
+The catalog suite passes **109/109 tests** with read-only DDL preview. Repeated
+preview leaves the catalog root, Table frontier, immutable-object put count and
+operation-identity claims unchanged. It reports name, definition and logical-data
+conflicts, classifies ADD COLUMN as a rewrite, rejects reuse of an existing
+operation identity and denies disclosure at the final policy check. Response
+validation rejects changed proposal fingerprints, bindings, contradictory
+conflict/work fields and an operation result substituted for preview.
+
+`just test::direct-table-service test::local-catalog` passes. The HTTP proof now
+contains **92 typed calls**, with preview followed by `not_observed` operation
+inspection before ALTER, RENAME, DROP and replacement CREATE admission. Its
+two-restart, retained-source and current-revocation cases still pass. The native
+composition checks pass alongside the network caller.
+
+The shared current-v1 definition is derived from
+`transit.native.v1.direct-table-preview.2026-10-23`. Generated schemas, binding
+resources and independent signing fixtures were replaced together; the previous
+definition remains an explicit rejection case. `just contract::check`, diagnostic
+error/outcome checks and documentation links pass. Preview checks schema rules
+and expectations, not every existing row's constraints or future execution
+success. Dependency RESTRICT and installed SQL integration remain unfinished.
+
 ## Direct Table CRUD/DDL recovery — 2026-10-23
 
 `just test::direct-table-service` passes **84 typed HTTP calls** through the

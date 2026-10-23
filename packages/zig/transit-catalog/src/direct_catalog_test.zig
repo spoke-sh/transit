@@ -66,6 +66,57 @@ fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentSt
 }
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
 
+test "direct preview checks current expectations and schema work without claims or durable writes" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    const root = catalog.store.root;
+    const puts = objects.puts;
+    const proposed = try catalog.preview(create, access.policy());
+    try t.expectEqual(.none, proposed.reason);
+    try t.expect(proposed.work.? == .metadata and proposed.current == null);
+    try t.expectEqualDeep(proposed, try catalog.preview(create, access.policy()));
+    try t.expectEqualDeep(root, catalog.store.root);
+    try t.expectEqual(puts, objects.puts);
+    try t.expect(try c.OperationBinding.lookup(t.allocator, objects.objectStore(), create.binding.identity) == null);
+    try t.expect((try catalog.status(create.binding, access.policy())) == .not_observed);
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.CatalogDenied, catalog.preview(create, access.policy()));
+    try t.expectEqual(puts, objects.puts);
+    access.deny_at = std.math.maxInt(usize);
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    var altered = try edit(&view, 2, .{ .alter = .{ .add = .{ .name = "extra", .type = .int64 } } });
+    const before_table = try wal.log().tail(view.table.root.partition);
+    const before_catalog = catalog.store.root;
+    const before_objects = objects.puts;
+    const previewed = try catalog.preview(altered, access.policy());
+    try t.expectEqual(.none, previewed.reason);
+    try t.expectEqual(c.fuze.TableEvolution.Work.rewrite_rows, previewed.work.?);
+    try t.expectEqualDeep(view.table.root.declared(), previewed.current.?.interpretation);
+    altered.binding.expected_data = .{ .partition = view.table.root.partition, .next_lsn = 0 };
+    try t.expectEqual(.stale_data, (try catalog.preview(altered, access.policy())).reason);
+    altered.binding.expected_data = null;
+    altered.binding.expected_definition.?.revision += 1;
+    try t.expectEqual(.stale_definition, (try catalog.preview(altered, access.policy())).reason);
+    const conflict = try creation(8, 3, "events");
+    try t.expectEqual(.name_conflict, (try catalog.preview(conflict, access.policy())).reason);
+    var reused = try creation(9, 1, "replacement");
+    reused.binding.identity = create.binding.identity;
+    try t.expectError(error.DataIdentityConflict, catalog.preview(reused, access.policy()));
+    try t.expectEqual(before_table, try wal.log().tail(view.table.root.partition));
+    try t.expectEqualDeep(before_catalog, catalog.store.root);
+    try t.expectEqual(before_objects, objects.puts);
+}
+
 test "direct catalog serializes row admission against DDL without a catalog write or inspection side effect" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
