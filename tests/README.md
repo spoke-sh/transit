@@ -588,6 +588,18 @@ and public direct Table route are still absent.
 
 ## Durable Table row admission and outcomes — 2026-10-22
 
+The subsequent `just test::local-catalog` run also passes explicit node-owned
+CREATE progression through `LocalCatalogRunner`. A one-step request leaves the
+operation admitted; a lost native append acknowledgement survives engine/catalog
+reopen and resumes to one published Table. Repeating execution returns the same
+outcome without another native commit. Zero work budgets reject, and execution
+of an unknown operation publishes nothing. Retiring the backing resource after
+native preparation denies the registrar commit, without creating a Table binding.
+This qualifies the internal runner and current-caller fence; HTTP dispatch and
+installed SQL integration remain separate gates. The full `just check` passed
+at `75045174` before this runner addition, in a detached worktree with locked
+frontend dependencies installed.
+
 The pinned storage package suite passes **52/52 tests** after adding frozen
 binary row intents, mandatory operation/pending roots, terminal controls and
 matched/changed outcome counts. The additional cases establish:

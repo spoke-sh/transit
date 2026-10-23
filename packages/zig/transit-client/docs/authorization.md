@@ -74,6 +74,12 @@ BEGIN and publication enforce their existing policy-basis preconditions. The
 service still validates the complete original request, selected owner and domain
 binding; this helper cannot establish that application-level correspondence.
 
+`AuthorizationClientWithTransport` uses the same implementation with a host-owned
+signed-query transport. An in-process native service can use it without issuing
+HTTP requests back to itself; queries still pass through native authentication.
+The host must serialize the registrar's submissions and preserve its checked
+policy/resource basis until the native candidate's conditional publication.
+
 ## Scoped changesets
 
 `AuthorizationSet` reconciles explicit grant, membership and default-grant

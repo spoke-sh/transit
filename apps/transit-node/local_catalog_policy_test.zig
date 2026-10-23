@@ -162,7 +162,55 @@ test "local catalog checks real native registrations, current ownership and exac
     try catalog.releaseRows(request.binding.target, retained, policy.policy());
     owner.limits = limits;
     try t.expectError(error.TableSnapshotReleased, catalog.scanRows(t.allocator, request.binding.target, retained, null, .{}, policy.policy()));
-    _ = try command(&engine, .{ .retire_resource = resource });
+    var runner: @import("LocalCatalogRunner.zig") = .{ .engine = &engine, .principal = 0, .key = try key(17) };
+    try t.expectError(error.InvalidCatalogStepBudget, runner.run(&catalog, request.binding, policy.policy(), 0));
+    var unknown = request.binding;
+    unknown.identity.operation = 999;
+    const before_unknown = engine.head.position;
+    try t.expect((try runner.run(&catalog, unknown, policy.policy(), 1)).observation == .not_observed);
+    try t.expectEqual(before_unknown, engine.head.position);
+    var automatic = request;
+    automatic.intent.name = try c.TableAuthority.Name.init("runner");
+    automatic.intent.action.create.schema.object = 8;
+    automatic.binding.identity.operation = 4;
+    automatic.binding.target.object = 8;
+    automatic.binding.intent = try automatic.intent.digest(t.allocator);
+    _ = try catalog.admit(automatic, policy.policy());
+    const one_step = try runner.run(&catalog, automatic.binding, policy.policy(), 1);
+    try t.expect(one_step.observation == .admitted);
+    try t.expectEqual(@as(u16, 1), one_step.native_steps);
+    journal.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, runner.run(&catalog, automatic.binding, policy.policy(), 1));
+    journal.lose_reply = false;
+    engine = try Engine.open(&journal, &pages, engine.genesis);
+    try catalog.recover();
+    const executed = try runner.run(&catalog, automatic.binding, policy.policy(), 16);
+    try t.expect(executed.observation == .committed);
+    const native_position = engine.head.position;
+    try t.expectEqualDeep(executed.observation, (try runner.run(&catalog, automatic.binding, policy.policy(), 16)).observation);
+    try t.expectEqual(native_position, engine.head.position);
+    var resolved = (try catalog.resolve(t.allocator, 1, automatic.intent.name, policy.policy())).?;
+    defer resolved.deinit();
+    try t.expectEqual(@as(u64, 8), resolved.table.root.interpretation.object.object);
+    var interrupted = automatic;
+    interrupted.intent.name = try c.TableAuthority.Name.init("interrupted");
+    interrupted.intent.action.create.schema.object = 9;
+    interrupted.binding.identity.operation = 5;
+    interrupted.binding.target.object = 9;
+    interrupted.binding.intent = try interrupted.intent.digest(t.allocator);
+    _ = try catalog.admit(interrupted, policy.policy());
+    const Race = struct {
+        resource: u64,
+        fn retire(context: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            _ = try command(authority, .{ .retire_resource = self.resource });
+        }
+    };
+    var race: Race = .{ .resource = resource };
+    runner.after_prepare = .{ .context = &race, .run = Race.retire };
+    try t.expectError(error.StateResourceExpired, runner.run(&catalog, interrupted.binding, policy.policy(), 16));
+    var authority = try engine.authorization();
+    try t.expect(try authority.bound(table_domain, try c.TableAuthority.binding(scope, .table, 9)) == null);
     try t.expectError(error.StateResourceExpired, catalog.status(request.binding, policy.policy()));
     try t.expectError(error.StateResourceExpired, catalog.rowStatus(succeeding.binding, policy.policy()));
 }

@@ -71,8 +71,11 @@ credentials nor provider access.
 native role graph, credential checks and resource lifetime fence. It verifies
 the original caller's signed request context and the registered domain bindings;
 it supplies no new grant store. The HTTP dispatcher does not yet expose this
-component. `just test::local-catalog` exercises this composition with real signed
-native changes and local disk storage.
+component. `LocalCatalogRunner` resumes explicit CREATE execution through the
+existing native registration ledger. It prepares each native step, checks the
+original caller again, then commits only against that checked native head.
+Inspection does not run this helper. `just test::local-catalog` exercises this
+composition with real signed native changes and local disk storage.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
