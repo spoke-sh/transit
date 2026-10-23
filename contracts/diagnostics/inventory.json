@@ -3297,6 +3297,25 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableClient.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "call()": "<inferred>",
+        "signed()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "DirectTableResponse.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 3,
@@ -3390,6 +3409,32 @@
       "propagation": {
         "try": 54,
         "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidTableResponse": 25
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "ddl()": "<inferred>",
+        "definition()": "<inferred>",
+        "evidence()": "<inferred>",
+        "frontier()": "<inferred>",
+        "rows()": "<inferred>",
+        "schema()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -4855,6 +4900,7 @@
         "AuthorizationSql.zig",
         "DeclarativeCatalog.zig",
         "DirectCatalog.zig",
+        "DirectTableClient.zig",
         "DirectTableProtocol.zig",
         "Inspection.zig",
         "Model.zig",

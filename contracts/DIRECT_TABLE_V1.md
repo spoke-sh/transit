@@ -27,6 +27,13 @@ used requirements again after buffering the complete response. Denial at this
 boundary suppresses the response, even if a mutation has already committed.
 Recover that mutation through its original operation binding.
 
+`DirectTableClient` checks response context and kind, exact operation bindings,
+terminal phase consistency, resulting definition revisions, matched/changed
+counts, schema fingerprints, listing order and page limits. It owns decoded
+responses independently of transport buffers. It performs one exchange per call;
+timeouts do not trigger implicit mutation retries. A page consumer still needs
+the retained source's schema, exact metadata and complete-consumption checks.
+
 ## Declaration and row operations
 
 `initialize` initializes the configured catalog under its native owner;

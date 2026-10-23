@@ -51,6 +51,15 @@ fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTablePro
     const output = try alloc.alloc(u8, 1024 * 1024);
     const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value, output));
     errdefer response.deinit();
+    try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
+    if (response.value.result == .page) {
+        var altered = response.value;
+        altered.result.page.encoded_bytes += 1;
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
+        altered = response.value;
+        altered.result.page.snapshot.handle.owner.operation += 1;
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
+    }
     try t.expectEqualDeep(signed.claim.context, response.value.context);
     return response;
 }

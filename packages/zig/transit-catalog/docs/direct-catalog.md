@@ -12,6 +12,16 @@ dispatcher calls this owner with current native policy and rechecks disclosed
 requirements after response buffering. Installed HTTP/SQL callers do not use
 that dispatcher yet.
 
+`DirectTableClient.signed` binds a typed action to the caller's current native
+credential; `call` makes one owned HTTP exchange and validates the response
+against that exact request. It checks result kind, operation attribution,
+definition/schema identity, counts, cursor progress and binary page budgets.
+It does not retry a mutation, renew a pin or settle work implicitly. The listener
+integration is unfinished, so this client does not yet replace installed callers.
+Page consumers must additionally bind every page to the retained source schema
+and verify complete source consumption; a valid transport page is not a completed
+query result.
+
 ## Identity, admission and publication
 
 The configuration fixes one catalog, branch one, its native authorization

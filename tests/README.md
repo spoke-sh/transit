@@ -662,6 +662,14 @@ head unchanged. Transferring Table ownership after response buffering denies
 the complete page; regrant permits release. This test exercises the dispatcher
 in process, not a network listener, installed launcher or SQL adapter.
 
+The following catalog run passes **106/106 tests** with `DirectTableClient`
+response validation. Its negative cases reject unrelated contexts, changed
+operation IDs, impossible changed counts, wrong accepted partitions, inconsistent
+terminal phases and wrong result kinds. The native dispatcher test also passes
+every returned envelope through this validator and rejects altered page byte
+counts and pin attribution. The client's HTTP method compiles; a network call
+through it has not yet been qualified here.
+
 The pinned storage suite passes **54/54 tests** with `inspectSnapshot` and
 `scanSnapshot`. New disk-backed cases traverse thirteen mixed unflushed WAL and
 segment rows across flush, schema rewrite, DROP and actual owner reopen. They
