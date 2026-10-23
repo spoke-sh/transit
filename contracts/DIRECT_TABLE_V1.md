@@ -33,6 +33,10 @@ counts, schema fingerprints, listing order and page limits. It owns decoded
 responses independently of transport buffers. It performs one exchange per call;
 timeouts do not trigger implicit mutation retries. A page consumer still needs
 the retained source's schema, exact metadata and complete-consumption checks.
+`DirectTableReader` supplies those checks for one retained Table: it owns the
+original schema, advances only after fully decoding a valid page and verifies
+the complete row count. Its explicit `check` revalidates current rights before
+disclosure from cached data. Local destruction does not release the durable pin.
 
 ## Declaration and row operations
 

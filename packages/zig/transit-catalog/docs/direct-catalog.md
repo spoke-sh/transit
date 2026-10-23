@@ -19,9 +19,21 @@ against that exact request. It checks result kind, operation attribution,
 definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route; it does not yet replace installed SQL callers.
-Page consumers must additionally bind every page to the retained source schema
-and verify complete source consumption; a valid transport page is not a completed
-query result.
+`DirectTableReader.open` inspects an existing durable pin and owns its original
+schema. Keep the pin handle separately while opening: a failed inspection does
+not release the pin. `next` checks every page against the exact retained
+interpretation, accepted/logical-change positions and total row count, then
+decodes all rows under that original schema. Failed requests or decodes leave
+the cursor unchanged. Returned batches own their values independently of the
+reader. Completion requires exact source consumption; it establishes no completed
+query result or consistent cut across independently retained Tables.
+
+Before disclosing a result computed from cached rows, call the reader's `check`
+to recheck current rights and source attribution. Reading beyond the end also
+rechecks rights before returning no batch. The reader remains bound to its
+original connection and principal. `release` explicitly releases the original
+pin and can be repeated after an uncertain reply; `deinit` frees only local
+memory. There is no implicit renewal, replacement cut or remote cleanup.
 
 ## Identity, admission and publication
 

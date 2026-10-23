@@ -130,34 +130,40 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     profile.saved = .{ .create = binding, .insert = work.binding, .snapshot = snapshot, .first = first, .second = second };
 }
 fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile) !void {
-    const alloc = init.arena.allocator();
     const saved = profile.saved.?;
     try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
     try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
-    const retained = try client.call(.{ .snapshot = saved.snapshot });
-    defer retained.deinit();
-    try t.expectEqual(@as(u64, 1), retained.value.result.snapshot.row_count);
-    try t.expectEqualDeep(saved.first.outcome.position, retained.value.result.snapshot.accepted);
-    const page = try client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } });
+    var reader = try c.DirectTableReader.open(init.gpa, client, saved.snapshot);
+    defer reader.deinit();
+    try t.expectEqual(@as(u64, 1), reader.basis.row_count);
+    try t.expectEqualDeep(saved.first.outcome.position, reader.basis.accepted);
+    var page = (try reader.next(client, .{})).?;
     defer page.deinit();
-    try t.expect(page.value.result.page.next == null);
-    try t.expectEqual(@as(usize, 1), page.value.result.page.rows.len);
-    var decoded = try c.fuze.TableRow.decode(alloc, schema, try page.value.result.page.rows[0].decode(alloc, c.fuze.TableRow.max_bytes));
-    defer decoded.deinit();
-    const value = decoded.row().cells[1].value.atom.bytes;
+    try t.expect(page.complete);
+    try t.expectEqual(@as(usize, 1), page.count);
+    const value = page.rows[0].?.row().cells[1].value.atom.bytes;
     try t.expectEqual(@as(usize, 64 * 1024), value.len);
     for (value, 0..) |byte, i| try t.expectEqual(@as(u8, @truncate(i)), byte);
+    try t.expect(try reader.next(client, .{}) == null);
+    var foreign = client;
+    foreign.connection.role = profile.role;
+    try t.expectError(error.CatalogIdentityConflict, reader.check(foreign));
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer current.deinit();
     try t.expectEqual(@as(u64, 2), current.value.result.lookup.?.row_count);
     const native_table = (try admin.query(.{ .binding = .{ .domain = profile.catalog.authority.table_domain, .key = try c.TableAuthority.binding(profile.catalog.scope, .table, 7) } })).body.authorization.body.binding.?.reference.id;
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
+    try t.expectError(error.AccessDenied, reader.check(client));
+    try t.expectError(error.AccessDenied, reader.next(client, .{}));
     try t.expectError(error.AccessDenied, inspect(client, saved.insert));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = profile.role } });
-    const released = try client.call(.{ .release = saved.snapshot });
-    defer released.deinit();
-    try t.expect(released.value.result == .released);
+    try reader.check(client);
+    try reader.release(client);
+    try reader.release(client);
+    try t.expectError(error.TableSnapshotReleased, reader.check(client));
+    try t.expectError(error.Conflict, c.DirectTableReader.open(init.gpa, client, saved.snapshot));
+    try t.expectEqual(p.ErrorCode.QueryExpired, client.service.last_rejection.?);
 }
 
 pub fn main(init: std.process.Init) !void {
