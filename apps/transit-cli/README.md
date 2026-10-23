@@ -1,12 +1,16 @@
 # transit-cli
 
+`transit server` starts and supervises a local Transit installation.
+`transit console` opens interactive or batch SQL sessions for queries, Table
+DDL/DML and catalog operations through the shared SQL service.
+
 The local server starts and supervises a separate `transit-board`
 process by default in version-1 local installations, with `--no-ui` for headless operation. See the
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
-The `transit` executable provides the local `server`, interactive/batch `console`,
-explicit signed query shell, general Table DDL/DML and catalog operations. Existing `transit-admin`
-administration commands remain separate.
+The executable also currently exposes `app`, `auth`, `catalog`, `file-query`
+and `query`, documented below, and accepts `serve` as a server alias.
+The `transit-admin` administration utility remains separate.
 
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
 configuration and recovery. Shared parser and
@@ -20,12 +24,13 @@ and reports its URL and accepted authorities in the ready record.
 
 The [public CLI reference](../../docs/handbook/reference/cli.md#output-philosophy-explain-locate-guide)
 defines concise errors, useful coordinates, recovery guidance, streams and exit
-statuses. Use `transit server --help`, `transit console --help` or application
-operation help such as `transit app install --help` for supported options and
-configuration guidance. `just test::cli-diagnostics` checks the real executable's
+statuses. Use `transit server --help` and `transit console --help` for supported
+options and configuration guidance. `just test::cli-diagnostics` checks the real executable's
 invocation and configuration failures without starting an installation.
-Put `--diagnostics=json` before the command for structured stderr errors; result
-stdout keeps its command-specific format. See the
+`transit console --format json` selects JSON SQL results on stdout; errors remain
+human-readable by default. Put `--diagnostics=json` before the command to select
+structured errors on stderr, including invocation and configuration failures.
+It does not enable debug logging or change result output. See the
 [structured error reference](../../docs/handbook/reference/cli.md#structured-errors).
 
 The [authorization guide](docs/authorization.md) describes `transit auth`
