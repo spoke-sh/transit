@@ -57,16 +57,38 @@ not grant authority. Installed SQL does not use this component yet.
 encoded `FTR1` rows. The containing `TWAL` frame supplies the partition and LSN.
 Metadata has a mandatory definition, the preceding payload's complete SHA-256
 (zeros for the first record), the complete successor root and a tagged action.
-The root binds interpretation, partition, exclusive accepted and logical-change
-frontiers, live row count, point/scan index roots, receipt index and pin index.
+The root binds interpretation, immutable declaration content, row-schema
+fingerprint, retirement, partition, exclusive accepted and logical-change
+frontiers, next segment identity, live row count, point/scan index roots, receipt
+index and pin index. Declaration content, schema fingerprint, retirement and
+next segment identity are mandatory; an earlier root cannot default these fields.
 
-Mutation records use `row_delta`; checkpoint, pin and release records use
+A declaration object contains `TDECL001` at `0..8`, mandatory shared definition
+bytes at `8..40`, then six little-endian `u64` identities (realm, resource,
+catalog, branch, object, definition revision), a `u64` retirement flag (`0` or
+`1`), and `u32` property/schema lengths. Its 104-byte header precedes up to
+4 KiB of exact catalog-owned property bytes and up to 64 KiB of encoded Table
+schema. Its key is `table-definitions/<digest>.data`. The complete byte hash is
+the definition digest; the row-schema fingerprint is separate. Staging these
+bytes publishes neither a definition nor a name.
+
+RENAME preserves row interpretation and indexes. ALTER streams the accepted
+source into bounded segments and private replacement indexes, validating all
+rows and new keys before publishing one successor. Segment identities advance
+within that successor, including when one rewrite emits several segments.
+DROP publishes a permanently retired successor; it preserves retained read roots
+and receipts. These transitions and their receipts share the Table acceptance
+record. Catalog name reservation and dependency checks remain the caller's duty.
+
+Row mutation records use `row_delta`; declaration, checkpoint, pin and release records use
 `manifest_checkpoint`. The action carries the exact neutral binding, complete
 ordered mutation digest, ingestion choice and outcome, or the affected pin owner
 and immutable basis. An accepted mutation publishes its result and both row
 indexes atomically. Root `next_lsn` equals frame LSN plus one. Control/physical
 records preserve `changed_lsn`. Recovery verifies contiguous positions, chain
-links, partition/interpretation identity and top-level page roots before serving.
+links, stable partition/object identity, permitted definition succession and
+top-level page roots before serving. It loads the exact accepted declaration;
+row reads compare row-schema fingerprints, independently of naming revisions.
 Descendants are checked when read. There is no scan for an independently
 published latest manifest and no fallback to another payload definition.
 
@@ -105,7 +127,7 @@ are accepted Table log transitions. Object existence alone is not a pin.
 This component retains all WAL and immutable objects and exposes no physical
 trim/GC operation. Pins preserve accepted unflushed rows, exact schema and both
 row indexes across restart. Snapshot retirement does not claim physical deletion.
-Its tests do not qualify catalog DDL, installed SQL, distributed transactions or
+Its tests do not qualify catalog name publication, installed SQL, distributed transactions or
 a collector racing with snapshots.
 
 ## Local WAL persistence

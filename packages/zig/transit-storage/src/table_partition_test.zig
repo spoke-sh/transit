@@ -28,13 +28,13 @@ const Access = struct {
     }
 };
 fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentStore) !P {
-    var value = try P.init(t.allocator, object, 17, schema, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    var value = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
     errdefer value.deinit();
     try value.recover();
     return value;
 }
 fn binding(partition: *P, operation: u64) p.DataLifecycle.Binding {
-    return .{ .definition = p.Growth.current_definition, .identity = .{ .scope = object.scope, .principal = 4, .operation = operation }, .target = object, .action = .insert, .expected_definition = partition.root.interpretation, .expected_data = null, .intent = @splat(7) };
+    return .{ .definition = p.Growth.current_definition, .identity = .{ .scope = object.scope, .principal = 4, .operation = operation }, .target = object, .action = if (partition.root.next_lsn == 0) .create else .insert, .expected_definition = if (partition.root.next_lsn == 0) null else partition.root.interpretation, .expected_data = null, .intent = @splat(7) };
 }
 fn change(value: *const f.Types.Values.Cell, operation: u64) P.Change {
     return .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = operation, .ordinal = 0 }, .cells = @as(*const [1]f.Types.Values.Cell, @ptrCast(value)) }, .expect = .absent } };
@@ -134,9 +134,11 @@ test "Table rows and exact receipts exceed the resident cache and retain deletes
     var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
     defer objects.deinit();
     var access: Access = .{};
+    var creation: p.DataLifecycle.Binding = undefined;
     {
         var table = try owner(&wal, &objects);
         defer table.deinit();
+        creation = binding(&table, 1);
         for (0..129) |i| {
             const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = @intCast(i) } } };
             _ = try table.apply(binding(&table, i + 1), &.{change(&cell, i + 1)}, .point, access.guard());
@@ -167,7 +169,7 @@ test "Table rows and exact receipts exceed the resident cache and retain deletes
     try t.expectEqual(@as(usize, 128), count);
     try t.expectEqual(@as(u64, 1), table.segment_reads);
     try t.expectEqual(@as(u64, 1), table.row_groups_decoded);
-    for (0..129) |i| try t.expectEqual(@as(u64, 1), (try table.observe(binding(&table, i + 1), access.guard())).?.affected);
+    for (0..129) |i| try t.expectEqual(@as(u64, 1), (try table.observe(if (i == 0) creation else binding(&table, i + 1), access.guard())).?.affected);
 }
 
 test "one accepted Table batch exceeds native turn blocks and flushes large values without unsafe pruning" {
@@ -181,7 +183,7 @@ test "one accepted Table batch exceeds native turn blocks and flushes large valu
     var wide = schema;
     wide.columns = &wide_columns;
     wide.next_column = 3;
-    var table = try P.init(t.allocator, object, 17, wide, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = wide, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
     defer table.deinit();
     try table.recover();
     var access: Access = .{};
@@ -278,11 +280,13 @@ test "interrupted Table pin staging never publishes a snapshot and pin counts ex
     defer objects.deinit();
     var table = try owner(&wal, &objects);
     defer table.deinit();
-    var access: Access = .{ .deny_at = 2 };
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1000), &.{}, .point, access.guard());
+    access = .{ .deny_at = 2 };
     const identity: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 1 };
-    const empty: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = 0 };
+    const empty: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = 1 };
     try t.expectError(error.PermissionDenied, table.pin(identity, empty, access.guard()));
-    try t.expectEqual(@as(u64, 0), table.root.next_lsn);
+    try t.expectEqual(@as(u64, 1), table.root.next_lsn);
     try t.expect(table.root.pins == null);
     try t.expect(objects.puts > 0);
     access.deny_at = std.math.maxInt(usize);
@@ -298,7 +302,7 @@ test "interrupted Table pin staging never publishes a snapshot and pin counts ex
     var forged = first;
     forged.content.sha256[0] ^= 1;
     try t.expectError(error.DataIdentityConflict, table.releaseSnapshot(forged, access.guard()));
-    try t.expectEqual(@as(u64, 0), table.root.changed_lsn);
+    try t.expectEqual(@as(u64, 1), table.root.changed_lsn);
 }
 
 const UncertainLog = struct {
@@ -339,7 +343,7 @@ test "an uncertain storage append blocks Table observations until recovery and e
     var uncertain: UncertainLog = .{ .base = wal.log() };
     var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
     defer objects.deinit();
-    var table = try P.init(t.allocator, object, 17, schema, uncertain.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, uncertain.log(), objects.objectStore(), .{ .resident_pages = 1 });
     defer table.deinit();
     try table.recover();
     var access: Access = .{};
@@ -360,13 +364,14 @@ test "competing Table roots cannot publish a partial statement or replace the wi
     defer objects.deinit();
     var first = try owner(&wal, &objects);
     defer first.deinit();
+    var access: Access = .{};
+    _ = try first.apply(binding(&first, 9), &.{}, .point, access.guard());
     var second = try owner(&wal, &objects);
     defer second.deinit();
-    var access: Access = .{};
     const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
     const first_request = binding(&first, 1);
     var second_request = binding(&second, 2);
-    second_request.expected_data = .{ .partition = 17, .next_lsn = 0 };
+    second_request.expected_data = .{ .partition = 17, .next_lsn = 1 };
     _ = try first.apply(first_request, &.{change(&cell, 1)}, .point, access.guard());
     try t.expectError(error.WalLsnConflict, second.apply(second_request, &.{change(&cell, 2)}, .bulk, access.guard()));
     try second.recover();
@@ -381,7 +386,7 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
     defer wal.deinit();
     var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
     defer objects.deinit();
-    var table = try P.init(allocator, object, 17, schema, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    var table = try P.init(allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
     defer table.deinit();
     try table.recover();
     var access: Access = .{};
@@ -397,4 +402,225 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
 
 test "Table acceptance has no fallible visibility allocation after its durable append" {
     try t.checkAllAllocationFailures(t.allocator, allocationCase, .{});
+}
+
+fn ddlBinding(table: *P, operation: u64, action: p.DataLifecycle.Action) p.DataLifecycle.Binding {
+    var result = binding(table, operation);
+    result.action = action;
+    result.expected_data = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    return result;
+}
+
+test "Table rename ALTER and DROP preserve exact receipts and pinned original interpretation on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var original: p.DataLifecycle.Binding = undefined;
+    var rename: p.DataLifecycle.Binding = undefined;
+    var alter: p.DataLifecycle.Binding = undefined;
+    var drop: p.DataLifecycle.Binding = undefined;
+    var old_pin: P.SnapshotHandle = undefined;
+    var renamed_pin: P.SnapshotHandle = undefined;
+    const edit: P.Edit = .{ .alter = .{ .change = .{ .add = .{ .name = "quantity", .type = .int64, .nullable = false, .default = .{ .value = .{ .atom = .{ .signed = 42 } } } } }, .properties = "renamed" } };
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    var storage_key: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    const row_key = try key(1, &storage_key);
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        original = binding(&table, 1);
+        _ = try table.apply(original, &.{change(&cell, 1)}, .point, access.guard());
+        old_pin = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 90 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        rename = ddlBinding(&table, 2, .rename);
+        const prior_rows = table.root.rows;
+        const prior_schema = table.root.schema_fingerprint;
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.changeDefinition(rename, .{ .rename = "renamed" }, access.guard()));
+        try t.expectEqualDeep(prior_rows, table.root.rows);
+        try t.expectEqualDeep(prior_schema, table.root.schema_fingerprint);
+        try t.expectEqualStrings("renamed", table.declaration.definition.properties);
+        try t.expectEqual(@as(u64, 2), table.root.interpretation.revision);
+        try t.expectEqual(@as(u64, 1), table.declaration.schema.schema.revision);
+        table.lose_reply = false;
+        const renamed_at = table.root.next_lsn;
+        _ = try table.changeDefinition(rename, .{ .rename = "renamed" }, access.guard());
+        try t.expectEqual(renamed_at, table.root.next_lsn);
+        try t.expectError(error.DataIdentityConflict, table.changeDefinition(rename, .{ .rename = "different" }, access.guard()));
+        var renamed_row = (try table.get(t.allocator, row_key, access.guard())).?;
+        defer renamed_row.deinit();
+        try t.expect(renamed_row == .wal);
+        renamed_pin = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 91 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        alter = ddlBinding(&table, 3, .alter);
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.changeDefinition(alter, edit, access.guard()));
+        try t.expectEqual(@as(u64, 3), table.root.interpretation.revision);
+        try t.expectEqual(@as(u64, 2), table.declaration.schema.schema.revision);
+        table.lose_reply = false;
+        var rewritten = (try table.get(t.allocator, row_key, access.guard())).?;
+        defer rewritten.deinit();
+        try t.expect(rewritten == .segment);
+        try t.expectEqual(@as(i128, 42), rewritten.row().cells[1].value.atom.signed);
+        _ = try table.changeDefinition(alter, edit, access.guard());
+        // Retrying accepted data uses its original schema even after a rewrite.
+        try t.expectEqual(@as(u64, 1), (try table.apply(original, &.{change(&cell, 1)}, .point, access.guard())).affected);
+        drop = ddlBinding(&table, 4, .drop);
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.changeDefinition(drop, .{ .drop = "renamed" }, access.guard()));
+        try t.expect(table.root.retired);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    // The opening template cannot substitute for the persisted declaration.
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    try t.expect(table.root.retired);
+    try t.expectEqual(@as(u64, 4), table.root.interpretation.revision);
+    try t.expectEqual(@as(u64, 2), table.declaration.schema.schema.revision);
+    try t.expectEqualStrings("renamed", table.declaration.definition.properties);
+    const end = table.root.next_lsn;
+    _ = try table.changeDefinition(rename, .{ .rename = "renamed" }, access.guard());
+    _ = try table.changeDefinition(alter, edit, access.guard());
+    _ = try table.changeDefinition(drop, .{ .drop = "renamed" }, access.guard());
+    _ = try table.apply(original, &.{change(&cell, 1)}, .point, access.guard());
+    try t.expectEqual(end, table.root.next_lsn);
+    try t.expectError(error.TableRetired, table.get(t.allocator, row_key, access.guard()));
+    try t.expectError(error.TableRetired, table.apply(binding(&table, 20), &.{change(&cell, 20)}, .point, access.guard()));
+    for ([_]P.SnapshotHandle{ old_pin, renamed_pin }) |handle| {
+        var pinned = (try table.readSnapshot(t.allocator, handle, row_key, access.guard())).?;
+        defer pinned.deinit();
+        try t.expectEqual(@as(usize, 1), pinned.row().cells.len);
+        try t.expectEqual(@as(i128, 1), pinned.row().cells[0].value.atom.signed);
+        try table.releaseSnapshot(handle, access.guard());
+    }
+    try table.recover();
+    try t.expectError(error.TableSnapshotReleased, table.readSnapshot(t.allocator, old_pin, row_key, access.guard()));
+}
+
+test "Table ALTER streams more rows than a rewrite group and publishes no prefix on denial" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    var cells: [257]f.Types.Values.Cell = undefined;
+    var changes: [257]P.Change = undefined;
+    for (0..4) |batch| {
+        for (&cells, &changes, 0..) |*cell, *mutation, i| {
+            cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(batch * cells.len + i) } } };
+            mutation.* = change(cell, batch + 1);
+        }
+        _ = try table.apply(binding(&table, batch + 1), &changes, .bulk, access.guard());
+    }
+    const before = table.root;
+    const request = ddlBinding(&table, 10, .alter);
+    const edit: P.Edit = .{ .alter = .{ .change = .{ .add = .{ .name = "note", .type = .utf8, .nullable = true } }, .properties = "expanded" } };
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.changeDefinition(request, edit, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = std.math.maxInt(usize);
+    try t.expect((try table.observe(request, access.guard())) == null);
+    _ = try table.changeDefinition(request, edit, access.guard());
+    try t.expectEqual(before.next_lsn + 1, table.root.next_lsn);
+    try t.expectEqual(before.next_segment + 2, table.root.next_segment);
+    try t.expectEqual(@as(usize, 1), table.index.cache.len);
+    try table.recover();
+    var cursor: ?s.TreeStore.pages.Key = null;
+    var count: usize = 0;
+    while (true) {
+        const batch = try table.scan(table.root, cursor);
+        for (batch.entries) |slot| if (slot) |entry| {
+            var row = try table.readRow(t.allocator, table.root, entry.key, entry.value);
+            defer row.deinit();
+            try t.expectEqual(@as(usize, 2), row.row().cells.len);
+            try t.expect(row.row().cells[1] == .null);
+            count += 1;
+        };
+        cursor = batch.next orelse break;
+    }
+    try t.expectEqual(@as(usize, 1028), count);
+}
+
+test "Table ALTER rejects duplicate collation keys without publishing schema or rows" {
+    const text_schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false, .collation = .utf8_binary }}, .primary_key = &.{1} };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = text_schema, .properties = "names" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    var access: Access = .{};
+    const values = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "A" } } }, .{ .value = .{ .atom = .{ .bytes = "a" } } } };
+    _ = try table.apply(binding(&table, 1), &.{ change(&values[0], 1), change(&values[1], 1) }, .point, access.guard());
+    const before = table.root;
+    const request = ddlBinding(&table, 2, .alter);
+    try t.expectError(error.DuplicatePrimaryKey, table.changeDefinition(request, .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .collation = .ascii_ci } }, .properties = "names" } }, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    try t.expect((try table.observe(request, access.guard())) == null);
+    try table.recover();
+    try t.expectEqualDeep(before, table.root);
+}
+
+test "Table recovery never substitutes its opening template for missing or incompatible declarations" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+    const stored = table.root.declared();
+    const bytes = try t.allocator.dupe(u8, table.declaration.bytes);
+    defer t.allocator.free(bytes);
+    bytes[8] ^= 1;
+    var foreign = stored;
+    foreign.content.sha256 = r.hash(bytes);
+    foreign.interpretation.digest = foreign.content.sha256;
+    var name: [96]u8 = undefined;
+    _ = try objects.objectStore().putImmutable(try s.TableDeclaration.key(foreign.content, &name), bytes, foreign.content.sha256);
+    try t.expectError(error.IncompatibleDefinition, s.TableDeclaration.load(t.allocator, objects.objectStore(), foreign));
+    const missing_fields = try std.json.Stringify.valueAlloc(t.allocator, .{ .interpretation = table.root.interpretation, .partition = table.root.partition }, .{});
+    defer t.allocator.free(missing_fields);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, missing_fields, .{}));
+    try objects.objectStore().delete(try s.TableDeclaration.key(stored.content, &name));
+    const before = table.root;
+    try t.expectError(error.TableDeclarationMissing, table.recover());
+    try t.expectEqualDeep(before, table.root);
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+    try t.expectError(error.TableRecoveryRequired, table.observe(binding(&table, 2), access.guard()));
+}
+
+fn declarationAllocationCase(allocator: std.mem.Allocator) !void {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try P.init(allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "before" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+    const before = table.root;
+    const request = ddlBinding(&table, 2, .rename);
+    _ = table.changeDefinition(request, .{ .rename = "after" }, access.guard()) catch |err| {
+        try t.expectEqualDeep(before, table.root);
+        try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+        try t.expectEqualStrings("before", table.declaration.definition.properties);
+        return err;
+    };
+    try t.expectEqual(@as(u64, 2), try wal.log().tail(17));
+    try t.expectEqualStrings("after", table.declaration.definition.properties);
+}
+
+test "Table definition acceptance makes no fallible visibility allocation after append" {
+    try t.checkAllAllocationFailures(t.allocator, declarationAllocationCase, .{});
 }

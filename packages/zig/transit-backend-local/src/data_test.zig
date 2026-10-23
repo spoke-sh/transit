@@ -121,10 +121,10 @@ test "native policy revocation after Table staging denies the whole batch and ex
     const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = setup.resource, .catalog = 3 }, .branch = 1, .object = 7 };
     const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    var table = try storage.TablePartition.init(t.allocator, object, 17, schema, data.log(), data.objects(), .{ .resident_pages = 1 });
+    var table = try storage.TablePartition.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, data.log(), data.objects(), .{ .resident_pages = 1 });
     defer table.deinit();
     try table.recover();
-    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .insert, .expected_definition = table.root.interpretation, .expected_data = null, .intent = @splat(5) };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(5) };
     const changes = [_]storage.TablePartition.Change{.{ .put = .{ .row = .{
         .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 },
         .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }},

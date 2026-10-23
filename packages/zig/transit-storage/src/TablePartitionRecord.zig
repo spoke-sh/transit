@@ -3,12 +3,17 @@
 const std = @import("std");
 const p = @import("transit_protocol");
 const d = p.DataLifecycle;
+const Declaration = @import("TableDeclaration.zig");
 const pages = @import("TreeStore.zig").pages;
 pub const max_metadata_bytes = 16 * 1024;
 pub const header_bytes = 44;
 
 pub const Root = struct {
     interpretation: d.Definition,
+    declaration: d.Content,
+    schema_fingerprint: [32]u8,
+    retired: bool,
+    next_segment: u64,
     partition: u64,
     next_lsn: u64 = 0,
     /// Last logical mutation's exclusive frontier; a physical flush is not a
@@ -20,9 +25,13 @@ pub const Root = struct {
     pins: ?pages.Reference = null,
     live_rows: u64 = 0,
 
+    pub fn declared(self: Root) Declaration.Stored {
+        return .{ .interpretation = self.interpretation, .content = self.declaration, .schema_fingerprint = self.schema_fingerprint, .retired = self.retired };
+    }
+
     pub fn validate(self: Root) !void {
-        try self.interpretation.validate();
-        if (self.partition == 0 or self.changed_lsn > self.next_lsn or
+        try self.declared().validate();
+        if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null)) return error.InvalidTableRoot;
     }
@@ -33,6 +42,8 @@ pub const Outcome = struct {
     affected: u64,
     live_rows: u64,
 };
+
+pub const Receipt = struct { binding: d.Binding, changes: [32]u8, outcome: Outcome };
 
 pub const Record = struct {
     definition: p.Growth.Definition,
@@ -45,16 +56,29 @@ pub const Record = struct {
             outcome: Outcome,
             ingestion: enum { point, bulk },
         },
+        declaration: struct {
+            binding: d.Binding,
+            changes: [32]u8,
+            outcome: Outcome,
+        },
         checkpoint,
         pin: struct { owner: d.Operation, basis: d.Content },
         release: struct { owner: d.Operation, basis: d.Content },
     },
 
+    pub fn receipt(self: Record) !Receipt {
+        return switch (self.action) {
+            inline .mutation, .declaration => |value| .{ .binding = value.binding, .changes = value.changes, .outcome = value.outcome },
+            else => error.InvalidTableReceipt,
+        };
+    }
+
     pub fn validate(self: Record, lsn: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, lsn, 1)) return error.InvalidTableHistory;
+        if (self.action == .declaration and self.root.changed_lsn != self.root.next_lsn) return error.InvalidTableHistory;
         switch (self.action) {
-            .mutation => |value| {
+            inline .mutation, .declaration => |value| {
                 try value.binding.validate();
                 if (!std.meta.eql(value.binding.target, self.root.interpretation.object) or
                     value.outcome.position.partition != self.root.partition or

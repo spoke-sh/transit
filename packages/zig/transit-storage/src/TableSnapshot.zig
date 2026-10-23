@@ -5,6 +5,7 @@ const p = @import("transit_protocol");
 const d = p.DataLifecycle;
 const f = @import("transit_fuze");
 const r = @import("TablePartitionRecord.zig");
+const Declaration = @import("TableDeclaration.zig");
 const Objects = @import("TransitObjectStore.zig");
 const pages = @import("TreeStore.zig").pages;
 const header_bytes = 48;
@@ -29,7 +30,7 @@ fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
 pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: d.Operation, root: r.Root, schema: f.TableSchema.Schema) !Handle {
     try owner.validate();
     try root.validate();
-    if (!std.meta.eql(owner.scope, root.interpretation.object.scope) or !std.mem.eql(u8, &try schema.fingerprint(), &root.interpretation.digest)) return error.InvalidTableBasis;
+    if (!std.meta.eql(owner.scope, root.interpretation.object.scope) or !std.mem.eql(u8, &try schema.fingerprint(), &root.schema_fingerprint)) return error.InvalidTableBasis;
     const bytes = try allocator.alloc(u8, max_bytes);
     defer allocator.free(bytes);
     // A data snapshot does not recursively pin earlier pin/receipt directories.
@@ -74,8 +75,10 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, handle: 
     if (!std.meta.eql(parsed.value.owner, handle.owner) or !std.meta.eql(parsed.value.owner.scope, parsed.value.root.interpretation.object.scope)) return error.InvalidTableSnapshot;
     var schema = try f.TableSchema.decode(allocator, bytes[header_bytes + metadata_length ..]);
     errdefer schema.deinit();
-    if (schema.schema.object != parsed.value.root.interpretation.object.object or schema.schema.revision != parsed.value.root.interpretation.revision or
-        !std.mem.eql(u8, &try schema.schema.fingerprint(), &parsed.value.root.interpretation.digest)) return error.InvalidTableSnapshot;
+    if (schema.schema.object != parsed.value.root.interpretation.object.object or
+        !std.mem.eql(u8, &try schema.schema.fingerprint(), &parsed.value.root.schema_fingerprint)) return error.InvalidTableSnapshot;
+    var declaration = try Declaration.load(allocator, objects, parsed.value.root.declared());
+    defer declaration.deinit();
     return .{ .owner = handle.owner, .root = parsed.value.root, .schema = schema };
 }
 

@@ -11,6 +11,7 @@ pub const S3ObjectStore = @import("S3ObjectStore.zig");
 pub const PartitionLease = @import("PartitionLease.zig");
 pub const TableMemtable = @import("TableMemtable.zig");
 pub const TreeStore = @import("TreeStore.zig");
+pub const TableDeclaration = @import("TableDeclaration.zig");
 pub const TablePartition = @import("TablePartition.zig");
 
 test {
