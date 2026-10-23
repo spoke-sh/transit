@@ -37,6 +37,29 @@ bind the current definition, kind, storage epoch, random candidate nonce,
 ordinal and logical digest. Reads verify both the object-store integrity and
 the core page/block digest. The cache holds owned pages, never borrowed buffers.
 
+`DataStore` supplies nonzero data partitions and immutable objects to direct
+data owners inside the same exclusive directory and physical quota. It checks
+native storage and authorization epochs at append, under the physical owner
+mutex. It does not compare the native progress position: an unrelated accepted
+input does not invalidate an otherwise current Table candidate. Direct owners
+still compare their own partition frontier. Data history trim, mutable objects
+and physical collection are unavailable through this adapter.
+
+`DataAuthority` authenticates the original signed subject and checks the supplied
+generic native requirements. It separately verifies the catalog resource's
+current lifetime, owner and dependencies through the existing state rules.
+The service must bind the proof context to the complete request and choose its
+requirements; the adapter cannot infer those from a row batch. A shared authority
+fence covers the check and data commit/disclosure. Native publication takes its
+exclusive side. Private staging holds neither side, and independent data owners
+can hold shared fences together. Short data commits can delay native publication;
+this is a local serialization profile, not a distributed fencing protocol.
+
+The component tests compose this guard and quota adapter with `TablePartition`,
+including actual native revocation after segment staging. The node's public
+Table route and SQL integration remain separate work; exporting these components
+does not change installed Table callers.
+
 `Store.maintain` trims only an already accepted native history floor and keeps
 the latest entry. It does not collect immutable objects. Superseded and staged
 objects remain until a retained-root collector can establish safe reclamation;

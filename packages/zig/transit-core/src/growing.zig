@@ -198,6 +198,21 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             store.next_id = self.head.authorization_next_id;
             return store;
         }
+        /// Domain services bind the subject context to their complete request.
+        /// This authenticates and checks current generic requirements without
+        /// introducing a domain-specific command or another permission store.
+        /// The enclosing storage owner must fence publication against changes
+        /// to this authority after the check.
+        pub fn authorizeDomain(self: *Self, guard: p.Authorization.Guard, audience: u64) !p.Authorization.Verified {
+            try self.refresh();
+            return auth_ops.guard(self, guard, audience);
+        }
+        /// Lifetime/dependency usability is separate from a role's permissions.
+        /// The caller first establishes current authority and holds its fence.
+        pub fn requireResourceLifetime(self: *Self, resource: u64) !void {
+            const sample = if (self.clock) |clock| try clock.sample() else null;
+            try state_ops.usable(self, try state_ops.resource(self, resource), sample);
+        }
         pub fn process(self: *Self, pid: u64) !g.Process {
             var current = try self.state();
             if (try current.get(g.Process, address(.process, pid))) |value| return value;

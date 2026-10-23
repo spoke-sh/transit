@@ -12,6 +12,12 @@ lock: std.Io.File,
 wal: storage.LocalWal.LocalWal,
 objects: storage.LocalSegmentStore.LocalSegmentStore,
 mutex: std.Io.Mutex = .init,
+/// Data owners hold a shared fence only while checking/disclosing/committing.
+/// Native publication takes the exclusive side; private staging holds neither.
+authority: std.Io.RwLock = .init,
+/// A verified accepted native head, never a private candidate. Access under
+/// mutex; Store invalidates it before any potentially uncertain native append.
+accepted_native: ?core.growing.Head = null,
 limits: core.protocol.Storage.Limits,
 allocated: u64,
 
