@@ -60,7 +60,7 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
 
 
 for command in ('server',):
-    invoke([command], contains=('cannot find minio beside transit or on PATH',),
+    invoke([command], contains=('cannot find transit-node beside transit or on PATH',),
            env=ENV | {'PATH': str(NO_TOOLS)}, binary=str(ISOLATED_CLI))
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
@@ -114,7 +114,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         path.write_text(text)
         invoke(['server', '--config', path], contains=(explanation, 'server.json'))
     path.write_text('{}')
-    invoke(['server', '--config', path], contains=('cannot find minio beside transit or on PATH',),
+    invoke(['server', '--config', path], contains=('cannot find transit-node beside transit or on PATH',),
            env=ENV | {'PATH': str(NO_TOOLS)}, binary=str(ISOLATED_CLI))
     path.write_text('{\n  "version": !\n}')
     invoke(['server', '--config', path], contains=('server.json":2:14',))
@@ -124,8 +124,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['server', '--config', 'x' * 4096], contains=('...', 'cannot read configuration file'))
 
     config = {'version': 1, 'installation': str(installation), 'realm': 73,
-              'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), range(29001, 29006))),
-              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'), sys.executable)}
+              'ports': dict(zip(('node', 'gateway'), range(29004, 29006))),
+              'executables': dict.fromkeys(('node', 'query_host', 'board', 'sql_gateway'), sys.executable)}
     missing = copy.deepcopy(config)
     del missing['ports']['gateway']
     server(dict(missing, realm=0), ('realm',))  # Missing gateway now inherits its default.
@@ -176,8 +176,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         listener.listen()
         port = listener.getsockname()[1]
         invalid = copy.deepcopy(config)
-        invalid['ports']['cold'] = port
-        server(invalid, ('cannot bind', 'ports.cold', 'address already in use', f'127.0.0.1:{port}'), 1)
+        invalid['ports']['node'] = port
+        server(invalid, ('cannot bind', 'ports.node', 'address already in use', f'127.0.0.1:{port}'), 1)
         for protocol in ('postgres', 'mysql'):
             server(dict(config, sql={protocol: {'port': port}, 'accounts': [dict(name='owner', role='local_owner', authentication='trust')]}), ('cannot bind', f'sql.{protocol}.port', 'address already in use'), 1)
     assert not installation.exists(), 'invalid invocation/configuration started provisioning'
@@ -199,7 +199,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     shown = invoke(['console'], 0, env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)), data=b'.show\n')
     assert parse_show(shown.stdout)['endpoint'] == SQL_ENDPOINT
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
-    invoke(['server'], contains=('cannot find minio beside transit or on PATH',),
+    invoke(['server'], contains=('cannot find transit-node beside transit or on PATH',),
            env=dict(ENV, PATH=str(NO_TOOLS), TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI))
     invoke(['console', '--no-rc', '--config', path, '-c', 'SELECT typo FROM items'], 1, ('Unknown column',))
     for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
@@ -212,7 +212,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     adjacent.mkdir(); search.mkdir()
     local_cli = adjacent/'transit'
     shutil.copy2(CLI, local_cli)
-    names = ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')
+    names = ('transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')
     for name in names: (adjacent/name).symlink_to(sys.executable)
     discovery_config = root/'convention.json'
     reserved = [socket.socket() for _ in range(6)]
@@ -221,7 +221,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     for listener in reserved: listener.close()
     discovery_config.write_text(json.dumps({'installation': str(root/'uninitialized'),
         'startup': {'require_existing': True},
-        'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), ports)),
+        'ports': dict(zip(('node', 'gateway'), ports)),
         'applications': {'port': ports[5]}}))
     def convention(**values):
         return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('startup requires an existing installation',),
@@ -262,7 +262,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
            contains=('version', 'xdg/transit.yaml'))
     invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')), cwd=project,
            contains=('absent.yaml', 'was not found'))
-    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'))
+    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('node', 'query_host', 'board', 'sql_gateway'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
     # Installed runtime loading must coexist with the repository's supported

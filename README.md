@@ -9,10 +9,10 @@ maintained derived views, and stateful dataflows), and **policies** (scoped
 authorization, retention, capacity, and placement). Transit's runtime **activates**
 that data through authorized publication, query execution and durable processes
 (`Station`); connectors coordinate recorded external effects. The installed
-runtime persists native history and immutable state through Ursula. Native
-write-ahead logs, hybrid OLTP/OLAP segments and automatic incremental activation
-are the target storage and computation architecture; their component libraries
-do not yet replace the installed data path.
+local runtime persists native history in write-ahead logs and immutable state in
+local objects. Hybrid OLTP/OLAP segments and automatic incremental activation
+are the target Table storage and computation architecture; their component
+libraries do not yet replace the installed Table path.
 
 Start with the data your application needs, what you want to compute from it,
 and the policies governing its use. The [data model](docs/handbook/reference/data-model.md)

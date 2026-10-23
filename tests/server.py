@@ -16,7 +16,6 @@ import time
 import urllib.error
 import urllib.request
 
-from cold_storage import minio_binary
 from storage import free_port
 from table_console import TableConsole, atom, records, results as table_results
 
@@ -73,12 +72,11 @@ class Fixture:
         self.cli = str(self.root / "transit")
         shutil.copy2(Path(cli).resolve(), self.cli)
         self.reserved_ports = set()
-        ports = [self.reserve_port() for _ in range(6)]
+        ports = [self.reserve_port() for _ in range(3)]
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
-            "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports[:5])),
-            "sql": {"health_port": ports[5]},
-            "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
-                "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
+            "ports": dict(zip(("node", "gateway"), ports[:2])),
+            "sql": {"health_port": ports[2]},
+            "executables": {"node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
                 "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
                 "board": os.environ.get("TEST_TRANSIT_BOARD_BINARY", str(Path(cli).resolve().parent / "transit-board"))}}
         self.path = self.root / "transit.yaml"
@@ -274,6 +272,13 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert 'creating installation' in Path(fixture.logs[-1].name).read_text()
+        node_config = json.loads((fixture.installation / 'node.json').read_text())
+        assert node_config['local_directory'] == str(fixture.installation / 'data/native')
+        assert 'ursula_url' not in node_config
+        assert list((fixture.installation / 'data/native/wal').glob('*.twal'))
+        assert list((fixture.installation / 'data/native/objects').glob('*.data'))
+        owned_commands = [command(pid) for pid in children(fixture.process.pid)]
+        assert not any('minio server' in value or 'ursula server' in value or '--maintain' in value for value in owned_commands)
         from server_configuration import run as configuration_proof
         configuration_proof(fixture)
         from server_faults import gateway_hosts, reusable_connections
@@ -363,7 +368,7 @@ def run(cli, node, host):
         record_path = fixture.installation / "installation.json"
         saved = record_path.read_bytes()
         try:
-            for incompatible in (None, "previous-v1-definition", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
+            for incompatible in (None, "previous-v1-definition", "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
                 record = json.loads(saved)
                 if incompatible is None:
                     del record['definition']
@@ -396,7 +401,7 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        for role in ('"catalog":', "/transit-node ", "ursula server"):
+        for role in ('"catalog":', "/transit-node ", '"unified_requester":'):
             fixture.kill_role(role)
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
@@ -409,7 +414,7 @@ def run(cli, node, host):
         assert "restart budget exhausted" in failure and "ChildExited" in failure, failure
         assert 'role="courier"' in failure and "retrying" not in failure, failure
         fixture.stop()
-        for name in ("wal", "cold"):
+        for name in ("data",):
             old = fixture.installation / name
             backup = fixture.installation / (name + "-absent")
             old.rename(backup)

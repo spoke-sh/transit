@@ -514,9 +514,12 @@ checks real native WAL and immutable object files. HTTP admission, snapshot
 registration, retries and lane synchronization are shared with the Ursula node
 in `NativeServer.zig`. A subsequent run with local request metrics enabled also
 checks bounded numeric provider counters, actual read/write byte accounting and
-diagnostics across restart. The Ursula caller and maintenance fault phases pass;
-the broader Station recovery phase times out at its 240-second schedule limit,
-so the complete Ursula service suite is not recorded as passed for this change.
+diagnostics across restart. A Debug run times out in Station recovery at its
+240-second schedule limit. The prescribed `just test::growing-service` ReleaseSafe
+run subsequently passes the complete caller, maintenance, Station, query and
+quota corpus with the new definition. Station recovery takes 64.844 seconds;
+the timeout is unchanged. `just check` also passes, including root units,
+generated contracts, frontend checks and the documentation build.
 The local service target additionally runs maintenance inside the exclusive
 node owner, using the existing public caller's lifecycle assertions. It checks
 accepted-floor WAL trimming, restart after trim, cancellation of pending effects

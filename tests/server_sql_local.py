@@ -19,12 +19,7 @@ def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
     fixture = Fixture(cli, node, host)
     if bundle:
         fixture.cli = str(Path(bundle).resolve() / 'bin/transit')
-        if source_install:
-            # A source build installs Transit artifacts; Nix supplies providers.
-            fixture.config['executables'] = {name: fixture.config['executables'][name]
-                                             for name in ('minio', 'ursula')}
-        else:
-            fixture.config.pop('executables')  # Installed adjacent dependency discovery.
+        fixture.config.pop('executables')  # Installed adjacent Transit artifacts.
     else:
         freeze(fixture)
     fixture.config['sql'] = {'native': {'local': False}}

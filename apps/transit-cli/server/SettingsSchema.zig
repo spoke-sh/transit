@@ -19,13 +19,8 @@ pub const descriptors = [_]D{
     .{ .name = "storage.maintenance.compact", .default_json = "false", .description = "Relocate current state before collection; retained history still owns old roots", .owner = "node", .kind = .boolean, .change = .restart },
     .{ .name = "query.statement_timeout", .default_json = "0", .session_mutable = true, .description = "Default statement deadline; zero is unlimited", .owner = "query", .kind = .duration, .scope = .session, .change = .new_session, .maximum = 86400000 },
     .{ .name = "query.statement_timeout_ceiling", .default_json = "0", .description = "Maximum session deadline; zero is unlimited", .owner = "query", .kind = .duration, .scope = .session, .change = .new_session, .maximum = 86400000 },
-    port("ports.cold", "cold"),
-    port("ports.cold_console", "cold"),
-    port("ports.store", "store"),
     port("ports.node", "node"),
     port("ports.gateway", "gateway"),
-    executable("executables.minio", "cold", false),
-    executable("executables.ursula", "store", false),
     executable("executables.node", "node", false),
     executable("executables.query_host", "query", false),
     executable("executables.board", "board", true),
@@ -89,7 +84,7 @@ fn accountSchema() []const u8 {
 fn port(comptime name: []const u8, comptime owner: []const u8) D {
     return .{ .name = name, .default_json = comptime blk: {
         const std = @import("std");
-        for (.{ .{ "ports.cold", "19101" }, .{ "ports.cold_console", "19102" }, .{ "ports.store", "19103" }, .{ "ports.node", "19104" }, .{ "ports.gateway", "19105" }, .{ "applications.port", "19106" }, .{ "board.port", "19107" } }) |pair| if (std.mem.eql(u8, name, pair[0])) break :blk pair[1];
+        for (.{ .{ "ports.node", "19104" }, .{ "ports.gateway", "19105" }, .{ "applications.port", "19106" }, .{ "board.port", "19107" } }) |pair| if (std.mem.eql(u8, name, pair[0])) break :blk pair[1];
         @compileError("Port default is required");
     }, .description = "Loopback TCP port", .owner = owner, .kind = .unsigned, .change = .restart, .minimum = 1024, .maximum = 65535 };
 }

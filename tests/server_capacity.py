@@ -14,7 +14,7 @@ import tempfile
 import time
 import uuid
 
-from server import Fixture, minio_binary, children, command
+from server import Fixture, children, command
 
 
 def inside(mount, cli, node, host):
@@ -119,12 +119,10 @@ def inside(mount, cli, node, host):
 def run(cli, node, host, *application):
     assert sys.platform == "linux"
     repo = Path(__file__).resolve().parents[1]
-    minio = str(minio_binary())
     image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
     tools = {name: str(Path(shutil.which(name) or "missing").resolve(strict=True))
              for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4")}
     python = str(Path(sys.executable).resolve(strict=True))
-    ursula = str(Path(shutil.which("ursula") or "missing").resolve(strict=True))
     assert all(path.startswith("/nix/store/") for path in [*tools.values(), python])
     root = Path(tempfile.mkdtemp(prefix="transit-server-capacity-", dir="/var/tmp"))
     name = "transit-server-capacity-" + uuid.uuid4().hex[:12]
@@ -145,7 +143,7 @@ trap '{q(tools['umount'])} /proof/mount' EXIT
     success = False
     try:
         result = subprocess.run(["docker", "run", "--rm", "--name", name, "--privileged", "--user", "0:0",
-            "--env", "PATH=" + os.pathsep.join(str(Path(binary).parent) for binary in (ursula, minio)),
+            "--env", "PATH=/unavailable",
             "--mount", f"type=bind,src={root},dst=/proof",
             "--mount", f"type=bind,src={repo},dst={repo},readonly",
             "--mount", "type=bind,src=/nix/store,dst=/nix/store,readonly",

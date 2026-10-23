@@ -1,6 +1,8 @@
 # Storage and recovery boundary
 
-Ursula supplies durable storage through the Zig backend adapter. Transit owns
+The local server stores native history and immutable objects through the
+[local backend](../../../packages/zig/transit-backend-local/README.md). Deployments
+configured with Ursula use its Zig backend adapter. Transit owns
 logical process/resource identities, accepted transitions, retained boundaries
 and retirement. Physical streams, buckets and offsets are not an alternate
 authority for execution or permissions.
@@ -45,9 +47,11 @@ immutable authority metadata so data scans cannot evict it. Its key includes the
 complete catalog root; a root change invalidates the records. Native reads still
 refresh authority and execute all current permission/lifetime checks. This cache
 holds at most about 35 KiB of record bytes and is independent of the configured
-page-cache slots. Pages and blocks first enter a bounded private segment. The
-backend reserves its bytes, verifies all stored frames and closes it before
-the final authority commit. Failed staging cannot publish a partial turn. The current v1 page encoding includes opaque storage locators.
+page-cache slots. Pages and blocks first enter private immutable storage: packed
+segments with Ursula, individual verified objects with the local backend.
+Each backend reserves storage and makes the bytes durable before the final
+authority commit. Failed staging cannot publish a partial turn. The current v1
+page encoding includes opaque storage locators.
 Application mutation quotas and durable payload publication bounds are unchanged.
 The [workload model](workloads.md#architectural-priorities) distinguishes hot
 keyed state, append-heavy history and analytical read structures; none bypass
@@ -97,7 +101,10 @@ explains allocation quotas, control reserve, configuration and provider limits.
 These quotas measure reserved encoded segment bytes; provider metadata, work
 ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
-The local CLI profile composes disk Ursula with S3 cold storage. Provider budgets,
+The local CLI profile composes the native log and object store inside the node.
+Lifecycle maintenance and accepted-floor trimming run in that owner; local
+immutable-object collection and compaction are unavailable. The physical
+collection and compaction mechanisms above apply to Ursula. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
 See [retention](retention.md) and [deployment](deployment.md).

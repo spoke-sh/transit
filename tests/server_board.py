@@ -190,7 +190,7 @@ def lifecycle(cli, node, host, board, worker, operator):
         assert fixture.record()['provision'] == initial['provision']
         assert (fixture.installation / 'board.seed').read_bytes() == seed
         # Board, node and storage crashes share bounded restart and same history.
-        for match in ('/board.json', '/transit-node ', 'ursula server'):
+        for match in ('/board.json', '/transit-node ', '"unified_requester":'):
             fixture.kill_role(match)
             fixture.ready()
             assert fixture.record()['board_receipts'] == board_record

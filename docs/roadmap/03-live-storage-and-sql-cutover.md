@@ -244,8 +244,10 @@ before staging. A control reserve remains available after ordinary data
 admission stops. Uncertain writes retain their reservation until restart can
 recount actual files; quota pressure never permits expiry or cleanup. Staged and
 superseded objects remain until a separately qualified retained-root collector
-can reclaim them. The adapter and explicit `transit-node` `local_directory`
-composition now pass native turn/restart and signed public-caller fault proofs.
-The installed launcher default, standalone payload ownership
+can reclaim them. The adapter and `transit-node` `local_directory` composition
+pass native turn/restart and signed public-caller fault proofs. The local CLI
+now selects that backend with maintenance inside the node; its bundle no longer
+includes Ursula or MinIO. The bundle still composes multiple Transit executables;
+the single-binary target remains part of #122. Standalone payload ownership
 and direct Table SQL integration remain incomplete. See the scoped
 [executed evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22).

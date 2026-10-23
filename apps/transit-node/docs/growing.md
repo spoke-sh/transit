@@ -33,8 +33,8 @@ exclusive directory lock and persists native catalog/resource state through its
 [log and immutable object adapter](../../../packages/zig/transit-backend-local/README.md).
 It rejects a second owner and incompatible history. `--initialize` creates a new
 native authority; ordinary startup requires that authority to exist. This
-selection is explicit node configuration; installed launcher defaults still
-select Ursula. Direct Table storage requires its own executable integration.
+selection is also the installed local launcher's default. Direct Table storage
+requires its own executable integration.
 
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is

@@ -23,9 +23,9 @@ pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling
 pub const Startup = struct { require_existing: bool = false };
 pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
-pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };
-pub const Executables = struct { sql_gateway: []const u8, minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8, board: ?[]const u8 = null };
-pub const Identity = struct { sql_gateway: [32]u8, config: [32]u8, cli: [32]u8, minio: [32]u8, ursula: [32]u8, node: [32]u8, query_host: [32]u8, board: ?[32]u8 = null };
+pub const Ports = struct { node: u16, gateway: u16 };
+pub const Executables = struct { sql_gateway: []const u8, node: []const u8, query_host: []const u8, board: ?[]const u8 = null };
+pub const Identity = struct { sql_gateway: [32]u8, config: [32]u8, cli: [32]u8, node: [32]u8, query_host: [32]u8, board: ?[32]u8 = null };
 pub const Inputs = struct {
     path: []const u8,
     optional: bool,
@@ -67,7 +67,7 @@ pub fn capture(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diag
     // Resolve fallback executable discovery once, even when a file currently
     // overrides it. A later deletion must not search a changed child PATH.
     const fallbacks = loaded.inputs.defaults.object.getPtr("executables").?;
-    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" }, .{ "sql_gateway", "transit-sql-gateway" } }) |entry| {
+    inline for (.{ .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" }, .{ "sql_gateway", "transit-sql-gateway" } }) |entry| {
         const found = if (resolve_executables) defaultExecutable(init, entry[1]) catch "" else entry[1];
         try fallbacks.object.put(allocator, entry[0], .{ .string = found });
     }
@@ -131,7 +131,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     };
     const exe_value = defaults.object.getPtr("executables").?;
     if (exe_value.* != .object) return diagnostic.invalidField("executables", "must be an object", null);
-    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" }, .{ "sql_gateway", "transit-sql-gateway" } }) |entry| {
+    inline for (.{ .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" }, .{ "sql_gateway", "transit-sql-gateway" } }) |entry| {
         if (!exe_value.object.contains(entry[0])) {
             diagnostic.field = "executables." ++ entry[0];
             const found = if (!resolve_executables) entry[1] else defaultExecutable(init, entry[1]) catch |err| {
@@ -169,7 +169,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     }
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
     if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return diagnostic.invalidField("installation", "must be a non-root directory without NUL, newline, quote or backslash characters", null);
-    if (resolve_executables) inline for (.{ "minio", "ursula", "node", "query_host", "sql_gateway" }) |name| {
+    if (resolve_executables) inline for (.{ "node", "query_host", "sql_gateway" }) |name| {
         diagnostic.field = "executables." ++ name;
         @field(self.executables, name) = resolveExecutable(init, base, @field(self.executables, name)) catch |err| {
             diagnostic.setFailure(err, "cannot locate a configured executable", "Correct this executable path relative to the configuration file; use the matching local bundle.");
