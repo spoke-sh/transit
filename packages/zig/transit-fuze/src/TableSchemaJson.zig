@@ -37,7 +37,11 @@ fn decimal(allocator: std.mem.Allocator, value: u64) ![]const u8 {
 /// The enclosing arena owns every result byte, including borrowed-looking
 /// descriptor/default children. Destroying the native input is safe on return.
 pub fn foreign(arena: *std.heap.ArenaAllocator, source: s.Schema) !Schema {
-    const allocator = arena.allocator();
+    return foreignInto(arena.allocator(), source);
+}
+/// The supplied allocation scope owns the complete projection, including the
+/// copied schema's child arena. Release that scope after consuming the result.
+pub fn foreignInto(allocator: std.mem.Allocator, source: s.Schema) !Schema {
     // Child owners allocate exclusively through the enclosing arena, which
     // releases their complete storage together with the neutral projection.
     const copied = try source.clone(allocator);

@@ -75,19 +75,17 @@ def main():
     parser.add_argument('--record', action='store_true')
     args = parser.parse_args()
     catalog = fixture()
-    # A query declaration commits the complete accepted metadata record while
-    # carrying only its logical row descriptor for planning. Keep this encoding
-    # independent of both the Zig encoder and the Table schema oracle.
+    # A query declaration carries the direct interpretation/content/schema
+    # commitments and its logical descriptor. These synthetic commitments test
+    # the descriptor wire format, independently of admission and schema codecs.
     contract = bytes.fromhex(catalog['definition'])
     types = b'transit.fuze.types.v1.2026-09-30'
     logical = b'FTY1' + bytes([len(types)]) + types
     logical += b'\x16\x02\x02id\0\x0a\x07payload\x01\x19\x05\x01\x17\x01\x09'
-    metadata = bytes.fromhex(catalog['record_hex'])
-    digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x54434d01, len(metadata))).digest()
-    digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', 0, len(metadata)) + metadata).digest()
-    declaration = b'TQS1' + contract + struct.pack('<QQQQQQII', 1, 7, 2**64-1, 3, 2**64-1, 3, 0x54434d01, len(metadata)) + digest
+    declaration = b'TQS1' + contract + struct.pack('<QQQQQQQQ', 1, 7, 2**64-1, 3, 1, 1, 2**64-1, 3)
+    declaration += bytes([17])*32 + struct.pack('<Q', 200) + bytes([34])*32
     declaration += struct.pack('<H', len(logical)) + logical
-    assert len(declaration) == 126 + len(logical)
+    assert len(declaration) == 174 + len(logical)
     query = {'wire_hex': declaration.hex(), 'fingerprint_hex': hashlib.sha256(b'transit.table.query.declaration.v1\0' + declaration).hexdigest()}
     policies = []
     for tag, body in ((1, bytes.fromhex(query['fingerprint_hex'])), (2, struct.pack('<QQQQQ', 1, 7, 2**64-1, 3, 17))):

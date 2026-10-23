@@ -91,7 +91,7 @@ fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, wo
     try t.expectEqual(.complete, complete.phase);
     const progress = try capture.checkpoint(&reader, job.id);
     try t.expectEqual(expected, progress.progress.rows);
-    try t.expect(store.versions.get(job.source).?.view.released_at != null);
+    try t.expect(store.versions.get(job.source.native).?.view.released_at != null);
     const publication = job.publication(store.resource);
     const published = try publication.inspect(&reader, r.manifest_record);
     const ref: s.PublicationReference = .{ .domain = .query_result, .resource = store.resource, .namespace = publication.namespace, .record = r.manifest_record, .spec = published.spec };
@@ -210,7 +210,7 @@ fn finishCleanup(store: *Store, requests: *Store, job: r.Job, workspace: []u8) !
             const quota = try job.publication(store.resource).budget(&reader);
             try t.expectEqual(@as(u64, 0), quota.bytes);
             try t.expectEqual(@as(u32, 0), quota.records);
-            try t.expect(store.versions.get(job.source).?.view.released_at != null);
+            try t.expect(store.versions.get(job.source.native).?.view.released_at != null);
             const publication = job.publication(store.resource);
             var keys = store.state.keyIterator();
             while (keys.next()) |key| if (key.len == 27 and std.mem.eql(u8, key.data[0..2], "\x00P") and std.mem.readInt(u32, key.data[2..6], .big) == @backingInt(publication.domain) and key.data[14] == 'c' and std.mem.readInt(u64, key.data[6..14], .big) == publication.namespace) return error.CleanupLeftChunk;
@@ -317,7 +317,7 @@ test "query budgets and cancellation discard candidates without leaking source p
     try t.expectError(error.QueryBudgetExceeded, advance(&store, &requests, job.id, workspace));
     var turn = try store.capture();
     try t.expectEqual(@as(u64, 0), (try capture.checkpoint(&turn, job.id)).progress.pages);
-    try t.expect(store.versions.get(job.source).?.view.released_at == null);
+    try t.expect(store.versions.get(job.source.native).?.view.released_at == null);
     try capture.closeFailure(&turn, job.id, q.QueryFailure.fromError(error.QueryBudgetExceeded, .execution).?);
     try store.commit(turn);
     try finishCleanup(&store, &requests, job, workspace);
@@ -454,7 +454,7 @@ test "source behavior closes denied accepted work with the original reply and re
     try q.UnifiedBehavior.dispatchSource(&turn, message, 9, 42, Source{ .store = &requests }, adapter, workspace, &cancellation);
     try t.expectEqual(.denied, (try capture.job(&turn, id)).phase);
     try store.commit(turn);
-    try t.expect(store.versions.get(stored.source).?.view.released_at != null);
+    try t.expect(store.versions.get(stored.source.native).?.view.released_at != null);
     var replied = false;
     for (turn.decision.outputs) |slot| if (slot) |output| {
         const result = try s.Frame.decode(output.value);
@@ -613,7 +613,7 @@ test "runtime failure commits its original frozen row witness atomically within 
     try t.expectEqualDeep(observed, failed.failure);
     try t.expectEqual(@as(usize, 255), (try failed.encode()).len);
     try t.expectEqualDeep(failed, try r.Job.decode(try failed.encode()));
-    try t.expect(store.versions.get(job.source).?.view.released_at != null);
+    try t.expect(store.versions.get(job.source.native).?.view.released_at != null);
     var status: q.UnifiedRequest.Status = .{ .reference = job.request, .phase = .rejected, .correlation = 77, .failure = failed.failure };
     try t.expectEqual(@as(usize, 200), (try status.encode()).len);
     try t.expectEqualDeep(status, try q.UnifiedRequest.Status.decode(try status.encode()));

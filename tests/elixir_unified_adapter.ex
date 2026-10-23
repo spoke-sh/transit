@@ -19,6 +19,14 @@ defmodule ElixirUnifiedAdapter do
 
   def decode(c, i, r), do: result(Q.decode_arrow(Q.convert(c), i, r))
   def open(c, i, r), do: result(Q.open(Client.convert(c), Client.convert(i), Q.convert(r)))
+
+  def open(c, i, r, t),
+    do: result(Q.open(Client.convert(c), Client.convert(i), Q.convert(r), Q.convert(t)))
+
+  def table(c, n, name), do: result(Q.lookup_table(c, n, name))
+  def capture(d, e, o), do: Q.native(Q.capture(Q.convert(d), e, o))
+  def authorize(c, b, a), do: result(Q.authorize_bundle(c, Q.convert(b), Q.convert(a)))
+  def cleanup(c, n, b), do: result(Q.prepare_cleanup(c, n, Q.convert(b)))
   def close(c), do: result(Q.close(c))
   def describe(c, s), do: result(Q.describe(c, Q.convert(s)))
   def inspect(c, s, n, sql, b), do: result(Q.inspect_sql(c, Q.convert(s), n, sql, Q.convert(b)))

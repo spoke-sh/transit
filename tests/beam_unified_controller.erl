@@ -15,17 +15,19 @@ source(_,<<"table">>,true)->table_source([
 source(R,<<"document">>,true)->#transit_unified_document{reference=#transit_document_reference{resource=R,document=?MAX,epoch=3,type_revision=1,revision=42},projections=[projection(<<"title">>,utf8,[<<"title">>],false,scalar),projection(<<"body">>,utf8,[<<"body">>],false,text)]};
 source(R,<<"document">>,false)->#transit_unified_document{reference=#transit_document_reference{resource=R,document=17,epoch=1,type_revision=1,revision=13},expand=[<<"items">>],projections=[projection(<<"value">>,utf8,[],true,scalar),projection(<<"counter">>,uint64,[],true,element_counter),projection(<<"replica">>,uint64,[],true,element_replica),projection(<<"optional">>,utf8,[<<"optional">>],false,scalar)]}.
 table_source(Columns)->
-    #transit_unified_table{owner=#transit_process{realm=1,pid=3},
-        metadata=#transit_catalog_metadata{scope=#transit_catalog_scope{resource=#transit_resource{realm=1,resource=7},catalog=9},namespace=1,object=9,revision=1,name= <<"items">>,schema_fingerprint=binary:copy(<<1>>,32),principal=17,operation=1,admitted_input=1,
-            commitment=#transit_catalog_metadata_commitment{bytes=200,digest=binary:copy(<<1>>,32)}},
+    #transit_unified_table{scope=#transit_catalog_scope{resource=#transit_resource{realm=1,resource=7},catalog=9},audience=3,branch=1,namespace=1,
+        interpretation=#transit_unified_table_interpretation{revision=1,digest=binary:copy(<<1>>,32),byte_count=200,schema_digest=binary:copy(<<2>>,32)},
         schema=#transit_catalog_schema{object=9,revision=1,next_column=length(Columns)+1,columns=Columns}}.
-resolved_source(Config,Identity,#transit_unified_connection{source=Owner,resource=Resource},<<"table">>)->
-    Client=ok(transit_catalog:open(Config,Identity,#transit_catalog_connection{owner=Owner,scope=#transit_catalog_scope{resource=Resource,catalog=1}})),
-    try
-        #transit_catalog_definition{metadata=Metadata,schema=Schema}=ok(transit_catalog:lookup(Client,<<"items">>)),
-        #transit_unified_table{owner=Owner,metadata=Metadata,schema=Schema}
-    after ok(transit_catalog:close(Client)) end;
+resolved_source(A,Client,_,<<"table">>)->
+    #transit_unified_table_definition{source=Source}=ok(A:table(Client,1,<<"items">>)),Source;
 resolved_source(_,_,#transit_unified_connection{resource=Resource},Kind)->source(Resource,Kind,false).
+tables(Cfg,Realm)->
+    T=maps:get(<<"tables">>,Cfg),C=maps:get(<<"connection">>,T),S=maps:get(<<"scope">>,C),
+    #transit_unified_tables{url=maps:get(<<"url">>,T),scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm,resource=maps:get(<<"resource">>,S)},catalog=binary_to_integer(maps:get(<<"catalog">>,S))},branch=binary_to_integer(maps:get(<<"branch">>,C)),audience=maps:get(<<"audience">>,C)}.
+capture(Cfg)->
+    C=maps:get(<<"capture">>,Cfg),E=maps:get(<<"expected">>,C),#transit_unified_capture{executor=maps:get(<<"executor">>,C),operation=binary_to_integer(maps:get(<<"operation">>,C)),partition=binary_to_integer(maps:get(<<"partition">>,E)),next_lsn=binary_to_integer(maps:get(<<"next_lsn">>,E))}.
+source_resource(#transit_unified_table{scope=#transit_catalog_scope{resource=Resource}},_)->Resource;
+source_resource(_,Connection)->Connection#transit_unified_connection.resource.
 bundle(A,S,K,Golden)->bundle(A,S,K,Golden,undefined).
 bundle(A,S,K,Golden,Names)->bundle(A,S,K,Golden,Names,false).
 bundle(A,S,K,Golden,Names,Compound)->
@@ -82,7 +84,7 @@ codecs(A,Cfg)->
     WideSource=table_source([#transit_catalog_column{id=I+1,name=unicode:characters_to_binary(["列 ",integer_to_list(I)]),type=uint128}||I<-lists:seq(0,127)]),
     Names=[unicode:characters_to_binary(["結果 ",integer_to_list(I)])||I<-lists:seq(0,127)],
     #transit_unified_bundle{bytes=Wide}=ok(A:prepare(WideSource,#transit_unified_plan{projection=lists:seq(0,127),output_names=Names,predicate={compare,127,eq,{unsigned,340282366920938463463374607431768211455}}},#transit_unified_budgets{pages=1,segments=1,result_bytes=65536})),
-    true=byte_size(Wide)>0,true=byte_size(Wide)=<25255,
+    true=byte_size(Wide)>0,true=byte_size(Wide)=<25614,
     Nested=#transit_unified_column{name= <<"value">>,type={list,#transit_logical_element{type=uint128,nullable=true}}},
     [[{value,{list,[{value,{atom,{unsigned,340282366920938463463374607431768211455}}},null]}}]]=ok(A:decode([Nested],read(maps:get(<<"nested">>,Cfg)),1)),
     io:format("~p installed unified codecs: three sources, nine Boolean bundles, six types, five states 128 columns, uint128, nested values and malformed rejection passed~n",[A]).
@@ -94,11 +96,13 @@ config(Cfg)->
     Connection=#transit_unified_connection{source=#transit_process{realm=Realm,pid=maps:get(<<"source">>,C)},resource=#transit_resource{realm=Realm,resource=maps:get(<<"resource">>,C)},requester=#transit_process{realm=Realm,pid=maps:get(<<"requester">>,C)},requests=#transit_resource{realm=Realm,resource=maps:get(<<"requests">>,C)}},
     {Client,Identity,Connection}.
 serve(A,Cfg)->
-    {Config,Identity,Connection}=config(Cfg),Kind=maps:get(<<"kind">>,Cfg),Source=resolved_source(Config,Identity,Connection,Kind),
-    Unsigned=bundle(A,Source,Kind,false,case Kind of <<"document">>->[<<"Result">>,undefined,undefined,undefined]; _->[<<"Result">>] end,maps:get(<<"compound">>,Cfg)),Client=ok(A:open(Config,Identity,Connection)),
+    {Config,Identity,Connection}=config(Cfg),Kind=maps:get(<<"kind">>,Cfg),
+    {Tables,Capture}=case Kind of <<"table">>->{tables(Cfg,Identity#transit_credential.realm),capture(Cfg)}; _->{undefined,undefined} end,
+    Client=ok(A:open(Config,Identity,Connection,Tables)),Source=resolved_source(A,Client,Connection,Kind),
+    Unsigned=bundle(A,Source,Kind,false,case Kind of <<"document">>->[<<"Result">>,undefined,undefined,undefined]; _->[<<"Result">>] end,maps:get(<<"compound">>,Cfg)),
     try
-        #transit_unified_bundle{bytes=Bundle}=ok(A:authorize(Client,Unsigned)),Bundle=read(maps:get(<<"bundle">>,Cfg)),
-        #transit_unified_description{bundle_bytes=25255,batch_rows=8}=ok(A:describe(Client,Source)),report(#{ready=>true}),
+        #transit_unified_bundle{bytes=Bundle}=ok(A:authorize(Client,Unsigned,Capture)),Bundle=read(maps:get(<<"bundle">>,Cfg)),
+        #transit_unified_description{bundle_bytes=25614,batch_rows=8}=ok(A:describe(Client,Source)),report(#{ready=>true}),
         Saved=loop(A,Client,Cfg,{Connection,Source},undefined),ok(A:close(Client)),{error,#transit_error{kind=closed}}=A:status(Client,1),
         case Saved of undefined->ok; #transit_unified_page{columns=Columns,ipc=Ipc,rows=Rows}->Rows=length(ok(A:decode(Columns,Ipc,Rows))) end,
         report(#{closed=>true})
@@ -137,7 +141,7 @@ action(A,C,#{<<"compile">>:=#{<<"scope">>:=Scope,<<"sql">>:=Sql}=Request},{_,Sou
     #transit_unified_bundle{bytes=Bytes}=result(A:compile(C,Source,maps:get(<<"name">>,Scope),Sql,Budgets,Parameters)),
     {#{compiled=>#{bundle=>hex(Bytes)}},undefined};
 action(A,C,#{<<"inspect">>:=#{<<"scope">>:=Scope,<<"sql">>:=Sql}},{Connection,Source},Kind)->
-    Limits=maps:get(<<"limits">>,Scope),Resource=Connection#transit_unified_connection.resource,
+    Limits=maps:get(<<"limits">>,Scope),Resource=source_resource(Source,Connection),
     Budgets=#transit_unified_budgets{pages=binary_to_integer(maps:get(<<"pages">>,Limits)),segments=binary_to_integer(maps:get(<<"segments">>,Limits)),result_bytes=binary_to_integer(maps:get(<<"result_bytes">>,Limits))},
     #transit_unified_inspection{name=Name,resource=Resource,source_kind=K,source_digest=Contract,schema_digest=Schema,resource_revision=Revision,policy_revision=Policy,details=Details}=result(A:inspect(C,Source,maps:get(<<"name">>,Scope),Sql,Budgets)),
     Kind=atom_to_binary(K),{#{inspection=>#{version=>1,scope=><<"configured_source">>,name=>Name,resource=>Resource#transit_resource.resource,source_kind=>Kind,
@@ -154,10 +158,10 @@ action(A,C,#{<<"observe">>:=Position},_,_)->
     #transit_unified_observation{state=S,reason=Reason}=result(A:observe(C,Position)),{#{observation=>#{atom_to_binary(S,utf8)=>case Reason of undefined->#{}; _->hex(Reason) end}},undefined};
 action(A,C,#{<<"status">>:=N},_,_)->
     Status=result(A:status(C,binary_to_integer(N))),{#{status=>case Status of undefined->null; #transit_unified_status{phase=P,correlation=Correlation,failure=F,diagnostic=D}->#{diagnostic=>case D of undefined->null; _->D end,phase=>atom_to_binary(P,utf8),correlation=>integer_to_binary(Correlation),failure=>failure_value(F)} end},undefined};
-action(A,C,#{<<"page">>:=#{<<"namespace">>:=N}=Request},{Connection,_},Kind)->
+action(A,C,#{<<"page">>:=#{<<"namespace">>:=N}=Request},{Connection,Source},Kind)->
     Cursor=maps:get(<<"cursor">>,Request,null),
     Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments,selected=Selected,value_count=Counted},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
-    Resource=Connection#transit_unified_connection.resource,Kind=atom_to_binary(K,utf8),Rows=length(ok(A:decode(Columns,Ipc,Rows))),
+    Resource=source_resource(Source,Connection),Kind=atom_to_binary(K,utf8),Rows=length(ok(A:decode(Columns,Ipc,Rows))),
     {#{page=>#{ordinal=>integer_to_binary(Ordinal),ipc=>hex(Ipc),manifest=>#{segments=>integer_to_binary(Segments),selected=>integer_to_binary(Selected),value_count=>integer_to_binary(Counted)},next=>case Next of undefined->null; #transit_unified_cursor{opaque=Opaque}->Opaque end}},Page}.
 main(A,[Mode,Path])->
     try

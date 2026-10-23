@@ -51,7 +51,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const bundle: q.Bundle = .{ .source = source, .plan = try @import("catalog_store_test.zig").plan(test_arena.allocator(), source, &.{ 0, 1 }), .limits = .{ .pages = 1000, .segments = 500, .result_bytes = 1048576 } };
     const policy: r.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .target = .{ .declaration = try q.Bundle.declaration(source) }, .allow = true, .limits = bundle.limits };
     try t.expectEqualDeep(policy, try r.Policy.decode(try policy.encode()));
-    const job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101 };
+    const job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .native = .{ .pid = 3, .input = 100, .index = 0 } }, .request = try bundle.reference(8, 2), .continuation = 101 };
     try t.expectEqualDeep(job, try r.Job.decode(try job.encode()));
     const basis = try q.UnifiedSource.basis(source, 42);
     const bound = try bundle.bind(try basis.fingerprint());
@@ -127,7 +127,7 @@ test "failure records reject missing witnesses and preserve full-width budget ev
     try t.expectError(error.InvalidQueryFailure, invalid.encode());
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
     const bundle: q.Bundle = .{ .source = source, .plan = try @import("catalog_store_test.zig").plan(test_arena.allocator(), source, &.{1}), .limits = .{ .pages = 10, .segments = 10, .result_bytes = 1024 } };
-    var job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101, .phase = .failed };
+    var job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .native = .{ .pid = 3, .input = 100, .index = 0 } }, .request = try bundle.reference(8, 2), .continuation = 101, .phase = .failed };
     try t.expectError(error.InvalidQueryRecord, job.encode());
     job.failure = failure;
     const stored = try job.encode();

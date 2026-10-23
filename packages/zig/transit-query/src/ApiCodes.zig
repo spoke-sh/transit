@@ -2,6 +2,8 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, action: d.ActionKind, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.QueryTableSnapshotRequired, .code = "query.table_snapshot_required", .category = .binding, .action = .correct_input, .message = "Open the direct Table with an explicitly retained snapshot before reading." },
+    .{ .cause = error.QueryCaptureRequired, .code = "query.capture_required", .category = .binding, .action = .correct_input, .message = "Authorize an explicit Table cut and pin owner before submitting this captured query. Preserve any previously accepted query and its original grant." },
     .{ .cause = error.InvalidBatchBudget, .code = "query.invalid_compute_budget", .category = .limit, .action = .correct_input, .message = "Compute rows must be 1 to 1024 and physical bytes 4096 to 1048576." },
     .{ .cause = error.BatchBudgetExceeded, .code = "query.compute_budget", .category = .limit, .action = .correct_input, .message = "The physical budget cannot hold the bound plan and one compute lane. Choose a larger bounded compute reservation." },
     .{ .cause = error.InvalidProvenance, .code = "query.compute_provenance", .category = .integrity, .action = .contact_operator, .message = "A physical lane lacks its original source position. No complete result is available." },

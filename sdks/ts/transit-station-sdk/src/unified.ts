@@ -12,7 +12,7 @@ import { Bridge, QueryBridge } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
 import { wide, nativeWide, ReadVersion } from "./values.ts";
 import { DocumentReference } from "./document.ts";
-import { Metadata, Schema } from "./catalog.ts";
+import { Scope, Schema, schemaValue } from "./catalog.ts";
 import { encodeType, decodeType, encodeAtom, decodeCell } from "./logical-values.ts";
 import type { Descriptor, Atom, Cell as LogicalCell, Field } from "./logical-values.ts";
 import type { Aggregate, Comparison } from "./query.ts";
@@ -54,8 +54,11 @@ export type Source =
     }
   | {
       readonly kind: "table";
-      readonly owner: ProcessRef;
-      readonly metadata: Metadata;
+      readonly scope: Scope;
+      readonly audience: number;
+      readonly branch: bigint;
+      readonly namespace: number;
+      readonly interpretation: TableInterpretation;
       readonly schema: Schema;
     }
   | {
@@ -64,6 +67,80 @@ export type Source =
       readonly expand?: readonly string[];
       readonly projections: readonly Projection[];
     };
+/** Accepted direct declaration and full schema commitments. */
+export class TableInterpretation {
+  readonly revision: bigint;
+  readonly byteCount: bigint;
+  readonly #digest: Uint8Array;
+  readonly #schemaDigest: Uint8Array;
+  constructor(revision: bigint, digest: Uint8Array, byteCount: bigint, schemaDigest: Uint8Array) {
+    positive(revision);
+    positive(byteCount);
+    this.revision = revision;
+    this.byteCount = byteCount;
+    this.#digest = owned(digest, 32);
+    this.#schemaDigest = owned(schemaDigest, 32);
+    if (this.#digest.length !== 32 || this.#schemaDigest.length !== 32)
+      throw new TypeError("Expected 32-byte commitments");
+    Object.freeze(this);
+  }
+  get digest(): Uint8Array {
+    return new Uint8Array(this.#digest);
+  }
+  get schemaDigest(): Uint8Array {
+    return new Uint8Array(this.#schemaDigest);
+  }
+}
+/** Service routing; the query client's caller, credential and role remain shared. */
+export class Tables {
+  readonly url: string;
+  readonly scope: Scope;
+  readonly branch: bigint;
+  readonly audience: number;
+  constructor(url: string, scope: Scope, branch: bigint, audience: number) {
+    this.url = text(url, 2048);
+    if (!(scope instanceof Scope)) throw new TypeError("Expected catalog scope");
+    this.scope = scope;
+    positive(branch);
+    this.branch = branch;
+    this.audience = integer(audience, "Table service audience");
+    Object.freeze(this);
+  }
+}
+/** One executor principal and an exact retained Table frontier. */
+export class Capture {
+  readonly executor: number;
+  readonly operation: bigint;
+  readonly partition: bigint;
+  readonly nextLsn: bigint;
+  constructor(executor: number, operation: bigint, partition: bigint, nextLsn: bigint) {
+    this.executor = integer(executor, "executor principal");
+    positive(operation);
+    positive(partition);
+    wide(nextLsn);
+    this.operation = operation;
+    this.partition = partition;
+    this.nextLsn = nextLsn;
+    Object.freeze(this);
+  }
+}
+export class TableDefinition {
+  readonly source: Extract<Source, { kind: "table" }>;
+  readonly partition: bigint;
+  readonly nextLsn: bigint;
+  constructor(source: Extract<Source, { kind: "table" }>, partition: bigint, nextLsn: bigint) {
+    sourceWire(source);
+    positive(partition);
+    wide(nextLsn);
+    this.source = Object.freeze({ ...source });
+    this.partition = partition;
+    this.nextLsn = nextLsn;
+    Object.freeze(this);
+  }
+  capture(executor: number, operation: bigint): Capture {
+    return new Capture(executor, operation, this.partition, this.nextLsn);
+  }
+}
 export type PredicateAtom =
   | { readonly kind: "state"; readonly column: number; readonly state: State }
   | {
@@ -136,7 +213,7 @@ function resource(source: Source): ResourceRef {
   return source.kind === "document"
     ? source.reference.resource
     : source.kind === "table"
-      ? source.metadata.scope.resource
+      ? source.scope.resource
       : source.resource;
 }
 function sourceWire(source: Source): WireSource {
@@ -157,14 +234,11 @@ function sourceWire(source: Source): WireSource {
       };
     case "table": {
       if (
-        !(source.owner instanceof ProcessRef) ||
-        !(source.metadata instanceof Metadata) ||
-        !(source.schema instanceof Schema) ||
-        source.owner.realm !== id.realm ||
-        source.schema.objectId !== source.metadata.objectId
+        !(source.scope instanceof Scope) ||
+        !(source.interpretation instanceof TableInterpretation) ||
+        !(source.schema instanceof Schema)
       )
-        throw new TypeError("Expected one catalog Table definition and owner");
-      const metadata = source.metadata;
+        throw new TypeError("Expected a direct Table interpretation and schema");
       return {
         version: 1,
         resource: id.resource,
@@ -173,17 +247,17 @@ function sourceWire(source: Source): WireSource {
             scope: {
               realm: id.realm,
               resource: id.resource,
-              catalog: metadata.scope.catalog.toString(),
+              catalog: source.scope.catalog.toString(),
             },
-            owner: source.owner.pid,
-            object: metadata.objectId.toString(),
-            metadata: {
-              id: metadata.revision.toString(),
-              spec: {
-                format: 0x54434d01,
-                length: metadata.commitment.bytes,
-                digest: [...unhex(metadata.commitment.digest, 32)],
-              },
+            owner: integer(source.audience, "Table service audience"),
+            branch: positive(source.branch),
+            namespace: integer(source.namespace, "schema namespace"),
+            object: source.schema.objectId.toString(),
+            interpretation: {
+              revision: source.interpretation.revision.toString(),
+              digest: [...source.interpretation.digest],
+              bytes: source.interpretation.byteCount.toString(),
+              schema: [...source.interpretation.schemaDigest],
             },
             row_type: encodeType({
               kind: "structure",
@@ -311,7 +385,7 @@ async function codec(
 export class Bundle {
   readonly #data: Uint8Array;
   constructor(data: Uint8Array) {
-    this.#data = owned(data, 25255);
+    this.#data = owned(data, 25614);
     Object.freeze(this);
   }
   get data(): Uint8Array {
@@ -338,7 +412,7 @@ export class Bundle {
       nativeHost,
     );
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared bundle");
-    return new Bundle(unhex(value.prepared.bytes, 25255));
+    return new Bundle(unhex(value.prepared.bytes, 25614));
   }
 }
 /** Local decoding does not establish current source access or result completeness. */
@@ -609,19 +683,21 @@ function inspection(
     details,
   });
 }
+export type Cut =
+  | { readonly kind: "native"; readonly revision: number }
+  | { readonly kind: "table"; readonly commitment: Uint8Array };
 export interface Manifest {
   readonly job: number;
-  readonly source: ReadVersion;
+  readonly source: ReadVersion | ProcessRef;
   readonly requester: ProcessRef;
   readonly correlation: bigint;
   readonly policyRevision: bigint;
   readonly request: Uint8Array;
   readonly sourceKind: "kv" | "table" | "document";
   readonly resource: ResourceRef;
-  readonly revision: number;
+  readonly cut: Cut;
   readonly sourceDigest: Uint8Array;
   readonly schemaDigest: Uint8Array;
-  readonly sourceHead: Uint8Array;
   readonly planDigest: Uint8Array;
   readonly pages: bigint;
   readonly scanned: bigint;
@@ -673,19 +749,35 @@ type WirePage = Extract<UnifiedQueryResult, { page: unknown }>["page"];
 function page(value: WirePage, realm: number): Page {
   const m = value.manifest;
   if (m.finished === null) throw new IncompatibleNative("Result manifest is unfinished");
+  const position = m.basis.cut.position;
+  let source: ReadVersion | ProcessRef;
+  let cut: Cut;
+  if (m.basis.cut.kind === "table") {
+    if (!("table" in m.source) || !("table" in position))
+      throw new IncompatibleNative("Invalid direct Table cut");
+    source = new ProcessRef(realm, m.source.table.worker);
+    cut = Object.freeze({ kind: "table", commitment: digest(position.table) });
+  } else {
+    if (!("native" in m.source) || !("native_revision" in position))
+      throw new IncompatibleNative("Invalid native source cut");
+    source = new ReadVersion(m.source.native.pid, m.source.native.input, m.source.native.index);
+    cut = Object.freeze({
+      kind: "native",
+      revision: integer(position.native_revision, "native resource revision", 0),
+    });
+  }
   const manifest: Manifest = Object.freeze({
     job: integer(m.job, "job"),
-    source: new ReadVersion(m.source.pid, m.source.input, m.source.index),
+    source,
     requester: new ProcessRef(realm, m.requester),
     correlation: nativeWide(m.correlation),
     policyRevision: nativeWide(m.policy_revision),
     request: unhex(m.request, 72),
     sourceKind: m.basis.cut.kind,
     resource: new ResourceRef(realm, m.basis.cut.resource),
-    revision: integer(m.basis.cut.revision, "revision", 0),
+    cut,
     sourceDigest: digest(m.basis.contract),
     schemaDigest: digest(m.basis.schema),
-    sourceHead: digest(m.basis.cut.head),
     planDigest: digest(m.plan),
     pages: nativeWide(m.pages),
     scanned: nativeWide(m.scanned),
@@ -719,6 +811,7 @@ export class Client {
     input: ClientConfig,
     credential: Credential,
     connection: Connection,
+    tables?: Tables,
   ): Promise<Client> {
     const config = configuration(input);
     if (
@@ -727,6 +820,11 @@ export class Client {
       credential.realm !== connection.source.realm
     )
       throw new TypeError("Query credential must match the connection realm");
+    if (
+      tables !== undefined &&
+      (!(tables instanceof Tables) || tables.scope.resource.realm !== credential.realm)
+    )
+      throw new TypeError("Direct Table service must use the query realm");
     const bridge = await QueryBridge.open(
       config.url,
       credential.seedFile,
@@ -741,16 +839,83 @@ export class Client {
           role: connection.role ?? null,
         },
         timeout_ms: config.timeoutMs,
+        tables:
+          tables === undefined
+            ? null
+            : {
+                url: tables.url,
+                connection: {
+                  scope: {
+                    realm: tables.scope.resource.realm,
+                    resource: tables.scope.resource.resource,
+                    catalog: tables.scope.catalog.toString(),
+                  },
+                  branch: tables.branch.toString(),
+                  audience: tables.audience,
+                  principal: credential.principal,
+                  role: connection.role ?? null,
+                },
+              },
       },
       config.nativeHost,
     );
     return new Client(connection, bridge);
   }
+  /** Current direct definition and frontier; no pin acquisition or query admission. */
+  async lookupTable(name: string, namespace = 1): Promise<TableDefinition | undefined> {
+    const value = await this.bridge.call({
+      table: { namespace: integer(namespace, "schema namespace"), name: fieldName(name) },
+    });
+    if (!("table" in value)) throw new IncompatibleNative("Expected direct Table definition");
+    if (value.table === null) return undefined;
+    const found = value.table;
+    if (!("table" in found.source.source))
+      throw new IncompatibleNative("Expected direct Table source");
+    const direct = found.source.source.table;
+    const scope = new Scope(
+      new ResourceRef(direct.scope.realm, direct.scope.resource),
+      nativeWide(direct.scope.catalog),
+    );
+    const schema = schemaValue(found.schema);
+    if (
+      found.source.version !== 1 ||
+      found.source.resource !== scope.resource.resource ||
+      nativeWide(direct.object) !== schema.objectId
+    )
+      throw new IncompatibleNative("Inconsistent direct Table definition");
+    const source = {
+      kind: "table" as const,
+      scope,
+      audience: direct.owner,
+      branch: nativeWide(direct.branch),
+      namespace: direct.namespace,
+      interpretation: new TableInterpretation(
+        nativeWide(direct.interpretation.revision),
+        digest(direct.interpretation.digest),
+        nativeWide(direct.interpretation.bytes),
+        digest(direct.interpretation.schema),
+      ),
+      schema,
+    };
+    // Both descriptors come from one response and must describe the same rows.
+    const expected = sourceWire(source).source;
+    if (
+      !("table" in expected) ||
+      JSON.stringify(encodeType(decodeType(expected.table.row_type))) !==
+        JSON.stringify(encodeType(decodeType(direct.row_type)))
+    )
+      throw new IncompatibleNative("Inconsistent direct Table row type");
+    return new TableDefinition(
+      source,
+      nativeWide(found.expected.partition),
+      nativeWide(found.expected.next_lsn),
+    );
+  }
   async describe(source: Source): Promise<Description> {
     const id = resource(source);
     if (
       id.realm !== this.connection.resource.realm ||
-      id.resource !== this.connection.resource.resource
+      (source.kind !== "table" && id.resource !== this.connection.resource.resource)
     )
       throw new TypeError("Source differs from the connection");
     const value = await this.bridge.call({ describe: sourceWire(source) });
@@ -780,7 +945,7 @@ export class Client {
     const id = resource(source);
     if (
       id.realm !== this.connection.resource.realm ||
-      id.resource !== this.connection.resource.resource
+      (source.kind !== "table" && id.resource !== this.connection.resource.resource)
     )
       throw new TypeError("Source differs from the connection");
     const value = await this.bridge.call({
@@ -811,7 +976,7 @@ export class Client {
     const id = resource(source);
     if (
       id.realm !== this.connection.resource.realm ||
-      id.resource !== this.connection.resource.resource
+      (source.kind !== "table" && id.resource !== this.connection.resource.resource)
     )
       throw new TypeError("Source differs from the connection");
     if (parameters !== undefined && (!Array.isArray(parameters) || parameters.length > 65))
@@ -832,19 +997,46 @@ export class Client {
       },
     });
     if (!("compiled" in value)) throw new IncompatibleNative("Expected compiled SQL bundle");
-    return new Bundle(unhex(value.compiled.bundle, 25255));
+    return new Bundle(unhex(value.compiled.bundle, 25614));
   }
   /** Seal new work once before saving its bytes or fingerprint. Recover saved work unchanged. */
-  async authorizeBundle(bundle: Bundle): Promise<Bundle> {
+  async authorizeBundle(bundle: Bundle, capture?: Capture): Promise<Bundle> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
-    const value = await this.bridge.call({ authorize: hex(bundle.data, 25255) });
+    if (capture !== undefined && !(capture instanceof Capture))
+      throw new TypeError("Expected explicit Table capture");
+    const value = await this.bridge.call({
+      authorize: {
+        bundle: hex(bundle.data, 25614),
+        capture:
+          capture === undefined
+            ? null
+            : {
+                executor: capture.executor,
+                operation: capture.operation.toString(),
+                expected: {
+                  partition: capture.partition.toString(),
+                  next_lsn: capture.nextLsn.toString(),
+                },
+              },
+      },
+    });
     if (!("authorized" in value)) throw new IncompatibleNative("Expected authorized query bundle");
-    return new Bundle(unhex(value.authorized, 25255));
+    return new Bundle(unhex(value.authorized, 25614));
+  }
+  /** Fresh terminal cleanup authority preserves the original execution proof and cut. */
+  async prepareCleanup(namespace: bigint, bundle: Bundle): Promise<Prepared> {
+    if (!(bundle instanceof Bundle)) throw new TypeError("Expected original query bundle");
+    const value = await this.bridge.call({
+      cleanup: { namespace: positive(namespace), bundle: hex(bundle.data, 25614) },
+    });
+    if (!("prepared" in value) || value.prepared === null)
+      throw new IncompatibleNative("Expected cleanup command");
+    return new Prepared(value.prepared);
   }
   async prepareNext(namespace: bigint, bundle: Bundle): Promise<Prepared | undefined> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
     const value = await this.bridge.call({
-      next: { namespace: positive(namespace), bundle: hex(bundle.data, 25255) },
+      next: { namespace: positive(namespace), bundle: hex(bundle.data, 25614) },
     });
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared command");
     return value.prepared === null ? undefined : new Prepared(value.prepared);

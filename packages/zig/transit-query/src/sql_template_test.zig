@@ -13,7 +13,7 @@ const document_projections = [_]q.SourceDefinition.Projection{.{
 fn sources() ![3]q.SourceDefinition {
     return .{
         .{ .resource = 7, .source = .{ .kv = .{ .prefix = try q.protocol.Value.init("data/"), .key = .{ .type = .int64 }, .value = .{ .type = .utf8 } } } },
-        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .object = 9, .metadata = .{ .id = 1, .spec = .{ .format = q.catalog.TableMetadata.format, .length = 200, .digest = @splat(1) } }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .utf8, .nullable = true } } } } } },
+        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .branch = 1, .namespace = 1, .object = 9, .interpretation = .{ .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .branch = 1, .object = 9 }, .revision = 1, .digest = @splat(1) }, .content = .{ .bytes = 200, .sha256 = @splat(1) }, .schema_fingerprint = @splat(2), .retired = false }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .utf8, .nullable = true } } } } } },
         .{ .resource = 7, .source = .{ .document = .{
             .reference = .{ .resource = 7, .document = 13, .epoch = 3, .type_revision = 1, .revision = 42 },
             .projections = &document_projections,
@@ -40,12 +40,18 @@ test "templates bind complete source identity even when schemas are unchanged" {
         var replacement = source;
         replacement.resource += 1;
         if (replacement.source == .document) replacement.source.document.reference.resource = replacement.resource;
-        if (replacement.source == .table) replacement.source.table.scope.resource = replacement.resource;
+        if (replacement.source == .table) {
+            replacement.source.table.scope.resource = replacement.resource;
+            replacement.source.table.interpretation.interpretation.object.scope.resource = replacement.resource;
+        }
         try t.expectError(error.QuerySourceChanged, prepared.bind(t.allocator, replacement, &.{ .{ .bytes = "owned" }, .{ .unsigned = 3 } }, limits));
         replacement = source;
         switch (replacement.source) {
             .kv => |*kv| kv.prefix = try q.protocol.Value.init("other/"),
-            .table => |*table| table.object += 1,
+            .table => |*table| {
+                table.object += 1;
+                table.interpretation.interpretation.object.object = table.object;
+            },
             .document => |*document| document.reference.revision += 1,
         }
         if (source.source == .document) try t.expectEqualSlices(u8, &try q.Bundle.declaration(source), &try q.Bundle.declaration(replacement));

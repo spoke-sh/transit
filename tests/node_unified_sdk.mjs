@@ -13,22 +13,13 @@ function atomValue(type, value) {
     {kind: type === 'int64' ? 'signed' : type === 'uint64' ? 'unsigned' : type, value};
 }
 function tableSource(resource, owner, scope, object, revision, bytes, digest, columns) {
-  return {kind: 'table', owner: new ProcessRef(resource.realm, owner),
-    metadata: new catalog.Metadata({namespace: 1, scope: new catalog.Scope(resource, scope), objectId: object,
-      revision, name: 'items', schemaFingerprint: '01'.repeat(32), principal: 17, operation: 1n,
-      admittedInput: 1, commitment: new catalog.MetadataCommitment(bytes, digest)}),
+  return {kind: 'table', scope: new catalog.Scope(resource, scope), audience: owner, branch: 1n, namespace: 1,
+    interpretation: new q.TableInterpretation(revision, Buffer.from(digest, 'hex'), BigInt(bytes), new Uint8Array(32).fill(2)),
     schema: new catalog.Schema(object, 1n, BigInt(columns.length + 1), columns)};
 }
-async function lookupSource(v, config) {
-  const owner = new ProcessRef(v.realm, v.source);
-  const client = await catalog.Client.open({url: config.url, profile: 'native_v1', timeoutMs: 10000},
-    new Credential(v.realm, v.principal, config.seed_file),
-    new catalog.Connection(owner, new catalog.Scope(new ResourceRef(v.realm, v.resource), 1n)));
-  try {
-    const definition = await client.lookup('items');
-    assert.ok(definition);
-    return {kind: 'table', owner, metadata: definition.metadata, schema: definition.schema};
-  } finally { await client.close(); }
+
+async function lookupSource(client) {
+  const definition = await client.lookupTable('items'); assert.ok(definition); return definition.source;
 }
 function wireType(value) {
   const {kind, ...parts} = value;
@@ -82,7 +73,7 @@ async function codecs() {
     const counted = await q.Bundle.prepare(source, {projection: [1], aggregate: 'count_values', outputNames: ['present']}, {pages: 1000n, segments: 500n, resultBytes: 1048576n});
     assert.equal(hex(counted.data), fixtures[index].counted_wire_hex);
   }
-  for (const source of [{...sources[0], value: {type: 'uint64', version: 2}}, {...sources[1], owner: new ProcessRef(99, 3)}])
+  for (const source of [{...sources[0], value: {type: 'uint64', version: 2}}, {...sources[1], audience: 0}])
     await assert.rejects(q.Bundle.prepare(source, {projection: [0]}, {pages: 1n, segments: 1n, resultBytes: 1n}));
   const booleanFixtures = JSON.parse(await readFile(config.boolean, 'utf8'));
   const scalarValues = [-(1n << 63n), wide, -0, true, 'café é 🙂', new Uint8Array([0, 255, 128]), 'x'.repeat(512)];
@@ -146,14 +137,21 @@ async function serve() {
   const v = config.connection, resource = new ResourceRef(v.realm, v.resource);
   const connection = new q.Connection(new ProcessRef(v.realm, v.source), resource,
     new ProcessRef(v.realm, v.requester), new ResourceRef(v.realm, v.requests));
+  const t = config.tables;
+  const tables = config.kind === 'table' ? new q.Tables(t.url, new catalog.Scope(new ResourceRef(v.realm, t.connection.scope.resource), BigInt(t.connection.scope.catalog)), BigInt(t.connection.branch), t.connection.audience) : undefined;
+  const c = config.capture;
+  const capture = config.kind === 'table' ? new q.Capture(c.executor, BigInt(c.operation), BigInt(c.expected.partition), BigInt(c.expected.next_lsn)) : undefined;
+  const client = await q.Client.open({url: config.url, profile: 'native_v1', timeoutMs: 10000},
+    new Credential(v.realm, v.principal, config.seed_file), connection, tables);
   const source = config.kind === 'kv' ? {kind: 'kv', resource, prefix: Buffer.from('k'), key: {type: 'binary'}, value: {type: 'utf8'}}
-    : config.kind === 'table' ? await lookupSource(v, config)
+    : config.kind === 'table' ? await lookupSource(client)
     : {kind: 'document', reference: await reference(resource, 17n, 1n, 13n), expand: ['items'], projections: [
         {column: {name: 'value', type: 'utf8'}, relative: true},
         {column: {name: 'counter', type: 'uint64'}, relative: true, mode: 'element_counter'},
         {column: {name: 'replica', type: 'uint64'}, relative: true, mode: 'element_replica'},
         {column: {name: 'optional', type: 'utf8'}, path: ['optional']},
       ]};
+  const resultResource = source.kind === 'table' ? source.scope.resource : resource;
   const doc = config.kind === 'document', column = doc ? 0 : 1;
   let predicate = {kind: 'compare', column, comparison: 'ne', value: {kind: 'utf8', value: 'x'.repeat(512)}};
   if (config.compound) predicate = {kind: 'program', instructions: [
@@ -164,12 +162,10 @@ async function serve() {
   ]};
   const bundle = await q.Bundle.prepare(source, {projection: doc ? [0, 1, 2, 3] : [1],
     outputNames: doc ? ['Result', null, null, null] : ['Result'], predicate}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
-  const client = await q.Client.open({url: config.url, profile: 'native_v1', timeoutMs: 10000},
-    new Credential(v.realm, v.principal, config.seed_file), connection);
   try {
-    assert.equal(hex((await client.authorizeBundle(bundle)).data), hex(await readFile(config.bundle)));
+    assert.equal(hex((await client.authorizeBundle(bundle, capture)).data), hex(await readFile(config.bundle)));
     const description = await client.describe(source);
-    assert.equal(description.bundleBytes, 25255); assert.equal(description.batchRows, 8);
+    assert.equal(description.bundleBytes, 25614); assert.equal(description.batchRows, 8);
     console.log(JSON.stringify({ready: true}));
     for await (const line of readline.createInterface({input: process.stdin})) {
       const action = JSON.parse(line);
@@ -196,7 +192,7 @@ async function serve() {
           const value = await client.inspectSql(source, request.scope.name, request.sql, {
             pages: BigInt(limits.pages), segments: BigInt(limits.segments), resultBytes: BigInt(limits.result_bytes),
           });
-          assert.deepEqual(value.resource, resource); assert.equal(value.sourceKind, config.kind);
+          assert.deepEqual(value.resource, resultResource); assert.equal(value.sourceKind, config.kind);
           const d = value.details;
           const details = d.kind === 'description' ? {description: {columns: d.columns.map(wireColumn)}} : d.kind === 'tables' ? {tables: d.names} : {
             explanation: {operators: d.operators, predicate: inspectedPredicate(d.predicate),
@@ -222,7 +218,7 @@ async function serve() {
         } else if ('page' in action) {
           const v = action.page;
           const value = await client.page(BigInt(v.namespace), v.cursor == null ? undefined : new q.Cursor(v.cursor));
-          assert.deepEqual(value.manifest.resource, resource); assert.equal(value.manifest.sourceKind, config.kind);
+          assert.deepEqual(value.manifest.resource, resultResource); assert.equal(value.manifest.sourceKind, config.kind);
           assert.equal((await value.decode()).length, value.rows);
           const {unifiedToArrow} = await import('@transit/station/arrow');
           assert.equal(unifiedToArrow(value).numRows, value.rows);

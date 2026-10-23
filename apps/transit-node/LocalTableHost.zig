@@ -60,9 +60,10 @@ fn target(action: w.Action) ?u64 {
         .preview => |value| value.binding.target.object,
         inline .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
-        inline .pin, .pin_status => |value| value.object.object,
-        .scan => |value| value.snapshot.object.object,
-        inline .snapshot, .release => |value| value.object.object,
+        inline .pin, .retain_history, .pin_status => |value| value.object.object,
+        inline .scan, .read_key, .history => |value| value.snapshot.object.object,
+        inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
+        .history_scan => |value| value.source.object.object,
         else => null,
     };
 }

@@ -23,7 +23,7 @@ public static partial class Catalog
     private static ulong Wide(JsonNode? value) => NativeValues.Wide(value, true);
     private static ulong Zero(JsonNode? value) => NativeValues.Wide(value, false);
     private static uint Small(JsonNode? value, ulong minimum = 0) => checked((uint)V.Number(value, minimum));
-    private static Scope ParseScope(JsonNode? value) {
+    internal static Scope ParseScope(JsonNode? value) {
         var v = Fields(value, "realm", "resource", "catalog"); return new(new ResourceRef(V.Number(v["realm"], 1), V.Number(v["resource"], 1)), Wide(v["catalog"]));
     }
     private static Configuration ParseConfiguration(JsonNode? value) {

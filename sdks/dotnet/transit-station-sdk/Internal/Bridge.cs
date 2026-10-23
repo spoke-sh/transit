@@ -61,12 +61,12 @@ internal sealed class Bridge : IWorkerState<object?>
         } catch (Exception) { bridge.Dispose(); throw; }
     }
     internal int Limit(string name) => checked((int)Value.Number(Caps[name], 1));
-    internal static Bridge OpenQuery(ClientConfig config, Credential identity, UnifiedQuery.Connection connection)
+    internal static Bridge OpenQuery(ClientConfig config, Credential identity, UnifiedQuery.Connection connection, UnifiedQuery.Tables? tables)
     {
         Bridge bridge = new(config.NativeDirectory);
         try {
             byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
-            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis)));
+            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis), ("tables", tables?.Wire(identity, connection))));
             byte[] seed = RawBridge.Seed(identity.SeedFile);
             try {
                 uint status = bridge.Api.station_unified_query_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.queryClient);

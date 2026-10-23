@@ -9,6 +9,19 @@ const r = q.UnifiedRecords;
 const Turn = s.Turn;
 const Pub = s.Publication;
 const Ref = s.PublicationReference;
+const Pin = q.CapturedTablePin;
+fn direct(source: anytype) !q.catalog.DirectTableClient {
+    const T = switch (@typeInfo(@TypeOf(source))) {
+        .pointer => |pointer| pointer.child,
+        else => @TypeOf(source),
+    };
+    if (comptime @hasField(T, "tables")) return source.tables orelse error.QuerySourceUnavailable;
+    return error.QuerySourceUnavailable;
+}
+fn pinSlot(id: u64) Pin.Slot {
+    return .{ .job = id, .source = 0 };
+}
+
 pub fn policy(source: anytype, peer: u64) !?r.Policy {
     const value = (try source.read(r.key('p', peer, 0))) orelse return null;
     const result = try r.Policy.decode(value);
@@ -19,7 +32,7 @@ pub fn setPolicy(turn: *Turn, next: r.Policy) !void {
     const encoded = try next.encode();
     if (next.target == .catalog) {
         const grant = next.target.catalog;
-        if (grant.scope.realm != turn.delivery.realm or grant.scope.resource != turn.view.resource or grant.owner != turn.delivery.pid) return error.InvalidQueryPolicy;
+        if (grant.scope.realm != turn.delivery.realm) return error.InvalidQueryPolicy;
     }
     if (try policy(turn, next.peer)) |old| {
         if (std.meta.eql(old, next)) return;
@@ -57,7 +70,7 @@ fn permittedDiagnostic(source: anytype, stored: r.Job, diagnostic: ?*?q.SourceWi
 }
 fn matches(bundle: q.Bundle, grant: r.Policy, resource: u64, diagnostic: ?*?q.SourceWitness) !?u64 {
     try bundle.validate();
-    if (bundle.source.resource != resource) {
+    if (bundle.source.source != .table and bundle.source.resource != resource) {
         if (diagnostic) |detail| detail.* = .{ .reason = .resource, .resource = resource, .expected = resource, .actual = bundle.source.resource };
         return error.QueryDenied;
     }
@@ -136,14 +149,19 @@ fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem
     try q.Bundle.checkPublisher(reference, source, peer);
     const principal = try matches(bundle, grant, turn.view.resource, witness);
     try bundle.bindSubject(turn, peer, reference.resource, principal);
-    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
-    const captured = q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness) catch |err| return allocationFailure(err, bounded, turn);
-    const bound = try bundle.bind(try captured.fingerprint());
-    var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .source = try turn.retain(), .request = reference, .continuation = turn.delivery.input.position };
+    var captured: ?q.Basis = null;
+    const table = bundle.source.source == .table;
+    if (table) {
+        try Pin.authorizeAdmission(turn, bundle.retention.?, try direct(source));
+    } else {
+        try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
+        captured = q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness) catch |err| return allocationFailure(err, bounded, turn);
+    }
+    var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .source = if (table) .{ .table = .{ .worker = turn.delivery.pid } } else .{ .native = try turn.retain() }, .phase = if (table) .admitted else .capturing, .request = reference, .continuation = turn.delivery.input.position };
     const publication = stored.publication(turn.view.resource);
     if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(publication.domain, publication.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
     _ = try Pub.create(turn, .query_result, publication.namespace, .{ .record_bytes = f.LogicalArrow.segment_bytes, .staging_bytes = f.LogicalArrow.segment_bytes, .staging_records = 1 });
-    try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .cut = captured.cut, .progress = try f.LogicalStream.Progress.start(bound) }).encode());
+    if (captured) |value| try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .cut = value.cut, .progress = try f.LogicalStream.Progress.start(try bundle.bind(try value.fingerprint())) }).encode());
     try turn.write(r.key('i', peer, frame.correlation), q.UnifiedRecords.identityValue(stored.id));
     try schedule(turn, &stored);
     try turn.validate();
@@ -185,10 +203,15 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     const frame = try s.Frame.decode(turn.delivery.input.value);
     if (frame.kind != .cast or !frame.payload.eql(try continuation.encode())) return error.InvalidQueryContinuation;
     var stored = try job(turn, continuation.job);
-    if (stored.source.pid != turn.delivery.pid) return error.InvalidQueryJob;
-    if (stored.phase == .complete) return .duplicate;
-    if (stored.phase != .capturing and stored.phase != .captured) {
-        try cleanup(turn, &stored);
+    if (stored.source.worker() != turn.delivery.pid) return error.InvalidQueryJob;
+    if (stored.phase == .complete) {
+        _ = try settlePin(allocator, turn, stored, source);
+        return .duplicate;
+    }
+    if (stored.phase != .admitted and stored.phase != .acquiring and stored.phase != .capturing and stored.phase != .captured) {
+        if (try settlePin(allocator, turn, stored, source)) {
+            try schedule(turn, &stored);
+        } else try cleanup(turn, &stored);
         return .closed;
     }
     if (continuation.input < stored.continuation) return .duplicate;
@@ -209,11 +232,45 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     try q.Bundle.checkPublisher(stored.request, source, stored.destination);
     const principal = try matches(bundle, grant, turn.view.resource, witness);
     try bundle.bindSubject(turn, stored.destination, stored.request.resource, principal);
-    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
+    if ((bundle.source.source == .table) != (stored.source == .table)) return error.InvalidQueryJob;
+    if (stored.phase == .admitted) {
+        try Pin.authorizeAdmission(turn, bundle.retention.?, try direct(source));
+        try Pin.prepare(allocator, turn, pinSlot(stored.id), bundle.retention.?);
+        stored.phase = .acquiring;
+        try schedule(turn, &stored);
+        return .progress;
+    }
+    if (stored.phase == .acquiring) {
+        const retained = try Pin.acquire(allocator, turn, pinSlot(stored.id), try direct(source));
+        if (!std.meta.eql(retained.interpretation, bundle.source.source.table.interpretation)) return error.SourceChanged;
+        try Pin.authorizeSource(turn, bundle.retention.?, retained.authority);
+        const tables = try Pin.readClient(allocator, turn, pinSlot(stored.id), try direct(source));
+        const captured = try bundle.source.source.table.capture(allocator, tables, retained.snapshot);
+        if (!std.meta.eql(captured.retained, retained)) return error.SourceChanged;
+        try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .cut = (try captured.record()).cut, .progress = try f.LogicalStream.Progress.start(try bundle.bind(try captured.fingerprint())) }).encode());
+        stored.phase = .capturing;
+        try schedule(turn, &stored);
+        return .progress;
+    }
+    if (stored.source == .table) {
+        try Pin.authorizeExecution(allocator, turn, pinSlot(stored.id));
+    } else try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
     const previous = try checkpoint(turn, stored.id);
     const bound = try previous.bound(bundle);
     const captured = try previous.basis(bundle.source);
     if (stored.phase == .captured) {
+        if (stored.source == .table) {
+            const pin = (try Pin.inspect(allocator, turn, pinSlot(stored.id))) orelse return error.IncompleteSource;
+            if (pin.phase == .acquiring) {
+                // Final segment publication, checkpoint and job already use
+                // all four mutations. Record release eligibility in this
+                // subsequent turn, after traversal is durably complete.
+                try Pin.beginClose(allocator, turn, pinSlot(stored.id));
+                try schedule(turn, &stored);
+                return .progress;
+            }
+        }
+        _ = try settlePin(allocator, turn, stored, source);
         try publishManifest(turn, &stored, previous);
         return if (stored.phase == .complete) .complete else .progress;
     }
@@ -224,8 +281,14 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     var page: q.UnifiedSource.Batch = undefined;
     if (bound.limit == 0) {
         page = .{ .basis = captured, .binding = bound.source_basis, .ordinal = previous.cursor.ordinal, .next = .{ .ordinal = try std.math.add(u64, previous.cursor.ordinal, 1), .done = true } };
+    } else if (stored.source == .table) {
+        var current = turn.committed();
+        const retained = try Pin.source(allocator, &current, pinSlot(stored.id), turn.delivery.pid);
+        const tables = try Pin.readClient(allocator, turn, pinSlot(stored.id), try direct(source));
+        q.UnifiedSource.tablePage(bundle.source, bound, captured, retained, previous.cursor, tables, allocator, &page) catch |err| return allocationFailure(err, bounded, turn);
+        try Pin.authorizeExecution(allocator, turn, pinSlot(stored.id));
     } else {
-        var retained = try turn.openVersion(stored.source);
+        var retained = try turn.openVersion(stored.source.native);
         q.UnifiedSource.page(bundle.source, bound, captured, previous.cursor, &retained, turn, principal, allocator, &page) catch |err| return allocationFailure(err, bounded, turn);
     }
     defer page.deinit();
@@ -283,7 +346,7 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     try turn.write(r.key('c', stored.id, 0), try progress.encode());
     if (candidate.progress.finished != null) {
         stored.phase = .captured;
-        try turn.release(stored.source);
+        if (stored.source == .native) try turn.release(stored.source.native);
     }
     try schedule(turn, &stored);
     try turn.validate();
@@ -335,11 +398,16 @@ fn closeOutcome(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, r
     const before = turn.decision;
     errdefer turn.decision = before;
     var stored = try job(turn, id);
-    if (stored.source.pid != turn.delivery.pid) return error.InvalidQueryJob;
-    if (stored.phase != .capturing and stored.phase != .captured and stored.phase != .complete) return;
+    if (stored.source.worker() != turn.delivery.pid) return error.InvalidQueryJob;
+    if (stored.phase != .admitted and stored.phase != .acquiring and stored.phase != .capturing and stored.phase != .captured and stored.phase != .complete) return;
     if (stored.phase == .complete and phase != .retired) return;
     if (phase == .retired and stored.phase != .complete) return error.IncompleteResult;
-    if (stored.phase == .capturing) try turn.release(stored.source);
+    if (stored.source == .native and stored.phase == .capturing) try turn.release(stored.source.native);
+    if (stored.source == .table and stored.phase != .admitted) {
+        var memory: [16384]u8 = undefined;
+        var fixed: std.heap.FixedBufferAllocator = .init(&memory);
+        try Pin.beginClose(fixed.allocator(), turn, pinSlot(stored.id));
+    }
     stored.phase = switch (phase) {
         .cancelled => .cancelled,
         .denied => .denied,
@@ -380,7 +448,49 @@ fn cleanup(turn: *Turn, stored: *r.Job) !void {
     } else try nextCleanup(turn, stored);
 }
 fn nextCleanup(turn: *Turn, stored: *r.Job) !void {
-    const progress = try checkpoint(turn, stored.id);
-    stored.cleanup = if (stored.cleanup == r.manifest_record) 0 else if (stored.cleanup > progress.progress.segments) r.manifest_record else stored.cleanup + 1;
+    const recorded = try turn.read(r.key('c', stored.id, 0));
+    const segments = if (recorded) |value| (try r.Checkpoint.decode(value)).progress.segments else 0;
+    stored.cleanup = if (stored.cleanup == r.manifest_record) 0 else if (stored.cleanup > segments) r.manifest_record else stored.cleanup + 1;
     if (stored.cleanup == 0) try turn.write(r.key('j', stored.id, 0), try stored.encode()) else try schedule(turn, stored);
+}
+
+/// Cleanup is independent of result completeness. A known current denial or
+/// transport outage leaves the durable closing record for explicit retry.
+/// Corruption/unknown errors still fail this attempt without claiming closure.
+fn settlePin(allocator: std.mem.Allocator, turn: *Turn, stored: r.Job, resources: anytype) !bool {
+    if (stored.source != .table) return false;
+    const record = (try Pin.inspect(allocator, turn, pinSlot(stored.id))) orelse return false;
+    if (record.phase == .closed) return false;
+    if (record.phase != .closing) return error.QueryActive;
+    const tables = try direct(resources);
+    Pin.settle(allocator, turn, pinSlot(stored.id), tables) catch |err| {
+        if (q.wire.Client.unavailable(err) or err == error.AccessDenied or (err == error.Conflict and (tables.authority.last_rejection == .StaleAuthorizationCredential or tables.service.last_rejection == .StaleAuthorizationCredential))) return false;
+        return err;
+    };
+    return true;
+}
+/// The caller authenticates the requester route before retrying terminal work.
+/// This cannot release a job that is still consuming its source.
+pub fn retryCleanup(allocator: std.mem.Allocator, turn: *Turn, id: u64, resources: anytype, authorization: ?q.catalog.DirectReadDelegation.Closure) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    var stored = try job(turn, id);
+    if (stored.source.worker() != turn.delivery.pid) return error.InvalidQueryJob;
+    if (stored.phase == .admitted or stored.phase == .acquiring or stored.phase == .capturing or stored.phase == .captured) return error.QueryActive;
+    if (authorization) |permission| {
+        if (stored.source != .table) return error.InvalidQueryJob;
+        // Admission can close before acquisition eligibility was committed. No
+        // pin exists in that case, and cleanup must not create one. A retained
+        // checkpoint, however, requires the original immutable pin evidence.
+        if (try Pin.inspect(allocator, turn, pinSlot(stored.id)) == null) {
+            if (stored.phase == .complete or try turn.read(r.key('c', stored.id, 0)) != null) return error.IncompleteSource;
+            return cleanup(turn, &stored);
+        }
+        try Pin.authorizeCleanup(allocator, turn, pinSlot(stored.id), try direct(resources), permission);
+        // The permission becomes usable only after this proposal commits.
+        try schedule(turn, &stored);
+        return;
+    }
+    if (try settlePin(allocator, turn, stored, resources)) return;
+    if (stored.phase != .complete) try cleanup(turn, &stored);
 }

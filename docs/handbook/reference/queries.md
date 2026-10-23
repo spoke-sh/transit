@@ -149,12 +149,36 @@ recorded terminal outcome retains the original recovery obligation.
 
 Explicit durable queries use the query v1 captured-query path. The requester
 uploads and seals the plan bundle, then makes a durable source call. The source
-retains a read version, stages Arrow segments through bounded Publication turns,
+retains a native KV/Document version or an exact direct Table pin, stages Arrow segments through bounded Publication turns,
 publishes a complete manifest and returns its reference through the original
 reply route. Even an empty result carries its schema and completion evidence.
 Source rows remain unchanged by a SELECT, but query bookkeeping and result
 publication write durable state. The console defaults to the separate interactive
 session profile below; explicit durable callers retain this recovery contract.
+
+A direct Table capture uses an explicit executor principal, pin-operation
+identity and expected Table partition/log frontier. Its progress resource can
+differ from the Table's catalog resource. Compilation produces an unsigned
+description; capture authorization freezes the original caller, selected role,
+interpretation, frontier and query route before upload. The worker records
+acquisition eligibility before contacting storage. Recovery repeats that
+original operation, including after RENAME or schema changes; it never captures
+newer data silently. The [typed caller guide](../../../packages/zig/transit-query/docs/unified-client.md)
+describes configuration and the prepare/submit/observe sequence.
+
+Captured Table reads use the retained schema and row-identity pages. A complete
+primary-key equality can seek the retained index, including composite keys;
+the original predicate still determines selection. An absent key completes that
+selection without claiming that all Table rows were scanned. Both matching and
+empty reads require current source rights.
+
+Result completeness and pin cleanup are separate observations. A completed
+result retains its source commitment and checks current source rights even after
+the pin is released. A storage outage or current denial leaves cleanup pending.
+After credential rotation, `prepareCleanup` authorizes closure of the original
+pin separately; it cannot renew the accepted query's read authority. Repeated
+cleanup uses saved prepared bytes and preserves the original result and failure
+evidence.
 
 Each durable requester runs one active query. Retained queries and results can
 grow on disk without loading their complete history into memory. Work is bounded
@@ -238,10 +262,13 @@ incomplete until terminal source/output checks succeed.
 The Zig `RelationalCapture` owner provides a separate durable lifetime. An
 authenticated call admits a frozen plan and schema vector, retains its data cuts,
 and records immutable operator checkpoints and output coverage. The coordinator
-is the first Table owner; other sources remain read-only. `RelationalResult`
+owns an independent native progress resource and retains each direct Table
+through the original caller's scoped grant. `RelationalResult`
 checks the complete manifest, ordered rows, byte counts and digest chain, with
-current rights to every source before disclosure. Cancellation, failure and
-retirement release pins; explicitly scheduled collection removes publication
+current rights to every source before disclosure. Completion, cancellation,
+failure and retirement schedule pin cleanup. Current denial leaves cleanup
+pending; separately authorized cleanup can close the original pins after
+credential rotation. Explicitly scheduled collection removes publication
 chunks in bounded turns while preserving control evidence. The
 [captured owner guide](../../../packages/zig/transit-query/docs/relational-capture.md)
 defines the host's exact-retry and authorization responsibilities.

@@ -166,7 +166,7 @@ impl Scope {
     pub(crate) fn wire(&self) -> Value {
         json!({"realm":self.resource.realm(),"resource":self.resource.resource(),"catalog":self.catalog.to_string()})
     }
-    fn parse(v: &Value) -> Result<Self> {
+    pub(crate) fn parse(v: &Value) -> Result<Self> {
         object(v, &["realm", "resource", "catalog"])?;
         Self::new(
             ResourceRef::new(n(&v["realm"], false)?, n(&v["resource"], false)?)?,

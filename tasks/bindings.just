@@ -318,6 +318,32 @@ document-beam: beam-build
     zig build transit-node transit-admin
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language beam
 
+# Python sync/async direct capture, independent native progress and rotated-credential results.
+direct-captured-python:
+    zig build client-abi station-abi -Doptimize=ReleaseSafe
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --python-native zig-out/lib
+
+# Ruby public port caller over direct Table lookup, capture and recovered results.
+direct-captured-ruby:
+    zig build transit-station-host -Doptimize=ReleaseSafe
+    RUBYLIB=sdks/ruby/transit-client/lib:sdks/ruby/transit-station/lib zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --ruby-host zig-out/bin/transit-station-host
+
+# Installed JAR/NuGet callers share the direct capture and cleanup fault schedule.
+direct-captured-managed: java-build dotnet-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --java-packages .cache/bindings/java --dotnet-packages .cache/bindings/dotnet
+
+# Installed C11/C++17 callers own direct definitions independently of the client.
+direct-captured-c: c-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --c-packages .cache/bindings/c
+
+# Installed Erlang/Elixir callers retain independent direct cuts through recovery.
+direct-captured-beam: beam-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --beam-packages .cache/bindings/beam
+
+# Every installed language resolves, seals and reads the same retained Table query.
+direct-captured-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --python-packages .cache/bindings/wheels --ruby-packages .cache/bindings/ruby --node-packages .cache/bindings/node --rust-packages .cache/bindings/rust --c-packages .cache/bindings/c --java-packages .cache/bindings/java --dotnet-packages .cache/bindings/dotnet --beam-packages .cache/bindings/beam
+
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples

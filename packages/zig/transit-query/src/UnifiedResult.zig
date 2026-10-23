@@ -39,11 +39,11 @@ fn checkReference(reference: Ref, expected: Expected) !void {
 fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, source: anytype) !void {
     try checkReference(reference, expected);
     const job = opened.manifest.job;
-    if (job.source.pid != expected.source or job.destination != expected.requester or job.correlation != expected.correlation or !std.meta.eql(job.request, expected.request) or job.namespace() != reference.namespace) return error.QueryIdentityMismatch;
+    if (job.source.worker() != expected.source or job.destination != expected.requester or job.correlation != expected.correlation or !std.meta.eql(job.request, expected.request) or job.namespace() != reference.namespace) return error.QueryIdentityMismatch;
     var reader = try source.open(reference.resource);
     if (!std.meta.eql(try q.UnifiedCapture.job(&reader, job.id), job) or job.phase != .complete) return error.ResultUnavailable;
     const grant = (try q.UnifiedCapture.permitted(&reader, job)) orelse return error.QueryDenied;
-    if (opened.bundle.source.resource != reference.resource or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
+    if ((opened.bundle.source.source != .table and opened.bundle.source.resource != reference.resource) or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
     const descriptor = try reference.publication().inspect(&reader, reference.record);
     if (descriptor.state != .published or descriptor.publisher != expected.source or !std.meta.eql(descriptor.spec, reference.spec)) return error.ResultUnavailable;
     try q.Bundle.checkPublisher(job.request, source, job.destination);
@@ -52,7 +52,13 @@ fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, sourc
         const table = opened.bundle.source.source.table;
         if (original.principal() != try grant.tablePrincipal(table)) return error.QueryDenied;
         const current = try q.ResultDisclosure.check(expected.disclosure orelse return error.QueryDenied, expected.selection(reference, cursor), table.scope.realm);
-        try q.QueryAuthorization.checkTable(table, &reader, current, current.principal());
+        var bytes: [16384]u8 = undefined;
+        var scratch: std.heap.FixedBufferAllocator = .init(&bytes);
+        const retained = try q.CapturedTablePin.source(scratch.allocator(), &reader, .{ .job = job.id, .source = 0 }, expected.source);
+        if (!std.meta.eql(table.interpretation, retained.interpretation) or
+            opened.manifest.checkpoint.cut.position != .table or
+            !std.mem.eql(u8, &opened.manifest.checkpoint.cut.position.table, &try retained.fingerprint())) return error.SourceChanged;
+        try q.QueryAuthorization.checkAuthority(retained.authority, &reader, current, current.principal());
     } else {
         // A read-only composition may expose its current reader separately
         // from Table subject mediation. Document still checks the concrete

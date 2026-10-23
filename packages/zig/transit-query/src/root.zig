@@ -28,6 +28,7 @@ pub const RelationalRecords = @import("RelationalRecords.zig");
 pub const RelationalBundle = @import("RelationalBundle.zig");
 pub const RelationalCaptured = @import("RelationalCaptured.zig");
 pub const RelationalHistory = @import("RelationalHistory.zig");
+pub const RelationalHistoryRecord = @import("RelationalHistoryRecord.zig");
 pub const RelationalMaintenance = @import("RelationalMaintenance.zig");
 pub const RelationalMaintenanceRecords = @import("RelationalMaintenanceRecords.zig");
 pub const RelationalState = @import("RelationalState.zig");

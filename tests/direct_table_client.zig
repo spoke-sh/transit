@@ -11,20 +11,22 @@ const t = std.testing;
 const Lifecycle = @import("direct_table_lifecycle.zig");
 const Conditions = @import("direct_sql_conditions.zig");
 const SqlPins = @import("direct_sql_read_recovery.zig");
+const Captured = @import("direct_captured_query.zig");
 const Delegation = @import("direct_table_delegation.zig");
+const History = @import("direct_table_history.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null };
 const Admin = struct {
     client: *wire.Client,
-    fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
+    pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
         return self.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .authorization = .{ .kind = kind } } }, try key(17));
     }
-    fn submit(self: *@This(), command: g.Command) !u64 {
+    pub fn submit(self: *@This(), command: g.Command) !u64 {
         const identity = try self.query(.identity);
         return (try self.client.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = identity.principal_sequence + 1, .command = command }, try key(17)))).position;
     }
-    fn change(self: *@This(), action: p.Authorization.Action) !?u64 {
+    pub fn change(self: *@This(), action: p.Authorization.Action) !?u64 {
         const revision = (try self.query(.identity)).body.authorization.revision;
         const id = try self.submit(.{ .authorization = .{ .begin = .{ .expected_revision = revision, .action = action } } });
         for (0..256) |_| {
@@ -257,9 +259,11 @@ pub fn main(init: std.process.Init) !void {
             profile.delegation = try Delegation.prepare(client);
             try SqlPins.prepare(init, client, directory);
             profile.conditions = try Conditions.prepare(init.gpa, client);
+            profile.history = try History.prepare(client);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "recover")) {
             try Delegation.recover(client, &profile.delegation.?);
+            try History.recover(client, &profile.history.?);
             try SqlPins.recover(init, client, directory);
             try Conditions.recover(init.gpa, client, &profile.conditions.?);
             try recover(init, client, &admin, profile, directory);
@@ -272,9 +276,28 @@ pub fn main(init: std.process.Init) !void {
             try Delegation.verify(client, profile.delegation.?);
             try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true);
             try Conditions.verify(client, profile.conditions.?);
+            try History.verify(client, profile.history.?);
+            try History.close(client, profile.history.?);
             try Delegation.close(client, profile.delegation.?);
         } else if (std.mem.eql(u8, args[2], "delegated-closed")) {
             try Delegation.closed(client, profile.delegation.?);
+            try History.closed(client, profile.history.?);
+        } else if (std.mem.eql(u8, args[2], "capture-prepare")) {
+            profile.captured = try Captured.prepare(init, client, &admin, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "capture-resume")) {
+            try Captured.recover(init, client, &admin, profile.captured.?);
+        } else if (std.mem.eql(u8, args[2], "capture-relational")) {
+            var fresh = client;
+            fresh.key = try key(59);
+            try Captured.relational(init, fresh, &admin);
+        } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
+            var fresh = client;
+            fresh.key = try key(59);
+            try Captured.sourcePages(init, fresh, &admin, profile.role);
+        } else if (std.mem.eql(u8, args[2], "capture-uncertain-pin") or std.mem.eql(u8, args[2], "capture-uncertain-release")) {
+            profile.captured = try Captured.uncertain(init, client, &admin, profile.captured.?, std.mem.eql(u8, args[2], "capture-uncertain-pin"));
+            try save(init, args[3], profile);
         } else return error.UnknownProofPhase;
     }
     try output.interface.print("Direct Table {s}: passed\n", .{args[2]});

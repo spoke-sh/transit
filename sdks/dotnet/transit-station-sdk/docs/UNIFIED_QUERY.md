@@ -5,8 +5,8 @@ sources, bounded projections, plans and nested Arrow results. Shared Zig owns
 encoding, validation, signatures, recovery and current-policy result verification.
 
 `KvSource` declares two versioned `DecoderType` decoders. `TableSource` owns a
-catalog `Metadata`, `Schema` and owner `ProcessRef`; the native query owner checks
-the immutable metadata commitment and current rights. `DocumentSource` binds an
+direct catalog scope, service audience, branch, namespace, `TableInterpretation`
+and full `Schema`; the native query owner checks the exact definition and current rights. `DocumentSource` binds an
 accepted reference and optional list expansion with bounded scalar/path/text
 projections using `DecoderColumn`. Result `Column` values use
 `Logical.Descriptor` with explicit nullable/optional flags. `Bundle.PrepareAsync` accepts a `Plan` and
@@ -61,7 +61,7 @@ the configured source. Cancelling the wait retains native ownership until join.
 
 `PageAsync` reads only verified complete results, checking current source grants,
 lifecycle, segment digests and ordered coverage. It returns immutable manifest
-and schema evidence including the retained source-head digest, original IPC and an optional opaque cursor. A cursor is not
+and schema evidence including the exact captured source cut, original IPC and an optional opaque cursor. A cursor is not
 a grant; null means verified complete coverage. `PrepareControlAsync` prepares
 explicit cancellation, retirement or collection with the same durable retry rules.
 
@@ -71,7 +71,7 @@ Nested results retain their logical types and exact values. Decoding validates
 shape; an authorized page read establishes current access and provenance.
 No optional .NET Arrow dependency is selected. Values and pages survive disposal.
 
-Bundles contain at most 25,255 bytes, batches at most eight rows and 128 result
+Bundles contain at most 25,614 bytes, batches at most eight rows and 128 result
 columns, and IPC segments at most 64 KiB. Document projections remain bounded
 to eight. Predicate byte literals are limited to 4 KiB. Source/output names are
 nonempty UTF-8 of at most 255 bytes without NUL.
@@ -88,13 +88,36 @@ argument selects another fixture. The [proof guide](../../../../tests/README.md)
 records measured profiles and remaining qualification.
 
 Connections accept an optional selected native role; omission uses the login role.
-Local bundle construction produces a description. Call `AuthorizeBundleAsync` once on the
-query client before persisting a newly constructed Table bundle or its fingerprint.
-The returned bytes bind the authenticated caller, role, credential epoch, source
-owner and requester to the exact query and budget. SQL compilation already returns
-an authorized bundle. An already authorized Table bundle rejects resealing.
+Configure the optional direct Table endpoint with its URL, catalog scope, branch
+and service audience when opening the query client. It uses the original caller's
+credential and selected role. The native query progress resource can differ from
+the Table's catalog resource in the same realm.
 
-Persist and recover the original bundle bytes unchanged, alongside each prepared
-command and receipt. Current authorization is checked again during progress and
-result disclosure. Credential or policy changes never justify replacing accepted
-work with a newly signed bundle. The complete bundle bound is 25,255 bytes.
+`LookupTableAsync(namespace, name)` returns the current direct Table source, full schema and exact
+partition frontier. A missing visible name returns no definition. Lookup takes no
+pin and starts no query. The definition's capture helper combines that frontier
+with the executor principal and a caller-chosen pin operation identity. A
+concurrent change can make the expected frontier stale before acquisition; saved
+work must retain its original source and expected position.
+
+Local preparation and SQL compilation return unsigned descriptions. Call
+`AuthorizeBundleAsync` with the explicit capture before persisting a new Table
+bundle or fingerprint. The returned bytes bind the original caller, role,
+credential epoch, exact source, executor, pin owner, query route and budgets.
+Storage operation, partition and WAL counters retain their full uint64 range;
+native principal identities retain the native counter bound. An already signed
+Table bundle rejects resealing. KV and Document bundles take no direct capture.
+
+Persist and recover the original bundle bytes unchanged, alongside every prepared
+command and receipt. Current authority is checked during progress and result
+reads. Credential or policy changes never justify replacing accepted work.
+
+`PrepareCleanupAsync` prepares separate terminal pin cleanup with the current
+credential. Persist, submit and observe it like other controls. It preserves the
+saved execution proof and cut, including after credential rotation, and grants no
+scan or query resumption. The worker commits this proof before remote closure.
+
+Manifest retention is `NativeRetention(ReadVersion)` or `TableRetention(worker)`;
+its cut is `NativeCut(revision)` or `TableCut(commitment)`. A direct Table cut has
+no native resource revision. Verified results remain readable after their pin
+closes, subject to current source and result authority.

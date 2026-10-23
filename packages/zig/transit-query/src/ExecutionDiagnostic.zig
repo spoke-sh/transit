@@ -26,7 +26,10 @@ pub fn local(cause: anyerror, bound: q.fuze.LogicalQuery.Plan, page: *const q.Un
     try result.text(.expected_type, .schema, @tagName(bound.schema.structure[index].type));
     try result.text(.source_kind, .execution, @tagName(page.basis.cut.kind));
     try result.fact(.object, .execution, .{ .unsigned = .init(page.basis.cut.resource) });
-    try result.fact(.expected_revision, .execution, .{ .unsigned = .init(page.basis.cut.revision) });
+    switch (page.basis.cut.position) {
+        .native_revision => |revision| try result.fact(.expected_revision, .execution, .{ .unsigned = .init(revision) }),
+        .table => try result.absent(.expected_revision, .execution, .inapplicable),
+    }
     try result.fact(.source_basis, .execution, .{ .digest = try bound.fingerprint() });
     if (failed.instruction) |instruction| try result.fact(.expression, .execution, .{ .unsigned = .init(instruction) });
     if (page.keys[failed.page_row]) |key| switch (key) {
@@ -73,7 +76,7 @@ test "runtime envelope owns exact keys and decoder evidence without stored value
     const t = std.testing;
     const columns = [_]q.fuze.Types.Field{.{ .name = "amount", .type = .int64, .nullable = true, .optional = true }};
     const schema: q.fuze.Types.Type = .{ .structure = &columns };
-    const basis: q.Basis = .{ .cut = .{ .kind = .kv, .resource = 9, .revision = 17 }, .contract = @splat(2), .schema = try schema.fingerprint() };
+    const basis: q.Basis = .{ .cut = .{ .kind = .kv, .resource = 9, .position = .{ .native_revision = 17 } }, .contract = @splat(2), .schema = try schema.fingerprint() };
     const bound: q.fuze.LogicalQuery.Plan = .{ .schema = schema, .source_basis = try basis.fingerprint(), .projection = &.{0}, .aggregate = .sum };
     var page: q.UnifiedSource.Batch = .{ .basis = basis, .column_count = 1, .count = 1 };
     page.columns[0] = columns[0];
@@ -94,6 +97,7 @@ test "runtime envelope owns exact keys and decoder evidence without stored value
     page.decoding[0][0] = null;
     var table_basis = basis;
     table_basis.cut.kind = .table;
+    table_basis.cut.position = .{ .table = @splat(42) };
     page.basis = table_basis;
     var table_bound = bound;
     table_bound.source_basis = try table_basis.fingerprint();

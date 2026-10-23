@@ -74,7 +74,8 @@ direct acquisition. An independently committed closing decision precedes remote
 release; unknown replies retain the same grant, owner and frontier for recovery.
 Worker generation changes do not authorize closure. Its
 [retention guide](docs/captured-retention.md) defines the commit boundaries and
-bounds. The existing captured-query behavior is not yet connected to this owner.
+bounds. `UnifiedCapture` uses this owner for Table admission, traversal and closure;
+native KV/Document capture retains native read versions.
 
 `DirectRelationalCompilation` prepares the finite relational profile against
 current direct definitions. `DirectRelationalQuery.openPreparedRetained` receives
@@ -151,8 +152,9 @@ Station call, retains every source cut and advances one bounded execution step
 per checkpoint. `RelationalState` stages immutable group records, outputs and
 checkpoints through Station Publication; their acceptance is atomic with input
 progress. `RelationalResult` verifies complete results through public native
-reads and current rights to every dependency. The coordinator shares the first
-Table owner's PID and resource. See the [captured relational guide](docs/relational-capture.md)
+reads and current rights to every dependency. The coordinator owns independent
+native progress; exact Table grants and durable pin records preserve source
+retention across replacement. See the [captured relational guide](docs/relational-capture.md)
 for policy, host recovery, memory, closure and collection requirements.
 
 `RelationalMaintenance` records every complete Table-history basis, stages its
@@ -177,14 +179,15 @@ preserves the original destination, and records receiver acknowledgements throug
 own-resource control. Workers reopen the frozen Table-history vector with their
 own current grants; native retained pins remain scoped to their capturing PID.
 
-`TableSource` provides canonical schema-bound declarations and bounded owned pages
-over supplied captured/retained readers. It checks a separately authenticated
-principal's current database, schema and Table rights before and after each page, preserving the
-original schema/root through ALTER, DROP and name reuse. Complete composite-key
-equality uses the existing collision-safe index. Its
-[source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
+`TableSource` provides canonical declarations bound to the complete direct Table
+interpretation and bounded owned pages over existing direct pins. It checks a
+separately authenticated principal's current database, schema and Table rights
+before and after each page, preserving the original schema/root through ALTER,
+DROP and name reuse. Traversal resumes from a stable row identity and the recorded
+number of consumed rows. Its
+[source contract](../../../contracts/TABLE_QUERY_V1.md#captured-direct-table-reads)
 keeps retention, requester-policy mapping and durable result publication with the
-host. `UnifiedCapture` retains the head/schema cut and `UnifiedResult` checks
+host. `UnifiedCapture` records the complete direct source cut and `UnifiedResult` checks
 current rights before returning owned logical Arrow rows.
 `UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
 target constrains the authenticated requester's original principal, scope and
@@ -196,9 +199,11 @@ Recovery retains the original proof; credential rotation never silently resigns
 accepted work. Completed-result disclosure uses a fresh, separately bound caller
 proof and checks that reader's current source rights. Internal refresh
 continuations instead retain the Follow input's accepted subject.
-`UnifiedClient.authorizeBundle` seals a newly constructed Table
-bundle once; SQL compilation does this before returning saved bytes. The neutral
-`authorize` operation accepts unsigned bundle hex and returns `authorized` hex.
+`UnifiedClient.authorizeCapture` seals a newly constructed Table bundle once,
+using the explicit executor, pin-operation identity and expected Table frontier.
+SQL compilation returns an unsigned description. The neutral `authorize`
+operation accepts unsigned bundle hex plus those capture fields and returns
+`authorized` hex. Native progress revisions and direct Table cuts remain distinct.
 
 `CatalogQueryOwner` composes Table lifecycle and query dispatch. Its administrator
 installs requester admission constraints and computational limits without

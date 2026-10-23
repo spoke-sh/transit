@@ -2,7 +2,7 @@
 -module(transit_catalog_value).
 -include("transit_catalog.hrl").
 -export([scope/1,commitment/1,action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/2,context/0,with_context/2]).
--export([schema/1,parse_schema/1,mutation/1,parse_mutation/1]).
+-export([schema/1,parse_schema/1,parse_scope/1,mutation/1,parse_mutation/1]).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
 small(V) -> transit_sdk_value:integer(V,1,4294967295).
 counter(V) -> transit_sdk_value:counter(V).

@@ -255,41 +255,50 @@ Neither runtime nor distributed qualification follows from the local contract.
 ## Captured Table owner operations
 
 `transit-query.RelationalBundle` (`RQB1`, publication format `0x31425152`)
-contains the shared definition, explicit per-resource-vector tag 1, one-byte
+contains the shared definition, explicit independent-Table-vector tag 2, one-byte
 source count, uint32-length-prefixed `FRP1`, an authorization-presence byte,
 the 185-byte [original caller proof](UNIFIED_QUERY_V1.md#larger-requests-and-durable-publication)
-when present, and one uint32-length-prefixed `TQS1` Table declaration per source.
-Unsigned descriptions can be encoded, but admission requires the signed proof.
-The context binds the canonical unsigned `RQB1` bytes, intended requester and
-request resource; the audience is the coordinator, not each source owner. It carries exact catalog metadata references in
-addition to the complete schemas and stable columns. Matching logical row types
-alone cannot substitute a different Table schema identity. Its SHA-256 identity
-uses domain `transit.query.relational.request.v1`, NUL, then the complete bytes.
+when present, a one-byte direct-grant count, that many 310-byte `TRG1` grants,
+and one uint32-length-prefixed `TQS1` declaration per source. Descriptions have
+zero grants; authorized bundles require one grant per source. Same-Table aliases
+repeat exactly the same grant and immutable declaration. Physical schema
+fingerprints, stable columns and logical row types must all match.
+
+The native proof covers the bundle with only its native authorization omitted,
+including every signed direct grant. Each direct grant's purpose hashes domain
+`transit.query.relational.direct-retention.v1`, NUL, four little-endian uint64
+identities (worker PID, computation resource, requester PID, request resource),
+then the bundle with both native authorization and direct grants omitted. The
+grant fixes the executor principal, original caller/role/credential epoch, exact
+Table interpretation/frontier and pin owner. Aliases share one pin; distinct
+Tables consume separate `source_pins`, even within one catalog. The complete
+bundle fingerprint uses domain `transit.query.relational.request.v1`, NUL,
+then the complete encoded bytes.
 
 `RelationalCapture` admits an authenticated Station call whose payload is the
-request's Publication reference. A committed coordinator policy maps the calling
-PID to the request resource, exact bundle fingerprint, expected original
-principal and policy revision. The proof authenticates that principal; the policy
-is only a constraint on an authenticated subject. The coordinator is the first Table owner and mutates that
-Table's native resource only. Its host registers the request and other source
-resources as additional read views. This consumes at most three distinct retained
-versions: one request artifact and two data resources; aliases and the request
-reuse a pin when they share a resource. `source_pins` budgets the data resources.
-CONNECT, schema USAGE and Table SELECT are checked for every source, including
-aliases and sources that contribute no output. Current-resource revision guards
-and a native authorization guard fence admission and checkpoint/result
-publication. Result readers recheck the union of source requirements before
-disclosure and completion. Their request allowance includes authorization and
-current Table metadata reads, alongside snapshot reads.
+request's Publication reference. A committed coordinator policy constrains the
+calling PID, request resource, exact bundle fingerprint, original principal and
+policy revision. Its native computation resource is independent of the source
+catalog resources. The host registers the request view and supplies one configured
+direct executor route per source. Those routes use the executor's own key;
+ordinary executor Table privileges do not substitute for the caller's grant.
 
-Admission commits four native values: job, source vector, peer/correlation index
-and Publication budget. It retains the request and all source cuts in the same
-turn and schedules a durable continuation. Recovery reads the request through
-its original retained version, even if its live publication was retired. It
-never reparses SQL against current names. Each continuation rechecks the committed
-coordinator policy, current catalog rights and native retained-version authority.
-A changed policy revision closes the admitted job rather than silently remapping
-its caller or sources.
+Admission commits the job, peer/correlation index and Publication budget, retains
+the request's native version and schedules a continuation. It checks current
+CONNECT, schema USAGE and Table SELECT for all sources, including empty inputs.
+For each distinct Table, a later native turn commits pin eligibility before any
+direct acquisition. Acquisition preserves the original signed grant and frontier,
+then records the immutable handle, interpretation and native authority references.
+After every handle is committed, one vector commits before traversal begins.
+This is an independent vector, without catalog-wide or cross-owner atomicity.
+
+Recovery reads the request through its original native version and the original
+Table pins. It never reparses SQL or replaces a stale cut with a fresh one.
+Continuations recheck coordinator policy and original caller authority. Every
+native progress/result commit carries the retained Tables' exact authority
+requirements, including their resource-lifetime prerequisites. Result disclosure
+uses a separate fresh subject and these same retained authority objects without
+reopening released source pins.
 
 One executor step constructs a bounded candidate map and checkpoint. Immutable
 node, output and checkpoint staging retains exact reserved IDs and bytes across
@@ -313,13 +322,20 @@ query execution nor deletes accepted state. Physical storage failure can still
 prevent the native turn from committing.
 
 `close` records cancellation, denial, failure or explicit result retirement and
-releases each distinct data/request version once. It reads accepted job/vector
-records rather than the source data or request body, so catalog denial and a
-retired request do not prevent closure. Its application handler authenticates
-cancellation/retirement. A native read failure poisons the current turn; the host
-must settle any pending request and prepare a fresh closure proposal. A host must
-also allow closure without opening denied foreign resources. Pin release and
-physical record collection are separate operations.
+releases the native request version once. It schedules direct cleanup from the
+computation-owned pin records without reading the request body or source rows.
+Completion also schedules pin cleanup. A cleanup input commits one closing or
+settled pin transition; lost replies repeat the original operation. Current
+denial leaves cleanup pending. An authenticated host can call `retryCleanup`, or
+supply a separately signed fresh closure through `authorizeCleanup` after caller
+credential rotation. That proof cannot resume execution or replace its attribution.
+A job closed before pin eligibility has no pin to acquire during cleanup.
+
+Application handlers authenticate cancellation, retirement and cleanup controls.
+A native read failure poisons the current turn; the host must settle any pending
+request and prepare a fresh proposal. Direct cleanup never changes a complete
+manifest or terminal failure. Native publication collection and physical storage
+cleanup remain separate operations.
 
 `collect` requires a released, closed job and an empty mutation proposal. It
 examines one immutable descriptor or removes at most two chunks per turn. The
@@ -334,6 +350,33 @@ bounded checkpoint for diagnostic evidence; other closed jobs collect all their
 operator/output/manifest chunks. Request publication cleanup remains with its
 publisher. This does not authorize expiry of active or complete results.
 
+### Retained historical source records
+
+`RelationalHistoryRecord` encodes a complete direct source in one 246-byte
+`QHB1` native value. It is a source-evidence codec; encoding it does not acquire a
+lease or advance a maintained query. After magic and the mandatory shared
+32-byte definition, fields are: one history-presence byte; lease content length
+and SHA-256; Table partition and exclusive frontier; 32-byte acceptance-record
+commitment; interpretation revision and digest; declaration byte length;
+schema fingerprint; retirement byte; logical-change frontier; row count; and
+native database/schema/Table authority IDs. Integers are uint64 little-endian;
+Boolean bytes are exactly zero or one. Object identity comes from the validated
+Table source, pin-owner identity from its signed grant, and the declaration
+content digest equals the interpretation digest.
+
+A history record requires a history grant and a nonzero record commitment.
+A captured snapshot requires a snapshot grant and zero commitment bytes. Every
+record preserves its actual lease content, authority references and full-width
+Table coordinates. Historical positions cannot precede the grant's original
+frontier; the original position also requires its exact original interpretation.
+Subsequent definition/schema changes remain explicit evidence for the consuming
+computation to evaluate. Truncated, foreign-definition, noncanonical or
+scope-inconsistent values reject. The source fingerprint hashes
+`transit.query.retained-history-source.v1`, NUL, the complete
+`DirectTableReader.Basis` fingerprint, a presence byte and the optional record
+commitment. Accepted no-op revisions therefore retain distinct identities even
+when their logical-change frontier is equal.
+
 ### Captured record encodings
 
 All records below use their four-byte magic and the 32-byte shared native
@@ -343,18 +386,20 @@ definition. Fields are little endian unless noted; native values are bounded by
 - `RQA1`: uint64 peer, request resource, catalog principal and policy revision;
   32-byte complete bundle fingerprint; Boolean allow.
 - `RQV1`: 32-byte bundle fingerprint; one-byte source count; for each source,
-  retained version (uint64 PID/input and one-byte slot), uint64 native revision
-  and 32-byte Table-head commitment. Same-resource aliases have the same retained
-  version and native revision. Bound-resource commitments hash domain
-  `transit.relational.retained-resource.v1`, NUL, the shared definition's lowercase
-  hex text, uint64 realm/resource/revision/PID/input and one-byte retained slot.
+  uint64 Table partition, uint64 exclusive accepted frontier and 32-byte full
+  `DirectTableReader.Basis` fingerprint. Same-Table aliases repeat the same entry.
+  Bound cuts use the Table-partition domain and the declaration's branch/object;
+  no native resource revision stands in for a Table position. Full source and
+  authority evidence remains in the computation's `QTP1`/`QTH1` pin records.
 - `RQJ1`: uint64 job ID, destination, correlation, policy revision, checkpoint ID,
   next record ID, retained bytes, continuation input, output count, encoded output
   bytes, manifest ID and collection cursor; 72-byte request reference; retained
-  request version; phase byte; 32-byte output chain; Boolean pins-released.
-  Phases are capturing 1, complete 2, failed 3, cancelled 4, denied 5, retired 6.
-  This record occupies 255 bytes. Final manifest identity fixes the continuation
-  field to the original job ID.
+  request version; phase byte; 32-byte output chain; Boolean native-request-released;
+  one capture byte (source count in bits 0–1, acquired alias count in bits 2–3,
+  upper bits zero). Phases are capturing 1, complete 2, failed 3, cancelled 4,
+  denied 5, retired 6, admitted 7 and acquiring 8. The record occupies 256 bytes.
+  Admitted/acquiring work cannot expose checkpoints or outputs; traversal requires
+  all sources. Final manifest identity fixes continuation to the original job ID.
 - `RQS1`: uint64 output ordinal and 72-byte immutable output reference. The initial
   output chain is SHA-256 of `transit.query.relational.outputs.v1`, NUL; each next
   chain is SHA-256 of previous chain followed by complete `RQS1` bytes.
@@ -387,9 +432,10 @@ original execution attribution. It opens a fresh leased snapshot
 of the result resource and verifies the complete job, manifest, checkpoint,
 request identity and source vector. Its final combined native reads check the
 job, coordinator policy and every source catalog policy at one authority root,
-including empty and noncontributing sources. The first-source owner placement
-keeps these current dependencies within the native two-resource metadata bound.
-A result-resource grant does not satisfy these query-level source checks.
+including empty and noncontributing sources. The immutable pin records bind
+source interpretations, grants, full cut commitments and native authority IDs.
+Source resources need no raw native reads. A result-resource grant does not
+satisfy the source authority requirements.
 
 Iteration returns one owned scalar row at a time. The reader verifies each
 publication, output ordinal, pair/group order, encoded bytes, canonical result
@@ -500,7 +546,7 @@ definition. Integer fields are little endian unless stated otherwise.
   bundle; the bundle fingerprint distinguishes its lifetime. `RelationalHistory`
   reads that exact basis under each worker's current rights, without borrowing
   another PID's native retained-read pin. Only a maintained bundle can select a
-  successor. The existing `RQV1` captured owner keeps its native-pin semantics;
+  successor. The `RQV1` captured owner binds independent direct Table pins;
   no decoder falls back between these distinct vector formats.
 - `RMH1`, 217 bytes: uint64 admission ID, peer, correlation, policy revision,
   current complete revision, manifest ID, next record ID, retained bytes and

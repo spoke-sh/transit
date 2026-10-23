@@ -60,10 +60,37 @@ public final class UnifiedQuery {
     public record KvSource(ResourceRef resource,Bytes prefix,Decoder key,Decoder value) implements Source {
         public KvSource { Objects.requireNonNull(resource); Objects.requireNonNull(prefix); Objects.requireNonNull(key); Objects.requireNonNull(value); if(prefix.size()>32)throw new IllegalArgumentException("Query prefix exceeds 32 bytes"); }
     }
-    public record TableSource(ProcessRef owner,Catalog.Metadata metadata,Catalog.Schema schema) implements Source {
-        public TableSource { Objects.requireNonNull(owner); Objects.requireNonNull(metadata); Objects.requireNonNull(schema);
-            if(owner.realm()!=metadata.scope().resource().realm() || !metadata.object().equals(schema.object()))throw new IllegalArgumentException("Table query requires one catalog identity and realm"); }
-        @Override public ResourceRef resource() { return metadata.scope().resource(); }
+    private static JsonArray digestArray(Bytes value) { JsonArray result=new JsonArray(); for(byte b:Catalog.digest(value).copy())result.add(Byte.toUnsignedInt(b)); return result; }
+    public record TableInterpretation(BigInteger revision,Bytes digest,BigInteger byteCount,Bytes schemaDigest) {
+        public TableInterpretation { positive(revision); positive(byteCount); Catalog.digest(digest); Catalog.digest(schemaDigest); }
+        JsonObject wire() { return obj("revision",revision.toString(),"digest",digestArray(digest),"bytes",byteCount.toString(),"schema",digestArray(schemaDigest)); }
+    }
+    public record TableSource(Catalog.Scope scope,long audience,BigInteger branch,long namespace,TableInterpretation interpretation,Catalog.Schema schema) implements Source {
+        public TableSource { Objects.requireNonNull(scope); counter(audience,1); positive(branch); counter(namespace,1); Objects.requireNonNull(interpretation); Objects.requireNonNull(schema); }
+        @Override public ResourceRef resource() { return scope.resource(); }
+    }
+    public record Tables(String url,Catalog.Scope scope,BigInteger branch,long audience) {
+        public Tables { text(url,2048); Objects.requireNonNull(scope); positive(branch); counter(audience,1); }
+        JsonObject wire(Credential identity,Connection connection) {
+            if(scope.resource().realm()!=identity.realm())throw new IllegalArgumentException("Different direct Table realm");
+            return obj("url",url,"connection",obj("scope",scope.wire(),"branch",branch.toString(),"audience",audience,"principal",identity.principal(),"role",connection.role().orElse(null)));
+        }
+    }
+    public record Capture(long executor,BigInteger operation,BigInteger partition,BigInteger nextLsn) {
+        public Capture { counter(executor,1); positive(operation); positive(partition); u64(nextLsn); }
+        JsonObject wire() { return obj("executor",executor,"operation",operation.toString(),"expected",obj("partition",partition.toString(),"next_lsn",nextLsn.toString())); }
+    }
+    public record TableDefinition(TableSource source,BigInteger partition,BigInteger nextLsn) {
+        public TableDefinition { Objects.requireNonNull(source); positive(partition); u64(nextLsn); }
+        public Capture capture(long executor,BigInteger operation) { return new Capture(executor,operation,partition,nextLsn); }
+    }
+    private static Optional<TableDefinition> table(JsonElement value) {
+        if(value.isJsonNull())return Optional.empty();
+        JsonObject v=object(value), envelope=object(v.get("source")), direct=object(object(envelope.get("source")).get("table")), interpretation=object(direct.get("interpretation")), expected=object(v.get("expected"));
+        TableSource source=new TableSource(CatalogValues.scope(direct.get("scope")),number(direct.get("owner"),1),wide(direct.get("branch")),number(direct.get("namespace"),1),
+            new TableInterpretation(wide(interpretation.get("revision")),NativeValues.digest(interpretation.get("digest")),wide(interpretation.get("bytes")),NativeValues.digest(interpretation.get("schema"))),CatalogValues.schema(v.get("schema")));
+        if(!UnifiedQuery.source(source).equals(envelope))throw incompatible("direct-table-definition");
+        return Optional.of(new TableDefinition(source,wide(expected.get("partition")),wide(expected.get("next_lsn"))));
     }
     public record DocumentSource(Document.Reference reference,List<Projection> projections,Optional<List<String>> expand) implements Source {
         public DocumentSource { Objects.requireNonNull(reference); projections=List.copyOf(projections); expand=expand.map(List::copyOf); expand.ifPresent(UnifiedQuery::path); if(projections.isEmpty() || projections.size()>8)throw new IllegalArgumentException("Expected 1..8 projections"); }
@@ -73,9 +100,9 @@ public final class UnifiedQuery {
         JsonObject value=switch(source) {
             case KvSource v -> obj("kv",obj("prefix",hex(v.prefix()),"key",v.key().wire(),"value",v.value().wire()));
             case TableSource v -> {
-                var m=v.metadata(); var rowType=new Logical.Structure(v.schema().columns().stream().map(c -> new Logical.Field(c.name(),c.type(),c.nullable(),false)).toList());
-                yield obj("table",obj("scope",m.scope().wire(),"owner",v.owner().pid(),"object",m.object().toString(),
-                    "metadata",obj("id",m.revision().toString(),"spec",m.commitment().wire()),"row_type",Logical.typeWire(rowType)));
+                var rowType=new Logical.Structure(v.schema().columns().stream().map(c -> new Logical.Field(c.name(),c.type(),c.nullable(),false)).toList());
+                yield obj("table",obj("scope",v.scope().wire(),"owner",v.audience(),"branch",v.branch().toString(),"namespace",v.namespace(),"object",v.schema().object().toString(),
+                    "interpretation",v.interpretation().wire(),"row_type",Logical.typeWire(rowType)));
             }
             case DocumentSource v -> {
                 var r=v.reference(); JsonArray projections=new JsonArray(); v.projections().forEach(p -> projections.add(p.wire()));
@@ -123,9 +150,9 @@ public final class UnifiedQuery {
         JsonObject wire() { return obj("pages",pages.toString(),"segments",segments.toString(),"result_bytes",resultBytes.toString()); }
     }
     public record Bundle(Bytes bytes) {
-        public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>25255)throw new IllegalArgumentException("Expected finite query bundle"); }
+        public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>25614)throw new IllegalArgumentException("Expected finite query bundle"); }
         public static Bundle prepare(Source source,Plan plan,Budgets budgets) { return prepare(source,plan,budgets,null); }
-        public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) { return new Bundle(encoded(object(local(obj("prepare",obj("source",UnifiedQuery.source(source),"plan",plan.wire(),"limits",budgets.wire())),host).get("prepared")).get("bytes"),25255)); }
+        public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) { return new Bundle(encoded(object(local(obj("prepare",obj("source",UnifiedQuery.source(source),"plan",plan.wire(),"limits",budgets.wire())),host).get("prepared")).get("bytes"),25614)); }
     }
     public record Prepared(Bytes bytes) {
         public Prepared { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>8192)throw new IllegalArgumentException("Expected bounded prepared query command"); text(bytes.copy()); }
@@ -228,8 +255,14 @@ public final class UnifiedQuery {
     public enum Control { CANCEL, RETIRE, COLLECT }
     public enum SourceKind { KV, TABLE, DOCUMENT }
     public enum Finished { SOURCE_END, LIMIT }
-    public record Manifest(long job,Types.ReadVersion source,ProcessRef requester,BigInteger correlation,BigInteger policyRevision,Bytes request,
-        SourceKind kind,ResourceRef resource,long revision,Bytes sourceHead,Bytes sourceDigest,Bytes schemaDigest,Bytes planDigest,
+    public sealed interface Retention permits NativeRetention, TableRetention {}
+    public record NativeRetention(Types.ReadVersion version) implements Retention { public NativeRetention { Objects.requireNonNull(version); } }
+    public record TableRetention(ProcessRef worker) implements Retention { public TableRetention { Objects.requireNonNull(worker); } }
+    public sealed interface Cut permits NativeCut, TableCut {}
+    public record NativeCut(long revision) implements Cut { public NativeCut { counter(revision,0); } }
+    public record TableCut(Bytes commitment) implements Cut { public TableCut { Catalog.digest(commitment); } }
+    public record Manifest(long job,Retention source,ProcessRef requester,BigInteger correlation,BigInteger policyRevision,Bytes request,
+        SourceKind kind,ResourceRef resource,Cut cut,Bytes sourceDigest,Bytes schemaDigest,Bytes planDigest,
         BigInteger pages,BigInteger scanned,BigInteger selected,BigInteger valueCount,BigInteger segments,BigInteger rows,BigInteger byteCount,Optional<Long> sum,Finished finished,Bytes chain) {}
     public record Page(Manifest manifest,List<Column> columns,BigInteger ordinal,int rows,Bytes ipc,Optional<Cursor> next) {
         public Page { columns=List.copyOf(columns); Objects.requireNonNull(ipc); if(rows<0 || rows>8 || ipc.size()>65536)throw incompatible("query-page-bound"); }
@@ -239,50 +272,70 @@ public final class UnifiedQuery {
     private static Bytes fixed(JsonElement v,int size) { Bytes out=encoded(v,size); if(out.size()!=size)throw incompatible("query-reference"); return out; }
     private static Manifest manifest(JsonElement value,long realm) {
         JsonObject v=object(value), b=object(v.get("basis")), cut=object(b.get("cut"));
-        return new Manifest(number(v.get("job"),1),NativeValues.version(v.get("source")),new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),72),
-            SourceKind.valueOf(string(cut.get("kind")).toUpperCase(Locale.ROOT)),new ResourceRef(realm,number(cut.get("resource"),1)),number(cut.get("revision"),0),NativeValues.digest(cut.get("head")),NativeValues.digest(b.get("contract")),NativeValues.digest(b.get("schema")),NativeValues.digest(v.get("plan")),
+        JsonObject retained=object(v.get("source")), position=object(cut.get("position"));
+        SourceKind kind=SourceKind.valueOf(string(cut.get("kind")).toUpperCase(Locale.ROOT));
+        Retention retention; Cut captured;
+        if(kind==SourceKind.TABLE) {
+            if(retained.size()!=1 || !retained.has("table") || position.size()!=1 || !position.has("table"))throw incompatible("direct-table-cut");
+            retention=new TableRetention(new ProcessRef(realm,number(object(retained.get("table")).get("worker"),1))); captured=new TableCut(NativeValues.digest(position.get("table")));
+        } else {
+            if(retained.size()!=1 || !retained.has("native") || position.size()!=1 || !position.has("native_revision"))throw incompatible("native-source-cut");
+            retention=new NativeRetention(NativeValues.version(retained.get("native"))); captured=new NativeCut(number(position.get("native_revision"),0));
+        }
+        return new Manifest(number(v.get("job"),1),retention,new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),72),
+            kind,new ResourceRef(realm,number(cut.get("resource"),1)),captured,NativeValues.digest(b.get("contract")),NativeValues.digest(b.get("schema")),NativeValues.digest(v.get("plan")),
             wide(v.get("pages")),wide(v.get("scanned")),wide(v.get("selected")),wide(v.get("value_count")),wide(v.get("segments")),wide(v.get("rows")),wide(v.get("bytes")),v.get("sum").isJsonNull()?Optional.empty():Optional.of(NativeValues.signed(v.get("sum"))),Finished.valueOf(string(v.get("finished")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("chain")));
     }
     /** One admitted operation; cancelling a future retains ownership until join. */
     public static final class Client implements AutoCloseable {
         private final Worker<Bridge,Void> worker;
         private final Connection connection;
-        private Client(ClientConfig config,Credential identity,Connection connection) {
+        private Client(ClientConfig config,Credential identity,Connection connection,Tables tables) {
             connection.wire(identity); this.connection=connection;
             worker=new Worker<>(() -> {
-                Bridge b=Bridge.query(config,identity,connection);
+                Bridge b=Bridge.query(config,identity,connection,tables);
                 try { JsonObject caps=object(b.unifiedQuery(obj("capabilities",obj()),false).get("capabilities")); if(number(caps.get("version"),1)!=1)throw incompatible("query-version"); for(String kind:List.of("kv","table","document"))if(!bool(caps.get(kind)))throw incompatible("query-source"); return b; }
                 catch(RuntimeException | Error error) { b.close(); throw error; }
             });
         }
-        public static Client open(ClientConfig config,Credential identity,Connection connection) { return new Client(config,identity,connection); }
+        public static Client open(ClientConfig config,Credential identity,Connection connection) { return open(config,identity,connection,null); }
+        public static Client open(ClientConfig config,Credential identity,Connection connection,Tables tables) { return new Client(config,identity,connection,tables); }
+        public CompletableFuture<Optional<TableDefinition>> lookupTable(long namespace,String name) {
+            JsonObject action=obj("table",obj("namespace",counter(namespace,1),"name",columnName(name)));
+            return worker.submit(b -> table(b.unifiedQuery(action,false).get("table")));
+        }
         public CompletableFuture<Description> describe(Source source) {
-            if(!source.resource().equals(connection.resource()))throw new IllegalArgumentException("Different query resource"); JsonObject action=obj("describe",UnifiedQuery.source(source));
+            if(source.resource().realm()!=connection.resource().realm() || (!(source instanceof TableSource) && !source.resource().equals(connection.resource())))throw new IllegalArgumentException("Different query resource"); JsonObject action=obj("describe",UnifiedQuery.source(source));
             return worker.submit(b -> { JsonObject v=object(b.unifiedQuery(action,false).get("description")), limits=object(v.get("limits")), caps=object(v.get("capabilities")); return new Description(number(v.get("resource_revision"),0),wide(v.get("policy_revision")),new Budgets(wide(limits.get("pages")),wide(limits.get("segments")),wide(limits.get("result_bytes"))),v.get("active").isJsonNull()?Optional.empty():Optional.of(wide(v.get("active"))),Math.toIntExact(number(caps.get("bundle_bytes"),1)),Math.toIntExact(number(caps.get("segment_bytes"),1)),Math.toIntExact(number(caps.get("batch_rows"),1))); });
         }
         public CompletableFuture<Inspection> inspectSql(Source source,String name,String sql,Budgets budgets) {
-            if(!source.resource().equals(connection.resource()))throw new IllegalArgumentException("Different query resource");
+            if(source.resource().realm()!=connection.resource().realm() || (!(source instanceof TableSource) && !source.resource().equals(connection.resource())))throw new IllegalArgumentException("Different query resource");
             JsonObject action=obj("inspect",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,4096)));
-            return worker.submit(b->inspection(b.unifiedQuery(action,false).get("inspection"),connection.resource()));
+            return worker.submit(b->inspection(b.unifiedQuery(action,false).get("inspection"),source.resource()));
         }
         public CompletableFuture<Bundle> compileSql(Source source,String name,String sql,Budgets budgets) {
             return compileSql(source,name,sql,budgets,null);
         }
         /** New owned finite bundle; this operation performs no upload or admission. */
         public CompletableFuture<Bundle> compileSql(Source source,String name,String sql,Budgets budgets,List<Logical.Atom> parameters) {
-            if(!source.resource().equals(connection.resource()))throw new IllegalArgumentException("Different query resource");
+            if(source.resource().realm()!=connection.resource().realm() || (!(source instanceof TableSource) && !source.resource().equals(connection.resource())))throw new IllegalArgumentException("Different query resource");
             JsonElement values=JsonNull.INSTANCE;
             if(parameters!=null) {
                 if(parameters.size()>65)throw new IllegalArgumentException("Expected at most 65 parameter atoms");
                 JsonArray bound=new JsonArray();for(Logical.Atom value:parameters)bound.add(wire(Objects.requireNonNull(value)));values=bound;
             }
             JsonObject action=obj("compile",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,4096),"parameters",values));
-            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),25255)));
+            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),25614)));
         }
         /** Seal new work before persistence; recover saved bundles unchanged. */
-        public CompletableFuture<Bundle> authorizeBundle(Bundle bundle) {
-            JsonObject action=obj("authorize",hex(bundle.bytes()));
-            return worker.submit(b -> new Bundle(encoded(b.unifiedQuery(action,false).get("authorized"),25255)));
+        public CompletableFuture<Bundle> authorizeBundle(Bundle bundle) { return authorizeBundle(bundle,null); }
+        public CompletableFuture<Bundle> authorizeBundle(Bundle bundle,Capture capture) {
+            JsonObject action=obj("authorize",obj("bundle",hex(bundle.bytes()),"capture",capture==null?null:capture.wire()));
+            return worker.submit(b -> new Bundle(encoded(b.unifiedQuery(action,false).get("authorized"),25614)));
+        }
+        public CompletableFuture<Prepared> prepareCleanup(BigInteger namespace,Bundle originalBundle) {
+            JsonObject action=obj("cleanup",obj("namespace",positive(namespace).toString(),"bundle",hex(originalBundle.bytes())));
+            return worker.submit(b -> new Prepared(new Bytes(string(b.unifiedQuery(action,false).get("prepared")).getBytes(StandardCharsets.UTF_8))));
         }
         public CompletableFuture<Optional<Prepared>> prepareNext(BigInteger namespace,Bundle bundle) {
             JsonObject action=obj("next",obj("namespace",positive(namespace).toString(),"bundle",hex(bundle.bytes())));

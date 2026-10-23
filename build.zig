@@ -1186,6 +1186,13 @@ pub fn build(b: *std.Build) void {
     direct_table_service.has_side_effects = true;
     direct_table_service.stdio = .inherit;
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
+    const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/direct_captured_query.py" });
+    direct_captured_query.addArtifactArg(node_artifact);
+    direct_captured_query.addArtifactArg(direct_table_client);
+    direct_captured_query.addPassthruArgs();
+    direct_captured_query.has_side_effects = true;
+    direct_captured_query.stdio = .inherit;
+    b.step("test-direct-captured-query", "Prove captured direct Table queries with independent native progress and restart").dependOn(&direct_captured_query.step);
     const growing_load = b.addExecutable(.{ .name = "transit-growing-load-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_load.zig"),
         .target = target,

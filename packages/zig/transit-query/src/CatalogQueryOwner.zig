@@ -13,26 +13,7 @@ adapter: []u8,
 workspace: []u8,
 cancellation: *const q.fuze.execution.Cancellation,
 
-pub const PolicyChange = struct {
-    expected_revision: u64,
-    policy: r.Policy,
-    pub fn encode(self: PolicyChange) !p.Value {
-        if (self.expected_revision >= p.max_counter or self.policy.revision != self.expected_revision + 1 or self.policy.target != .catalog) return error.InvalidQueryPolicyChange;
-        const policy = try self.policy.encode();
-        var bytes: [12 + r.Policy.max_bytes]u8 = undefined;
-        bytes[0..4].* = "CQG1".*;
-        std.mem.writeInt(u64, bytes[4..12], self.expected_revision, .little);
-        @memcpy(bytes[12..][0..policy.len], policy.slice());
-        return p.Value.init(bytes[0 .. 12 + policy.len]);
-    }
-    pub fn decode(value: p.Value) !PolicyChange {
-        try value.validate();
-        if (value.len != 12 + r.Policy.max_bytes or !std.mem.eql(u8, value.data[0..4], "CQG1")) return error.InvalidQueryPolicyChange;
-        const result: PolicyChange = .{ .expected_revision = std.mem.readInt(u64, value.data[4..12], .little), .policy = try r.Policy.decode(try p.Value.init(value.slice()[12..])) };
-        _ = try result.encode();
-        return result;
-    }
-};
+pub const PolicyChange = q.UnifiedBehavior.PolicyChange;
 pub fn check(configuration: c.TableCatalogRecords.Configuration, turn: *s.Turn) !void {
     try configuration.validate();
     if (turn.delivery.realm != configuration.scope.realm or turn.delivery.pid != configuration.owner or turn.view.resource != configuration.scope.resource) return error.CatalogOwnerChanged;

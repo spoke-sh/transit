@@ -37,7 +37,7 @@ test "SQL output names survive neutral and ABI bundle round trips without changi
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const source: Source = .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = "9" }, .owner = 3, .object = "9", .metadata = .{ .id = "1", .spec = .{ .format = query.catalog.TableMetadata.format, .length = 200, .digest = @splat(1) } }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .int64, .nullable = true } } } } } };
+    const source: Source = .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = "9" }, .owner = 3, .branch = "1", .namespace = 1, .object = "9", .interpretation = .{ .revision = "1", .digest = @splat(1), .bytes = "200", .schema = @splat(2) }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .int64, .nullable = true } } } } } };
     for ([_][]const u8{
         "SELECT value AS amount FROM items",
         "SELECT value AS amount, value AS copy FROM items",
@@ -66,7 +66,7 @@ test "unified foreign bundles preserve every source and full-width scalar throug
     const alloc = arena.allocator();
     const sources = [_]Source{
         .{ .resource = 7, .source = .{ .kv = .{ .prefix = "646174612f", .key = .{ .type = .binary }, .value = .{ .type = .uint64 } } } },
-        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = "9" }, .owner = 3, .object = "9", .metadata = .{ .id = "1", .spec = .{ .format = query.catalog.TableMetadata.format, .length = 200, .digest = @splat(1) } }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "label", .type = .utf8, .nullable = true } } } } } },
+        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = "9" }, .owner = 3, .branch = "1", .namespace = 1, .object = "9", .interpretation = .{ .revision = "1", .digest = @splat(1), .bytes = "200", .schema = @splat(2) }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "label", .type = .utf8, .nullable = true } } } } } },
         .{ .resource = 7, .source = .{ .document = .{ .reference = .{ .resource = 7, .document = "18446744073709551615", .epoch = "3", .type_revision = 1, .revision = "42" }, .projections = &.{.{ .column = .{ .name = "body", .type = .utf8 }, .path = &.{"東京🙂"}, .mode = .text }} } } },
     };
     for (sources) |source| {

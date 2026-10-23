@@ -7,14 +7,17 @@ const t = f.Types;
 const logical = f.LogicalQuery;
 const codec = f.LogicalPlanCodec;
 const Self = @This();
-pub const header_bytes = 65;
-pub const max_bytes = header_bytes + q.QueryAuthorization.encoded_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;
+pub const header_bytes = 66;
+pub const max_bytes = header_bytes + q.QueryAuthorization.encoded_bytes + q.catalog.DirectReadDelegation.encoded_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;
 pub const format: u32 = 0x31425155; // UQB1
 source: q.SourceDefinition,
 plan: logical.Plan,
 limits: Limits,
 /// Null is an unsigned description. Table execution requires a bound proof.
 authorization: ?q.QueryAuthorization = null,
+/// Explicit activation freezes one exact Table cut and original pin owner.
+/// Descriptions may omit it; executable Table submissions may not.
+retention: ?q.catalog.DirectReadDelegation = null,
 /// The SQL name is a caller-owned alias for this explicit source definition.
 /// Returned plan slices belong to allocator; source slices retain their owner.
 pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits) !Self {
@@ -47,8 +50,19 @@ pub const Limits = struct {
     }
 };
 pub fn validate(self: Self) !void {
-    if (self.source.source != .table and self.authorization != null) return error.UnsupportedQueryAuthorization;
+    if (self.source.source != .table and (self.authorization != null or self.retention != null)) return error.UnsupportedQueryAuthorization;
     if (self.authorization) |value| try value.validate();
+    if (self.retention) |grant| {
+        if (grant.binding.retention != .snapshot) return error.InvalidQueryBundle;
+        var storage: [4096]u8 = undefined;
+        var fixed: std.heap.FixedBufferAllocator = .init(&storage);
+        try self.source.source.table.requireGrant(fixed.allocator(), grant);
+        if (self.authorization) |value| {
+            const execution = value.proof.claim;
+            const original = grant.proof.claim;
+            if (execution.realm != original.realm or execution.principal != original.principal or execution.role != original.role or execution.credential_epoch != original.credential_epoch) return error.QueryDenied;
+        }
+    }
     try self.limits.validate();
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try self.source.schema(&fields);
@@ -77,6 +91,12 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     try writer.writeInt(u16, @intCast(plan.len), .little);
     inline for (.{ "pages", "segments", "result_bytes" }) |name| try writer.writeInt(u64, @field(self.limits, name), .little);
     try q.QueryAuthorization.write(self.authorization, &writer);
+    try writer.writeByte(@intFromBool(self.retention != null));
+    if (self.retention) |grant| {
+        var storage: [4096]u8 = undefined;
+        var fixed: std.heap.FixedBufferAllocator = .init(&storage);
+        try writer.writeAll(&try grant.encode(fixed.allocator()));
+    }
     try writer.writeAll(source);
     try writer.writeAll(plan);
     return writer.buffered();
@@ -90,11 +110,17 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     const plan_length = try reader.takeInt(u16, .little);
     const limits: Limits = .{ .pages = try reader.takeInt(u64, .little), .segments = try reader.takeInt(u64, .little), .result_bytes = try reader.takeInt(u64, .little) };
     const authorization = try q.QueryAuthorization.read(&reader);
+    const retention: ?q.catalog.DirectReadDelegation = switch (try reader.takeByte()) {
+        0 => null,
+        1 => try q.catalog.DirectReadDelegation.decode(allocator, try reader.take(q.catalog.DirectReadDelegation.encoded_bytes)),
+        else => return error.InvalidQueryBundle,
+    };
     const source = try q.SourceDefinition.decode(allocator, try reader.take(source_length));
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const result: Self = .{
         .limits = limits,
         .authorization = authorization,
+        .retention = retention,
         .source = source,
         .plan = try codec.decodeInto(allocator, try source.schema(&fields), try source.fingerprint(), try reader.take(plan_length)),
     };
@@ -107,11 +133,49 @@ fn unsigned(self: Self, output: []u8) ![]const u8 {
     description.authorization = null;
     return description.encode(output);
 }
+/// Bind the direct grant to the unsigned declaration and native execution route.
+/// The native execution proof subsequently covers the complete signed grant.
+pub fn retentionPurpose(self: Self, worker: u64, resource: u64, requester: u64, requests: u64) ![32]u8 {
+    var description = self;
+    description.authorization = null;
+    description.retention = null;
+    var bytes: [max_bytes]u8 = undefined;
+    var route: [32]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&route);
+    for ([_]u64{ worker, resource, requester, requests }) |id| {
+        try q.UnifiedRecords.identity(id);
+        try writer.writeInt(u64, id, .little);
+    }
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.query.direct-retention.v1\x00");
+    hash.update(&route);
+    hash.update(try description.encode(&bytes));
+    return hash.finalResult();
+}
+pub const Capture = struct { executor: u64, operation: u64, expected: q.protocol.DataLifecycle.Position };
+pub fn authorizeCapture(self: Self, client: q.wire.AuthorizationClient, tables: q.catalog.DirectTableClient, worker: u64, resource: u64, requester: u64, requests: u64, capture: Capture) !Self {
+    if (self.source.source != .table or self.authorization != null or self.retention != null) return error.QueryAlreadyAuthorized;
+    if (client.principal != tables.connection.principal or client.role != tables.connection.role or client.realm != tables.connection.scope.realm) return error.QueryDenied;
+    try self.source.source.table.requireConnection(tables);
+    var result = self;
+    result.retention = try q.catalog.DirectReadDelegation.prepare(tables, .{
+        .definition = q.protocol.Growth.current_definition,
+        .connection = tables.connection,
+        .executor = capture.executor,
+        .interpretation = self.source.source.table.interpretation.interpretation,
+        .expected = capture.expected,
+        .owner = .{ .scope = tables.connection.scope, .principal = tables.connection.principal, .operation = capture.operation },
+        .retention = .snapshot,
+        .purpose = try self.retentionPurpose(worker, resource, requester, requests),
+    });
+    return result.authorize(client, worker, requester, requests);
+}
 pub fn authorize(self: Self, client: q.wire.AuthorizationClient, audience: u64, requester: u64, requests: u64) !Self {
     if (self.authorization != null) return error.QueryAlreadyAuthorized;
     var bytes: [max_bytes]u8 = undefined;
     var result = self;
     result.authorization = try q.QueryAuthorization.prepare(client, audience, requester, requests, try self.unsigned(&bytes));
+    try result.validate();
     return result;
 }
 pub fn subject(self: Self, audience: u64, requester: u64, requests: u64) !?q.protocol.Authorization.Subject {
@@ -122,6 +186,10 @@ pub fn subject(self: Self, audience: u64, requester: u64, requests: u64) !?q.pro
 pub fn bindSubject(self: Self, turn: *q.station.Turn, requester: u64, requests: u64, expected: ?u64) !void {
     if (try self.subject(turn.delivery.pid, requester, requests)) |original| {
         if (expected) |who| if (original.principal() != who) return error.QueryDenied;
+        if (self.source.source == .table) {
+            const grant = self.retention orelse return error.QueryDenied;
+            if (grant.binding.executor != turn.delivery.principal or !std.mem.eql(u8, &grant.binding.purpose, &try self.retentionPurpose(turn.delivery.pid, turn.view.resource, requester, requests))) return error.QueryDenied;
+        }
         try turn.bindAuthorizationSubject(original);
     } else if (expected != null) return error.QueryDenied;
 }

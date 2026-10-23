@@ -18,7 +18,45 @@ pub const Basis = struct {
     fn from(source: w.Source) Basis {
         return .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority };
     }
+    /// Complete source evidence, independent of a native KV revision. The
+    /// immutable declaration and pin content bind interpretation and WAL/root
+    /// coverage; logical-change progress remains explicit for freshness checks.
+    pub fn fingerprint(self: Basis) ![32]u8 {
+        var bytes: [4096]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        var encoder: std.json.Stringify = .{ .writer = &writer };
+        try c.protocol.Json.write(self, &encoder);
+        var digest = std.crypto.hash.sha2.Sha256.init(.{});
+        digest.update("transit.table.direct.query.source.v1\x00");
+        digest.update(&c.protocol.Growth.definition_bytes);
+        digest.update(writer.buffered());
+        return digest.finalResult();
+    }
 };
+
+test "maximum direct source evidence fits the bounded canonical fingerprint" {
+    const t = std.testing;
+    const native = c.protocol.max_counter;
+    const wide = std.math.maxInt(u64);
+    const scope: d.Scope = .{ .realm = native, .resource = native, .catalog = wide };
+    const object: d.Object = .{ .scope = scope, .branch = 1, .object = wide };
+    const basis: Basis = .{
+        .snapshot = .{ .object = object, .handle = .{ .owner = .{ .scope = scope, .principal = native, .operation = wide }, .content = .{ .bytes = wide, .sha256 = @splat(255) } } },
+        .interpretation = .{ .interpretation = .{ .object = object, .revision = wide, .digest = @splat(255) }, .content = .{ .bytes = c.storage.TableDeclaration.max_bytes, .sha256 = @splat(255) }, .schema_fingerprint = @splat(255), .retired = false },
+        .accepted = .{ .partition = wide, .next_lsn = wide },
+        .changed_lsn = wide,
+        .row_count = wide,
+        .authority = .{ .database = native, .schema = native, .table = native },
+    };
+    try basis.interpretation.validate();
+    const canonical = try c.protocol.Json.valueAlloc(t.allocator, basis);
+    defer t.allocator.free(canonical);
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.table.direct.query.source.v1\x00");
+    hash.update(&c.protocol.Growth.definition_bytes);
+    hash.update(canonical);
+    try t.expectEqualSlices(u8, &hash.finalResult(), &try basis.fingerprint());
+}
 pub const Batch = struct {
     rows: [8]?f.TableRow.Owned = @splat(null),
     count: usize = 0,
@@ -37,6 +75,7 @@ after: ?P.SnapshotCursor = null,
 consumed: u64 = 0,
 complete: bool = false,
 released: bool = false,
+history_point: ?P.HistoryPoint = null,
 
 /// Opening inspects an existing pin. Retain `snapshot` separately so an open
 /// failure never loses the durable handle needed for retry or explicit release.
@@ -44,6 +83,23 @@ pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot:
     const response = try client.call(.{ .snapshot = snapshot });
     defer response.deinit();
     return init(allocator, client.connection, response.value.result.snapshot);
+}
+pub fn openHistoryStart(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: w.Snapshot) !Self {
+    const response = try client.call(.{ .history_start = snapshot });
+    defer response.deinit();
+    return initHistory(allocator, client.connection, response.value.result.history_source);
+}
+pub fn openHistory(allocator: std.mem.Allocator, client: c.DirectTableClient, source: w.Historical) !Self {
+    const response = try client.call(.{ .history_source = source });
+    defer response.deinit();
+    return initHistory(allocator, client.connection, response.value.result.history_source);
+}
+fn initHistory(allocator: std.mem.Allocator, connection: w.Connection, source: w.HistorySource) !Self {
+    _ = try source.point.cursorSource();
+    if (!std.meta.eql(source.point.lease, source.source.snapshot.handle) or !std.meta.eql(source.point.position, source.source.accepted)) return error.InvalidTableResponse;
+    var result = try init(allocator, connection, source.source);
+    result.history_point = source.point;
+    return result;
 }
 fn init(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source) !Self {
     try connection.validate();
@@ -75,9 +131,19 @@ fn requireClient(self: *const Self, client: c.DirectTableClient) !void {
 /// result computed from cached rows. Cached data carries no authorization.
 pub fn check(self: *const Self, client: c.DirectTableClient) !void {
     try self.requireClient(client);
-    const response = try client.call(.{ .snapshot = self.basis.snapshot });
+    const response = try client.call(if (self.history_point) |point| .{ .history_source = .{ .object = self.basis.snapshot.object, .point = point } } else .{ .snapshot = self.basis.snapshot });
     defer response.deinit();
-    if (!std.meta.eql(self.basis, Basis.from(response.value.result.snapshot))) return error.InvalidTableResponse;
+    const source = if (self.history_point != null) response.value.result.history_source.source else response.value.result.snapshot;
+    if (!std.meta.eql(self.basis, Basis.from(source))) return error.InvalidTableResponse;
+}
+fn scanAction(self: *const Self, after: ?P.SnapshotCursor, limits: P.ReadLimits) w.Action {
+    return if (self.history_point) |point|
+        .{ .history_scan = .{ .source = .{ .object = self.basis.snapshot.object, .point = point }, .after = after, .limits = limits } }
+    else
+        .{ .scan = .{ .snapshot = self.basis.snapshot, .after = after, .limits = limits } };
+}
+fn cursorSource(self: *const Self) !d.Content {
+    return if (self.history_point) |point| point.cursorSource() else self.basis.snapshot.handle.content;
 }
 /// A failed exchange, invalid page or decode failure leaves traversal progress
 /// unchanged. Returned rows own their values independently of this reader.
@@ -89,27 +155,78 @@ pub fn next(self: *Self, client: c.DirectTableClient, limits: P.ReadLimits) !?Ba
         try self.check(client);
         return null;
     }
-    const response = try client.call(.{ .scan = .{ .snapshot = self.basis.snapshot, .after = self.after, .limits = limits } });
+    const response = try client.call(self.scanAction(self.after, limits));
     defer response.deinit();
-    return try self.consume(response.value.result.page, limits);
+    return try self.consume(if (self.history_point != null) response.value.result.history_page.page else response.value.result.page, limits);
+}
+/// Ordered lookup on the same retained identity index, without changing this
+/// reader's sequential coverage cursor. A resumed relational operator supplies
+/// its accepted identity; an empty suffix does not claim full-table consumption.
+pub fn readAfter(self: *const Self, client: c.DirectTableClient, after: ?f.TableRow.Identity, limits: P.ReadLimits) !Batch {
+    try self.requireClient(client);
+    try limits.validate();
+    if (limits.encoded_bytes > w.max_page_bytes) return error.InvalidTableReadBudget;
+    const cursor: ?P.SnapshotCursor = if (after) |identity| .{ .source = try self.cursorSource(), .after = try identity.encode() } else null;
+    const response = try client.call(self.scanAction(cursor, limits));
+    defer response.deinit();
+    return self.decodePage(if (self.history_point != null) response.value.result.history_page.page else response.value.result.page, limits, cursor);
+}
+/// Collision-safe lookup under the retained schema's physical key semantics.
+/// Neither a hit nor absence changes sequential coverage or its cursor.
+pub fn readKey(self: *const Self, client: c.DirectTableClient, key: []const u8) !?f.TableRow.Owned {
+    try self.requireClient(client);
+    if (self.history_point != null) return error.UnsupportedHistoricalPointRead;
+    if (key.len == 0 or key.len > f.Collation.max_sort_key_bytes) return error.InvalidTableKey;
+    const binary = try w.Binary.encode(self.allocator, key);
+    defer self.allocator.free(binary.base64);
+    const response = try client.call(.{ .read_key = .{ .snapshot = self.basis.snapshot, .key = binary } });
+    defer response.deinit();
+    return self.decodePoint(response.value.result.point, key);
+}
+fn decodePoint(self: *const Self, point: w.Point, key: []const u8) !?f.TableRow.Owned {
+    if (self.released or !std.meta.eql(self.basis.snapshot, point.snapshot) or
+        !std.meta.eql(self.basis.interpretation, point.interpretation) or
+        !std.meta.eql(self.basis.accepted, point.accepted) or self.basis.changed_lsn != point.changed_lsn or
+        self.basis.row_count != point.total_rows) return error.InvalidTableResponse;
+    const binary = point.row orelse return null;
+    if (self.basis.row_count == 0) return error.InvalidTableResponse;
+    const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
+    defer self.allocator.free(bytes);
+    var row = try f.TableRow.decode(self.allocator, self.schema.schema, bytes);
+    errdefer row.deinit();
+    var actual: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    if (!std.mem.eql(u8, key, try row.row().storageKey(self.schema.schema, &actual))) return error.InvalidTableResponse;
+    return row;
 }
 fn consume(self: *Self, page: w.Page, limits: P.ReadLimits) !Batch {
-    if (self.complete or self.released or !std.meta.eql(self.basis.snapshot, page.snapshot) or
+    if (self.complete or self.released) return error.InvalidTableResponse;
+    const consumed = std.math.add(u64, self.consumed, page.rows.len) catch return error.InvalidTableResponse;
+    if (consumed > self.basis.row_count) return error.InvalidTableResponse;
+    if (page.next != null) {
+        if (consumed == self.basis.row_count) return error.InvalidTableResponse;
+    } else if (consumed != self.basis.row_count) return error.InvalidTableResponse;
+    const batch = try self.decodePage(page, limits, self.after);
+    self.after = page.next;
+    self.consumed = consumed;
+    self.complete = batch.complete;
+    return batch;
+}
+fn decodePage(self: *const Self, page: w.Page, limits: P.ReadLimits, after: ?P.SnapshotCursor) !Batch {
+    if (self.released or !std.meta.eql(self.basis.snapshot, page.snapshot) or
         !std.meta.eql(self.basis.interpretation, page.interpretation) or
         !std.meta.eql(self.basis.accepted, page.accepted) or self.basis.changed_lsn != page.changed_lsn or
         self.basis.row_count != page.total_rows or page.rows.len > limits.rows or page.rows.len > 8 or
         page.encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
-    const consumed = std.math.add(u64, self.consumed, page.rows.len) catch return error.InvalidTableResponse;
-    if (consumed > self.basis.row_count) return error.InvalidTableResponse;
+    if (page.rows.len > self.basis.row_count or (after == null and page.rows.len == 0 and self.basis.row_count != 0)) return error.InvalidTableResponse;
     if (page.next) |cursor| {
-        if (page.rows.len == 0 or consumed == self.basis.row_count or
-            !std.meta.eql(cursor.source, self.basis.snapshot.handle.content)) return error.InvalidTableResponse;
-        if (self.after) |previous| if (std.mem.order(u8, &cursor.after, &previous.after) != .gt) return error.InvalidTableResponse;
-    } else if (consumed != self.basis.row_count) return error.InvalidTableResponse;
+        if (page.rows.len == 0 or
+            !std.meta.eql(cursor.source, try self.cursorSource())) return error.InvalidTableResponse;
+        if (after) |previous| if (std.mem.order(u8, &cursor.after, &previous.after) != .gt) return error.InvalidTableResponse;
+    }
     var batch: Batch = .{ .complete = page.next == null };
     errdefer batch.deinit();
     var encoded_bytes: u64 = 0;
-    var previous: ?[f.TableRow.Identity.encoded_bytes]u8 = if (self.after) |cursor| cursor.after else null;
+    var previous: ?[f.TableRow.Identity.encoded_bytes]u8 = if (after) |cursor| cursor.after else null;
     for (page.rows, 0..) |binary, i| {
         const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
         defer self.allocator.free(bytes);
@@ -123,9 +240,6 @@ fn consume(self: *Self, page: w.Page, limits: P.ReadLimits) !Batch {
     }
     if (page.next) |cursor| if (previous == null or !std.meta.eql(cursor.after, previous.?)) return error.InvalidTableResponse;
     if (encoded_bytes != page.encoded_bytes) return error.InvalidTableResponse;
-    self.after = page.next;
-    self.consumed = consumed;
-    self.complete = batch.complete;
     return batch;
 }
 /// Explicit and retryable. If its reply is lost, retain this original reader or
@@ -135,6 +249,14 @@ pub fn release(self: *Self, client: c.DirectTableClient) !void {
     const response = try client.call(.{ .release = self.basis.snapshot });
     defer response.deinit();
     self.released = true;
+}
+
+fn pointAllocationFailures(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source, point: w.Point, key: []const u8) !void {
+    var reader = try init(allocator, connection, source);
+    defer reader.deinit();
+    var row = (try reader.decodePoint(point, key)) orelse return error.MissingTestRow;
+    defer row.deinit();
+    try std.testing.expectEqual(@as(u64, 0), reader.consumed);
 }
 
 test "retained reader binds pages, complete consumption and original schema without advancing failed reads" {
@@ -196,4 +318,55 @@ test "retained reader binds pages, complete consumption and original schema with
     try t.expect(ending.complete and reader.complete);
     try t.expectEqual(@as(u64, 3), reader.consumed);
     try t.expectError(error.InvalidTableResponse, reader.consume(final, .{}));
+    // Relational resume can seek a suffix without pretending it traversed the
+    // earlier rows or changing an independent sequential cursor.
+    var suffix = try reader.decodePage(final, .{}, first.next);
+    defer suffix.deinit();
+    try t.expectEqual(@as(usize, 2), suffix.count);
+    try t.expect(suffix.complete and reader.complete);
+    try t.expectEqual(@as(u64, 3), reader.consumed);
+    bad = final;
+    bad.rows = &.{binary[0]};
+    bad.encoded_bytes = lengths[0];
+    try t.expectError(error.InvalidTableResponse, reader.decodePage(bad, .{}, first.next));
+    bad = final;
+    bad.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidTableResponse, reader.decodePage(bad, .{}, first.next));
+    bad = final;
+    bad.rows = &.{};
+    bad.encoded_bytes = 0;
+    try t.expectError(error.InvalidTableResponse, reader.decodePage(bad, .{}, null));
+    var point: w.Point = .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .total_rows = source.row_count, .row = binary[0] };
+    const identity = try (f.TableRow.Identity{ .origin = 7, .operation = 1, .ordinal = 0 }).encode();
+    var found = (try reader.decodePoint(point, &identity)).?;
+    defer found.deinit();
+    try t.expectEqualStrings("\x00\xff\x80", found.row().cells[0].value.atom.bytes);
+    try t.checkAllAllocationFailures(t.allocator, pointAllocationFailures, .{ connection, source, point, &identity });
+    try t.expectError(error.InvalidTableResponse, reader.decodePoint(point, &try (f.TableRow.Identity{ .origin = 7, .operation = 1, .ordinal = 1 }).encode()));
+    point.row = null;
+    try t.expect(try reader.decodePoint(point, &identity) == null);
+    point.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidTableResponse, reader.decodePoint(point, &identity));
+    try t.expectEqual(@as(u64, 3), reader.consumed);
+    try t.expect(reader.complete);
+
+    const historical_point: P.HistoryPoint = .{ .lease = source.snapshot.handle, .position = source.accepted, .commitment = @splat(9) };
+    var historical = try initHistory(t.allocator, connection, .{ .point = historical_point, .source = source });
+    defer historical.deinit();
+    // A valid ordinary snapshot cursor is still foreign to a historical read.
+    try t.expectError(error.InvalidTableResponse, historical.consume(first, .{}));
+    try t.expectEqual(@as(u64, 0), historical.consumed);
+    var historical_first = first;
+    historical_first.next.?.source = try historical_point.cursorSource();
+    var historical_batch = try historical.consume(historical_first, .{});
+    defer historical_batch.deinit();
+    try t.expectEqual(@as(usize, 1), historical_batch.count);
+    var historical_final = try historical.consume(final, .{});
+    defer historical_final.deinit();
+    try t.expect(historical.complete and historical_final.count == 2);
+    var different_point = historical_point;
+    different_point.commitment[0] ^= 1;
+    var different = try initHistory(t.allocator, connection, .{ .point = different_point, .source = source });
+    defer different.deinit();
+    try t.expectError(error.InvalidTableResponse, different.consume(historical_first, .{}));
 }

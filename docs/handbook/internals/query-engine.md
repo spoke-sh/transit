@@ -66,12 +66,96 @@ access, expire history or physically collect Table objects.
 The mechanism is falsified by an accepted acquisition with no recoverable original
 request, cleanup of a current-generation active pin, changed interpretation under
 a prepared handle, unstable row order after flush, or output disclosure after
-rights are revoked. `just test::direct-table-service` in the pinned Nix shell
+rights are revoked. The direct Table service proof recorded in the [proof ledger](../../../tests/README.md)
 exercises corrupted acquisition replies, node restart, generation replacement,
 retained joins and revocation. Storage and SQL package tests cover root atomicity
 and dispatch/terminal binding. The [proof ledger](../../../tests/README.md) records
 executions and limits. These component/HTTP checks do not by themselves qualify
 the default launcher or every installed SQL transport.
+
+## Durable capture across the native and direct owners
+
+The question is how a native computation can retain direct Table data without
+claiming a transaction across its progress resource and the Table owner. This
+account covers `UnifiedCapture` and the finite `RelationalCapture` adapter. It assumes native
+commit fencing, the direct owner's durable idempotency and pin records, current
+authorization checks, and preservation of accepted storage history. It does not
+establish garbage collection or automatic computation scheduling.
+
+The model has three separate identities: the immutable query bundle, the
+worker-owned native job, and the original caller's Table pin operation. The
+[source declaration](../../../packages/zig/transit-query/src/TableSource.zig)
+binds the direct service audience and immutable interpretation. The
+[bundle](../../../packages/zig/transit-query/src/Bundle.zig) binds a signed Table
+grant to that description and the native execution route. A native resource
+revision cannot stand in for the Table cut: independently accepted Table writes
+advance their partition frontiers without changing the worker's progress state.
+
+The worker first admits a job, then commits acquisition eligibility and a
+permanent pin-owner claim. Only committed eligibility permits the direct pin
+request. A lost reply therefore leaves an original operation to reconcile;
+absence of the native handle is not evidence that no remote pin exists. The
+claim rejects another job's attempt to reuse the same pin owner. The recorded
+source evidence covers interpretation, immutable pin content, accepted and
+logical-change frontiers, row count and native authority references. Bounded
+pages reopen this pin and validate the complete evidence before returning rows.
+Complete primary-key equality can instead seek the retained physical key index;
+the reader verifies the returned row's actual key and exact basis. Absence is
+evidence for that selection, not full-Table traversal. Both paths recheck current
+rights before returning owned output, including empty output.
+Native progress publication repeats the original caller's source guard, closing
+the gap between a successful direct read and a later native commit.
+
+Traversal completion and release have separate commit boundaries. A final Arrow
+segment, checkpoint and job can consume all four native metadata mutations, so
+the next turn records closure eligibility. Subsequent work cannot return to
+source traversal. A later turn attempts direct release and records its observed
+completion. The [retention owner](../../../packages/zig/transit-query/src/CapturedTablePin.zig)
+keeps the original grant and evidence after closure. Result reads check that
+evidence under a fresh disclosure subject; reopening a released pin would both
+impede completed results and risk confusing cleanup with read authority.
+
+Credential rotation illustrates why execution and cleanup use separate proofs.
+Replacing a saved execution proof could restart revoked work. Keeping only that
+proof could strand a pin indefinitely after rotation. An explicit closure proof
+instead commits to the exact original grant, authorizes only pin reconciliation
+and release, and is stored separately before use. Every remote attempt still
+checks current caller and executor credentials and source rights. This preserves
+the original execution epoch while permitting authorized cleanup. Unavailability
+or continued denial leaves a visible pending obligation; liveness assumes a
+future authorized retry and available storage.
+
+The alternative of acquiring a pin before recording native eligibility would
+leave unowned remote work after a crash. Combining both owners into one global
+commit would introduce a transaction domain beyond the existing authority model.
+The chosen protocol costs additional bounded control turns and stores permanent
+operation identities. Source traversal owns at most eight decoded rows per page;
+the number of durable jobs does not set resident collection size.
+
+Captured relational execution applies this protocol independently to each
+distinct Table. Aliases of one exact declaration share a pin and cut; Tables in
+one catalog can still have different frontiers. The coordinator records the full
+vector only after all handles commit and all source guards pass. A revoked first
+source cannot authorize output merely because a later source was acquired.
+Partial acquisition therefore creates cleanup obligations, without establishing
+a usable vector or an atomic catalog observation. Relational resume seeks one
+ordered row after its accepted identity on the original pin; that suffix lookup
+does not claim complete sequential consumption or change another reader's cursor.
+
+The [direct captured-query proof](../../../tests/README.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23) exercises the public
+signed service and real native hosts with independent progress storage, unflushed
+rows, worker/node replacement and corrupted successful pin/release replies.
+Its assertions distinguish the original cut from a renamed current definition,
+and result disclosure from access revocation. The
+[fixture](../../../tests/direct_captured_query.zig) also exercises cancellation
+and separately authorized cleanup after credential rotation. Its scoped relational
+schedule covers a two-row self-join and two separate two-row Tables, including
+replacement between acquisitions and result revocation/restoration. Installed
+language consumers exercise single-source declaration, authorization, result
+reading and cleanup preparation over the shared fault schedule. The
+[proof ledger](../../../tests/README.md) records those outcomes and bounds; this
+does not establish exhaustive interleavings, maintained-source migration,
+independent language execution hosts or storage GC safety.
 
 ## Column execution and ordered failure frontiers
 
@@ -326,9 +410,11 @@ The [captured owner](../../../packages/zig/transit-query/src/RelationalCapture.z
 commits the checkpoint reference together with consumed input and output
 coverage. Admission retains the exact request as well as data cuts: retaining
 only a result's sources would leave restart dependent on a mutable or retired
-request publication. Current-revision guards prevent a policy read from racing
-the turn that accepts a checkpoint. They do not turn the separately acquired
-source cuts into a cross-resource transaction.
+request publication. Direct Table acquisition follows committed native eligibility;
+each recovered handle records the source's exact authority objects. Native
+authorization guards fence the turn that accepts a checkpoint against those
+objects, independently of the query's own progress resource. They do not turn
+the separately acquired source cuts into a cross-owner transaction.
 
 Each candidate is reconstructed from the previous checkpoint and receives the
 same reserved record IDs. Consequently a restart during staging can validate and
@@ -340,7 +426,10 @@ cursor alone, this design incurs additional immutable records and native turns;
 it makes the acceptance boundary independently inspectable.
 
 Closure and collection have separate authority requirements. Releasing a pin
-uses recorded identities and needs no read of its protected bytes. Collection
+uses recorded identities and needs no read of its protected bytes. Direct pin
+settlement still needs current permission; credential rotation can leave closure
+pending until a separate fresh cleanup proof commits. That proof cannot replace
+the accepted execution grant. Collection
 walks contiguous private publication IDs and removes a bounded number of chunks
 per turn, keeping permanent descriptors and failure evidence. A host that insists
 on opening every foreign dependency before any handler can still starve closure
@@ -902,10 +991,9 @@ Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.
 compare exact page bytes, every CP037 scalar pair, floating bit patterns and
 malformed inputs. The [disk test](../../../packages/zig/transit-storage/src/table_partition_test.zig)
 checks rejection before WAL acceptance and compares retained WAL rows with
-flushed segment rows after reopen. Reproduce with `just test::table-schema` and
-`zig build test -Doptimize=ReleaseSafe` in `packages/zig/transit-fuze` and
-`packages/zig/transit-storage`, inside the pinned development shell. The
-[proof ledger](../../../tests/README.md) records executed results separately.
+flushed segment rows after reopen. The [proof ledger](../../../tests/README.md)
+records the reproduction commands, pinned development environment and executed
+results for the schema, Fuze and storage checks.
 These selected fixtures establish no universal SQL collation or foreign-record
 import profile.
 

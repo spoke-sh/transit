@@ -13,9 +13,9 @@ final class Bridge implements Worker.State<Void> {
     final Port port;
     final JsonObject caps;
     static Bridge local(Path nativeHost) { return new Bridge(obj("local_codec", true), nativeHost); }
-    static Bridge query(ClientConfig client, Credential credential, UnifiedQuery.Connection connection) {
+    static Bridge query(ClientConfig client, Credential credential, UnifiedQuery.Connection connection, UnifiedQuery.Tables tables) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
+            "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis(), "tables", tables == null ? null : tables.wire(credential,connection))), client.nativeHost());
     }
     static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection, String tableServiceUrl) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),

@@ -185,6 +185,210 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Direct Table history retention — 2026-10-23
+
+The storage ReleaseSafe `Table history retention` filter passes two tests after
+replacing the shared current-v1 definition. The disk-backed owner recovers a
+history lease after a lost reply and restart, retains the original cut and exact
+logical successors, preserves no-op acceptances across flush and later writes,
+and rejects cross-revision cursors, mismatched record commitments, current denial
+and reads after explicit release. An ordinary snapshot pin remains independent.
+
+`nix develop --command zig build test-local-catalog -Doptimize=ReleaseSafe`
+passes both native catalog tests under the new definition. Signed direct-service
+requests distinguish snapshot grants from history grants, reject attempts to
+change the kind of an existing lease, recover exact acquisitions, and reopen a
+saved no-op revision. Table-rights revocation after response serialization denies
+both buffered historical rows and an empty history page. These tests use the
+real local policy/storage owner but call service dispatch in process.
+
+The native/binding/logical/Table/configuration/SQL-session/Board generators pass.
+Independent fixtures for native requests, physical schemas/storage, Table sources,
+worker handoff, unified queries, relational plans/records/exchanges, named results,
+Documents, applications/signatures, reactive reads and column codecs regenerate
+successfully. The direct grant now has a mandatory retention kind; immutable
+snapshot metadata also requires that kind. Missing or foreign definitions retain
+the current hard-cutover rejection behavior. The full catalog ReleaseSafe suite
+also passes 123 tests under this definition, including historical reader cursor
+isolation and ordinary retained-reader allocation failures. Documentation passes
+its ownership tests, strict types and production build; local link checking passes
+5,506 links across 559 files.
+
+The expanded `nix develop --command zig build test-direct-table-service
+-Doptimize=ReleaseSafe` schedule passes 518 signed Table requests against a private
+node. The unprivileged executor retains the original history grant through a
+corrupted acquisition reply and restart, reads the original two-row cut one row
+per page, and records a no-op DELETE as a separate logical acceptance. A later
+restart preserves the exact saved point. After the existing CRUD/DDL schedule,
+history includes schema changes and retirement of the original Table, while the
+original and no-op cuts still read their original rows. Same-name recreation
+does not enter that history. A corrupted release reply and another restart
+recover the terminal lease state; further history reads and reacquisition reject.
+This qualifies the public retention/read protocol, not the maintained-query
+coordinator, which still requires migration.
+
+The query `direct history records` ReleaseSafe filter passes eleven selected
+and imported tests. The new 246-byte source record preserves maximum-width
+Table coordinates, the original lease/authority/interpretation and distinct
+no-op acceptance commitments in one native metadata value. Every truncated
+prefix, a foreign definition and a noncanonical retention tag reject. The
+`direct Table preparation` filter also passes eleven tests, including correct
+local errors for missing capture/snapshot input without turning an already
+sent command into a known rejection. The diagnostic mapping gate passes with
+those two caller codes shared by Board inspection.
+
+The complete public `test-direct-captured-query` regression also passes after
+this definition replacement: original-cut single-source recovery, wide/nested
+Fuze/Arrow pages, composite-key hit/absence, shared-alias and independent-Table
+relational capture, released-pin result disclosure, revocation/restoration and
+fresh terminal cleanup after credential rotation. The earlier ten-language
+installed-package run below predates the retention-kind addition; its rerun
+under the new definition remains pending. Full query-package and repository
+checks remain incomplete while the older consumers are migrated.
+
+## Direct captured Table queries and separate cleanup authority — 2026-10-23
+
+`nix develop --command just test::direct-captured-query` passes against a private
+disk-backed local node and signed public native/Table clients. A query worker
+with no ordinary Table rights stores progress in a resource independent of the
+catalog. The test captures 19 unflushed rows, restarts before pin acquisition,
+corrupts successful acquisition and release replies, restarts the node between
+attempts, and renames the Table before the native handle is published. Recovery
+preserves the original interpretation/frontier and traverses three pages. The
+verified COUNT result remains readable after pin release; revoking current Table
+rights denies disclosure, and a fresh credential can disclose after restoration.
+
+A second query cancels with a live pin, then rotates the original caller's
+credential. The old grant leaves cleanup pending. A separate fresh closure
+authorization commits before release, survives a corrupted release response and
+worker replacement, and reaches both remotely released and natively closed
+state. Immutable source evidence and the original bundle reference remain equal.
+The extended direct schedule also passes a malformed fresh cleanup signature:
+the control is rejected durably, the pin remains live, and the next valid proof
+at the same credential epoch completes cleanup. A third query loses Table access
+after admission but before acquisition eligibility. It becomes denied without a
+pin, and fresh cleanup after restoring access preserves that absence and failure.
+The [fixture](direct_captured_query.zig) uses the public clients and real native
+hosts; its proxy injects response uncertainty after acceptance, not a fabricated
+storage outcome. `CapturedTablePin.observe` supplies read-only closure status.
+
+The Station bindings ReleaseSafe tests pass in `nix develop .#bindings`, including
+owned direct endpoint configuration and rejection of caller/role/realm mismatch.
+The catalog ReleaseSafe suite passes, including exact closure-signature binding,
+rejection of its use as a read grant, and maximum-width source fingerprints.
+Documentation checks pass 5,500 local links across 559 files. The direct Table
+schema and independent request-signing fixture have been regenerated.
+
+`nix develop .#bindings --command just bindings::direct-captured-python` and
+`just bindings::direct-captured-ruby` also pass through their public SDK APIs with
+fresh native libraries/ports. They resolve the direct definition and frontier,
+compile an unsigned COUNT, and produce exactly the Zig caller's saved authorized
+bundle. Missing names remain missing; after recovery, the old name does not
+rebind, the renamed definition retains the unchanged schema, and verified results
+remain readable under the rotated credential. Python exercises both synchronous
+and asynchronous clients. Both callers prepare separate fresh terminal cleanup
+controls. These runs use source packages and private nodes; they do not establish
+installed wheel/gem qualification or the other languages' runtime behavior.
+
+Python strict checking passes 27 source files. TypeScript type checking and six
+query boundary tests pass, covering full-width capture coordinates, independent
+resources, distinct cut/retention variants and mismatched lookup-schema rejection.
+Those TypeScript boundary tests use a fake port and establish neither authority
+nor execution. Rust's library checks and 16 unit tests pass with the freshly built
+native libraries. The shared
+binding schemas have been regenerated for lookup/capture/cleanup. Documentation
+checking passes 5,503 links across 559 files before this evidence addition.
+
+The installed direct capture schedule now passes for all ten languages: Python
+(sync and async), TypeScript, Ruby, Rust, C, C++, Java, .NET, Erlang and Elixir.
+The command is `nix develop .#bindings --command just bindings::direct-captured-all`;
+the recorded run built the packages first, then passed all eight package-directory
+options to `zig build test-direct-captured-query -Doptimize=ReleaseSafe`.
+Each independently installed consumer resolves the direct definition/frontier,
+compiles COUNT, compares the entire authorized bundle with the Zig fixture and
+reads the same verified result after rename, restart, pin closure and credential
+rotation. Each also prepares a separate cleanup control. C and C++ retain their
+owned definition after closing the client; Rust's consumer preserves the SDK's
+locked registry dependencies. This proves those public caller operations over
+the shared fault schedule; the Zig host still drives execution and injected
+uncertainty.
+
+`nix develop .#bindings --command python3 -B tests/sdk_unified.py` also passes
+all ten independently installed codec consumers. It checks three source kinds,
+nine Boolean bundles, six scalar types, five cell states, 128 columns, uint128,
+nested values and malformed-input rejection. These codec checks do not establish
+execution authority or recovery; those claims come from the direct schedule above.
+
+The storage `Table ` filtered ReleaseSafe tests pass, including bounded logical
+history across restart, accepted no-ops, CREATE/RENAME/ALTER/DROP and current
+revocation before disclosure. That component inspection is not yet a public
+logical-change feed or maintained-query source adapter.
+
+The direct relational filter passes 12 tests, including exact physical
+schema matching, shared alias grants, native-route binding, maximum-width Table
+coordinates, every truncated bundle prefix and incompatible-definition rejection.
+Two Tables in one catalog require separate pin budgets and distinct pin owners;
+their partition/frontier commitments remain independent.
+The catalog ReleaseSafe suite also passes after adding retained identity-suffix
+reads; malformed coordinates, ordering and an empty initial page reject without
+changing sequential coverage. The documentation suite passes its nine ownership
+checks, strict types and production site build; local link checking passes 5,505
+links across 559 files. The public two-row captured self-join schedule passes:
+it uses independent native progress, shares one pin between aliases, replaces
+the worker after committed acquisition eligibility, closes the pin and reads a
+verified COUNT result. The expanded schedule also passes with two distinct
+Tables in one catalog: replacement occurs after the first pin is committed and
+before the second acquisition, the vector retains distinct partitions, and both
+pins close. Revoking one source's current authority denies result disclosure;
+restoring it permits the same verified result. The self-join also passes that
+revocation/restoration check. Both cases use two rows per Table and a COUNT with
+a post-join filter. The first 19-row combined run exceeded the 240-second deadline.
+A separate run showed advancing checkpoints and was stopped before completion;
+neither run passed. The lifecycle fixture now uses a two-row self-join in a
+separately timed phase, while single-source capture retains its 19-row three-page
+case. The one-row checkpoint model's cost on larger captured joins remains a
+performance limitation; this fixture does not establish throughput.
+
+The direct point-read extension passes the full catalog ReleaseSafe tests and
+the two local native catalog tests. The dispatcher checks both present and absent
+keys against a real native authorization fence and suppresses either response
+when Table ownership changes after buffering. An executor with no ordinary
+Table rights can read only through the original exact-pin grant. The retirement
+race asserts native guard denial, separately verifies the resource is expired,
+and confirms no new Table authorization registration was published. The reflected
+direct envelope and independent signing fixtures are regenerated.
+
+The query package's `general Table` filter passes 16 tests after migrating
+descriptor/policy fixtures to direct declarations. These include allocation
+failure cleanup, independent recursive bytes, truncation/foreign-definition
+rejection, an embedded query arena, multiple Table policy targets in independent
+progress storage, and caller/role mismatch rejection before I/O. They use
+unpublished definitions and a reference store; they establish no admission or
+storage durability. The two `direct native contracts` tests also pass, covering
+the maximum native checkpoint key, rejected cut changes and 21 scalar descriptor
+families through prepared/neutral query bundles with independently owned values.
+
+The complete public direct schedule now passes with its wide-row phase. A
+19-row, 13-column Table has a composite integer/UTF-8 key, nested lists and INT128
+values. Its original pin survives column rename, DROP and reuse of the Table
+name by another object. Matching and absent composite-key predicates finish in
+one source page, while ordinary traversal reads all 19 rows in three pages and
+preserves the projected values through Fuze and Arrow decoding. Current
+revocation denies both point selections; explicit release makes the original
+source unavailable. The same run passes the single-source fault schedule and
+both captured relational cases. Catalog tests also pass allocation-failure
+cleanup for retained point decoding. Documentation checks pass nine ownership
+tests, strict types, the production build and 5,505 links across 559 files.
+
+This is scoped feature-branch evidence. The shared-definition replacement,
+remaining generated artifacts, broader caller schedules and older relational
+Table paths are still in progress. The full query package currently fails to
+compile at those unported consumers; neither `just check` nor `just ci-clean`
+has qualified this combined working tree. No milestone or tracking issue is
+closed by these checks. Broader multi-source schedules, maintained logical-change
+history, remaining caller migration and GC/compaction race coverage remain
+separate obligations.
+
 ## Retained-source publication authority — 2026-10-23
 
 The current shared definition is

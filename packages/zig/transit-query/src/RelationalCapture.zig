@@ -9,6 +9,7 @@ const r = q.RelationalRecords;
 const Turn = s.Turn;
 const Pub = s.Publication;
 const Ref = s.PublicationReference;
+const Pin = q.CapturedTablePin;
 pub const resident_base = 4 * @sizeOf(q.RelationalCaptured) + 3 * q.RelationalBundle.max_bytes + 2 * f.TableRow.max_bytes + 4 * f.TableSchema.max_bytes + f.RelationalIndex.resident_bytes + 4 * f.RelationalCheckpoint.max_bytes;
 pub fn policy(source: anytype, peer: u64) !?r.Policy {
     const value = (try source.read(r.key('p', peer, 0))) orelse return null;
@@ -57,10 +58,9 @@ fn body(ref: Ref, source: anytype, bytes: []u8) ![]const u8 {
 fn memory(bundle: q.RelationalBundle, workspace: []u8) !void {
     if (workspace.len > std.math.maxInt(u64) - resident_base or workspace.len + resident_base > bundle.plan.budgets.resident_bytes) return error.RelationalResidentBudget;
 }
-/// Four mutations admit the job, vector, correlation and publication budget.
-/// The request and every distinct data resource are retained in that same turn.
-/// The coordinator is the first Table owner; no second resource is mutated.
-pub fn start(turn: *Turn, reference: Ref, workspace: []u8) !r.Job {
+/// Three mutations admit the job, correlation and publication budget. Source
+/// pins follow committed per-Table eligibility in independent bounded turns.
+pub fn start(turn: *Turn, reference: Ref, clients: []const q.catalog.DirectTableClient, workspace: []u8) !r.Job {
     const before = turn.decision;
     errdefer turn.decision = before;
     for (before.mutations) |mutation| if (mutation != null) return error.QueryAfterMutation;
@@ -81,14 +81,15 @@ pub fn start(turn: *Turn, reference: Ref, workspace: []u8) !r.Job {
     if (descriptor.publisher != peer) return error.UnexpectedQueryPublisher;
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     try bundle.bindSubject(turn, peer, reference.resource, grant.principal);
-    if (bundle.sources[0].scope.resource != turn.view.resource or bundle.sources[0].owner != turn.delivery.pid) return error.RelationalSourceChanged;
+    if (clients.len != bundle.sources.len) return error.InvalidRelationalSources;
+    for (bundle.retention, clients, 0..) |retention, client, i| if (try bundle.sourceOrdinal(i) == i) {
+        try Pin.authorizeAdmission(turn, retention, client);
+    };
     try request_view.requireCurrent();
     const request_version = try request_view.retain();
-    const sources = try q.RelationalCaptured.capture(turn, fixed.allocator(), bundle, grant.principal);
-    var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .request = reference, .request_version = request_version, .continuation = turn.delivery.input.position };
+    var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .request = reference, .request_version = request_version, .continuation = turn.delivery.input.position, .source_count = @intCast(bundle.sources.len) };
     if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(.query_result, stored.namespace(), 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
     _ = try q.RelationalState.create(turn, stored.namespace());
-    try turn.write(r.key('v', stored.id, 0), try sources.encode(bundle));
     try turn.write(r.key('i', peer, frame.correlation), q.UnifiedRecords.identityValue(stored.id));
     try schedule(turn, &stored);
     try turn.validate();
@@ -102,14 +103,12 @@ pub fn close(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, reti
     errdefer turn.decision = before;
     var stored = try job(turn, id);
     if (stored.request_version.pid != turn.delivery.pid) return error.InvalidRelationalRecord;
-    if (stored.phase != .capturing and stored.phase != .complete) return;
+    if (stored.phase != .admitted and stored.phase != .acquiring and stored.phase != .capturing and stored.phase != .complete) return;
     if (stored.phase == .complete and phase != .retired) return;
     if (stored.phase != .complete and phase == .retired) return error.IncompleteResult;
     if ((phase == .denied or phase == .failed) != (failure != null)) return error.InvalidRelationalRecord;
     if (failure) |cause| if (cause.denied() != (phase == .denied)) return error.InvalidRelationalRecord;
     if (!stored.released) {
-        const captured = try q.RelationalCaptured.Vector.decodeStored(try vector(turn, id));
-        try captured.releaseStored(turn, id);
         try turn.release(stored.request_version);
         stored.released = true;
     }
@@ -121,7 +120,53 @@ pub fn close(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, reti
     };
     if (failure) |cause| try turn.write(r.key('f', id, 0), try cause.encode());
     try turn.write(r.key('j', id, 0), try stored.encode());
+    try continueCleanup(turn, stored);
     if (phase != .retired) try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init("closed") });
+}
+fn continueCleanup(turn: *Turn, stored: r.Job) !void {
+    try turn.cast(turn.delivery.pid, try (q.UnifiedRecords.Continuation{ .job = stored.id, .input = stored.continuation }).encode());
+}
+fn cleanupPending(client: q.catalog.DirectTableClient, err: anyerror) bool {
+    return q.wire.Client.unavailable(err) or err == error.AccessDenied or
+        (err == error.Conflict and (client.authority.last_rejection == .StaleAuthorizationCredential or client.service.last_rejection == .StaleAuthorizationCredential));
+}
+/// Pin records are independent of request retention and complete manifests.
+/// One closing/settled transition commits per input; denial leaves explicit
+/// cleanup pending without changing the terminal result or spinning retries.
+pub fn retryCleanup(turn: *Turn, id: u64, clients: []const q.catalog.DirectTableClient, workspace: []u8) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const stored = try job(turn, id);
+    if (stored.request_version.pid != turn.delivery.pid) return error.InvalidRelationalRecord;
+    if (stored.phase == .admitted or stored.phase == .acquiring or stored.phase == .capturing) return error.QueryActive;
+    if (clients.len != stored.source_count) return error.InvalidRelationalSources;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace);
+    for (0..stored.source_count) |i| {
+        const pin_slot: Pin.Slot = .{ .job = id, .source = @intCast(i) };
+        const pin = (try Pin.inspect(fixed.allocator(), turn, pin_slot)) orelse continue;
+        if (pin.phase == .closed) continue;
+        if (pin.phase == .acquiring) {
+            try Pin.beginClose(fixed.allocator(), turn, pin_slot);
+        } else Pin.settle(fixed.allocator(), turn, pin_slot, clients[i]) catch |err| {
+            if (cleanupPending(clients[i], err)) return;
+            return err;
+        };
+        try continueCleanup(turn, stored);
+        return;
+    }
+}
+/// Fresh closure permission never replaces the query's original execution
+/// subject. Callers authenticate this terminal control before invoking it.
+pub fn authorizeCleanup(turn: *Turn, id: u64, ordinal: u32, client: q.catalog.DirectTableClient, authorization: q.catalog.DirectReadDelegation.Closure, workspace: []u8) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const stored = try job(turn, id);
+    if (stored.request_version.pid != turn.delivery.pid or ordinal >= stored.source_count) return error.InvalidRelationalRecord;
+    if (stored.phase == .admitted or stored.phase == .acquiring or stored.phase == .capturing) return error.QueryActive;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace);
+    const pin_slot: Pin.Slot = .{ .job = id, .source = ordinal };
+    if (try Pin.inspect(fixed.allocator(), turn, pin_slot) != null) try Pin.authorizeCleanup(fixed.allocator(), turn, pin_slot, client, authorization);
+    try continueCleanup(turn, stored);
 }
 
 /// Explicit bounded collection after closure. Permanent record identities and
@@ -195,22 +240,25 @@ fn failed(turn: *Turn, stored: r.Job, err: anyerror) !Advance {
     try close(turn, stored.id, if (cause.denied()) .denied else .failed, cause);
     return .closed;
 }
-pub fn advance(turn: *Turn, continuation: q.UnifiedRecords.Continuation, workspace: []u8) !Advance {
+pub fn advance(turn: *Turn, continuation: q.UnifiedRecords.Continuation, clients: []const q.catalog.DirectTableClient, workspace: []u8) !Advance {
     const before = turn.decision;
     errdefer turn.decision = before;
     const stored = try job(turn, continuation.job);
     if (stored.request_version.pid != turn.delivery.pid or try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.UnexpectedQueryContinuation;
     const frame = try s.Frame.decode(turn.delivery.input.value);
     if (frame.kind != .cast or !frame.payload.eql(try continuation.encode())) return error.InvalidQueryContinuation;
-    if (stored.phase != .capturing) return .duplicate;
+    if (stored.phase != .admitted and stored.phase != .acquiring and stored.phase != .capturing) {
+        try retryCleanup(turn, stored.id, clients, workspace);
+        return .duplicate;
+    }
     if (continuation.input < stored.continuation) return .duplicate;
     if (continuation.input != stored.continuation) return error.InvalidQueryContinuation;
-    return advanceInner(turn, stored, workspace) catch |err| {
+    return advanceInner(turn, stored, clients, workspace) catch |err| {
         turn.decision = before;
         return failed(turn, stored, err);
     };
 }
-fn advanceInner(turn: *Turn, stored: r.Job, workspace: []u8) !Advance {
+fn advanceInner(turn: *Turn, stored: r.Job, clients: []const q.catalog.DirectTableClient, workspace: []u8) !Advance {
     const grant = (try policy(turn, stored.destination)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != stored.policy_revision or grant.requests != stored.request.resource) return error.QueryDenied;
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
@@ -221,10 +269,38 @@ fn advanceInner(turn: *Turn, stored: r.Job, workspace: []u8) !Advance {
     try memory(bundle, workspace);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     try bundle.bindSubject(turn, stored.destination, stored.request.resource, grant.principal);
+    if (clients.len != stored.source_count or bundle.sources.len != stored.source_count) return error.InvalidRelationalSources;
+    if (stored.phase == .admitted) {
+        var next = stored;
+        if (next.acquired == next.source_count) {
+            const sources = try q.RelationalCaptured.record(turn, allocator, bundle, stored.id);
+            for (0..stored.source_count) |i| if (try bundle.sourceOrdinal(i) == i) try Pin.authorizeExecution(allocator, turn, try q.RelationalCaptured.slot(bundle, stored.id, i));
+            try turn.write(r.key('v', stored.id, 0), try sources.encode(bundle));
+            next.phase = .capturing;
+        } else if (try bundle.sourceOrdinal(next.acquired) != next.acquired) {
+            next.acquired += 1;
+        } else {
+            try Pin.authorizeAdmission(turn, bundle.retention[next.acquired], clients[next.acquired]);
+            try Pin.prepare(allocator, turn, try q.RelationalCaptured.slot(bundle, stored.id, next.acquired), bundle.retention[next.acquired]);
+            next.phase = .acquiring;
+        }
+        try schedule(turn, &next);
+        return .progress;
+    }
+    if (stored.phase == .acquiring) {
+        const basis = try Pin.acquire(allocator, turn, try q.RelationalCaptured.slot(bundle, stored.id, stored.acquired), clients[stored.acquired]);
+        _ = try bundle.sources[stored.acquired].basis(basis, bundle.plan.sources[stored.acquired].schema);
+        try Pin.authorizeSource(turn, bundle.retention[stored.acquired], basis.authority);
+        var next = stored;
+        next.acquired += 1;
+        next.phase = .admitted;
+        try schedule(turn, &next);
+        return .progress;
+    }
     const vector_value = try vector(turn, stored.id);
     const sources = try q.RelationalCaptured.Vector.decode(bundle, vector_value);
     const data = try allocator.create(q.RelationalCaptured);
-    data.* = try q.RelationalCaptured.open(turn, allocator, bundle, grant.principal, sources, 1);
+    data.* = try q.RelationalCaptured.open(turn, allocator, bundle, stored.id, sources, clients, 1);
     const bound = data.bound();
     const pages: q.RelationalState = .{ .publication = stored.publication(turn.view.resource) };
     const candidate = try allocator.create(Candidate);
@@ -297,7 +373,6 @@ fn advanceInner(turn: *Turn, stored: r.Job, workspace: []u8) !Advance {
     if (failure) |cause| {
         proposed.phase = if (cause.denied()) .denied else .failed;
         proposed.released = true;
-        try sources.releaseStored(turn, stored.id);
         try turn.release(stored.request_version);
         try turn.write(r.key('f', stored.id, 0), try cause.encode());
         try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init("closed") });

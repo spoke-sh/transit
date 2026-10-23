@@ -35,24 +35,55 @@ module Transit
         def wire = { 'version' => 1, 'resource' => resource.resource, 'source' => { 'kv' => {
           'prefix' => prefix.unpack1('H*'), 'key' => key.wire, 'value' => value.wire } } }
       end
-      TableSource = Data.define(:owner, :metadata, :schema) do
-        def initialize(owner:, metadata:, schema:)
-          unless owner.is_a?(ProcessRef) && metadata.is_a?(Catalog::Metadata) && schema.is_a?(Catalog::Schema) &&
-              owner.realm == metadata.scope.resource.realm && metadata.object == schema.object
-            raise ArgumentError, 'Expected a catalog Table definition and owner in one realm'
-          end
-          super
+      TableInterpretation = Data.define(:revision, :digest, :byte_count, :schema_digest) do
+        def initialize(revision:, digest:, byte_count:, schema_digest:)
+          super(revision: Internal.integer(revision, max: U64_MAX), digest: Values.commitment(digest),
+            byte_count: Internal.integer(byte_count, max: U64_MAX), schema_digest: Values.commitment(schema_digest))
         end
-        def resource = metadata.scope.resource
+        def wire = { 'revision' => revision.to_s, 'digest' => digest.bytes, 'bytes' => byte_count.to_s, 'schema' => schema_digest.bytes }
+      end
+      TableSource = Data.define(:scope, :audience, :branch, :namespace, :interpretation, :schema) do
+        def initialize(scope:, audience:, branch:, namespace:, interpretation:, schema:)
+          unless scope.is_a?(Catalog::Scope) && interpretation.is_a?(TableInterpretation) && schema.is_a?(Catalog::Schema)
+            raise ArgumentError, 'Expected a direct Table interpretation and schema'
+          end
+          super(scope: scope, audience: Internal.integer(audience), branch: Internal.integer(branch, max: U64_MAX),
+            namespace: Internal.integer(namespace), interpretation: interpretation, schema: schema)
+        end
+        def resource = scope.resource
         def wire
           row_type = Logical::Structure.new(fields: schema.columns.map do |column|
             Logical::Field.new(name: column.name, type: column.type, nullable: column.nullable)
           end)
           { 'version' => 1, 'resource' => resource.resource, 'source' => { 'table' => {
-            'scope' => metadata.scope.wire, 'owner' => owner.pid, 'object' => metadata.object.to_s,
-            'metadata' => { 'id' => metadata.revision.to_s, 'spec' => metadata.commitment.wire },
-            'row_type' => Logical.type_wire(row_type) } } }
+            'scope' => scope.wire, 'owner' => audience, 'branch' => branch.to_s, 'namespace' => namespace, 'object' => schema.object.to_s,
+            'interpretation' => interpretation.wire, 'row_type' => Logical.type_wire(row_type) } } }
         end
+      end
+      Tables = Data.define(:url, :scope, :branch, :audience) do
+        def initialize(url:, scope:, branch:, audience:)
+          raise ArgumentError, 'Expected catalog scope' unless scope.is_a?(Catalog::Scope)
+          super(url: Internal.text(url, 2048).freeze, scope: scope, branch: Internal.integer(branch, max: U64_MAX), audience: Internal.integer(audience))
+        end
+        def wire(credential, connection)
+          raise ArgumentError, 'Direct Tables must use the query realm' unless scope.resource.realm == connection.source.realm
+          { 'url' => url, 'connection' => { 'scope' => scope.wire, 'branch' => branch.to_s, 'audience' => audience,
+            'principal' => credential.principal, 'role' => connection.role } }
+        end
+      end
+      Capture = Data.define(:executor, :operation, :partition, :next_lsn) do
+        def initialize(executor:, operation:, partition:, next_lsn:)
+          super(executor: Internal.integer(executor), operation: Internal.integer(operation, max: U64_MAX),
+            partition: Internal.integer(partition, max: U64_MAX), next_lsn: Internal.integer(next_lsn, min: 0, max: U64_MAX))
+        end
+        def wire = { 'executor' => executor, 'operation' => operation.to_s, 'expected' => { 'partition' => partition.to_s, 'next_lsn' => next_lsn.to_s } }
+      end
+      TableDefinition = Data.define(:source, :partition, :next_lsn) do
+        def initialize(source:, partition:, next_lsn:)
+          raise ArgumentError, 'Expected direct Table source' unless source.is_a?(TableSource)
+          super(source: source, partition: Internal.integer(partition, max: U64_MAX), next_lsn: Internal.integer(next_lsn, min: 0, max: U64_MAX))
+        end
+        def capture(executor:, operation:) = Capture.new(executor: executor, operation: operation, partition: partition, next_lsn: next_lsn)
       end
       Projection = Data.define(:column, :path, :relative, :mode, :text_bytes, :text_steps) do
         def initialize(column:, path: [], relative: false, mode: :scalar, text_bytes: 4096, text_steps: 4096)
@@ -128,12 +159,12 @@ module Transit
         def wire = { 'pages' => pages.to_s, 'segments' => segments.to_s, 'result_bytes' => result_bytes.to_s }
       end
       Bundle = Data.define(:data) do
-        def initialize(data:) = super(data: Internal.bytes(data, 25255).freeze)
+        def initialize(data:) = super(data: Internal.bytes(data, 25614).freeze)
         def self.prepare(source, plan, budgets, native_host: nil)
           Values.source!(source)
           raise ArgumentError, 'Expected plan and budgets' unless plan.is_a?(Plan) && budgets.is_a?(Budgets)
           result = Values.codec({ 'prepare' => { 'source' => source.wire, 'plan' => plan.wire, 'limits' => budgets.wire } }, native_host).fetch('prepared')
-          new(data: Internal.unhex(result.fetch('bytes'), 25255))
+          new(data: Internal.unhex(result.fetch('bytes'), 25614))
         end
         def inspect = '#<Transit::Station::Unified::Bundle>'
       end
@@ -176,14 +207,37 @@ module Transit
       TableListing = Data.define(:names)
       Explanation = Data.define(:operators, :predicate, :projection, :limit, :aggregate, :columns, :budgets)
       Inspection = Data.define(:name, :resource, :source_kind, :source_digest, :schema_digest, :resource_revision, :policy_revision, :details)
-      Manifest = Data.define(:job, :source, :requester, :correlation, :policy_revision, :request, :source_kind, :resource, :revision,
-        :source_head, :source_digest, :schema_digest, :plan_digest, :pages, :scanned, :selected, :value_count, :segments, :rows, :byte_count, :sum, :finished, :chain)
+      NativeCut = Data.define(:revision) do
+        def initialize(revision:) = super(revision: Internal.integer(revision, min: 0))
+      end
+      TableCut = Data.define(:commitment) do
+        def initialize(commitment:) = super(commitment: Values.commitment(commitment))
+      end
+      Manifest = Data.define(:job, :source, :requester, :correlation, :policy_revision, :request, :source_kind, :resource, :cut,
+         :source_digest, :schema_digest, :plan_digest, :pages, :scanned, :selected, :value_count, :segments, :rows, :byte_count, :sum, :finished, :chain)
       Page = Data.define(:manifest, :columns, :ordinal, :rows, :ipc, :next) do
         def decode(native_host: nil) = Unified.decode_arrow(columns, ipc, rows, native_host: native_host)
         def inspect = "#<Transit::Station::Unified::Page ordinal=#{ordinal} rows=#{rows}>"
       end
       module Values
         module_function
+        def commitment(value)
+          result = Internal.bytes(value, 32).freeze
+          raise ArgumentError, 'Expected 32-byte commitment' unless result.bytesize == 32
+          result
+        end
+        def table(value)
+          return nil if value.nil?
+          envelope = value.fetch('source'); direct = envelope.fetch('source').fetch('table'); interpretation = direct.fetch('interpretation')
+          source = TableSource.new(scope: Internal.catalog_scope(direct.fetch('scope')), audience: direct.fetch('owner'),
+            branch: Value.wide(direct.fetch('branch'), min: 1), namespace: direct.fetch('namespace'),
+            interpretation: TableInterpretation.new(revision: Value.wide(interpretation.fetch('revision'), min: 1),
+              digest: Value.digest(interpretation.fetch('digest')), byte_count: Value.wide(interpretation.fetch('bytes'), min: 1),
+              schema_digest: Value.digest(interpretation.fetch('schema'))), schema: Internal.catalog_schema(value.fetch('schema')))
+          raise IncompatibleNative, 'Inconsistent direct Table definition' unless source.wire == envelope
+          TableDefinition.new(source: source, partition: Value.wide(value.fetch('expected').fetch('partition'), min: 1),
+            next_lsn: Value.wide(value.fetch('expected').fetch('next_lsn')))
+        end
         def name(value)
           result = Internal.text(value, 255).freeze
           raise ArgumentError, 'Expected a nonempty query name without NUL' if result.empty? || result.include?("\0")
@@ -273,11 +327,21 @@ module Transit
           m, basis = v.fetch('manifest'), v.fetch('manifest').fetch('basis')
           cut = basis.fetch('cut')
           raise IncompatibleNative, 'Unfinished result manifest' if m.fetch('finished').nil?
-          manifest = Manifest.new(job: m.fetch('job'), source: Value.version(m.fetch('source')), requester: ProcessRef.new(realm: realm, pid: m.fetch('requester')),
+          retention, position = m.fetch('source'), cut.fetch('position')
+          if cut.fetch('kind') == 'table'
+            raise IncompatibleNative, 'Invalid direct Table cut' unless retention.keys == ['table'] && position.keys == ['table']
+            source = ProcessRef.new(realm: realm, pid: retention.fetch('table').fetch('worker'))
+            captured = TableCut.new(commitment: Value.digest(position.fetch('table')))
+          else
+            raise IncompatibleNative, 'Invalid native source cut' unless %w[kv document].include?(cut.fetch('kind')) && retention.keys == ['native'] && position.keys == ['native_revision']
+            source = Value.version(retention.fetch('native'))
+            captured = NativeCut.new(revision: position.fetch('native_revision'))
+          end
+          manifest = Manifest.new(job: m.fetch('job'), source: source, requester: ProcessRef.new(realm: realm, pid: m.fetch('requester')),
             correlation: Value.wide(m.fetch('correlation')), policy_revision: Value.wide(m.fetch('policy_revision')),
             request: Internal.unhex(m.fetch('request'), 72).freeze, source_kind: cut.fetch('kind').to_sym,
-            resource: ResourceRef.new(realm: realm, resource: cut.fetch('resource')), revision: cut.fetch('revision'),
-            source_head: Value.digest(cut.fetch('head')), source_digest: Value.digest(basis.fetch('contract')), schema_digest: Value.digest(basis.fetch('schema')), plan_digest: Value.digest(m.fetch('plan')),
+            resource: ResourceRef.new(realm: realm, resource: cut.fetch('resource')), cut: captured,
+            source_digest: Value.digest(basis.fetch('contract')), schema_digest: Value.digest(basis.fetch('schema')), plan_digest: Value.digest(m.fetch('plan')),
             pages: Value.wide(m.fetch('pages')), scanned: Value.wide(m.fetch('scanned')), selected: Value.wide(m.fetch('selected')),
             value_count: Value.wide(m.fetch('value_count')), segments: Value.wide(m.fetch('segments')), rows: Value.wide(m.fetch('rows')), byte_count: Value.wide(m.fetch('bytes')),
             sum: m.fetch('sum').nil? ? nil : Value.wide(m.fetch('sum'), min: -(1 << 63), max: (1 << 63)-1), finished: m.fetch('finished').to_sym, chain: Value.digest(m.fetch('chain')))
@@ -295,21 +359,22 @@ module Transit
       end
       class Client
         attr_reader :connection
-        def self.open(config, credential, connection)
-          owner = new(config, credential, connection)
+        def self.open(config, credential, connection, tables: nil)
+          owner = new(config, credential, connection, tables: tables)
           return owner unless block_given?
           begin yield owner
           ensure owner.close
           end
         end
-        def initialize(config, credential, connection)
+        def initialize(config, credential, connection, tables: nil)
           unless config.is_a?(ClientConfig) && credential.is_a?(Credential) && connection.is_a?(Connection) && credential.realm == connection.source.realm
             raise ArgumentError, 'Expected configuration and credential matching the connection realm'
           end
+          raise ArgumentError, 'Expected direct Table endpoint' unless tables.nil? || tables.is_a?(Tables)
           @connection = connection
           @worker = Internal::Worker.new do
             bridge = Bridge.new({ 'url' => config.url, 'seed_file' => credential.seed_file,
-              'query_client' => { 'connection' => connection.wire(credential.principal), 'timeout_ms' => config.timeout_ms } }, config.native_host)
+              'query_client' => { 'connection' => connection.wire(credential.principal), 'timeout_ms' => config.timeout_ms, 'tables' => tables&.wire(credential, connection) } }, config.native_host)
             begin
               caps = bridge.unified_query({ 'capabilities' => {} }).fetch('capabilities')
               raise UnsupportedCapability, 'Native query caller lacks v1 sources' unless caps['version'] == 1 && %w[kv table document].all? { |kind| caps[kind] }
@@ -320,9 +385,12 @@ module Transit
             end
           end
         end
+        def lookup_table(name, namespace: 1)
+          Values.table(call({ 'table' => { 'namespace' => Internal.integer(namespace), 'name' => Values.name(name) } }).fetch('table'))
+        end
         def describe(source)
           Values.source!(source)
-          raise ArgumentError, 'Source differs from the connection' unless source.resource == connection.resource
+          raise ArgumentError, 'Source differs from the connection' unless source.resource.realm == connection.resource.realm && (source.is_a?(TableSource) || source.resource == connection.resource)
           v = call({ 'describe' => source.wire }).fetch('description')
           limits, caps = v.fetch('limits'), v.fetch('capabilities')
           Description.new(resource_revision: v.fetch('resource_revision'), policy_revision: Value.wide(v.fetch('policy_revision')),
@@ -331,15 +399,15 @@ module Transit
         end
         def inspect_sql(source, name, sql, budgets)
           Values.source!(source)
-          raise ArgumentError, 'Source differs from the connection' unless source.resource == connection.resource
+          raise ArgumentError, 'Source differs from the connection' unless source.resource.realm == connection.resource.realm && (source.is_a?(TableSource) || source.resource == connection.resource)
           raise ArgumentError, 'Expected Budgets' unless budgets.is_a?(Budgets)
           result = call({ 'inspect' => { 'scope' => { 'source' => source.wire, 'name' => Values.name(name),
             'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096) } })
-          Values.inspection(result.fetch('inspection'), connection.resource)
+          Values.inspection(result.fetch('inspection'), source.resource)
         end
         def compile_sql(source, name, sql, budgets, parameters: nil)
           Values.source!(source)
-          raise ArgumentError, 'Source differs from the connection' unless source.resource == connection.resource
+          raise ArgumentError, 'Source differs from the connection' unless source.resource.realm == connection.resource.realm && (source.is_a?(TableSource) || source.resource == connection.resource)
           raise ArgumentError, 'Expected Budgets' unless budgets.is_a?(Budgets)
           unless parameters.nil? || (parameters.is_a?(Array) && parameters.length <= 65)
             raise ArgumentError, 'Expected at most 65 parameter atoms'
@@ -350,12 +418,19 @@ module Transit
           end
           result = call({ 'compile' => { 'scope' => { 'source' => source.wire, 'name' => Values.name(name),
             'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096), 'parameters' => values } })
-          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), 25255))
+          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), 25614))
         end
         # Seal new work before persistence. Saved bundles keep their original proof.
-        def authorize_bundle(bundle)
+        def authorize_bundle(bundle, capture: nil)
           raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)
-          Bundle.new(data: Internal.unhex(call({ 'authorize' => bundle.data.unpack1('H*') }).fetch('authorized'), 25255))
+          raise ArgumentError, 'Expected explicit Table capture' unless capture.nil? || capture.is_a?(Capture)
+          Bundle.new(data: Internal.unhex(call({ 'authorize' => { 'bundle' => bundle.data.unpack1('H*'), 'capture' => capture&.wire } }).fetch('authorized'), 25614))
+        end
+        def prepare_cleanup(namespace, bundle)
+          raise ArgumentError, 'Expected original Bundle' unless bundle.is_a?(Bundle)
+          value = call({ 'cleanup' => { 'namespace' => Internal.integer(namespace, max: U64_MAX).to_s, 'bundle' => bundle.data.unpack1('H*') } }).fetch('prepared')
+          raise IncompatibleNative, 'Missing cleanup command' if value.nil?
+          Prepared.new(data: value)
         end
         def prepare_next(namespace, bundle)
           raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)

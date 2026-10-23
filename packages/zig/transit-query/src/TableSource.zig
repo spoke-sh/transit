@@ -1,18 +1,21 @@
-//! General Table source adapter over public captured/retained state readers.
-//! A declaration identifies data; its caller supplies authenticated authority,
-//! retains the source cut and commits progress. This module grants none of them.
+//! An exact direct Table declaration and bounded retained-source traversal.
+//! The computation owns pin admission/closure and native publication guards.
 const std = @import("std");
 const q = @import("root.zig");
 const c = q.catalog;
-const s = q.station;
 const f = q.fuze;
 const t = f.Types;
+const w = c.DirectTableProtocol;
+const d = q.protocol.DataLifecycle;
 const Self = @This();
-pub const max_bytes = 126 + t.max_encoding_bytes;
-scope: c.TableCatalogRecords.Scope,
+pub const max_bytes = 174 + t.max_encoding_bytes;
+scope: d.Scope,
+/// The explicitly configured Table service audience, independent of query PID.
 owner: u64,
+branch: u64,
+namespace: u64,
 object: u64,
-metadata: s.TablePages.Reference,
+interpretation: c.storage.TableDeclaration.Stored,
 row_type: t.Type,
 
 pub const Owned = struct {
@@ -26,20 +29,28 @@ pub const Owned = struct {
 pub fn validate(self: Self) !void {
     try self.scope.validate();
     try c.Model.nativeId(self.owner);
-    if (self.object == 0) return error.InvalidQuerySource;
-    try c.TableCatalogRecords.metadataReference(self.metadata);
+    try c.Model.nativeId(self.namespace);
+    try self.interpretation.validate();
+    const object: d.Object = .{ .scope = self.scope, .branch = self.branch, .object = self.object };
+    if (!std.meta.eql(object, self.interpretation.interpretation.object) or self.interpretation.retired) return error.InvalidQuerySource;
     try self.row_type.validate(.{});
     if (self.row_type != .structure or self.row_type.structure.len == 0 or self.row_type.structure.len > f.TableSchema.max_columns) return error.InvalidQuerySource;
 }
-/// Copy the schema admitted by the catalog. The metadata commitment also binds
-/// stable column identities, defaults, keys and the complete Table schema.
-pub fn from(allocator: std.mem.Allocator, configuration: c.TableCatalogRecords.Configuration, definition: c.TableCatalog.Definition) !Owned {
-    try configuration.validate();
-    if (!std.meta.eql(configuration.scope, definition.metadata.scope)) return error.CatalogScopeChanged;
+/// Copy the admitted schema. The interpretation commits physical descriptors,
+/// stable column IDs, keys and catalog properties as well as logical types.
+pub fn from(allocator: std.mem.Allocator, connection: w.Connection, definition: w.Definition) !Owned {
+    try connection.validate();
+    try connection.object(definition.interpretation.interpretation.object);
+    const bytes = try definition.schema.decode(allocator, f.TableSchema.max_bytes);
+    defer allocator.free(bytes);
+    var schema = try f.TableSchema.decode(allocator, bytes);
+    defer schema.deinit();
+    if (!std.mem.eql(u8, &try schema.schema.fingerprint(), &definition.interpretation.schema_fingerprint)) return error.TableSchemaChanged;
+    try q.DirectTableQuery.qualify(schema.schema);
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
-    var descriptor = try (try definition.schema.schema.rowType(&fields)).clone(allocator);
+    var descriptor = try (try schema.schema.rowType(&fields)).clone(allocator);
     errdefer descriptor.deinit();
-    const source: Self = .{ .scope = configuration.scope, .owner = configuration.owner, .object = definition.metadata.object, .metadata = .{ .id = definition.metadata.revision, .spec = try definition.metadata.spec() }, .row_type = descriptor.type };
+    const source: Self = .{ .scope = connection.scope, .owner = connection.audience, .branch = connection.branch, .namespace = definition.namespace, .object = schema.schema.object, .interpretation = definition.interpretation, .row_type = descriptor.type };
     try source.validate();
     return .{ .descriptor = descriptor, .source = source };
 }
@@ -49,14 +60,13 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     const encoded = try self.row_type.encode(&type_bytes);
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
     try writer.writeAll("TQS1");
-    try writer.writeAll(&c.TableMetadata.definition());
-    try c.TableMetadata.scopeWrite(&writer, self.scope);
-    try writer.writeInt(u64, self.owner, .little);
-    try writer.writeInt(u64, self.object, .little);
-    try writer.writeInt(u64, self.metadata.id, .little);
-    try writer.writeInt(u32, self.metadata.spec.format, .little);
-    try writer.writeInt(u32, self.metadata.spec.length, .little);
-    try writer.writeAll(&self.metadata.spec.digest);
+    try writer.writeAll(&q.protocol.Growth.definition_bytes);
+    inline for (.{ "realm", "resource", "catalog" }) |field| try writer.writeInt(u64, @field(self.scope, field), .little);
+    inline for (.{ "owner", "branch", "namespace", "object" }) |field| try writer.writeInt(u64, @field(self, field), .little);
+    try writer.writeInt(u64, self.interpretation.interpretation.revision, .little);
+    try writer.writeAll(&self.interpretation.interpretation.digest);
+    try writer.writeInt(u64, self.interpretation.content.bytes, .little);
+    try writer.writeAll(&self.interpretation.schema_fingerprint);
     try writer.writeInt(u16, @intCast(encoded.len), .little);
     try writer.writeAll(encoded);
     return writer.buffered();
@@ -67,19 +77,27 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
     const source = try decodeInto(arena.allocator(), bytes);
     return .{ .descriptor = .{ .arena = arena, .type = source.row_type }, .source = source };
 }
-/// Embedded declarations share their enclosing request arena. It owns every
-/// decoded name/child and partial allocation, including when decoding fails.
 pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len > max_bytes) return error.SourceDefinitionTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "TQS1")) return error.InvalidSourceEncoding;
-    if (!std.mem.eql(u8, try reader.take(32), &c.TableMetadata.definition())) return error.IncompatibleDefinition;
+    if (!std.mem.eql(u8, try reader.take(32), &q.protocol.Growth.definition_bytes)) return error.IncompatibleDefinition;
     var source: Self = .{
         .scope = .{ .realm = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little), .catalog = try reader.takeInt(u64, .little) },
         .owner = try reader.takeInt(u64, .little),
+        .branch = try reader.takeInt(u64, .little),
+        .namespace = try reader.takeInt(u64, .little),
         .object = try reader.takeInt(u64, .little),
-        .metadata = .{ .id = try reader.takeInt(u64, .little), .spec = .{ .format = try reader.takeInt(u32, .little), .length = try reader.takeInt(u32, .little), .digest = (try reader.takeArray(32)).* } },
+        .interpretation = undefined,
         .row_type = undefined,
+    };
+    const revision = try reader.takeInt(u64, .little);
+    const digest = (try reader.takeArray(32)).*;
+    source.interpretation = .{
+        .interpretation = .{ .object = .{ .scope = source.scope, .branch = source.branch, .object = source.object }, .revision = revision, .digest = digest },
+        .content = .{ .bytes = try reader.takeInt(u64, .little), .sha256 = digest },
+        .schema_fingerprint = (try reader.takeArray(32)).*,
+        .retired = false,
     };
     const type_bytes = try reader.take(try reader.takeInt(u16, .little));
     if (reader.bufferedLen() != 0) return error.InvalidSourceEncoding;
@@ -96,84 +114,45 @@ pub fn fingerprint(self: Self) ![32]u8 {
     digest.update(try self.encode(&buffer));
     return digest.finalResult();
 }
-/// `who` must match the reader's independently authenticated original subject.
-/// A stored query policy or supplied principal number cannot authenticate it.
-/// `current` must be a live authorized reader, never the retained data reader.
-pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
+pub fn requireConnection(self: Self, client: c.DirectTableClient) !void {
     try self.validate();
-    if (current.view.resource != self.scope.resource) return error.SourceChanged;
-    const config = try c.Records.decode(c.TableCatalogRecords.Configuration, 'C', (try current.read(c.Records.key(self.scope.catalog, 'c', 0, 0))) orelse return error.CatalogNotInitialized);
-    if (!std.meta.eql(config.scope, self.scope)) return error.CatalogScopeChanged;
-    if (config.owner != self.owner) return error.CatalogOwnerChanged;
-    const catalog: c.TableCatalog = .{ .configuration = config };
-    _ = try catalog.authorizeObject(current, who, self.object, .read);
-    return catalog;
+    if (!std.meta.eql(client.connection.scope, self.scope) or client.connection.branch != self.branch or client.connection.audience != self.owner) return error.CatalogScopeChanged;
 }
-fn resolve(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64) !c.TableCatalog.Definition {
-    return self.resolveDiagnostic(allocator, data, who, null);
+/// New work requires the exact current interpretation. Retained reads instead
+/// check the original pin, so ALTER/DROP cannot substitute their newer schema.
+pub fn checkDefinition(self: Self, client: c.DirectTableClient) !void {
+    try self.requireConnection(client);
+    _ = try client.require(.{ .namespace = self.namespace, .target = self.interpretation.interpretation, .access = .read });
 }
-/// Current metadata inspection for new work. Retained-page authorization uses
-/// checkCurrent instead, so ALTER does not reinterpret already captured data.
-pub fn checkDefinition(self: Self, allocator: std.mem.Allocator, current: anytype, who: u64) !void {
-    var definition = try self.resolve(allocator, current, who);
-    defer definition.deinit();
-}
-fn resolveDiagnostic(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64, diagnostic: ?*?q.SourceWitness) !c.TableCatalog.Definition {
-    const catalog = try self.checkCurrent(data, who);
-    var mismatch: ?c.TableCatalog.DefinitionMismatch = null;
-    var definition = catalog.readDefinitionDiagnostic(allocator, data, who, self.object, self.metadata, &mismatch) catch |err| {
-        if (diagnostic) |detail| if (mismatch) |value| {
-            detail.* = .{ .reason = .table_metadata, .resource = self.scope.resource, .object = self.object, .expected = value.expected.id, .actual = value.actual.id, .expected_hash = value.expected.spec.digest, .actual_hash = value.actual.spec.digest };
-        };
-        return err;
-    };
-    errdefer definition.deinit();
-    var fields: [f.TableSchema.max_columns]t.Field = undefined;
-    if (!try self.row_type.eql(try definition.schema.schema.rowType(&fields))) return error.TableSchemaChanged;
-    return definition;
+pub fn requireGrant(self: Self, allocator: std.mem.Allocator, grant: c.DirectReadDelegation) !void {
+    try self.validate();
+    try grant.validate(allocator);
+    if (!std.meta.eql(grant.binding.interpretation, self.interpretation.interpretation) or grant.binding.connection.audience != self.owner) return error.SourceChanged;
 }
 pub const Basis = struct {
     declaration: [32]u8,
-    resource: u64,
     schema: [32]u8,
-    revision: u64,
-    head: s.TableHead,
+    retained: c.DirectTableReader.Basis,
     pub fn record(self: Basis) !q.Basis {
-        return .{ .cut = .{ .kind = .table, .resource = self.resource, .revision = self.revision, .head = try q.Basis.tableHead(self.head) }, .contract = self.declaration, .schema = self.schema };
+        return .{ .cut = .{ .kind = .table, .resource = self.retained.snapshot.object.scope.resource, .position = .{ .table = try self.retained.fingerprint() } }, .contract = self.declaration, .schema = self.schema };
     }
     pub fn fingerprint(self: Basis) ![32]u8 {
-        if (self.revision == 0 or self.head.retired) return error.SourceChanged;
         return (try self.record()).fingerprint();
     }
 };
-/// Admission resolves the live object at exactly the cut the host will retain.
-/// The host must publish its request/retention decision atomically afterwards.
-pub fn capture(self: Self, allocator: std.mem.Allocator, data: anytype, current: anytype, who: u64) !Basis {
-    return self.captureDiagnostic(allocator, data, current, who, null);
+pub fn basis(self: Self, retained: c.DirectTableReader.Basis, schema: f.TableSchema.Schema) !Basis {
+    try self.validate();
+    if (!std.meta.eql(retained.interpretation, self.interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.SourceChanged;
+    try q.DirectTableQuery.qualify(schema);
+    var fields: [f.TableSchema.max_columns]t.Field = undefined;
+    if (!try self.row_type.eql(try schema.rowType(&fields))) return error.TableSchemaChanged;
+    return .{ .declaration = try self.fingerprint(), .schema = try self.row_type.fingerprint(), .retained = retained };
 }
-pub fn captureDiagnostic(self: Self, allocator: std.mem.Allocator, data: anytype, current: anytype, who: u64, diagnostic: ?*?q.SourceWitness) !Basis {
-    if (diagnostic) |detail| detail.* = null;
-    // New admissions require the declared live object. Continuations use page,
-    // which deliberately does not reinterpret their retained cut through it.
-    var live = try self.resolveDiagnostic(allocator, current, who, diagnostic);
-    defer live.deinit();
-    var definition = try self.resolveDiagnostic(allocator, data, who, diagnostic);
-    defer definition.deinit();
-    const basis: Basis = .{ .declaration = try self.fingerprint(), .resource = self.scope.resource, .schema = try self.row_type.fingerprint(), .revision = data.view.revision, .head = definition.head };
-    _ = try basis.fingerprint();
-    _ = try self.checkCurrent(current, who);
-    return basis;
-}
-/// Restore the original schema and head from a retained cut. Current rights
-/// remain mandatory; a later ALTER or DROP never substitutes its current head.
-pub fn restore(self: Self, allocator: std.mem.Allocator, data: anytype, current: anytype, who: u64, expected: q.Basis) !Basis {
-    _ = try self.checkCurrent(current, who);
-    var definition = try self.resolve(allocator, data, who);
-    defer definition.deinit();
-    const result: Basis = .{ .declaration = try self.fingerprint(), .resource = self.scope.resource, .schema = try self.row_type.fingerprint(), .revision = data.view.revision, .head = definition.head };
-    if (!std.meta.eql(try result.record(), expected)) return error.SourceChanged;
-    _ = try self.checkCurrent(current, who);
-    return result;
+pub fn capture(self: Self, allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: w.Snapshot) !Basis {
+    try self.requireConnection(client);
+    var reader = c.DirectTableReader.open(allocator, client, snapshot) catch |err| return q.CapturedTablePin.readFailure(client, err);
+    defer reader.deinit();
+    return self.basis(reader.basis, reader.schema.schema);
 }
 pub const Cursor = struct {
     binding: [32]u8,
@@ -181,8 +160,8 @@ pub const Cursor = struct {
     scanned: u64 = 0,
     after: ?f.TableRow.Identity = null,
     done: bool = false,
-    pub fn start(basis: Basis) !Cursor {
-        return .{ .binding = try basis.fingerprint() };
+    pub fn start(captured: Basis) !Cursor {
+        return .{ .binding = try captured.fingerprint() };
     }
 };
 pub const Page = struct {
@@ -196,33 +175,25 @@ pub const Page = struct {
         for (&self.owned) |*row| if (row.*) |*value| value.deinit();
         self.* = undefined;
     }
-    /// Call at the page's final address; rows borrow this page's owned values.
     pub fn engine(self: *Page) f.LogicalStream.Page {
         for (self.owned[0..self.count], self.rows[0..self.count]) |row, *out| out.* = .{ .cells = row.?.row().cells };
         return .{ .binding = self.next.binding, .ordinal = self.ordinal, .end = self.next.done, .rows = self.rows[0..self.count] };
     }
 };
-/// One bounded page, using the original captured head/schema and current rights.
-/// A complete primary-key equality predicate may use the collision-safe index;
-/// Fuze still evaluates the original predicate. Other predicates scan by row ID.
-pub fn page(self: Self, allocator: std.mem.Allocator, basis: Basis, cursor: Cursor, plan: f.LogicalQuery.Plan, data: anytype, current: anytype, who: u64) !Page {
-    _ = try self.checkCurrent(current, who);
-    const binding = try basis.fingerprint();
-    if (data.view.revision != basis.revision or basis.resource != self.scope.resource or !std.mem.eql(u8, &basis.schema, &try self.row_type.fingerprint()) or !std.mem.eql(u8, &basis.declaration, &try self.fingerprint()) or
-        !std.mem.eql(u8, &binding, &cursor.binding) or !std.mem.eql(u8, &binding, &plan.source_basis) or !try self.row_type.eql(plan.schema)) return error.SourceChanged;
+/// Reopen only the durable original pin. The bounded cursor counts consumed
+/// rows, since a byte-limited direct page can contain fewer than eight rows.
+pub fn page(self: Self, allocator: std.mem.Allocator, captured: Basis, cursor: Cursor, plan: f.LogicalQuery.Plan, client: c.DirectTableClient) !Page {
+    try self.requireConnection(client);
+    const binding = try captured.fingerprint();
+    if (!std.mem.eql(u8, &binding, &cursor.binding) or !std.mem.eql(u8, &binding, &plan.source_basis) or !try self.row_type.eql(plan.schema)) return error.SourceChanged;
     if (cursor.done) return error.QueryComplete;
-    if (cursor.scanned > basis.head.rows or (cursor.scanned == 0) != (cursor.after == null) or
-        cursor.scanned != (std.math.mul(u64, cursor.ordinal, f.LogicalArrow.max_rows) catch return error.InvalidQueryCursor)) return error.InvalidQueryCursor;
+    if (cursor.scanned > captured.retained.row_count or (cursor.scanned == 0) != (cursor.after == null)) return error.InvalidQueryCursor;
     try plan.validate();
-    var definition = try self.resolve(allocator, data, who);
-    defer definition.deinit();
-    if (!std.meta.eql(definition.head, basis.head)) return error.SourceChanged;
-    const table: s.TableData = .{ .schema = definition.schema.schema, .index = basis.head.index };
-    var pages: s.TablePages.Reader(@TypeOf(data)) = .{ .pages = .{ .resource = self.scope.resource, .object = self.object }, .source = data };
-    if (comptime @hasDecl(@typeInfo(@TypeOf(data)).pointer.child, "tableIndexCache")) pages.cache = data.tableIndexCache();
-    var result: Page = .{ .basis = basis, .ordinal = cursor.ordinal, .next = cursor };
-    errdefer result.deinit();
-    result.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);
+    var reader = c.DirectTableReader.open(allocator, client, captured.retained.snapshot) catch |err| return q.CapturedTablePin.readFailure(client, err);
+    defer reader.deinit();
+    if (!std.meta.eql(try self.basis(reader.basis, reader.schema.schema), captured)) return error.SourceChanged;
+    // Only a complete conjunction over the declared primary key qualifies.
+    // Fuze still evaluates the original predicate on the returned row.
     var key_storage: [f.TableSchema.max_columns]t.Values.Cell = undefined;
     var single: [1]f.LogicalPredicate.Program.Instruction = undefined;
     const program: ?f.LogicalPredicate.Program = switch (plan.predicate) {
@@ -233,26 +204,38 @@ pub fn page(self: Self, allocator: std.mem.Allocator, basis: Basis, cursor: Curs
         },
         else => null,
     };
-    const key = if (program) |predicate| try (f.TableDml.Plan{ .name = definition.metadata.name.slice(), .schema = definition.schema.schema, .action = .delete, .predicate = predicate }).primaryKeyEquality(&key_storage) else null;
+    const schema = reader.schema.schema;
+    const key = if (program) |predicate| try (f.TableDml.Plan{ .name = "retained", .schema = schema, .action = .delete, .predicate = predicate }).primaryKeyEquality(&key_storage) else null;
     if (key) |values| {
-        if (cursor.ordinal != 0) return error.InvalidQueryCursor;
-        if (try table.findKey(allocator, &pages, values)) |id| {
-            result.owned[0] = (try table.get(allocator, &pages, id)) orelse return error.InvalidTableIndex;
+        if (cursor.ordinal != 0 or cursor.scanned != 0) return error.InvalidQueryCursor;
+        var encoded: [f.Collation.max_sort_key_bytes]u8 = undefined;
+        var result: Page = .{ .basis = captured, .ordinal = 0, .next = cursor };
+        errdefer result.deinit();
+        result.owned[0] = reader.readKey(client, try f.Collation.encodePrimaryKeySortKey(schema, values, false, &encoded)) catch |err| return q.CapturedTablePin.readFailure(client, err);
+        if (result.owned[0]) |row| {
             result.count = 1;
             result.next.scanned = 1;
-            result.next.after = id;
+            result.next.after = row.identity;
         }
+        result.next.ordinal = 1;
         result.next.done = true;
-    } else {
-        result.count = @intCast(try table.page(allocator, &pages, result.next.after, &result.owned));
-        result.next.scanned = try std.math.add(u64, result.next.scanned, result.count);
-        if (result.next.scanned > basis.head.rows) return error.InvalidTableIndex;
-        if (result.count != 0) result.next.after = result.owned[result.count - 1].?.identity;
-        if (result.count < result.owned.len) {
-            if (result.next.scanned != basis.head.rows) return error.InvalidTableIndex;
-            result.next.done = true;
-        }
+        reader.check(client) catch |err| return q.CapturedTablePin.readFailure(client, err);
+        return result;
     }
-    _ = try self.checkCurrent(current, who);
+    reader.consumed = cursor.scanned;
+    reader.after = if (cursor.after) |after| .{ .source = captured.retained.snapshot.handle.content, .after = try after.encode() } else null;
+    var batch = (reader.next(client, .{ .rows = f.LogicalArrow.max_rows }) catch |err| return q.CapturedTablePin.readFailure(client, err)) orelse return error.IncompleteSource;
+    defer batch.deinit();
+    var result: Page = .{ .basis = captured, .ordinal = cursor.ordinal, .next = cursor, .count = @intCast(batch.count) };
+    errdefer result.deinit();
+    for (batch.rows[0..batch.count], 0..) |row, i| {
+        result.owned[i] = row;
+        batch.rows[i] = null;
+        result.next.after = row.?.identity;
+    }
+    result.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);
+    result.next.scanned = reader.consumed;
+    result.next.done = batch.complete;
+    reader.check(client) catch |err| return q.CapturedTablePin.readFailure(client, err);
     return result;
 }

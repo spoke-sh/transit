@@ -26,10 +26,10 @@ static transit_sdk_bytes unhex(const char *text) {
 }
 static void print_hex(transit_sdk_bytes v) { for(size_t i=0;i<v.size;++i)printf("%02x",v.data[i]); }
 static void equal(transit_sdk_bytes a,transit_sdk_bytes b) { assert(a.size==b.size && (!a.size || !memcmp(a.data,b.data,a.size))); }
-typedef struct definition { transit_station_unified_source source; transit_station_unified_projection projections[4]; transit_station_catalog_metadata metadata;transit_station_catalog_schema schema; } definition;
+typedef struct definition { transit_station_unified_source source; transit_station_unified_projection projections[4]; transit_station_catalog_schema schema; } definition;
 static void bind_source(definition *d){
     if(d->source.kind==TRANSIT_UNIFIED_DOCUMENT)d->source.source.document.projections=d->projections;
-    if(d->source.kind==TRANSIT_UNIFIED_TABLE&&!d->source.source.table.metadata){d->source.source.table.metadata=&d->metadata;d->source.source.table.schema=&d->schema;}
+    if(d->source.kind==TRANSIT_UNIFIED_TABLE&&!d->source.source.table.schema)d->source.source.table.schema=&d->schema;
 }
 static definition source(transit_sdk_resource resource,int kind,bool golden) {
     definition d={0}; d.source.resource=resource; d.source.kind=(transit_station_unified_source_kind)kind;
@@ -37,10 +37,10 @@ static definition source(transit_sdk_resource resource,int kind,bool golden) {
     else if(kind==1 && golden) {
         static const transit_logical_type_view id={.kind=TRANSIT_LOGICAL_INT64},label={.kind=TRANSIT_LOGICAL_UTF8};
         static const transit_station_catalog_column columns[]={{1,"id",&id,false,NULL,0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE},{2,"label",&label,true,NULL,0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE}};
-        d.source.resource=(transit_sdk_resource){1,7};d.source.source.table.owner=(transit_sdk_process){1,3};
-        d.metadata.scope=(transit_station_catalog_scope){{1,7},9};d.metadata.namespace_id=1;d.metadata.object=9;d.metadata.revision=1;strcpy(d.metadata.name,"items");memset(d.metadata.schema_fingerprint,1,32);d.metadata.principal=17;d.metadata.operation=1;d.metadata.admitted_input=1;d.metadata.commitment.bytes=200;memset(d.metadata.commitment.digest,1,32);
+        d.source.resource=(transit_sdk_resource){1,7};d.source.source.table.scope=(transit_station_catalog_scope){{1,7},9};d.source.source.table.audience=3;d.source.source.table.branch=1;d.source.source.table.namespace_id=1;
+        d.source.source.table.interpretation.revision=1;d.source.source.table.interpretation.byte_count=200;memset(d.source.source.table.interpretation.digest,1,32);memset(d.source.source.table.interpretation.schema_digest,2,32);
         d.schema=(transit_station_catalog_schema){9,1,3,columns,2,NULL,0};
-    } else if(kind==1) { d.source.source.table.owner=(transit_sdk_process){resource.realm,3}; }
+    } else if(kind==1) { /* Supplied by direct lookup before use. */ }
     else {
         d.source.source.document.reference=(transit_station_document_reference){resource,golden?UINT64_MAX:17,golden?3:1,1,golden?42:13};
         static const char *title[]={"title"},*body[]={"body"},*items[]={"items"},*optional[]={"optional"};
@@ -158,7 +158,7 @@ static void codecs(const char *root) {
     transit_logical_type_view u128={.kind=TRANSIT_LOGICAL_UINT128};transit_station_catalog_column wide_columns[128]={{0}};char wide_names[128][24],aliases[128][24];uint8_t projection[128];
     transit_station_unified_plan plan={0};plan.projection=projection;plan.projection_count=128;plan.predicate=TRANSIT_UNIFIED_COMPARE;plan.column=127;plan.value.kind=TRANSIT_ATOM_UNSIGNED;plan.value.as.unsigned_value=(transit_logical_u128){UINT64_MAX,UINT64_MAX};
     for(size_t i=0;i<128;++i){snprintf(wide_names[i],24,"列 %zu",i);snprintf(aliases[i],24,"結果 %zu",i);wide_columns[i]=(transit_station_catalog_column){i+1,wide_names[i],&u128,true,NULL,0,TRANSIT_CATALOG_PLAIN,TRANSIT_CATALOG_NONE};projection[i]=(uint8_t)i;plan.output_names[i]=aliases[i];}
-    wide.schema.columns=wide_columns;wide.schema.column_count=128;wide.schema.next_column=129;transit_station_unified_bundle *wide_bundle=NULL;checked(transit_station_unified_prepare_bundle(&wide.source,&plan,(transit_station_unified_budgets){1,1,65536},NULL,&wide_bundle));transit_sdk_bytes wide_bytes={0};checked(transit_station_unified_bundle_bytes(wide_bundle,&wide_bytes));assert(wide_bytes.size&&wide_bytes.size<=25255);transit_station_unified_bundle_destroy(wide_bundle);
+    wide.schema.columns=wide_columns;wide.schema.column_count=128;wide.schema.next_column=129;transit_station_unified_bundle *wide_bundle=NULL;checked(transit_station_unified_prepare_bundle(&wide.source,&plan,(transit_station_unified_budgets){1,1,65536},NULL,&wide_bundle));transit_sdk_bytes wide_bytes={0};checked(transit_station_unified_bundle_bytes(wide_bundle,&wide_bytes));assert(wide_bytes.size&&wide_bytes.size<=25614);transit_station_unified_bundle_destroy(wide_bundle);
     transit_logical_type_view nested_type={.kind=TRANSIT_LOGICAL_LIST};nested_type.as.list=(transit_logical_element){&u128,true};transit_station_unified_column nested={"value",&nested_type,false,false};
     ipc=fixture(root,"nested.ipc");rows=NULL;checked(transit_station_unified_decode_arrow(&nested,1,ipc,1,NULL,&rows));memset((void*)ipc.data,0,ipc.size);free((void*)ipc.data);transit_logical_cell_view nested_cell={0};checked(transit_station_unified_rows_cell(rows,0,0,&nested_cell));assert(nested_cell.state==TRANSIT_LOGICAL_VALUE&&nested_cell.as.value.kind==TRANSIT_VALUE_LIST&&nested_cell.as.value.as.cells.size==2);const transit_logical_cell_view *children=nested_cell.as.value.as.cells.data;assert(children[1].state==TRANSIT_LOGICAL_NULL);const transit_logical_atom atom=children[0].as.value.as.atom;assert(atom.kind==TRANSIT_ATOM_UNSIGNED&&atom.as.unsigned_value.low==UINT64_MAX&&atom.as.unsigned_value.high==UINT64_MAX);transit_station_unified_rows_destroy(rows);
     puts("C installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned rows, 128 columns, uint128, nested values and malformed rejection passed");
@@ -168,12 +168,14 @@ static void serve(char **args) {
     transit_station_unified_connection connection={{realm,strtoull(args[8],NULL,10)},{realm,strtoull(args[10],NULL,10)},{realm,strtoull(args[9],NULL,10)},{realm,strtoull(args[11],NULL,10)},false,0};
     const int kind=!strcmp(args[4],"kv")?0:!strcmp(args[4],"table")?1:2;
     transit_sdk_config config=transit_sdk_growing_config(args[2]);config.timeout_ms=10000;transit_sdk_credential credential={realm,principal,args[3]};
-    definition d=source(connection.resource,kind,false);transit_station_catalog_definition *catalog_definition=NULL;
-    if(kind==1){transit_station_catalog_client *catalog=NULL;checked(transit_station_catalog_open(&config,&credential,(transit_station_catalog_connection){connection.source,{connection.resource,1},false,0,1},NULL,&catalog));checked(transit_station_catalog_lookup(catalog,"items",&catalog_definition));assert(catalog_definition);const transit_station_catalog_definition_view *view=NULL;checked(transit_station_catalog_definition_get(catalog_definition,&view));d.source.source.table.owner=connection.source;d.source.source.table.metadata=&view->metadata;d.source.source.table.schema=&view->schema;checked(transit_station_catalog_close(catalog));transit_station_catalog_client_destroy(catalog);}
+    transit_station_unified_tables tables={0};transit_station_unified_capture capture={0};
+    if(kind==1){tables=(transit_station_unified_tables){args[13],{{realm,strtoull(args[14],NULL,10)},strtoull(args[15],NULL,10)},strtoull(args[16],NULL,10),strtoull(args[17],NULL,10)};capture=(transit_station_unified_capture){strtoull(args[18],NULL,10),strtoull(args[19],NULL,10),strtoull(args[20],NULL,10),strtoull(args[21],NULL,10)};}
+    transit_station_unified_client *client=NULL;checked(transit_station_unified_open(&config,&credential,connection,kind==1?&tables:NULL,&client));
+    definition d=source(connection.resource,kind,false);transit_station_unified_table_definition *catalog_definition=NULL;
+    if(kind==1){checked(transit_station_unified_lookup_table(client,1,"items",&catalog_definition));assert(catalog_definition);const transit_station_unified_table_definition_view *view=NULL;checked(transit_station_unified_table_definition_get(catalog_definition,&view));d.source=view->source;}
     transit_station_unified_bundle *b=bundle(&d,false,true,!strcmp(args[12],"compound"));transit_sdk_bytes data={0};
-    transit_station_unified_client *client=NULL;checked(transit_station_unified_open(&config,&credential,connection,&client));
-    transit_station_unified_bundle *sealed=NULL;checked(transit_station_unified_authorize_bundle(client,b,&sealed));checked(transit_station_unified_bundle_bytes(sealed,&data));transit_sdk_bytes expected=file_bytes(args[5]);equal(data,expected);free((void*)expected.data);transit_station_unified_bundle_destroy(sealed);transit_station_unified_bundle_destroy(b);
-    transit_station_unified_description description={0}; checked(transit_station_unified_describe(client,&d.source,&description)); assert(description.bundle_bytes==25255&&description.batch_rows==8);
+    transit_station_unified_bundle *sealed=NULL;checked(transit_station_unified_authorize_bundle(client,b,kind==1?&capture:NULL,&sealed));checked(transit_station_unified_bundle_bytes(sealed,&data));transit_sdk_bytes expected=file_bytes(args[5]);equal(data,expected);free((void*)expected.data);transit_station_unified_bundle_destroy(sealed);transit_station_unified_bundle_destroy(b);
+    transit_station_unified_description description={0}; checked(transit_station_unified_describe(client,&d.source,&description)); assert(description.bundle_bytes==25614&&description.batch_rows==8);
     puts("{\"ready\":true}"); char line[140000]; transit_station_unified_page *saved=NULL;
     while(fgets(line,sizeof(line),stdin)) {
         char *command=strtok(line," \n"),*arg=strtok(NULL," \n"),*token=strtok(NULL," \n"); assert(command);
@@ -201,7 +203,7 @@ static void serve(char **args) {
             transit_sdk_bytes sql=unhex(token); ((char *)sql.data)[sql.size]='\0';
             transit_station_unified_budgets budgets={0}; budgets.pages=strtoull(strtok(NULL," \n"),NULL,10);budgets.segments=strtoull(strtok(NULL," \n"),NULL,10);budgets.result_bytes=strtoull(strtok(NULL," \n"),NULL,10);
             transit_station_unified_inspection *out=NULL;error=transit_station_unified_inspect_sql(client,&d.source,arg,(const char*)sql.data,budgets,&out);free((void*)sql.data);
-            if(!error.kind){const transit_station_unified_inspection_info *view=NULL;checked(transit_station_unified_inspection_get(out,&view));assert(view->resource.resource==connection.resource.resource&&view->source_kind==(transit_station_unified_source_kind)kind);printf("{\"status\":0,\"value\":");print_inspection(view);puts("}");}else assert(!out);
+            if(!error.kind){const transit_station_unified_inspection_info *view=NULL;checked(transit_station_unified_inspection_get(out,&view));assert(view->resource.resource==d.source.resource.resource&&view->source_kind==(transit_station_unified_source_kind)kind);printf("{\"status\":0,\"value\":");print_inspection(view);puts("}");}else assert(!out);
             transit_station_unified_inspection_destroy(out);
         } else if(!strcmp(command,"next")) {
             transit_sdk_bytes input=unhex(token); transit_station_unified_bundle *v=NULL; checked(transit_station_unified_bundle_import(input,&v)); free((void *)input.data); transit_station_unified_prepared *out=NULL;
@@ -221,7 +223,7 @@ static void serve(char **args) {
             assert(!strcmp(command,"page")); transit_station_unified_cursor *cursor=NULL; transit_sdk_bytes input=unhex(token); if(input.size)checked(transit_station_unified_cursor_import(input,&cursor)); free((void *)input.data);
             transit_station_unified_page *out=NULL; error=transit_station_unified_page_read(client,strtoull(arg,NULL,10),cursor,&out); transit_station_unified_cursor_destroy(cursor);
             if(!error.kind) {
-                transit_station_unified_page_info info={0}; checked(transit_station_unified_page_get(out,&info)); assert(info.manifest.source_kind==(transit_station_unified_source_kind)kind && info.manifest.resource.resource==connection.resource.resource);
+                transit_station_unified_page_info info={0}; checked(transit_station_unified_page_get(out,&info)); assert(info.manifest.source_kind==(transit_station_unified_source_kind)kind && info.manifest.resource.resource==d.source.resource.resource);
                 transit_station_unified_rows *rows=NULL; checked(transit_station_unified_decode_arrow(info.columns,info.column_count,info.ipc,info.rows,NULL,&rows)); transit_station_unified_rows_destroy(rows);
                 printf("{\"status\":0,\"value\":{\"page\":{\"ordinal\":\"%llu\",\"ipc\":\"",(unsigned long long)info.ordinal); print_hex(info.ipc); printf("\",\"manifest\":{\"segments\":\"%llu\",\"selected\":\"%llu\",\"value_count\":\"%llu\"},\"next_hex\":",(unsigned long long)info.manifest.segments,(unsigned long long)info.manifest.selected,(unsigned long long)info.manifest.value_count);
                 checked(transit_station_unified_page_next(out,&cursor)); if(cursor) { checked(transit_station_unified_cursor_bytes(cursor,&data)); putchar('"'); print_hex(data); putchar('"'); }else printf("null"); puts("}}}"); transit_station_unified_cursor_destroy(cursor); transit_station_unified_page_destroy(saved); saved=out;
@@ -232,7 +234,7 @@ static void serve(char **args) {
     }
     checked(transit_station_unified_close(client)); assert(transit_station_unified_describe(client,&d.source,&description).kind==TRANSIT_SDK_CLOSED); transit_station_unified_client_destroy(client);
     if(saved) { transit_station_unified_page_info info={0}; checked(transit_station_unified_page_get(saved,&info)); transit_station_unified_rows *rows=NULL; checked(transit_station_unified_decode_arrow(info.columns,info.column_count,info.ipc,info.rows,NULL,&rows)); transit_station_unified_page_destroy(saved); if(info.rows) { transit_logical_cell_view cell={0}; checked(transit_station_unified_rows_cell(rows,0,0,&cell)); assert(cell.state==TRANSIT_UNIFIED_VALUE); } transit_station_unified_rows_destroy(rows); }
-    transit_station_catalog_definition_destroy(catalog_definition);
+    transit_station_unified_table_definition_destroy(catalog_definition);
     puts("{\"closed\":true}");
 }
 int main(int argc,char **argv) { setvbuf(stdout,NULL,_IOLBF,0); assert(argc>=3); if(!strcmp(argv[1],"codecs"))codecs(argv[2]);else { assert(argc==13); serve(argv); } return 0; }

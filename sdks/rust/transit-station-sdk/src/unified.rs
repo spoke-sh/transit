@@ -1,6 +1,6 @@
 //! Typed v1 callers. Shared Zig owns source validation, admission and verified pages.
 use crate::bridge::{QueryNative, counter, digest, field, signed, unified_codec, wide};
-use crate::catalog::{Metadata, Schema};
+use crate::catalog::{Schema, Scope};
 use crate::logical::Field;
 pub use crate::logical::{
     Alternative, AlternativeValue, Atom as Scalar, Cell, CellValue, Descriptor as Type,
@@ -164,6 +164,112 @@ fn path(names: &[String]) -> Result<Value> {
     }
     Ok(json!(names))
 }
+#[derive(Clone, Debug)]
+pub struct TableInterpretation {
+    pub revision: u64,
+    pub digest: [u8; 32],
+    pub byte_count: u64,
+    pub schema_digest: [u8; 32],
+}
+impl TableInterpretation {
+    fn wire(&self) -> Result<Value> {
+        if self.revision == 0 || self.byte_count == 0 {
+            return Err(invalid());
+        }
+        Ok(
+            json!({"revision":self.revision.to_string(),"digest":self.digest,"bytes":self.byte_count.to_string(),"schema":self.schema_digest}),
+        )
+    }
+}
+#[derive(Clone, Debug)]
+pub struct Tables {
+    pub url: String,
+    pub scope: Scope,
+    pub branch: u64,
+    pub audience: u64,
+}
+impl Tables {
+    pub(crate) fn wire(&self, principal: u64, connection: &Connection) -> Result<Value> {
+        if self.url.is_empty()
+            || self.url.len() > 2048
+            || self.branch == 0
+            || self.scope.resource().realm() != connection.source.realm()
+        {
+            return Err(invalid());
+        }
+        number(&json!(self.audience), "Table audience", false)?;
+        Ok(
+            json!({"url":self.url,"connection":{"scope":self.scope.wire(),"branch":self.branch.to_string(),"audience":self.audience,"principal":principal,"role":connection.role}}),
+        )
+    }
+}
+#[derive(Clone, Copy, Debug)]
+pub struct Capture {
+    pub executor: u64,
+    pub operation: u64,
+    pub partition: u64,
+    pub next_lsn: u64,
+}
+impl Capture {
+    fn wire(self) -> Result<Value> {
+        number(&json!(self.executor), "executor principal", false)?;
+        if self.operation == 0 || self.partition == 0 {
+            return Err(invalid());
+        }
+        Ok(
+            json!({"executor":self.executor,"operation":self.operation.to_string(),"expected":{"partition":self.partition.to_string(),"next_lsn":self.next_lsn.to_string()}}),
+        )
+    }
+}
+#[derive(Clone)]
+pub struct TableDefinition {
+    pub source: Source,
+    pub partition: u64,
+    pub next_lsn: u64,
+}
+impl TableDefinition {
+    pub fn capture(&self, executor: u64, operation: u64) -> Result<Capture> {
+        let value = Capture {
+            executor,
+            operation,
+            partition: self.partition,
+            next_lsn: self.next_lsn,
+        };
+        value.wire()?;
+        Ok(value)
+    }
+    fn parse(v: &Value) -> Result<Self> {
+        let declaration = field(v, "source")?;
+        let direct = field(field(declaration, "source")?, "table")?;
+        let interpretation = field(direct, "interpretation")?;
+        let source = Source::Table {
+            scope: Scope::parse(field(direct, "scope")?)?,
+            audience: number(field(direct, "owner")?, "Table audience", false)?,
+            branch: wide(field(direct, "branch")?)?,
+            namespace: number(field(direct, "namespace")?, "namespace", false)?,
+            interpretation: TableInterpretation {
+                revision: wide(field(interpretation, "revision")?)?,
+                digest: digest(field(interpretation, "digest")?)?,
+                byte_count: wide(field(interpretation, "bytes")?)?,
+                schema_digest: digest(field(interpretation, "schema")?)?,
+            },
+            schema: Schema::parse(field(v, "schema")?)?,
+        };
+        if source.wire()? != *declaration {
+            return Err(malformed());
+        }
+        let position = field(v, "expected")?;
+        let result = Self {
+            source,
+            partition: wide(field(position, "partition")?)?,
+            next_lsn: wide(field(position, "next_lsn")?)?,
+        };
+        if result.partition == 0 {
+            return Err(malformed());
+        }
+        Ok(result)
+    }
+}
 #[derive(Clone)]
 pub enum Source {
     KV {
@@ -173,8 +279,11 @@ pub enum Source {
         value: Decoder,
     },
     Table {
-        owner: ProcessRef,
-        metadata: Metadata,
+        scope: Scope,
+        audience: u64,
+        branch: u64,
+        namespace: u64,
+        interpretation: TableInterpretation,
         schema: Schema,
     },
     Document {
@@ -187,7 +296,7 @@ impl Source {
     pub fn resource(&self) -> ResourceRef {
         match self {
             Self::KV { resource, .. } => *resource,
-            Self::Table { metadata, .. } => metadata.scope.resource(),
+            Self::Table { scope, .. } => scope.resource(),
             Self::Document { reference, .. } => reference.resource(),
         }
     }
@@ -197,15 +306,16 @@ impl Source {
                 prefix, key, value, ..
             } => json!({"kv":{"prefix":hex(prefix,32)?,"key":key.wire(),"value":value.wire()}}),
             Self::Table {
-                owner,
-                metadata,
+                scope,
+                audience,
+                branch,
+                namespace,
+                interpretation,
                 schema,
             } => {
-                if owner.realm() != metadata.scope.resource().realm()
-                    || metadata.object == 0
-                    || metadata.revision == 0
-                    || metadata.object != schema.object
-                    || !(1..=128).contains(&schema.columns.len())
+                number(&json!(audience), "Table audience", false)?;
+                number(&json!(namespace), "schema namespace", false)?;
+                if *branch == 0 || schema.object == 0 || !(1..=128).contains(&schema.columns.len())
                 {
                     return Err(invalid());
                 }
@@ -221,8 +331,8 @@ impl Source {
                         })
                         .collect(),
                 );
-                json!({"table":{"scope":metadata.scope.wire(),"owner":owner.pid(),"object":metadata.object.to_string(),
-                    "metadata":{"id":metadata.revision.to_string(),"spec":metadata.commitment.wire()?},"row_type":row_type.wire()?}})
+                json!({"table":{"scope":scope.wire(),"owner":audience,"branch":branch.to_string(),"namespace":namespace,"object":schema.object.to_string(),
+                    "interpretation":interpretation.wire()?,"row_type":row_type.wire()?}})
             }
             Self::Document {
                 reference: r,
@@ -385,7 +495,7 @@ impl Budgets {
 pub struct Bundle(Vec<u8>);
 impl Bundle {
     pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
-        if data.len() > 25255 {
+        if data.len() > 25614 {
             return Err(invalid());
         }
         Ok(Self(data))
@@ -405,7 +515,7 @@ impl Bundle {
         )?;
         Self::from_bytes(unhex(
             string(field(field(&v, "prepared")?, "bytes")?, "query-bundle")?,
-            25255,
+            25614,
         )?)
     }
 }
@@ -828,17 +938,26 @@ pub enum Finished {
     Limit,
 }
 #[derive(Clone, Debug)]
+pub enum Retention {
+    Native(ReadVersion),
+    Table(ProcessRef),
+}
+#[derive(Clone, Debug)]
+pub enum Cut {
+    Native(u64),
+    Table([u8; 32]),
+}
+#[derive(Clone, Debug)]
 pub struct Manifest {
     pub job: u64,
-    pub source: ReadVersion,
+    pub source: Retention,
     pub requester: ProcessRef,
     pub correlation: u64,
     pub policy_revision: u64,
     pub request: Vec<u8>,
     pub source_kind: SourceKind,
     pub resource: ResourceRef,
-    pub revision: u64,
-    pub source_head: [u8; 32],
+    pub cut: Cut,
     pub source_digest: [u8; 32],
     pub schema_digest: [u8; 32],
     pub plan_digest: [u8; 32],
@@ -887,17 +1006,39 @@ impl Page {
         let m = field(v, "manifest")?;
         let basis = field(m, "basis")?;
         let cut = field(basis, "cut")?;
+        let source_kind = SourceKind::parse(field(cut, "kind")?)?;
+        let (retention_tag, retained) = tag(field(m, "source")?)?;
+        let (position_tag, position) = tag(field(cut, "position")?)?;
+        let (source, captured) = if matches!(source_kind, SourceKind::Table) {
+            if retention_tag != "table" || position_tag != "table" {
+                return Err(malformed());
+            }
+            (
+                Retention::Table(ProcessRef::new(
+                    realm,
+                    number(field(retained, "worker")?, "worker", false)?,
+                )?),
+                Cut::Table(digest(position)?),
+            )
+        } else {
+            if retention_tag != "native" || position_tag != "native_revision" {
+                return Err(malformed());
+            }
+            (
+                Retention::Native(read_version(retained)?),
+                Cut::Native(number(position, "native revision", true)?),
+            )
+        };
         let manifest = Manifest {
             job: number(field(m, "job")?, "job", false)?,
-            source: read_version(field(m, "source")?)?,
+            source,
             requester: ProcessRef::new(realm, number(field(m, "requester")?, "requester", false)?)?,
             correlation: wide(field(m, "correlation")?)?,
             policy_revision: wide(field(m, "policy_revision")?)?,
             request: unhex(string(field(m, "request")?, "request")?, 72)?,
-            source_kind: SourceKind::parse(field(cut, "kind")?)?,
+            source_kind,
             resource: ResourceRef::new(realm, number(field(cut, "resource")?, "resource", false)?)?,
-            revision: number(field(cut, "revision")?, "revision", true)?,
-            source_head: digest(field(cut, "head")?)?,
+            cut: captured,
             source_digest: digest(field(basis, "contract")?)?,
             schema_digest: digest(field(basis, "schema")?)?,
             plan_digest: digest(field(m, "plan")?)?,
@@ -954,13 +1095,14 @@ impl Client {
         config: ClientConfig,
         credential: Credential,
         connection: Connection,
+        tables: Option<Tables>,
     ) -> Result<Self> {
         if credential.realm() != connection.source.realm() {
             return Err(invalid());
         }
         let saved = connection.clone();
         let worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
-            QueryNative::open(&config, &credential, &saved)
+            QueryNative::open(&config, &credential, &saved, tables.as_ref())
         })?;
         Ok(Self { connection, worker })
     }
@@ -970,8 +1112,25 @@ impl Client {
     fn call(&mut self, action: Value) -> Result<Value> {
         self.worker.call(move |native| native.call(action))
     }
+    pub fn lookup_table(
+        &mut self,
+        namespace: u64,
+        table_name: &str,
+    ) -> Result<Option<TableDefinition>> {
+        number(&json!(namespace), "namespace", false)?;
+        let value = self.call(json!({"table":{"namespace":namespace,"name":name(table_name)?}}))?;
+        let found = field(&value, "table")?;
+        if found.is_null() {
+            Ok(None)
+        } else {
+            Ok(Some(TableDefinition::parse(found)?))
+        }
+    }
     pub fn describe(&mut self, source: &Source) -> Result<Description> {
-        if source.resource() != self.connection.resource {
+        if source.resource().realm() != self.connection.resource.realm()
+            || (!matches!(source, Source::Table { .. })
+                && source.resource() != self.connection.resource)
+        {
             return Err(invalid());
         }
         let response = self.call(json!({"describe":source.wire()?}))?;
@@ -998,7 +1157,9 @@ impl Client {
         sql: &str,
         budgets: Budgets,
     ) -> Result<Inspection> {
-        if source.resource() != self.connection.resource
+        if (source.resource().realm() != self.connection.resource.realm()
+            || (!matches!(source, Source::Table { .. })
+                && source.resource() != self.connection.resource))
             || name.len() > 255
             || name.is_empty()
             || name.contains('\0')
@@ -1007,7 +1168,7 @@ impl Client {
             return Err(invalid());
         }
         let response = self.call(json!({"inspect":{"scope":{"source":source.wire()?,"name":name,"limits":budgets.wire()?},"sql":sql}}))?;
-        Inspection::parse(field(&response, "inspection")?, self.connection.resource)
+        Inspection::parse(field(&response, "inspection")?, source.resource())
     }
     /// Compile a new owned bundle under current source permission. An uncertain
     /// upload must retain its original bundle and commands instead of rebinding.
@@ -1019,7 +1180,9 @@ impl Client {
         budgets: Budgets,
         parameters: Option<&[Scalar]>,
     ) -> Result<Bundle> {
-        if source.resource() != self.connection.resource
+        if (source.resource().realm() != self.connection.resource.realm()
+            || (!matches!(source, Source::Table { .. })
+                && source.resource() != self.connection.resource))
             || name.len() > 255
             || name.is_empty()
             || name.contains('\0')
@@ -1040,24 +1203,35 @@ impl Client {
                 field(field(&response, "compiled")?, "bundle")?,
                 "query-bundle",
             )?,
-            25255,
+            25614,
         )?)
     }
     /// Seal newly constructed work once, before persisting its bytes or fingerprint.
     /// Already authorized bundles reject; recover their original bytes unchanged.
-    pub fn authorize_bundle(&mut self, bundle: &Bundle) -> Result<Bundle> {
-        let value = self.call(json!({"authorize":hex(bundle.data(),25255)?}))?;
+    pub fn authorize_bundle(
+        &mut self,
+        bundle: &Bundle,
+        capture: Option<Capture>,
+    ) -> Result<Bundle> {
+        let value = self.call(json!({"authorize":{"bundle":hex(bundle.data(),25614)?,"capture":capture.map(Capture::wire).transpose()?}}))?;
         Bundle::from_bytes(unhex(
             string(field(&value, "authorized")?, "authorized")?,
-            25255,
+            25614,
         )?)
+    }
+    pub fn prepare_cleanup(&mut self, namespace: u64, bundle: &Bundle) -> Result<Prepared> {
+        if namespace == 0 {
+            return Err(invalid());
+        }
+        let value = self.call(json!({"cleanup":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25614)?}}))?;
+        Prepared::from_data(string(field(&value, "prepared")?, "cleanup")?.to_owned())
     }
     pub fn prepare_next(&mut self, namespace: u64, bundle: &Bundle) -> Result<Option<Prepared>> {
         if namespace == 0 {
             return Err(invalid());
         }
         let v = self.call(
-            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25255)?}}),
+            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25614)?}}),
         )?;
         let prepared = field(&v, "prepared")?;
         if prepared.is_null() {

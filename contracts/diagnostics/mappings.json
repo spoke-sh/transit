@@ -1602,6 +1602,14 @@
         "WriteFailed": {
           "code": "query.transport_unavailable",
           "category": "unavailable"
+        },
+        "QueryTableSnapshotRequired": {
+          "code": "query.table_snapshot_required",
+          "category": "binding"
+        },
+        "QueryCaptureRequired": {
+          "code": "query.capture_required",
+          "category": "binding"
         }
       },
       "exceptions": [
@@ -1656,6 +1664,10 @@
         {
           "source": "packages/zig/transit-query/src/UnifiedResult.zig",
           "name": "final result coverage corruption is distinct from a pending result"
+        },
+        {
+          "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+          "name": "direct Table preparation failures do not settle a dispatched query"
         }
       ]
     },
@@ -3329,6 +3341,14 @@
         "RequestResourceMissing": {
           "code": "query.request_resource_missing",
           "category": "lifecycle"
+        },
+        "QueryTableSnapshotRequired": {
+          "code": "query.table_snapshot_required",
+          "category": "binding"
+        },
+        "QueryCaptureRequired": {
+          "code": "query.capture_required",
+          "category": "binding"
         }
       },
       "exceptions": [],

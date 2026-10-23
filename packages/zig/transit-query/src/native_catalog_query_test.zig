@@ -290,7 +290,7 @@ test "Table admission rejects unsigned, altered, stale and misrouted caller proo
     _ = try admit(&store, &requests, original, 8);
 }
 
-test "logical checkpoints retain the maximum native key within one value and require their original bundle" {
+test "direct native contracts retain the maximum checkpoint key and require the original bundle" {
     var arena: std.heap.ArenaAllocator = .init(e.allocator);
     defer arena.deinit();
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = try q.protocol.Value.init(""), .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
@@ -304,7 +304,7 @@ test "logical checkpoints retain the maximum native key within one value and req
     progress.rows = 8;
     const checkpoint: r.Checkpoint = .{ .cut = basis.cut, .progress = progress, .bytes = 8192, .chain = @splat(42), .cursor = .{ .ordinal = 1, .after = try q.protocol.Value.init(&@as([q.protocol.Growth.key_bytes]u8, @splat(255))) } };
     const bytes = try checkpoint.encode();
-    try e.expectEqual(@as(u16, 254), bytes.len);
+    try e.expectEqual(@as(u16, 222), bytes.len);
     const decoded = try r.Checkpoint.decode(bytes);
     try e.expectEqualDeep(checkpoint, decoded);
     _ = try decoded.bound(bundle);
@@ -312,17 +312,17 @@ test "logical checkpoints retain the maximum native key within one value and req
         if (r.Checkpoint.decode(try q.protocol.Value.init(bytes.slice()[0..length]))) |_| return error.AcceptedTruncatedCheckpoint else |_| {}
     }
     var changed = decoded;
-    changed.cut.revision += 1;
+    changed.cut.position.native_revision += 1;
     try e.expectError(error.SourceChanged, changed.bound(bundle));
     changed = decoded;
     changed.progress.pages = 2;
     try e.expectError(error.InvalidQueryRecord, changed.encode());
     var corrupt = bytes;
-    corrupt.data[21] = 1; // Non-Table cuts cannot carry a Table head commitment.
+    corrupt.data[20] = 255; // Native revisions retain the native counter bound.
     try e.expectError(error.SourceChanged, r.Checkpoint.decode(corrupt));
 }
 
-test "neutral and prepared native bundles preserve exact scalar descriptors and independently owned values" {
+test "direct native contracts preserve exact prepared scalar descriptors and independently owned values" {
     const Case = struct { type: f.Types.Type, atom: f.Types.Values.Atom };
     const cases = [_]Case{
         .{ .type = .int8, .atom = .{ .signed = -128 } },
@@ -350,7 +350,13 @@ test "neutral and prepared native bundles preserve exact scalar descriptors and 
     for (cases) |case| {
         var arena: std.heap.ArenaAllocator = .init(e.allocator);
         defer arena.deinit();
-        const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = .{ .scope = config.scope, .owner = 3, .object = std.math.maxInt(u64), .metadata = .{ .id = std.math.maxInt(u64), .spec = .{ .format = c.TableMetadata.format, .length = 100, .digest = @splat(7) } }, .row_type = .{ .structure = &.{.{ .name = "value", .type = case.type, .nullable = true }} } } } };
+        const schema: f.TableSchema.Schema = .{ .object = std.math.maxInt(u64), .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "value", .type = case.type, .nullable = true }} };
+        var declaration = try c.storage.TableDeclaration.prepare(e.allocator, .{ .object = .{ .scope = config.scope, .branch = 1, .object = schema.object }, .revision = 1, .schema = schema, .properties = "" });
+        defer declaration.deinit();
+        var schema_bytes: [f.TableSchema.max_bytes]u8 = undefined;
+        var owned = try q.TableSource.from(e.allocator, .{ .scope = config.scope, .branch = 1, .audience = 3, .principal = 17, .role = null }, .{ .interpretation = try declaration.stored(), .namespace = 1, .authorization = 23, .name = try .init("items"), .position = .{ .partition = 1, .next_lsn = 2 }, .changed_lsn = 2, .row_count = 0, .schema = try c.DirectTableProtocol.Binary.encode(arena.allocator(), try schema.encode(&schema_bytes)) });
+        defer owned.deinit();
+        const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = owned.source } };
         var template = try q.SqlTemplate.init(e.allocator, source, "items", "SELECT value FROM items WHERE value = $1 LIMIT $2");
         var bound = try template.bind(e.allocator, source, &.{ case.atom, .{ .unsigned = 1 } }, limits);
         defer bound.deinit();

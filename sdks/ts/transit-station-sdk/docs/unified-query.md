@@ -12,7 +12,7 @@ truth and eager errors. EXPLAIN exposes the same bounded structure through
 `InspectedPredicate` without literals; preparation grants no source authority.
 
 Import `unified` from `@transit/station` for v1 KV, Table and accepted Document
-queries. Tables use immutable catalog metadata and general logical schemas. Public source, plan and
+queries. Tables use exact direct interpretations and general logical schemas. Public source, plan and
 result types are separate from the generated wire schemas; every port request
 and response is runtime-validated. Shared Zig owns protocol and query semantics.
 
@@ -98,7 +98,7 @@ ordered conflict IDs, bigint values, binary, Unicode and negative zero. For the
 pinned optional Apache Arrow 21.2.0 integration, `unifiedToArrow(page)` from
 `@transit/station/arrow` returns the nested schema without flattening states into
 nullable values. Byte getters copy owned data; native temporary buffers cannot
-escape. Bundles contain at most 25255 bytes. Table results admit 128 columns and
+escape. Bundles contain at most 25614 bytes. Table results admit 128 columns and
 segments contain at most eight rows and 64 KiB. Comparison literals retain their
 4 KiB byte bound; descriptors and recursive cells retain the shared logical
 budgets. KV has two columns; Document projections admit eight scalar decoders.
@@ -109,37 +109,54 @@ scalar values and typed structures/lists/arrays/maps/unions for nested values.
 Signed, unsigned, decimal and temporal atoms preserve exact `bigint` values;
 descriptors supply integer width, decimal precision/scale and timestamp zone.
 
-Construct a Table source from an authorized catalog lookup:
+A Table source specifies `scope`, service `audience`, `branch`, `namespace`,
+`interpretation: TableInterpretation` and its `schema`. The interpretation carries
+the accepted definition revision, declaration digest and byte count, and full
+schema digest. It binds an exact object independently of native progress storage.
 
-```ts
-const definition = await catalogClient.lookup("people");
+Pass `new Tables(url, scope, branch, audience)` as the fourth argument to
+`Client.open`. The direct endpoint shares the native client's caller, credential
+and selected role. The Table catalog and query progress can occupy different
+resources in the same realm. KV and Document inputs still use the configured
+native resource.
+
+`Manifest.cut` distinguishes `{ kind: "native", revision }` from
+`{ kind: "table", commitment }`. `Manifest.source` is respectively a retained
+`ReadVersion` or the query worker's `ProcessRef`. A Table commitment covers the
+original interpretation, manifest and accepted WAL frontier. Result disclosure
+checks current rights after source closure without reopening the released pin.
+
+Resolve metadata through the configured direct owner before compiling:
+
+```typescript
+const definition = await client.lookupTable("people", 1);
 if (definition === undefined) throw new Error("Table not found");
-const table: q.Source = {
-  kind: "table",
-  owner: catalogClient.connection.owner,
-  metadata: definition.metadata,
-  schema: definition.schema,
-};
+const description = await client.compileSql(definition.source, "people",
+  "SELECT COUNT(*) AS n FROM people", { pages: 100n, segments: 100n, resultBytes: 1048576n });
+const bundle = await client.authorizeBundle(description,
+  definition.capture(workerPrincipal, pinOperation));
 ```
 
-`Metadata.commitment` carries the immutable record commitment returned by the
-shared catalog implementation. Local bundle preparation does not establish
-access or readiness. Current `describe` checks that metadata; retained-result
-reads separately check current rights while preserving the original schema and
-`Manifest.sourceHead`. Renaming or replacing a Table cannot rebind saved work.
-
-`just bindings::unified-node table` installs fresh package tarballs and runs the
-shared codec and signed recovery schedule. `kv` and `document` select the other
-sources. See [proof evidence](../../../../tests/README.md) for completed runs.
+Lookup starts no query and acquires no pin. A concurrent change can invalidate the
+observed frontier before capture; inspect that conflict rather than substituting
+a new source for saved work.
 
 Connections accept an optional selected native role; omission uses the login role.
 Local bundle construction produces a description. Call `authorizeBundle` once on the
-query client before persisting a newly constructed Table bundle or its fingerprint.
+query client with `new Capture(executor, operation, partition, nextLsn)` before
+persisting a newly constructed Table bundle or its fingerprint. `executor` names
+the executor principal. The three storage coordinates use `bigint`; `operation`
+identifies pin acquisition and the other two values freeze its expected frontier.
 The returned bytes bind the authenticated caller, role, credential epoch, source
-owner and requester to the exact query and budget. SQL compilation already returns
-an authorized bundle. An already authorized Table bundle rejects resealing.
+owner and requester to the exact query and budget. SQL compilation returns an unsigned description; Table execution requires this
+explicit capture authorization. An already authorized Table bundle rejects resealing.
 
 Persist and recover the original bundle bytes unchanged, alongside each prepared
 command and receipt. Current authorization is checked again during progress and
 result disclosure. Credential or policy changes never justify replacing accepted
-work with a newly signed bundle. The complete bundle bound is 25,255 bytes.
+work with a newly signed bundle. The complete bundle bound is 25,614 bytes.
+
+`prepareCleanup(namespace, originalBundle)` prepares a separate terminal cleanup
+control using the current credential. Persist, submit and observe that control.
+It preserves the original execution proof and source cut after credential rotation
+and grants no source scan or query resumption.
