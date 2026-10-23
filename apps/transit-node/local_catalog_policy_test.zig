@@ -468,9 +468,13 @@ test "local catalog checks real native registrations, current ownership and exac
     };
     var race: Race = .{ .resource = resource };
     runner.after_prepare = .{ .context = &race, .run = Race.retire };
-    try t.expectError(error.StateResourceExpired, runner.run(&catalog, interrupted.binding, policy.policy(), 16));
+    // Native domain authorization checks its lifetime before disclosing catalog
+    // state. Retirement therefore denies the object guard; the direct owner
+    // cannot reach its later, more specific resource-lifetime check.
+    try t.expectError(error.Forbidden, runner.run(&catalog, interrupted.binding, policy.policy(), 16));
+    try t.expectError(error.StateResourceExpired, engine.requireResourceLifetime(resource));
     var authority = try engine.authorization();
     try t.expect(try authority.bound(table_domain, try c.TableAuthority.binding(scope, .table, 9)) == null);
-    try t.expectError(error.StateResourceExpired, catalog.status(request.binding, policy.policy()));
-    try t.expectError(error.StateResourceExpired, catalog.rowStatus(succeeding.binding, policy.policy()));
+    try t.expectError(error.Forbidden, catalog.status(request.binding, policy.policy()));
+    try t.expectError(error.Forbidden, catalog.rowStatus(succeeding.binding, policy.policy()));
 }
