@@ -3347,10 +3347,69 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableIntent.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidTableIntent": 2,
+        "TableBatchTooLarge": 1,
+        "TableDefinitionChanged": 1,
+        "TablePayloadTooLarge": 1
+      },
+      "outcomes": {
+        "Work": [
+          "ddl",
+          "rows",
+          "statement"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Saved.validate()": "<inferred>",
+        "admit()": "<inferred>",
+        "check()": "<inferred>",
+        "create()": "<inferred>",
+        "encode()": "<inferred>",
+        "fromDml()": "<inferred>",
+        "operation()": "<inferred>",
+        "restore()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 34,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTablePreparedDml.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "InvalidDataOperation": 1,
+        "TableNotFound": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bind()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 3,
-        "DataIdentityConflict": 2,
+        "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
         "InvalidCatalogCursor": 1,
@@ -3439,6 +3498,7 @@
         "Ddl.digest()": "<inferred>",
         "Ddl.intent()": "<inferred>",
         "Ddl.native()": "<inferred>",
+        "Ddl.validate()": "<inferred>",
         "Request.context()": "<inferred>",
         "Request.parse()": "<inferred>",
         "Request.validate()": "<inferred>",
@@ -3450,7 +3510,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 69,
+        "try": 73,
         "catch": 2
       },
       "imports": [
@@ -4950,7 +5010,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -4974,6 +5034,8 @@
         "DirectCatalog.zig",
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
+        "DirectTableIntent.zig",
+        "DirectTablePreparedDml.zig",
         "DirectTableProtocol.zig",
         "DirectTableReader.zig",
         "Inspection.zig",

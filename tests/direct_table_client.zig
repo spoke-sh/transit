@@ -199,7 +199,9 @@ pub fn main(init: std.process.Init) !void {
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "recover")) {
             try recover(init, client, &admin, profile);
-            profile.lifecycle = try Lifecycle.evolve(init.gpa, client, profile.role);
+            var lifecycle = try Lifecycle.evolve(init.gpa, client, profile.role);
+            defer lifecycle.deinit();
+            profile.lifecycle = lifecycle.value;
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "lifecycle")) try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true) else return error.UnknownProofPhase;
     }

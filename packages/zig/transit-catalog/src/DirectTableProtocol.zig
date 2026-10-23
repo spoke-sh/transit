@@ -111,6 +111,12 @@ pub const Ddl = struct {
     pub fn digest(self: Ddl, allocator: std.mem.Allocator) ![32]u8 {
         return (try self.intent(allocator)).digest(allocator);
     }
+    pub fn validate(self: Ddl, allocator: std.mem.Allocator, connection: Connection) !void {
+        try connection.binding(self.binding);
+        const decoded = try self.intent(allocator);
+        try decoded.validate(self.binding);
+        if (!std.mem.eql(u8, &try decoded.digest(allocator), &self.binding.intent)) return error.DataIdentityConflict;
+    }
     pub fn native(self: Ddl, allocator: std.mem.Allocator, configuration: D.Configuration) !D.Request {
         const result: D.Request = .{ .binding = self.binding, .intent = try self.intent(allocator) };
         try result.validate(allocator, configuration);

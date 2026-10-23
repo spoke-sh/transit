@@ -643,6 +643,34 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Saved direct SQL mutation intent — 2026-10-23
+
+The catalog package passes **115/115** tests in the pinned Linux Nix shell
+(one minute, MaxRSS 71 MiB). The saved-intent cases verify independent Python
+canonical bytes, full-width identities, copied binary/NULL parameters, exact
+predicate/data-frontier binding and rejection of incompatible, missing,
+truncated, altered and noncanonical work. Templates and parameter values can be
+destroyed before loading and executing the independently owned intent.
+
+`just test::direct-table-service` passes **193 typed HTTP calls**. Numbered
+parameters drive INSERT, UPDATE and DELETE through metadata-only preparation
+and binding, then explicit admission/execution. The proof checks unchanged
+frontiers and absent operation records before admission, exact readmission,
+saved-intent outcome inspection after restart, and a MySQL positional DELETE
+saved before restart but first admitted afterward. Its unchanged outcome leaves
+the logical-change frontier intact while operation history advances. Existing
+retained reads, CRUD/DDL, revocation and two-restart checks also pass.
+
+An earlier fixture run freed its newly retained intent buffers before saving
+them; the fixture now returns an explicit arena owner. A subsequent run tried
+to pin an old physical frontier after the unchanged DELETE. The final fixture
+captures a new frontier for that new pin and checks the unchanged logical basis.
+Only the final complete HTTP run is counted as passed.
+
+Direct contract/schema generation, diagnostic error/outcome checks and local
+documentation links pass. These typed caller checks do not qualify installed
+SQL gateway execution or complete the default launcher cutover.
+
 ## Direct preparation rights and immutable bindings — 2026-10-23
 
 In the pinned Linux Nix shell, catalog `zig build test --summary all` passes
