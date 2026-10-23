@@ -83,9 +83,10 @@ The shared direct Table runtime handles `CREATE TABLE IF NOT EXISTS` and
 needed, it retains an unchanged catalog outcome with zero row counts. The
 existing definition or absent name is checked again at acceptance; a concurrent
 change rejects the operation. Retrying its operation identity returns the
-original outcome under current rights, even after name reuse. This component
-behavior does not establish default launcher or installed transport support;
-their migration and integration checks remain incomplete.
+original outcome under current rights, even after name reuse. The local server's
+default Tables use this direct owner. Table reads and mutations do not depend on
+the query worker processing an actor input; captured-query sources retain their
+separate execution path.
 
 ### Diagnosing rejected SQL
 

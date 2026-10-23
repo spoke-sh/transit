@@ -1388,7 +1388,7 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 16,
-        "catch": 7
+        "catch": 8
       },
       "imports": [
         "Configuration.zig",
@@ -1425,14 +1425,11 @@
         "AuthorityRollback": 2,
         "ExistingInstallationRequired": 1,
         "FileNotFound": 1,
-        "InstallationDefaultTableRejected": 3,
-        "InstallationIdentityMismatch": 1,
         "InstallationSyncFailed": 2,
         "InvalidInstallationAuthority": 2,
         "InvalidInstallationDirectory": 1,
         "ServerStopped": 3,
         "StorageIdentityMismatch": 1,
-        "TableWriterNotReady": 3,
         "UnresolvedProvisioning": 4
       },
       "outcomes": {
@@ -1447,7 +1444,8 @@
           "activation",
           "installer",
           "board",
-          "authority"
+          "authority",
+          "table_registrar"
         ]
       },
       "error_sets": {},
@@ -1456,7 +1454,6 @@
         "checkStorage()": "<inferred>",
         "create()": "<inferred>",
         "directoryState()": "<inferred>",
-        "ensureDefaultTable()": "<inferred>",
         "flush()": "<inferred>",
         "initializeBehaviors()": "<inferred>",
         "ownsRoot()": "<inferred>",
@@ -1474,12 +1471,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 84,
-        "catch": 3
+        "try": 72,
+        "catch": 4
       },
       "imports": [
         "../Signals.zig",
-        "../TableRecovery.zig",
         "Config.zig",
         "Files.zig",
         "Provider.zig",
@@ -1563,7 +1559,6 @@
         "AccessDenied": 2,
         "AuthorityRollback": 1,
         "AuthorityTransportDenied": 1,
-        "CatalogConfigurationChanged": 1,
         "ChildExited": 4,
         "ConfigurationUnavailable": 1,
         "InstallationIdentityMismatch": 2,
@@ -1591,23 +1586,23 @@
           "sql"
         ],
         "worker().Common.role": [
-          "catalog",
+          "unified_source",
           "unified_requester"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "cycle()": "<inferred>",
+        "node()": "<inferred>",
         "ready()": "<inferred>",
         "run()": "<inferred>",
         "start()": "<inferred>",
         "supervise()": "<inferred>",
-        "tableReady()": "<inferred>",
         "worker()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 85,
+        "try": 86,
         "catch": 8
       },
       "imports": [
@@ -1626,6 +1621,7 @@
         "Process.zig",
         "Provider.zig",
         "Sql.zig",
+        "Tables.zig",
         "std",
         "transit_query"
       ]
@@ -1830,6 +1826,31 @@
         "std",
         "transit_query",
         "transit_tls_server"
+      ]
+    },
+    "apps/transit-cli/server/Tables.zig": {
+      "errors": {
+        "CatalogConfigurationChanged": 1,
+        "CatalogSchemaMissing": 1,
+        "InstallationDefaultTableRejected": 1,
+        "InstallationIdentityMismatch": 1,
+        "TableWriterNotReady": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "node()": "<inferred>",
+        "ready()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 0
+      },
+      "imports": [
+        "Installation.zig",
+        "std",
+        "transit_query"
       ]
     },
     "apps/transit-flight-gateway/build.zig": {
@@ -5609,6 +5630,27 @@
         "std"
       ]
     },
+    "packages/zig/transit-client/src/BoundedBody.zig": {
+      "errors": {
+        "WriteFailed": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "drain()": "std . Io . Writer . Error",
+        "flush()": "std . Io . Writer . Error",
+        "grow()": "std . Io . Writer . Error",
+        "rebase()": "std . Io . Writer . Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 3
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-client/src/Host.zig": {
       "errors": {
         "InvalidSeed": 1,
@@ -5958,17 +6000,17 @@
         "EndOfStream": 1,
         "HostUnreachable": 1,
         "HttpConnectionClosing": 1,
-        "HttpRequestBudget": 1,
+        "HttpRequestBudget": 2,
         "InvalidAuthorityResponse": 5,
         "InvalidHttpBudget": 1,
         "InvalidSeed": 1,
         "InvalidWaitHint": 1,
         "NameServerFailure": 1,
         "NetworkUnreachable": 1,
-        "OutOfMemory": 1,
+        "OutOfMemory": 2,
         "ReadFailed": 1,
         "Rejected": 2,
-        "WriteFailed": 2
+        "WriteFailed": 3
       },
       "outcomes": {
         "Client.boundedCall().Result": [
@@ -6006,6 +6048,7 @@
         "AuthorizationClient.zig",
         "AuthorizationSet.zig",
         "BlockBatch.zig",
+        "BoundedBody.zig",
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
@@ -12598,7 +12641,7 @@
           "deadline"
         ],
         "Definition": [
-          "c0fdedd9d2abcfd2c2ab0d0bfccf9bb9bd67c3c8eb29f8e9dc0a10e9a4ee42ba"
+          "dbeaf8ee99483d030ed06e8779be25af19f74d7c794591e180c8906a55b456dd"
         ],
         "Effect.phase": [
           "pending",

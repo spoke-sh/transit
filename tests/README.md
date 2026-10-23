@@ -237,6 +237,23 @@ source-worker/session qualification. Neither PTYs nor the basic session profile
 establish the user's desktop Ctrl-Space delivery or an SSH/multiplexer path.
 Clean-checkout qualification is reported separately from these workspace runs.
 
+## Installed direct Table bootstrap — 2026-10-23
+
+`just test::server-direct-tables` passes in the pinned Nix development shell.
+The real installed CLI, local node, query host and SQL gateway run in a private
+temporary installation. The proof checks the dedicated registrar and saved
+initial intent, a signed read through the forwarding gateway, and rejection of
+an ordinary Table read mislabeled as control traffic. SQL INSERT, UPDATE, SELECT,
+CREATE, ADD COLUMN, RENAME, DROP and conditional DDL succeed while the fixture's
+query source worker is stopped. An abrupt manager restart preserves rows and
+the original bootstrap reference. DELETE and deliberate DROP survive another
+restart without recreating the default Table; same-name CREATE remains usable.
+
+This run does not qualify captured-query migration, language SDK adapters,
+automatic point flushing, storage exhaustion or the broader installed SQL fault
+suite. The older tests that block actor Table execution need failure injection
+at the new direct boundary before they can qualify that boundary.
+
 ## Console multiline editing — 2026-10-23
 
 `just test::console-history` passes in the pinned Nix shell. The real PTY

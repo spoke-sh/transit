@@ -13,10 +13,11 @@ assigning its owner and granting permissions remain explicit operations.
 
 The catalog binds an explicit database and initial `public` schema to stable
 native authorization objects. Table metadata records its namespace and logical
-role owner independently of the catalog's worker PID. Restricted readers use the
-[Table service](../../../apps/transit-table-service/README.md), which keeps storage
-credentials private and checks a signed original subject. Direct clients require
-explicit raw-resource privileges; those privileges expose the backing resource.
+role owner independently of a worker PID. The node's
+[direct Table interface](../../../contracts/DIRECT_TABLE_V1.md) keeps storage
+credentials private and checks the signed original subject on every request.
+It requires current catalog/schema/Table rights, without raw-resource read grants.
+Each Table has its own acceptance partition within the catalog's logical scope.
 
 ## Schemas and identities
 
