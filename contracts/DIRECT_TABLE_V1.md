@@ -4,7 +4,8 @@
 inspection and retained-read requests. The node's internal `LocalTableService`
 dispatches these requests through `DirectCatalog`, the Table storage owner and
 native authorization. The local node's optional `table` setting serves
-`POST /table/v1`; its default launcher and SQL integration remain unfinished. The
+`POST /table/v1`; the local launcher configures that owner for its default Tables
+and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 [generated schema](direct-table-v1.schema.json) reflects the owning Zig types.
 
 ## Requests and authority

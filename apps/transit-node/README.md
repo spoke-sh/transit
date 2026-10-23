@@ -82,7 +82,9 @@ inside that owner. The composition test drives declaration admission/execution,
 binary row writes, retained reads and release through its serialized envelopes.
 The dispatcher checks current rights after buffering the response; a concurrent
 revocation suppresses disclosure. The local `table` setting exposes this dispatcher
-at `/table/v1`. The default launcher and installed SQL integration remain unfinished.
+at `/table/v1`. The local launcher configures this owner for its default Tables;
+the shared SQL session uses the same signed direct operations. Captured-query
+and language SDK migration remains incomplete.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep

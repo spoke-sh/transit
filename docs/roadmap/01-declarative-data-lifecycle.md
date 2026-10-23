@@ -100,9 +100,12 @@ ledger representation; it carries a catalog acceptance position without
 fabricating a Table commit. Its [component and HTTP evidence](../../tests/README.md#conditional-sql-catalog-outcomes--2026-10-23)
 covers the SQL compiler, lost replies, restart, cancellation and name reuse.
 
-Installed SQL fault/recovery qualification and default launcher provisioning
-remain unfinished. The launcher still provisions the actor
-catalog. Dependency contracts, automatic point flushing, named resource
+The default launcher now provisions the direct catalog with a dedicated native
+registrar and retains the exact initial Table intent. The
+[installed proof](../../tests/README.md#installed-direct-table-bootstrap--2026-10-23)
+passes CRUD/DDL while the query worker is stopped, abrupt restart and deliberate
+default-Table deletion/name reuse. Captured-query and language SDK migration,
+the broader installed fault/recovery suite, dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
 completion matrix rows below is closed by this partial caller path.
 

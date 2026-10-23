@@ -2,6 +2,7 @@
 const std = @import("std");
 const http = @import("transit_http_server");
 const wire = @import("transit_query").wire;
+const table = @import("transit_query").catalog.DirectTableProtocol;
 const Configuration = @import("Configuration.zig");
 const C = @import("transit_query").settings.Contract;
 const Hosts = @import("Hosts.zig");
@@ -36,7 +37,7 @@ const Context = struct {
     }
     pub fn isControl(_: *Context, request: *std.http.Server.Request) bool {
         return std.mem.eql(u8, request.head.target, C.route) or std.mem.eql(u8, request.head.target, "/v1/command") or
-            (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
+            (if (http.header(request, "x-transit-control") catch null) |value| (std.mem.eql(u8, value, "snapshot") or (std.mem.eql(u8, value, "table") and std.mem.eql(u8, request.head.target, "/table/v1"))) else false);
     }
     pub fn handle(self: *Context, _: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
         var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -50,27 +51,36 @@ const Context = struct {
                 std.ascii.eqlIgnoreCase(header.name, "forwarded") or std.ascii.startsWithIgnoreCase(header.name, "x-forwarded-") or
                 std.ascii.eqlIgnoreCase(header.name, "x-real-ip")) return http.respond(request, .forbidden, "{\"err\":\"InvalidIdentityHeader\"}");
         }
-        const control = if (try http.header(request, "x-transit-control")) |value| control: {
-            if (!std.mem.eql(u8, value, "snapshot")) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
-            break :control true;
-        } else false;
+        const direct = std.mem.eql(u8, request.head.target, "/table/v1");
+        const control: ?[]const u8 = if (try http.header(request, "x-transit-control")) |value| control: {
+            const expected = if (direct) "table" else "snapshot";
+            if (!std.mem.eql(u8, value, expected)) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
+            break :control expected;
+        } else null;
         var wait_buffer: [32]u8 = undefined;
         const wait_value: ?[]const u8 = if (try http.header(request, "x-transit-wait")) |value| hint: {
             const parsed = wire.WaitHint.parse(value) catch return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
             break :hint try parsed.format(&wait_buffer);
         } else null;
-        if (wait_value != null and (control or !std.mem.eql(u8, request.head.target, "/v1/query"))) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
+        if (wait_value != null and (control != null or !std.mem.eql(u8, request.head.target, "/v1/query"))) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
         const configuration = self.configuration != null and std.mem.eql(u8, request.head.target, C.route);
         const health = request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health");
-        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query") or std.mem.eql(u8, request.head.target, "/v1/blocks") or configuration)))
+        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query") or std.mem.eql(u8, request.head.target, "/v1/blocks") or configuration or direct)))
             return http.respond(request, .not_found, "{\"err\":\"NotFound\"}");
         // Reading a request body invalidates Head string slices. Own the target
         // before that boundary, including for a bodyless health request.
         const url = try std.fmt.allocPrint(allocator, "{s}{s}", .{ self.config.upstream, request.head.target });
         defer allocator.free(url);
-        const body = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(if (health) 1 else wire.max_body + 1)) catch return http.respond(request, .payload_too_large, "{\"err\":\"InvalidBody\"}");
+        const request_limit: usize = if (direct) table.max_request_bytes else wire.max_body;
+        const response_limit: usize = if (direct) table.max_response_bytes else wire.max_body;
+        const body = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(if (health) 1 else request_limit + 1)) catch return http.respond(request, .payload_too_large, "{\"err\":\"InvalidBody\"}");
         defer allocator.free(body);
-        if (body.len > (if (health) @as(usize, 0) else wire.max_body)) return http.respond(request, .payload_too_large, "{\"err\":\"InvalidBody\"}");
+        if (body.len > (if (health) @as(usize, 0) else request_limit)) return http.respond(request, .payload_too_large, "{\"err\":\"InvalidBody\"}");
+        if (direct) {
+            const parsed = table.Request.parse(allocator, body) catch return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
+            defer parsed.deinit();
+            if (control != null and parsed.value.transport().control == null) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
+        }
         const slots = if (wait_value != null) self.upstream[6..10] else self.upstream[0..6];
         const slot = for (slots) |*candidate| {
             if (candidate.busy.cmpxchgStrong(false, true, .acquire, .monotonic) == null) break candidate;
@@ -91,13 +101,13 @@ const Context = struct {
             return http.respond(request, .ok, try @import("transit_query").protocol.Json.valueAlloc(arena.allocator(), response));
         }
         slot.client.beginExchange();
-        const output = try allocator.alloc(u8, wire.max_body);
+        const output = try allocator.alloc(u8, response_limit);
         defer allocator.free(output);
         var writer: std.Io.Writer = .fixed(output);
         var forwarded: [1]std.http.Header = undefined;
         var forwarded_count: usize = 0;
-        if (control) {
-            forwarded[0] = .{ .name = "x-transit-control", .value = "snapshot" };
+        if (control) |value| {
+            forwarded[0] = .{ .name = "x-transit-control", .value = value };
             forwarded_count = 1;
         } else if (wait_value) |value| {
             forwarded[0] = .{ .name = "x-transit-wait", .value = value };

@@ -34,9 +34,8 @@ exclusive directory lock and persists native catalog/resource state through its
 [log and immutable object adapter](../../../packages/zig/transit-backend-local/README.md).
 It rejects a second owner and incompatible history. `--initialize` creates a new
 native authority; ordinary startup requires that authority to exist. This
-selection is also the installed local launcher's default. Its installed SQL
-configuration still uses the actor Table catalog. The separately configured
-direct Table route uses the same local physical owner.
+selection is also the installed local launcher's default. Its Table bootstrap
+and shared SQL sessions use the direct Table route in the same physical owner.
 
 `table.catalog` is the `DirectCatalog.Configuration`: existing scope and native
 database/schema/Table domain bindings, branch one, service audience, database
@@ -61,7 +60,7 @@ UPDATE/DELETE execution attempt. Both must be positive and count all passes,
 including group-boundary re-reads. These deployment work quotas do not constrain
 retained Table cardinality. Exceeding either records a `work_limit` rejection
 without publishing a row prefix. Index staging and physical storage quotas are
-separate. The default launcher still needs its direct Table SQL cutover.
+separate. Captured queries and language SDK adapters still require migration.
 
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is

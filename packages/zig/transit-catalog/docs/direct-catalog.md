@@ -4,21 +4,22 @@
 names. It accepts complete frozen DDL work into a control log, then publishes
 the definition through the Table's acceptance log. The local node exposes this
 owner through its optional `table` setting and signed `/table/v1` route. The
-default launcher and SQL callers still use `TableCatalog`. This owner has no
-automatic execution scheduler.
+default launcher and shared SQL runtime use this direct owner. Complete
+captured-source and SDK migration remain unfinished. This owner has no automatic
+execution scheduler.
 
 The [direct request contract](../../../../contracts/DIRECT_TABLE_V1.md) defines
 signed declaration, row-operation and retained-read envelopes. Its node
 dispatcher calls this owner with current native policy and rechecks disclosed
-requirements after response buffering. Installed SQL callers do not use that
-dispatcher yet.
+requirements after response buffering. The SQL coordinator dispatches exact
+retained references through this same owner.
 
 `DirectTableClient.signed` binds a typed action to the caller's current native
 credential; `call` makes one owned HTTP exchange and validates the response
 against that exact request. It checks result kind, operation attribution,
 definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
-uses the configured local node route; it does not yet replace installed SQL callers.
+uses the configured local node route.
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.
 `DirectTableReader.open` inspects an existing durable pin and owns its original
@@ -207,8 +208,8 @@ Row admission blocks while DDL is pending; DDL admission rejects while the Table
 has pending row work. Neither row admission nor its outcome changes the catalog
 directory root. Terminal row controls use the configured control quota handles.
 
-Schema lifecycle beyond the initial namespace, dependency RESTRICT, installed
-SQL adapters and automatic service scheduling remain unfinished.
+Schema lifecycle beyond the initial namespace, dependency RESTRICT, captured
+queries, language SDK adapters and automatic service scheduling remain unfinished.
 The [Table storage owner](../../transit-storage/docs/table-partitions.md) defines
 row/DDL acceptance, rewrite and pin behavior. The
 [data lifecycle contract](../../../../contracts/DATA_LIFECYCLE_V1.md#direct-catalog-publication-contract)

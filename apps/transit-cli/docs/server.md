@@ -325,13 +325,19 @@ replacement creates its own fresh in-memory key, receives scoped grants and an
 exact ownership generation. Foreign resource access is granted separately from
 the source's optional requester association. Activation markers are never removed.
 
-The server starts the node with local maintenance, then source, requester,
-courier and gateway. Catalog initialization and default Table creation use
-public recorded inputs; the courier delivers the catalog's recorded continuations.
-The server checks the exact catalog configuration and completion of the original
-default CREATE before gateway readiness. Its immutable intent and each signed
-progress step survive interruption. Recorded initialization is not repeated on
-restart, and revoked rights are not restored. SIGINT/SIGTERM stop in reverse order and join
+The server first establishes the native catalog identities, then configures the
+node's direct Table owner with those exact identities and a dedicated registrar.
+On a new installation it restarts its node once before starting query workers or
+opening SQL. The query source and requester have their own native lifetimes;
+they do not accept Table mutations. The courier delivers recorded process work.
+
+The server checks the direct catalog configuration and completion of the
+original default CREATE before gateway readiness. Complete declaration bytes
+are staged privately, then their exact reference is fsynced in the installation
+record before admission. Recovery inspects and executes only that binding.
+The completion marker prevents startup from recreating `items` after an explicit
+DROP. Later readiness uses current authorized reads, without reapplying schema
+creation or restoring revoked rights. SIGINT/SIGTERM stop in reverse order and join
 children. Each
 child starts in a distinct process group through a Linux parent-death trampoline;
 the trampoline arms SIGKILL and checks the expected parent before exec. Killing
@@ -374,10 +380,11 @@ ownership and live disaster recovery are outside this profile.
 | Manager | Root key; provisioning and scoped caller key for initial casts | One 64 KiB installation record, one frozen request, six service children, 64 KiB streaming artifact hash buffer |
 | Authority | Genesis public root key, exclusive local storage directory | 512 decoded pages per bounded request lane; ten lanes, 16 sockets, four data/two control/four wait requests; 256 KiB native body/reply, two-second HTTP deadline |
 | Maintenance | Separate admin/effect/delivery grant inside the node owner | Private 512-page cache; one bounded scan/transition at a time, one-second idle interval, two-second operation deadline; immutable objects retained |
-| Catalog owner | Fresh PID-scoped inspect/execute/publish grant and own resource | Bounded typed intent/row/page work; four mutations per committed turn; no whole-catalog or whole-Table workspace |
+| Direct Table owner | Node-local storage and a dedicated native domain registrar; every operation checks its original caller | Separate catalog/Table partitions, bounded pages and 64 Table lock stripes; 8 MiB request/16 MiB response bounds |
+| Query source | Fresh PID-scoped inspect/execute/publish grant and own resource | Bounded captured-query work; its native turns do not carry direct Table row mutations |
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
-| Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
+| Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB native body/reply or 8 MiB/16 MiB direct Table body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
 | Console | OS-authenticated local peer or SQL account over verified HTTPS | Its separate [console bounds](console.md); session handles, bounded batches and original operation tokens |
 
@@ -393,11 +400,12 @@ Gateway transport diagnostics omit ordinary idle closes and idle expiry.
 establish whether the authority accepted the request. Preserve the exact saved
 request and reconcile through the caller's recovery interface.
 
-The gateway forwards only native `/v1/query`, `/v1/command` and `/health` routes,
+The gateway forwards native `/v1/query`, `/v1/command`, `/v1/blocks`, direct
+`/table/v1` and `/health` routes,
 preserving the signed body and upstream response status. Node and gateway permit
 64 sequential exchanges per connection; clients discard connections after 200 ms
 since an exchange started, and the listener bounds idle header waits to one second. Commands, health and
-checked snapshot release/finish requests use
+checked snapshot and Table control requests use
 the control reserve; native authorization still decides every operation. Exact
 configured Host is required, and browser Origin, Authorization and forwarded
 identity headers reject. Transport failure remains uncertainty. The gateway is
