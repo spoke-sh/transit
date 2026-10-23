@@ -179,7 +179,17 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
 fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.envelope) |value| {
         if (value.validate()) |_| {
-            if (std.mem.eql(u8, self.command, "transit console")) return @import("EnvelopeDiagnostic.zig").renderConsole(value, out);
+            if (std.mem.eql(u8, self.command, "transit console")) {
+                // Typed SQL detail must not hide partial completion or a
+                // warning about an already displayed, incomplete result.
+                switch (err) {
+                    error.SqlOperationPartial, error.SqlOperationRejected, error.ConsoleInterrupted => if (self.summary) |summary| try out.print("{s}.\n", .{summary}),
+                    else => {},
+                }
+                try @import("EnvelopeDiagnostic.zig").renderConsole(value, out);
+                if (self.next) |next| try out.print("\n{s}\n", .{next});
+                return;
+            }
             return @import("EnvelopeDiagnostic.zig").render(value, out);
         } else |_| {}
     }
@@ -365,4 +375,16 @@ test "unknown failures retain identifiers and recovery advice retains exact iden
         try std.testing.expect(std.mem.indexOf(u8, out.written(), "retrying the same installation") == null);
         try std.testing.expect(std.mem.indexOf(u8, out.written(), "Wait for readiness.") == null);
     }
+}
+
+test "console keeps partial outcome and result warnings alongside typed SQL evidence" {
+    const d = @import("transit_query").protocol.Diagnostic;
+    var detail = try d.init("sql.limit", .limit, .execute, .failed, .domain_status, "The result exceeded its limit.");
+    try detail.text(.column, .schema, "amount");
+    try detail.action(.inspect_status);
+    var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer out.deinit();
+    try (Self{ .command = "transit console", .envelope = detail, .summary = "Statement completed only partially", .next = "The rows already displayed are only a partial result." }).render(&out.writer, error.SqlOperationPartial);
+    for ([_][]const u8{ "Statement completed only partially", "sql.limit", "Column: amount", "only a partial result" }) |fragment| try std.testing.expect(std.mem.indexOf(u8, out.written(), fragment) != null);
+    for ([_][]const u8{ "stage:", "owning interface", ".status" }) |fragment| try std.testing.expect(std.mem.indexOf(u8, out.written(), fragment) == null);
 }

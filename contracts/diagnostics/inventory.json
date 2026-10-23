@@ -323,7 +323,7 @@
         "AuthorityRollback": 1,
         "ChildExited": 2,
         "ConsoleCommandFailed": 1,
-        "ConsoleInterrupted": 1,
+        "ConsoleInterrupted": 2,
         "ConsoleRecoveryIdentityMismatch": 1,
         "ConsoleRecoveryInUse": 1,
         "ConsoleRecoverySyncFailed": 1,
@@ -351,6 +351,8 @@
         "RecoveryIdentityMismatch": 1,
         "RestartBudgetExhausted": 5,
         "RoleReadinessTimeout": 2,
+        "SqlOperationPartial": 1,
+        "SqlOperationRejected": 1,
         "StorageIdentityMismatch": 1,
         "StreamTooLong": 1,
         "SyntaxError": 1,
@@ -384,7 +386,7 @@
       },
       "open_error_set_uses": 18,
       "propagation": {
-        "try": 58,
+        "try": 61,
         "catch": 6
       },
       "imports": [
