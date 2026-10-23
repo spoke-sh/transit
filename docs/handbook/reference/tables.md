@@ -19,6 +19,17 @@ credentials private and checks the signed original subject on every request.
 It requires current catalog/schema/Table rights, without raw-resource read grants.
 Each Table has its own acceptance partition within the catalog's logical scope.
 
+A caller can explicitly delegate reads of one exact Table definition and data
+frontier to an executor through `DirectReadDelegation`. The grant names one pin
+owner and immutable application-work commitment. The executor uses its own
+credential to acquire, recover, read or release that pin; it gains no general
+Table or catalog access. Both credentials and the caller's current source rights
+are checked before publication and disclosure. A retained grant cannot silently
+refresh a revoked caller proof or select newer data. See the
+[delegated-read contract](../../../contracts/DIRECT_TABLE_V1.md#delegated-retained-reads)
+for the allowed operations and recovery rules. Captured-query integration still
+needs to retain this grant through its admission and cleanup lifecycle.
+
 ## Schemas and identities
 
 Tables contain 1–128 ordered named columns with the shared

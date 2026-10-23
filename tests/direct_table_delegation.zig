@@ -1,0 +1,113 @@
+//! An unprivileged executor retains the caller's exact grant through lost
+//! acquisition/closure replies, schema replacement and disk restart.
+const std = @import("std");
+const c = @import("transit_catalog");
+const p = c.protocol;
+const w = c.DirectTableProtocol;
+const t = std.testing;
+
+pub const State = struct { grant: c.DirectReadDelegation, snapshot: ?w.Snapshot };
+
+fn executor(original: c.DirectTableClient, grant: c.DirectReadDelegation) !c.DirectTableClient {
+    var client = original;
+    client.delegation = grant;
+    client.key = try p.Ed25519.KeyPair.generateDeterministic(@splat(31));
+    return client;
+}
+fn acquisition(grant: c.DirectReadDelegation) w.Action {
+    return .{ .pin = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected } };
+}
+fn status(client: c.DirectTableClient, grant: c.DirectReadDelegation) !std.json.Parsed(w.Response) {
+    return client.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
+}
+
+pub fn prepare(client: c.DirectTableClient) !State {
+    const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
+    defer current.deinit();
+    const basis = current.value.result.lookup.?;
+    const grant = try c.DirectReadDelegation.prepare(client, .{
+        .definition = p.Growth.current_definition,
+        .connection = client.connection,
+        .executor = 102,
+        .interpretation = basis.interpretation.interpretation,
+        .expected = basis.position,
+        .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 8200 },
+        .purpose = @splat(23),
+    });
+    const delegated = try executor(client, grant);
+    var unprivileged = delegated;
+    unprivileged.delegation = null;
+    unprivileged.connection.principal = 102;
+    try t.expectError(error.AccessDenied, unprivileged.call(.describe));
+    const absent = try status(delegated, grant);
+    defer absent.deinit();
+    try t.expect(absent.value.result.pin_state.handle == null);
+    try t.expect(!absent.value.result.pin_state.released);
+    // The proxy corrupts the successful reply. Retain the original grant;
+    // acquisition recovery waits until after the node is restarted.
+    try t.expectError(error.InvalidTableResponse, delegated.call(acquisition(grant)));
+    return .{ .grant = grant, .snapshot = null };
+}
+
+pub fn recover(client: c.DirectTableClient, state: *State) !void {
+    const delegated = try executor(client, state.grant);
+    const retained = try status(delegated, state.grant);
+    defer retained.deinit();
+    try t.expect(!retained.value.result.pin_state.released);
+    state.snapshot = .{ .object = state.grant.binding.interpretation.object, .handle = retained.value.result.pin_state.handle.? };
+    const retry = try delegated.call(acquisition(state.grant));
+    defer retry.deinit();
+    try t.expectEqualDeep(state.snapshot.?.handle, retry.value.result.pin);
+    try verify(client, state.*);
+}
+
+pub fn verify(client: c.DirectTableClient, state: State) !void {
+    const delegated = try executor(client, state.grant);
+    var reader = try c.DirectTableReader.open(client.allocator, delegated, state.snapshot.?);
+    defer reader.deinit();
+    try t.expectEqualDeep(state.grant.binding.interpretation, reader.basis.interpretation.interpretation);
+    try t.expectEqualDeep(state.grant.binding.expected, reader.basis.accepted);
+    try t.expectEqual(@as(u64, 2), reader.basis.row_count);
+    var page = (try reader.next(delegated, .{})).?;
+    defer page.deinit();
+    try t.expect(page.complete and page.count == 2);
+    try t.expectEqual(@as(i128, 1), page.rows[0].?.row().cells[0].value.atom.signed);
+    const payload = page.rows[0].?.row().cells[1].value.atom.bytes;
+    try t.expectEqual(@as(usize, 64 * 1024), payload.len);
+    for (payload, 0..) |byte, i| try t.expectEqual(@as(u8, @truncate(i)), byte);
+    try t.expectEqualStrings("bulk", page.rows[1].?.row().cells[1].value.atom.bytes);
+    try t.expect(try reader.next(delegated, .{}) == null);
+    const check = try delegated.call(.{ .check_set = &.{.{ .snapshot = state.snapshot.? }} });
+    check.deinit();
+    try t.expectError(error.TableDelegationDenied, delegated.call(.describe));
+    try t.expectError(error.TableDelegationDenied, delegated.call(.{ .lookup = .{ .namespace = 1, .name = "events" } }));
+    var outside = state.snapshot.?;
+    outside.handle.owner.operation += 1;
+    try t.expectError(error.TableDelegationDenied, delegated.call(.{ .release = outside }));
+    outside = state.snapshot.?;
+    outside.object.object += 1;
+    try t.expectError(error.TableDelegationDenied, delegated.call(.{ .snapshot = outside }));
+    var changed = state.grant.binding;
+    changed.interpretation.revision += 1;
+    const wrong = try executor(client, try c.DirectReadDelegation.prepare(client, changed));
+    try t.expectError(error.AccessDenied, wrong.call(.{ .snapshot = state.snapshot.? }));
+    try t.expectError(error.InvalidTableDelegation, c.DirectReadDelegation.prepare(delegated, state.grant.binding));
+}
+
+pub fn close(client: c.DirectTableClient, state: State) !void {
+    const delegated = try executor(client, state.grant);
+    // Closure is durable even when its response is unusable. The caller keeps
+    // the same handle until the next restart verifies the terminal state.
+    try t.expectError(error.InvalidTableResponse, delegated.call(.{ .release = state.snapshot.? }));
+}
+
+pub fn closed(client: c.DirectTableClient, state: State) !void {
+    const delegated = try executor(client, state.grant);
+    const retained = try status(delegated, state.grant);
+    defer retained.deinit();
+    try t.expect(retained.value.result.pin_state.released);
+    const released = try delegated.call(.{ .release = state.snapshot.? });
+    released.deinit();
+    try t.expectError(error.Conflict, delegated.call(acquisition(state.grant)));
+    try t.expectError(error.Conflict, delegated.call(.{ .snapshot = state.snapshot.? }));
+}

@@ -120,6 +120,11 @@ the SDK contract can preserve them; non-binary SQL collation remains unsupported
 The [administration and database-client proof](../../tests/README.md#direct-catalog-administration-and-installed-database-clients--2026-10-23)
 also resolves policy plans through the direct catalog and qualifies explicit
 grants/revocation and retained recovery through real PostgreSQL/MySQL clients.
+The [scoped read-delegation proof](../../tests/README.md#scoped-direct-table-read-delegation--2026-10-23)
+now qualifies original-caller grants for one executor, exact Table cut and pin
+owner, including uncertain acquisition/closure and retained reads after restart.
+This supplies the direct authority boundary for captured-query migration;
+captured admission, cleanup and verified result publication are still missing.
 Direct namespace lifecycle, captured-query and language SDK migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

@@ -232,7 +232,7 @@ pub fn Host(comptime Provider: type) type {
                         break :execution owner.execute(self.io, self.engine, &arena, parsed.value, output);
                     };
                     const response = executed catch |err| switch (err) {
-                        error.CatalogDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
+                        error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
                         error.DataIdentityConflict, error.CatalogObjectBusy, error.TableDefinitionChanged, error.TableDataChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
                         error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
                         error.IncompatibleColumnEncoding, error.IncompatibleColumnCollation, error.UnsupportedColumnCollation, error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),

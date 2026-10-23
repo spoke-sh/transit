@@ -91,11 +91,12 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     if (response.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try p.Authorization.revision(response.policy_revision);
     const subject = response.subject;
+    const original = if (request.delegation) |delegation| delegation.proof.claim else request.proof.claim;
     try p.Authorization.roleId(subject.login_role);
     try p.Authorization.roleId(subject.role);
     if (subject.principal != request.connection.principal or subject.audience != request.connection.audience or
-        subject.credential_epoch != request.proof.claim.credential_epoch or subject.role != (request.connection.role orelse subject.login_role) or
-        !std.mem.eql(u8, &subject.context, &response.context)) return error.InvalidTableResponse;
+        subject.credential_epoch != original.credential_epoch or subject.role != (request.connection.role orelse subject.login_role) or
+        !std.mem.eql(u8, &subject.context, &original.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
         .initialize => .initialized,
@@ -245,6 +246,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (!std.meta.eql(value.owner, request.action.pin.owner)) return error.InvalidTableResponse;
         },
         .snapshot => |value| {
+            if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
             if (!std.meta.eql(value.snapshot, request.action.snapshot)) return error.InvalidTableResponse;
             try definition(request.connection, value.interpretation);
             if (!std.meta.eql(value.interpretation.interpretation.object, value.snapshot.object)) return error.InvalidTableResponse;
@@ -252,6 +254,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try schema(allocator, value.schema, value.interpretation);
         },
         .page => |value| {
+            if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
             const query = request.action.scan;
             if (!std.meta.eql(value.snapshot, query.snapshot) or value.rows.len > query.limits.rows or
                 value.encoded_bytes > query.limits.encoded_bytes or value.total_rows < value.rows.len) return error.InvalidTableResponse;

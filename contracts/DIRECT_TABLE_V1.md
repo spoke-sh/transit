@@ -11,7 +11,8 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 ## Requests and authority
 
 A request contains the mandatory current shared definition, connection, nonce,
-action and original-caller authorization proof. The connection binds the existing
+action, nullable delegation and transport authorization proof. A null delegation
+uses the original caller's proof. The connection binds the existing
 realm/resource/catalog, branch one, audience, principal and optional selected
 role. Changing any request field changes its context digest. The request domain
 is `transit.table.direct.request.v1` followed by a zero byte and canonical JSON
@@ -25,7 +26,9 @@ role graph and backing-resource lifetime. Catalog operations check the registere
 database/schema/Table bindings and their current privileges. A response binds the
 request context, checked policy revision and verified native subject (principal,
 login role, effective role, credential epoch and audience). The client checks
-that subject against the original connection and signed claim. The node checks all successfully
+that subject against the original connection and signed caller claim. With a
+delegation, its context is the delegation digest; the response's separate
+`context` still binds the complete transport request. The node checks all successfully
 used requirements again after buffering the complete response. Denial at this
 boundary suppresses the response, even if a mutation has already committed.
 Recover that mutation through its original operation binding.
@@ -40,6 +43,43 @@ the retained source's schema, exact metadata and complete-consumption checks.
 original schema, advances only after fully decoding a valid page and verifies
 the complete row count. Its explicit `check` revalidates current rights before
 disclosure from cached data. Local destruction does not release the durable pin.
+
+### Delegated retained reads
+
+`DirectReadDelegation` contains a `binding` and original-caller `proof`. The binding
+fields, in canonical order, are the current `definition`, original `connection`,
+`executor` principal, exact `interpretation`, `expected` Table frontier, pin
+`owner` operation and nonzero 32-byte `purpose` commitment. Its signing context is
+SHA-256 of `transit.table.read-delegation.v1`, a zero byte and canonical JSON of
+that binding. The purpose identifies application-owned immutable work; it does
+not establish honest computation or enforce a SQL predicate. This grants read
+scope over one complete Table cut, with no additional object privileges.
+
+The executor signs the entire request, including that retained delegation, with
+its own current credential and login role. The request connection continues to
+identify the original caller and selected role. The owner authenticates both
+identities under the same native fence, checks the caller's current
+CONNECT/USAGE/SELECT requirements and repeats both checks before disclosure or
+pin publication. The executor needs no raw catalog or Table grant. Changing or
+revoking either credential prevents use of the affected proof. Accepted work
+retains the original delegation; recovery cannot replace its caller signature
+or credential epoch implicitly.
+
+Delegation permits only `pin`, `pin_status`, `snapshot`, `scan`, `release` and
+snapshot-only `check_set` for the bound object and pin owner. It permits no name
+discovery, mutations, policy changes or further delegation. The first pin also
+checks the exact definition and frontier. A stale acquisition rejects; it never
+chooses newer data. An existing pin can be recovered after the current Table
+evolves, provided its retained definition/frontier still match and current rights
+allow disclosure. Release is terminal and requires current rights. Lost replies
+use the same acquisition and the existing `pin_status` recovery rules below.
+
+`DirectReadDelegation.prepare` signs this binding as the original caller without
+acquiring a pin. A `DirectTableClient` with `delegation` set uses its key as the
+named executor's key; it preserves the original connection and never signs as
+that caller. Its response checks bind retained schemas and data frontiers to the
+delegation. The `delegation` request field is mandatory even when null; the
+replaced shared definition rejects previous envelopes without a fallback.
 
 ## Declaration and row operations
 

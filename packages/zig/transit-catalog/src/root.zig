@@ -10,6 +10,7 @@ pub const DirectCatalog = @import("DirectCatalog.zig");
 pub const DirectTableProtocol = @import("DirectTableProtocol.zig");
 pub const DirectTableClient = @import("DirectTableClient.zig");
 pub const DirectAuthorizationSql = @import("DirectAuthorizationSql.zig");
+pub const DirectReadDelegation = @import("DirectReadDelegation.zig");
 pub const DirectTableBinding = @import("DirectTableBinding.zig");
 pub const DirectTableIntent = @import("DirectTableIntent.zig");
 pub const DirectTableIntentStore = @import("DirectTableIntentStore.zig");
@@ -45,6 +46,7 @@ test {
     _ = DirectTableProtocol;
     _ = DirectTableIntent;
     _ = DirectTableReader;
+    _ = DirectReadDelegation;
     _ = OperationBinding;
     _ = NameAssertion;
     _ = @import("direct_catalog_test.zig");
