@@ -314,7 +314,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         if (known != null) reason = .object_conflict;
     } else if (existing) |*view| {
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name)) reason = .object_conflict else if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) reason = .stale_definition else if (request.binding.expected_data) |expected| {
-            if (expected.partition != view.table.root.partition or expected.next_lsn != view.table.root.next_lsn) reason = .stale_data;
+            if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) reason = .stale_data;
         }
         if (reason == .none and (view.table.root.pending != null or try self.pending(object, current))) reason = .object_conflict;
     } else reason = .object_conflict;
