@@ -178,6 +178,20 @@ comments. Paste stays in the draft until Enter. `-c SQL` executes one statement;
 the first error. Dot commands occupy their own line. Prompts, timing and errors
 use stderr; SQL results use stdout.
 
+`--format table|json` and `.mode table|json` select SQL result presentation.
+They do not change error formatting. Errors are human-readable by default;
+the global `--diagnostics=json` option selects structured errors on stderr and
+must appear before `console`. For JSON SQL results and structured errors together:
+
+```sh
+transit --diagnostics=json console --format json -c 'SELECT COUNT(*) FROM items'
+```
+
+The diagnostics option also covers invocation and configuration failures before
+a session opens. It does not enable debug logging. See the
+[structured error reference](../../../docs/handbook/reference/cli.md#structured-errors)
+for the error schema and other stderr output.
+
 | Command | Purpose |
 | --- | --- |
 | `.help [SQL\|SETTINGS\|INSERT\|UPDATE\|DELETE\|CREATE TABLE\|ALTER TABLE\|DROP TABLE]` | Offline syntax help |
