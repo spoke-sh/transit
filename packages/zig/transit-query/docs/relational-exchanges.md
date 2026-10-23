@@ -52,7 +52,10 @@ recorded successor vector for producer setup. When all partitions complete,
 The same checkpoints and atomic result/delta revisions apply. Every later
 successor waits for its own attachment; an absent attachment returns `idle`
 without changing the last complete result. The host explicitly supplies and
-attaches each exchange. These controls do not implement an automatic scheduler.
+attaches each exchange. Incomplete coverage rejects with
+`RelationalExchangePending`; an exchange for another source vector rejects with
+`RelationalSourceChanged`. Neither rejection changes the native decision.
+These controls do not implement an automatic scheduler.
 
 `RelationalExchangeProducer` owns the scan cursor for a manual worker layout.
 Its `create` takes the immutable receiver PID/resource, partition count, worker count/index, batch size, physical epoch

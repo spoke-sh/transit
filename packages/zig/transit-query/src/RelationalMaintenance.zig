@@ -542,7 +542,3 @@ fn publish(turn: *Turn, bundle: q.RelationalBundle, stored: r.Head, work: r.Work
     try turn.write(complete.identity().address(), try complete.encode());
     return .complete;
 }
-
-test {
-    _ = @import("relational_maintenance_test.zig");
-}

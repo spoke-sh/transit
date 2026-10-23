@@ -100,7 +100,7 @@ pub fn prepareWithExchange(init: std.process.Init, client: c.DirectTableClient, 
     }
     return error.MaintainedQueryPending;
 }
-fn mutation(init: std.process.Init, client: c.DirectTableClient, name: []const u8, operation: u64, id: i64, cancel: bool) !void {
+pub fn mutation(init: std.process.Init, client: c.DirectTableClient, name: []const u8, operation: u64, id: i64, cancel: bool) !void {
     const alloc = init.arena.allocator();
     const found = try client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
     defer found.deinit();

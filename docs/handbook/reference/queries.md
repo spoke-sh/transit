@@ -483,6 +483,12 @@ identity. Consumption separately indexes its rows and returns credits. Every
 partition, including an empty one, must publish and consume terminal coverage
 before execution can read the exchanged source.
 
+A maintained successor requires a new exchange bound to its exact source vector.
+Attaching incomplete coverage or an exchange from the preceding revision leaves
+the query unchanged. Retiring the live request publication does not revoke an
+already accepted computation's retained request. Explicit query retirement
+releases that dependency and makes its results unavailable.
+
 The native paged row index restores original source order, so different delivery
 or batch schedules preserve the existing join and checked-SUM semantics. Current
 source rights apply during staging, consumption and execution. Hosts supply

@@ -16,7 +16,7 @@ fn step(init: std.process.Init, running: *s.GenServer, behavior: *support.Relati
     const pending = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try support.key(17));
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
 }
-fn insert(client: c.DirectTableClient, name: []const u8, operation: u64) !void {
+fn insert(client: c.DirectTableClient, name: []const u8, operation: u64, overflow: bool) !void {
     const alloc = client.allocator;
     const found = try client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
     defer found.deinit();
@@ -28,7 +28,8 @@ fn insert(client: c.DirectTableClient, name: []const u8, operation: u64) !void {
     const identity: p.DataLifecycle.Operation = .{ .scope = client.connection.scope, .principal = 101, .operation = operation };
     var changes: [3]w.RowChange = undefined;
     var buffers: [3][q.fuze.TableRow.max_bytes]u8 = undefined;
-    for ([_]i64{ std.math.maxInt(i64), 1, -std.math.maxInt(i64) }, 0..) |value, i| {
+    const values: [3]i64 = if (overflow) .{ std.math.maxInt(i64), 1, -std.math.maxInt(i64) } else .{ 1, 2, 3 };
+    for (values, 0..) |value, i| {
         const row: q.fuze.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(identity, @intCast(i)), .cells = &.{.{ .value = .{ .atom = .{ .signed = value } } }} };
         changes[i] = .{ .insert = try .encode(alloc, try row.encode(schema.schema, &buffers[i])) };
     }
@@ -41,14 +42,14 @@ fn insert(client: c.DirectTableClient, name: []const u8, operation: u64) !void {
     try t.expect(result.value.result.rows == .committed);
     try t.expectEqual(@as(u64, 3), result.value.result.rows.committed.outcome.affected);
 }
-fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, worker: support.Provision, identity: maintained.Identity) !q.RelationalRevision.Position {
+fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, worker: support.Provision, identity: maintained.Identity, expected_count: u128, expected_sum: i128) !q.RelationalRevision.Position {
     const options: q.RelationalRevision.Options = .{ .owner = worker.pid, .resource = worker.resource, .identity = identity, .revision = 1, .requests = 4000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
     var read = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(180));
     defer read.close() catch {};
     const output = (try read.next()).?.row;
-    try t.expectEqual(@as(u128, 1), output.cells[0].value.atom.unsigned);
-    try t.expectEqual(@as(i128, 0), output.cells[1].value.atom.signed);
+    try t.expectEqual(expected_count, output.cells[0].value.atom.unsigned);
+    try t.expectEqual(expected_sum, output.cells[1].value.atom.signed);
     try t.expect(try read.next() == null);
     return read.checkpoint();
 }
@@ -62,7 +63,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     const continuous = case == .maintained_overflow or case == .maintained_gap;
     var worker = try support.provision(admin, principal, seed);
     try support.table(alloc, client, role, 80 + ordinal, name, operation, 1);
-    if (case == .captured_overflow) try insert(client, name, operation + 3);
+    if (case == .captured_overflow) try insert(client, name, operation + 3, case != .maintained_gap);
     _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
     worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try support.key(17))).body.process.process.generation;
     _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = principal } });
@@ -114,9 +115,9 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             };
             id = head.id;
             if (previous == null and head.phase == .idle) {
-                previous = try readResult(client, bundle, worker, identity);
+                previous = try readResult(client, bundle, worker, identity, 1, 0);
                 previous_manifest = head.manifest;
-                try insert(client, name, operation + 3);
+                try insert(client, name, operation + 3, case != .maintained_gap);
                 try support.send(client, worker.pid, try .init("wake"));
             }
             if (head.phase != .failed or head.cleanup_cursor != head.count) continue;
@@ -125,7 +126,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             try t.expectEqual(previous_manifest, head.manifest);
             const failure = try finite.Failure.decode((try reader.read(maintained.key('f', id, 2, 0))).?);
             try t.expectEqualStrings(if (case == .maintained_gap) "TableHistoryGap" else "Overflow", failure.cause.slice());
-            try t.expectEqualDeep(previous.?, try readResult(client, bundle, worker, identity));
+            try t.expectEqualDeep(previous.?, try readResult(client, bundle, worker, identity, 1, 0));
             if (case == .maintained_overflow) {
                 const work = try maintained.Work.decode((try reader.read(maintained.key('w', id, 2, 0))).?);
                 try t.expectEqual(.failed, work.phase);
@@ -181,7 +182,13 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
         } else return error.WakeDidNotCommit;
         reader = try resources.open(worker.resource);
         try t.expectEqualDeep(before, try q.RelationalMaintenance.head(&reader, identity));
-        try t.expectEqualDeep(previous.?, try readResult(client, bundle, worker, identity));
+        try t.expectEqualDeep(previous.?, try readResult(client, bundle, worker, identity, 1, 0));
+        if (case == .maintained_gap) {
+            try rebuild(init, client, admin, role, description, operation + 4);
+            reader = try resources.open(worker.resource);
+            try t.expectEqualDeep(before, try q.RelationalMaintenance.head(&reader, identity));
+            try t.expectEqualDeep(previous.?, try readResult(client, bundle, worker, identity, 1, 0));
+        }
     } else {
         try support.send(client, worker.pid, try .init("collect"));
         for (0..3000) |_| {
@@ -204,4 +211,62 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             }
         }
     }
+}
+
+/// Recovery after a terminal coverage failure requires another accepted identity,
+/// its own current cut and a fresh lease. It cannot revive the failed query.
+fn rebuild(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, description: q.RelationalBundle, operation: u64) !void {
+    const alloc = init.arena.allocator();
+    var worker = try support.provision(admin, 134, 104);
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
+    worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try support.key(17))).body.process.process.generation;
+    _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = 134 } });
+    worker.generation += 1;
+    const found = try client.call(.{ .lookup = .{ .namespace = 1, .name = "maintained_gap" } });
+    defer found.deinit();
+    const current = found.value.result.lookup.?;
+    try t.expectEqual(@as(u64, 4), current.row_count);
+    const bundle = try description.authorizeCapture(alloc, .{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, &.{client}, worker.pid, worker.resource, worker.pid, worker.resource, &.{.{ .executor = 134, .operation = operation, .expected = current.position }});
+    var executor = client;
+    executor.connection.principal = 134;
+    executor.key = try support.key(104);
+    const clients = [_]c.DirectTableClient{executor};
+    var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
+    var behavior: support.RelationalHost = .{ .bundle = bundle, .bytes = try bundle.encode(&bytes), .reference = try bundle.reference(worker.resource, 1), .clients = &clients, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024) };
+    const configuration: s.client.Session = .{ .client = client.authority, .realm = 42, .principal = 134, .pid = worker.pid, .generation = worker.generation, .key = executor.key };
+    var running = try s.GenServer.init(configuration, "state");
+    running.failure_policy = .stop;
+    const resources: s.client.ResourceReader = .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key };
+    try support.send(client, worker.pid, try .init("configure"));
+    try support.send(client, worker.pid, try .init("upload"));
+    var identity: maintained.Identity = undefined;
+    for (0..3000) |iteration| {
+        if (iteration != 0 and iteration % 17 == 0) {
+            running = try s.GenServer.init(configuration, "state");
+            running.failure_policy = .stop;
+        }
+        try step(init, &running, &behavior, admin);
+        var reader = try resources.open(worker.resource);
+        const correlation = (try reader.read(support.RelationalHost.correlation_key)) orelse continue;
+        identity = .{ .peer = worker.pid, .correlation = try q.UnifiedRecords.readIdentity(correlation) };
+        const head = q.RelationalMaintenance.head(&reader, identity) catch |err| {
+            if (err == error.QueryNotFound) continue;
+            return err;
+        };
+        if (head.phase == .failed) return error.RebuildFailed;
+        if (head.phase == .idle and head.revision == 1) break;
+    } else return error.RebuildPending;
+    _ = try readResult(client, bundle, worker, identity, 4, 6);
+    try support.send(client, worker.pid, try .init("close"));
+    for (0..200) |_| {
+        try step(init, &running, &behavior, admin);
+        var reader = try resources.open(worker.resource);
+        const head = try q.RelationalMaintenance.head(&reader, identity);
+        if (head.phase == .cancelled and head.cleanup_cursor == head.count) break;
+    } else return error.RebuildCleanupPending;
+    const grant = bundle.retention[0];
+    const status = try client.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
+    defer status.deinit();
+    try t.expect(status.value.result.pin_state.released);
+    _ = try readResult(client, bundle, worker, identity, 4, 6);
 }
