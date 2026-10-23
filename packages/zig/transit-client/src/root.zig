@@ -223,7 +223,12 @@ pub const Client = struct {
         const url = try allocator.print("{s}{s}", .{ self.url, path });
         defer allocator.free(url);
         const encoded: struct { storage: []u8, length: usize } = if (owned) bounded: {
-            const storage = try allocator.alloc(u8, limits.request_bytes);
+            var scratch: [256]u8 = undefined;
+            var count: std.Io.Writer.Discarding = .init(&scratch);
+            var counter: std.json.Stringify = .{ .writer = &count.writer };
+            try protocol.Json.write(signed, &counter);
+            if (count.fullCount() > limits.request_bytes) return error.HttpRequestBudget;
+            const storage = try allocator.alloc(u8, @intCast(count.fullCount()));
             errdefer allocator.free(storage);
             var request_writer: std.Io.Writer = .fixed(storage);
             var encoder: std.json.Stringify = .{ .writer = &request_writer };
@@ -236,9 +241,10 @@ pub const Client = struct {
         defer allocator.free(encoded.storage);
         const body = encoded.storage[0..encoded.length];
         var stack: [if (owned) 0 else max_body]u8 = undefined;
-        const buffer = if (owned) try allocator.alloc(u8, limits.response_bytes) else stack[0..];
-        defer if (owned) allocator.free(buffer);
-        var writer: std.Io.Writer = .fixed(buffer);
+        var bounded_body: @import("BoundedBody.zig") = .{ .allocator = allocator, .limit = limits.response_bytes };
+        defer bounded_body.deinit();
+        var fixed: std.Io.Writer = .fixed(&stack);
+        const writer = if (owned) &bounded_body.writer else &fixed;
         const parent_header = if (self.call_context) |context| context.header() else @as([55]u8, @splat(0));
         var headers: [3]std.http.Header = undefined;
         var header_count: usize = 0;
@@ -268,12 +274,13 @@ pub const Client = struct {
             .redirect_behavior = .not_allowed,
             .extra_headers = headers[0..header_count],
             .keep_alive = true,
-            .response_writer = &writer,
+            .response_writer = writer,
         }) catch |err| switch (err) {
             // The pinned socket API uses AccessDenied for a local firewall or
             // OS refusal. Reserve AccessDenied below for a validated authority
             // response; transport failure cannot establish command rejection.
             error.AccessDenied => return error.AuthorityTransportDenied,
+            error.WriteFailed => return if (bounded_body.allocation_failed) error.OutOfMemory else err,
             else => return err,
         };
         self.last_status = response.status;

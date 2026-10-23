@@ -58,7 +58,9 @@ the base path and its escaping. Foreign SDKs use this same transport behavior.
 `Client.call` returns fixed native values. Domain responses containing strings or
 collections use `callOwned`, whose parsed arena owns the complete result until
 `deinit`, independently of the transport lifetime. Request and response limits
-default to 1 MiB each and cannot exceed 16 MiB. This path preserves shared JSON
+default to 1 MiB each and cannot exceed 16 MiB. Requests allocate their checked
+serialized size; response storage grows with received bytes up to its limit.
+A small exchange does not allocate its maximum wire budgets. This path preserves shared JSON
 array shapes, rejects redirects, and drains/frees a response that races a timeout.
 It performs one HTTP attempt; it does not retry uncertain work.
 
