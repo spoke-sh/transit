@@ -7,6 +7,10 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import tempfile
+import urllib.request
+from contextlib import contextmanager
+from types import SimpleNamespace
 from storage import Fixture, free_port, wait_ready
 from growing_maintenance import run as maintenance
 from growing_station import run as station
@@ -14,19 +18,30 @@ from growing_query import run as query_capture
 from growing_quota import run as quota
 
 
-def main(node, caller, station_caller, query_caller, quota_caller):
+@contextmanager
+def local_directory():
+    """Only an owned directory and HTTP client; no emulated provider lifecycle."""
+    with tempfile.TemporaryDirectory(prefix="transit-local-native-") as directory:
+        yield SimpleNamespace(root=Path(directory), http=urllib.request.build_opener(urllib.request.ProxyHandler({})))
+
+
+def main(node, caller, station_caller=None, query_caller=None, quota_caller=None, *, local=False):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
-    with Fixture() as fixture:
+    with (local_directory() if local else Fixture()) as fixture:
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        config.write_text(json.dumps({"profile": "native_v1", "genesis": {
+        settings = {"profile": "native_v1", "genesis": {
             "realm": 42, "root_key": public, "max_clock_error_ms": 10000},
-            "ursula_url": fixture.url, "bucket": "growing-service", "journal": "authority",
-            "port": port, "resident_pages": 1, "request_timeout_ms": 10000}))
+            "port": port, "resident_pages": 1, "request_timeout_ms": 10000}
+        if local:
+            settings['local_directory'] = str(fixture.root / 'native')
+        else:
+            settings.update(ursula_url=fixture.url, bucket='growing-service', journal='authority')
+        config.write_text(json.dumps(settings))
         manifest = fixture.root / "pending.json"
         fault = {"turns": 0, "pending": None, "receipt": None, "invalid_read": False, "retried": False}
 
@@ -100,11 +115,15 @@ def main(node, caller, station_caller, query_caller, quota_caller):
             authority.kill()
             authority.wait(timeout=10)
             authority = None
-            fixture.stop()
-            fixture.start()
+            if not local:
+                fixture.stop()
+                fixture.start()
             authority = start()
             subprocess.run([caller, proxy_url, "recover", str(manifest)], check=True, timeout=40)
             assert fault["retried"]
+            if local:
+                assert list((fixture.root / 'native' / 'wal').glob('*.twal'))
+                assert list((fixture.root / 'native' / 'objects').glob('*.data'))
         except BaseException:
             log.flush()
             log.seek(0)
@@ -119,12 +138,16 @@ def main(node, caller, station_caller, query_caller, quota_caller):
             proxy.server_close()
             thread.join(timeout=5)
             log.close()
-    print("Growing public profile: signed paged reads/turns, invalid reply, exact retry after restart and revocation passed on one CPU.")
-    maintenance(node, caller)
-    station(node, station_caller)
-    query_capture(node, query_caller)
-    quota(node, quota_caller)
+    print(f"Growing public profile ({'local' if local else 'Ursula'}): signed paged reads/turns, invalid reply, exact retry after restart and revocation passed on one CPU.")
+    if not local:
+        maintenance(node, caller)
+        station(node, station_caller)
+        query_capture(node, query_caller)
+        quota(node, quota_caller)
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    if sys.argv[1:2] == ['--local']:
+        main(*sys.argv[2:], local=True)
+    else:
+        main(*sys.argv[1:])

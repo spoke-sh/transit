@@ -5,8 +5,9 @@
 `NvmeCache`, versioned immutable `TableManifest` (`"TMAN"` v1) artifacts, and the
 lock-free multi-writer OCC coordinator (`PartitionLease.OccCoordinator`).
 
-The installed native service still uses its Ursula backend. This package's
-component tests do not establish installed SQL execution, automatic flushing,
+The default launcher selects Ursula. `transit-node` also supports an explicit
+[local native backend](../transit-backend-local/README.md). This package's
+Table component tests do not establish installed SQL execution, automatic flushing,
 durable snapshot pins, policy-authorized trimming or multi-process Table commits.
 
 ## Modules

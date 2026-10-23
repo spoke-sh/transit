@@ -295,7 +295,7 @@ sequenceDiagram
   In [`PackedPageStore`](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig),
   `finish()` populates the verified resident page cache (`rememberCandidate`) as
   soon as the candidate segment stream is read back, verified and sealed. In
-  [`Native.zig`](../../../apps/transit-node/Native.zig), all 10 request lanes
+  [`NativeServer.zig`](../../../apps/transit-node/NativeServer.zig), all 10 request lanes
   synchronize their verified page caches and journal head entries through an
   epoch-tracked shared cache (`shared_pages_epoch`), propagating newly staged or
   fetched pages across lanes without copying unchanged 17 KiB page slots on every
@@ -329,7 +329,7 @@ bounded admitted requests and a trusted clock for expiring read pins. It assumes
 the provider implements atomic conditional append and does not roll back
 acknowledged history. Parallel preparation does not create another authority.
 
-The [native host](../../../apps/transit-node/Native.zig) assigns each admitted
+The [native host](../../../apps/transit-node/NativeServer.zig) assigns each admitted
 request an exclusively owned execution lane: engine head, verified caches,
 transport client, working buffers and observation counters. Provider I/O runs
 without the host's shared registry mutex. Preparation validates at a published

@@ -505,6 +505,16 @@ not qualify installed node/launcher composition, a Document service lifecycle,
 standalone payload publication, retained-root physical collection, power-loss
 behavior or direct Table SQL execution.
 
+`zig build test-local-native-service` subsequently passes the existing signed
+public-client fault corpus against `transit-node` with `local_directory`. The
+fixture starts no external storage service. It checks signed paged reads and
+turns, malformed replies, a lost turn receipt, node SIGKILL/restart, exact receipt
+recovery and current revocation, with one resident page and one CPU. It also
+checks real native WAL and immutable object files. HTTP admission, snapshot
+registration, retries and lane synchronization are shared with the Ursula node
+in `NativeServer.zig`. This proof does not exercise local maintenance, the
+launcher default, standalone payload publication or direct Table SQL storage.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),

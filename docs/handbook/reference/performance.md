@@ -742,7 +742,7 @@ staging pipeline:
   streams `.tseg` + `.tdel` + Memtable deltas directly into `Fuze` `VectorBatch`
   and `LogicalQuery.Execution` pipelines. On the authority and SQL gateway paths,
   `PackedPageStore.finish` populates the verified page cache immediately upon
-  candidate segment seal, `Native.zig` shares verified pages and journal heads
+  candidate segment seal, `NativeServer.zig` shares verified pages and journal heads
   across all 10 request lanes using epoch-tracked incremental synchronization, and
   `AccountRuntime` wakes immediately on condition variables while draining ready
   `GenServer` sub-steps within a single tick. On the 33-operation, 217-turn

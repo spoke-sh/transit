@@ -14,5 +14,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (args.len < 2 or args.len > 3 or (args.len == 3 and !initialize and !maintain and !bootstrap)) return error.ExpectedConfigAndMode;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
+    const selector = try std.json.parseFromSlice(struct { local_directory: ?[]const u8 = null }, init.gpa, bytes, .{ .ignore_unknown_fields = true });
+    defer selector.deinit();
+    if (selector.value.local_directory != null) return @import("Local.zig").run(init, bytes, .{ .initialize = initialize, .bootstrap = bootstrap, .maintain = maintain }, diagnostics);
     return @import("Native.zig").run(init, bytes, .{ .initialize = initialize, .bootstrap = bootstrap, .maintain = maintain }, diagnostics);
 }
