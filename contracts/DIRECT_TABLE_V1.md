@@ -168,6 +168,16 @@ and continuation do not by themselves certify a completed query result or a
 consistent cut across Tables. A caller must retain the exact source and consume
 its pages without silently reopening at a newer frontier.
 
+`DirectTablePrepared` performs read-only SELECT preparation against the complete
+current declaration and current read rights. Its fingerprint covers canonical
+JSON of `definition`, `connection`, `namespace`, `name`, `interpretation`, prefixed
+by `transit.table.direct.preparation.v1` and a zero byte. Data progress is absent
+from that metadata identity. `DirectTableQuery.openPreparedRetained` separately
+binds parameters to the retained source fingerprint after exact interpretation
+and current-definition checks. It acquires or releases no pin. The caller keeps
+the original acquisition request and handle through uncertain I/O, and must not
+replace them implicitly on a failed query open.
+
 Binary fields contain canonical padded RFC 4648 base64. Invalid alphabet,
 padding or nonzero unused pad bits reject. Schemas and rows retain their Fuze
 binary codecs; transport does not reinterpret them as JSON numbers or text.

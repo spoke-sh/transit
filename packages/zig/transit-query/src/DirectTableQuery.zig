@@ -54,22 +54,47 @@ pub fn openRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, s
     var scan = try Scan.open(allocator, client, snapshot, limits.requests, cancellation);
     errdefer scan.deinit();
     const table_schema = scan.reader.schema.schema;
+    try qualify(table_schema);
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    var compiled = try f.TableSelect.compile(allocator, text, name, try table_schema.rowType(&fields), try scan.fingerprint(), location);
+    errdefer compiled.deinit();
+    return start(&scan, &compiled, limits, compute);
+}
+pub fn qualify(table_schema: f.TableSchema.Schema) !void {
+    try table_schema.validate();
     // The shared logical evaluator currently compares text as UTF-8 bytes.
     // Reject other declared semantics instead of silently ignoring them.
     for (table_schema.columns) |column| switch (column.collation) {
         .none, .utf8_binary => {},
         else => return error.UnsupportedTableQueryCollation,
     };
-    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-    var compiled = try f.TableSelect.compile(allocator, text, name, try table_schema.rowType(&fields), try scan.fingerprint(), location);
+}
+/// The caller retains the original pin request/handle across uncertain
+/// acquisition. This opens no pin and never substitutes a newer source.
+pub fn openPreparedRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, prepared: *const q.DirectTablePrepared, values: []const ?f.Types.Values.Atom, limits: Limits, cancellation: ?*const std.atomic.Value(bool), detail: ?*f.Sql.Binding, compute: Compute) !Self {
+    try limits.validate();
+    if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+    if (limits.requests < 4) return error.QueryPageBudget;
+    _ = try prepared.binding.require(client, .read);
+    var scan = try Scan.open(allocator, client, snapshot, limits.requests - 2, cancellation);
+    errdefer scan.deinit();
+    scan.requests += 2;
+    scan.request_limit = limits.requests;
+    try qualify(scan.reader.schema.schema);
+    var compiled = try prepared.instantiate(allocator, client.connection, scan.reader.basis.interpretation, scan.reader.schema.schema, try scan.fingerprint(), values, detail);
     errdefer compiled.deinit();
+    return start(&scan, &compiled, limits, compute);
+}
+/// Transfers scan and compiled ownership only on success.
+fn start(scan: *Scan, compiled: *f.TableSelect.Owned, limits: Limits, compute: Compute) !Self {
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var scratch: [f.Types.max_encoding_bytes]u8 = undefined;
     const encoded = try (try compiled.plan.outputSchema(&fields)).encode(&scratch);
     if (encoded.len > limits.result_bytes) return error.QueryResultBudget;
     try scan.validateCurrent();
-    var execution = try Engine.initBudget(scan, compiled.plan, compute.limits);
+    var execution = try Engine.initBudget(scan.*, compiled.plan, compute.limits);
     execution.runner = compute.runner;
-    return .{ .compiled = compiled, .execution = execution, .limits = limits, .result_bytes = encoded.len };
+    return .{ .compiled = compiled.*, .execution = execution, .limits = limits, .result_bytes = encoded.len };
 }
 pub fn schema(self: *const Self, fields: *[f.TableSchema.max_columns]f.Types.Field) !f.Types.Type {
     if (self.failed) return error.FailedQuery;

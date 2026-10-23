@@ -25,6 +25,15 @@ pub fn validate(self: Self) !void {
     try self.connection.object(self.interpretation.interpretation.object);
     if (self.interpretation.retired) return error.TableDefinitionChanged;
 }
+pub fn fingerprint(self: Self, allocator: std.mem.Allocator) ![32]u8 {
+    try self.validate();
+    const bytes = try p.Json.valueAlloc(allocator, self);
+    defer allocator.free(bytes);
+    var digest = std.crypto.hash.sha2.Sha256.init(.{});
+    digest.update("transit.table.direct.preparation.v1\x00");
+    digest.update(bytes);
+    return digest.finalResult();
+}
 /// A local binding comparison never substitutes for current permission checks.
 pub fn check(self: Self, connection: w.Connection, metadata: w.Definition) !void {
     try self.validate();

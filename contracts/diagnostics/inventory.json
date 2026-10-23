@@ -3313,13 +3313,14 @@
       "error_sets": {},
       "error_returns": {
         "check()": "<inferred>",
+        "fingerprint()": "<inferred>",
         "init()": "<inferred>",
         "require()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -13539,12 +13540,36 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/DirectTablePrepared.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "instantiate()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/DirectTableQuery.zig": {
       "errors": {
+        "Cancelled": 1,
         "FailedQuery": 2,
         "IncompleteSource": 1,
         "InvalidQueryBudget": 2,
         "QueryClosed": 1,
+        "QueryPageBudget": 1,
         "QueryResultBudget": 5,
         "UnsupportedTableQueryCollation": 1
       },
@@ -13554,13 +13579,16 @@
         "Limits.validate()": "<inferred>",
         "next()": "<inferred>",
         "nextBatch()": "<inferred>",
+        "openPreparedRetained()": "<inferred>",
         "openRetained()": "<inferred>",
         "prepareRow()": "<inferred>",
-        "schema()": "<inferred>"
+        "qualify()": "<inferred>",
+        "schema()": "<inferred>",
+        "start()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 26,
         "catch": 1
       },
       "imports": [
@@ -16335,6 +16363,7 @@
         "CatalogQueryOwner.zig",
         "ComputePool.zig",
         "Decoder.zig",
+        "DirectTablePrepared.zig",
         "DirectTableQuery.zig",
         "Draft.zig",
         "Editor.zig",
