@@ -3058,6 +3058,223 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectCatalog.zig": {
+      "errors": {
+        "CatalogDenied": 4,
+        "CatalogIdentityConflict": 1,
+        "CatalogNameHashCollision": 1,
+        "CatalogNamespaceMissing": 2,
+        "CatalogNotInitialized": 1,
+        "CatalogObjectBusy": 1,
+        "CatalogObjectMissing": 1,
+        "CatalogRegistrationRequired": 1,
+        "DuplicatePrimaryKey": 1,
+        "Forbidden": 1,
+        "InvalidCatalogConfiguration": 1,
+        "InvalidDirectCatalogCompletion": 1,
+        "InvalidDirectCatalogEntry": 2,
+        "InvalidDirectCatalogName": 2,
+        "InvalidDirectCatalogOperation": 8,
+        "InvalidStorageBudget": 1,
+        "MissingRequiredField": 1,
+        "NullNotAllowed": 1,
+        "Overflow": 1,
+        "TableDataChanged": 1,
+        "TableDefinitionChanged": 1,
+        "TableRetired": 1,
+        "UnsupportedTableAction": 1
+      },
+      "outcomes": {
+        "Observation": [
+          "not_observed",
+          "admitted",
+          "committed",
+          "rejected",
+          "cancelled"
+        ],
+        "Page.consistency": [
+          "independent"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Policy.make_guard()": "anyerror",
+        "Policy.registered()": "anyerror",
+        "admit()": "<inferred>",
+        "apply()": "<inferred>",
+        "available()": "<inferred>",
+        "cancel()": "<inferred>",
+        "candidate()": "<inferred>",
+        "check()": "<inferred>",
+        "entry()": "<inferred>",
+        "guard()": "<inferred>",
+        "init()": "<inferred>",
+        "initialize()": "<inferred>",
+        "list()": "<inferred>",
+        "loadRequest()": "<inferred>",
+        "open()": "<inferred>",
+        "original()": "<inferred>",
+        "pending()": "<inferred>",
+        "perform()": "<inferred>",
+        "record()": "<inferred>",
+        "recover()": "<inferred>",
+        "requestGuard()": "<inferred>",
+        "requireInitialized()": "<inferred>",
+        "requirements()": "<inferred>",
+        "resolve()": "<inferred>",
+        "schema()": "<inferred>",
+        "settle()": "<inferred>",
+        "status()": "<inferred>",
+        "terminal()": "<inferred>",
+        "verifiedObject()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 162,
+        "catch": 2
+      },
+      "imports": [
+        "DirectCatalogIntent.zig",
+        "DirectCatalogRecords.zig",
+        "DirectCatalogStore.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogIntent.zig": {
+      "errors": {
+        "CatalogIntentMissing": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDirectCatalogIntent": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogRecords.zig": {
+      "errors": {
+        "DataIdentityConflict": 1,
+        "InvalidCatalogIdentity": 1,
+        "InvalidDirectCatalogConfiguration": 1,
+        "InvalidDirectCatalogEntry": 1,
+        "InvalidDirectCatalogHistory": 3,
+        "InvalidDirectCatalogName": 1,
+        "InvalidDirectCatalogOperation": 4,
+        "InvalidDirectCatalogProperties": 2,
+        "InvalidDirectCatalogRoot": 1
+      },
+      "outcomes": {
+        "Intent.action": [
+          "create",
+          "rename",
+          "alter",
+          "drop"
+        ],
+        "Phase": [
+          "admitted",
+          "rejected",
+          "cancelled",
+          "settled"
+        ],
+        "Reason": [
+          "none",
+          "name_conflict",
+          "object_conflict",
+          "stale_definition",
+          "stale_data",
+          "dependency",
+          "constraint"
+        ],
+        "Record.action": [
+          "initialize",
+          "operation"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Configuration.validate()": "<inferred>",
+        "Entry.validate()": "<inferred>",
+        "Intent.digest()": "<inferred>",
+        "Intent.validate()": "<inferred>",
+        "Name.validate()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Properties.decode()": "<inferred>",
+        "Properties.encode()": "<inferred>",
+        "Properties.validate()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "Root.empty()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "fromValue()": "<inferred>",
+        "idKey()": "<inferred>",
+        "nameKey()": "<inferred>",
+        "operationKey()": "<inferred>",
+        "pageValue()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
+      "errors": {
+        "CatalogHistoryMissing": 3,
+        "CatalogRecordTooLarge": 1,
+        "CatalogRecoveryRequired": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDirectCatalogHistory": 4,
+        "InvalidDirectCatalogOperation": 3,
+        "InvalidDirectCatalogTransition": 8,
+        "InvalidPartitionLease": 1,
+        "LostAcknowledgement": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "init()": "<inferred>",
+        "operation()": "<inferred>",
+        "operationAt()": "<inferred>",
+        "operationTransition()": "<inferred>",
+        "publish()": "<inferred>",
+        "ready()": "<inferred>",
+        "receipt()": "<inferred>",
+        "recover()": "<inferred>",
+        "refresh()": "<inferred>",
+        "successor()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 41,
+        "catch": 1
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Inspection.zig": {
       "errors": {
         "InvalidCatalogPage": 3
@@ -4499,6 +4716,7 @@
       "imports": [
         "AuthorizationSql.zig",
         "DeclarativeCatalog.zig",
+        "DirectCatalog.zig",
         "Inspection.zig",
         "Model.zig",
         "OperationBinding.zig",

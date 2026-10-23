@@ -43,6 +43,14 @@ owning acceptance log. The existing installed actor caller does not use this
 primitive. Its exact layout belongs to the
 [data lifecycle contract](../../../contracts/DATA_LIFECYCLE_V1.md#frozen-intent-and-acceptance).
 
+`DirectCatalog` composes those claims with paged names, durable DDL admission,
+rejection/cancellation and exact Table result observation. Its name visibility
+comes from the accepted Table declaration. The
+[direct catalog guide](docs/direct-catalog.md) explains its internal API,
+authorization callbacks, recovery and bounds. Public service/SQL integration and
+native registration orchestration remain unfinished; the installed caller still
+uses the actor path below.
+
 `TableBehavior` accepts initialization and administrator controls, staged Table
 commands, continuation and qualified cancellation/cleanup. It records control or
 rejected-input dispositions independently of the original operation outcome.

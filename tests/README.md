@@ -528,6 +528,37 @@ owner retains all WAL and immutable objects. The full definition revision is
 separate from row-schema revision in its new persisted format; prior formats
 are rejected by the coordinated shared-definition cutover.
 
+## Direct catalog reservations and Table publication — 2026-10-22
+
+The pinned `zig build test` catalog package suite passes with seven added direct
+catalog cases. Tests use the actual local log/object owners and an injected
+policy callback. They establish:
+
+- A durable name reservation remains invisible before Table acceptance; lost
+  admission and Table replies preserve exact retry. Restart between admission
+  and RENAME execution retains the old visible name until acceptance.
+- DROP and same-name recreation select a new object/partition. Earlier operation
+  inspection returns its original resulting definition. Late cancellation does
+  not undo accepted work, and delayed settlement does not remove a later
+  operation's pending entry.
+- Cancelled reservations release names without reusing their object identities;
+  competing names reject durably. An admitted ALTER blocks conflicting row work.
+  Final injected denial preserves both admission and the accepted Table head.
+- A required-column ALTER rejects against an existing row, preserving the entire
+  prior Table root. Retry and cancellation cannot resume that rejected work.
+- Missing admitted intent fails closed. A final listing guard denial returns no
+  metadata page. A deliberately invalid accepted transition from cancelled to
+  admitted fails recovery and leaves the offending log intact.
+- Real disk reopen and paged listing of 129 Tables and operations work with a
+  one-page index cache. Listing records independent Table positions and makes no
+  catalog write. Direct row mutation also leaves the control-log head unchanged.
+
+These are internal component proofs. They do not establish signed native
+registration, concurrent service coordination, public typed/SQL execution,
+durable DML admission, dependency RESTRICT or schema DDL beyond initialization.
+The installed actor path remains active. Physical collection is absent, and
+cross-Table listing is not a consistent catalog snapshot.
+
 ## Table partition acceptance and retained read pins — 2026-10-22
 
 In the pinned development shell, `zig build test` passes in

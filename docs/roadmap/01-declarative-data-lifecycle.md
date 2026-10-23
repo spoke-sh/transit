@@ -62,10 +62,14 @@ CREATE/ALTER/RENAME/DROP definition transitions under the existing native
 authorization fence. The scoped [executed evidence](../../tests/README.md#table-definition-acceptance-and-retained-interpretation--2026-10-22)
 distinguishes these component and native-adapter checks from public integration.
 
-The installed Table path still uses the actor catalog. Catalog name publication,
-durable admission/rejection/cancellation, public typed/SQL cutover, named resource
+The direct catalog component now reserves names and records durable DDL
+admission/rejection/cancellation, with name visibility governed by the Table
+acceptance record. Its [component evidence](../../tests/README.md#direct-catalog-reservations-and-table-publication--2026-10-22)
+covers lost replies, restart, replacement and growth beyond the resident cache.
+The installed Table path still uses the actor catalog. Native registration
+integration, durable DML admission, public typed/SQL cutover, named resource
 provisioning and computation evidence remain unfinished. None of the completion
-matrix rows below is closed by the storage component alone.
+matrix rows below is closed by these components alone.
 
 ## Catalog, transaction and snapshot scope
 
