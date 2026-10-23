@@ -168,10 +168,12 @@ pin the current bytes. Executed evidence belongs in the
 
 Within the configured catalog and current permissions, CREATE makes a Table
 available to supported SELECT and DML through the existing owner. SHOW TABLES
-and DESCRIBE use the shared inspection client. `.status` observes saved work,
-`.resume` reconciles it, and `.cancel` requests original-operation cancellation.
+and DESCRIBE use the shared inspection client. The console observes the original
+submission internally and presents a completion, rejection or uncertain outcome.
+Ctrl-C requests cancellation; it cannot undo an applied change.
 The [console guide](../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-owns connection and recovery-file details.
+owns connection and statement-result behavior. Native control APIs retain the
+original operation identities and recovery semantics.
 
 ## General Table metadata records
 

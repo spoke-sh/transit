@@ -75,8 +75,10 @@ stored bytes, including JSON text and floating zero sign; it does not imply
 that JSON has a SQL equality operator.
 
 Admission receipts, processed inputs and applied domain outcomes are distinct.
-After an uncertain send, reconcile the original saved work with `.status` and
-`.resume`. Repeating SQL creates new work. Cancellation can close pending work;
+After an uncertain send, the console observes the original submission internally
+and reports when its outcome cannot be confirmed. Native callers reconcile the
+original saved identity through the owning operation API. Repeating SQL creates
+new work. Cancellation can close pending work;
 it cannot undo an applied operation. Revoking execution permission does not
 erase outcomes or make uncertain work safe to repeat. Current inspection rights
 still control outcome disclosure.

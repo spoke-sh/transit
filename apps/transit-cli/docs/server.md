@@ -253,8 +253,9 @@ DELETE FROM items WHERE id = 1;
 ```
 
 These writes retain the [bounded Table mutation syntax](console.md#writing-tables-and-catalogs).
-SELECT opens a fresh snapshot; `.status` and `.resume` observe and recover a saved
-write after interruption. CREATE, ALTER and DROP use the same catalog route.
+SELECT opens a fresh snapshot. The console observes each submitted write until
+completion or a bounded failure, reporting uncertainty when it cannot confirm
+the outcome. CREATE, ALTER and DROP use the same catalog route.
 The SQL service retains scoped native identities; only the fenced
 catalog owner commits changes under separate current inspect/create/read/insert/
 update/delete/alter/drop policies. The default-table completion marker prevents
