@@ -41,6 +41,10 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .initialize, .admit_ddl => true,
+        .admit_saved => |value| switch (value.binding.action) {
+            .create, .alter, .rename, .drop => true,
+            .insert, .update, .delete => false,
+        },
         .operation => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => value.command != .inspect,
             .insert, .update, .delete => false,
@@ -51,6 +55,8 @@ fn exclusive(action: w.Action) bool {
 fn target(action: w.Action) ?u64 {
     return switch (action) {
         .check => |value| if (value.target) |expected| expected.object.object else null,
+        .stage => |value| value.intent.work.binding().target.object,
+        .admit_saved => |value| value.binding.target.object,
         .preview => |value| value.binding.target.object,
         inline .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,

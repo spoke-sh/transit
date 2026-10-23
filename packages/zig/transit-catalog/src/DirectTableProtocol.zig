@@ -225,6 +225,8 @@ pub const Action = union(enum) {
     list: struct { namespace: u64, after: ?u64 },
     lookup: struct { namespace: u64, name: []const u8 },
     preview: Ddl,
+    stage: struct { namespace: u64, intent: c.DirectTableIntent.Saved },
+    admit_saved: c.DirectTableIntent.Reference,
     admit_ddl: Ddl,
     admit_rows: Rows,
     admit_statement: Statement,
@@ -257,7 +259,7 @@ pub const Request = struct {
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
-            .initialize, .admit_ddl, .admit_rows, .admit_statement, .pin, .release => true,
+            .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .release => true,
             .operation => |value| value.command != .inspect,
             else => false,
         };
@@ -274,6 +276,16 @@ pub const Request = struct {
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
             .initialize, .describe => {},
+            .stage => |value| {
+                try c.Model.nativeId(value.namespace);
+                if (!std.meta.eql(value.intent.connection, connection)) return error.CatalogIdentityConflict;
+                try value.intent.validate(allocator);
+                if (value.intent.work == .ddl and value.intent.work.ddl.namespace != value.namespace) return error.DataIdentityConflict;
+            },
+            .admit_saved => |value| {
+                try value.validate();
+                if (!std.meta.eql(value.connection, connection)) return error.CatalogIdentityConflict;
+            },
             .namespace => |id| try c.Model.nativeId(id),
             .check => |value| try value.validate(connection.scope, connection.branch),
             .list => |value| {
@@ -348,6 +360,7 @@ pub const Result = union(enum) {
     description: D.Configuration,
     namespace: ?c.TableAuthority.Schema,
     checked,
+    staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
     preview: D.Preview,

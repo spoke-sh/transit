@@ -42,6 +42,38 @@ pub const Saved = struct {
         }
     }
 };
+/// Small durable control-plane reference to complete private data-plane bytes.
+/// It is not operation admission, a capability, or permission to fetch payloads.
+pub const Reference = struct {
+    definition: p.Growth.Definition,
+    connection: w.Connection,
+    namespace: u64,
+    binding: d.Binding,
+    content: d.Content,
+    pub fn validate(self: Reference) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try self.connection.validate();
+        try self.connection.binding(self.binding);
+        try c.Model.nativeId(self.namespace);
+        try self.content.validate();
+        if (self.content.bytes <= prefix_bytes or self.content.bytes > max_bytes) return error.InvalidTableIntent;
+    }
+    pub fn requireSame(self: Reference, other: Reference) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
+    }
+    pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+        try self.validate();
+        if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+        return client.call(.{ .admit_saved = self });
+    }
+    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !std.json.Parsed(w.Response) {
+        try self.validate();
+        if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+        return client.call(.{ .operation = .{ .binding = self.binding, .command = command, .steps = steps } });
+    }
+};
 allocator: std.mem.Allocator,
 bytes: []u8,
 parsed: std.json.Parsed(Saved),
@@ -134,6 +166,24 @@ pub fn deinit(self: *Self) void {
 }
 pub fn binding(self: *const Self) d.Binding {
     return self.parsed.value.work.binding();
+}
+pub fn reference(self: *const Self, namespace: u64) !Reference {
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(self.bytes, &hash, .{});
+    const result: Reference = .{ .definition = p.Growth.current_definition, .connection = self.parsed.value.connection, .namespace = namespace, .binding = self.binding(), .content = .{ .bytes = self.bytes.len, .sha256 = hash } };
+    try result.validate();
+    if (self.parsed.value.work == .ddl and self.parsed.value.work.ddl.namespace != namespace) return error.DataIdentityConflict;
+    return result;
+}
+/// Stage complete immutable work directly, then persist only its reference in
+/// an orchestrator's control ledger. Staging never claims or admits operation ID.
+pub fn stage(self: *const Self, client: c.DirectTableClient, namespace: u64) !Reference {
+    try self.check(client.connection);
+    const expected = try self.reference(namespace);
+    const response = try client.call(.{ .stage = .{ .namespace = namespace, .intent = self.parsed.value } });
+    defer response.deinit();
+    try expected.requireSame(response.value.result.staged);
+    return response.value.result.staged;
 }
 pub fn check(self: *const Self, connection: w.Connection) !void {
     if (!std.meta.eql(self.parsed.value.connection, connection)) return error.CatalogIdentityConflict;

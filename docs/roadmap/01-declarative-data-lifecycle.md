@@ -89,6 +89,9 @@ now produce complete saved direct intents with explicit admission and recovery;
 their installed SQL adapters remain part of the unfinished cutover.
 Prepared SELECT also binds parameters to an explicitly retained direct source
 under current rights; SQL session pin acquisition and recovery remain unfinished.
+Complete intents can now be staged directly in immutable storage and admitted
+later through exact references, including after restart. SQL's control ledger
+still needs to adopt those references and retire its actor row-upload path.
 The default launcher and installed SQL still use the actor
 catalog. Their cutover, dependency contracts, automatic point flushing,
 named resource provisioning and computation

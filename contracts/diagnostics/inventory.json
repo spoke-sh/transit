@@ -3061,7 +3061,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 10,
+        "CatalogDenied": 13,
         "CatalogIdentityConflict": 2,
         "CatalogNameHashCollision": 1,
         "CatalogNamespaceMissing": 3,
@@ -3122,6 +3122,7 @@
         "candidate()": "<inferred>",
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
+        "checkOperation()": "<inferred>",
         "entry()": "<inferred>",
         "guard()": "<inferred>",
         "init()": "<inferred>",
@@ -3157,7 +3158,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 236,
+        "try": 251,
         "catch": 3
       },
       "imports": [
@@ -3350,9 +3351,10 @@
     },
     "packages/zig/transit-catalog/src/DirectTableIntent.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
-        "IncompatibleDefinition": 2,
-        "InvalidTableIntent": 2,
+        "CatalogIdentityConflict": 3,
+        "DataIdentityConflict": 2,
+        "IncompatibleDefinition": 3,
+        "InvalidTableIntent": 3,
         "TableBatchTooLarge": 1,
         "TableDefinitionChanged": 1,
         "TablePayloadTooLarge": 1
@@ -3366,6 +3368,10 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Reference.admit()": "<inferred>",
+        "Reference.operation()": "<inferred>",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
         "Saved.validate()": "<inferred>",
         "admit()": "<inferred>",
         "check()": "<inferred>",
@@ -3373,11 +3379,35 @@
         "encode()": "<inferred>",
         "fromDml()": "<inferred>",
         "operation()": "<inferred>",
-        "restore()": "<inferred>"
+        "reference()": "<inferred>",
+        "restore()": "<inferred>",
+        "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 47,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTableIntentStore.zig": {
+      "errors": {
+        "InvalidTableIntent": 4,
+        "TableIntentMissing": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
         "catch": 0
       },
       "imports": [
@@ -3410,7 +3440,8 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 3,
-        "DataIdentityConflict": 3,
+        "CatalogIdentityConflict": 2,
+        "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
         "InvalidCatalogCursor": 1,
@@ -3433,6 +3464,8 @@
           "list",
           "lookup",
           "preview",
+          "stage",
+          "admit_saved",
           "admit_ddl",
           "admit_rows",
           "admit_statement",
@@ -3467,6 +3500,7 @@
           "description",
           "namespace",
           "checked",
+          "staged",
           "list",
           "lookup",
           "preview",
@@ -3511,7 +3545,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 73,
+        "try": 76,
         "catch": 2
       },
       "imports": [
@@ -3566,7 +3600,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 57,
         "catch": 0
       },
       "imports": [
@@ -5036,6 +5070,7 @@
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
         "DirectTableIntent.zig",
+        "DirectTableIntentStore.zig",
         "DirectTablePreparedDml.zig",
         "DirectTableProtocol.zig",
         "DirectTableReader.zig",
@@ -12482,7 +12517,7 @@
           "deadline"
         ],
         "Definition": [
-          "b801d844954d7d395d6af53ac922cc07f39dd158f77d9c45ce62c6624178e47e"
+          "@\"361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a\""
         ],
         "Effect.phase": [
           "pending",

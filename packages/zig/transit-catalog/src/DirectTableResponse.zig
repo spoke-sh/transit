@@ -105,9 +105,10 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .list => .list,
         .lookup => .lookup,
         .preview => .preview,
+        .stage => .staged,
         .admit_ddl => .ddl,
         .admit_rows, .admit_statement => .rows,
-        .operation => |value| switch (value.binding.action) {
+        inline .operation, .admit_saved => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => .ddl,
             .insert, .update, .delete => .rows,
         },
@@ -118,6 +119,12 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .staged => |value| {
+            const input = request.action.stage;
+            var intent = try c.DirectTableIntent.create(allocator, input.intent.connection, input.intent.work);
+            defer intent.deinit();
+            try value.requireSame(try intent.reference(input.namespace));
+        },
         .preview => |value| {
             const binding = request.action.preview.binding;
             try binding.requireSame(value.binding);
@@ -183,13 +190,16 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (value.next) |next| if (next == 0 or next <= (request.action.list.after orelse 0) or next < previous) return error.InvalidTableResponse;
         },
         .ddl => |value| {
-            const binding = if (request.action == .admit_ddl) request.action.admit_ddl.binding else request.action.operation.binding;
-            if (request.action == .admit_ddl and value == .not_observed) return error.InvalidTableResponse;
+            const binding = switch (request.action) {
+                inline .admit_ddl, .admit_saved, .operation => |work| work.binding,
+                else => unreachable,
+            };
+            if (request.action != .operation and value == .not_observed) return error.InvalidTableResponse;
             try ddl(binding, value);
         },
         .rows => |value| {
             const binding = switch (request.action) {
-                inline .admit_rows, .admit_statement => |work| work.binding,
+                inline .admit_rows, .admit_statement, .admit_saved => |work| work.binding,
                 .operation => |work| work.binding,
                 else => unreachable,
             };
