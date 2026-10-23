@@ -10,6 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def definition_bytes():
+    # Only the compatibility identifier comes from the public contract. Field
+    # layouts and canonical bytes below remain independently authored.
+    schema = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())
+    return bytes.fromhex(schema['x-transit']['definition'])
+
+
 def authentication():
     password = 'pencil'
     salt = bytes(range(16))
@@ -65,7 +72,7 @@ def length(n):
 
 
 def records():
-    definition = hashlib.sha256(b'transit.native.v1.project-identity.2026-10-21').digest()
+    definition = definition_bytes()
     def record(magic, value, fields):
         encoded = magic.encode() + definition
         for name, layout in fields:
@@ -149,7 +156,7 @@ def mysql_backend():
 
 
 def controls():
-    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.project-identity.2026-10-21').digest()
+    prefix = b'GSQ1' + definition_bytes()
     terminal = records()['terminal']
     cases = [
         (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None), fingerprint=[0]*32)),

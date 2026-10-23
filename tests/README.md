@@ -668,6 +668,13 @@ remains an explicit rejection case. This establishes the transport/storage
 boundary for small SQL control references. The installed SQL ledger still needs
 to adopt it, and staged-object cleanup is not implemented.
 
+The subsequent SQL baseline check found a fixture generator that still embedded
+the older project-identity definition. It now reads only that identifier from
+the generated native contract while retaining independently authored record and
+command layouts. After regeneration, the SQL package passes **28/28** tests
+(856 ms, MaxRSS 45 MiB). This is baseline actor-ledger evidence, not a direct
+SQL cutover result.
+
 ## Prepared SELECT over retained direct Tables — 2026-10-23
 
 Query `zig build test --summary all` passes **141/141** tests in the pinned Linux
