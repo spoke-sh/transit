@@ -6287,6 +6287,7 @@
       "errors": {
         "InvalidColumnCount": 1,
         "InvalidKeyColumnCount": 1,
+        "MissingPrimaryKey": 1,
         "UnorderedType": 4
       },
       "outcomes": {},
@@ -8787,6 +8788,7 @@
     "packages/zig/transit-fuze/src/TDel.zig": {
       "errors": {
         "CorruptDeletionVector": 1,
+        "IncompatibleDefinition": 1,
         "IncompatibleDeletionVector": 1,
         "InvalidDeletionVector": 8,
         "RowOffsetOutOfBounds": 1
@@ -8802,11 +8804,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 16,
         "catch": 0
       },
       "imports": [
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/TSeg.zig": {
@@ -8815,9 +8818,14 @@
         "CorruptSegmentFooter": 1,
         "CorruptSegmentPage": 1,
         "DuplicatePrimaryKey": 1,
+        "DuplicateRowIdentity": 1,
+        "IncompatibleDefinition": 1,
+        "IncompatibleDeletionVector": 1,
         "InvalidSegment": 8,
         "InvalidSegmentCoordinate": 1,
-        "InvalidSegmentOptions": 1
+        "InvalidSegmentOptions": 1,
+        "TableHasPrimaryKey": 1,
+        "TableSchemaChanged": 1
       },
       "outcomes": {
         "ZoneMap.mayMatch().op": [
@@ -8831,14 +8839,17 @@
       "error_sets": {},
       "error_returns": {
         "decodeRowGroupColumn()": "<inferred>",
+        "lookupIdentity()": "<inferred>",
         "lookupPrimaryKey()": "<inferred>",
+        "lookupStorageKey()": "<inferred>",
         "padTo64()": "<inferred>",
         "readFooter()": "<inferred>",
+        "requireInterpretation()": "<inferred>",
         "writeSegment()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 117,
+        "try": 123,
         "catch": 2
       },
       "imports": [
@@ -8849,7 +8860,8 @@
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/TableDdl.zig": {
@@ -9108,7 +9120,7 @@
         "InvalidRowIdentity": 1,
         "InvalidTableRowEncoding": 3,
         "NoPrimaryKey": 1,
-        "RowBufferTooSmall": 1,
+        "RowBufferTooSmall": 2,
         "TableRowTooLarge": 1,
         "TableSchemaChanged": 1,
         "UnsupportedTableRowDefinition": 1
@@ -9120,6 +9132,7 @@
         "Identity.encode()": "<inferred>",
         "Identity.validate()": "<inferred>",
         "Row.encode()": "<inferred>",
+        "Row.storageKey()": "<inferred>",
         "decode()": "<inferred>",
         "encodeKey()": "<inferred>",
         "encodeKeyValues()": "<inferred>",
@@ -9128,10 +9141,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 44,
         "catch": 0
       },
       "imports": [
+        "Collation.zig",
         "TableSchema.zig",
         "Types.zig",
         "std"
@@ -11695,7 +11709,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"9438134d5552df1afc0043aab73220112135bc05c260525d7598f6ba694cc31b\""
+          "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262"
         ],
         "Effect.phase": [
           "pending",
@@ -11834,7 +11848,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 62,
-        "catch": 1
+        "catch": 2
       },
       "imports": [
         "BlockRead.zig",
@@ -23312,11 +23326,10 @@
         "InvalidWalEpoch": 2,
         "InvalidWalHeader": 1,
         "InvalidWalLimits": 1,
-        "InvalidWalMagic": 1,
         "InvalidWalTrimBoundary": 1,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
-        "TruncatedWalFrame": 3,
+        "TruncatedWalFrame": 2,
         "WalEpochRegression": 1,
         "WalHistoryMissing": 6,
         "WalHistoryTrimmed": 1,
@@ -23349,7 +23362,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 72,
         "catch": 12
       },
       "imports": [
@@ -23523,6 +23536,7 @@
     "packages/zig/transit-storage/src/TableManifest.zig": {
       "errors": {
         "CorruptTableManifest": 1,
+        "IncompatibleDefinition": 1,
         "InvalidTableManifest": 8
       },
       "outcomes": {},
@@ -23537,12 +23551,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 65,
+        "try": 66,
         "catch": 0
       },
       "imports": [
         "TransitObjectStore.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-storage/src/TableMemtable.zig": {
@@ -23551,8 +23566,10 @@
         "InvalidRowDelta": 4,
         "InvalidTableManifest": 1,
         "ManifestCasConflict": 1,
-        "MemtableRecoveryRequired": 4,
+        "MemtableRecoveryRequired": 6,
+        "SnapshotNotRetained": 1,
         "TableDefinitionChanged": 2,
+        "TableHasPrimaryKey": 2,
         "WalHistoryMissing": 2
       },
       "outcomes": {
@@ -23566,9 +23583,13 @@
         "TableMemtable.appendWalDelta()": "<inferred>",
         "TableMemtable.applyInMemoryDelta()": "<inferred>",
         "TableMemtable.decodeOwnedRow()": "<inferred>",
+        "TableMemtable.deleteByIdentity()": "<inferred>",
         "TableMemtable.deleteByPrimaryKey()": "<inferred>",
+        "TableMemtable.deleteStorageKey()": "<inferred>",
         "TableMemtable.flushToSegment()": "<inferred>",
+        "TableMemtable.getByIdentity()": "<inferred>",
         "TableMemtable.getByPrimaryKey()": "<inferred>",
+        "TableMemtable.getByStorageKey()": "<inferred>",
         "TableMemtable.init()": "<inferred>",
         "TableMemtable.prepareEntry()": "<inferred>",
         "TableMemtable.readObjectBytes()": "<inferred>",
@@ -23579,7 +23600,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 92,
+        "try": 95,
         "catch": 1
       },
       "imports": [
@@ -23596,10 +23617,11 @@
       "errors": {
         "BufferTooSmall": 1,
         "CorruptWalFrame": 2,
+        "IncompatibleDefinition": 2,
         "InvalidWalEpoch": 1,
-        "InvalidWalHeader": 2,
+        "InvalidWalHeader": 3,
         "InvalidWalMagic": 1,
-        "TruncatedWalFrame": 2,
+        "TruncatedWalFrame": 3,
         "WalPayloadTooLarge": 1
       },
       "outcomes": {
@@ -23625,15 +23647,17 @@
         "Log.tail()": "<inferred>",
         "Log.trim()": "<inferred>",
         "decodeFrame()": "<inferred>",
-        "encodeFrame()": "<inferred>"
+        "encodeFrame()": "<inferred>",
+        "validateHeader()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 0,
+        "try": 1,
         "catch": 0
       },
       "imports": [
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-storage/src/TransitObjectStore.zig": {

@@ -313,6 +313,7 @@ pub fn appendSortKey(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.
 /// Encode a composite primary-key sort key across all primary-key columns of `schema`,
 /// respecting each key column's declared `Collation`.
 pub fn encodePrimaryKeySortKey(schema: TableSchema.Schema, row_or_key_cells: []const Values.Cell, is_full_row: bool, out: []u8) ![]const u8 {
+    if (schema.primary_key.len == 0) return error.MissingPrimaryKey;
     var writer: std.Io.Writer = .fixed(out);
     if (!is_full_row and row_or_key_cells.len != schema.primary_key.len) return error.InvalidKeyColumnCount;
     if (is_full_row and row_or_key_cells.len != schema.columns.len) return error.InvalidColumnCount;

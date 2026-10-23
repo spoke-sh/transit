@@ -104,7 +104,7 @@ test "recovery truncates only an incomplete unacknowledged final frame" {
     // A damaged nonfinal segment cannot be repaired by dropping later history.
     const file = try tmp.dir.openFile(t.io, "wal/part-1-0.twal", .{ .mode = .read_write });
     defer file.close(t.io);
-    try file.setLength(t.io, 256 - 9);
+    try file.setLength(t.io, (try file.length(t.io)) - 9);
     try t.expectError(error.WalHistoryMissing, open(tmp.dir));
 }
 

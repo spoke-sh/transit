@@ -105,3 +105,46 @@ test "real disk Table flush retains a raw tseg and replays the unflushed suffix 
     }
     try t.expect(found);
 }
+
+test "keyless rows keep stable identities across flush, delete and recovery" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var keyless = schema;
+    keyless.primary_key = &.{};
+    var owner = try Memtable.init(t.allocator, 1, 7, 2, keyless, lease, wal.log(), objects.objectStore(), null);
+    defer owner.deinit();
+    const value: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 11 } } };
+    for (0..3) |i| _ = try owner.upsertRow(.{ .identity = .{ .origin = 1, .operation = 10, .ordinal = @intCast(i) }, .cells = &.{value} }, 100);
+    try t.expectEqual(@as(u64, 3), (try owner.flushToSegment(100)).?.live_row_count);
+    try t.expectError(error.MissingPrimaryKey, owner.getByPrimaryKey(t.allocator, &.{}, 2));
+    try t.expectError(error.MissingPrimaryKey, owner.deleteByPrimaryKey(&.{}, 100));
+    for (0..3) |i| {
+        var row = (try owner.getByIdentity(t.allocator, .{ .origin = 1, .operation = 10, .ordinal = @intCast(i) }, 2)).?;
+        defer row.deinit();
+        try t.expectEqual(@as(i128, 11), row.cells[0].value.atom.signed);
+        try t.expectEqual(i, row.identity.ordinal);
+    }
+    _ = try owner.deleteByIdentity(.{ .origin = 1, .operation = 10, .ordinal = 1 }, 100);
+    try t.expectEqual(@as(u64, 2), (try owner.flushToSegment(100)).?.live_row_count);
+    try t.expectEqual(@as(u64, 0), try owner.recoverFromWal());
+    try t.expect((try owner.getByIdentity(t.allocator, .{ .origin = 1, .operation = 10, .ordinal = 1 }, 3)) == null);
+    var retained = (try owner.getByIdentity(t.allocator, .{ .origin = 1, .operation = 10, .ordinal = 2 }, 3)).?;
+    defer retained.deinit();
+    try t.expectEqual(@as(u32, 2), retained.identity.ordinal);
+}
+
+test "a point read never substitutes a newer flush for an unavailable old snapshot" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var owner = try table(t.allocator, &wal, &objects);
+    defer owner.deinit();
+    _ = try insert(&owner, 0);
+    _ = try owner.deleteByPrimaryKey(&.{.{ .value = .{ .atom = .{ .signed = 0 } } }}, 100);
+    _ = try owner.flushToSegment(100);
+    try t.expectError(error.SnapshotNotRetained, owner.getByPrimaryKey(t.allocator, &.{.{ .value = .{ .atom = .{ .signed = 0 } } }}, 0));
+    try t.expect((try owner.getByPrimaryKey(t.allocator, &.{.{ .value = .{ .atom = .{ .signed = 0 } } }}, 1)) == null);
+}

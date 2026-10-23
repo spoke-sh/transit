@@ -199,7 +199,7 @@ pub fn writeSegment(
         try row.identity.validate();
         try schema.validateRow(row.cells);
         var key_buf: [Collation.max_sort_key_bytes]u8 = undefined;
-        const pk_key = try Collation.encodePrimaryKeySortKey(schema, row.cells, true, &key_buf);
+        const pk_key = try row.storageKey(schema, &key_buf);
         sorted[i] = .{
             .row = row,
             .pk_sort_key = try arena.dupe(u8, pk_key),
@@ -208,8 +208,9 @@ pub fn writeSegment(
     std.mem.sort(SortableRow, sorted, {}, lessThanSortableRow);
 
     // Ensure no duplicate primary keys within the same segment
-    for (1..sorted.len) |i| {
+    for (@min(1, sorted.len)..sorted.len) |i| {
         if (std.mem.eql(u8, sorted[i - 1].pk_sort_key, sorted[i].pk_sort_key)) {
+            if (schema.primary_key.len == 0) return error.DuplicateRowIdentity;
             return error.DuplicatePrimaryKey;
         }
     }
@@ -305,6 +306,7 @@ pub fn writeSegment(
     const footer_offset: u64 = @intCast(writer.buffered().len);
 
     try writer.writeAll("TSF1");
+    try writer.writeAll(&@import("transit_protocol").Growth.definition_bytes);
     try writer.writeInt(u64, options.segment_id, .little);
     try writer.writeInt(u64, schema.object, .little);
     try writer.writeInt(u64, schema.revision, .little);
@@ -405,6 +407,7 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
 
     var reader: std.Io.Reader = .fixed(footer_body);
     if (!std.mem.eql(u8, try reader.take(4), "TSF1")) return error.InvalidSegment;
+    if (!std.mem.eql(u8, try reader.take(32), &@import("transit_protocol").Growth.definition_bytes)) return error.IncompatibleDefinition;
     const segment_id = try reader.takeInt(u64, .little);
     const object_id = try reader.takeInt(u64, .little);
     const schema_revision = try reader.takeInt(u64, .little);
@@ -495,6 +498,7 @@ pub fn decodeRowGroupColumn(
     row_group_index: usize,
     column_index: usize,
 ) ![]Values.Cell {
+    try requireInterpretation(schema, footer);
     if (row_group_index >= footer.row_groups.len or column_index >= schema.columns.len) {
         return error.InvalidSegmentCoordinate;
     }
@@ -522,6 +526,38 @@ pub fn lookupPrimaryKey(
 ) !?OwnedRow {
     var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
     const pk_sort_key = try Collation.encodePrimaryKeySortKey(schema, key_cells, false, &pk_buf);
+    return lookupStorageKey(allocator, schema, footer, segment_bytes, deletion_vector, pk_sort_key);
+}
+
+pub fn lookupIdentity(
+    allocator: std.mem.Allocator,
+    schema: TableSchema.Schema,
+    footer: *const Footer,
+    segment_bytes: []const u8,
+    deletion_vector: ?*const TDel.DeletionVector,
+    identity: TableRow.Identity,
+) !?OwnedRow {
+    if (schema.primary_key.len != 0) return error.TableHasPrimaryKey;
+    return lookupStorageKey(allocator, schema, footer, segment_bytes, deletion_vector, &try identity.encode());
+}
+
+fn requireInterpretation(schema: TableSchema.Schema, footer: *const Footer) !void {
+    if (schema.object != footer.object_id or schema.revision != footer.schema_revision or
+        !std.mem.eql(u8, &try schema.layoutFingerprint(), &footer.layout_fingerprint)) return error.TableSchemaChanged;
+}
+
+pub fn lookupStorageKey(
+    allocator: std.mem.Allocator,
+    schema: TableSchema.Schema,
+    footer: *const Footer,
+    segment_bytes: []const u8,
+    deletion_vector: ?*const TDel.DeletionVector,
+    pk_sort_key: []const u8,
+) !?OwnedRow {
+    try requireInterpretation(schema, footer);
+    if (deletion_vector) |del| {
+        if (del.segment_id != footer.segment_id or del.total_rows != footer.total_rows) return error.IncompatibleDeletionVector;
+    }
     const entry = footer.findPrimaryKeySortKey(pk_sort_key) orelse return null;
     if (deletion_vector) |del| {
         if (del.isDeleted(entry.global_row_offset)) return null;

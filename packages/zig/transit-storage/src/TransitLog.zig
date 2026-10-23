@@ -2,8 +2,9 @@
 //! Provides a 64-byte-aligned binary frame format with CRC32C + SHA-256 integrity,
 //! partition-scoped monotonic LSN sequencing, and `(writer_epoch, policy_epoch)` fencing.
 const std = @import("std");
+const definition = @import("transit_protocol").Growth.definition_bytes;
 
-pub const header_bytes: usize = 64;
+pub const header_bytes: usize = 128;
 pub const frame_alignment: usize = 64;
 pub const max_payload_bytes: u32 = 4 * 1024 * 1024;
 
@@ -23,7 +24,6 @@ pub const Header = struct {
     lsn: u64,
     timestamp_ms: u64,
     kind: FrameKind,
-    flags: u16 = 0,
     payload_len: u32,
     crc32c: u32,
     sha256_prefix: [8]u8,
@@ -60,7 +60,7 @@ fn computeSha256Prefix(payload: []const u8) [8]u8 {
     return digest[0..8].*;
 }
 
-/// Encode a `TWAL1` frame (64-byte header + payload + 64-byte zero padding) into `out`.
+/// Encode a `TWAL1` frame (128-byte header + payload + 64-byte alignment padding).
 pub fn encodeFrame(
     partition_id: u64,
     writer_epoch: u64,
@@ -80,7 +80,7 @@ pub fn encodeFrame(
     out[0..4].* = "TWAL".*;
     out[4] = 1; // version 1
     out[5] = @backingInt(kind);
-    std.mem.writeInt(u16, out[6..8], 0, .little);
+    std.mem.writeInt(u16, out[6..8], header_bytes, .little);
     std.mem.writeInt(u64, out[8..16], partition_id, .little);
     std.mem.writeInt(u64, out[16..24], writer_epoch, .little);
     std.mem.writeInt(u64, out[24..32], policy_epoch, .little);
@@ -92,6 +92,7 @@ pub fn encodeFrame(
     const sha_prefix = computeSha256Prefix(payload);
     std.mem.writeInt(u32, out[52..56], crc, .little);
     out[56..64].* = sha_prefix;
+    out[64..96].* = definition;
 
     @memcpy(out[header_bytes .. header_bytes + payload.len], payload);
     return out[0..total_bytes];
@@ -106,10 +107,8 @@ pub const DecodedFrame = struct {
 /// Returns `error.TruncatedWalFrame` if `bytes` has an incomplete trailing frame (used by
 /// crash recovery to distinguish a torn tail write from mid-log corruption).
 pub fn decodeFrame(bytes: []const u8) !DecodedFrame {
-    if (bytes.len < header_bytes) return error.TruncatedWalFrame;
-    if (!std.mem.eql(u8, bytes[0..4], "TWAL") or bytes[4] != 1) return error.InvalidWalMagic;
+    try validateHeader(bytes);
     const kind = std.enums.fromInt(FrameKind, bytes[5]) orelse return error.InvalidWalHeader;
-    const flags = std.mem.readInt(u16, bytes[6..8], .little);
     const partition_id = std.mem.readInt(u64, bytes[8..16], .little);
     const writer_epoch = std.mem.readInt(u64, bytes[16..24], .little);
     const policy_epoch = std.mem.readInt(u64, bytes[24..32], .little);
@@ -119,7 +118,7 @@ pub fn decodeFrame(bytes: []const u8) !DecodedFrame {
     const expected_crc = std.mem.readInt(u32, bytes[52..56], .little);
     const expected_sha = bytes[56..64].*;
 
-    if (flags != 0 or writer_epoch == 0 or policy_epoch == 0 or payload_len > max_payload_bytes) {
+    if (writer_epoch == 0 or policy_epoch == 0 or payload_len > max_payload_bytes) {
         return error.InvalidWalHeader;
     }
     const total_bytes = alignedFrameSize(payload_len);
@@ -144,7 +143,6 @@ pub fn decodeFrame(bytes: []const u8) !DecodedFrame {
                 .lsn = lsn,
                 .timestamp_ms = timestamp_ms,
                 .kind = kind,
-                .flags = flags,
                 .payload_len = payload_len,
                 .crc32c = expected_crc,
                 .sha256_prefix = expected_sha,
@@ -153,6 +151,17 @@ pub fn decodeFrame(bytes: []const u8) !DecodedFrame {
         },
         .consumed_bytes = total_bytes,
     };
+}
+
+/// Check the discriminator before deciding whether a short tail is torn. An
+/// older complete header is incompatible history, never disposable tail bytes.
+pub fn validateHeader(bytes: []const u8) !void {
+    if (bytes.len < 8) return error.TruncatedWalFrame;
+    if (!std.mem.eql(u8, bytes[0..4], "TWAL") or bytes[4] != 1) return error.InvalidWalMagic;
+    if (std.mem.readInt(u16, bytes[6..8], .little) != header_bytes) return error.IncompatibleDefinition;
+    if (bytes.len < header_bytes) return error.TruncatedWalFrame;
+    if (!std.mem.eql(u8, bytes[64..96], &definition)) return error.IncompatibleDefinition;
+    if (!std.mem.allEqual(u8, bytes[96..header_bytes], 0)) return error.InvalidWalHeader;
 }
 
 /// Pluggable `TransitLog` backend interface (`LocalWal`, `UrsulaWal`, `KafkaWal`, `PulsarWal`).

@@ -467,6 +467,16 @@ partition replacement and epoch regression. The storage and catalog package
 tests pass 23 and 89 cases respectively at this revision. This does not qualify
 bounded memtable residency, historical snapshot pins or installed SQL cutover.
 
+The subsequent storage-format cutover passes the storage, Fuze and catalog
+package tests. New cases preserve three keyless rows with identical values
+through flush and selective deletion/recovery; reject an unavailable pre-flush
+snapshot; reject foreign WAL/segment/deletion/manifest definitions, including
+artifacts with recomputed valid checksums; and reject schema or deletion-vector
+substitution before a point lookup. A complete older short WAL header is
+incompatible, not a truncatable torn tail. Schemas, binding resources and
+independent signing fixtures are regenerated for the replacement shared
+definition. The old identifier remains in protocol rejection tests.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),
