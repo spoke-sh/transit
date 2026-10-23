@@ -11,6 +11,17 @@ names bind stable IDs before preparation. Plans include the original principal,
 active role and policy revision. Preparation rejects a stale policy basis;
 publication and disclosure still require current rights.
 
+The local installation's direct catalog uses `DirectAuthorizationSql` for
+role, membership, grant/revoke, default-privilege and ownership plans. It resolves
+schema and Table names through signed metadata reads rather than raw catalog
+resource access. CONNECT, USAGE and current metadata visibility are required even
+for an administrator. The result uses the same native administration lifecycle;
+compiling it starts no Table work or policy publication. SET/RESET ROLE returns
+an explicitly checked selection without applying it to a session. Its default
+read budget is 128 operations, with one namespace page resident at a time.
+CREATE, RENAME and DROP SCHEMA are unavailable on this direct path. The schema
+lifecycle forms below belong to the existing typed catalog owner.
+
 | Object | Privileges |
 | --- | --- |
 | Database | CONNECT |

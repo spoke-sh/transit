@@ -9,6 +9,7 @@ pub const Inspection = @import("Inspection.zig");
 pub const DirectCatalog = @import("DirectCatalog.zig");
 pub const DirectTableProtocol = @import("DirectTableProtocol.zig");
 pub const DirectTableClient = @import("DirectTableClient.zig");
+pub const DirectAuthorizationSql = @import("DirectAuthorizationSql.zig");
 pub const DirectTableBinding = @import("DirectTableBinding.zig");
 pub const DirectTableIntent = @import("DirectTableIntent.zig");
 pub const DirectTableIntentStore = @import("DirectTableIntentStore.zig");

@@ -1741,7 +1741,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 90,
+        "try": 89,
         "catch": 3
       },
       "imports": [
@@ -3074,6 +3074,40 @@
       "propagation": {
         "try": 139,
         "catch": 10
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig": {
+      "errors": {
+        "CatalogDatabaseMismatch": 1,
+        "CatalogDirectoryChanged": 1,
+        "CatalogSchemaMissing": 1,
+        "QueryPageBudget": 2,
+        "StaleAuthorizationCredential": 1,
+        "StaleAuthorizationRevision": 1,
+        "TableNotFound": 1,
+        "UnsupportedDirectSchemaAdministration": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Resolver.call()": "<inferred>",
+        "Resolver.consume()": "<inferred>",
+        "Resolver.namespace()": "<inferred>",
+        "Resolver.object()": "<inferred>",
+        "Resolver.read()": "<inferred>",
+        "Resolver.revision()": "<inferred>",
+        "Resolver.role()": "<inferred>",
+        "Resolver.select()": "<inferred>",
+        "compile()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -5166,6 +5200,7 @@
       "imports": [
         "AuthorizationSql.zig",
         "DeclarativeCatalog.zig",
+        "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
