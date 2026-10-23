@@ -559,6 +559,17 @@ durable DML admission, dependency RESTRICT or schema DDL beyond initialization.
 The installed actor path remains active. Physical collection is absent, and
 cross-Table listing is not a consistent catalog snapshot.
 
+`nix develop --command just test::local-catalog` also passes the node composition
+test against the real local native owner. Signed native administration registers
+the database, schema and Table domains/objects. A caller with domain ownership
+and no raw resource access admits CREATE. Transferring Table ownership before
+publication denies execution; transferring it back permits exact completion.
+Later ownership removal denies both definition and original outcome disclosure.
+Restoring ownership recovers that outcome; retiring the resource then denies it
+despite retained Table grants. The request adapter rejects a changed request
+digest and a forged signature. This test does not exercise an HTTP Table route
+or automatic registration orchestration.
+
 ## Table partition acceptance and retained read pins — 2026-10-22
 
 In the pinned development shell, `zig build test` passes in
