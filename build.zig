@@ -321,7 +321,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") } },
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     test_step.dependOn(&local_catalog_tests.step);

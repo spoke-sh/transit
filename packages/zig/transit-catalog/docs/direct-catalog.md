@@ -43,6 +43,15 @@ before registration still records a terminal operation and frees the name. A
 native object already created by interrupted work remains retained; cancellation
 does not silently retire an independently accepted native identity.
 
+The node's internal `LocalCatalogRunner` composes these operations with the
+public native registration helper. An explicit run performs a bounded number
+of native steps and then attaches and accepts the Table when ready. It rechecks
+the original caller after preparing each native candidate, including resource
+retirement. Native publication compares that candidate's original authority
+position; the runner does not reprepare behind the check. Lost replies resume
+through the native registration ledger. This runner is not yet connected to an
+installed HTTP route or background scheduler.
+
 `status` inspects actual Table evidence before returning a pending catalog phase.
 After a lost reply, it returns the original accepted definition and result even
 if the Table has since changed or retired. `cancel` returns committed evidence
