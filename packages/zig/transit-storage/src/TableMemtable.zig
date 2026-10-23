@@ -163,7 +163,7 @@ pub const TableMemtable = struct {
         try self.schema.validateRow(row.cells);
 
         var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
-        const pk_sort_key = try Collation.encodePrimaryKeySortKey(self.schema, row.cells, true, &pk_buf);
+        const pk_sort_key = try row.storageKey(self.schema, &pk_buf);
 
         const row_buf = try self.allocator.alloc(u8, TableRow.max_bytes);
         defer self.allocator.free(row_buf);
@@ -182,7 +182,17 @@ pub const TableMemtable = struct {
         try self.lease.validateDataPartition(now_ms);
         var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
         const pk_sort_key = try Collation.encodePrimaryKeySortKey(self.schema, key_cells, false, &pk_buf);
+        return self.deleteStorageKey(pk_sort_key);
+    }
 
+    pub fn deleteByIdentity(self: *TableMemtable, identity: TableRow.Identity, now_ms: i64) !u64 {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
+        try self.lease.validateDataPartition(now_ms);
+        if (self.schema.primary_key.len != 0) return error.TableHasPrimaryKey;
+        return self.deleteStorageKey(&try identity.encode());
+    }
+
+    fn deleteStorageKey(self: *TableMemtable, pk_sort_key: []const u8) !u64 {
         var entry = try self.prepareEntry(.delete, pk_sort_key, &.{});
         errdefer self.freeEntry(entry);
         const receipt = try self.appendWalDelta(.delete, pk_sort_key, &.{});
@@ -191,9 +201,8 @@ pub const TableMemtable = struct {
         return receipt.lsn;
     }
 
-    /// Read-Your-Writes snapshot point lookup by Primary Key at `snapshot_lsn`.
-    /// Consults the Tier 0 MVCC Memtable first, then committed `.tseg`/`.tdel` segments
-    /// in the active `TableManifest`.
+    /// Point lookup at an inclusive WAL position. Positions before the active
+    /// checkpoint are unavailable here; retained snapshots need their own basis.
     pub fn getByPrimaryKey(
         self: *TableMemtable,
         allocator: std.mem.Allocator,
@@ -203,6 +212,19 @@ pub const TableMemtable = struct {
         if (self.recovery_required) return error.MemtableRecoveryRequired;
         var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
         const pk_sort_key = try Collation.encodePrimaryKeySortKey(self.schema, key_cells, false, &pk_buf);
+        return self.getByStorageKey(allocator, pk_sort_key, snapshot_lsn);
+    }
+
+    pub fn getByIdentity(self: *TableMemtable, allocator: std.mem.Allocator, identity: TableRow.Identity, snapshot_lsn: u64) !?TSeg.OwnedRow {
+        if (self.schema.primary_key.len != 0) return error.TableHasPrimaryKey;
+        return self.getByStorageKey(allocator, &try identity.encode(), snapshot_lsn);
+    }
+
+    fn getByStorageKey(self: *TableMemtable, allocator: std.mem.Allocator, pk_sort_key: []const u8, snapshot_lsn: u64) !?TSeg.OwnedRow {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
+        if (self.active_manifest_owned) |m| {
+            if (snapshot_lsn < m.manifest.flushed_lsn) return error.SnapshotNotRetained;
+        }
 
         // 1. Check Tier 0 MVCC Memtable from newest to oldest `<= snapshot_lsn`
         var idx = self.entries.items.len;
@@ -242,13 +264,13 @@ pub const TableMemtable = struct {
                 maybe_del = try TDel.DeletionVector.decode(allocator, tdel_bytes);
             }
 
-            if (try TSeg.lookupPrimaryKey(
+            if (try TSeg.lookupStorageKey(
                 allocator,
                 self.schema,
                 &footer,
                 tseg_bytes,
                 if (maybe_del) |*d| d else null,
-                key_cells,
+                pk_sort_key,
             )) |found| {
                 return found;
             }
@@ -315,7 +337,7 @@ pub const TableMemtable = struct {
                 }
 
                 if (newly_deleted > 0) {
-                    const tdel_buf = try a.alloc(u8, 64 + seg.row_count * 4);
+                    const tdel_buf = try a.alloc(u8, TDel.header_bytes + 32 + @as(usize, seg.row_count) * 4);
                     const encoded_tdel = try del_vec.encode(tdel_buf);
                     var tdel_sha: [32]u8 = undefined;
                     std.crypto.hash.sha2.Sha256.hash(encoded_tdel, &tdel_sha, .{});

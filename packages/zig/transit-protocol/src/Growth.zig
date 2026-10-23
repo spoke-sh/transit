@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.declarative-data-lifecycle.2026-10-22.
+/// SHA-256 of transit.native.v1.storage-interpretation.2026-10-22.
 pub const Definition = enum {
-    @"9438134d5552df1afc0043aab73220112135bc05c260525d7598f6ba694cc31b",
+    a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -34,6 +34,12 @@ pub const Definition = enum {
     }
 };
 pub const current_definition: Definition = @fromBackingInt(0);
+/// Binary artifact fingerprint. There is no implicit definition for persisted bytes.
+pub const definition_bytes: [32]u8 = blk: {
+    var bytes: [32]u8 = undefined;
+    _ = std.fmt.hexToBytes(&bytes, @tagName(current_definition)) catch unreachable;
+    break :blk bytes;
+};
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
 pub const query_domain = "transit.query.v1\x00";
@@ -811,6 +817,8 @@ test "native responses require the current contract definition even with a v1 la
     inline for (.{
         // Fixed two-column Tables, before general schema/lifecycle and ABI cutover.
         "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+        // Before mandatory binary storage definitions and keyless row identity.
+        "9438134d5552df1afc0043aab73220112135bc05c260525d7598f6ba694cc31b",
         // Before mandatory local WAL metadata and exact data lifecycle bindings.
         "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
         // Pre-compact immutable page definition.

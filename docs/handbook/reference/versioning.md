@@ -64,8 +64,10 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The shared definition binds the local WAL's mandatory directory and partition
-metadata. The local disk owner rejects its earlier unmarked layout and missing
+The shared definition binds local WAL directory and partition metadata, every
+WAL frame, segment footer, deletion vector and Table manifest. It also binds
+keyless segment ordering by stable row identity. Readers reject missing or
+foreign artifact definitions before interpretation. The local disk owner rejects its earlier unmarked layout and missing
 or foreign definitions. It does not convert old logs. Preserve them with their
 matching build before an explicitly chosen fresh installation or a separately
 qualified converter. This storage-component cutover does not change the installed

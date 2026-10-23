@@ -370,3 +370,23 @@ test "OccCoordinator automatically rebases disjoint concurrent .tseg commits and
         ),
     );
 }
+
+test "WAL frames require their binary definition and reject an old short header" {
+    var bytes: [256]u8 = undefined;
+    const frame = try TransitLog.encodeFrame(1, 1, 1, 0, 0, .row_delta, "x", &bytes);
+    bytes[64] ^= 1;
+    try std.testing.expectError(error.IncompatibleDefinition, TransitLog.decodeFrame(frame));
+    bytes[64] ^= 1;
+    bytes[6] = 0;
+    try std.testing.expectError(error.IncompatibleDefinition, TransitLog.decodeFrame(frame[0..64]));
+}
+
+test "Table manifests require the shared definition even with valid integrity" {
+    const t = std.testing;
+    const manifest: TableManifest.Manifest = .{ .catalog_id = 1, .object_id = 1, .manifest_version = 1, .schema_revision = 1, .layout_fingerprint = @splat(0), .writer_epoch = 1, .policy_epoch = 1, .flushed_lsn = 0, .live_row_count = 0, .segments = &.{} };
+    var bytes: [512]u8 = undefined;
+    const encoded = try manifest.encode(&bytes);
+    bytes[5] ^= 1;
+    std.crypto.hash.sha2.Sha256.hash(bytes[0 .. encoded.len - 32], bytes[encoded.len - 32 ..][0..32], .{});
+    try t.expectError(error.IncompatibleDefinition, TableManifest.decode(t.allocator, encoded));
+}

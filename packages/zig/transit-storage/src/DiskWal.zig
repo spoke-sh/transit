@@ -201,8 +201,8 @@ fn nextSegment(self: *Self, id: u64, after: ?u64) !?Segment {
 /// Read one frame without allocating from an unchecked header length.
 fn frame(self: *Self, file: std.Io.File, offset: u64, allocator: std.mem.Allocator) ![]u8 {
     var header: [log.header_bytes]u8 = undefined;
-    if (try file.readPositionalAll(self.io, &header, offset) != header.len) return error.TruncatedWalFrame;
-    if (!std.mem.eql(u8, header[0..4], "TWAL") or header[4] != 1) return error.InvalidWalMagic;
+    const acquired = try file.readPositionalAll(self.io, &header, offset);
+    try log.validateHeader(header[0..acquired]);
     const length = std.mem.readInt(u32, header[48..52], .little);
     if (length > log.max_payload_bytes) return error.InvalidWalHeader;
     const bytes = try allocator.alloc(u8, log.alignedFrameSize(length));

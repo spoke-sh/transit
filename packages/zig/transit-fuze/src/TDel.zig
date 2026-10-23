@@ -1,8 +1,10 @@
 //! Immutable `.tdel` (`"TDEL"` v1) deletion vectors for `.tseg` segments.
 //! Tracks deleted or superseded row offsets without rewriting immutable `.tseg` files.
 const std = @import("std");
+const definition = @import("transit_protocol").Growth.definition_bytes;
 
 pub const max_encoded_bytes: usize = 512 * 1024;
+pub const header_bytes: usize = 4 + 1 + 32 + 8 + 4 + 4;
 
 pub const DeletionVector = struct {
     allocator: std.mem.Allocator,
@@ -55,6 +57,7 @@ pub const DeletionVector = struct {
         var writer: std.Io.Writer = .fixed(out[0..@min(out.len, max_encoded_bytes)]);
         try writer.writeAll("TDEL");
         try writer.writeByte(1); // version 1
+        try writer.writeAll(&definition);
         try writer.writeInt(u64, self.segment_id, .little);
         try writer.writeInt(u32, self.total_rows, .little);
         try writer.writeInt(u32, self.deleted_count, .little);
@@ -75,8 +78,9 @@ pub const DeletionVector = struct {
     }
 
     pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !DeletionVector {
-        if (bytes.len < 4 + 1 + 8 + 4 + 4 + 32 or bytes.len > max_encoded_bytes) return error.InvalidDeletionVector;
+        if (bytes.len < header_bytes + 32 or bytes.len > max_encoded_bytes) return error.InvalidDeletionVector;
         if (!std.mem.eql(u8, bytes[0..4], "TDEL") or bytes[4] != 1) return error.InvalidDeletionVector;
+        if (!std.mem.eql(u8, bytes[5..37], &definition)) return error.IncompatibleDefinition;
 
         const payload = bytes[0 .. bytes.len - 32];
         const expected_digest = bytes[bytes.len - 32 ..][0..32];
@@ -84,7 +88,7 @@ pub const DeletionVector = struct {
         std.crypto.hash.sha2.Sha256.hash(payload, &actual_digest, .{});
         if (!std.mem.eql(u8, &actual_digest, expected_digest)) return error.CorruptDeletionVector;
 
-        var reader: std.Io.Reader = .fixed(payload[5..]);
+        var reader: std.Io.Reader = .fixed(payload[37..]);
         const segment_id = try reader.takeInt(u64, .little);
         const total_rows = try reader.takeInt(u32, .little);
         const deleted_count = try reader.takeInt(u32, .little);

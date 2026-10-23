@@ -19,7 +19,7 @@ architectural model.
 
 ## `TransitLog` (`TWAL` v1) frame layout
 
-Every `TransitLog` frame begins with a 64-byte little-endian header followed by
+Every `TransitLog` frame begins with a 128-byte little-endian header followed by
 `payload_len` bytes of payload and zero-padding to a 64-byte boundary:
 
 | Offset | Size | Type | Description |
@@ -27,7 +27,7 @@ Every `TransitLog` frame begins with a 64-byte little-endian header followed by
 | `0..4` | 4 | `[4]u8` | Magic `"TWAL"` |
 | `4` | 1 | `u8` | Format version (`1`) |
 | `5` | 1 | `FrameKind` | `1 = genesis`, `2 = policy_control`, `3 = row_delta`, `4 = catalog_ddl`, `5 = process_turn`, `6 = manifest_checkpoint` |
-| `6..8` | 2 | `u16` | Reserved flags (`0`) |
+| `6..8` | 2 | `u16` | Header size (`128`); other layouts reject |
 | `8..16` | 8 | `u64` | `partition_id` (`0` reserved for Control & Policy Log; `>= 1` for data-plane partitions) |
 | `16..24` | 8 | `u64` | `writer_epoch` (`>= 1`, monotonically non-decreasing per partition) |
 | `24..32` | 8 | `u64` | `policy_epoch` (`>= 1`, monotonically non-decreasing per partition) |
@@ -36,8 +36,12 @@ Every `TransitLog` frame begins with a 64-byte little-endian header followed by
 | `48..52` | 4 | `u32` | `payload_len` (`<= 4 MiB`) |
 | `52..56` | 4 | `u32` | `crc32c` (`CRC-32/ISCSI` over header bytes `0..52` followed by `payload`) |
 | `56..64` | 8 | `[8]u8` | First 8 bytes of `SHA-256(payload)` |
+| `64..96` | 32 | `[32]u8` | Mandatory decoded shared contract definition |
+| `96..128` | 32 | `[32]u8` | Reserved zero bytes |
 
-Reserved flags must be zero. Checksums do not establish permission or an accepted
+The header discriminator is checked before a short frame is classified as a torn
+tail. A complete older 64-byte header rejects; it is never silently truncated.
+Missing or foreign definition bytes reject. Checksums do not establish permission or an accepted
 application operation; the owning acceptance record supplies that binding.
 
 ## Local WAL persistence
@@ -152,7 +156,10 @@ locks, durable snapshot pins or installed catalog transactions.
 ## `.tseg` (`TSEG` v1) hybrid segment layout
 
 A `.tseg` segment stores immutable rows sorted by their composite primary-key
-collation sort key (`Collation.encodePrimaryKeySortKey`):
+collation sort key. A Table without a primary key instead uses the big-endian
+20-byte `TableRow.Identity` as its storage key. Identical cell values in different
+rows remain distinct; repeated identities within a segment reject. Keyless
+point reads/deletes require that identity, not an empty primary key.
 
 1. **Header (`64 bytes` at offset `0`)**: `"TSEG"`, version `1` (`u32`),
    `segment_id` (`u64`), `object_id` (`u64`), `schema_revision` (`u64`),
@@ -165,6 +172,7 @@ collation sort key (`Collation.encodePrimaryKeySortKey`):
    `comp`, `comp_3`, `zoned`, `ibm_hfp`, `ebcdic`), preserving all five cell states
    (`value`, `null`, `missing`, `type_error`, `conflict`).
 3. **Footer (`"TSF1"`, `64-byte` aligned at `footer_offset`)**:
+   - Mandatory 32-byte shared contract definition immediately after `"TSF1"`.
    - Segment metadata and full 32-byte `layout_fingerprint`.
    - Segment-wide `[min_pk_sort_key, max_pk_sort_key]` bounds.
    - Per-row-group page offsets, lengths, SHA-256 digests, and collation-aware
@@ -179,13 +187,22 @@ collation sort key (`Collation.encodePrimaryKeySortKey`):
 
 ## `.tdel` (`TDEL` v1) deletion vectors and `TMAN` v1 manifests
 
-- **`.tdel` deletion vectors**: Begin with `"TDEL"` + `0x01`, `segment_id` (`u64`),
+- **`.tdel` deletion vectors**: Begin with `"TDEL"` + `0x01`, mandatory 32-byte
+  shared contract definition, `segment_id` (`u64`),
   `total_rows` (`u32`), `deleted_count` (`u32`), strictly ascending `u32` deleted
   row offsets, and a trailing 32-byte SHA-256 digest.
-- **`TMAN` v1 table manifests**: Begin with `"TMAN"` + `0x01`, `catalog_id` (`u64`),
+- **`TMAN` v1 table manifests**: Begin with `"TMAN"` + `0x01`, mandatory 32-byte
+  shared contract definition, `catalog_id` (`u64`),
   `object_id` (`u64`), `manifest_version` (`u64`), `schema_revision` (`u64`),
   `layout_fingerprint` (`[32]u8`), `writer_epoch` (`u64`), `policy_epoch` (`u64`),
   `flushed_lsn` (`u64`), `live_row_count` (`u64`), the array of active
   `SegmentDescriptor`s, and a trailing 32-byte SHA-256 digest. Published to
   `manifest/<object_id>/v<N>.tman` via `TransitObjectStore.putConditional` with
   `.if_none_match`.
+
+Segment point lookups validate the supplied object, schema revision and layout
+before index pruning, including a key miss. Deletion vectors must match the
+segment identity and row count. `TableMemtable` point reads use an inclusive WAL
+position and reject `SnapshotNotRetained` when that position predates the active
+manifest's flush frontier. This guard prevents substituting current data for an
+older snapshot; it does not provide durable retained snapshot ownership.

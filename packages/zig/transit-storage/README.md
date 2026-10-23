@@ -12,7 +12,8 @@ durable snapshot pins, policy-authorized trimming or multi-process Table commits
 ## Modules
 
 - `TransitLog.zig`: Pluggable write-ahead log interface and 64-byte-aligned `"TWAL"` v1
-  binary frame format with CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`
+  binary frame format with a mandatory definition in its 128-byte header,
+  CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`
   fencing.
 - `LocalWal.zig`: Exclusive POSIX log owner with incremental segmented writes,
   synced frontiers/fences/trim floors, bounded recovery, and a separate volatile
@@ -56,3 +57,11 @@ reads and mutations until successful recovery. The component owns its schema
 and reserves row-visibility allocations before attempting a durable append.
 The active memtable and manifest still require separate growth and snapshot
 work; paging WAL reads does not bound the full resident row set.
+
+Keyless rows use stable `TableRow.Identity` storage keys and support identity
+point reads/deletes. Equal cell values do not collapse distinct rows. Reads before
+the active flush frontier return `SnapshotNotRetained`; this component does not
+retain a historical basis implicitly. WAL frames, segment footers, deletion
+vectors and manifests require the shared binary definition even when copied
+outside their original directory. Segment lookups check schema interpretation
+and deletion-vector ownership before pruning.
