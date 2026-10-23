@@ -79,6 +79,13 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
     try t.expect(try reader.next(delegated, .{}) == null);
     const check = try delegated.call(.{ .check_set = &.{.{ .snapshot = state.snapshot.? }} });
     check.deinit();
+    var wrong_frontier = state.grant.binding.expected;
+    wrong_frontier.next_lsn += 1;
+    // Recovering an unknown handle must validate its original acquisition;
+    // a status result for the same pin owner cannot authorize a different cut.
+    try t.expectError(error.TableDelegationDenied, delegated.closeOriginalPin(state.snapshot.?.object, state.grant.binding.owner, wrong_frontier, null));
+    try t.expectError(error.Conflict, client.closeOriginalPin(state.snapshot.?.object, state.grant.binding.owner, wrong_frontier, null));
+    try reader.check(delegated);
     try t.expectError(error.TableDelegationDenied, delegated.call(.describe));
     try t.expectError(error.TableDelegationDenied, delegated.call(.{ .lookup = .{ .namespace = 1, .name = "events" } }));
     var outside = state.snapshot.?;
@@ -98,7 +105,7 @@ pub fn close(client: c.DirectTableClient, state: State) !void {
     const delegated = try executor(client, state.grant);
     // Closure is durable even when its response is unusable. The caller keeps
     // the same handle until the next restart verifies the terminal state.
-    try t.expectError(error.InvalidTableResponse, delegated.call(.{ .release = state.snapshot.? }));
+    try t.expectError(error.InvalidTableResponse, delegated.closeOriginalPin(state.snapshot.?.object, state.grant.binding.owner, state.grant.binding.expected, state.snapshot.?.handle));
 }
 
 pub fn closed(client: c.DirectTableClient, state: State) !void {
@@ -106,8 +113,7 @@ pub fn closed(client: c.DirectTableClient, state: State) !void {
     const retained = try status(delegated, state.grant);
     defer retained.deinit();
     try t.expect(retained.value.result.pin_state.released);
-    const released = try delegated.call(.{ .release = state.snapshot.? });
-    released.deinit();
+    try delegated.closeOriginalPin(state.snapshot.?.object, state.grant.binding.owner, state.grant.binding.expected, state.snapshot.?.handle);
     try t.expectError(error.Conflict, delegated.call(acquisition(state.grant)));
     try t.expectError(error.Conflict, delegated.call(.{ .snapshot = state.snapshot.? }));
 }

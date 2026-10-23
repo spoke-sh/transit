@@ -131,26 +131,9 @@ pub fn close(self: *Self, client: c.DirectTableClient, original: Record) !void {
     try self.recover(client, record);
 }
 fn recover(self: *Self, client: c.DirectTableClient, record: Record) !void {
-    const response = try client.call(.{ .pin_status = .{ .object = record.table.interpretation.interpretation.object, .owner = record.owner() } });
-    defer response.deinit();
-    const state = response.value.result.pin_state;
-    if (state.position.partition != record.expected.partition) return error.InvalidSqlReadRecovery;
-    if (record.handle) |handle| {
-        if (state.handle == null or !std.meta.eql(handle, state.handle.?)) return error.InvalidSqlReadRecovery;
-    }
-    var handle = state.handle;
-    if (handle == null) {
-        // A delayed acquisition can never match a retired/later monotone head.
-        if (state.retired or state.position.next_lsn > record.expected.next_lsn) return self.remove(record);
-        if (state.position.next_lsn != record.expected.next_lsn) return error.InvalidSqlReadRecovery;
-        const pinned = try client.call(.{ .pin = .{ .object = record.table.interpretation.interpretation.object, .owner = record.owner(), .expected = record.expected } });
-        defer pinned.deinit();
-        handle = pinned.value.result.pin;
-    }
-    if (!state.released) {
-        const released = try client.call(.{ .release = .{ .object = record.table.interpretation.interpretation.object, .handle = handle.? } });
-        defer released.deinit();
-    }
+    // The journal owns the durable closure decision; the common client only
+    // settles its original remote pin under current rights.
+    try client.closeOriginalPin(record.table.interpretation.interpretation.object, record.owner(), record.expected, record.handle);
     try self.remove(record);
 }
 /// Visits at most eight directory entries and reconciles at most one orphan.

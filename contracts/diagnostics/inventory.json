@@ -3426,18 +3426,20 @@
     },
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {
-        "InvalidTableDelegation": 1
+        "InvalidTableDelegation": 1,
+        "InvalidTableResponse": 6
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "call()": "<inferred>",
+        "closeOriginalPin()": "<inferred>",
         "require()": "<inferred>",
         "signed()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -19314,7 +19316,7 @@
         "CatalogIdentityConflict": 2,
         "FileNotFound": 2,
         "IncompatibleDefinition": 1,
-        "InvalidSqlReadRecovery": 12,
+        "InvalidSqlReadRecovery": 9,
         "SqlReadRecoverySyncFailed": 3,
         "StaleGatewayCoordinator": 1,
         "TableSnapshotNotPinned": 1
@@ -19341,7 +19343,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 34,
         "catch": 4
       },
       "imports": [
