@@ -512,7 +512,12 @@ turns, malformed replies, a lost turn receipt, node SIGKILL/restart, exact recei
 recovery and current revocation, with one resident page and one CPU. It also
 checks real native WAL and immutable object files. HTTP admission, snapshot
 registration, retries and lane synchronization are shared with the Ursula node
-in `NativeServer.zig`. This proof does not exercise local maintenance, the
+in `NativeServer.zig`. A subsequent run with local request metrics enabled also
+checks bounded numeric provider counters, actual read/write byte accounting and
+diagnostics across restart. The Ursula caller and maintenance fault phases pass;
+the broader Station recovery phase times out at its 240-second schedule limit,
+so the complete Ursula service suite is not recorded as passed for this change.
+This proof does not exercise local maintenance, the
 launcher default, standalone payload publication or direct Table SQL storage.
 
 ## SQL idle lifetimes and readiness observations

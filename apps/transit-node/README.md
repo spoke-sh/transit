@@ -57,8 +57,8 @@ from expiry, fencing or a conflicting request identity, while retaining exact
 pending commands through their own bounded scheduling policy.
 
 With Ursula storage, run `--maintain` separately for authorized lifetime,
-collection and checkpoint work. The local node currently rejects `--maintain`
-and `request_metrics: true`; local maintenance requires composition inside its
+collection and checkpoint work. The local node currently rejects `--maintain`;
+local maintenance requires composition inside its
 exclusive owner. Selecting local storage does not change launcher defaults or
 move Table operations onto direct segment storage. The
 [courier](../transit-delivery/README.md) delivers committed outputs via

@@ -23,7 +23,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `resident_pages` | Decoded page cache slots per execution lane, default 512, configurable 0–4096; ten lanes plus the bootstrap/maintenance context synchronize verified cache entries at lane boundaries; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
 | `storage` | Shared storage candidate/allocation limits and maintenance settings; does not select a provider |
-| `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false; the local node currently rejects true |
+| `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
 | `maintenance` | Ursula configuration for the separate `--maintain` process, below; the local node does not accept this field |
 
@@ -197,8 +197,12 @@ Counters cover this process's completed attempt, not maintenance in another
 process, durable outcomes, caller persistence or response transport time.
 Missing headers mean missing measurement, not zero work. Counters do not depend
 on sampled logs and retain no payloads, credentials or principal labels. Encoding
-failure omits diagnostics without changing the authority response. Metrics are
-opt-in to keep the default response and instrumentation work unchanged.
+failure omits diagnostics without changing the authority response. Metrics
+headers are opt-in. With local storage, provider counters measure native log
+and immutable page/block operations, including conflicts and storage failures.
+Cache hits do not count as provider reads. Local payload bytes count serialized
+WAL entries and page/block envelopes; they do not count filesystem framing or
+individual system calls. Trimming includes its verification reads.
 
 
 ## Physical storage budgets and maintenance

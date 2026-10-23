@@ -26,14 +26,16 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
-    if (config.request_metrics) return error.LocalRequestMetricsUnsupported;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
     var owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
     defer owner.deinit();
     var pages = try PageStore.init(&owner, config.resident_pages);
     defer pages.deinit();
-    var journal: Store = .{ .backend = &owner };
+    pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
+    var journal: Store = .{ .backend = &owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } };
     var recovery = @import("transit_observability").begin(diagnostics, .recovery, if (mode.initialize or mode.bootstrap) "bootstrap" else "open", null);
+    journal.observe.parent = recovery.span.context;
+    pages.observe.parent = recovery.span.context;
     var engine = (if (mode.initialize or mode.bootstrap) Engine.bootstrap(&journal, &pages, config.genesis) else Engine.open(&journal, &pages, config.genesis)) catch |err| {
         recovery.fail(err);
         recovery.finish();
@@ -42,6 +44,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     recovery.event.realm = config.genesis.realm;
     recovery.event.position = engine.head.position;
     recovery.finish();
+    journal.observe.parent = null;
+    pages.observe.parent = null;
     if (mode.initialize) return;
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
@@ -53,7 +57,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var initialized: usize = 0;
     defer for (lanes[0..initialized]) |*lane| lane.pages.deinit();
     for (lanes) |*lane| {
-        lane.* = .{ .journal = .{ .backend = &owner }, .pages = try PageStore.init(&owner, config.resident_pages), .engine = engine };
+        lane.* = .{ .journal = .{ .backend = &owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } }, .pages = try PageStore.init(&owner, config.resident_pages), .engine = engine };
+        lane.pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
         lane.engine.journal = &lane.journal;
         lane.engine.page_store = &lane.pages;
         initialized += 1;
@@ -72,7 +77,15 @@ pub const Lane = struct {
     acquired_misses: u64 = 0,
 };
 
-pub fn readMetrics(_: *Engine) ?server.Metrics {
-    return null;
+pub fn readMetrics(engine: *Engine) ?server.Metrics {
+    if (!engine.journal.observe.enabled) return null;
+    var result: server.Metrics = undefined;
+    inline for (@typeInfo(server.Metrics).@"struct".field_names) |field| {
+        @field(result, field) = @field(engine.journal.observe.metrics, field) +| @field(engine.page_store.observe.metrics, field);
+    }
+    return result;
 }
-pub fn trace(_: *Engine, _: ?telemetry.Context) void {}
+pub fn trace(engine: *Engine, parent: ?telemetry.Context) void {
+    engine.journal.observe.parent = parent;
+    engine.page_store.observe.parent = parent;
+}

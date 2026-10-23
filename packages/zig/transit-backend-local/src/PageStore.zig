@@ -11,6 +11,7 @@ pub const max_resident_pages = 4096;
 pub const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
 
 backend: *Backend,
+observe: @import("Diagnostics.zig") = .{},
 cache: []?Cached,
 access: u64 = 0,
 hits: u64 = 0,
@@ -90,6 +91,10 @@ fn unwrap(kind: u8, bytes: []const u8) ![]const u8 {
 }
 
 pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !pages.Reference {
+    return self.observe.run(self.backend.io, "page.stage", stageImpl, .{ self, reference, page });
+}
+
+fn stageImpl(self: *Self, reference: pages.Reference, page: *const pages.Page) !pages.Reference {
     if (!std.mem.allEqual(u8, &reference.location, 0)) return error.UnsupportedPageLocation;
     try reference.verify(page);
     var bytes: [envelope_bytes + pages.max_encoded_bytes]u8 = undefined;
@@ -100,6 +105,7 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     result.location = try self.location('p', reference.digest, encoded.len);
     var name: [96]u8 = undefined;
     self.create_payload_bytes_attempted +|= encoded.len;
+    self.observe.metrics.request_payload_bytes +|= encoded.len;
     try self.backend.put(try key('p', result.location, &name), encoded, self.control);
     self.created +|= 1;
     self.remember(result, page.*);
@@ -120,9 +126,14 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
         }
     };
     self.misses +|= 1;
+    return self.observe.run(self.backend.io, "page.load", loadImpl, .{ self, reference });
+}
+
+fn loadImpl(self: *Self, reference: pages.Reference) !pages.Page {
     var name: [96]u8 = undefined;
     var bytes: [envelope_bytes + pages.max_encoded_bytes]u8 = undefined;
     const encoded = try self.backend.read(try key('p', reference.location, &name), &bytes);
+    self.observe.metrics.response_bytes +|= encoded.len;
     const page = try pages.Page.decode(self.backend.allocator, try unwrap('p', encoded));
     try reference.verify(&page);
     self.remember(reference, page);
@@ -130,6 +141,10 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
 }
 
 pub fn stageBlock(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.blocks.Reference {
+    return self.observe.run(self.backend.io, "block.stage", stageBlockImpl, .{ self, spec, body });
+}
+
+fn stageBlockImpl(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.blocks.Reference {
     try spec.verify(body);
     var bytes: [envelope_bytes + p.Blocks.max_block_bytes]u8 = undefined;
     envelope('b', &bytes);
@@ -138,17 +153,23 @@ pub fn stageBlock(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.bloc
     const address = try self.location('b', spec.digest, encoded.len);
     var name: [96]u8 = undefined;
     self.block_payload_bytes_attempted +|= encoded.len;
+    self.observe.metrics.request_payload_bytes +|= encoded.len;
     try self.backend.put(try key('b', address, &name), encoded, self.control);
     self.blocks_created +|= 1;
     return .{ .value = spec, .location = address };
 }
 
 pub fn loadBlock(self: *Self, reference: core.blocks.Reference, output: []u8) ![]const u8 {
+    return self.observe.run(self.backend.io, "block.load", loadBlockImpl, .{ self, reference, output });
+}
+
+fn loadBlockImpl(self: *Self, reference: core.blocks.Reference, output: []u8) ![]const u8 {
     try reference.value.validate();
     if (output.len < reference.value.bytes) return error.BlockBufferTooSmall;
     var name: [96]u8 = undefined;
     var bytes: [envelope_bytes + p.Blocks.max_block_bytes]u8 = undefined;
     const encoded = try self.backend.read(try key('b', reference.location, &name), &bytes);
+    self.observe.metrics.response_bytes +|= encoded.len;
     const body = try unwrap('b', encoded);
     try reference.value.verify(body);
     @memcpy(output[0..body.len], body);

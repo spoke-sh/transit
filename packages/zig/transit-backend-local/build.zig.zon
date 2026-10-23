@@ -6,6 +6,7 @@
     .dependencies = .{
         .transit_core = .{ .path = "../transit-core" },
         .transit_storage = .{ .path = "../transit-storage" },
+        .transit_observability = .{ .path = "../transit-observability" },
     },
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }

@@ -2302,6 +2302,23 @@
         "transit_storage"
       ]
     },
+    "packages/zig/transit-backend-local/src/Diagnostics.zig": {
+      "errors": {
+        "Conflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 0,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_observability"
+      ]
+    },
     "packages/zig/transit-backend-local/src/PageStore.zig": {
       "errors": {
         "ActiveStorageCandidate": 1,
@@ -2324,9 +2341,13 @@
         "key()": "<inferred>",
         "load()": "<inferred>",
         "loadBlock()": "<inferred>",
+        "loadBlockImpl()": "<inferred>",
+        "loadImpl()": "<inferred>",
         "location()": "<inferred>",
         "stage()": "<inferred>",
         "stageBlock()": "<inferred>",
+        "stageBlockImpl()": "<inferred>",
+        "stageImpl()": "<inferred>",
         "stageMany()": "<inferred>",
         "unwrap()": "<inferred>"
       },
@@ -2337,6 +2358,7 @@
       },
       "imports": [
         "Backend.zig",
+        "Diagnostics.zig",
         "std",
         "transit_core"
       ]
@@ -2355,9 +2377,13 @@
       "error_sets": {},
       "error_returns": {
         "appendControlled()": "<inferred>",
+        "appendImpl()": "<inferred>",
         "maintain()": "<inferred>",
+        "maintainImpl()": "<inferred>",
         "read()": "<inferred>",
+        "readImpl()": "<inferred>",
         "tail()": "<inferred>",
+        "tailImpl()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -2367,6 +2393,7 @@
       },
       "imports": [
         "Backend.zig",
+        "Diagnostics.zig",
         "std",
         "transit_core",
         "transit_storage"

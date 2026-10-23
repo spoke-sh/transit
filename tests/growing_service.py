@@ -39,11 +39,13 @@ def main(node, caller, station_caller=None, query_caller=None, quota_caller=None
             "port": port, "resident_pages": 1, "request_timeout_ms": 10000}
         if local:
             settings['local_directory'] = str(fixture.root / 'native')
+            settings['request_metrics'] = True
         else:
             settings.update(ursula_url=fixture.url, bucket='growing-service', journal='authority')
         config.write_text(json.dumps(settings))
         manifest = fixture.root / "pending.json"
         fault = {"turns": 0, "pending": None, "receipt": None, "invalid_read": False, "retried": False}
+        measured = {"responses": 0, "requests": 0, "request_payload_bytes": 0, "response_bytes": 0}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -57,6 +59,15 @@ def main(node, caller, station_caller=None, query_caller=None, quota_caller=None
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
+                    if local and (header := response.getheader('x-transit-work')) is not None:
+                        assert len(header) <= 768
+                        metrics = json.loads(header)['provider']
+                        assert set(metrics) == {'requests', 'failures', 'elapsed_ns', 'request_payload_bytes', 'response_bytes'}
+                        assert all(type(value) is int and 0 <= value < 2**64 for value in metrics.values())
+                        assert metrics['failures'] <= metrics['requests']
+                        measured['responses'] += 1
+                        for name in ('requests', 'request_payload_bytes', 'response_bytes'):
+                            measured[name] += metrics[name]
                     if self.path == "/v1/command" and any(
                             name in envelope["request"]["command"] for name in ("turn", "turn_with_versions")):
                         fault["turns"] += 1
@@ -124,6 +135,7 @@ def main(node, caller, station_caller=None, query_caller=None, quota_caller=None
             if local:
                 assert list((fixture.root / 'native' / 'wal').glob('*.twal'))
                 assert list((fixture.root / 'native' / 'objects').glob('*.data'))
+                assert all(value > 0 for value in measured.values()), measured
         except BaseException:
             log.flush()
             log.seek(0)
