@@ -454,6 +454,7 @@ const Output = struct {
 fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void {
     var interval_ms: u32 = 2;
     var cleanup_failure: u16 = 0;
+    var direct_failure: u16 = 0;
     while (true) {
         const progressed = runtime.tick() catch |err| blk: {
             if (!g.station.client.Client.unavailable(err)) {
@@ -467,6 +468,11 @@ fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void 
         if (current_cleanup != cleanup_failure) {
             cleanup_failure = current_cleanup;
             if (current_cleanup != 0) diagnostics.event(.{ .name = "sql.read.cleanup_blocked", .level = .warn, .outcome = .failed, .error_type = @errorName(@as(anyerror, @errorFromInt(current_cleanup))) });
+        }
+        const current_direct = runtime.direct_work_failure.load(.acquire);
+        if (current_direct != direct_failure) {
+            direct_failure = current_direct;
+            if (current_direct != 0) diagnostics.event(.{ .name = "sql.operation.recovery_blocked", .level = .warn, .outcome = .failed, .error_type = @errorName(@as(anyerror, @errorFromInt(current_direct))) });
         }
         if (progressed) {
             interval_ms = 2;

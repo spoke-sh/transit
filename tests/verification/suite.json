@@ -79,6 +79,7 @@
       "test::observability",
       "test::server-logging",
       "test::server-direct-tables",
+      "test::server-direct-faults",
       "test::server-sql-lifetimes",
       "test::server-sql",
       "test::server-sql-local",

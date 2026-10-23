@@ -101,6 +101,7 @@ raise that capacity or discard history to complete.
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
 | `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
 | `just test::server-direct-tables` | Exercise installed direct Table CRUD/DDL with the query worker stopped, exact bootstrap recovery and deliberate default-Table deletion |
+| `just test::server-direct-faults` | Refuse direct execution while testing new-console status, cancellation and exact recovery across caller/manager loss |
 | `just test::server-sql-local` | Exercise the default build's installed executables and adjacent discovery under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
 | `just test::server-sql-lifetimes` | Verify idle psql and PostgreSQL/MySQL sockets, native session expiry, explicit timeout errors and bounded partial frames over plaintext/TLS |
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |

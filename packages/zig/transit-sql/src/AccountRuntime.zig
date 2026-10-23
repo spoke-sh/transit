@@ -30,6 +30,7 @@ ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
 read_pins: ?g.ReadPins = null,
 read_cleanup_failure: std.atomic.Value(u16) = .init(0),
+direct_work_failure: std.atomic.Value(u16) = .init(0),
 
 pub fn notify(self: *Self) void {
     self.wake_mutex.lockUncancelable(self.io);
@@ -187,8 +188,10 @@ pub fn tick(self: *Self) !bool {
         if (self.await_initialization and err == error.GatewayNotInitialized) return progressed;
         return err;
     }) {
-        .idle, .blocked => {},
+        .idle, .blocked => self.direct_work_failure.store(0, .release),
+        .data_blocked => |value| self.direct_work_failure.store(@intFromError(value.cause), .release),
         .control => |command| {
+            self.direct_work_failure.store(0, .release);
             try self.private_lane.start(&self.private, command);
             progressed = try self.advancePrivate() or true;
             self.notifyProgress();
@@ -196,16 +199,22 @@ pub fn tick(self: *Self) !bool {
         .dispatch => |action| {
             // Unknown direct outcomes retain the committed original binding.
             // A later pass observes it before repeating admission or execution.
-            const command = self.coordinator.dispatch(action) catch |err| {
+            const result = self.coordinator.dispatch(action) catch |err| {
                 if (staleRead(&self.background, err)) return progressed;
                 return err;
             };
-            if (command) |value| {
-                try self.private_lane.start(&self.private, value);
-                _ = try self.advancePrivate();
+            switch (result) {
+                .data_blocked => |value| self.direct_work_failure.store(@intFromError(value.cause), .release),
+                .pending, .control => {
+                    self.direct_work_failure.store(0, .release);
+                    if (result == .control) {
+                        try self.private_lane.start(&self.private, result.control);
+                        _ = try self.advancePrivate();
+                    }
+                    progressed = true;
+                    self.notifyProgress();
+                },
             }
-            progressed = true;
-            self.notifyProgress();
         },
     }
     if (self.read_pins) |*pins| {

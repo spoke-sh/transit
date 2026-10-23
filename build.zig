@@ -952,6 +952,12 @@ pub fn build(b: *std.Build) void {
     direct_server_test.has_side_effects = true;
     direct_server_test.stdio = .inherit;
     b.step("test-server-direct-tables", "Prove installed SQL uses the direct Table owner and exact bootstrap recovery").dependOn(&direct_server_test.step);
+    const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_fault_test.addFileArg(b.path("tests/server_direct_faults.py"));
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| direct_fault_test.addArtifactArg(artifact);
+    direct_fault_test.has_side_effects = true;
+    direct_fault_test.stdio = .inherit;
+    b.step("test-server-direct-faults", "Prove installed direct Table recovery and control during data-owner failures").dependOn(&direct_fault_test.step);
     const logging_test = b.addSystemCommand(&.{ "python3", "-B" });
     logging_test.addFileArg(b.path("tests/server_logging.py"));
     for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| logging_test.addArtifactArg(artifact);
