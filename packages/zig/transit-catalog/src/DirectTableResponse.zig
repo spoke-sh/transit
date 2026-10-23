@@ -93,7 +93,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     const subject = response.subject;
     const original = if (request.closure) |closure|
         (try closure.proof(request.delegation.?, allocator)).claim
-    else if (request.delegation) |delegation| delegation.proof.claim else request.proof.claim;
+    else if (request.borrow) |borrow| (try borrow.proof(request.delegation.?, allocator)).claim else if (request.delegation) |delegation| delegation.proof.claim else request.proof.claim;
     try p.Authorization.roleId(subject.login_role);
     try p.Authorization.roleId(subject.role);
     if (subject.principal != request.connection.principal or subject.audience != request.connection.audience or

@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
+definition = "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -32,6 +32,7 @@ request_input = {
     "action": {"lookup": {"namespace": 1, "name": "evénts"}},
     "delegation": None,
     "closure": None,
+    "borrow": None,
 }
 context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(request_input)).digest()
 claim = {
@@ -71,6 +72,16 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     assert len(retained_grant) == 310
     delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public,
                          "retained_grant": base64.b64encode(retained_grant).decode()}
+    borrow_binding = {"executor": 10, "target": {"snapshot": {"object": read_binding["interpretation"]["object"], "handle": {"owner": read_binding["owner"], "content": {"bytes": 128, "sha256": [12] * 32}}}}, "purpose": [13] * 32}
+    borrow_context = hashlib.sha256(b"transit.table.borrowed-read.v1\0" + retained_grant + canonical(borrow_binding)).digest()
+    borrow_claim = {**delegated_claim, "context": list(borrow_context)}
+    borrow = {"binding": borrow_binding, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(borrow_claim)).digest())}
+    borrowed_input = {**delegated_input, "action": {"snapshot": borrow_binding["target"]["snapshot"]}, "borrow": borrow}
+    borrower_claim = {**claim, "principal": 10, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(borrowed_input)).digest())}
+    borrower = Key(Path(directory), "public-borrower-key", 32)
+    borrowed_request = {**borrowed_input, "proof": {"claim": borrower_claim, "signature": borrower.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(borrower_claim)).digest())}}
+    borrowed_fixture = {"request": borrowed_request, "caller_key": public_key, "executor_key": borrower.public}
+
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -81,6 +92,7 @@ fixture = {
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
 validator.validate(delegated_request)
+validator.validate(borrowed_request)
 for field in ("definition", "proof", "nonce", "delegation"):
     invalid = copy.deepcopy(request)
     del invalid[field]
@@ -109,6 +121,9 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-v1.json",
         (json.dumps(fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-delegation-v1.json",
         (json.dumps(delegated_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-borrow-v1.json",
+        (json.dumps(borrowed_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 
 # The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
 # the saved envelope uses the public JSON writer's exact array representation.

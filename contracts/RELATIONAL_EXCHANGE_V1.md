@@ -14,19 +14,21 @@ Table exchange workers retain explicit original-caller assignment proofs.
 `ExchangeAuthorization.prepare` signs once before worker activation using the
 accepted query's same principal, credential epoch and selected role. It does
 not renew an accepted query after rotation. The assignment binds the exchange
-ID, logical producer PID, partition count, worker count/index, batch size,
+ID, logical producer PID, receiver PID/resource, partition count, worker count/index, batch size,
 physical-plan epoch and quota to the complete query/history basis. The host
 retains that proof with its immutable assignment; replacement never re-signs it.
 
 The claim context is SHA-256 over UTF-8
 `transit.query.exchange.assignment.v1` followed by a zero byte, the canonical
-`RQH1` basis bytes (including the signed query fingerprint), then the eight
+`RQH1` basis bytes (including the signed query fingerprint), then the ten
 assignment fields above as little-endian uint64 values. The batch size also
 occupies uint64 here. The proof audience is the logical producer PID.
 `bind` checks the complete assignment and original identity before binding the
 subject to the actual native turn. Source reads and publication still require
 current native object checks; an assignment signature is not a cached grant.
-The coordinator retains the accepted query's original audience-bound proof.
+The receiver PID equals the accepted query proof's audience. The receiver
+resource is explicit and need not be any Table's catalog resource. The coordinator
+retains the accepted query's original audience-bound proof.
 Physical worker credentials supply storage/execution authority separately.
 
 An exchange has a nonzero caller-allocated ID, one immutable bound query, one or
@@ -102,11 +104,11 @@ Row-index keys are 32 bytes: `00 78 72`, exchange:uint64be, source:uint8 and the
 | `RXP1` | source:uint8, partition:uint64, sequence:uint64, exact 72-byte producer publication reference |
 | `RXA1` | exact 72-byte producer reference, exact 72-byte receiver reference |
 | `RXR1` | exact 72-byte receiver segment reference, row ordinal:uint8 |
-| `RXB1` | bound fingerprint; six uint64: exchange, producer PID, resource, cumulative quota, charged bytes, last offered publication record; pending-reference-present byte; 72-byte pending publication reference, all zero when absent |
+| `RXB1` | bound fingerprint; eight uint64: exchange, producer PID, resource, cumulative quota, charged bytes, last offered publication record, receiver PID, receiver resource; pending-reference-present byte; 72-byte pending publication reference, all zero when absent |
 | `RXW1` | bound fingerprint; nine uint64: exchange, partition count, worker count, worker index, current channel, segment sequence, physical epoch, next publication record, accepted scan steps; batch-size and after-identity-present bytes; 20-byte after identity, all zero when absent |
 
 `RXH1`, `RXC1`, `RXP1`, `RXA1` and `RXR1` are respectively 175, 107, 125, 180 and
-109 bytes. `RXB1` is 189 bytes. Every saved reference binds format, length and
+109 bytes. `RXB1` is 205 bytes. Every saved reference binds format, length and
 publication digest.
 
 `RXW1` is 162 bytes. Worker count is positive, worker index is less than count,
@@ -124,7 +126,7 @@ The producer records a receiver-authenticated acknowledgement as its exact
 `RXP1` value at the `k` key. It changes neither source progress nor credits and
 can be recorded through own-resource control after source denial. Producer quota
 reserves this acknowledgement record with the eligibility record. Exact retries
-read the durable eligibility ledger and retain the bound plan's original receiver
+read the durable eligibility ledger and retain the producer record's original receiver
 PID even after acknowledged publisher chunks are retired.
 
 ## Acceptance, consumption and coverage
@@ -142,7 +144,7 @@ binding and current rights to every query source. It reserves one incoming
 segment at a time and charges its retained quota before copying; concurrent
 channel registration cannot spend this reservation. It reopens the producer's
 current resource, verifies its exact
-eligibility record and publisher, and copies the verified segment into its own
+eligibility record, immutable receiver binding and publisher, and copies the verified segment into its own
 publication through bounded turns. Acceptance atomically records the local and
 remote references, advances channel/head counters and sends an acknowledgement.
 The acknowledgement repeats the exact `RXP1` identity. A duplicate must have the
@@ -193,11 +195,19 @@ adds a producer current-view guard while copying. Source pins, copied bytes,
 placement and old successful access do not grant current disclosure rights.
 Protocol checks do not prove that a worker computed honestly.
 
-Exchanged Table inputs use a frozen `RQH1` complete-history vector. Each producer
-reopens those exact immutable Table roots under its own grants. Native retained
-read versions remain restricted to the capturing PID; they cannot be lent to a
-different producer. A captured history bundle freezes one basis and cannot call
-the maintained successor selector. This does not change `RQV1` captured-job pins.
+Exchanged Table inputs use a frozen `RQH1` vector of exact direct Table cuts.
+The coordinator owns the original snapshot/history leases. Each producer saves
+an original-caller `DirectReadDelegation.Borrow` per source, bound to that exact
+cut and the complete exchange assignment context. `prepareRead` signs these
+permissions before activation. `RelationalHistory.openExchange` checks their
+executor against the actual native turn principal, binds the original caller's
+assignment proof to the producer PID, and validates the same current source
+requirements as the coordinator. Workers use their own credentials and receive
+no acquisition or cleanup permission. The data owner enforces the exact cut and
+current caller/executor rights. Later maintained revisions need fresh explicit
+assignment proofs and borrowed targets under the same accepted caller epoch;
+credential rotation cannot renew that query. Native retained KV read versions
+remain restricted to their capturing PID.
 
 ## Maintained execution attachment
 

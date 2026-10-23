@@ -235,3 +235,42 @@ test "direct statement conversion freezes typed predicates and requires a data b
     work.binding.intent[0] ^= 1;
     try t.expectError(error.DataIdentityConflict, work.native(alloc));
 }
+
+test "borrowed Table reads bind independent signatures and deny lifecycle control" {
+    const Fixture = struct { request: w.Request, caller_key: [32]u8, executor_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-borrow-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    const original = request.delegation.?;
+    const borrow = request.borrow.?;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.executor_key);
+    try (try borrow.proof(original, t.allocator)).verify(parsed.value.caller_key);
+    try t.expectEqual(@as(u64, 10), request.proof.claim.principal);
+    try t.expectEqual(@as(u64, 9), original.binding.executor);
+    const snapshot = borrow.binding.target.snapshot;
+    for ([_]w.Action{
+        .{ .pin = .{ .object = snapshot.object, .owner = snapshot.handle.owner, .expected = original.binding.expected } },
+        .{ .release = snapshot },
+        .{ .pin_status = .{ .object = snapshot.object, .owner = snapshot.handle.owner } },
+        .describe,
+    }) |action| try t.expectError(error.TableDelegationDenied, borrow.allow(action));
+    var changed = borrow;
+    changed.binding.target.snapshot.handle.content.sha256[0] ^= 1;
+    try t.expectError(error.TableDelegationDenied, changed.allow(request.action));
+    try t.expectError(error.SignatureVerificationFailed, (try changed.proof(original, t.allocator)).verify(parsed.value.caller_key));
+    inline for (.{ "executor", "purpose" }) |field| {
+        changed = borrow;
+        if (comptime std.mem.eql(u8, field, "executor")) changed.binding.executor += 1 else changed.binding.purpose[0] ^= 1;
+        try t.expectError(error.SignatureVerificationFailed, (try changed.proof(original, t.allocator)).verify(parsed.value.caller_key));
+    }
+    var rotated = original;
+    rotated.proof.claim.credential_epoch += 1;
+    try t.expectError(error.SignatureVerificationFailed, (try borrow.proof(rotated, t.allocator)).verify(parsed.value.caller_key));
+    var invalid = request;
+    invalid.closure = .{ .credential_epoch = 1, .signature = @splat(0) };
+    try t.expectError(error.InvalidTableDelegation, invalid.validate(t.allocator));
+    invalid = request;
+    invalid.delegation = null;
+    try t.expectError(error.InvalidTableDelegation, invalid.validate(t.allocator));
+}

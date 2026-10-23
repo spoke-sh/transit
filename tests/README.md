@@ -185,6 +185,45 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Direct Table exchange placement and borrowed reads — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --exchanges-only` passes under definition
+`38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`.
+The private persistent node admits a maintained self-join over two rows, with
+query progress separate from the Table catalog. The coordinator retains the
+history lease. A separate producer principal saves original-caller assignment
+and borrowed-read proofs, reads the exact cut, and delivers both source channels
+through one logical partition. The receiver attaches complete coverage and the
+verified revision reader returns count two. Recreating hosts during bounded
+steps preserves progress. Cancellation closes the original lease, rejects
+further borrowed reads and leaves the completed result readable.
+
+The setup first encountered `PendingWork` when adding a producer-resource
+association under active coordinator ownership. The corrected schedule suspends
+the receiver, adds the optional association, resumes and reacquires a new
+ownership generation while retaining the accepted query. This is a generation
+replacement and discarded-proposal schedule; it does not inject lost native
+receipts or restart the node after exchange acceptance.
+
+Eighteen selected query tests pass for exchange control bytes, routing/coverage,
+credit and quota limits, producer replay, immutable receiver binding and original
+caller assignment. Receiver acceptance rejects a producer record addressed to
+another resource. Five selected catalog tests pass, including independent
+Python-signed borrowed request bytes. The full catalog ReleaseSafe suite passes
+124 tests. The two local catalog/native-policy tests pass snapshot and historical
+borrowed reads, exact-successor rejection, denied acquisition/release, current
+policy revocation after buffering, original-caller credential rotation and reads
+after lease closure.
+
+The shared v1 definition replaces the prior envelopes and producer record;
+`RXB1` now carries the immutable receiver PID/resource. Contract generation and
+checks, binding resources, independent signing/codec fixtures, diagnostic mapping
+checks and the documentation checks pass. This focused public schedule does not
+qualify multiple exchange workers, later maintained attachments, credential
+handoff, capacity or the older exchange/native caller hosts. Their migration and
+full repository/installed qualification remain pending.
+
 ## Retained direct Table pages and predicates — 2026-10-23
 
 `nix develop --command zig build test-direct-captured-query

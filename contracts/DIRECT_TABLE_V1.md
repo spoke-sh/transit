@@ -11,7 +11,8 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 ## Requests and authority
 
 A request contains the mandatory current shared definition, connection, nonce,
-action, nullable delegation, nullable closure authorization and transport proof. A null delegation
+action, nullable delegation, nullable closure authorization, nullable borrowed-read
+authorization and transport proof. A null delegation
 uses the original caller's proof. The connection binds the existing
 realm/resource/catalog, branch one, audience, principal and optional selected
 role. Changing any request field changes its context digest. The request domain
@@ -28,7 +29,7 @@ request context, checked policy revision and verified native subject (principal,
 login role, effective role, credential epoch and audience). The client checks
 that subject against the original connection and signed caller claim. With a
 delegation, its context is the delegation digest, or the separately signed
-closure context when a closure authorization is supplied; the response's separate
+closure or borrowed-read context when that authorization is supplied; the response's separate
 `context` still binds the complete transport request. The node checks all successfully
 used requirements again after buffering the complete response. Denial at this
 boundary suppresses the response, even if a mutation has already committed.
@@ -117,6 +118,26 @@ The owner checks the current closure proof and executor proof together. Only
 Schema and row reads reject, and cleanup cannot replace execution authority or
 choose a newer cut. Exact-original acquisition may be needed to create a terminal
 release record for an uncertain request whose frontier has not advanced.
+
+`DirectReadDelegation.Borrow` grants another executor read access to one existing
+cut. Its `binding` contains, in order, an executor principal, a target
+(`snapshot: Snapshot` or `history: Historical`) and a nonzero 32-byte purpose.
+It also carries the original caller's 64-byte signature. The claim retains the
+original grant's identity, role, audience and credential epoch; its context is
+SHA-256 of `transit.table.borrowed-read.v1`, a zero byte, the exact original
+310-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
+proof after the caller's epoch changes rejects instead of renewing accepted work.
+
+The request carries both the original delegation and `borrow`. The transport
+proof belongs to the borrower's current credential. The owner authenticates the
+borrowed caller proof and current executor together and fences disclosure after
+serialization. A snapshot target permits only `snapshot`, `scan` and `read_key`
+for that exact handle. A historical target permits only `history_source` and
+`history_scan` for that exact lease, position and record commitment. Acquisition,
+release, history traversal, discovery and mutation reject. Borrow and closure
+cannot be combined. Releasing the coordinator's lease ends borrowed access;
+borrowed reads neither retain it independently nor reopen it. The purpose binds
+application-owned work, not verified computation.
 
 ## Declaration and row operations
 

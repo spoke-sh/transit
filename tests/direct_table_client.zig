@@ -310,6 +310,10 @@ pub fn main(init: std.process.Init) !void {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);
             try RelationalFailures.run(init, fresh, &admin, profile.role, std.meta.stringToEnum(RelationalFailures.Case, args[2]["relational-failure-".len..]) orelse return error.UnknownProofPhase);
+        } else if (std.mem.eql(u8, args[2], "capture-exchanges")) {
+            var fresh = client;
+            fresh.key = try key(if (profile.captured != null) 59 else 29);
+            try @import("direct_relational_exchanges.zig").run(init, fresh, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);

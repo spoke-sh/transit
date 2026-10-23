@@ -1,12 +1,14 @@
 # Relational query exchanges
 
 The typed Zig interface exchanges bounded source-row segments under one growing
-native authority. It uses explicit producer PIDs/resources and a receiver sharing
-the first Table owner's PID/resource. Exchanged inputs use `RelationalHistory`
-with an explicitly frozen Table-history vector. Each worker validates that exact
-basis and current rights to every Table under its own native identity. Native
-retained-read pins belong to the capturing PID; `RelationalCaptured` cannot lend
-its pins to a different producer PID. The
+native authority. Producers and receiver have explicit PIDs/resources independent
+of the Tables' catalog owners. Exchanged inputs use `RelationalHistory` with a
+frozen direct Table vector. The coordinator retains the original leases. Each
+producer saves an original-caller assignment proof and a read-only borrowed
+grant for each exact source cut; `RelationalHistory.openExchange` uses the
+producer's own credential and fences native publication under the original
+caller's current rights. Borrowed access cannot acquire, advance or close a
+lease. The
 [wire contract](../../../../contracts/RELATIONAL_EXCHANGE_V1.md) defines exact
 identities, routing and failure semantics.
 
@@ -16,7 +18,8 @@ identities, routing and failure semantics.
 2. Call `RelationalExchange.create` on the receiver. Call `register` once for
    each pair in partition/source order. Each pair names its logical producer PID
    and distinct producer resource. Registering a name grants no native access.
-3. Call `createProducer` with an explicit cumulative producer quota. It creates a
+3. Call `createProducer` with the explicit receiver PID/resource and a cumulative
+   producer quota. It creates a
    publication with domain `query_exchange`, namespace equal to the exchange ID,
    one staging record and record/staging bytes equal to
    `fuze.RelationalExchange.max_bytes`. Producers use current native grants and
@@ -52,7 +55,7 @@ without changing the last complete result. The host explicitly supplies and
 attaches each exchange. These controls do not implement an automatic scheduler.
 
 `RelationalExchangeProducer` owns the scan cursor for a manual worker layout.
-Its `create` takes partition count, worker count/index, batch size, physical epoch
+Its `create` takes the immutable receiver PID/resource, partition count, worker count/index, batch size, physical epoch
 and producer quota, and also creates the producer publication. It assigns logical
 channels by remainder modulo worker count. Repeated `step` calls read at most
 eight source rows and stage at most four matching rows per attempt; the cursor
@@ -75,14 +78,9 @@ Receiver `close` requires only its own current resource and keeps accepted work
 and audit evidence. It remains available after source denial or exhausted data
 budgets. No automatic expiry or physical collection occurs.
 
-Current executable evidence covers codecs/routing, the finite oracle after
-rebatching, reference-store transitions and a disk-backed native host with
-one/seven partitions and one/three producer workers. That host recovers lost
-producer and receiver receipts, replaces worker generations and publishes the
-maintained result after node/store restarts. The
-[proof ledger](../../../../tests/README.md#relational-exchange-transitions) records
-that schedule separately from [recorded handoff faults](../../../../tests/README.md#relational-exchange-faults-and-checkpoint-growth)
-and [physical disk exhaustion](../../../../tests/README.md#relational-physical-capacity).
-These typed primitives do not configure automatic worker placement or a growing
-runtime controller. They do not enable a new SQL, Board, Flight or SDK route by
-themselves.
+The [proof ledger](../../../../tests/README.md) separates current direct-source
+checks from historical actor-store schedules. The earlier disk-backed exchange
+host requires migration to direct sources before its recovery, placement and
+capacity results qualify this contract. These typed primitives do not configure
+automatic worker placement or a growing runtime controller. They do not enable
+a new SQL, Board, Flight or SDK route by themselves.

@@ -42,14 +42,18 @@ fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTablePro
     return dispatchDelegated(service, action, null);
 }
 fn dispatchDelegated(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation) !std.json.Parsed(c.DirectTableProtocol.Response) {
+    return dispatchBorrowed(service, action, delegation, null);
+}
+fn dispatchBorrowed(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow) !std.json.Parsed(c.DirectTableProtocol.Response) {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .nonce = @splat(7), .action = action };
+    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .borrow = borrow, .nonce = @splat(7), .action = action };
     const context = try w.Request.context(input, alloc);
-    const signed = if (delegation) |grant| try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = grant.binding.executor, .credential_epoch = (try service.engine.principal(grant.binding.executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(31)) else try proof(service.engine, context);
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = signed };
+    const executor = if (borrow) |value| value.binding.executor else if (delegation) |value| value.binding.executor else 101;
+    const signed = if (delegation != null) try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = executor, .credential_epoch = (try service.engine.principal(executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(if (borrow != null) 33 else 31)) else try proof(service.engine, context);
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
     const output = try alloc.alloc(u8, 1024 * 1024);
@@ -276,6 +280,15 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     released_again.deinit();
     try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, acquisition, acquire));
 
+    const borrower_role = (try change(engine, .{ .create_role = .{ .name = try .init("borrowed-reader"), .login = true } })).?;
+    _ = try change(engine, .{ .bind_credential = .{ .principal = 103, .role = borrower_role, .public_key = (try key(33)).public_key.toBytes() } });
+    const borrowed = try makeBorrow(service, grant, .{ .snapshot = snapshot });
+    const borrowed_rows = try dispatchBorrowed(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, grant, borrowed);
+    defer borrowed_rows.deinit();
+    try t.expectEqualStrings(read.value.result.page.rows[0].base64, borrowed_rows.value.result.page.rows[0].base64);
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, .{ .release = snapshot }, grant, borrowed));
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, acquisition, grant, borrowed));
+
     try delegatedHistory(service, grant, owner_role, native_table);
 
     var wrong = binding;
@@ -321,7 +334,15 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     // Retrying never refreshes the original accepted caller proof.
     caller_rotation.seed = 29;
     try Rotation.run(&caller_rotation, engine);
+    try t.expectError(error.StaleAuthorizationCredential, dispatchBorrowed(service, .{ .snapshot = snapshot }, grant, borrowed));
     try t.expectError(error.StaleAuthorizationCredential, dispatchDelegated(service, .{ .snapshot = snapshot }, grant));
+}
+
+fn makeBorrow(service: *@import("LocalTableService.zig"), grant: c.DirectReadDelegation, target: c.DirectReadDelegation.Borrow.Target) !c.DirectReadDelegation.Borrow {
+    const binding: c.DirectReadDelegation.Borrow.Binding = .{ .executor = 103, .target = target, .purpose = @splat(71) };
+    const signed = try proof(service.engine, try binding.context(grant, t.allocator));
+    try t.expectEqual(grant.proof.claim.credential_epoch, signed.claim.credential_epoch);
+    return .{ .binding = binding, .signature = signed.signature };
 }
 
 fn delegatedHistory(service: *@import("LocalTableService.zig"), snapshot_grant: c.DirectReadDelegation, owner_role: u64, native_table: u64) !void {
@@ -397,6 +418,13 @@ fn delegatedHistory(service: *@import("LocalTableService.zig"), snapshot_grant: 
     defer next.deinit();
     try t.expectEqual(@as(u64, 1), next.value.result.history_source.source.row_count);
     try t.expect(!std.mem.eql(u8, &point.commitment, &successor.commitment));
+    const borrowed = try makeBorrow(service, grant, .{ .history = .{ .object = snapshot.object, .point = point } });
+    const frozen = try dispatchBorrowed(service, read_action, grant, borrowed);
+    defer frozen.deinit();
+    try t.expectEqual(@as(usize, 1), frozen.value.result.history_page.page.rows.len);
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, .{ .history_source = .{ .object = snapshot.object, .point = successor } }, grant, borrowed));
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, .{ .history = .{ .snapshot = snapshot, .from = point.position, .through = upper, .frames = 1 } }, grant, borrowed));
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, .{ .release = snapshot }, grant, borrowed));
     const retry = try dispatchDelegated(service, .{ .retain_history = acquisition }, grant);
     defer retry.deinit();
     try t.expectEqualDeep(snapshot.handle, retry.value.result.pin);
@@ -418,8 +446,13 @@ fn delegatedHistory(service: *@import("LocalTableService.zig"), snapshot_grant: 
         service.before_reply = null;
         _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = owner_role } });
     }
+    service.before_reply = .{ .context = &table, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatchBorrowed(service, read_action, grant, borrowed));
+    service.before_reply = null;
+    _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = owner_role } });
     const released = try dispatchDelegated(service, .{ .release = snapshot }, grant);
     released.deinit();
+    try t.expectError(error.TableSnapshotReleased, dispatchBorrowed(service, read_action, grant, borrowed));
     try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, read_action, grant));
     try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, .{ .retain_history = acquisition }, grant));
 }

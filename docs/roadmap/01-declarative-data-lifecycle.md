@@ -149,7 +149,12 @@ terminal lease cleanup and current result-disclosure rights. The
 [direct failure schedule](../../tests/README.md#direct-relational-failure-boundaries--2026-10-23)
 also covers work/spill limits, ordered overflow witnesses, prior-result
 preservation, explicit history-coverage rejection and bounded captured cleanup.
-Exchange and maintained credential-rotation cleanup schedules, older relational
+The [direct exchange proof](../../tests/README.md#direct-table-exchange-placement-and-borrowed-reads--2026-10-23)
+now places the receiver independently of Table ownership and uses exact-cut
+borrowed reads for a separate producer credential. Initial maintained attachment,
+receiver generation replacement, verified output and lease cleanup pass. Multiple
+workers, later attachments, broader exchange recovery and maintained
+credential-rotation cleanup schedules, older relational
 caller fixtures and broader qualification remain unfinished. The full query
 package remains unqualified during the cutover.
 Direct namespace lifecycle, relational and remaining caller migration,

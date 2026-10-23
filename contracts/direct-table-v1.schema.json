@@ -15,6 +15,7 @@
             "action",
             "delegation",
             "closure",
+            "borrow",
             "proof"
           ],
           "properties": {
@@ -36,6 +37,9 @@
             "closure": {
               "$ref": "#/$defs/Request/$defs/T124"
             },
+            "borrow": {
+              "$ref": "#/$defs/Request/$defs/T126"
+            },
             "proof": {
               "$ref": "#/$defs/Request/$defs/T121"
             }
@@ -49,13 +53,14 @@
             "proof"
           ],
           "x-transit-defaults": {
-            "closure": null
+            "closure": null,
+            "borrow": null
           }
         },
         "T1": {
           "type": "string",
           "enum": [
-            "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
+            "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8"
           ]
         },
         "T2": {
@@ -3386,6 +3391,91 @@
             "signature"
           ],
           "x-transit-defaults": {}
+        },
+        "T126": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Request/$defs/T127"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T127": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "binding",
+            "signature"
+          ],
+          "properties": {
+            "binding": {
+              "$ref": "#/$defs/Request/$defs/T128"
+            },
+            "signature": {
+              "$ref": "#/$defs/Request/$defs/T123"
+            }
+          },
+          "required": [
+            "binding",
+            "signature"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T128": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "executor",
+            "target",
+            "purpose"
+          ],
+          "properties": {
+            "executor": {
+              "$ref": "#/$defs/Request/$defs/T4"
+            },
+            "target": {
+              "$ref": "#/$defs/Request/$defs/T129"
+            },
+            "purpose": {
+              "$ref": "#/$defs/Request/$defs/T15"
+            }
+          },
+          "required": [
+            "executor",
+            "target",
+            "purpose"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T129": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "snapshot"
+              ],
+              "properties": {
+                "snapshot": {
+                  "$ref": "#/$defs/Request/$defs/T105"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "history"
+              ],
+              "properties": {
+                "history": {
+                  "$ref": "#/$defs/Request/$defs/T107"
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -3431,7 +3521,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
+            "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8"
           ]
         },
         "T2": {
@@ -5655,7 +5745,7 @@
         "T89": {
           "type": "string",
           "enum": [
-            "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
+            "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8"
           ]
         },
         "T90": {
@@ -5951,7 +6041,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52"
+            "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8"
           ]
         },
         "T2": {
