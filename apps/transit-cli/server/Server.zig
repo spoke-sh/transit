@@ -12,7 +12,7 @@ const Sql = @import("Sql.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
-const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway, board, sql };
+const Role = enum { node, source, requester, courier, gateway, board, sql };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
@@ -22,8 +22,8 @@ diagnostics: *telemetry.Runtime,
 config_path: []const u8,
 loaded: Config.Loaded,
 boot: [16]u8,
-processes: [9]Process = @splat(.{}),
-active_role: Role = .cold,
+processes: [6]Process = @splat(.{}),
+active_role: Role = .node,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
     const loaded = try Config.capture(init, options.path, diagnostic, true);
     const config = loaded.config;
@@ -155,20 +155,8 @@ fn cycle(self: *Self) !void {
     self.diagnostic.atFile(self.config_path);
     try config.preflight(self.init.io, self.ui, self.diagnostic);
     self.diagnostic.atFile(config.installation);
-    const secret = try std.Io.Dir.cwd().readFileAlloc(self.init.io, try installation.path("cold.seed"), allocator, .limited(65));
-    defer std.crypto.secureZero(u8, secret);
-    if (secret.len != 64) return error.InvalidCredentialFile;
-    try self.start(allocator, .cold, &.{ config.executables.minio, "server", try installation.path("cold"), "--certs-dir", try installation.path("certs"), "--address", try std.fmt.allocPrint(allocator, "127.0.0.1:{d}", .{config.ports.cold}), "--console-address", try std.fmt.allocPrint(allocator, "127.0.0.1:{d}", .{config.ports.cold_console}) }, &.{ .{ .name = "MINIO_ROOT_USER", .value = "transit" }, .{ .name = "MINIO_ROOT_PASSWORD", .value = secret }, .{ .name = "MINIO_BROWSER", .value = "off" }, .{ .name = "GOMAXPROCS", .value = "2" }, .{ .name = "GOMEMLIMIT", .value = "256MiB" }, .{ .name = "HOME", .value = try installation.path("provider-home") } }, false);
-    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/minio/health/ready", .{config.ports.cold}));
-    // PutBucket is idempotent only during recorded first bootstrap. A recovered
-    // installation never creates replacement cold storage or authority streams.
-    if (!installation.record.genesis_observed) try Provider.bucket(self.init, config.ports.cold, secret);
-    const store_config = try installation.path("ursula.toml");
-    try Files.write(self.init.io, store_config, try Provider.configuration(allocator, config, secret));
-    try self.start(allocator, .store, &.{ config.executables.ursula, "server", "--config", store_config }, &.{ .{ .name = "RUST_LOG", .value = "error" }, .{ .name = "TOKIO_WORKER_THREADS", .value = "2" } }, false);
-    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/__ursula/ready", .{config.ports.store}));
     const node_config = try installation.path("node.json");
-    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
     try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
@@ -182,7 +170,6 @@ fn cycle(self: *Self) !void {
     if (applications) |manager| try manager.recover();
     try installation.provision();
     if (self.ui) try installation.provisionBoard();
-    try self.start(allocator, .maintenance, &.{ config.executables.node, node_config, "--maintain" }, &.{}, false);
     try self.worker(allocator, .source);
     try self.worker(allocator, .requester);
     const connection = installation.connection();

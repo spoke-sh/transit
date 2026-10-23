@@ -1541,24 +1541,19 @@
       ]
     },
     "apps/transit-cli/server/Provider.zig": {
-      "errors": {
-        "ColdBucketCreationFailed": 1
-      },
+      "errors": {},
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Fetch.run()": "anyerror",
-        "bucket()": "<inferred>",
-        "configuration()": "<inferred>",
         "url()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 11,
+        "try": 1,
         "catch": 1
       },
       "imports": [
-        "Config.zig",
         "std",
         "transit_http_server"
       ]
@@ -1576,7 +1571,6 @@
         "InstallationSyncFailed": 1,
         "InvalidBoardResponse": 2,
         "InvalidChildEnvironment": 1,
-        "InvalidCredentialFile": 1,
         "InvalidRegistration": 1,
         "NoSpaceLeft": 1,
         "ProcessUnavailable": 1,
@@ -1588,10 +1582,7 @@
       },
       "outcomes": {
         "Role": [
-          "cold",
-          "store",
           "node",
-          "maintenance",
           "source",
           "requester",
           "courier",
@@ -1616,7 +1607,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 103,
+        "try": 85,
         "catch": 8
       },
       "imports": [
@@ -11852,7 +11843,7 @@
           "deadline"
         ],
         "Definition": [
-          "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262"
+          "@\"228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830\""
         ],
         "Effect.phase": [
           "pending",

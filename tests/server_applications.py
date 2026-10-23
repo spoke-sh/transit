@@ -263,7 +263,7 @@ def run(cli, node, host, worker, operator):
         recovered = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
         assert json.loads(recovered.stdout) == rejected, 'original input rejection changed after activation'
         domain(connections['writer'], 'put', 'released-put', 1, 10)
-        for physical in ('/transit-node ', 'ursula server'):
+        for physical in ('/transit-node ', '"unified_requester":'):
             prior = fixture.status()['roles'][0]['generation']
             fixture.kill_role(physical)
             fixture.ready()

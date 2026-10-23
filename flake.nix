@@ -53,7 +53,7 @@
           inherit transit minio;
           transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
           transit-local = pkgs.callPackage ./nix/transit-local.nix {
-            inherit transit minio ursula;
+            inherit transit;
             transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
           };
           inherit vite-plus;

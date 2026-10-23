@@ -346,12 +346,12 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity, sta
     try std.Io.Dir.cwd().createDir(init.io, temporary, .fromMode(0o700));
     const directory = try std.Io.Dir.cwd().openDir(init.io, temporary, .{ .iterate = true });
     defer directory.close(init.io);
-    for ([_][]const u8{ "wal", "cold", "activations", "provider-home", "certs", "applications", "management-recovery" }) |name| {
+    for ([_][]const u8{ "data", "activations", "applications", "management-recovery" }) |name| {
         try directory.createDir(init.io, name, .fromMode(0o700));
-        if (std.mem.eql(u8, name, "wal") or std.mem.eql(u8, name, "cold")) try Files.write(init.io, try std.fs.path.join(allocator, &.{ temporary, name, "transit-installation" }), &std.fmt.bytesToHex(random, .lower));
+        if (std.mem.eql(u8, name, "data")) try Files.write(init.io, try std.fs.path.join(allocator, &.{ temporary, name, "transit-installation" }), &std.fmt.bytesToHex(random, .lower));
     }
     var root_public: [32]u8 = undefined;
-    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "cold", "installer", "board" }) |name| {
+    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "installer", "board" }) |name| {
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);
@@ -372,7 +372,7 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity, sta
     if (std.c.fsync(parent.handle) != 0) return error.InstallationSyncFailed;
 }
 pub fn checkStorage(self: *Self) !void {
-    for ([_][]const u8{ "wal", "cold" }) |name| {
+    for ([_][]const u8{"data"}) |name| {
         const marker = try std.Io.Dir.cwd().readFileAlloc(self.init.io, try std.fmt.allocPrint(self.init.arena.allocator(), "{s}/{s}/transit-installation", .{ self.config.installation, name }), self.init.gpa, .limited(33));
         defer self.init.gpa.free(marker);
         if (!std.mem.eql(u8, marker, &std.fmt.bytesToHex(self.record.installation, .lower))) return error.StorageIdentityMismatch;
@@ -396,8 +396,8 @@ test "startup creates only absent or empty directories and preserves recorded id
         .version = 1,
         .realm = 1,
         .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
-        .ports = .{ .cold = 19101, .cold_console = 19102, .store = 19103, .node = 19104, .gateway = 19105 },
-        .executables = .{ .minio = "unused", .ursula = "unused", .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+        .ports = .{ .node = 19104, .gateway = 19105 },
+        .executables = .{ .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
     };
     const identity = std.mem.zeroes(Config.Identity);
     config.startup.require_existing = true;
@@ -448,8 +448,8 @@ test "initialization refuses links files and contents appearing before publicati
         .version = 1,
         .realm = 1,
         .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
-        .ports = .{ .cold = 19101, .cold_console = 19102, .store = 19103, .node = 19104, .gateway = 19105 },
-        .executables = .{ .minio = "unused", .ursula = "unused", .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+        .ports = .{ .node = 19104, .gateway = 19105 },
+        .executables = .{ .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
     };
     const state = try directoryState(t.io, config.installation);
     const marker = try std.fs.path.join(a, &.{ config.installation, "unrecognized" });

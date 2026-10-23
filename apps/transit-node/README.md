@@ -60,8 +60,8 @@ With Ursula storage, run `--maintain` separately for authorized lifetime,
 collection and checkpoint work. With local storage, the `maintenance` setting
 runs lifecycle scans and accepted-floor trimming inside the node's exclusive
 owner; a separate `--maintain` process rejects. Local immutable objects remain
-retained. Selecting local storage does not change launcher defaults or
-move Table operations onto direct segment storage. The
+retained. The local launcher selects this backend. Table operations still use
+their existing native resource owner. The
 [courier](../transit-delivery/README.md) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
 reconciles physical placement through Substrate. Workers need neither Ursula

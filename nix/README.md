@@ -55,12 +55,13 @@ The workspace relocation changes the fixed-output frontend dependency-store
 hash without changing package versions or toolchain pins. The boundary check
 builds both native runtime and SQL gateway derivations from that SDK-free source.
 
-On Linux x86_64, `nix build .#transit-local` adds the pinned Ursula and MinIO
-providers and matching SQL gateway to the closure. It places all executables together in `bin/`, so
+On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
+the Transit closure. Native local storage runs inside the node. The bundle
+places all executables together in `bin/`, so
 `transit server` finds dependencies beside itself before searching `PATH`. It
 also exposes a JSON executable map
 in `share/transit/local-executables.json` (including `board` and `sql_gateway`); downstream flakes can also use the
-`transit`, `transit-sql-gateway`, `ursula` and `minio` passthru packages to construct explicit server
+`transit` and `transit-sql-gateway` passthru packages to construct explicit server
 configuration. It does not initialize storage or start processes during a build
 or shell entry. Run `transit server` for both first startup and subsequent starts.
 Optional `transit.yaml` settings overlay the current defaults;

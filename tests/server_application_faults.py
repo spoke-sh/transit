@@ -35,11 +35,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -47,7 +47,8 @@ def post(port, path, value, expected=200, headers=None, retry_unavailable=False)
     deadline = time.monotonic() + 15
     while True:
         result = exchange(port, path, value, headers)
-        if not retry_unavailable or result != (503, b'{"err":"AuthorityUnavailable"}') or time.monotonic() >= deadline:
+        retryable = result in ((503, b'{"err":"AuthorityUnavailable"}'), (503, b'{"err":"HttpCapacity"}'))
+        if not retry_unavailable or not retryable or time.monotonic() >= deadline:
             break
         # Opt in only for pure reads or a caller-retained identical native
         # request whose exact replay is part of the proof. Never rebuild an ID.

@@ -12,8 +12,14 @@ and operational behavior.
 
 ## Persistence model
 
-In the current baseline, the backend supplies conditional durability through
-Ursula. Transit owns logical identities, accepted transitions, retained
+The local server supplies conditional native durability through its exclusive
+[local backend](../../../packages/zig/transit-backend-local/README.md), a
+partition-zero WAL and immutable page/block objects. Ursula deployments retain
+their backend mapping. The local path preserves the existing native root model;
+it does not yet attach the Table segment engine to SQL. The
+[native persistence proofs](../../../tests/README.md#native-authority-over-local-storage--2026-10-22)
+cover restart and lost replies, with the physical collection and power-loss
+limits stated there. Transit owns logical identities, accepted transitions, retained
 boundaries and retirement. Recovery uses validated history/checkpoints; indexes
 and resident caches accelerate access without becoming an independent source of
 permission or execution rights.
