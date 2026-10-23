@@ -19,7 +19,7 @@ from table_console import atom
 def run(fixture):
     connection = fixture.console_config()
     upstream_path = connection['endpoint'][5:]
-    state = dict(mode=None, executions=[], entered=threading.Event(), release=threading.Event())
+    state = dict(mode=None, observations=[], executions=[], entered=threading.Event(), release=threading.Event())
 
     class Upstream(HTTPConnection):
         def connect(self):
@@ -48,6 +48,9 @@ def run(fixture):
                 upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                 response = upstream.getresponse()
                 data = response.read()
+                if action in ('execute', 'status'):
+                    observed = json.loads(data).get('result', {})
+                    state['observations'].append((action, {key: observed.get('operation', {}).get(key) for key in ('phase', 'outcome', 'blocked')}, observed.get('err', {}).get('code')))
                 if state['mode'] == 'drop_'+action:
                     state['mode'] = None
                     self.close_connection = True
@@ -77,7 +80,7 @@ def run(fixture):
             config.write_text(json.dumps(dict(connection, endpoint='unix:'+str(path), request_timeout_ms=5000)))
             def invoke(text, expected=0):
                 value = subprocess.run([fixture.cli, 'console', '--no-rc', '--format', 'json', '--config', str(config)], input=text+'\n', text=True, capture_output=True, timeout=60, cwd=fixture.root)
-                assert value.returncode == expected, value
+                assert value.returncode == expected, (state['observations'][-8:], value)
                 return value
             def applied(value):
                 completion = json.loads(value.stdout)['completion']

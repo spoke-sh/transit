@@ -19,11 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def peer(mode):
     definition = re.search(r'\b([a-f0-9]{64})\b', (ROOT/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     logical = json.loads((ROOT/'packages/zig/transit-sql-protocol/src/fixtures/logical.json').read_text())
-    state = dict(actions=[], token=None, entered=threading.Event(), expired=False)
+    state = dict(actions=[], token=None, entered=threading.Event(), expired=False, observations=0, submitted=None)
     def failure(code, state='HY000'):
         return dict(err=dict(code=code, sqlstate=list(state.encode()), message=code, retry='never', operation=None, diagnostic=None))
     def operation(outcome=None):
-        return dict(operation=dict(identity=dict(account=[4]*32, id=42, kind='table'), token=state['token'], phase='terminal' if outcome else 'active', outcome=outcome, matched=1 if outcome == 'applied' else 0, changed=1 if outcome == 'applied' else 0))
+        return dict(operation=dict(identity=dict(account=[4]*32, id=42, kind='table'), token=state['token'], phase='terminal' if outcome else 'active', blocked=mode == 'transient_status' and outcome is None, outcome=outcome, matched=1 if outcome == 'applied' else 0, changed=1 if outcome == 'applied' else 0))
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
         def log_message(self, *_): pass
@@ -44,19 +44,30 @@ def peer(mode):
                 result = dict(closed={})
             elif action == 'execute':
                 state['token'] = value['token']
+                state['submitted'] = time.monotonic()
                 assert not value.get('captured', False)
-                if mode in ('drop_execute', 'missing', 'denied', 'expired', 'instance_changed'):
+                if mode == 'interrupt_execute':
+                    state['entered'].set()
+                    time.sleep(2)
+                if mode in ('drop_execute', 'slow_acceptance', 'missing', 'denied', 'expired', 'instance_changed'):
                     self.close_connection = True
                     return
-                if mode in ('rows', 'incomplete', 'empty'):
+                if mode in ('rows', 'incomplete', 'empty', 'interrupt_fetch'):
                     result = dict(batch=dict(cursor=[6]*32, batch=0, schema=logical['schema'], rows=[] if mode == 'empty' else [logical['cells']], complete=mode == 'empty'))
                 else:
                     result = operation()
             elif action == 'fetch':
+                if mode == 'interrupt_fetch':
+                    state['entered'].set()
+                    time.sleep(2)
                 result = failure('SqlResultIncomplete') if mode == 'incomplete' else dict(batch=dict(cursor=[6]*32, batch=1, schema=logical['schema'], rows=[], complete=True))
             elif action == 'status':
                 assert value == dict(token=state['token'])
-                if mode == 'missing': result = failure('MissingGatewayOperation')
+                state['observations'] += 1
+                if mode == 'transient_status' and state['observations'] == 1: result = failure('AuthorityUnavailable')
+                elif mode in ('slow_acceptance', 'expired') and state['observations'] == 2: result = operation()
+                elif mode == 'slow_acceptance' and time.monotonic() - state['submitted'] < .5: result = operation()
+                elif mode == 'missing': result = failure('MissingGatewayOperation')
                 elif mode == 'denied': result = failure('AccessDenied', '42501')
                 elif mode == 'expired' and not state['expired']:
                     state['expired'] = True
@@ -92,12 +103,12 @@ def check(binary):
     with tempfile.TemporaryDirectory(prefix='transit-outcomes-') as directory:
         root = Path(directory)
         config = root/'console.json'
-        for mode in ('applied', 'rejected', 'partial', 'unchanged', 'drop_execute', 'missing', 'denied', 'expired', 'instance_changed', 'rows', 'empty', 'incomplete', 'interrupt_cancelled', 'interrupt_applied', 'interrupt_stall'):
+        for mode in ('applied', 'transient_status', 'rejected', 'partial', 'unchanged', 'drop_execute', 'slow_acceptance', 'missing', 'denied', 'expired', 'instance_changed', 'rows', 'empty', 'incomplete', 'interrupt_execute', 'interrupt_fetch', 'interrupt_cancelled', 'interrupt_applied', 'interrupt_stall'):
             with peer(mode) as (endpoint, state):
                 config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust', request_timeout_ms=200)))
                 args = [binary, 'console', '--no-rc', '--config', str(config), '--format', 'json']
                 process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                process.stdin.write('SELECT * FROM items;\n' if mode in ('rows', 'empty', 'incomplete') else 'INSERT INTO items VALUES (1);\n')
+                process.stdin.write('SELECT * FROM items;\n' if mode in ('rows', 'empty', 'incomplete', 'interrupt_fetch') else 'INSERT INTO items VALUES (1);\n')
                 process.stdin.flush()
                 if mode.startswith('interrupt'):
                     assert state['entered'].wait(5), mode
@@ -114,7 +125,8 @@ def check(binary):
                     assert time.monotonic()-started < 2, (mode, stderr)
                     assert process.returncode == 130, (mode, process.returncode, stderr)
                     if mode == 'interrupt_applied': assert json.loads(stdout)['completion']['changed'] == 1
-                    elif mode == 'interrupt_cancelled': assert 'Statement was cancelled' in stderr and not stdout
+                    elif mode in ('interrupt_cancelled', 'interrupt_execute'): assert 'Statement was cancelled' in stderr and not stdout
+                    elif mode == 'interrupt_fetch': assert 'partial result' in stderr and '"complete_coverage":true' not in stdout
                     else: assert 'Could not confirm' in stderr and not stdout
                 elif mode in ('missing', 'denied', 'instance_changed'):
                     assert process.returncode == 1 and not stdout and 'may apply changes twice' in stderr, (mode, stdout, stderr)

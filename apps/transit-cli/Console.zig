@@ -125,7 +125,6 @@ pub const Console = struct {
     had_error: bool = false,
     access_lost: bool = false,
     query_interrupted: bool = false,
-    active_token: ?api.Token = null,
     pub fn keepalive(self: *Console) !void {
         if (self.session_lost) return;
         const last = self.client.last_call orelse return;
@@ -227,7 +226,7 @@ pub const Console = struct {
                 try result;
                 self.query_interrupted = true;
                 if (!Signals.terminating()) Signals.clear();
-                if (self.control.call(.{ .cancel = .{ .query = @splat(0) } })) |reply| reply.deinit() else |_| {}
+                if (action != .execute) self.stopRead();
                 return error.ConsoleInterrupted;
             },
         }
@@ -261,8 +260,6 @@ pub const Console = struct {
         }
         var token: api.Token = undefined;
         try self.init.io.randomSecure(&token);
-        self.active_token = token;
-        defer self.active_token = null;
         var pending = sdk.Pending.init(self.control, token);
         timing.enter(.submit);
         var reply = self.call(.{ .execute = .{ .sql = text, .parameters = values, .token = token } }) catch |err| {
@@ -272,7 +269,6 @@ pub const Console = struct {
         defer reply.deinit();
         if (reply.value.result == .operation) {
             try pending.observe(reply.value.result.operation);
-            pending.milliseconds = 270000;
             timing.enter(.wait);
             return self.finishPending(&pending, false);
         }
@@ -282,7 +278,6 @@ pub const Console = struct {
             return self.finishPending(&pending, false);
         }
         try self.checked(reply.value);
-        self.active_token = null;
         if (reply.value.result == .completion) {
             if (self.session.format == .json) return self.json(reply.value.result);
             const value = reply.value.result.completion;
@@ -303,7 +298,12 @@ pub const Console = struct {
             try self.json(.{ .profile = "sql_session_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema }, .complete_coverage = false });
         }
         defer {
-            if (self.control.call(.{ .close_result = cursor })) |closed| closed.deinit() else |_| {}
+            if (!self.query_interrupted) {
+                const prior = self.control.timeout_ms;
+                self.control.timeout_ms = @min(prior, 1000);
+                defer self.control.timeout_ms = prior;
+                if (self.control.call(.{ .close_result = cursor })) |closed| closed.deinit() else |_| {}
+            }
         }
         var rows: u64 = 0;
         errdefer {
@@ -348,7 +348,7 @@ pub const Console = struct {
     }
     fn stopRead(self: *Console) void {
         const prior = self.control.timeout_ms;
-        self.control.timeout_ms = @min(prior, 1000);
+        self.control.timeout_ms = @min(prior, 250);
         defer self.control.timeout_ms = prior;
         if (self.control.call(.{ .cancel = .{ .query = @splat(0) } })) |reply| reply.deinit() else |_| {}
     }
@@ -392,7 +392,7 @@ pub const Console = struct {
             },
             .partial => {
                 self.diagnostic.summary = "Statement completed only partially";
-                self.diagnostic.next = "Inspect the affected settings before making further changes.";
+                self.diagnostic.next = "Inspect the affected data or settings before making further changes.";
                 return error.SqlOperationPartial;
             },
             .applied, .unchanged => {},

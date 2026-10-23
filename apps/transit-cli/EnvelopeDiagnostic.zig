@@ -67,14 +67,11 @@ fn renderFor(value: d, out: *std.Io.Writer, console: bool) !void {
         switch (action.kind) {
             .correct_input => try out.writeAll("Correct the reported input or source problem before starting new work.\n"),
             .inspect_scope => try out.writeAll("Inspect the current permissions and declaration of the named target.\n"),
-            .inspect_status => try out.writeAll(if (value.identity != null and switch (value.identity.?.domain) {
-                .query, .mutation, .catalog => true,
-                else => false,
-            }) "Use .status to inspect the recorded outcome for this exact operation.\n" else "Inspect the recorded outcome through its owning interface.\n"),
+            .inspect_status => try out.writeAll("Inspect the recorded outcome through its owning interface.\n"),
             .recompile => try out.writeAll("Prepare the statement again against the current source declaration.\n"),
-            .resume_exact => try out.writeAll(if (value.identity != null and (value.identity.?.domain == .query or value.identity.?.domain == .mutation or value.identity.?.domain == .catalog)) "Use .resume to reconcile the saved operation with its original identity and bytes.\n" else "Reconcile the saved operation with its original identity and bytes.\n"),
+            .resume_exact => try out.writeAll("Reconcile the saved operation with its original identity and bytes.\n"),
             .cancel_wait => try out.writeAll("Cancel the saved wait through its owning query interface; already disclosed results remain disclosed.\n"),
-            .cancel_mutation => try out.writeAll("Use .cancel to request cancellation of the saved mutation; inspect the resulting outcome.\n"),
+            .cancel_mutation => try out.writeAll("Request cancellation through the mutation's owning interface; inspect the resulting outcome.\n"),
             .reconcile_effect => try out.writeAll("Use the connector's reconciliation policy for the saved effect; its remote outcome is not established.\n"),
             .refresh => try out.writeAll("Refresh the authorized source metadata.\n"),
             .retry_read => try out.writeAll("Retry the read under current permissions.\n"),

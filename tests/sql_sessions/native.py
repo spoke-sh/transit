@@ -114,7 +114,7 @@ class Client:
 
 def run(root, port, postgres, restart, console, authorize, select_source, sources=None, faults=None, service_pid=None):
     first, second = Client(root, port).open(), Client(root, port).open()
-    rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnknownSetting')['err']
+    rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnsupportedGatewayStatement')['err']
     assert rejected['retry'] == 'never', rejected
     assert first.session != second.session and first.account == second.account
     token = list(os.urandom(16))
