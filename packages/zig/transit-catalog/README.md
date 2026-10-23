@@ -52,7 +52,10 @@ comes from the accepted Table declaration. The
 recovery and bounds. `DirectTableClient` signs exact typed requests to the local
 node's configured `/table/v1` owner, which resumes native registration under the
 original caller's current rights. The default launcher and shared SQL runtime use
-this owner. Captured-source, administration and SDK migration remain unfinished.
+this owner. `DirectAuthorizationSql` also resolves policy plans through this
+owner and publishes nothing during compilation; native authorization still owns
+their explicit publication. Direct namespace lifecycle, captured-source and SDK
+migration remain unfinished.
 
 `NameAssertion` represents conditional DDL requiring no Table mutation.
 `DirectCatalog.assertName` checks an exact existing definition or absent name,

@@ -245,7 +245,29 @@ fn verifyPhysical(allocator: std.mem.Allocator, client: c.DirectTableClient, sta
         }
     }
 }
+fn administration(client: c.DirectTableClient) !void {
+    const before = try lookup(client, "events");
+    defer before.deinit();
+    const grant = try c.DirectAuthorizationSql.compile(client, 1, "GRANT SELECT ON TABLE public.events TO PUBLIC", .{}, null);
+    try t.expectEqual(before.value.result.lookup.?.authorization, grant.action.authorization.grant.object.id);
+    try t.expectEqual(p.Authorization.public_role, grant.action.authorization.grant.grantee);
+    try t.expectEqual(c.TableAuthority.select, grant.action.authorization.grant.privileges);
+    const revoke = try c.DirectAuthorizationSql.compile(client, 1, "REVOKE SELECT ON events FROM PUBLIC CASCADE", .{}, null);
+    try t.expectEqualDeep(grant.action.authorization.grant.object, revoke.action.authorization.revoke_privileges.object);
+    const defaults = try c.DirectAuthorizationSql.compile(client, 1, "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO PUBLIC", .{}, null);
+    try t.expectEqual(before.value.subject.role, defaults.action.authorization.default_grant.creator);
+    _ = try c.DirectAuthorizationSql.compile(client, 1, "SET ROLE NONE", .{}, null);
+    try t.expectError(error.QueryPageBudget, c.DirectAuthorizationSql.compile(client, 1, "GRANT SELECT ON TABLE public.events TO PUBLIC", .{ .requests = 1 }, null));
+    try t.expectError(error.UnsupportedDirectSchemaAdministration, c.DirectAuthorizationSql.compile(client, 1, "CREATE SCHEMA other", .{}, null));
+    try t.expectError(error.TableNotFound, c.DirectAuthorizationSql.compile(client, 1, "GRANT SELECT ON TABLE absent TO PUBLIC", .{}, null));
+    const after = try lookup(client, "events");
+    defer after.deinit();
+    try t.expectEqual(before.value.policy_revision, after.value.policy_revision);
+    try t.expectEqualDeep(before.value.result.lookup.?.position, after.value.result.lookup.?.position);
+}
+
 pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, client: c.DirectTableClient, role: u64) !OwnedState {
+    try administration(client);
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const alloc = arena.allocator();

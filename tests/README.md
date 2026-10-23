@@ -185,6 +185,31 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Direct catalog administration and installed database clients — 2026-10-23
+
+`just test::direct-table-service` passes 433 typed calls against the real node.
+The added authorization compiler checks stable Table references, qualified and
+unqualified names, PUBLIC grants/revokes, creator-scoped defaults, explicit role
+selection, bounded reads and unsupported schema lifecycle rejection. Compilation
+leaves the native policy revision and Table acceptance frontier unchanged.
+
+`just test::server-sql` passes in 122.98 seconds with real PostgreSQL and MySQL
+clients over verified TLS. The installation's administration profile resolves
+names through the direct catalog. Ungranted discovery returns the structured
+`cli.access_denied` diagnostic and creates no plan. Explicit native publication
+then grants reader/writer access; Unicode/NULL rows, denied writes, persistent
+revocation, regrant, listener replacement, disabled accounts, password rotation
+and DELETE all pass. A private boundary refuses direct execution until the
+waiting caller and manager have been killed. Restart recovers the original
+operation with both database listeners disabled and unavailable PEM paths;
+re-enabling access finds its one retained row. Expired and replaced TLS trust
+preserve control recovery while gating new admission.
+
+The run uses source-built installed executables, not the separate distribution
+bundle. Diagnostic error/outcome checks and documentation links also pass.
+This evidence does not qualify direct namespace lifecycle, SDK migration or
+captured-query administration. The public CLI still exposes only server/console.
+
 ## Lossless physical column admission and public SQL — 2026-10-23
 
 The Fuze package's ReleaseSafe suite passes after replacing the shared definition
@@ -219,8 +244,8 @@ segment rows after disk reopen.
 
 `just contract::check`, diagnostic error/outcome checks and documentation links
 pass. This evidence does not establish non-binary SQL comparisons, ICU, other
-codepages, neutral SDK physical descriptors or Arrow page borrowing. The disk
-storage suite is recorded separately when its complete run finishes.
+codepages, neutral SDK physical descriptors or Arrow page borrowing. The full
+`transit-storage` ReleaseSafe test suite also passes at commit `b6ba9deb`.
 
 ## Installed direct lifecycle, rollback and capacity — 2026-10-23
 

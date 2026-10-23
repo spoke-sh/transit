@@ -105,8 +105,8 @@ pub fn administrator(installation: *Installation, allocator: std.mem.Allocator, 
     try record.journal.authorize(installation, file, record, 1, .{ .bind_credential = .{ .principal = record.administrator, .role = record.journal.receipts[0].?, .public_key = key.public_key.toBytes() } });
     try record.journal.authorize(installation, file, record, 2, .{ .membership = .{ .member = record.journal.receipts[0].?, .role = p.Authorization.root_role, .inherit = true, .set = true } });
     try Files.json(installation.init.io, allocator, try path(installation, allocator, "authorization.yaml"), @import("AuthorizationProfile.zig"){ .version = 1, .url = installation.wire.url, .seed_file = key_path, .connection = .{ .definition = n.current_definition, .realm = installation.config.realm, .principal = record.administrator, .role = 0 } });
-    const connection = installation.connection();
-    try Files.json(installation.init.io, allocator, try path(installation, allocator, "catalog.yaml"), .{ .version = 1, .url = installation.wire.url, .seed_file = key_path, .connection = try q.catalog.TableValues.Connection.foreign(allocator, .{ .scope = .{ .realm = connection.realm, .resource = connection.resource, .catalog = 1 }, .owner = connection.source, .principal = record.administrator, .role = 0 }) });
+    const catalog = installation.directCatalog();
+    try Files.json(installation.init.io, allocator, try path(installation, allocator, "catalog.yaml"), .{ .version = 1, .definition = n.current_definition, .url = installation.wire.url, .seed_file = key_path, .namespace = catalog.authority.initial_schema, .connection = q.catalog.DirectTableProtocol.Connection{ .scope = catalog.scope, .branch = catalog.branch, .audience = catalog.audience, .principal = record.administrator, .role = 0 } });
 }
 pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, desired: Settings.Account) !Account {
     const directory = try accountPath(installation, allocator, desired.name, "");

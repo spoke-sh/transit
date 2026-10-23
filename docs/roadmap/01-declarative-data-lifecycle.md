@@ -117,7 +117,10 @@ zero, unsupported-profile rejection and SQL equivalence over retained WAL/segmen
 cuts. Incompatible physical schemas/pages use replaced current-v1 definitions.
 The neutral JSON schema adapter explicitly rejects physical attributes until
 the SDK contract can preserve them; non-binary SQL collation remains unsupported.
-Captured-query and language SDK migration,
+The [administration and database-client proof](../../tests/README.md#direct-catalog-administration-and-installed-database-clients--2026-10-23)
+also resolves policy plans through the direct catalog and qualifies explicit
+grants/revocation and retained recovery through real PostgreSQL/MySQL clients.
+Direct namespace lifecycle, captured-query and language SDK migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
 completion matrix rows below is closed by this partial caller path.

@@ -20,6 +20,25 @@ against that exact request. It checks result kind, operation attribution,
 definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route.
+
+`DirectAuthorizationSql.compile` resolves role, membership, grant/revoke,
+default-privilege and ownership statements through this direct catalog and the
+native authorization client. It returns the shared `AuthorizationSql.Plan` for
+explicit native preparation/publication. The caller's CONNECT, USAGE and Table
+metadata rights govern name resolution; an administrator role alone does not
+grant data discovery. Names become stable native object references before the
+plan leaves the compiler. Every lookup must agree on the policy revision, and
+publication retains that revision as its precondition. SET/RESET ROLE returns a
+checked selection without changing a session.
+
+Compilation admits no Table work and publishes no policy. It allows 128 service
+or native read operations by default; `Limits.requests` changes this per-call
+budget without limiting durable namespace count. Namespace traversal retains at
+most one page and rejects a changed directory position. CREATE, RENAME and DROP
+SCHEMA are rejected by this direct compiler until its namespace owner exposes
+those lifecycle operations. The SQL console does not dispatch these
+administrative statements.
+
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.
 `DirectTableReader.open` inspects an existing durable pin and owns its original

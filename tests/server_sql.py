@@ -13,6 +13,13 @@ import sys
 import time
 
 from server import Fixture, children, command, freeze_executables as freeze
+from server_direct_boundary import Boundary
+
+
+class SQLFixture(Fixture):
+    def stop(self, kill=False):
+        super().stop(kill=kill)
+        self.boundary.reap()
 
 
 def call(argv, *, env=None, timeout=300, retry_observation=False):
@@ -80,7 +87,7 @@ def apply(fixture, input_path, name, mode='prepare'):
 def policy(fixture, sql, name):
     source, plan = fixture.root / f'{name}.sql', fixture.root / f'{name}.plan.json'
     source.write_text(sql)
-    call([operations(), 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', source, '--output', plan], retry_observation=True)
+    call([operations(), 'direct-catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', source, '--output', plan], retry_observation=True)
     return apply(fixture, plan, name, 'prepare-plan')
 
 
@@ -109,13 +116,15 @@ def run(cli, node, host, board, gateway, *, bundle=None):
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     gateway = str(Path(gateway).resolve())
-    fixture = Fixture(cli, node, host)
+    fixture = SQLFixture(cli, node, host)
     if bundle:
         fixture.cli = str(Path(bundle).resolve() / 'bin/transit')
-        fixture.config.pop('executables')  # Exercise installed adjacent discovery.
     else:
         freeze(fixture)
         gateway = fixture.config['executables']['sql_gateway']
+    fixture.boundary = Boundary(fixture)
+    if bundle:
+        fixture.config.pop('executables')  # Exercise installed adjacent discovery.
     fixture.config['sql'] = {'native': {'local': False}}
     fixture.config['applications'] = {'port': fixture.reserve_port()}
     fixture.config['board'] = {'port': fixture.reserve_port()}
@@ -209,7 +218,9 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         mysql("INSERT INTO shared_rows (id,label) VALUES (1,'unauthorized')", 'writer', reject=True)
         discovery = fixture.root / 'discovery.sql'
         discovery.write_text('GRANT SELECT ON TABLE public.shared_rows TO reader;')
-        assert 'CatalogDenied' in denied([operations(), 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', discovery, '--output', fixture.root / 'ungranted-discovery.json'])
+        discovery_denial = json.loads(denied([operations(), '--structured', 'direct-catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', discovery, '--output', fixture.root / 'ungranted-discovery.json']))
+        assert discovery_denial['code'] == 'cli.access_denied', discovery_denial
+        assert not (fixture.root / 'ungranted-discovery.json').exists()
         apply(fixture, fixture.installation / 'sql/catalog-access.json', 'catalog-discovery', 'prepare-set')
         policy(fixture, 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;', 'writer-data')
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-data')
@@ -278,6 +289,15 @@ def run(cli, node, host, board, gateway, *, bundle=None):
 
         # Lose the client response after an operation reaches the durable ledger.
         # Observe its identity; never submit this SQL a second time.
+        if bundle:
+            # Earlier startup/replacements exercised installed discovery. Fault
+            # injection now wraps only that same installed node artifact.
+            fixture.stop()
+            fixture.config['executables'] = {'node': str(fixture.root / 'direct-node')}
+            fixture.path.write_text(json.dumps(fixture.config))
+            fixture.start(); fixture.ready(timeout=300)
+            wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
+        fixture.boundary.pause()
         before = {e['operation'] for e in controls('list')['entries']}
         lost = subprocess.Popen([*mysql_args(), "INSERT INTO shared_rows (id,label) VALUES (2,'retained')"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
@@ -285,7 +305,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             operation = None
             while time.monotonic() < deadline:
                 fresh = [e for e in controls('list')['entries'] if e['operation'] not in before and e['phase'] in ('active', 'terminal')]
-                if fresh:
+                if fresh and fixture.boundary.observed.exists():
                     assert len(fresh) == 1
                     assert fresh[0]['phase'] == 'active', 'The proof must interrupt accepted, unfinished work'
                     operation = fresh[0]['operation']; break
@@ -303,6 +323,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'recovery')
         closed(pg_port); closed(mysql_port)
+        fixture.boundary.resume()
         deadline = time.monotonic()+300
         while True:
             result = controls('status', operation)
@@ -353,6 +374,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         print(json.dumps({'local_sql': 'passed', 'installed_bundle': bundle is not None, 'elapsed_seconds': round(time.monotonic()-started, 3)}), flush=True)
         success = True
     finally:
+        fixture.boundary.resume()
         fixture.cleanup()
         if success:
             shutil.rmtree(fixture.root)
