@@ -15,6 +15,7 @@ const Access = struct {
     calls: usize = 0,
     deny_at: usize = std.math.maxInt(usize),
     mismatch: bool = false,
+    missing_table: bool = false,
     const Context = struct { access: *Access, requested: p.Authorization.Guard };
     fn erased(context: *anyopaque) *Access {
         return @ptrCast(@alignCast(context));
@@ -34,6 +35,7 @@ const Access = struct {
     }
     fn release(_: *anyopaque) void {}
     fn registered(context: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
+        if (kind == .table and erased(context).missing_table) return null;
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => profile.initial_schema_authority,
@@ -65,7 +67,7 @@ fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentSt
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
 fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .authorization = 100 + object } } };
+    const intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
 }
 fn edit(view: *D.View, operation: u64, action: @FieldType(D.Intent, "action")) !D.Request {
@@ -107,13 +109,14 @@ test "direct catalog reservations publish names only through Table acceptance an
         try t.expectError(error.LostAcknowledgement, catalog.perform(create.binding, access.policy()));
         catalog.lose_table_reply = false;
         try t.expect((try catalog.status(create.binding, access.policy())) == .committed);
+        const published_at = catalog.store.root.next_lsn;
         var view = (try resolve(&catalog, &access, "events")).?;
         defer view.deinit();
         const row = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
         const data_binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 10 }, .target = create.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(8) };
         _ = try catalog.apply(data_binding, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 10, .ordinal = 0 }, .cells = &row }, .expect = .absent } }}, .point, access.policy());
         try view.table.recover();
-        try t.expectEqual(admitted_at, catalog.store.root.next_lsn);
+        try t.expectEqual(published_at, catalog.store.root.next_lsn);
         rename = try edit(&view, 2, .{ .rename = try a.Name.init("renamed") });
         _ = try catalog.admit(rename, access.policy());
         try t.expect((try resolve(&catalog, &access, "renamed")) == null);
@@ -362,4 +365,53 @@ test "direct catalog recovery rejects a terminal operation reopened in accepted 
     try t.expectError(error.InvalidDirectCatalogTransition, catalog.recover());
     try t.expectError(error.CatalogRecoveryRequired, catalog.status(create.binding, access.policy()));
     try t.expectEqual(next.next_lsn, try wal.log().tail(next.configuration.partition));
+}
+
+test "direct catalog CREATE can restart and cancel before native registration exists" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{ .missing_table = true };
+    const cancelled = try creation(7, 1, "events");
+    const pending = try creation(8, 2, "events");
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        _ = try catalog.admit(cancelled, access.policy());
+        try t.expect((try catalog.registration(cancelled.binding, access.policy())) != null);
+        try t.expect((try catalog.cancel(cancelled.binding, access.policy())) == .cancelled);
+        try t.expect((try catalog.registration(cancelled.binding, access.policy())) == null);
+        _ = try catalog.admit(pending, access.policy());
+        const at = catalog.store.root.next_lsn;
+        const required = (try catalog.registration(pending.binding, access.policy())).?;
+        try t.expectEqual(@as(u64, 0), required.action.owner);
+        try t.expectEqual(@as(u64, 0), required.authorization_revision);
+        try t.expect((try catalog.status(pending.binding, access.policy())) == .admitted);
+        try t.expect((try resolve(&catalog, &access, "events")) == null);
+        try t.expectError(error.CatalogRegistrationRequired, catalog.perform(pending.binding, access.policy()));
+        try t.expectEqual(at, catalog.store.root.next_lsn);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    access.missing_table = false;
+    try t.expect((try catalog.perform(cancelled.binding, access.policy())) == .cancelled);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.attachRegistration(pending.binding, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    try t.expectEqual(.ready, (try catalog.status(pending.binding, access.policy())).admitted.phase);
+    try t.expect((try resolve(&catalog, &access, "events")) == null);
+    try t.expect((try catalog.perform(pending.binding, access.policy())) == .committed);
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    try t.expectEqual(@as(u64, 8), view.table.root.interpretation.object.object);
+    try t.expectEqual(@as(u64, 3), view.table.root.partition);
 }

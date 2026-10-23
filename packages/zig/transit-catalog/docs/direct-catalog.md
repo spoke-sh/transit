@@ -4,7 +4,7 @@
 names. It accepts complete frozen DDL work into a control log, then publishes
 the definition through the Table's acceptance log. The installed Table service
 and SQL callers still use `TableCatalog`; this component has no public transport
-or automatic native-object provisioning.
+or automatic service scheduling.
 
 ## Identity, admission and publication
 
@@ -27,6 +27,22 @@ their Table acceptance record, without a second catalog visibility decision.
 Cancelled CREATE reservations free the name but retain the allocated object
 identity. Recreating the name requires another object and partition.
 
+CREATE freezes the requested owner role, without requiring a native registration
+ID in the user's intent. Admission reserves the object and partition first.
+`registration` inspects the required native action and the policy revision checked
+for the original caller. The service registrar submits it through existing signed
+native administration. `AuthorizationClient.registrationAt` preserves that
+checked revision; it refuses to prepare work under a later policy basis. Native
+BEGIN and candidate publication enforce the policy precondition.
+
+`attachRegistration` verifies the accepted native binding and records the Table's
+initial declaration under the reserved partition. This advances CREATE from
+`admitted` to `ready`; both are pending states. Neither records a successful
+Table outcome. A lost attachment reply recovers that same declaration. Cancelling
+before registration still records a terminal operation and frees the name. A
+native object already created by interrupted work remains retained; cancellation
+does not silently retire an independently accepted native identity.
+
 `status` inspects actual Table evidence before returning a pending catalog phase.
 After a lost reply, it returns the original accepted definition and result even
 if the Table has since changed or retired. `cancel` returns committed evidence
@@ -45,8 +61,9 @@ does not replace it with a new request or infer cancellation.
 The service supplies independently allocated guards backed by current native
 authority. Guards verify the configured database/schema/Table registrations,
 CONNECT, USAGE and the requested privilege or ownership. CREATE also requires
-ownership of its explicitly registered target. Registration must already exist;
-these callbacks cannot grant authority or manufacture a native identity.
+ownership of a registered target and the ability to select the frozen owner
+role. Registration is a separate native operation after admission; these
+callbacks cannot grant authority or manufacture a native identity.
 
 The caller serializes catalog directory, DDL and admission methods. It also
 serializes each Table owner and coordinates row admission with pending DDL.
@@ -72,7 +89,7 @@ retained; this owner supplies no collector.
 
 `apply` accepts already frozen row changes directly, with exact binding and
 Table receipt checks. Durable pending/rejected/cancelled DML, schema lifecycle
-beyond the initial namespace, native registration orchestration, dependency
+beyond the initial namespace, the service registration loop, dependency
 RESTRICT, public SQL/typed adapters and service scheduling remain unfinished.
 The [Table storage owner](../../transit-storage/docs/table-partitions.md) defines
 row/DDL acceptance, rewrite and pin behavior. The

@@ -146,7 +146,7 @@ fn entry(self: *Self, object: u64) !?r.Entry {
 }
 
 fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool) !View {
-    var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed);
+    var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed orelse return error.CatalogRegistrationRequired);
     defer seed.deinit();
     var table = try P.init(allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, self.options.table);
     errdefer table.deinit();
@@ -177,6 +177,10 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, nam
         return null;
     };
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
+    if (target.seed == null) {
+        try check(initial);
+        return null;
+    }
     var view = try self.open(allocator, target, false);
     errdefer view.deinit();
     if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != namespace_id or !std.meta.eql(view.properties.name, name)) {
@@ -205,6 +209,7 @@ pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !
         const target = try r.fromValue(r.Entry, self.allocator, item.value);
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        if (target.seed == null) continue;
         var view = try self.open(self.allocator, target, false);
         defer view.deinit();
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != namespace_id) continue;
@@ -228,16 +233,18 @@ fn original(self: *Self, policy: Policy, binding: d.Binding) !void {
 
 fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, request: Request, view: ?*View) !P.Guard {
     const namespace = try self.schema(request.intent.namespace);
-    const target: a.Table = if (view) |value| value.properties.target(request.binding.target.object) else if (request.intent.action == .create)
-        .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = request.intent.action.create.authorization }
-    else
-        return error.CatalogObjectMissing;
+    const target: ?a.Table = if (view) |value| value.properties.target(request.binding.target.object) else if (request.intent.action == .create) target: {
+        const native = try policy.registered(policy.context, .table, request.binding.target.object) orelse break :target null;
+        break :target .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = native.reference.id };
+    } else return error.CatalogObjectMissing;
     const access: a.Access = switch (request.intent.action) {
         .create => .create_table,
         .alter, .rename => .alter,
         .drop => .drop,
     };
-    return self.guard(allocator, policy, namespace, target, access);
+    var requested = try self.requirements(policy, namespace, target, access);
+    if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
+    return policy.make_guard(policy.context, allocator, requested);
 }
 
 fn pending(self: *Self, object: u64, current: P.Guard) !bool {
@@ -245,8 +252,9 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
     const operation = try r.fromValue(d.Operation, self.allocator, value);
     const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
     const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
-    if (observed.phase != .admitted) return false;
+    if (!observed.pending()) return false;
     const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
+    if (target.seed == null) return true;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
     return (try view.table.observeEvidence(binding, current)) == null;
@@ -255,13 +263,17 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
 fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.Guard) !bool {
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
-    var view = try self.open(self.allocator, target, false);
-    defer view.deinit();
-    if (view.table.root.next_lsn != 0 and !view.table.root.retired and view.properties.namespace == namespace and std.meta.eql(view.properties.name, name)) return proposed.object == object;
+    var view: ?View = null;
+    defer if (view) |*value| value.deinit();
+    if (target.seed != null) {
+        view = try self.open(self.allocator, target, false);
+        if (view.?.table.root.next_lsn != 0 and !view.?.table.root.retired and view.?.properties.namespace == namespace and std.meta.eql(view.?.properties.name, name)) return proposed.object == object;
+    }
     const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, proposed.reservation) orelse return error.InvalidDirectCatalogOperation;
     const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
-    if (observed.phase != .admitted) return true;
-    return (try view.table.observeEvidence(binding, current)) != null;
+    if (!observed.pending()) return true;
+    if (view) |*value| return (try value.table.observeEvidence(binding, current)) != null;
+    return false;
 }
 
 fn record(self: *Self, next_input: r.Root, operation: r.Operation, current: P.Guard) !void {
@@ -282,7 +294,9 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     var existing: ?View = null;
     defer if (existing) |*value| value.deinit();
     const known = try self.entry(request.binding.target.object);
-    if (known) |target| existing = try self.open(self.allocator, target, false);
+    if (known) |target| if (target.seed != null) {
+        existing = try self.open(self.allocator, target, false);
+    };
     const current = try self.requestGuard(arena.allocator(), policy, request, if (existing) |*value| value else null);
     try check(current);
     try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
@@ -312,11 +326,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const properties: Properties = .{ .namespace = request.intent.namespace, .authorization = request.intent.action.create.authorization, .name = request.intent.name };
-            var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
-            var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .object = request.binding.target, .revision = 1, .schema = request.intent.action.create.schema, .properties = try properties.encode(&bytes) });
-            defer declaration.deinit();
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = try s.TableDeclaration.stage(self.store.objects, &declaration) };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
         }
@@ -356,21 +366,89 @@ pub fn status(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     defer arena.deinit();
     var view: ?View = null;
     defer if (view) |*value| value.deinit();
-    if (try self.entry(binding.target.object)) |target| view = try self.open(self.allocator, target, false);
+    if (try self.entry(binding.target.object)) |target| if (target.seed != null) {
+        view = try self.open(self.allocator, target, false);
+    };
     const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null);
     try check(current);
     if (view) |*value| if (try value.table.observeEvidence(binding, current)) |accepted| return .{ .committed = accepted };
     return switch (operation.phase) {
-        .admitted => .{ .admitted = operation },
+        .admitted, .ready => .{ .admitted = operation },
         .rejected => .{ .rejected = operation },
         .cancelled => .{ .cancelled = operation },
         .settled => error.InvalidDirectCatalogCompletion,
     };
 }
 
+pub const Registration = struct {
+    action: @FieldType(p.Authorization.Action, "register_object"),
+    /// A registrar must bind its native BEGIN to this checked policy revision.
+    /// Native candidate publication also checks that unchanged policy basis.
+    authorization_revision: u64,
+};
+
+/// Inspect the native work required by an already admitted CREATE. This does
+/// not register anything or make the Table visible. The service's registrar
+/// uses the existing signed native administration/recovery operations.
+pub fn registration(self: *Self, binding: d.Binding, policy: Policy) !?Registration {
+    const observed = try self.status(binding, policy);
+    if (observed != .admitted or binding.action != .create) return null;
+    var request = (try self.loadRequest(binding)).?;
+    defer request.deinit();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, null);
+    const namespace = try self.schema(request.value.intent.namespace);
+    const native = try policy.registered(policy.context, .table, binding.target.object);
+    const fence = try current.acquire(current.context);
+    defer current.release(current.context);
+    if (native != null) return null;
+    if (fence.policy_epoch == 0) return error.InvalidPartitionLease;
+    return .{ .action = .{
+        .domain = self.config().authority.table_domain,
+        .owner = request.value.intent.action.create.owner,
+        .schema = a.reference(namespace.authorization),
+        .binding = try a.binding(self.config().scope, .table, binding.target.object),
+    }, .authorization_revision = fence.policy_epoch - 1 };
+}
+
+/// Attach a verified native registration to the original reserved object and
+/// partition. The complete user intent stays unchanged. A lost reply recovers
+/// this ready phase; only a subsequent Table acceptance publishes the name.
+pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Observation {
+    const observed = try self.status(binding, policy);
+    if (observed != .admitted or binding.action != .create or observed.admitted.phase == .ready) return observed;
+    var request = (try self.loadRequest(binding)).?;
+    defer request.deinit();
+    var target = try self.entry(binding.target.object) orelse return error.InvalidDirectCatalogOperation;
+    if (target.seed != null) return error.InvalidDirectCatalogTransition;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, null);
+    try check(current);
+    const namespace = try self.schema(request.value.intent.namespace);
+    const native = try policy.registered(policy.context, .table, binding.target.object) orelse return error.CatalogRegistrationRequired;
+    try a.validateObject(self.config().authority, self.config().scope, .table, binding.target.object, a.reference(namespace.authorization), native);
+    if (native.owner != request.value.intent.action.create.owner) return error.CatalogIdentityConflict;
+    const properties: Properties = .{ .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
+    var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
+    var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
+    defer declaration.deinit();
+    target.seed = try s.TableDeclaration.stage(self.store.objects, &declaration);
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    next.objects = try self.store.tree().put(next.objects, try r.idKey(target.object), try r.pageValue(target));
+    var ready = observed.admitted;
+    ready.phase = .ready;
+    try self.record(next, ready, current);
+    return .{ .admitted = ready };
+}
+
 pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     const observed = try self.status(binding, policy);
     if (observed != .admitted) return observed;
+    if (binding.action == .create and observed.admitted.phase == .admitted) _ = try self.attachRegistration(binding, policy);
     var request = (try self.loadRequest(binding)).?;
     defer request.deinit();
     const target = try self.entry(binding.target.object) orelse return error.InvalidDirectCatalogOperation;
@@ -455,11 +533,12 @@ pub fn cancel(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var request = (try self.loadRequest(binding)).?;
     defer request.deinit();
     const target = try self.entry(binding.target.object) orelse return error.InvalidDirectCatalogOperation;
-    var view = try self.open(self.allocator, target, true);
-    defer view.deinit();
+    var view: ?View = null;
+    defer if (view) |*value| value.deinit();
+    if (target.seed != null) view = try self.open(self.allocator, target, true);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, &view);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null);
     try self.terminal(observed.admitted, .cancelled, .none, current);
     return self.status(binding, policy);
 }

@@ -39,9 +39,18 @@ pub fn WithTransport(comptime Transport: type) type {
         /// An in-flight identical next step therefore has identical signed bytes;
         /// a stale-basis begin cannot be accepted after a policy change.
         pub fn registration(self: Self, action: @FieldType(a.Action, "register_object")) !Registration {
+            return self.registrationChecked(action, null);
+        }
+        /// A domain registrar carries the revision from its original caller's
+        /// current-rights check. Do not replace it with a later observed basis.
+        pub fn registrationAt(self: Self, action: @FieldType(a.Action, "register_object"), authorization_revision: u64) !Registration {
+            return self.registrationChecked(action, authorization_revision);
+        }
+        fn registrationChecked(self: Self, action: @FieldType(a.Action, "register_object"), authorization_revision: ?u64) !Registration {
             const identity = action.binding orelse return error.InvalidAuthorizationObject;
             const observation = try self.read(.{ .registration = .{ .domain = action.domain, .key = identity } });
             const authority = observation.body.authorization;
+            if (authorization_revision) |expected| if (expected != authority.revision) return error.StaleAuthorizationRevision;
             const command: a.Command = if (authority.body.registration) |existing| step: {
                 if (!std.meta.eql(existing.action, a.Action{ .register_object = action })) return error.InvalidAuthorizationObject;
                 switch (existing.outcome.status) {
@@ -84,6 +93,8 @@ test "registration preparation preserves exact identity across lost replies and 
     try t.expect(std.meta.eql(first, retry));
     try t.expectEqual(@as(u64, 4), first.request.sequence);
     try t.expectEqual(@as(u64, 7), first.request.command.authorization.begin.expected_revision);
+    try t.expectError(error.StaleAuthorizationRevision, client.registrationAt(action, 6));
+    try t.expectEqualDeep(first, (try client.registrationAt(action, 7)).submit);
     transport.response.principal_sequence = 4;
     transport.response.body.authorization.body = .{ .registration = .{ .action = .{ .register_object = action }, .outcome = .{ .id = 11, .principal = 0, .role = 0, .basis = 7, .revision = 11, .status = .preparing, .created_id = 13, .changed_records = 1, .steps = 0 } } };
     const next = (try client.registration(action)).submit;
@@ -100,5 +111,5 @@ test "registration preparation preserves exact identity across lost replies and 
     var foreign = action;
     foreign.owner += 1;
     try t.expectError(error.InvalidAuthorizationObject, client.registration(foreign));
-    try t.expectEqual(@as(usize, 7), transport.queries);
+    try t.expectEqual(@as(usize, 9), transport.queries);
 }

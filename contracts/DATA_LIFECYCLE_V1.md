@@ -98,6 +98,22 @@ DROP makes its current name unavailable at that acceptance. Reusing an available
 name allocates a different object and partition. Earlier operation bindings,
 definitions and retained read roots never follow the replacement.
 
+CREATE's canonical intent binds its selected owner role rather than a native
+object ID. Admission reserves the logical object and partition before native
+registration. Its mandatory nullable seed reference remains null until a
+verified native binding supplies the initial declaration. Attachment advances
+the original operation from `admitted` to `ready`, preserving its complete intent
+and reserved partition. Both phases are pending; only Table acceptance records
+success. Cancellation before registration remains terminal after restart.
+
+The registration plan carries the original caller's checked authorization
+revision. A service registrar binds native BEGIN to that exact revision, and
+native publication retains its existing policy-basis check. A changed revision
+requires a fresh caller authorization check; the registrar cannot substitute a
+later observed revision. The native binding/change ledger recovers uncertain
+registration steps. Registration and Table publication remain distinct accepted
+steps; interrupted or cancelled creation can leave a retained native object.
+
 The Table log remains the authority for the successful result. Catalog cleanup
 or a delayed reply must recover the original accepted declaration and outcome,
 not infer success from a reserved name or use the latest Table definition.

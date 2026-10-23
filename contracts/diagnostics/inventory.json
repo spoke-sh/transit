@@ -3061,20 +3061,22 @@
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
         "CatalogDenied": 4,
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "CatalogNameHashCollision": 1,
         "CatalogNamespaceMissing": 2,
         "CatalogNotInitialized": 1,
         "CatalogObjectBusy": 1,
         "CatalogObjectMissing": 1,
-        "CatalogRegistrationRequired": 1,
+        "CatalogRegistrationRequired": 3,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 1,
         "InvalidCatalogConfiguration": 1,
         "InvalidDirectCatalogCompletion": 1,
         "InvalidDirectCatalogEntry": 2,
         "InvalidDirectCatalogName": 2,
-        "InvalidDirectCatalogOperation": 8,
+        "InvalidDirectCatalogOperation": 9,
+        "InvalidDirectCatalogTransition": 1,
+        "InvalidPartitionLease": 1,
         "InvalidStorageBudget": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 1,
@@ -3102,6 +3104,7 @@
         "Policy.registered()": "anyerror",
         "admit()": "<inferred>",
         "apply()": "<inferred>",
+        "attachRegistration()": "<inferred>",
         "available()": "<inferred>",
         "cancel()": "<inferred>",
         "candidate()": "<inferred>",
@@ -3118,6 +3121,7 @@
         "perform()": "<inferred>",
         "record()": "<inferred>",
         "recover()": "<inferred>",
+        "registration()": "<inferred>",
         "requestGuard()": "<inferred>",
         "requireInitialized()": "<inferred>",
         "requirements()": "<inferred>",
@@ -3130,7 +3134,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 162,
+        "try": 186,
         "catch": 2
       },
       "imports": [
@@ -3168,9 +3172,9 @@
     "packages/zig/transit-catalog/src/DirectCatalogRecords.zig": {
       "errors": {
         "DataIdentityConflict": 1,
-        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogIdentity": 2,
         "InvalidDirectCatalogConfiguration": 1,
-        "InvalidDirectCatalogEntry": 1,
+        "InvalidDirectCatalogEntry": 2,
         "InvalidDirectCatalogHistory": 3,
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
@@ -3186,6 +3190,7 @@
         ],
         "Phase": [
           "admitted",
+          "ready",
           "rejected",
           "cancelled",
           "settled"
@@ -3227,7 +3232,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 37,
         "catch": 0
       },
       "imports": [
@@ -3244,7 +3249,7 @@
         "IncompatibleDefinition": 1,
         "InvalidDirectCatalogHistory": 4,
         "InvalidDirectCatalogOperation": 3,
-        "InvalidDirectCatalogTransition": 8,
+        "InvalidDirectCatalogTransition": 12,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
       },
@@ -3266,7 +3271,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 46,
         "catch": 1
       },
       "imports": [
@@ -5011,7 +5016,8 @@
     },
     "packages/zig/transit-client/src/AuthorizationClient.zig": {
       "errors": {
-        "InvalidAuthorizationObject": 4
+        "InvalidAuthorizationObject": 4,
+        "StaleAuthorizationRevision": 1
       },
       "outcomes": {
         "WithTransport().<return>.Registration": [
@@ -5026,7 +5032,9 @@
         "WithTransport().<return>.check()": "<inferred>",
         "WithTransport().<return>.proof()": "<inferred>",
         "WithTransport().<return>.read()": "<inferred>",
-        "WithTransport().<return>.registration()": "<inferred>"
+        "WithTransport().<return>.registration()": "<inferred>",
+        "WithTransport().<return>.registrationAt()": "<inferred>",
+        "WithTransport().<return>.registrationChecked()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -12157,7 +12165,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"9ecf03c83a3bd5e82dc87da5756ba71a1a2ed3d7ab1e8a9dbbb2033f6f87d66c\""
+          "@\"25f5ba20fd4d8dc23f8be8713b2b8468dc23a65b0aa58bb99f983face981d9c7\""
         ],
         "Effect.phase": [
           "pending",

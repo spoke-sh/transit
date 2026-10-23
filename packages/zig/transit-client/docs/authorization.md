@@ -58,6 +58,22 @@ Post-dispatch allocation failure remains an uncertain outcome.
 Neutral input is bounded to 256 KiB. The host owns durable record files and
 schedules each explicit step through this shared lifecycle.
 
+## Domain registration
+
+`AuthorizationClient.registration` prepares one signed native step for an exact
+domain/binding and registration action. The native registration ledger preserves
+the original action and outcome across lost replies. Preparation dispatches
+nothing; the host retains the signed step until its outcome is resolved.
+
+A service acting for another caller uses `registrationAt(action, revision)` with
+the policy revision from that caller's current authorization check. A different
+observed revision returns `StaleAuthorizationRevision`, including when preparing a
+continuation. The host rechecks the caller before preparing further work. It must
+not replace the checked revision with a fresh registrar observation. Native
+BEGIN and publication enforce their existing policy-basis preconditions. The
+service still validates the complete original request, selected owner and domain
+binding; this helper cannot establish that application-level correspondence.
+
 ## Scoped changesets
 
 `AuthorizationSet` reconciles explicit grant, membership and default-grant
