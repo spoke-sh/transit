@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -103,7 +104,8 @@ def run(node, caller):
         def start(configuration, *args):
             log = (fixture.root / f"child-{len(logs)}.log").open("w+")
             logs.append(log)
-            child = subprocess.Popen([node, str(configuration), *args], stdout=log, stderr=subprocess.STDOUT)
+            child = subprocess.Popen([node, str(configuration), *args], stdout=log, stderr=subprocess.STDOUT,
+                                     env={**os.environ, 'LOG_FORMAT': 'json'})
             children.append(child)
             return child, log
 
