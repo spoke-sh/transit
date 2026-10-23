@@ -5,6 +5,7 @@ Uses Python values and struct; imports no Transit encoder or validator. The
 chosen four-column schema is also constructed independently by the Zig tests.
 """
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -135,7 +136,16 @@ def fixtures():
         dict(id='40', name='amount', type={'decimal': {'precision': 18, 'scale': 2}}, nullable=True,
              default=None, max_characters=None),
     ], primary_key=['11'])
-    return dict(definition=DEFINITION.decode(), oracle='Python values/Unicode scalar length/struct',
+    for column in neutral['columns']:
+        column.update(encoding='plain', collation='none')
+    physical = copy.deepcopy(neutral)
+    for column, encoding, collation in zip(physical['columns'],
+            ('bitpacked', 'ebcdic', 'rle', 'comp_3'), ('none', 'ebcdic_cp037', 'none', 'none')):
+        column.update(encoding=encoding, collation=collation)
+    physical_bytes = encoded + b'FTP1' + bytes((1, 0, 9, 3, 2, 0, 6, 0))
+    return dict(physical_schema_json=json.dumps(physical, separators=(',', ':')),
+                physical_schema_hex=physical_bytes.hex(), physical_fingerprint=hashlib.sha256(physical_bytes).hexdigest(),
+                definition=DEFINITION.decode(), oracle='Python values/Unicode scalar length/struct',
                 schema_hex=encoded.hex(), schema_json=json.dumps(neutral, separators=(',', ':')), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
                 row_hex=row_bytes.hex(), layout=layout.hex(), key_hex=key_bytes.hex(), dml_hex=dml_bytes.hex(),
                 select_hex=query_bytes.hex(), select_fingerprint=hashlib.sha256(query_identity).hexdigest(),
@@ -160,6 +170,13 @@ def main():
         validator = Draft202012Validator(schema)
         neutral = json.loads(result['schema_json'])
         validator.validate(neutral)
+        validator.validate(json.loads(result['physical_schema_json']))
+        for key in ('encoding', 'collation'):
+            changed = copy.deepcopy(neutral)
+            del changed['columns'][0][key]
+            assert list(validator.iter_errors(changed)), key
+            changed['columns'][0][key] = 'invented'
+            assert list(validator.iter_errors(changed)), key
         for key, replacement in [('definition', 'foreign'), ('object', 7), ('columns', {}), ('primary_key', [11])]:
             changed = dict(neutral, **{key: replacement})
             assert list(validator.iter_errors(changed)), (key, replacement)

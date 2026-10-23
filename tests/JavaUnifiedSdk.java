@@ -38,7 +38,7 @@ public final class JavaUnifiedSdk {
         return new TableSource(new ProcessRef(1,3),metadata,new Catalog.Schema(n(9),n(1),n(columns.size()+1),columns));
     }
     private static TableSource goldenTable() {
-        return tableSource(List.of(new Catalog.Column(n(1),"id",Logical.Scalar.INT64,false,Optional.empty(),Optional.empty()),new Catalog.Column(n(2),"label",Logical.Scalar.UTF8)));
+        return tableSource(List.of(new Catalog.Column(n(1),"id",Logical.Scalar.INT64,false,Optional.empty(),Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE),new Catalog.Column(n(2),"label",Logical.Scalar.UTF8)));
     }
     private static Source source(ResourceRef r,String kind,boolean golden) {
         return switch(kind) {

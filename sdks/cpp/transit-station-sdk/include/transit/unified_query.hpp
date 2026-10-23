@@ -58,7 +58,7 @@ struct SourceView {
                 metadata.principal=m.principal;metadata.operation=m.operation;metadata.admitted_input=m.admitted_input;metadata.commitment.bytes=m.commitment.bytes;
                 std::copy(m.commitment.digest.begin(),m.commitment.digest.end(),metadata.commitment.digest);
                 if(v.schema.columns.size()>128)throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-columns");
-                for(const auto &c:v.schema.columns)columns.push_back({c.id,catalog::detail::text(c.name),&c.type.native(),c.nullable,catalog::detail::cell(c.default_value),catalog::detail::characters(c.max_characters)});
+                for(const auto &c:v.schema.columns)columns.push_back({c.id,catalog::detail::text(c.name),&c.type.native(),c.nullable,catalog::detail::cell(c.default_value),catalog::detail::characters(c.max_characters),static_cast<uint32_t>(c.encoding),static_cast<uint32_t>(c.collation)});
                 schema={v.schema.object,v.schema.revision,v.schema.next_column,columns.data(),columns.size(),v.schema.primary_key.data(),v.schema.primary_key.size()};
                 value.source.table={v.owner.native(),&metadata,&schema};
             } else {

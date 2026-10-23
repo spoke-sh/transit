@@ -55,7 +55,10 @@ statements resolve current authorized metadata and freeze its original basis.
 
 `Schema(objectId, revision, nextColumn, columns, primaryKey)` owns up to 128 named
 columns with stable IDs. Columns specify `type`, optional `nullable` (default
-true), `default` and `maxCharacters`. Primary keys are explicit stable-column
+true), `default`, `maxCharacters`, `encoding` and `collation`. New columns default
+to `"plain"` encoding and `"none"` collation. Wire schemas require both fields;
+readback preserves them. Typed ALTER accepts `{ kind: "physical", column, encoding,
+collation }`, and ADD carries the same column descriptors. Primary keys are explicit stable-column
 ID lists. Schema column and default getters return independent values; changing
 them cannot mutate the schema. Shared Zig admission enforces key types, constraints,
 canonical descriptors and the encoded schema bound.

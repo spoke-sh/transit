@@ -115,7 +115,8 @@ test "typed schema changes share all selected evolution checks" {
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
     for ([_]typed.Change{
-        .{ .add = .{ .name = "tags", .type = .{ .list = .{ .type = &.int64, .nullable = true } }, .nullable = true, .default = .{ .value = .{ .list = &.{.null} } }, .max_characters = null } },
+        .{ .add = .{ .name = "tags", .type = .{ .list = .{ .type = &.int64, .nullable = true } }, .nullable = true, .default = .{ .value = .{ .list = &.{.null} } }, .max_characters = null, .encoding = .plain, .collation = .none } },
+        .{ .physical = .{ .column = "2", .encoding = .ebcdic, .collation = .ebcdic_cp037 } },
         .{ .drop = "3" },
         .{ .rename = .{ .column = "2", .name = "full name" } },
         .{ .default = .{ .column = "2", .value = null } },

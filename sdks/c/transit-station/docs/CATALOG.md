@@ -1,5 +1,12 @@
 # General Table callers
 
+Columns preserve orthogonal encoding and collation descriptors through creation,
+ADD COLUMN and metadata readback. New columns default to plain encoding and no
+declared collation. Wire schemas require both fields and reject unknown tags;
+missing fields never acquire defaults. `TRANSIT_CATALOG_PHYSICAL` selects physical descriptors
+for an existing column. Shared Zig validation owns supported combinations and
+exact conversion; carrying a collation does not establish SQL comparison support.
+
 Include `transit/catalog.h` for catalog-based CREATE, ALTER, RENAME, DROP and
 typed INSERT/UPDATE/DELETE. Opening takes a configuration, credential and explicit
 realm-qualified catalog scope/owner. The native definition and capabilities must

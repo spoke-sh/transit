@@ -112,6 +112,8 @@ const wireSchema = {
       nullable: false,
       default: null,
       max_characters: null,
+      encoding: "plain",
+      collation: "none",
     },
     {
       id: "2",
@@ -120,6 +122,8 @@ const wireSchema = {
       nullable: true,
       default: null,
       max_characters: null,
+      encoding: "plain",
+      collation: "none",
     },
   ],
   primary_key: ["1"],
@@ -519,6 +523,77 @@ test("metadata owns general schema and validates the requested identity", async 
   await withHost({ definition: null }, async (client) =>
     assert.equal(await client.lookup("absent"), undefined),
   );
+});
+test("physical schema descriptors survive readback and typed declarations", async () => {
+  const physicalWire = {
+    definition: contract.definition,
+    object: "17",
+    revision: "2",
+    next_column: "2",
+    columns: [
+      {
+        id: "1",
+        name: "text",
+        type: { utf8: {} },
+        nullable: true,
+        default: null,
+        max_characters: null,
+        encoding: "ebcdic",
+        collation: "ebcdic_cp037",
+      },
+    ],
+    primary_key: [],
+  };
+  await withHost(
+    { definition: { ...entry, authorization: 30, schema: physicalWire } },
+    async (client) => {
+      const value = await client.lookup(metadata.name);
+      assert.equal(value?.schema.columns[0]?.encoding, "ebcdic");
+      assert.equal(value?.schema.columns[0]?.collation, "ebcdic_cp037");
+    },
+  );
+  for (const field of ["encoding", "collation"] as const) {
+    for (const missing of [true, false]) {
+      const bad = structuredClone(physicalWire);
+      if (missing) Reflect.deleteProperty(bad.columns[0]!, field);
+      else bad.columns[0]![field] = "invented";
+      await withHost({ definition: { ...entry, authorization: 30, schema: bad } }, async (client) =>
+        assert.rejects(client.lookup(metadata.name), ReadFailed),
+      );
+    }
+  }
+  await withHost({ compiled }, async (client, requests) => {
+    await client.prepare("people", ids, {
+      kind: "create",
+      schema: new Schema(17n, 1n, 2n, [
+        {
+          id: 1n,
+          name: "text",
+          type: { kind: "utf8" },
+          encoding: "ebcdic",
+          collation: "ebcdic_cp037",
+        },
+      ]),
+    });
+    const last = (await requests()).at(-1) as {
+      catalog: { prepare: { action: { create: { schema: typeof physicalWire } } } };
+    };
+    assert.deepEqual(last.catalog.prepare.action.create.schema.columns, physicalWire.columns);
+  });
+  const reply = { ...compiled, intent: { ...compiled.intent, kind: "alter" } };
+  await withHost({ compiled: reply }, async (client, requests) => {
+    await client.prepare("people", ids, {
+      kind: "alter",
+      basis: new Basis(17n, 2n, "ab".repeat(32)),
+      change: { kind: "physical", column: 1n, encoding: "fsst", collation: "ascii_ci" },
+    });
+    const last = (await requests()).at(-1) as {
+      catalog: { prepare: { action: { alter: { change: unknown } } } };
+    };
+    assert.deepEqual(last.catalog.prepare.action.alter.change, {
+      physical: { column: "1", encoding: "fsst", collation: "ascii_ci" },
+    });
+  });
 });
 test("historical definitions bind exact identities without inventing a live head", async () => {
   await withHost({ historical: { metadata, schema: wireSchema } }, async (client) => {

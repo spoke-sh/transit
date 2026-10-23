@@ -19,7 +19,7 @@ invalid({error,#transit_error{kind=Kind}}) -> true=lists:member(Kind,[incompatib
 definition_id() -> maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)).
 scope_json() -> #{realm=>46,resource=>7,catalog=>integer_to_binary(max())}.
 metadata() -> #{scope=>scope_json(),namespace=>1,object=>integer_to_binary(max()),revision=>integer_to_binary(max()),name=><<"items">>,schema_fingerprint=>binary:copy(<<"ab">>,32),principal=>17,operation=>integer_to_binary(max()),admitted_input=>9,commitment=>#{format=>16#54434d01,length=>200,digest=>lists:duplicate(32,171)}}.
-schema() -> #{definition=>definition_id(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null}],primary_key=>[]}.
+schema() -> #{definition=>definition_id(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null,encoding=><<"plain">>,collation=><<"none">>}],primary_key=>[]}.
 entry() -> #{metadata=>metadata(),head=>#{revision=><<"1">>,rows=><<"0">>,pending=><<"0">>}}.
 metadata_definition() -> (entry())#{schema=>schema(),authorization=>101}.
 metadata_page() -> #{resource_revision=>9,entries=>[entry()|lists:duplicate(7,null)],next=>#{definition=>definition_id(),scope=>scope_json(),resource_revision=>9,after_object=>integer_to_binary(max())}}.
@@ -34,6 +34,21 @@ description_values(A,Root) ->
     lists:foreach(fun(Bad)->response(A,Root,#{description=>Bad},fun(C)->invalid(A:describe(C)) end) end,
         [Description#{subject=>Subject#{principal=>18}},Description#{subject=>Subject#{role=>24}},Description#{subject=>Subject#{audience=>4}},Description#{subject=>Subject#{credential_epoch=>0}},Description#{subject=>Subject#{context=>lists:duplicate(31,171)}},Description#{configuration=>Configuration#{authority=>Authority#{table_domain=>2}}},Description#{configuration=>maps:remove(authority,Configuration)}]).
 metadata_values(A,Root) ->
+    PhysicalColumn=#{id=><<"1">>,name=><<"text">>,type=>#{utf8=>#{}},nullable=>true,default=>null,
+        max_characters=>null,encoding=><<"ebcdic">>,collation=><<"ebcdic_cp037">>},
+    Physical=(schema())#{columns=>[PhysicalColumn]},
+    response(A,Root,#{definition=>(metadata_definition())#{schema=>Physical}},fun(C)->
+        {ok,#transit_catalog_definition{schema=#transit_catalog_schema{columns=[#transit_catalog_column{encoding=ebcdic,collation=ebcdic_cp037}]}}}=A:lookup(C,<<"items">>)
+    end),
+    lists:foreach(fun(Field)->
+        lists:foreach(fun(Column)->response(A,Root,#{definition=>(metadata_definition())#{schema=>Physical#{columns=>[Column]}}},fun(C)->invalid(A:lookup(C,<<"items">>)) end) end,
+            [maps:remove(Field,PhysicalColumn),PhysicalColumn#{Field=><<"invented">>}])
+    end,[encoding,collation]),
+    Identity=#transit_catalog_identity{operation=1,namespace=1},Basis=#transit_catalog_basis{object=1,revision=1,schema_fingerprint= <<0:256>>},
+    {#{<<"prepare">>:=#{<<"action">>:=#{<<"alter">>:=#{<<"change">>:=#{<<"physical">>:=#{<<"column">>:= <<"1">>,<<"encoding">>:= <<"fsst">>,<<"collation">>:= <<"ascii_ci">>}}}}}},_,_}=
+        transit_catalog_value:action({prepare,<<"items">>,Identity,{alter,Basis,{physical,1,fsst,ascii_ci}}}),
+    {#{<<"prepare">>:=#{<<"action">>:=#{<<"alter">>:=#{<<"change">>:=#{<<"add">>:=#{<<"encoding">>:= <<"ebcdic">>,<<"collation">>:= <<"ebcdic_cp037">>}}}}}},_,_}=
+        transit_catalog_value:action({prepare,<<"items">>,Identity,{alter,Basis,{add,<<"text">>,utf8,true,undefined,undefined,ebcdic,ebcdic_cp037}}}),
     Max=max(),
     response(A,Root,#{definition=>metadata_definition()},fun(C)->
         {ok,#transit_catalog_definition{metadata=#transit_catalog_metadata{object=Max,revision=Max,operation=Max,name= <<"items">>,commitment=#transit_catalog_metadata_commitment{bytes=200,digest=Digest}},schema=#transit_catalog_schema{columns=[#transit_catalog_column{id=1,type=int128,name= <<"id">>}]}}}=A:lookup(C,<<"items">>),true=Digest=:=binary:copy(<<171>>,32),

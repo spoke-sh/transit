@@ -177,6 +177,27 @@ class Configuration:
         return dict(scope=self.scope._wire(), owner=self.owner.pid, administrator=self.administrator, table_limits=self.table_limits._wire(), authority=self.authority._wire(), database_name=self.database_name)
 
 
+class Encoding(str, Enum):
+    PLAIN = 'plain'
+    BITPACKED = 'bitpacked'
+    RLE = 'rle'
+    DICTIONARY = 'dictionary'
+    FSST = 'fsst'
+    COMP = 'comp'
+    COMP_3 = 'comp_3'
+    ZONED = 'zoned'
+    IBM_HFP = 'ibm_hfp'
+    EBCDIC = 'ebcdic'
+
+
+class Collation(str, Enum):
+    NONE = 'none'
+    UTF8_BINARY = 'utf8_binary'
+    ASCII_CI = 'ascii_ci'
+    EBCDIC_CP037 = 'ebcdic_cp037'
+    ICU_ROOT = 'icu_root'
+
+
 @dataclass(frozen=True, slots=True)
 class Column:
     id: int
@@ -185,13 +206,15 @@ class Column:
     nullable: bool = True
     default: logical.Cell | None = None
     max_characters: int | None = None
+    encoding: Encoding = Encoding.PLAIN
+    collation: Collation = Collation.NONE
     def _wire(self) -> dict[str, Any]:
-        return dict(id=str(_wide(self.id)), **_column(self.name, self.type, self.nullable, self.default, self.max_characters))
+        return dict(id=str(_wide(self.id)), **_column(self.name, self.type, self.nullable, self.default, self.max_characters, self.encoding, self.collation))
 
 
-def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: logical.Cell | None, max_characters: int | None) -> dict[str, Any]:
+def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: logical.Cell | None, max_characters: int | None, encoding: Encoding, collation: Collation) -> dict[str, Any]:
     return dict(name=_name(name), type=logical.type_wire(datatype), nullable=_boolean(nullable), default=None if default is None else logical.cell_wire(default),
-                max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff))
+                max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff), encoding=_enum(encoding, Encoding), collation=_enum(collation, Collation))
 
 
 @dataclass(frozen=True, slots=True)
@@ -555,6 +578,8 @@ class AddColumn:
     nullable: bool = True
     default: logical.Cell | None = None
     max_characters: int | None = None
+    encoding: Encoding = Encoding.PLAIN
+    collation: Collation = Collation.NONE
 
 
 @dataclass(frozen=True, slots=True)
@@ -587,7 +612,14 @@ class SetType:
     max_characters: int | None = None
 
 
-Change: TypeAlias = AddColumn | DropColumn | RenameColumn | SetDefault | SetNullable | SetType
+@dataclass(frozen=True, slots=True)
+class SetPhysical:
+    column: int
+    encoding: Encoding
+    collation: Collation
+
+
+Change: TypeAlias = AddColumn | DropColumn | RenameColumn | SetDefault | SetNullable | SetType | SetPhysical
 
 
 @dataclass(frozen=True, slots=True)
@@ -688,8 +720,8 @@ def _schema(value: object) -> Schema:
     if not isinstance(v['columns'], list) or not 1 <= len(v['columns']) <= 128 or not isinstance(v['primary_key'], list): raise ValueError('Invalid columns')
     columns = []
     for item in v['columns']:
-        c = _object(item, 'id name type nullable default max_characters')
-        columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters']))
+        c = _object(item, 'id name type nullable default max_characters encoding collation')
+        columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation'])))
     return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']))
 
 
@@ -922,12 +954,13 @@ def _mutation_value(value: object) -> Mutation:
 
 
 def _change(value: Change) -> object:
-    if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters)}
+    if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters, value.encoding, value.collation)}
     column = str(_wide(value.column))
     if isinstance(value, DropColumn): return {'drop': column}
     if isinstance(value, RenameColumn): return {'rename': dict(column=column, name=_name(value.name))}
     if isinstance(value, SetDefault): return {'default': dict(column=column, value=None if value.value is None else logical.cell_wire(value.value))}
     if isinstance(value, SetNullable): return {'nullable': dict(column=column, value=_boolean(value.nullable))}
+    if isinstance(value, SetPhysical): return {'physical': dict(column=column, encoding=_enum(value.encoding, Encoding), collation=_enum(value.collation, Collation))}
     if isinstance(value, SetType): return {'type': dict(column=column, type=logical.type_wire(value.type), max_characters=None if value.max_characters is None else integer(value.max_characters, 'characters', maximum=0xffffffff))}
     raise TypeError('Expected typed schema change')
 

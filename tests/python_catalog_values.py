@@ -197,6 +197,28 @@ try:
     assert public_page.entries == retained.entries
     owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=schema._wire(), authorization=29))
     assert owner.lookup('items').schema == schema
+    # Decode independently supplied physical descriptors; absence never becomes defaults.
+    physical_wire = dict(definition=definition, object=str(schema.object_id), revision='1', next_column='2',
+        columns=[dict(id='1', name='text', type={'utf8': {}}, nullable=True, default=None,
+                      max_characters=None, encoding='ebcdic', collation='ebcdic_cp037')], primary_key=[])
+    owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=physical_wire, authorization=29))
+    physical = owner.lookup('items').schema
+    assert physical.columns[0].encoding == m.Encoding.EBCDIC
+    assert physical.columns[0].collation == m.Collation.EBCDIC_CP037
+    assert physical._wire() == physical_wire
+    from transit_station.catalog_values import _change
+    assert _change(m.SetPhysical(1, m.Encoding.FSST, m.Collation.ASCII_CI)) == {
+        'physical': {'column': '1', 'encoding': 'fsst', 'collation': 'ascii_ci'}}
+    added = _change(m.AddColumn('text', l.ScalarType('utf8'), encoding=m.Encoding.EBCDIC, collation=m.Collation.EBCDIC_CP037))['add']
+    assert added['encoding'] == 'ebcdic' and added['collation'] == 'ebcdic_cp037'
+    for field in ('encoding', 'collation'):
+        for missing in (True, False):
+            bad = copy.deepcopy(physical_wire)
+            if missing: del bad['columns'][0][field]
+            else: bad['columns'][0][field] = 'invented'
+            owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=bad, authorization=29))
+            rejects(IncompatibleNative, lambda: owner.lookup('items'))
+    owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=schema._wire(), authorization=29))
     rejects(IncompatibleNative, lambda: owner.lookup('other'))
     historical = dict(metadata=copy.deepcopy(metadata), schema=schema._wire())
     owner._api.response = dict(historical=copy.deepcopy(historical))

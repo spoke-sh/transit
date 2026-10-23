@@ -48,6 +48,24 @@ internal static class CatalogValues
         return JsonNode.Parse(Program.Obj(("resource_revision",9),("entries",entries),("next",Program.Obj(("definition",C.ContractDefinition),("scope",Metadata()["scope"]!.DeepClone()),("resource_revision",9),("after_object",ulong.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture))))).ToJsonString())!.AsObject();
     }
     static void MetadataValues(C.Scope scope) {
+        var physicalWire = JsonNode.Parse("""
+            {"definition":"current","object":"7","revision":"2","next_column":"2","columns":[
+            {"id":"1","name":"text","type":{"utf8":{}},"nullable":true,"default":null,
+            "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037"}],"primary_key":[]}
+            """)!.AsObject(); physicalWire["definition"] = C.ContractDefinition;
+        var physical = (C.Schema)Decode("ParseSchema", physicalWire)!;
+        Check(physical.Columns[0].Encoding == C.Encoding.Ebcdic && physical.Columns[0].Collation == C.Collation.EbcdicCp037);
+        Check(JsonNode.DeepEquals(Wire(physical), physicalWire));
+        Check(JsonNode.DeepEquals(Wire(new C.SetPhysical(1, C.Encoding.Fsst, C.Collation.AsciiCi)),
+            JsonNode.Parse("""{"physical":{"column":"1","encoding":"fsst","collation":"ascii_ci"}}""")));
+        var added = Wire(new C.AddColumn("text", new L.Scalar(L.ScalarKind.Utf8), encoding: C.Encoding.Ebcdic, collation: C.Collation.EbcdicCp037))["add"]!;
+        Check(added["encoding"]!.GetValue<string>() == "ebcdic" && added["collation"]!.GetValue<string>() == "ebcdic_cp037");
+        foreach (var field in new[] { "encoding", "collation" }) {
+            var bad = physicalWire.DeepClone(); bad["columns"]![0]!.AsObject().Remove(field);
+            Reject<TransitException>(() => Decode("ParseSchema", bad));
+            bad["columns"]![0]![field] = "invented";
+            Reject<TransitException>(() => Decode("ParseSchema", bad));
+        }
         var wire = Definition(); var original = (C.Definition)Decode("Resolved",wire,scope,1ul,"items")!;
         Check(original.Metadata.Commitment==new C.MetadataCommitment(200,new Bytes(new byte[32])));
         Check(original.Metadata.ObjectId == ulong.MaxValue && original.Metadata.Revision == ulong.MaxValue && original.Schema == Schema());

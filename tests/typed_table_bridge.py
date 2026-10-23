@@ -150,7 +150,7 @@ def run(host, url, root, readers, query):
     assert duplicate['phase'] == 'rejected' and duplicate['counts'] is None, duplicate
     assert duplicate['diagnostic']['code'] == 'table.primary_key_conflict', duplicate
     controls = dict(basis=basis(source), change={'add': dict(name='enabled', type={'boolean': {}}, nullable=False,
-                        default={'value': {'atom': {'boolean': True}}}, max_characters=None)})
+                        default={'value': {'atom': {'boolean': True}}}, max_characters=None, encoding='plain', collation='none')})
     changed = finish(prepare(903, {'alter': controls}))
     assert changed['phase'] == 'applied', changed
     stale = dict(definition=definition, identity=identity(904), name='bridge_people', action={'mutate': mutation})

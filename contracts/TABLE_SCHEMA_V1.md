@@ -89,17 +89,21 @@ requires the current shared Transit `definition`, decimal-string `object`,
 `primary_key` array of decimal-string column IDs. Integer identity strings are
 canonical unsigned u64 values: no signs, leading zeroes or precision loss.
 
-Each column has `id`, `name`, a shared logical `type`, `nullable`, `default` and
-`max_characters`. All fields are present. JSON null for `default` means no default;
+Each column has `id`, `name`, a shared logical `type`, `nullable`, `default`,
+`max_characters`, `encoding` and `collation`. All fields are present, including
+explicit `plain` and `none` for default physical descriptors. JSON null for `default` means no default;
 a logical cell containing SQL NULL remains an explicit default. Logical defaults
 use the shared neutral cell representation: exact integer/decimal strings,
 floating-point bits, binary hex and recursive typed constructors. A schema never
 turns rich values into an untyped string.
 
-This neutral JSON envelope supports only `plain` encoding and `none` collation.
-Exporting a schema with physical attributes returns
-`UnsupportedNeutralColumnRepresentation`; it never drops descriptors. The direct
-Table interface carries complete `FTS1` schema bytes, including `FTP1` attributes.
+Encoding and collation use the owning `TableSchema.Encoding` and
+`TableSchema.Collation` enum names, including `comp_3` for packed decimal.
+Conversion preserves every descriptor and the exact `FTS1` fingerprint. The
+shared validator rejects unsupported type/codec pairs and reserved collations;
+structural JSON acceptance does not establish executable support. The direct
+Table interface carries the same information in complete `FTS1` schema bytes,
+including `FTP1` attributes.
 
 The standalone JSON decoder accepts at most 2 MiB of input before applying the
 same 128-column, 64 KiB encoded-schema and complete descriptor/default constraints.

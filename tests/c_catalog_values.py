@@ -101,7 +101,8 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
 
     scope = dict(realm=46, resource=7, catalog=str(2**64-1))
     metadata = dict(scope=scope, namespace=1, object=str(2**64-1), revision=str(2**64-1), name='items', schema_fingerprint='ab'*32, principal=17, operation=str(2**64-1), admitted_input=9, commitment=dict(format=0x54434d01, length=200, digest=[171]*32))
-    schema = dict(definition=definition, object=str(2**64-1), revision='1', next_column='2', columns=[dict(id='1', name='id', type={'int128': {}}, nullable=True, default=None, max_characters=None)], primary_key=[])
+    schema = dict(definition=definition, object=str(2**64-1), revision='1', next_column='3', columns=[dict(id='1', name='id', type={'int128': {}}, nullable=True, default=None, max_characters=None, encoding='rle', collation='none'),
+        dict(id='2', name='text', type={'utf8': {}}, nullable=True, default=None, max_characters=None, encoding='ebcdic', collation='ebcdic_cp037')], primary_key=[])
     entry = dict(metadata=metadata, head=dict(revision='1', rows='0', pending='0'))
     current = dict(entry, schema=schema, authorization=101)
     page = dict(resource_revision=9, entries=[entry]+[None]*7, next=dict(definition=definition, scope=scope, resource_revision=9, after_object=str(2**64-1)))
@@ -132,6 +133,10 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
                        lambda v: v['metadata']['commitment'].update(digest=[171]*31),
                        lambda v: v['schema'].update(definition='0'*64),
                        lambda v: v['schema'].pop('definition'),
+                       lambda v: v['schema']['columns'][0].pop('encoding'),
+                       lambda v: v['schema']['columns'][0].pop('collation'),
+                       lambda v: v['schema']['columns'][0].update(encoding='invented'),
+                       lambda v: v['schema']['columns'][0].update(collation='invented'),
                        lambda v: v.update(extra=True)]:
             bad = copy.deepcopy(current); change(bad); check('lookup', dict(definition=bad), 4)
         check('lookup', '{"definition":null,"definition":null}', 4, raw=True)
@@ -150,6 +155,17 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         check('prepare', dict(compiled=compiled))
         action = json.loads((target / 'captured').read_bytes())
         assert len(json.dumps(action)) > 600000
+        for command, kind in [('physical_create', 'create'), ('physical_alter', 'alter')]:
+            check(command, dict(compiled=dict(compiled, intent=dict(intent, kind=kind))))
+            action = json.loads((target / 'captured').read_bytes())['prepare']['action']
+            if kind == 'create':
+                column = action['create']['schema']['columns'][0]
+                assert column['encoding'] == 'ebcdic' and column['collation'] == 'ebcdic_cp037'
+            else:
+                assert action['alter']['change'] == dict(physical=dict(column='1', encoding='fsst', collation='ascii_ci'))
+        calls = (target / 'calls').read_bytes()
+        check('physical_invalid', dict(compiled=compiled), 1)
+        assert (target / 'calls').read_bytes() == calls, 'invalid physical tag crossed the native boundary'
         for key in ('owner', 'principal', 'operation', 'namespace', 'object', 'kind'):
             bad = copy.deepcopy(compiled)
             bad['intent'][key] = 18 if key in ('owner', 'principal') else 'update' if key == 'kind' else '11'

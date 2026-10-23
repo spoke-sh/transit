@@ -76,9 +76,11 @@ rows or a postfix list of at most 64 instructions: `all`, `negate`, `conjunction
 `{compare, ColumnId, eq | ne | lt | le | gt | ge, LogicalAtom}`.
 
 ALTER changes are `{add, Name, Type, Nullable, DefaultOrUndefined,
-MaxCharactersOrUndefined}`, `{drop, ColumnId}`, `{rename, ColumnId, Name}`,
+MaxCharactersOrUndefined, Encoding, Collation}`, `{drop, ColumnId}`, `{rename, ColumnId, Name}`,
 `{default, ColumnId, CellOrUndefined}`, `{nullable, ColumnId, Boolean}` or
-`{type, ColumnId, Descriptor, MaxCharactersOrUndefined}`. Shared Zig owns predicate
+`{type, ColumnId, Descriptor, MaxCharactersOrUndefined}` or
+`{physical, ColumnId, Encoding, Collation}`. Column records default to `plain`
+encoding and `none` collation; wire schemas require both fields explicitly. Shared Zig owns predicate
 validation, frozen selection, exact conversion and atomic publication.
 
 ## Progression and recovery

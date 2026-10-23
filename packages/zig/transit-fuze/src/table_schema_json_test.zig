@@ -5,7 +5,7 @@ const s = @import("TableSchema.zig");
 const ddl = @import("TableDdl.zig");
 const p = @import("transit_protocol");
 
-test "neutral schema refuses physical attributes it cannot preserve" {
+test "neutral schema preserves physical attributes and requires their explicit wire fields" {
     var arena = std.heap.ArenaAllocator.init(e.allocator);
     defer arena.deinit();
     for ([_]s.Column{
@@ -13,7 +13,20 @@ test "neutral schema refuses physical attributes it cannot preserve" {
         .{ .id = 1, .name = "v", .type = .utf8, .collation = .ascii_ci },
     }) |column| {
         const schema: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{column} };
-        try e.expectError(error.UnsupportedNeutralColumnRepresentation, j.foreign(&arena, schema));
+        const wire = try j.foreign(&arena, schema);
+        const restored = try j.native(&arena, wire);
+        try e.expectEqualDeep(try schema.fingerprint(), try restored.fingerprint());
+        try e.expectEqual(column.encoding, wire.columns[0].encoding);
+        try e.expectEqual(column.collation, wire.columns[0].collation);
+        const bytes = try j.encode(e.allocator, schema);
+        defer e.allocator.free(bytes);
+        inline for (.{ "encoding", "collation" }) |field| {
+            const member = try std.fmt.allocPrint(e.allocator, ",\"{s}\":\"{s}\"", .{ field, @tagName(@field(column, field)) });
+            defer e.allocator.free(member);
+            const missing = try std.mem.replaceOwned(u8, e.allocator, bytes, member, "");
+            defer e.allocator.free(missing);
+            try e.expectError(error.MissingField, j.decode(e.allocator, missing));
+        }
     }
 }
 
@@ -29,6 +42,25 @@ test "neutral Table schema matches independently encoded JSON and FTS1" {
     const encoded = try j.encode(e.allocator, decoded.schema);
     defer e.allocator.free(encoded);
     try e.expectEqualStrings(fixture.value.schema_json, encoded);
+}
+
+test "neutral physical schemas match independent bytes and preserve commitments" {
+    const Fixture = struct { physical_schema_hex: []const u8, physical_schema_json: []const u8, physical_fingerprint: []const u8 };
+    const fixture = try std.json.parseFromSlice(Fixture, e.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });
+    defer fixture.deinit();
+    var decoded = try j.decode(e.allocator, fixture.value.physical_schema_json);
+    defer decoded.deinit();
+    var buffer: [s.max_bytes]u8 = undefined;
+    var expected: [s.max_bytes]u8 = undefined;
+    try e.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, fixture.value.physical_schema_hex), try decoded.schema.encode(&buffer));
+    const encoded = try j.encode(e.allocator, decoded.schema);
+    defer e.allocator.free(encoded);
+    try e.expectEqualStrings(fixture.value.physical_schema_json, encoded);
+    const digest = std.fmt.bytesToHex(try decoded.schema.fingerprint(), .lower);
+    try e.expectEqualStrings(fixture.value.physical_fingerprint, &digest);
+    const invalid = try std.mem.replaceOwned(u8, e.allocator, encoded, "\"ebcdic_cp037\"", "\"icu_root\"");
+    defer e.allocator.free(invalid);
+    try e.expectError(error.UnsupportedColumnCollation, j.decode(e.allocator, invalid));
 }
 
 test "neutral Table schema owns full-width identities recursive descriptors and exact defaults" {
@@ -98,7 +130,7 @@ test "neutral schema conversion rejects large shared defaults before whole schem
     for (&columns, 0..) |*column, i| {
         const name = try std.fmt.allocPrint(inputs.allocator(), "column_{d}", .{i});
         const id = try std.fmt.allocPrint(inputs.allocator(), "{d}", .{i + 1});
-        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null };
+        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null, .encoding = .plain, .collation = .none };
     }
     const source: j.Schema = .{ .definition = p.Growth.current_definition, .object = "1", .revision = "1", .next_column = "129", .columns = &columns, .primary_key = &.{} };
     var tracker: e.FailingAllocator = .init(e.allocator, .{ .resize_fail_index = 0 });

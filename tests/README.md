@@ -185,6 +185,44 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Neutral physical schemas across language callers — 2026-10-23
+
+The shared current-v1 definition is
+`64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c`.
+The neutral schema requires explicit encoding/collation fields; previous definitions
+and missing fields reject. Generated contracts, binding resources and independent
+signing fixtures have been regenerated. The standalone FTS1 definition is unchanged.
+
+The Fuze ReleaseSafe suite passes, including independently generated neutral JSON,
+FTS1/FTP1 bytes and SHA-256 fingerprints from `tests/table_schema.py`. Its physical
+fixture combines bitpacking, EBCDIC/CP037, RLE and COMP-3; native conversion preserves
+all descriptors and rejects reserved ICU support. The catalog package's focused
+`-Dtest-filter=typed` suite passes, including physical ALTER lowering.
+`just test::table-ddl-sql` passes 270 independent declaration cases and 238 exact
+schema comparisons. `just test::direct-table-service` passes its 460-call public
+HTTP lifecycle, retained-cut and three-restart recovery schedule under this definition.
+
+All ten language SDK packages build in `nix develop .#bindings`. Installed boundary
+qualification passes for Python (sync/async), TypeScript, Rust, Ruby, C/C++, Java,
+.NET, Erlang and Elixir. The tests cover owned physical descriptors, metadata
+readback, typed changes and missing/unknown-field rejection. The C/C++ native-ABI
+fault fixture passes 63 cases. Rust's installed library passes 16 tests; the
+TypeScript source catalog suite passes 43 tests. Python type checking also passes.
+These runs invoke `tests/sdk_catalog.py`'s `install` function with a fresh temporary
+consumer directory and the selected language names; they execute its installed
+value/fault checks without starting the returned durable-owner clients. Reproduce
+a selected run after its `just bindings::<language>-build` task (`c-build` for
+C/C++, `beam-build` for Erlang/Elixir) with
+`PYTHONPATH=tests python3 -c 'from pathlib import Path; import tempfile; from sdk_catalog import install; install(Path(tempfile.mkdtemp()) / "consumers", ["python"])'`
+in the bindings shell. Select `node`, `rust`, `ruby`, `c`, `cpp`, `java`, `dotnet`,
+`erlang` or `elixir` for the other installed callers.
+
+Contract, formatting, diagnostic mapping/error/outcome and documentation checks
+pass. Diagnostic inventory records 577 production owners and 4,728 owner/error
+pairs; outcome checks execute 3,387 projections. This slice qualifies descriptor
+preservation, not the language SDK migration to direct Table ownership. Nonbinary
+SQL collation and captured-query lifecycle integration remain separate work.
+
 ## Scoped direct Table read delegation — 2026-10-23
 
 The direct request definition is

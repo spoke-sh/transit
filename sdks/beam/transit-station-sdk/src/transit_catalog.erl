@@ -7,7 +7,7 @@
          submit/2,observe/3,observe/4,input_disposition/3,progress/4,progress/5,basis/1]).
 %% Internal bounded-worker callbacks.
 -export([open/2,execute/2,evidence/1]).
--export_type([client/0,observation/0,operation/0,mutation/0,change/0,predicate/0]).
+-export_type([client/0,observation/0,operation/0,mutation/0,change/0,predicate/0,encoding/0,collation/0]).
 -opaque client() :: {transit_catalog_client,transit_sdk_worker:handle(),map()}.
 -type observation() :: pending | processed.
 -type operation() :: {create,#transit_catalog_schema{},boolean()} |
@@ -15,9 +15,11 @@
     {drop,undefined | #transit_catalog_basis{},boolean()} | {mutate,#transit_catalog_basis{},mutation()}.
 -type mutation() :: {insert,[[#transit_catalog_assignment{}]]} |
     {update,[#transit_catalog_assignment{}],undefined | [predicate()]} | {delete,undefined | [predicate()]}.
--type change() :: {add,binary(),transit_logical:descriptor(),boolean(),undefined | transit_logical:cell(),undefined | pos_integer()} |
+-type change() :: {add,binary(),transit_logical:descriptor(),boolean(),undefined | transit_logical:cell(),undefined | pos_integer(),encoding(),collation()} |
     {drop,pos_integer()} | {rename,pos_integer(),binary()} | {default,pos_integer(),undefined | transit_logical:cell()} |
-    {nullable,pos_integer(),boolean()} | {type,pos_integer(),transit_logical:descriptor(),undefined | pos_integer()}.
+    {physical,pos_integer(),encoding(),collation()} | {nullable,pos_integer(),boolean()} | {type,pos_integer(),transit_logical:descriptor(),undefined | pos_integer()}.
+-type encoding() :: plain | bitpacked | rle | dictionary | fsst | comp | comp_3 | zoned | ibm_hfp | ebcdic.
+-type collation() :: none | utf8_binary | ascii_ci | ebcdic_cp037 | icu_root.
 -type predicate() :: all | negate | conjunction | disjunction |
     {state,pos_integer(),missing | null | type_error | value | conflict} |
     {compare,pos_integer(),eq | ne | lt | le | gt | ge,transit_logical:atom_value()}.

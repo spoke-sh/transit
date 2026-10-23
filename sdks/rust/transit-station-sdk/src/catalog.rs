@@ -120,6 +120,10 @@ fn diagnostic(value: &Value) -> Result<Value> {
 }
 
 macro_rules! tags {
+    (both $name:ident {$($variant:ident => $tag:literal),+ $(,)?}) => {
+        tags!(read $name {$($variant => $tag),+});
+        impl $name { fn tag(self)-> &'static str { match self {$(Self::$variant => $tag),+} } }
+    };
     (read $name:ident {$($variant:ident => $tag:literal),+ $(,)?}) => {
         #[derive(Clone, Copy, Debug, Eq, PartialEq)] pub enum $name {$($variant),+}
         impl $name { fn parse(value:&Value)->Result<Self>{Ok(match string(value,"catalog-tag")? {$($tag=>Self::$variant,)+ _=>return Err(malformed())})} }
@@ -129,6 +133,8 @@ macro_rules! tags {
         impl $name { fn tag(self)-> &'static str { match self {$(Self::$variant => $tag),+} } }
     };
 }
+tags!(both Encoding {Plain=>"plain",Bitpacked=>"bitpacked",Rle=>"rle",Dictionary=>"dictionary",Fsst=>"fsst",Comp=>"comp",Comp3=>"comp_3",Zoned=>"zoned",IbmHfp=>"ibm_hfp",Ebcdic=>"ebcdic"});
+tags!(both Collation {None=>"none",Utf8Binary=>"utf8_binary",AsciiCi=>"ascii_ci",EbcdicCp037=>"ebcdic_cp037",IcuRoot=>"icu_root"});
 tags!(read Kind {Create=>"create",Alter=>"alter",Rename=>"rename",Drop=>"drop",Insert=>"insert",Update=>"update",Delete=>"delete"});
 tags!(read Phase {Preparing=>"preparing",Delegated=>"delegated",Building=>"building",Applied=>"applied",Unchanged=>"unchanged",Rejected=>"rejected",Cancelled=>"cancelled"});
 tags!(read UploadPhase {Uploading=>"uploading",Sealed=>"sealed",Ready=>"ready",Cancelled=>"cancelled"});
@@ -388,6 +394,8 @@ pub struct Column {
     pub nullable: bool,
     pub default: Option<Cell>,
     pub max_characters: Option<u32>,
+    pub encoding: Encoding,
+    pub collation: Collation,
 }
 impl Column {
     pub fn new(id: u64, name: String, datatype: Descriptor) -> Self {
@@ -398,6 +406,8 @@ impl Column {
             nullable: true,
             default: None,
             max_characters: None,
+            encoding: Encoding::Plain,
+            collation: Collation::None,
         }
     }
     fn wire(&self) -> Result<Value> {
@@ -407,6 +417,8 @@ impl Column {
             self.nullable,
             self.default.as_ref(),
             self.max_characters,
+            self.encoding,
+            self.collation,
         )?;
         out["id"] = json!(positive(self.id)?.to_string());
         Ok(out)
@@ -421,6 +433,8 @@ impl Column {
                 "nullable",
                 "default",
                 "max_characters",
+                "encoding",
+                "collation",
             ],
         )?;
         Ok(Self {
@@ -430,6 +444,8 @@ impl Column {
             nullable: boolean(&v["nullable"], "nullable")?,
             default: optional(&v["default"], Cell::parse)?,
             max_characters: optional(&v["max_characters"], |v| u32n(v, false))?,
+            encoding: Encoding::parse(&v["encoding"])?,
+            collation: Collation::parse(&v["collation"])?,
         })
     }
 }
@@ -439,12 +455,14 @@ fn column(
     nullable: bool,
     default: Option<&Cell>,
     max_characters: Option<u32>,
+    encoding: Encoding,
+    collation: Collation,
 ) -> Result<Value> {
     if max_characters == Some(0) {
         return Err(invalid());
     }
     Ok(
-        json!({"name":name(name_)?,"type":datatype.wire()?,"nullable":nullable,"default":default.map(Cell::wire).transpose()?,"max_characters":max_characters}),
+        json!({"name":name(name_)?,"type":datatype.wire()?,"nullable":nullable,"default":default.map(Cell::wire).transpose()?,"max_characters":max_characters,"encoding":encoding.tag(),"collation":collation.tag()}),
     )
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -1416,6 +1434,8 @@ pub enum Change {
         nullable: bool,
         default: Option<Cell>,
         max_characters: Option<u32>,
+        encoding: Encoding,
+        collation: Collation,
     },
     Drop {
         column: u64,
@@ -1437,6 +1457,11 @@ pub enum Change {
         datatype: Descriptor,
         max_characters: Option<u32>,
     },
+    Physical {
+        column: u64,
+        encoding: Encoding,
+        collation: Collation,
+    },
 }
 impl Change {
     fn wire(&self) -> Result<Value> {
@@ -1447,7 +1472,11 @@ impl Change {
                 nullable,
                 default,
                 max_characters,
-            } => json!({"add":column(name,datatype,*nullable,default.as_ref(),*max_characters)?}),
+                encoding,
+                collation,
+            } => {
+                json!({"add":column(name,datatype,*nullable,default.as_ref(),*max_characters,*encoding,*collation)?})
+            }
             Self::Drop { column } => json!({"drop":positive(*column)?.to_string()}),
             Self::Rename {
                 column,
@@ -1458,6 +1487,13 @@ impl Change {
             }
             Self::Nullable { column, value } => {
                 json!({"nullable":{"column":positive(*column)?.to_string(),"value":value}})
+            }
+            Self::Physical {
+                column,
+                encoding,
+                collation,
+            } => {
+                json!({"physical":{"column":positive(*column)?.to_string(),"encoding":encoding.tag(),"collation":collation.tag()}})
             }
             Self::Type {
                 column,
@@ -1890,6 +1926,46 @@ impl Client {
 mod tests {
     use super::*;
     use crate::logical::{CellValue, Field, ScalarType};
+    #[test]
+    fn physical_schema_and_alter_preserve_explicit_descriptors() {
+        let wire = json!({"definition":abi::ABI_DEFINITION,"object":"7","revision":"2","next_column":"2",
+            "columns":[{"id":"1","name":"text","type":{"utf8":{}},"nullable":true,"default":null,
+                "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037"}],"primary_key":[]});
+        let schema = Schema::parse(&wire).unwrap();
+        assert_eq!(schema.columns[0].encoding, Encoding::Ebcdic);
+        assert_eq!(schema.columns[0].collation, Collation::EbcdicCp037);
+        assert_eq!(schema.wire().unwrap(), wire);
+        assert_eq!(
+            Change::Physical {
+                column: 1,
+                encoding: Encoding::Fsst,
+                collation: Collation::AsciiCi
+            }
+            .wire()
+            .unwrap(),
+            json!({"physical":{"column":"1","encoding":"fsst","collation":"ascii_ci"}})
+        );
+        let added = Change::Add {
+            name: "text".into(),
+            datatype: schema.columns[0].datatype.clone(),
+            nullable: true,
+            default: None,
+            max_characters: None,
+            encoding: Encoding::Ebcdic,
+            collation: Collation::EbcdicCp037,
+        }
+        .wire()
+        .unwrap();
+        assert_eq!(added["add"]["encoding"], "ebcdic");
+        assert_eq!(added["add"]["collation"], "ebcdic_cp037");
+        for field in ["encoding", "collation"] {
+            let mut bad = wire.clone();
+            bad["columns"][0].as_object_mut().unwrap().remove(field);
+            assert!(Schema::parse(&bad).is_err());
+            bad["columns"][0][field] = json!("invented");
+            assert!(Schema::parse(&bad).is_err());
+        }
+    }
     #[test]
     fn aggregate_conversion_rejects_before_later_invalid_values() {
         let large = Cell::Value(CellValue::Atom(Atom::Binary(vec![0; 1024 * 1024])));

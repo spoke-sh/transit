@@ -38,6 +38,22 @@ text = +'id'; columns = [M::Column.new(id: 1, name: text, type: L::Scalar.new(ki
 schema = M::Schema.new(object: (1 << 64)-1, revision: 1, next_column: 2, columns: columns)
 text.clear; columns.clear
 check(schema.columns.first.name == 'id' && schema.columns.frozen? && schema.columns.first.name.frozen?)
+physical_wire = {'definition'=>M::DEFINITION, 'object'=>'7', 'revision'=>'2', 'next_column'=>'2',
+  'columns'=>[{'id'=>'1', 'name'=>'text', 'type'=>{'utf8'=>{}}, 'nullable'=>true, 'default'=>nil,
+    'max_characters'=>nil, 'encoding'=>'ebcdic', 'collation'=>'ebcdic_cp037'}], 'primary_key'=>[]}
+physical = M.const_get(:Values).schema(physical_wire)
+check(physical.columns.first.encoding == :ebcdic && physical.columns.first.collation == :ebcdic_cp037)
+check(physical.wire == physical_wire)
+check(M::SetPhysical.new(column: 1, encoding: :fsst, collation: :ascii_ci).wire ==
+  {'physical'=>{'column'=>'1', 'encoding'=>'fsst', 'collation'=>'ascii_ci'}})
+added = M::AddColumn.new(name: 'text', type: L::Scalar.new(kind: :utf8), encoding: :ebcdic, collation: :ebcdic_cp037).wire.fetch('add')
+check(added['encoding'] == 'ebcdic' && added['collation'] == 'ebcdic_cp037')
+%w[encoding collation].each do |field|
+  bad = clone_json(physical_wire); bad['columns'][0].delete(field)
+  rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
+  bad['columns'][0][field] = 'invented'
+  rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
+end
 bytes = +'saved'; saved = M::SavedIntent.new(definition: M::DEFINITION, bytes: bytes); bytes.clear
 check(saved.bytes == 'saved' && saved.bytes.frozen?)
 rejects(ArgumentError) { M::SavedIntent.new(definition: '0' * 64, bytes: 'saved') }

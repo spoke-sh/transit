@@ -115,8 +115,10 @@ The [physical representation proof](../../tests/README.md#lossless-physical-colu
 now checks supported codec ranges, complete CP037 conversion, signed floating
 zero, unsupported-profile rejection and SQL equivalence over retained WAL/segment
 cuts. Incompatible physical schemas/pages use replaced current-v1 definitions.
-The neutral JSON schema adapter explicitly rejects physical attributes until
-the SDK contract can preserve them; non-binary SQL collation remains unsupported.
+The [neutral-schema caller proof](../../tests/README.md#neutral-physical-schemas-across-language-callers--2026-10-23)
+now preserves explicit encoding/collation fields across ten language bindings,
+with independent bytes/fingerprints and strict missing-field rejection. Non-binary
+SQL collation remains unsupported.
 The [administration and database-client proof](../../tests/README.md#direct-catalog-administration-and-installed-database-clients--2026-10-23)
 also resolves policy plans through the direct catalog and qualifies explicit
 grants/revocation and retained recovery through real PostgreSQL/MySQL clients.

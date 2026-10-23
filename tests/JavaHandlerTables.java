@@ -22,7 +22,7 @@ public final class JavaHandlerTables {
     private static Logical.Cell signed(long value) { return new Logical.Present(new Logical.Signed(n(value))); }
     private static Catalog.Schema schema() {
         return new Catalog.Schema(MAX, n(1), n(5), List.of(
-            new Catalog.Column(n(1), "id", Logical.Scalar.INT64, false, Optional.empty(), Optional.empty()),
+            new Catalog.Column(n(1), "id", Logical.Scalar.INT64, false, Optional.empty(), Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE),
             new Catalog.Column(n(2), "amount", new Logical.Decimal(20, 2)),
             new Catalog.Column(n(3), "data", Logical.Scalar.BINARY),
             new Catalog.Column(n(4), "tags", new Logical.ListType(new Logical.Element(Logical.Scalar.UTF8, true)))), List.of(n(1)));

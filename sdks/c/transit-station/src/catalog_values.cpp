@@ -26,10 +26,13 @@ public:
     void value(const Json &v) { text(logical_detail::encode(v, maximum - bytes.size())); }
     std::string finish() { return std::move(bytes); }
 };
+Json encoding(uint32_t v) { return Json::string(choice(v, {"plain", "bitpacked", "rle", "dictionary", "fsst", "comp", "comp_3", "zoned", "ibm_hfp", "ebcdic"})); }
+Json collation(uint32_t v) { return Json::string(choice(v, {"none", "utf8_binary", "ascii_ci", "ebcdic_cp037", "icu_root"})); }
 void column_fields(Writer &w, const transit_station_catalog_column_spec &c) {
     w.text("\"name\":"); w.value(Json::string(name(c.name))); w.text(",\"type\":"); w.value(descriptor(c.type));
     w.text(",\"nullable\":"); w.value(Json::boolean(c.nullable)); w.text(",\"default\":"); w.value(cell(c.default_value));
     w.text(",\"max_characters\":"); w.value(characters(c.max_characters));
+    w.text(",\"encoding\":"); w.value(encoding(c.encoding)); w.text(",\"collation\":"); w.value(collation(c.collation));
 }
 std::string encode_schema(const Schema &s) {
     array(s.columns, s.column_count, 128); require(s.column_count, "catalog-columns"); array(s.primary_key, s.primary_key_count, s.column_count);
@@ -38,7 +41,7 @@ std::string encode_schema(const Schema &s) {
     w.text(",\"next_column\":"); w.value(wide(s.next_column)); w.text(",\"columns\":[");
     for (size_t i = 0; i < s.column_count; ++i) {
         if (i) w.text(","); const auto &c = s.columns[i]; w.text("{\"id\":"); w.value(wide(c.id)); w.text(",");
-        column_fields(w, {c.name, c.type, c.nullable, c.default_value, c.max_characters}); w.text("}");
+        column_fields(w, {c.name, c.type, c.nullable, c.default_value, c.max_characters, c.encoding, c.collation}); w.text("}");
     }
     w.text("],\"primary_key\":["); for (size_t i = 0; i < s.primary_key_count; ++i) { if (i) w.text(","); w.value(wide(s.primary_key[i])); }
     w.text("]}"); return w.finish();
@@ -78,6 +81,7 @@ void change(Writer &w, const transit_station_catalog_change &v) {
         case TRANSIT_CATALOG_RENAME_COLUMN: w.value(tag("rename", Json::object({{"column", wide(v.column)}, {"name", Json::string(name(v.as.name))}}))); break;
         case TRANSIT_CATALOG_DEFAULT: w.value(tag("default", Json::object({{"column", wide(v.column)}, {"value", cell(v.as.default_value)}}))); break;
         case TRANSIT_CATALOG_NULLABLE: w.value(tag("nullable", Json::object({{"column", wide(v.column)}, {"value", Json::boolean(v.as.nullable)}}))); break;
+        case TRANSIT_CATALOG_PHYSICAL: w.value(tag("physical", Json::object({{"column", wide(v.column)}, {"encoding", encoding(v.as.physical.encoding)}, {"collation", collation(v.as.physical.collation)}}))); break;
         case TRANSIT_CATALOG_TYPE: w.value(tag("type", Json::object({{"column", wide(v.column)}, {"type", descriptor(v.as.type.type)}, {"max_characters", characters(v.as.type.max_characters)}}))); break;
         default: fail(TRANSIT_SDK_INVALID_ARGUMENT, "catalog-change");
     }

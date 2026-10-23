@@ -50,7 +50,9 @@ The service keeps storage credentials private and checks the original caller.
 `Schema(object_id, revision, next_column, columns, primary_key=())` owns an immutable
 tuple of one to 128 `Column` values and stable primary-key column IDs. Each column
 has `id`, `name`, a `logical.Descriptor`, default-nullable `nullable`, an optional
-`logical.Cell` default and optional `max_characters`. No primary key means an
+`logical.Cell` default, optional `max_characters`, `Encoding` and `Collation`.
+New columns default to `Encoding.PLAIN` and `Collation.NONE`; metadata readback
+preserves explicit descriptors and rejects missing or unknown wire fields. No primary key means an
 unkeyed Table; the native owner gives duplicate rows distinct stable identities.
 Names contain at most 255 UTF-8 bytes. SQL text contains at most 4096 bytes.
 
@@ -70,7 +72,7 @@ and `Mutate`. Existing-object operations require `definition.metadata.basis`,
 which includes the object, metadata revision and schema fingerprint. Stale bases
 fail instead of rebinding column IDs to changed schemas or same-named objects.
 `Alter` accepts `AddColumn`, `DropColumn`, `RenameColumn`, `SetDefault`,
-`SetNullable` and `SetType`; the shared owner qualifies each change and conversion.
+`SetNullable`, `SetType` and `SetPhysical(column, encoding, collation)`; the shared owner qualifies each change and conversion.
 
 `Mutate` takes `Insert`, `Update` or `Delete`. Assignments address stable column
 IDs and carry a cell or `Default.VALUE`. Inserts contain one to 1024 rows, each

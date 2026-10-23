@@ -6,6 +6,8 @@
 #include <optional>
 
 namespace transit::sdk::station::catalog {
+enum class Encoding : uint32_t { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp3, Zoned, IbmHfp, Ebcdic };
+enum class Collation : uint32_t { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot };
 enum class Kind : uint32_t { Create, Alter, Rename, Drop, Insert, Update, Delete };
 enum class Phase : uint32_t { Preparing, Delegated, Building, Applied, Unchanged, Rejected, Cancelled };
 enum class Observation : uint32_t { Pending, Processed };
@@ -23,7 +25,7 @@ struct Limits { uint32_t record_bytes; uint64_t staging_bytes; uint32_t staging_
 struct Configuration { Scope scope; ProcessRef owner; uint64_t administrator; Limits table_limits; Authority authority; std::string database_name; };
 struct Identity { uint64_t operation, namespace_id; };
 struct Basis { uint64_t object, revision; std::array<uint8_t, 32> schema_fingerprint; };
-struct Column { uint64_t id; std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; };
+struct Column { uint64_t id; std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; Encoding encoding = Encoding::Plain; Collation collation = Collation::None; };
 struct Schema { uint64_t object, revision, next_column; std::vector<Column> columns; std::vector<uint64_t> primary_key; };
 struct Assignment { uint64_t column; std::optional<logical::Cell> value; }; // absent means DEFAULT
 struct All {};
@@ -34,13 +36,14 @@ struct Conjunction {};
 struct Disjunction {};
 using PredicateTerm = std::variant<All, IsState, Compare, Negate, Conjunction, Disjunction>;
 using Predicate = std::vector<PredicateTerm>;
-struct AddColumn { std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; };
+struct AddColumn { std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; Encoding encoding = Encoding::Plain; Collation collation = Collation::None; };
 struct DropColumn { uint64_t column; };
 struct RenameColumn { uint64_t column; std::string name; };
 struct SetDefault { uint64_t column; std::optional<logical::Cell> value; };
 struct SetNullable { uint64_t column; bool value; };
 struct ChangeType { uint64_t column; logical::Type type; std::optional<uint32_t> max_characters; };
-using Change = std::variant<AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, ChangeType>;
+struct SetPhysical { uint64_t column; Encoding encoding; Collation collation; };
+using Change = std::variant<AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, ChangeType, SetPhysical>;
 struct Create { Schema schema; bool if_not_exists = false; };
 struct Alter { Basis basis; Change change; };
 struct Rename { Basis basis; std::string name; };
@@ -97,7 +100,7 @@ inline Schema from(const transit_station_catalog_schema &v) {
     Schema out{v.object, v.revision, v.next_column, {}, {}};
     if (v.primary_key_count) out.primary_key.assign(v.primary_key, v.primary_key + v.primary_key_count);
     for (size_t i = 0; i < v.column_count; ++i) {
-        const auto &c = v.columns[i]; Column value{c.id, c.name, logical::Type(*c.type), c.nullable, {}, {}};
+        const auto &c = v.columns[i]; Column value{c.id, c.name, logical::Type(*c.type), c.nullable, {}, {}, static_cast<Encoding>(c.encoding), static_cast<Collation>(c.collation)};
         if (c.default_value) value.default_value = logical::Cell(*c.default_value); if (c.max_characters) value.max_characters = c.max_characters; out.columns.push_back(std::move(value));
     }
     return out;
@@ -146,13 +149,14 @@ class RequestView {
         transit_station_catalog_change out{};
         std::visit([&](const auto &v) {
             using T = std::decay_t<decltype(v)>;
-            if constexpr (std::is_same_v<T, AddColumn>) { out.kind = TRANSIT_CATALOG_ADD_COLUMN; out.as.add = {text(v.name), &v.type.native(), v.nullable, cell(v.default_value), characters(v.max_characters)}; }
+            if constexpr (std::is_same_v<T, AddColumn>) { out.kind = TRANSIT_CATALOG_ADD_COLUMN; out.as.add = {text(v.name), &v.type.native(), v.nullable, cell(v.default_value), characters(v.max_characters), static_cast<uint32_t>(v.encoding), static_cast<uint32_t>(v.collation)}; }
             else {
                 out.column = v.column;
                 if constexpr (std::is_same_v<T, DropColumn>) out.kind = TRANSIT_CATALOG_DROP_COLUMN;
                 else if constexpr (std::is_same_v<T, RenameColumn>) { out.kind = TRANSIT_CATALOG_RENAME_COLUMN; out.as.name = text(v.name); }
                 else if constexpr (std::is_same_v<T, SetDefault>) { out.kind = TRANSIT_CATALOG_DEFAULT; out.as.default_value = cell(v.value); }
                 else if constexpr (std::is_same_v<T, SetNullable>) { out.kind = TRANSIT_CATALOG_NULLABLE; out.as.nullable = v.value; }
+                else if constexpr (std::is_same_v<T, SetPhysical>) { out.kind = TRANSIT_CATALOG_PHYSICAL; out.as.physical = {static_cast<uint32_t>(v.encoding), static_cast<uint32_t>(v.collation)}; }
                 else { out.kind = TRANSIT_CATALOG_TYPE; out.as.type = {&v.type.native(), characters(v.max_characters)}; }
             }
         }, change); return out;
@@ -165,7 +169,7 @@ public:
             using T = std::decay_t<decltype(v)>; auto &out = value.action;
             if constexpr (std::is_same_v<T, Create>) {
                 out.kind = TRANSIT_CATALOG_CREATE; const auto &s = v.schema; require(!s.columns.empty() && s.columns.size() <= 128 && s.primary_key.size() <= s.columns.size());
-                for (const auto &c : s.columns) columns_.push_back({c.id, text(c.name), &c.type.native(), c.nullable, cell(c.default_value), characters(c.max_characters)});
+                for (const auto &c : s.columns) columns_.push_back({c.id, text(c.name), &c.type.native(), c.nullable, cell(c.default_value), characters(c.max_characters), static_cast<uint32_t>(c.encoding), static_cast<uint32_t>(c.collation)});
                 schema_ = {s.object, s.revision, s.next_column, columns_.data(), columns_.size(), s.primary_key.data(), s.primary_key.size()}; out.as.create = {&schema_, v.if_not_exists};
             } else if constexpr (std::is_same_v<T, Alter>) { out.kind = TRANSIT_CATALOG_ALTER; out.as.alter = {native(v.basis), change(v.change)}; }
             else if constexpr (std::is_same_v<T, Rename>) { out.kind = TRANSIT_CATALOG_RENAME; out.as.rename = {native(v.basis), text(v.name)}; }
