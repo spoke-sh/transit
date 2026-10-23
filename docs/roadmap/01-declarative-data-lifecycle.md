@@ -151,12 +151,16 @@ also covers work/spill limits, ordered overflow witnesses, prior-result
 preservation, explicit history-coverage rejection and bounded captured cleanup.
 The [direct exchange proof](../../tests/README.md#direct-table-exchange-placement-and-borrowed-reads--2026-10-23)
 now places the receiver independently of Table ownership and uses exact-cut
-borrowed reads for a separate producer credential. Initial maintained attachment,
-receiver generation replacement, verified output and lease cleanup pass. Multiple
-workers, later attachments, broader exchange recovery and maintained
+borrowed reads for a separate producer credential. Initial and successor
+attachments with one/seven partitions, receiver generation replacement, retained
+request retirement, verified output and lease cleanup pass. A separately accepted
+rebuild also succeeds after a failed history gap while preserving the original
+failure and result. Multiple workers, broader exchange recovery and maintained
 credential-rotation cleanup schedules, older relational
-caller fixtures and broader qualification remain unfinished. The full query
-package remains unqualified during the cutover.
+caller fixtures and broader qualification remain unfinished. The
+[query fixture migration](../../tests/README.md#direct-maintained-successors-and-query-fixture-migration--2026-10-23)
+passes all 143 query package tests; this does not establish full repository or
+installed caller qualification.
 The [finite capture boundary checks](../../tests/README.md#finite-direct-capture-memory-and-retirement--2026-10-23)
 now replace the old Table memory/retirement fixtures. They cover empty retained
 sources after DROP, adapter/Arrow exhaustion, preserved large stored rows,

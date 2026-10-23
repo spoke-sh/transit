@@ -185,6 +185,56 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Direct maintained successors and query fixture migration — 2026-10-23
+
+The direct runner's `--exchanges-only` and `--relational-failures-only` schedules
+pass under definition
+`38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`:
+
+```sh
+nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --exchanges-only
+nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --relational-failures-only
+```
+
+The exchange schedule now publishes two maintained revisions using one producer,
+first with one partition and then seven. A live delete before the first scan
+leaves its original two-row result intact; the next revision uses a fresh vector,
+assignment and borrowed-read proofs and returns one row. Incomplete attachment
+and attachment of the old exchange reject without changing the native decision.
+An old borrowed proof cannot read the newer cut. Reconstructed hosts preserve
+progress and drain producer acknowledgements before changing assignments.
+Retiring the live request publication before either scan leaves the accepted
+computation's retained request available. Cancellation closes its history lease
+while both results remain readable; explicit query retirement releases the
+request and rejects later result reads.
+
+The five failure cases retain work/spill and ordered-overflow assertions. After
+the service-reported history gap, a new executor and accepted query identity
+acquire a current cut and publish count four, sum six. That query closes its own
+lease. The failed original identity, original failure and prior result remain
+unchanged after both the restored-service wake and the explicit rebuild.
+These runs reconstruct hosts but do not inject lost native receipts or restart
+the node. Multiple exchange workers and credential-changing cleanup remain
+separate qualification work.
+
+`nix develop --command zig build test --summary all` in
+`packages/zig/transit-query` passes all 143 tests: 140 component tests and three
+native-contract fixtures. The obsolete actor-store maintained tests are replaced
+by the direct backfill/delta, failure and exchange schedules. Table lifecycle and
+retained interpretation checks use the public direct capture/source-page
+schedules; native KV/Document fixtures remain. The contract fixture uses injected
+authorization to reject unsigned, changed, misrouted, stale-epoch and wrong-role
+proofs, including changed retention purpose/executor, without publication. It
+does not claim a new real-service authority proof. Full repository and installed
+caller qualification remain pending.
+
+The migration initially found stale record lengths and the SQL inspection
+fixture's removed Table metadata fields. Current native checkpoints occupy 222
+bytes and the tested manifest 366 bytes. The fixture now uses direct
+interpretation descriptors; parsing remains strict. The direct scalar fixture
+also checks the Table catalog resource independently of the query progress
+resource. Earlier failed fixture runs are not counted as passing.
+
 ## Finite direct capture memory and retirement — 2026-10-23
 
 `nix develop --command zig build test-direct-captured-query

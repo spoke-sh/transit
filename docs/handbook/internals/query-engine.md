@@ -606,10 +606,13 @@ source definitions and reproduction commands. The
 local nodes and drives the signed direct service with native computation progress; its
 maintained cases cover aliases and independent Tables. Pure source/vector record
 checks cover interpretation, full-width coordinates and malformed bytes.
-Earlier actor-backed reference-store and native schedules establish their
-recorded profile only; they do not qualify this direct migration. Gap, overflow,
-exchange, cleanup-rotation, lag/state and broader fault schedules must be
-qualified separately before transferring their claims. Finite small-row checks
+The direct failure schedule covers work/spill limits, ordered overflow, a
+service-reported history gap and a separately accepted rebuild. The failed
+identity stays closed and its last complete result remains unchanged. Direct
+exchange checks cover initial and successor attachment with one producer and
+one/seven partitions. Earlier actor-backed schedules establish their recorded
+profile only. Cleanup rotation, multiple workers, lag/state and broader fault
+schedules require their own direct evidence. Finite small-row checks
 establish neither sustainable catch-up nor performance at large cardinalities.
 
 ### Immutable names and query attribution
@@ -708,8 +711,12 @@ checks current caller/executor authority before and after reading. Workers canno
 release the coordinator's lease or select later history through this permission.
 This separates read distribution from retention ownership without sharing the
 coordinator's credential. It adds one explicit caller signature per source and
-worker assignment. The earlier native host must be migrated before its historical
-fault evidence qualifies the direct-source implementation.
+worker assignment. The public direct schedule changes live data before the first
+scan, preserves that scan's selected cut and requires a fresh attachment for the
+successor. It also retires the live request while the accepted computation keeps
+its retained request version. This tests separation of publication lifetime from
+computation lifetime. The earlier native host must be migrated before its
+historical fault evidence qualifies the direct-source implementation.
 
 ### Boundary for historical and shared execution
 
