@@ -185,6 +185,62 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Retained direct Table pages and predicates — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --source-pages-only` passes against the private
+persistent node. Retained pages keep wide/nested values and the original
+interpretation after ALTER, DROP and name reuse. The predicate schedule compares
+84 combinations of column, comparison and signed boundary against full logical
+predicate evaluation over 43 keys, including both `INT64` extremes and a nullable
+non-key column. Complete primary-key equality uses one point page for hits and
+absence; other comparisons use bounded scans. A disjunction containing a key
+comparison preserves rows outside that atom. Current Table permission denial
+rejects both point and scan reads.
+
+These public schedules replace the actor-store Table adapter fixtures. The
+source-page phase has a finite 600-second test deadline for the expanded HTTP
+schedule; it establishes result equivalence, not a latency target. KV and
+Document adapter checks retain their native resource fixtures.
+
+## Direct relational failure boundaries — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --relational-failures-only` passes five public cases
+under definition `fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52`.
+Captured work/spill limits and captured/maintained SUM overflow produce durable
+failure records. The overflow input includes a later cancelling value; evaluation
+still records the first overflowing row identity and output column. Recreating
+the host during bounded steps preserves the result and witness. Captured cleanup
+collects abandoned pages while retaining the failed checkpoint. Failed maintained
+successors preserve the preceding complete manifest and verified result. Every
+case closes its original direct lease.
+
+The gap case replaces one successful history response at the HTTP test proxy
+with `HistoryReclaimed`. The coordinator records `TableHistoryGap`, preserves the
+last complete revision, and rejects implicit resumption after the proxy restores
+ordinary responses. The test waits for the subsequent explicit wake to commit
+before checking the unchanged failed identity. This is a service-boundary fault
+injection, not evidence of end-to-end disk corruption recovery.
+
+The storage `Table history retention` ReleaseSafe filter passes three tests.
+Its new disk-backed case deliberately trims required WAL coverage through the
+lower storage test interface, bypassing the Table retention owner. Historical
+reads reject without changing the accepted Table root or releasing the lease.
+The HTTP owner maps explicit missing/trimmed Table/WAL history to
+`HistoryReclaimed`; transport/storage availability failures remain attempts.
+No physical history collector is enabled by these checks.
+
+Eighteen selected query tests pass for direct captured bundles/vectors,
+historical vectors/scan cursors, finite-exchange vector encoding and source
+declaration encoding. They include
+truncation, allocation failure, signed grant preservation, independent Table cuts,
+alias identity, schema/retirement rejection and fixed scan bounds. These replace
+the corresponding actor-store relational fixtures; their runtime behavior is
+covered by the public direct schedules. Explicit exchange placement/attachment,
+fresh maintained cleanup after credential rotation, older native caller fixtures
+and full query/repository qualification remain pending.
+
 ## Maintained direct Table queries — 2026-10-23
 
 `nix develop --command zig build test-direct-captured-query
@@ -220,7 +276,8 @@ contract/signing fixtures regenerate successfully after the definition change.
 The prior default captured-query schedule passed its captured phases under this
 definition before reaching the scan-removal defect. The successful focused run
 does not execute installed SDK consumers or qualify their current artifacts.
-Maintained gap/overflow/exchange and credential-rotation cleanup schedules,
+The separate failure schedule above covers ordered overflow and an explicit
+history-coverage rejection. Exchange and credential-rotation cleanup schedules,
 older relational consumers, the full query package and repository checks remain
 pending. The two-row cases do not establish throughput or catch-up performance.
 

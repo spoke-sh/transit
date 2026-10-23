@@ -30,6 +30,7 @@ pub const Vector = struct {
         if (bundle.plan.lifetime == .interactive or self.count != bundle.sources.len or !std.mem.eql(u8, &self.request, &try bundle.fingerprint())) return error.InvalidRelationalHistory;
         for (self.entries[0..self.count], bundle.sources, bundle.retention, 0..) |entry, source, grant, i| {
             try entry.record.validate(source, grant);
+            try checkSchema(entry.record, bundle.plan.sources[i].schema);
             if (entry.position != entry.record.basis.accepted.next_lsn) return error.InvalidRelationalHistory;
             const original = try bundle.sourceOrdinal(i);
             if (original != i and !std.meta.eql(entry, self.entries[original])) return error.InconsistentRelationalCut;

@@ -13,6 +13,8 @@ const Conditions = @import("direct_sql_conditions.zig");
 const SqlPins = @import("direct_sql_read_recovery.zig");
 const Captured = @import("direct_captured_query.zig");
 const Maintained = @import("direct_maintained_query.zig");
+const RelationalFailures = @import("direct_relational_failures.zig");
+const Predicates = @import("direct_table_predicates.zig");
 const Delegation = @import("direct_table_delegation.zig");
 const History = @import("direct_table_history.zig");
 const sql_runtime = @import("transit_sql");
@@ -304,10 +306,15 @@ pub fn main(init: std.process.Init) !void {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);
             for (profile.maintained.?) |state| try Maintained.recover(init, fresh, &admin, state, std.mem.eql(u8, args[2], "maintained-backfill"));
+        } else if (std.mem.startsWith(u8, args[2], "relational-failure-")) {
+            var fresh = client;
+            if (profile.captured != null) fresh.key = try key(59);
+            try RelationalFailures.run(init, fresh, &admin, profile.role, std.meta.stringToEnum(RelationalFailures.Case, args[2]["relational-failure-".len..]) orelse return error.UnknownProofPhase);
         } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
             var fresh = client;
-            fresh.key = try key(59);
+            if (profile.captured != null) fresh.key = try key(59);
             try Captured.sourcePages(init, fresh, &admin, profile.role);
+            try Predicates.run(init, fresh, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "capture-uncertain-pin") or std.mem.eql(u8, args[2], "capture-uncertain-release")) {
             profile.captured = try Captured.uncertain(init, client, &admin, profile.captured.?, std.mem.eql(u8, args[2], "capture-uncertain-pin"));
             try save(init, args[3], profile);

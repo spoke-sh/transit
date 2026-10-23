@@ -325,6 +325,10 @@ under a historical point, using the ordinary byte budget and row format. Its
 cursor commitment covers the complete point, so cursors cannot cross revisions.
 Every history read checks current authority and the live lease, including an
 empty result. Releasing the lease closes all its historical reads.
+An explicit missing/trimmed required WAL interval returns HTTP 409 with
+`HistoryReclaimed`; it never substitutes the current head or an empty page.
+An I/O or storage-availability failure remains an unavailable attempt. The
+Table owner does not currently perform physical history reclamation.
 
 `check_set` accepts 1–16 tagged `access` or `snapshot` checks. Access checks use
 the same exact-definition/action requirements as `check`; snapshot checks verify
