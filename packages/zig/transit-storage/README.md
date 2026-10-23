@@ -44,6 +44,11 @@ durable snapshot pins, policy-authorized trimming or multi-process Table commits
   contains at most 4,096 pages (zero disables caching); private mutation work has
   a separate encoded-byte budget. Staging never publishes a root. The owning
   acceptance log must publish it and establish retention before collection.
+- `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
+  record for rows, paged indexes and exact operation receipts. It supports point
+  WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
+  See [Table partition ownership](docs/table-partitions.md) for caller obligations,
+  budgets and the current integration boundary.
 
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,

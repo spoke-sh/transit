@@ -44,6 +44,70 @@ tail. A complete older 64-byte header rejects; it is never silently truncated.
 Missing or foreign definition bytes reject. Checksums do not establish permission or an accepted
 application operation; the owning acceptance record supplies that binding.
 
+## Table acceptance records and indexes
+
+`TablePartition` is a single-owner storage component. Its
+[caller contract](../packages/zig/transit-storage/docs/table-partitions.md) requires
+serialization and a service-owned current-policy fence; these stored bytes do
+not grant authority. Installed SQL does not use this component yet.
+
+`TablePartitionRecord` owns its typed metadata. An acceptance payload contains
+`TACCEPT1` at `0..8`, mandatory shared definition bytes at `8..40`, a little-endian
+`u32` metadata length at `40..44`, up to 16 KiB of JSON metadata, then zero or more
+encoded `FTR1` rows. The containing `TWAL` frame supplies the partition and LSN.
+Metadata has a mandatory definition, the preceding payload's complete SHA-256
+(zeros for the first record), the complete successor root and a tagged action.
+The root binds interpretation, partition, exclusive accepted and logical-change
+frontiers, live row count, point/scan index roots, receipt index and pin index.
+
+Mutation records use `row_delta`; checkpoint, pin and release records use
+`manifest_checkpoint`. The action carries the exact neutral binding, complete
+ordered mutation digest, ingestion choice and outcome, or the affected pin owner
+and immutable basis. An accepted mutation publishes its result and both row
+indexes atomically. Root `next_lsn` equals frame LSN plus one. Control/physical
+records preserve `changed_lsn`. Recovery verifies contiguous positions, chain
+links, partition/interpretation identity and top-level page roots before serving.
+Descendants are checked when read. There is no scan for an independently
+published latest manifest and no fallback to another payload definition.
+
+Each `TreeStore` object is `TDIX`, byte `1` and three zero bytes at `0..8`, the
+mandatory definition at `8..40`, then the core generic immutable-page encoding.
+Its key is `data-index/<SHA-256(payload)>.data`. References bind both the logical
+page digest and that content address. Pages hold at most eight leaf records or
+32 branch children, have at most 32 levels and encode within 24 KiB. Caller
+cache and candidate-work budgets are independent of durable record count.
+
+The point index key is the SHA-256 of the complete collation-aware storage key
+(or keyless row identity). The full decoded key is checked on access; collision
+is an error. Its 49-byte value contains kind (`1` WAL, `2` segment), little-endian
+`u64` LSN/segment ID, `u32` row offset, `u32` byte length and a 32-byte digest.
+For WAL rows, offset is relative to the acceptance payload's row suffix and the
+digest covers the encoded row. For segment rows, offset is the footer's global
+row ordinal; length/digest identify the immutable `.tseg` object. Segment keys are
+`table-segments/<digest>.tseg`.
+
+The scan index key is kind followed by big-endian `u64` LSN/segment ID and `u32`
+offset. Its value is the 32-byte point key followed by the 49-byte locator.
+Acceptance publishes both indexes together; physical-order traversal does not
+claim SQL sort order. Receipt keys are big-endian principal/operation `u64` pairs
+within the owning Table. Their values are the little-endian accepted frame LSN.
+Catalog-wide operation-to-target binding remains the enclosing catalog's duty.
+
+Snapshot objects have `TPINOBJ1` at `0..8`, mandatory definition at `8..40`,
+little-endian metadata/schema lengths at `40..44` and `44..48`, up to 16 KiB JSON
+owner/read-root metadata and up to 64 KiB encoded Table schema. Their keys are
+`table-snapshots/<digest>.tman`. The read root omits receipt/pin indexes. Content
+length/digest, owner and interpretation are checked together. A pin-index key
+uses the owner principal/operation pair; its value is one released byte (`0` or
+`1`), little-endian `u64` object length and 32-byte digest. Acquisition and release
+are accepted Table log transitions. Object existence alone is not a pin.
+
+This component retains all WAL and immutable objects and exposes no physical
+trim/GC operation. Pins preserve accepted unflushed rows, exact schema and both
+row indexes across restart. Snapshot retirement does not claim physical deletion.
+Its tests do not qualify catalog DDL, installed SQL, distributed transactions or
+a collector racing with snapshots.
+
 ## Local WAL persistence
 
 `LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second
