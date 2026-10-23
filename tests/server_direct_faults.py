@@ -15,7 +15,7 @@ from table_console import atom
 def terminal(fixture, identity):
     deadline = time.monotonic() + 90
     while True:
-        value = fixture.console(f'.status table:{identity["id"]}\n')[-1]['operation']
+        value = fixture.sql_session(dict(status=dict(operation=identity)))['operation']
         assert value['identity'] == identity
         if value['phase'] == 'terminal':
             return value
@@ -36,11 +36,11 @@ def pending(fixture, boundary, key):
             assert process.poll() is None and time.monotonic() < deadline, 'No direct execution attempt'
             time.sleep(.05)
         binding = json.loads(boundary.observed.read_text())
-        # Status remains available in a newly opened console while execution
+        # Status remains available in a newly opened native session while execution
         # is refused. The durable ledger and Table binding name the same work.
-        values = fixture.console('.status all\n')
-        matches = [entry['operation'] for entry in values
-                   if int(entry['operation']['identity']['id']) == binding['identity']['operation']]
+        values = fixture.sql_operations()
+        matches = [entry for entry in values
+                   if int(entry['identity']['id']) == binding['identity']['operation']]
         assert len(matches) == 1 and matches[0]['phase'] != 'terminal', values
         return matches[0]['identity'], binding
     finally:
@@ -66,16 +66,16 @@ def run(cli, node, host, board, gateway):
         boundary.observed.unlink()
         fixture.start()
         fixture.ready(timeout=300)
-        value = fixture.console(f'.status table:{identity["id"]}\n')[-1]['operation']
+        value = fixture.sql_session(dict(status=dict(operation=identity)))['operation']
         assert value['identity'] == identity and value['phase'] != 'terminal', value
         assert json.loads(boundary.observed.read_text()) == binding
         boundary.resume()
-        fixture.console(f'.resume table:{identity["id"]}\n')
+        fixture.sql_session(dict(resume=identity))
         value = terminal(fixture, identity)
         assert value['outcome'] == 'applied' and value['matched'] == value['changed'] == 1, value
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '1'
         identity, _ = pending(fixture, boundary, 2)
-        fixture.console(f'.cancel table:{identity["id"]}\n')
+        fixture.sql_session(dict(cancel=identity))
         value = terminal(fixture, identity)
         assert value['outcome'] == 'cancelled' and value['matched'] == value['changed'] == 0, value
         boundary.resume()

@@ -108,8 +108,11 @@ default-Table deletion/name reuse. A separate
 [execution fault proof](../../tests/README.md#installed-direct-execution-recovery--2026-10-23)
 keeps new-console inspection, reads and cancellation available while direct
 execution is refused, preserving the original write across caller/manager loss.
+The [broader installed lifecycle and capacity proofs](../../tests/README.md#installed-direct-lifecycle-rollback-and-capacity--2026-10-23)
+also pass against the direct boundary, including revocation, native-history
+rollback refusal and original-write recovery after physical exhaustion.
 Captured-query and language SDK migration,
-the broader installed fault/recovery suite, dependency contracts, automatic point flushing, named resource
+dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
 completion matrix rows below is closed by this partial caller path.
 

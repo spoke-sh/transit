@@ -4,15 +4,12 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler
 import json
 import os
-import re
-import signal
 import socket
 import socketserver
 import subprocess
 import threading
 import time
 
-from server import children, command
 from table_console import atom
 
 
@@ -90,19 +87,20 @@ def run(fixture):
             applied(invoke('INSERT INTO items (id,value) VALUES (-81,810);'))
             applied(invoke('DELETE FROM items WHERE id=-81;'))
             for mode, key in [('drop_execute', -82), ('drop_status', -83)]:
-                owner = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
                 if mode == 'drop_status':
-                    os.kill(owner, signal.SIGSTOP)
+                    fixture.boundary.pause()
                 before = len(state['executions'])
                 state['mode'] = mode
                 try:
                     if mode == 'drop_status':
-                        wake = threading.Timer(.5, os.kill, args=(owner, signal.SIGCONT))
+                        wake = threading.Timer(.5, fixture.boundary.resume)
                         wake.start()
                     completed = invoke(f'INSERT INTO items (id,value) VALUES ({key},820);')
                 finally:
                     if mode == 'drop_status':
-                        os.kill(owner, signal.SIGCONT)
+                        wake.cancel()
+                        wake.join(timeout=5)
+                        fixture.boundary.resume()
                 applied(completed)
                 assert len(state['executions']) == before+1, 'Console automatically replayed SQL'
                 token = state['executions'][-1]['token']
