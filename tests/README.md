@@ -643,6 +643,28 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Finite SQL over retained direct Tables — 2026-10-23
+
+The query package passes **140/140 tests**, including its native catalog-query
+composition, with `DirectTableQuery` and its bounded direct source adapter.
+`just test::direct-table-service` passes **119 typed HTTP calls** after adding
+Fuze SQL execution to the independent caller.
+
+The caller filters the original retained Table with `WHERE` and `LIMIT`, returns
+its 64 KiB binary value, and computes unsigned `COUNT(*) = 2` after the live Table
+has been rewritten, dropped and replaced. These checks run before and after the
+second service restart. Closing a query leaves the separately owned pin usable.
+Exhausted request budget during open and exhausted result-byte budget produce
+errors; a failed query cannot return a successful continuation. Revoking rights
+after opening `LIMIT 0` denies its empty result at the final disclosure gate.
+Diagnostic projections and documentation links also pass.
+
+This is a public typed finite-query owner over an explicit pin, not the installed
+SQL gateway or launcher cutover. It does not prepare parameters, acquire pins,
+execute DML or join independent sources. Non-binary text collations reject before
+execution; their SQL comparison semantics remain unfinished. These checks do not
+qualify all logical types, predicates or physical profiles.
+
 ## Direct Table preview — 2026-10-23
 
 The catalog suite passes **109/109 tests** with read-only DDL preview. Repeated

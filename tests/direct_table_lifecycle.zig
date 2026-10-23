@@ -1,6 +1,7 @@
 //! Public CRUD/DDL and retained-source checks across replacement and restart.
 const std = @import("std");
 const c = @import("transit_catalog");
+const q = @import("transit_query");
 const p = c.protocol;
 const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
@@ -108,6 +109,38 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     return state;
 }
 pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: State, release: bool) !void {
+    // SQL uses the retained source binding, including after live name reuse.
+    const limits: q.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 * 1024 };
+    var too_few_requests = limits;
+    too_few_requests.requests = 2;
+    try t.expectError(error.QueryPageBudget, q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT id FROM events", too_few_requests, null, null, .{}));
+    {
+        var query = try q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT payload FROM events WHERE id = 1 LIMIT 1", limits, null, null, .{});
+        defer query.deinit();
+        var batch = try query.nextBatch(8);
+        defer batch.deinit();
+        try t.expect(batch.complete and batch.len == 1);
+        try t.expectEqual(@as(usize, 64 * 1024), batch.rows[0].?.cells[0].value.atom.bytes.len);
+        try t.expectEqualDeep(state.original, query.source().snapshot);
+        query.close();
+        try t.expectError(error.QueryClosed, query.nextBatch(8));
+    }
+    {
+        var query = try q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT COUNT(*) AS total FROM events", limits, null, null, .{});
+        defer query.deinit();
+        var batch = try query.nextBatch(8);
+        defer batch.deinit();
+        try t.expect(batch.complete and batch.len == 1);
+        try t.expectEqual(@as(u64, 2), batch.rows[0].?.cells[0].value.atom.unsigned);
+    }
+    {
+        var small = limits;
+        small.result_bytes = 1024;
+        var query = try q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT payload FROM events WHERE id = 1", small, null, null, .{});
+        defer query.deinit();
+        try t.expectError(error.QueryResultBudget, query.nextBatch(8));
+        try t.expectError(error.FailedQuery, query.nextBatch(8));
+    }
     const replacement = try lookup(client, "events");
     defer replacement.deinit();
     try t.expectEqual(@as(u64, 8), replacement.value.result.lookup.?.interpretation.interpretation.object.object);
