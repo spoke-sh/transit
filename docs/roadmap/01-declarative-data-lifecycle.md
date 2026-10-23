@@ -145,8 +145,11 @@ The maintained-query adapter now uses those direct history leases and stores a
 separate bounded physical scan cursor. Its [public recovery evidence](../../tests/README.md#maintained-direct-table-queries--2026-10-23)
 covers original acquisition recovery, restart inside a physical-only prefix,
 initial backfill, independent Table cuts, accepted no-op revisions, paired deltas,
-terminal lease cleanup and current result-disclosure rights. Maintained
-gap/overflow/exchange and credential-rotation cleanup schedules, older relational
+terminal lease cleanup and current result-disclosure rights. The
+[direct failure schedule](../../tests/README.md#direct-relational-failure-boundaries--2026-10-23)
+also covers work/spill limits, ordered overflow witnesses, prior-result
+preservation, explicit history-coverage rejection and bounded captured cleanup.
+Exchange and maintained credential-rotation cleanup schedules, older relational
 caller fixtures and broader qualification remain unfinished. The full query
 package remains unqualified during the cutover.
 Direct namespace lifecycle, relational and remaining caller migration,

@@ -124,6 +124,9 @@ SUM overflow cannot be healed by skipping to a later basis. History gaps and
 schema incompatibility also stop advancement; rebuild requires an explicitly
 activated new query identity. Infrastructure failures without a declared domain
 classification remain failed attempts.
+The direct service's `HistoryReclaimed` rejection records `TableHistoryGap`;
+restoring the service or exact history does not resume that failed identity.
+Transport unavailability does not create this terminal gap evidence.
 
 The authenticated handler invokes `close` for cancellation, classified failure
 or retirement. Closure reads only the query's own resource. A native read error

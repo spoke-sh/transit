@@ -245,6 +245,7 @@ pub fn readFailure(client: c.DirectTableClient, err: anyerror) anyerror {
         return switch (client.service.last_rejection orelse return err) {
             .Conflict => error.SourceChanged,
             .QueryExpired => error.SourceChanged,
+            .HistoryReclaimed => error.TableHistoryGap,
             .StaleAuthorizationCredential => error.QueryDenied,
             else => err,
         };

@@ -80,7 +80,7 @@ pub fn table(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u6
     }
     try tableRows(allocator, client, role, name, operation, schema, changes);
 }
-fn tableRows(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64, name: []const u8, operation: u64, schema: q.fuze.TableSchema.Schema, changes: []const w.RowChange) !void {
+pub fn tableRows(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64, name: []const u8, operation: u64, schema: q.fuze.TableSchema.Schema, changes: []const w.RowChange) !void {
     var bytes: [q.fuze.TableSchema.max_bytes]u8 = undefined;
     const encoded = try w.Binary.encode(allocator, try schema.encode(&bytes));
     var ddl: w.Ddl = .{ .binding = .{ .definition = g.current_definition, .identity = .{ .scope = client.connection.scope, .principal = 101, .operation = operation }, .target = .{ .scope = client.connection.scope, .branch = 1, .object = schema.object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) }, .namespace = 1, .name = name, .action = .{ .create = .{ .owner = role, .schema = encoded } } };
@@ -551,6 +551,8 @@ pub const RelationalHost = struct {
     clients: []const c.DirectTableClient,
     workspace: []u8,
     pub const correlation_key = p.Value.init("direct-relational-correlation") catch unreachable;
+    pub const wake_key = p.Value.init("direct-relational-wake") catch unreachable;
+    pub const collected_key = p.Value.init("direct-relational-collected") catch unreachable;
     fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
         const self: *@This() = @ptrCast(@alignCast(raw.?));
         const local = (s.Frame.source(turn.delivery.input) catch 0) == turn.delivery.pid;
@@ -587,6 +589,7 @@ pub const RelationalHost = struct {
                 const identity: q.RelationalMaintenanceRecords.Identity = .{ .peer = turn.delivery.pid, .correlation = correlation };
                 if (std.mem.eql(u8, frame.payload.slice(), "wake")) {
                     _ = try q.RelationalMaintenance.wake(turn, identity, self.clients, self.workspace);
+                    try turn.write(wake_key, q.UnifiedRecords.identityValue(turn.delivery.input.position));
                     return;
                 }
                 if (std.mem.eql(u8, frame.payload.slice(), "close")) return q.RelationalMaintenance.close(turn, identity, .cancelled, null);
@@ -594,6 +597,15 @@ pub const RelationalHost = struct {
             }
             if (!local) return error.AccessDenied;
             _ = try q.RelationalMaintenance.advance(turn, try q.RelationalMaintenanceRecords.Continuation.decode(frame.payload), self.clients, self.workspace);
+            return;
+        }
+        if (std.mem.eql(u8, frame.payload.slice(), "collect")) {
+            if (!local and !external) return error.AccessDenied;
+            const correlation = try q.UnifiedRecords.readIdentity((try turn.read(correlation_key)).?);
+            const id = try q.UnifiedRecords.readIdentity((try turn.read(q.RelationalRecords.key('i', turn.delivery.pid, correlation))).?);
+            if (try q.RelationalCapture.collect(turn, id)) {
+                try turn.write(collected_key, q.UnifiedRecords.identityValue(id));
+            } else try turn.cast(turn.delivery.pid, frame.payload);
             return;
         }
         if (!local) return error.AccessDenied;

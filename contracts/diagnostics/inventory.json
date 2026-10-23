@@ -13849,7 +13849,8 @@
         "QueryNamespaceInUse": 3,
         "QueryNotFound": 3,
         "Rejected": 1,
-        "SourceChanged": 5
+        "SourceChanged": 5,
+        "TableHistoryGap": 1
       },
       "outcomes": {
         "Phase": [
@@ -15052,7 +15053,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 93,
+        "try": 94,
         "catch": 7
       },
       "imports": [

@@ -9,6 +9,34 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table history retention refuses required WAL coverage lost below its owner" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    var access: Access = .{};
+    try table.recover();
+    const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+    const basis: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    const pin_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 1001 };
+    const lease = try table.retainHistory(pin_owner, basis, access.guard());
+    var initial = try table.historyStart(t.allocator, lease, access.guard());
+    defer initial.deinit();
+    const accepted = table.root;
+    // Deliberately violate the Table retention authority through the lower
+    // storage test interface. Normal Table operations never perform this trim.
+    try wal.log().trim(17, table.root.next_lsn);
+    try t.expectError(error.WalHistoryTrimmed, table.historyAt(t.allocator, initial.point, access.guard()));
+    try t.expectError(error.WalHistoryTrimmed, table.retainedHistory(lease, basis, .{ .partition = 17, .next_lsn = table.root.next_lsn }, 1, access.guard()));
+    try t.expectEqualDeep(accepted, table.root);
+    try t.expect(!(try table.pinState(pin_owner, access.guard())).released);
+}
+
 test "Table history retention preserves exact logical successors and historical reads across restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
