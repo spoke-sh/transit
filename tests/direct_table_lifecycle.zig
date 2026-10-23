@@ -63,6 +63,36 @@ fn ddl(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Ddl) 
     return (try execute(client, work.binding)).ddl.committed;
 }
 const PredicateWork = struct { outcomes: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary };
+fn preparedReads(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
+    const before = try lookup(client, "events");
+    defer before.deinit();
+    var prepared = try q.DirectTablePrepared.prepare(allocator, client, 1, "SELECT payload FROM events WHERE id = $1 LIMIT 1", .transit, null);
+    defer prepared.deinit();
+    try t.expectEqual(@as(usize, 1), prepared.parameterTypes().len);
+    const after = try lookup(client, "events");
+    defer after.deinit();
+    try t.expectEqualDeep(before.value.result.lookup.?.position, after.value.result.lookup.?.position);
+    const source = try pin(client, 94, after.value.result.lookup.?);
+    const limits: q.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 };
+    var insufficient = limits;
+    insufficient.requests = 4;
+    try t.expectError(error.QueryPageBudget, q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{.{ .signed = 1 }}, insufficient, null, null, .{}));
+    try t.expectError(error.ParameterCountMismatch, q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{}, limits, null, null, .{}));
+    for ([_]?f.Types.Values.Atom{ .{ .signed = 1 }, .{ .signed = 2 }, null }, 0..) |value, i| {
+        var query = try q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{value}, limits, null, null, .{});
+        defer query.deinit();
+        var batch = try query.nextBatch(8);
+        defer batch.deinit();
+        try t.expect(batch.complete);
+        try t.expectEqual(@as(u8, if (i == 2) 0 else 1), batch.len);
+        if (i == 0) try t.expectEqualStrings("predicate", batch.rows[0].?.cells[0].value.atom.bytes);
+        if (i == 1) try t.expect(batch.rows[0].?.cells[0] == .null);
+        try t.expectEqualDeep(source, query.source().snapshot);
+    }
+    const released = try client.call(.{ .release = source });
+    released.deinit();
+    try t.expectError(error.Conflict, q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{.{ .signed = 1 }}, limits, null, null, .{}));
+}
 fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !PredicateWork {
     var result: PredicateWork = undefined;
     const statements = [_][]const u8{
@@ -109,6 +139,7 @@ fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !Pre
         const repeated = try restored.admit(client);
         defer repeated.deinit();
         try t.expectEqualDeep(result.outcomes[i], repeated.value.result.rows.committed);
+        if (i == 0) try preparedReads(allocator, client);
     }
     var pending_template = try c.DirectTablePreparedDml.prepare(allocator, client, 1, "DELETE FROM events WHERE id = ?", .mysql, null);
     defer pending_template.deinit();

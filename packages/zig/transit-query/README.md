@@ -52,12 +52,21 @@ and repeated completion. Returned result batches own at most eight rows and
 and direct Table call; result row/byte budgets are separate from source pages
 and compute memory. Cancellation and read failures leave incomplete results.
 
+`DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
+schema-bound template without acquiring a pin. Its preparation fingerprint
+includes the complete connection, selected role, namespace, name and declaration.
+`DirectTableQuery.openPreparedRetained` binds typed parameters to a separately
+retained source, verifies the original interpretation and uses the same finite
+executor and disclosure checks. It charges the additional current-definition
+check to the request budget. A released pin fails; failed opening cannot replace
+it. Template destruction and local query cleanup do not release the durable pin.
+
 This direct caller accepts the finite Transit SELECT profile over one explicit
 retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
 collations reject before execution because the shared logical evaluator does
 not yet apply them. Closing a computation leaves its source available for other
 queries until the pin owner explicitly releases it. The default launcher, SQL
-gateway, prepared parameters, relational sources and durable query jobs do not
+gateway, relational sources and durable query jobs do not
 use this owner yet. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
 for pin acquisition, authority and recovery.
 

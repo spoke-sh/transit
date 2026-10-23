@@ -643,6 +643,25 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Prepared SELECT over retained direct Tables — 2026-10-23
+
+Query `zig build test --summary all` passes **141/141** tests in the pinned Linux
+Nix shell (135 main and six spill checks; MaxRSS 65/46 MiB). The new binding case
+distinguishes the complete selected caller/namespace identity from the separately
+captured data fingerprint and rejects changed connections and definitions.
+
+`just test::direct-table-service` passes **221 typed HTTP calls**, including
+read-only SELECT preparation, numbered typed parameters, binary and NULL
+projection, a NULL predicate, request-budget exhaustion, wrong parameter count
+and released-pin refusal. Failed openings leave the caller's original pin usable;
+three parameter bindings use that same explicit source. Existing mutation,
+saved-intent, schema lifecycle, revocation and two-restart proofs also pass.
+Diagnostic error/outcome checks and documentation links pass.
+
+These tests qualify the typed retained-source interface. They do not establish
+automatic pin acquisition/recovery in SQL sessions, relational source integration
+or the installed gateway cutover.
+
 ## Saved direct SQL mutation intent — 2026-10-23
 
 The catalog package passes **115/115** tests in the pinned Linux Nix shell

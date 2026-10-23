@@ -87,6 +87,8 @@ Read-only exact-definition and action checks now support prepared caller
 bindings without raw-storage inspection credentials. Parameterized DML templates
 now produce complete saved direct intents with explicit admission and recovery;
 their installed SQL adapters remain part of the unfinished cutover.
+Prepared SELECT also binds parameters to an explicitly retained direct source
+under current rights; SQL session pin acquisition and recovery remain unfinished.
 The default launcher and installed SQL still use the actor
 catalog. Their cutover, dependency contracts, automatic point flushing,
 named resource provisioning and computation
