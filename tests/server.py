@@ -265,6 +265,8 @@ def run(cli, node, host):
         reusable_connections(fixture)
         from console_terminal import local_transcript
         local_transcript(fixture.cli, fixture.root)
+        from console_edit import local_edit
+        local_edit(fixture.cli, fixture.root)
         original = fixture.record()
         fixture.refusal("another server manages this installation")
         shell = TableConsole(fixture.cli, cwd=fixture.root)

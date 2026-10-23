@@ -66,6 +66,7 @@ pub const console =
     \\Paths in the configuration resolve relative to its file.
     \\Submit SQL with a semicolon. .help lists dot commands.
     \\.execute FILE runs a JSON query object with sql and optional parameters.
+    \\.edit opens the latest SQL in $EDITOR; save and close to submit it.
     \\Ctrl-R searches SQL and dot-command history in ~/.transit_history.
     \\YAML configures connections; .transitrc contains dot commands.
     \\Each SELECT gets a fresh snapshot. Ctrl-C cancels active reads.

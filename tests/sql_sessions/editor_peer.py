@@ -8,7 +8,7 @@ import threading
 
 
 @contextmanager
-def peer(*, structured=False):
+def peer(*, structured=False, lease_ms=30000):
     definition = re.search(r'\b([a-f0-9]{64})\b', (Path(__file__).resolve().parents[2]/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     actions = []
     diagnostic = dict(version=1, definition=definition, code='sql.unknown_column', category='binding', stage='bind', outcome='not_submitted', evidence='local_before_dispatch', message='Unknown column in this scope', cause='UnknownColumn', identity=None,
@@ -25,7 +25,7 @@ def peer(*, structured=False):
             action, value = next(iter(body['action'].items()))
             actions.append((action, value))
             if action == 'hello':
-                result = dict(hello=dict(encoding='transit.logical.v1.hex', session_lease_ms=30000, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
+                result = dict(hello=dict(encoding='transit.logical.v1.hex', session_lease_ms=lease_ms, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
             elif action == 'open':
                 result = dict(opened=dict(session=[3]*32, account=[4]*32, database='transit', proof=''))
             elif action == 'close':

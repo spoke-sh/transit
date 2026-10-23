@@ -6,6 +6,35 @@ the summaries retain measured outcomes and limits, but do not claim those archiv
 bytes are available here. Current validation must be rerun with the owning tasks.
 Remaining benchmark budgets and independent regression fixtures stay executable.
 
+## Console external editor — 2026-10-22
+
+The [console](../apps/transit-cli/docs/console.md#external-editor) runs `.edit`
+through a real foreground editor process and observes saves before submitting
+SQL through the existing session owner.
+
+Executed on Linux with the pinned Nix development shell:
+
+- `zig build test-console-history` passes the existing history/input checks and
+  `tests/console_edit.py`. Real PTYs and editor subprocesses cover unchanged,
+  changed and atomic saves, quit without save, failed SQL and dot-command
+  filtering, empty history, session keepalives, editor failure/signals, parent
+  interruption, invalid/oversized output, cleanup and result-stream isolation.
+  A failed editor after a submitted paste prefix cannot resubmit that prefix.
+  The independent session peer observes requests; it does not execute SQL.
+- `python3 -B tests/console_edit.py zig-out/bin/transit /usr/bin/vi` also passes
+  with the host's Vim 9.1: `:q` submits nothing and `:wq` submits once even when
+  the saved bytes are unchanged. The ordinary history gate needs no Vim install.
+- `just check` passes, including 558 CLI diagnostic cases, the extended history
+  proof, generated contracts, frontend checks and the documentation build.
+- `just test::server` passes its complete lifecycle in 301.37 seconds. Its new
+  real-service scenario loads a failed SQL history entry, saves a corrected
+  SELECT in the editor and verifies complete result delivery from local SQL.
+
+These checks cover the current Linux terminal and filesystem event profile.
+They do not qualify every external editor or remote filesystem; editors that
+detach require a wait option. Edited SQL creates a fresh request, not recovery
+of an earlier admission token.
+
 ## Local Board hostname aliases — 2026-10-22
 
 The [local server](../apps/transit-cli/docs/server.md) enables a fixed localhost

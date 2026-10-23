@@ -44,6 +44,10 @@ HTTP/TLS sessions. Server, explicit connection and management
 configuration use YAML by default; `.transitrc` remains a DuckDB-style startup
 file containing dot commands.
 
+Interactive `.edit` opens the latest SQL, including failed SQL, in `$EDITOR`.
+Save and close to submit it, even without text changes; close without saving
+to cancel. See [external editing](docs/console.md#external-editor).
+
 The console runs `-c 'SELECT COUNT(*) FROM items'`, `-f queries.sql` or interactive
 SQL with automatic query progress and verified results. The local connection
 also executes INSERT/UPDATE/DELETE against `items` without extra configuration.

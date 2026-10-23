@@ -5,6 +5,7 @@ const Console = @import("Console.zig");
 const Signals = @import("Signals.zig");
 const Output = @import("Output.zig");
 const History = @import("History.zig");
+const ExternalEditor = @import("ExternalEditor.zig");
 const Style = @import("Style.zig");
 const input = q.fuze.SqlInput;
 const max_bytes = q.fuze.Sql.max_statement_bytes;
@@ -27,7 +28,7 @@ pub fn run(console: *Console.Console) !void {
     defer _ = std.c.tcsetattr(0, .NOW, &original);
     var output_buffer: [2048]u8 = undefined;
     var output = std.Io.File.stderr().writerStreaming(console.init.io, &output_buffer);
-    var editor: Editor = .{ .console = console, .out = &output.interface, .arena = .init(console.init.gpa), .history = .{ .io = console.init.io, .allocator = console.init.gpa } };
+    var editor: Editor = .{ .console = console, .out = &output.interface, .arena = .init(console.init.gpa), .history = .{ .io = console.init.io, .allocator = console.init.gpa }, .cooked = original };
     defer {
         editor.erasePrivate();
         editor.history.close();
@@ -54,6 +55,7 @@ const Editor = struct {
     undo_length: ?usize = null,
     undo_cursor: usize = 0,
     history: History,
+    cooked: std.c.termios,
     history_position: ?u64 = null,
     draft: [max_bytes]u8 = undefined,
     draft_length: usize = 0,
@@ -271,7 +273,8 @@ const Editor = struct {
             try self.echo(statement);
             self.history.remember(statement) catch |err| try self.historyFailure(err);
             self.history_position = null;
-            if (!try self.console.execute(statement)) return false;
+            const more = if (std.mem.eql(u8, std.mem.trim(u8, statement, " \t\r\n"), ".edit")) try self.editExternal() else try self.console.execute(statement);
+            if (!more) return false;
             if (self.console.query_interrupted) {
                 // Ctrl-C cancels the submitted draft, including any remaining
                 // pasted statements. They must not become a background queue.
@@ -293,6 +296,39 @@ const Editor = struct {
         self.cursor = self.length;
         if (self.length > 0) try self.insert("\n");
         return true;
+    }
+    fn editExternal(self: *Editor) !bool {
+        // A failed editor must not leave an already submitted pasted prefix in
+        // the draft, where the next Enter could repeat accepted work.
+        errdefer self.clearDraft();
+        self.console.query_interrupted = false;
+        var bytes: [max_bytes]u8 = undefined;
+        defer std.crypto.secureZero(u8, &bytes);
+        const initial = self.history.latestSql(&bytes) catch |err| blk: {
+            if (err == error.ConsoleInterrupted) {
+                if (Signals.terminating()) return err;
+                Signals.clear();
+                self.console.query_interrupted = true;
+                return true;
+            }
+            try self.historyFailure(err);
+            break :blk try self.history.latestSql(&bytes);
+        };
+        const edited = ExternalEditor.edit(self.console, self.cooked, self.out, initial, &bytes) catch |err| {
+            if (self.console.access_lost) {
+                self.console.access_lost = false;
+                self.erasePrivate();
+            }
+            if (err == error.ConsoleInterrupted and !Signals.terminating()) {
+                Signals.clear();
+                self.console.query_interrupted = true;
+                return true;
+            }
+            return err;
+        } orelse return true;
+        try self.echo(edited);
+        self.history.remember(edited) catch |err| try self.historyFailure(err);
+        return self.console.execute(edited);
     }
     fn echo(self: *Editor, statement: []const u8) !void {
         // Commit the full submitted draft to terminal scrollback before output.
@@ -362,7 +398,7 @@ const Editor = struct {
                 try self.out.writeAll("\r\x1b[2K");
                 try self.console.diagnostic.style.text(self.out, .failure, "error:");
                 try self.out.writeByte(' ');
-                try self.console.diagnostic.style.text(self.out, .failure, @errorName(err));
+                try self.console.diagnostic.style.text(self.out, .failure, ExternalEditor.message(err) orelse @errorName(err));
                 try self.out.writeByte('\n');
             };
             if (!Signals.pending()) try self.draw();

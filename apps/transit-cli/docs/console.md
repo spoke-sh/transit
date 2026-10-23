@@ -199,6 +199,7 @@ for the error schema and other stderr output.
 | `.sources`, `.info` | Current account/database and authorized source bindings |
 | `.mode table\|json`, `.timer on\|off`, `.show` | Presentation preferences and their origins |
 | `.execute FILE` | Execute a typed query object |
+| `.edit` | Edit the latest SQL in `$EDITOR`; save and close to submit |
 | `.connect PATH` | Open a new independent connection in a terminal |
 | `.status [all\|KIND:ID\|token:HEX]` | Observe current authorized retained operations |
 | `.resume [KIND:ID\|token:HEX]` | Reconcile the original accepted operation |
@@ -230,8 +231,8 @@ The editor supports cursor movement, Home/End, deletion, Ctrl-U, undo, multiline
 input and bracketed paste. Ctrl-C clears an unsubmitted draft. Up/Down recalls
 commands. Ctrl-R searches history; Enter accepts a match for editing and does
 not execute it. Completion requests authorized metadata from the service;
-acceptance checks that the draft and source basis still match. Editing never
-submits SQL or applies administrative changes.
+acceptance checks that the draft and source basis still match. Typing, history
+search and completion do not submit SQL or apply administrative changes.
 
 Interactive submissions append to `$HOME/.transit_history` as owner-only JSON
 lines under a short lock. Concurrent consoles preserve each other's entries.
@@ -240,6 +241,32 @@ Batch input and unsubmitted drafts do not enter history. Reads scan bounded
 blocks; invalid records are skipped. File failure warns and retains eight recent
 commands in memory. Previously saved history and disclosed output cannot be
 recalled after revocation.
+
+### External editor
+
+`.edit` opens the latest SQL statement from history in `$EDITOR`, including SQL
+that failed. It skips dot commands and opens an empty file if there is no SQL
+history. The command is interactive-only and accepts no arguments.
+
+Set `EDITOR` to a program and optional arguments, for example `vi` or
+`code --wait`. Single/double quotes and backslash escapes support arguments with
+spaces; shell expansion and pipelines are not evaluated. An unset or empty
+`EDITOR` reports an error. Editors must wait for the file to be closed before
+their process exits. The console keeps its SQL session alive during editing.
+
+Saving and closing submits the saved statement once, even if its contents are
+unchanged. In Vim, `:q` without a save does nothing; `:wq` submits. Saving while
+the editor remains open does not execute SQL. A failed editor, an empty saved
+file or closing without saving submits nothing. Writes and atomic replacements
+of the temporary SQL file count as saves; writes to swap or backup files do not.
+
+The file contains one SQL statement, with an optional trailing semicolon, within
+the existing 4096-byte terminal limit. Dot commands and invalid UTF-8/control
+bytes reject. The console creates a private directory and file under `$TMPDIR`
+(default `/tmp`) and removes them when editing ends. Edited SQL enters history
+before execution, so failed edits remain available to the next `.edit`.
+Execution uses current session settings and permissions and creates a new request
+token. Use `.resume` with the original identity to recover accepted work.
 
 ## SQL errors
 

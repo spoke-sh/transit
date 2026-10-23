@@ -66,6 +66,8 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\.tables .schema [name] .sources .mode table|json
         \\.timer on|off .connect PATH .show .info .quit
         \\.execute FILE runs one JSON query object; parameter admission depends on the query source.
+        \\.edit opens the latest SQL statement, including failed SQL, in $EDITOR (terminal only).
+        \\Save and close to submit, even without text changes; close without saving to cancel.
         \\Recovery: .status [all|token:HEX|KIND:ID] .resume [token:HEX|KIND:ID] .cancel [token:HEX|KIND:ID]
         \\KIND is table, configuration or captured. Repeating SQL creates new work; exact recovery uses the original identity.
         \\General Table SELECT uses an interactive captured snapshot; its final completion marker verifies the emitted prefix.
@@ -76,7 +78,7 @@ pub fn write(console: *Console, topic: []const u8) !void {
     else
         return error.UnknownHelpTopic;
     const catalog = true;
-    if (console.session.format == .json) return console.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "sources", "mode", "timer", "connect", "show", "execute", "info", "quit", "status", "resume", "cancel" }, .help = text, .table_writer_configured = true, .catalog_configured = catalog, .authorization = "checked at execution" });
+    if (console.session.format == .json) return console.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "sources", "mode", "timer", "connect", "show", "execute", "edit", "info", "quit", "status", "resume", "cancel" }, .help = text, .table_writer_configured = true, .catalog_configured = catalog, .authorization = "checked at execution" });
     try console.out.writeAll(text);
     try console.out.print("Table catalog: {s}. Authorization is checked at execution.\n", .{if (catalog) "configured" else "not configured"});
 }
