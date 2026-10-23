@@ -122,6 +122,20 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     try t.expect(scanned.value.result.page.next == null);
     const decoded = try c.fuze.TableRow.decode(alloc, schema, try scanned.value.result.page.rows[0].decode(alloc, buffer.len));
     try t.expectEqualDeep(row, decoded.row());
+    // Read/modify/write uses the pinned source frontier. Acquiring that pin
+    // advances control history but must not make its own data basis stale.
+    work.binding.identity.operation = 203;
+    work.binding.action = .update;
+    work.binding.expected_data = historical.value.result.snapshot.accepted;
+    work.changes = &.{.{ .update = .{ .key = try w.Binary.encode(alloc, try row.storageKey(schema, &buffer)), .row = work.changes[0].insert } }};
+    work.binding.intent = try work.digest(alloc);
+    const from_pin = try dispatch(&service, .{ .admit_rows = work });
+    defer from_pin.deinit();
+    try t.expect(from_pin.value.result.rows == .admitted);
+    const unchanged = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
+    defer unchanged.deinit();
+    try t.expectEqual(@as(u64, 1), unchanged.value.result.rows.committed.outcome.matched);
+    try t.expectEqual(@as(u64, 0), unchanged.value.result.rows.committed.outcome.affected);
     // The service accumulates checked rights and suppresses already-buffered
     // rows if native ownership changes before the final disclosure fence.
     var store = try engine.authorization();

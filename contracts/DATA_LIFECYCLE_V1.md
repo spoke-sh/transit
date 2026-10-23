@@ -55,7 +55,13 @@ publishing a writable branch head.
 target object, action, expected interpretation, optional expected data position
 and complete canonical intent digest. CREATE has no expected definition; every
 other action binds an existing exact definition. A data expectation also binds
-its partition. Names are resolved before this binding is frozen.
+its partition. It identifies the source basis, not a requirement that control
+records stop advancing. Admission requires the expected frontier to fall between
+the owner's last logical change and its current accepted frontier, inclusive.
+Pins, no-op outcomes and physical flushes can advance without invalidating that
+basis; any later row or definition change rejects it. The owner records the
+actual admission frontier separately and checks logical freshness again before
+execution. Names are resolved before this binding is frozen.
 
 `requireSame` compares every field. A retry with the same operation ID but altered
 content, definition, target, branch or expected data position conflicts. Loading

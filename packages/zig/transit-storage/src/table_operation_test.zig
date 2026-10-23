@@ -169,6 +169,63 @@ test "Table conditional admission distinguishes control progress from changed ro
     try t.expectEqual(.data_changed, (try table.admit(exact, access.guard())).rejected.reason);
 }
 
+test "pinned data bases survive pre-admission controls and flushes but reject later logical changes on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    const first: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    const second: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+    var exact: d.Binding = undefined;
+    var source: d.Position = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        source = (try table.apply(binding(&table, 1), &.{change(&first, 1)}, .point, access.guard())).position;
+        _ = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 90 }, source, access.guard());
+        try t.expectEqual(@as(usize, 1), try table.flush(access.guard()));
+        var noop = binding(&table, 2);
+        noop.action = .update;
+        noop.expected_data = source;
+        const same: P.Change = .{ .put = .{ .row = change(&first, 1).put.row, .expect = .present } };
+        try t.expectEqual(@as(u64, 0), (try table.apply(noop, &.{same}, .point, access.guard())).affected);
+        exact = binding(&table, 3);
+        exact.expected_data = source;
+        const admitted = (try table.admit(request(&table, exact, &.{change(&second, 3)}), access.guard())).admitted;
+        try t.expect(admitted.basis.position.next_lsn > source.next_lsn);
+        try t.expectEqual(source.next_lsn, admitted.basis.changed_lsn);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    const accepted = (try table.perform(exact, access.guard())).committed;
+    try t.expectEqual(@as(u64, 2), accepted.outcome.live_rows);
+    var rejected = exact;
+    rejected.identity.operation = 4;
+    try t.expectEqual(.data_changed, (try table.admit(request(&table, rejected, &.{}), access.guard())).rejected.reason);
+    rejected.identity.operation = 5;
+    rejected.expected_data = .{ .partition = 18, .next_lsn = table.root.next_lsn };
+    try t.expectEqual(.data_changed, (try table.admit(request(&table, rejected, &.{}), access.guard())).rejected.reason);
+    rejected.identity.operation = 6;
+    rejected.expected_data = .{ .partition = 17, .next_lsn = table.root.next_lsn + 2 };
+    try t.expectEqual(.data_changed, (try table.admit(request(&table, rejected, &.{}), access.guard())).rejected.reason);
+    _ = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 91 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    _ = try table.flush(access.guard());
+    var rename = binding(&table, 7);
+    rename.action = .rename;
+    rename.expected_data = accepted.outcome.position;
+    _ = try table.changeDefinition(rename, .{ .rename = "renamed" }, access.guard());
+    try table.recover();
+    try t.expectEqualDeep(accepted, (try table.operationState(exact, access.guard())).committed);
+    try t.expectEqual(@as(u64, 2), table.root.interpretation.revision);
+}
+
 test "admitted point and bulk UPDATE exchange primary keys while preserving row identity and rejecting survivors" {
     for ([_]P.Ingestion{ .point, .bulk }) |ingestion| {
         var tmp = t.tmpDir(.{});

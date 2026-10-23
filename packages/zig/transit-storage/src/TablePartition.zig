@@ -147,7 +147,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
                 }
             }
             if (operation == null) if (binding.expected_data) |expected| {
-                if (expected.partition != before.partition or expected.next_lsn != before.next_lsn) return error.InvalidTableHistory;
+                if (!expected.unchangedAt(.{ .partition = before.partition, .next_lsn = before.next_lsn }, before.changed_lsn)) return error.InvalidTableHistory;
             };
         },
         else => {
@@ -267,7 +267,8 @@ fn operationForKey(self: *Self, basis: Root, key: pages.Key, binding: ?d.Binding
 fn requireAdmissionBasis(basis: Root, operation: Operation) !void {
     if (!std.meta.eql(operation.binding.expected_definition, @as(?d.Definition, basis.interpretation))) return error.TableDefinitionChanged;
     if (operation.binding.expected_data) |expected| {
-        if (!std.meta.eql(expected, operation.basis.position) or basis.changed_lsn != operation.basis.changed_lsn) return error.TableDataChanged;
+        if (!expected.unchangedAt(operation.basis.position, operation.basis.changed_lsn) or
+            operation.basis.position.partition != basis.partition or basis.changed_lsn != operation.basis.changed_lsn) return error.TableDataChanged;
     }
 }
 
@@ -286,7 +287,7 @@ fn operationTransition(self: *Self, before: Root, record: r.Record) !?Operation 
             if (known.phase != .admitted or next.phase == .admitted or !std.meta.eql(known.intent, next.intent) or !std.meta.eql(known.basis, next.basis)) return error.InvalidTableOperation;
             if (try self.tree().get(before.pending, key) == null) return error.InvalidTableOperation;
         } else {
-            if (next.phase == .cancelled or next.basis.position.next_lsn != before.next_lsn or
+            if (next.phase == .cancelled or next.basis.position.partition != before.partition or next.basis.position.next_lsn != before.next_lsn or
                 next.basis.changed_lsn != before.changed_lsn or !std.meta.eql(next.basis.interpretation, before.interpretation)) return error.InvalidTableOperation;
             if (next.phase == .admitted) try requireAdmissionBasis(before, next);
         }
@@ -457,7 +458,7 @@ fn expectations(self: *Self, binding: d.Binding) !void {
     } else if (self.root.next_lsn != 0 or binding.action != .create) return error.TableAlreadyExists;
     if (binding.action == .create and self.root.interpretation.revision != 1) return error.InvalidDataDefinition;
     if (binding.expected_data) |expected| {
-        if (expected.partition != self.root.partition or expected.next_lsn != self.root.next_lsn) return error.TableDataChanged;
+        if (!expected.unchangedAt(.{ .partition = self.root.partition, .next_lsn = self.root.next_lsn }, self.root.changed_lsn)) return error.TableDataChanged;
     }
 }
 

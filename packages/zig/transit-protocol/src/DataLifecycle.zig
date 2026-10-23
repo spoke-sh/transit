@@ -59,6 +59,13 @@ pub const Position = struct {
     pub fn validate(self: Position) !void {
         if (self.partition == 0) return error.InvalidDataPosition;
     }
+
+    /// A source basis remains current through control/physical publications.
+    /// The owner supplies its latest logical-change frontier, not a client clock.
+    pub fn unchangedAt(self: Position, current: Position, changed_lsn: u64) bool {
+        return self.partition != 0 and self.partition == current.partition and
+            changed_lsn <= self.next_lsn and self.next_lsn <= current.next_lsn;
+    }
 };
 
 pub const Content = struct {

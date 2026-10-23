@@ -90,7 +90,10 @@ admitted work. Once rows are committed, it returns that original result.
 `operationState` and bounded `pendingOperations` inspect without executing.
 Definition changes reject while any admitted row operation remains pending.
 
-Admission checks an optional exact accepted frontier. Execution preserves that
+Admission checks an optional exact source frontier. It must belong to this
+partition, lie within accepted history and be at or after the latest logical
+change. Acquiring a pin or flushing rows before admission does not stale that
+source. Execution preserves that
 frozen expectation: later logical changes invalidate conditional work, while
 intervening admissions, receipts, pins and physical flushing do not. Work without
 a data-frontier expectation still checks its definition and concrete row

@@ -645,6 +645,21 @@ the new definition. Installed qualification is still separate.
 
 ## Retained Table page reads — 2026-10-22
 
+The later storage suite passes **55/55 tests** after correcting conditional data
+bases at admission. A disk-backed source survives pin acquisition, physical
+flush and a canonical no-op before admission, then recovers admitted execution
+after reopen. An intervening logical write, foreign partition or future frontier
+still rejects. Conditional RENAME likewise survives control progress; replay
+preserves the original row receipt. The native dispatcher proof passes a no-op
+UPDATE selected from its pinned source, with one matched and zero changed rows.
+The catalog suite passes **106/106** and `just contract::check` passes after the
+coordinated definition/fixture regeneration.
+
+This changes persisted conflict semantics and selects the shared definition
+derived from `transit.native.v1.direct-table-service.2026-10-22`. The prior
+definition is an explicit incompatibility case. These checks do not qualify the
+in-progress listener, installed SQL migration or automatic point-row flushing.
+
 The subsequent catalog package suite passes **105/105 tests** with the signed
 direct request codec. Shared Python/OpenSSL and Zig vectors agree on the complete
 request context, signature, Unicode and full-width catalog IDs. New cases reject
