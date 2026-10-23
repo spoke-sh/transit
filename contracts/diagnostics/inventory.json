@@ -3297,6 +3297,105 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
+      "errors": {
+        "CatalogDenied": 3,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorizationCredential": 1,
+        "InvalidCatalogCursor": 1,
+        "InvalidCatalogStepBudget": 1,
+        "InvalidTableBinary": 3,
+        "InvalidTableConnection": 1,
+        "InvalidTableCursor": 1,
+        "InvalidTableReadBudget": 1,
+        "TableBatchTooLarge": 1,
+        "TablePayloadTooLarge": 5,
+        "TableSchemaChanged": 1
+      },
+      "outcomes": {
+        "Action": [
+          "initialize",
+          "describe",
+          "list",
+          "lookup",
+          "admit_ddl",
+          "admit_rows",
+          "operation",
+          "pin",
+          "snapshot",
+          "scan",
+          "release"
+        ],
+        "Action.operation.command": [
+          "inspect",
+          "execute",
+          "cancel"
+        ],
+        "Change": [
+          "add",
+          "drop",
+          "rename",
+          "default",
+          "nullable",
+          "type",
+          "physical"
+        ],
+        "Ddl.action": [
+          "create",
+          "alter",
+          "rename",
+          "drop"
+        ],
+        "Result": [
+          "initialized",
+          "description",
+          "list",
+          "lookup",
+          "ddl",
+          "rows",
+          "pin",
+          "snapshot",
+          "page",
+          "released"
+        ],
+        "Result.list.consistency": [
+          "independent"
+        ],
+        "RowChange": [
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binary.decode()": "<inferred>",
+        "Binary.encode()": "<inferred>",
+        "Change.cell()": "<inferred>",
+        "Change.native()": "<inferred>",
+        "Connection.binding()": "<inferred>",
+        "Connection.object()": "<inferred>",
+        "Connection.owner()": "<inferred>",
+        "Connection.validate()": "<inferred>",
+        "Ddl.native()": "<inferred>",
+        "Request.context()": "<inferred>",
+        "Request.parse()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "Rows.digest()": "<inferred>",
+        "Rows.native()": "<inferred>",
+        "validateSnapshot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 54,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Inspection.zig": {
       "errors": {
         "InvalidCatalogPage": 3
@@ -4725,6 +4824,23 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/direct_export.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-catalog/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -4739,6 +4855,7 @@
         "AuthorizationSql.zig",
         "DeclarativeCatalog.zig",
         "DirectCatalog.zig",
+        "DirectTableProtocol.zig",
         "Inspection.zig",
         "Model.zig",
         "OperationBinding.zig",

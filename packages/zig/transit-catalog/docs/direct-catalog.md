@@ -6,6 +6,12 @@ the definition through the Table's acceptance log. The installed Table service
 and SQL callers still use `TableCatalog`; this component has no public transport
 or automatic service scheduling.
 
+The [direct request contract](../../../../contracts/DIRECT_TABLE_V1.md) defines
+signed declaration, row-operation and retained-read envelopes. Its node
+dispatcher calls this owner with current native policy and rechecks disclosed
+requirements after response buffering. Installed HTTP/SQL callers do not use
+that dispatcher yet.
+
 ## Identity, admission and publication
 
 The configuration fixes one catalog, branch one, its native authorization

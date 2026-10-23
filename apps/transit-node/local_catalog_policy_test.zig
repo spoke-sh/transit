@@ -38,6 +38,101 @@ fn proof(engine: *Engine, context: [32]u8) !a.Proof {
     return a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 101, .credential_epoch = (try engine.principal(101)).credential_epoch, .role = null, .audience = 100, .context = context }, try key(29));
 }
 
+fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
+    const w = c.DirectTableProtocol;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .nonce = @splat(7), .action = action };
+    const signed = try proof(service.engine, try w.Request.context(input, alloc));
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = signed };
+    const bytes = try p.Json.valueAlloc(alloc, request);
+    const parsed = try w.Request.parse(alloc, bytes);
+    const output = try alloc.alloc(u8, 1024 * 1024);
+    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value, output));
+    errdefer response.deinit();
+    try t.expectEqualDeep(signed.claim.context, response.value.context);
+    return response;
+}
+
+fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 10, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const intent: D.Intent = .{ .namespace = 1, .name = try .init("through_dispatch"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 200 }, .target = .{ .scope = config.scope, .branch = 1, .object = 10 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
+    var buffer: [65536]u8 = undefined;
+    const schema_wire = try w.Binary.encode(alloc, try schema.encode(&buffer));
+    const ddl: w.Ddl = .{ .binding = binding, .namespace = 1, .name = intent.name.slice(), .action = .{ .create = .{ .owner = owner_role, .schema = schema_wire } } };
+    const admitted = try dispatch(&service, .{ .admit_ddl = ddl });
+    defer admitted.deinit();
+    try t.expect(admitted.value.result.ddl == .admitted);
+    const hidden = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
+    defer hidden.deinit();
+    try t.expect(hidden.value.result.lookup == null);
+    const head = engine.head.position;
+    const pending = try dispatch(&service, .{ .operation = .{ .binding = binding, .command = .inspect, .steps = 1 } });
+    defer pending.deinit();
+    try t.expect(pending.value.result.ddl == .admitted);
+    try t.expectEqual(head, engine.head.position);
+    const committed = try dispatch(&service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+    defer committed.deinit();
+    try t.expect(committed.value.result.ddl == .committed);
+    const repeated = try dispatch(&service, .{ .admit_ddl = ddl });
+    defer repeated.deinit();
+    try t.expectEqualDeep(committed.value.result, repeated.value.result);
+    const definition = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
+    defer definition.deinit();
+    try t.expectEqual(engine.head.authorization.revision, definition.value.policy_revision);
+    const selected = definition.value.result.lookup.?;
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 10, .operation = 201, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 12 } } }} };
+    var work: w.Rows = .{ .binding = binding, .interpretation = selected.interpretation, .schema = schema_wire, .changes = &.{.{ .insert = try w.Binary.encode(alloc, try row.encode(schema, &buffer)) }}, .ingestion = .bulk };
+    work.binding.identity.operation = 201;
+    work.binding.action = .insert;
+    work.binding.expected_definition = selected.interpretation.interpretation;
+    work.binding.intent = try work.digest(alloc);
+    const row_admitted = try dispatch(&service, .{ .admit_rows = work });
+    defer row_admitted.deinit();
+    try t.expect(row_admitted.value.result.rows == .admitted);
+    const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
+    defer rows.deinit();
+    try t.expectEqual(@as(u64, 1), rows.value.result.rows.committed.outcome.affected);
+    const pinned = try dispatch(&service, .{ .pin = .{ .object = binding.target, .owner = .{ .scope = config.scope, .principal = 101, .operation = 202 }, .expected = rows.value.result.rows.committed.outcome.position } });
+    defer pinned.deinit();
+    const snapshot: w.Snapshot = .{ .object = binding.target, .handle = pinned.value.result.pin };
+    const historical = try dispatch(&service, .{ .snapshot = snapshot });
+    defer historical.deinit();
+    try t.expectEqual(@as(u64, 1), historical.value.result.snapshot.row_count);
+    const scanned = try dispatch(&service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } });
+    defer scanned.deinit();
+    try t.expectEqual(@as(usize, 1), scanned.value.result.page.rows.len);
+    try t.expect(scanned.value.result.page.next == null);
+    const decoded = try c.fuze.TableRow.decode(alloc, schema, try scanned.value.result.page.rows[0].decode(alloc, buffer.len));
+    try t.expectEqualDeep(row, decoded.row());
+    // The service accumulates checked rights and suppresses already-buffered
+    // rows if native ownership changes before the final disclosure fence.
+    var store = try engine.authorization();
+    const native_table = (try store.bound(config.authority.table_domain, try c.TableAuthority.binding(config.scope, .table, 10))).?.reference.id;
+    const Revoke = struct {
+        fn run(context: *anyopaque, current: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(context));
+            _ = try change(current, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    var revoke_id = native_table;
+    service.before_reply = .{ .context = &revoke_id, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }));
+    service.before_reply = null;
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
+    const released = try dispatch(&service, .{ .release = snapshot });
+    defer released.deinit();
+    try t.expect(released.value.result == .released);
+}
+
 test "local catalog checks real native registrations, current ownership and exact request proof" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -71,6 +166,7 @@ test "local catalog checks real native registrations, current ownership and exac
     defer catalog.deinit();
     try catalog.recover();
     try catalog.initialize(policy.policy());
+    try directDispatch(&engine, config, role);
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const intent: D.Intent = .{ .namespace = 1, .name = try c.TableAuthority.Name.init("events"), .action = .{ .create = .{ .owner = role, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} } } } };
     const request: D.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 1 }, .target = .{ .scope = scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) } };

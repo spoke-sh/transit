@@ -105,6 +105,7 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("vector-benchmark", "Build bounded vector operator and pipeline measurements").dependOn(&b.addInstallArtifact(vector_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    b.step("direct-table-contract", "Export signed direct Table envelopes").dependOn(&b.addRunArtifact(catalog.artifact("transit-direct-table-contract")).step);
     const diagnostic_cases = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostic_cases.addFileArg(b.path("tests/diagnostic_case_codes.py"));
     diagnostic_cases.addFileArg(b.path("contracts/diagnostics/mappings.json"));

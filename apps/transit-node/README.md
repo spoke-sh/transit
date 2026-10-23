@@ -77,6 +77,12 @@ original caller again, then commits only against that checked native head.
 Inspection does not run this helper. `just test::local-catalog` exercises this
 composition with real signed native changes and local disk storage.
 
+`LocalTableService` dispatches the [signed direct Table contract](../../contracts/DIRECT_TABLE_V1.md)
+inside that owner. The composition test drives declaration admission/execution,
+binary row writes, retained reads and release through its serialized envelopes.
+The dispatcher checks current rights after buffering the response; a concurrent
+revocation suppresses disclosure. Installed HTTP/SQL integration is unfinished.
+
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
 raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)

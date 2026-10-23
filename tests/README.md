@@ -645,6 +645,23 @@ the new definition. Installed qualification is still separate.
 
 ## Retained Table page reads — 2026-10-22
 
+The subsequent catalog package suite passes **105/105 tests** with the signed
+direct request codec. Shared Python/OpenSSL and Zig vectors agree on the complete
+request context, signature, Unicode and full-width catalog IDs. New cases reject
+missing definitions, modified actions/roles, noncanonical base64, changed row
+payload digests, incompatible row interpretations and mismatched mutation shapes.
+Binary values, unsigned extremes and negative floating zero survive conversion.
+`just contract::direct-table-check` passes its independent schema/signing checks.
+
+`just test::local-catalog` passes with the internal `LocalTableService` dispatcher.
+Real signed requests pass through JSON parsing, current native authorization and
+disk storage for CREATE admission, hidden pending names, explicit execution,
+repeat admission returning the original commit, bulk INSERT, durable pin,
+snapshot/schema inspection, row scan and release. Inspection leaves the native
+head unchanged. Transferring Table ownership after response buffering denies
+the complete page; regrant permits release. This test exercises the dispatcher
+in process, not a network listener, installed launcher or SQL adapter.
+
 The pinned storage suite passes **54/54 tests** with `inspectSnapshot` and
 `scanSnapshot`. New disk-backed cases traverse thirteen mixed unflushed WAL and
 segment rows across flush, schema rewrite, DROP and actual owner reopen. They
