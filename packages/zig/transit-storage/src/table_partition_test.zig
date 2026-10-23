@@ -114,6 +114,76 @@ fn key(value: i128, buffer: []u8) ![]const u8 {
     return f.Collation.encodePrimaryKeySortKey(schema, &.{.{ .value = .{ .atom = .{ .signed = value } } }}, false, buffer);
 }
 
+test "logical Table history is bounded, separates physical work and preserves accepted no-ops across restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var upper: p.DataLifecycle.Position = undefined;
+    var changed: u64 = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        for (0..19) |i| {
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = @intCast(i) } } };
+            _ = try table.apply(binding(&table, i + 1), &.{change(&cell, i + 1)}, .point, access.guard());
+            if (i % 3 == 0) _ = try table.flush(access.guard());
+            if (i == 5) {
+                const handle = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 1000 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+                try table.releaseSnapshot(handle, access.guard());
+            }
+        }
+        changed = table.root.changed_lsn;
+        _ = try table.apply(binding(&table, 20), &.{}, .point, access.guard());
+        try t.expectEqual(changed, table.root.changed_lsn);
+        upper = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        // A later accepted mutation must not expand this inspection interval.
+        const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 100 } } };
+        _ = try table.apply(binding(&table, 21), &.{change(&cell, 21)}, .point, access.guard());
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    const before = table.root;
+    var cursor: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = 0 };
+    var count: u64 = 0;
+    var empty: usize = 0;
+    while (cursor.next_lsn < upper.next_lsn) {
+        const page = try table.history(cursor, upper, 1, access.guard());
+        try t.expectEqual(@as(u8, 1), page.scanned);
+        try t.expectEqualDeep(object, page.object);
+        try t.expectEqualDeep(upper, page.through);
+        if (page.count == 0) empty += 1;
+        for (page.entries[0..page.count]) |slot| {
+            const entry = slot.?;
+            count += 1;
+            try t.expectEqual(count, entry.receipt.binding.identity.operation);
+            try t.expectEqual(@min(count, 19), entry.root.live_rows);
+            try t.expectEqual(entry.root.next_lsn, entry.receipt.outcome.position.next_lsn);
+            try t.expect(!std.mem.allEqual(u8, &entry.commitment, 0));
+            if (count == 20) {
+                try t.expectEqual(@as(u64, 0), entry.receipt.outcome.affected);
+                try t.expectEqual(changed, entry.root.changed_lsn);
+            }
+        }
+        cursor = page.next;
+    }
+    try t.expectEqual(@as(u64, 20), count);
+    try t.expect(empty >= 9); // seven flushes and two pin transitions
+    try t.expectEqual(@as(u8, 0), (try table.history(upper, upper, 8, access.guard())).scanned);
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.history(.{ .partition = 17, .next_lsn = 0 }, upper, 8, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    try t.expectError(error.InvalidTableReadBudget, table.history(upper, upper, 9, access.guard()));
+    try t.expectError(error.InvalidTableBasis, table.history(.{ .partition = 18, .next_lsn = 0 }, upper, 1, access.guard()));
+}
+
 test "Table no-op receipts preserve logical data and report original matched and changed rows after restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -655,6 +725,18 @@ test "Table rename ALTER and DROP preserve exact receipts and pinned original in
     _ = try table.changeDefinition(drop, .{ .drop = "renamed" }, access.guard());
     _ = try table.apply(original, &.{change(&cell, 1)}, .point, access.guard());
     try t.expectEqual(end, table.root.next_lsn);
+    const history = try table.history(.{ .partition = 17, .next_lsn = 0 }, .{ .partition = 17, .next_lsn = end }, 8, access.guard());
+    try t.expectEqual(@as(u8, 4), history.count);
+    try t.expectEqual(end, history.next.next_lsn);
+    for (history.entries[0..history.count], 0..) |slot, i| {
+        const entry = slot.?;
+        try t.expectEqual(i + 1, entry.receipt.binding.identity.operation);
+        try t.expectEqual(i + 1, entry.root.interpretation.revision);
+        try t.expectEqual(i == 3, entry.root.retired);
+        try t.expectEqual(entry.root.next_lsn, entry.root.changed_lsn);
+    }
+    try t.expectEqualDeep(history.entries[0].?.root.schema_fingerprint, history.entries[1].?.root.schema_fingerprint);
+    try t.expect(!std.meta.eql(history.entries[1].?.root.schema_fingerprint, history.entries[2].?.root.schema_fingerprint));
     const accepted_rename = (try table.observeEvidence(rename, access.guard())).?;
     try t.expectEqual(@as(u64, 2), accepted_rename.resulting.interpretation.revision);
     try t.expect(!accepted_rename.resulting.retired);
