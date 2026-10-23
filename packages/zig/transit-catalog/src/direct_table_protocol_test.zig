@@ -73,7 +73,7 @@ test "direct Table row conversion preserves full width values and action constra
         .{ .value = .{ .atom = .{ .bytes = "\x00\xff\x80" } } },
         .{ .value = .{ .atom = .{ .float = -0.0 } } },
     };
-    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &cells };
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 5, .operation = std.math.maxInt(u64), .ordinal = 0 }, .cells = &cells };
     const row_wire = try w.Binary.encode(alloc, try row.encode(schema, &scratch));
     const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 4, .operation = std.math.maxInt(u64) }, .target = declaration.definition.object, .action = .insert, .expected_definition = (try declaration.stored()).interpretation, .expected_data = null, .intent = @splat(3) };
     var work: w.Rows = .{ .binding = binding, .interpretation = try declaration.stored(), .schema = schema_wire, .changes = &.{.{ .insert = row_wire }}, .ingestion = .bulk };

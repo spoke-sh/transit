@@ -85,7 +85,7 @@ fn binarySchema(allocator: std.mem.Allocator) !w.Binary {
 }
 fn binaryRow(allocator: std.mem.Allocator, id: i64, operation: u64, payload: []const u8) !w.Binary {
     const cells = [_]c.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = id } } }, .{ .value = .{ .atom = .{ .bytes = payload } } } };
-    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = operation, .ordinal = 0 }, .cells = &cells };
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = operation, .ordinal = 0 }, .cells = &cells };
     const bytes = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
     defer allocator.free(bytes);
     return w.Binary.encode(allocator, try row.encode(schema, bytes));

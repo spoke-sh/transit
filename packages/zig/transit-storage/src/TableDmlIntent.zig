@@ -11,6 +11,14 @@ pub const max_bytes = @import("TransitLog.zig").max_payload_bytes;
 const max_metadata_bytes = 4096;
 const header_bytes = 44;
 
+/// The native principal namespace includes zero; row origins reserve zero.
+/// Operation claims prevent reuse across targets within a catalog. An ordinal
+/// identifies an INSERT row, independently of its key or later UPDATEs.
+pub fn insertIdentity(operation: d.Operation, ordinal: u32) !f.TableRow.Identity {
+    try operation.validate();
+    return .{ .origin = operation.principal + 1, .operation = operation.operation, .ordinal = ordinal };
+}
+
 pub const Request = struct {
     binding: d.Binding,
     interpretation: Declaration.Stored,
@@ -26,8 +34,11 @@ pub const Request = struct {
             .insert, .update, .delete => {},
             else => return error.UnsupportedTableAction,
         }
-        for (self.changes) |change| switch (self.binding.action) {
-            .insert => if (change != .put or change.put.expect != .absent) return error.UnsupportedTableMutationShape,
+        for (self.changes, 0..) |change, ordinal| switch (self.binding.action) {
+            .insert => {
+                if (change != .put or change.put.expect != .absent) return error.UnsupportedTableMutationShape;
+                if (!std.meta.eql(change.put.row.identity, try insertIdentity(self.binding.identity, @intCast(ordinal)))) return error.InvalidInsertRowIdentity;
+            },
             .update => if (change != .replace and (change != .put or change.put.expect != .present)) return error.UnsupportedTableMutationShape,
             .delete => if (change != .remove) return error.UnsupportedTableMutationShape,
             else => unreachable,

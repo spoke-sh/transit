@@ -81,6 +81,14 @@ rejects collisions with surviving or other replacement rows. DELETE requires
 removes; the admitted shape cannot perform another action under the selected
 privilege.
 
+Admitted INSERT rows use `TableDmlIntent.insertIdentity`: the original principal
+plus one, the operation ID and the row's zero-based batch ordinal. This gives
+distinct rows to separate callers using the same operation number and prevents
+duplicate internal identities behind different primary keys. Validation happens
+before the catalog claims the operation. UPDATE retains the inserted identity;
+the concrete `apply` mechanism is an internal owner primitive, not an unchecked
+public admission route.
+
 `perform` loads the original intent and publishes the row changes, receipt and
 removal from pending work atomically. It does not resolve names or recompile a
 statement. A constraint failure records a terminal rejection. Storage failure,

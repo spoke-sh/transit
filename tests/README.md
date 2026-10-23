@@ -643,6 +643,19 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Direct INSERT identity — 2026-10-23
+
+The storage package passes **56/56 tests** and the catalog package passes
+**109/109 tests** with INSERT identities bound to the original principal,
+operation and batch ordinal. Cases reject duplicate identities behind different
+keys and forged caller origins before any operation claim or immutable write;
+root and maximum native principal values produce valid origins. The public HTTP
+proof passes its **119 typed calls** with the new identities through UPDATE,
+retained reads and two service restarts. The shared definition, generated
+contracts, binding resources and independent signing fixtures were replaced
+together; the full contract check passes. The low-level concrete mutation
+primitive remains internal to the storage owner.
+
 ## Finite SQL over retained direct Tables — 2026-10-23
 
 The query package passes **140/140 tests**, including its native catalog-query
