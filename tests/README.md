@@ -529,6 +529,26 @@ new grant. The independent Python reader verifies the on-disk trim metadata's
 checksum. This does not qualify local immutable-object collection, standalone
 payload publication, the launcher default or direct Table SQL storage.
 
+The subsequent `just test::server` ReleaseSafe run passes the source-built local
+launcher's complete core lifecycle corpus in 434.74 seconds. It observes real
+`.twal` and immutable `.data` files beneath `data/native`, and verifies that no
+MinIO, Ursula or separate maintenance process is launched. Existing SQL reads,
+writes and DDL run over native state in that local store. The corpus covers
+configuration reload and recovery, independent console snapshots, lost replies,
+child/manager interruption, retained operation identity, current revocation
+across restart, missing-storage refusal and intentional DROP/name reuse without
+recreating default data. Two earlier runs expose fixture assumptions: a removed
+provider process selector and an opt-in retry which omits `HttpCapacity`. The
+fixed fixture faults the live requester and retains the same signed request
+through bounded capacity retries, with unchanged deadlines.
+
+The installation layout cutover replaces the shared definition and regenerates
+contracts, bindings and signatures. Missing/foreign definitions, including the
+preceding local-node definition, reject before reopening accepted work. This
+source-built launcher evidence does not establish the Nix bundle's clean-build
+qualification, standalone payload ownership, local object collection, direct
+Table segment execution or completion of declarative data lifecycles.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),
