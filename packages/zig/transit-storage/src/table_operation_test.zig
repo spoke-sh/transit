@@ -33,7 +33,10 @@ fn request(table: *P, exact: d.Binding, changes: []const P.Change) s.TableDmlInt
     return .{ .binding = exact, .interpretation = table.root.declared(), .changes = changes, .ingestion = .point };
 }
 fn change(cell: *const f.Types.Values.Cell, id: u64) P.Change {
-    return .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = id, .ordinal = 0 }, .cells = @as(*const [1]f.Types.Values.Cell, @ptrCast(cell)) }, .expect = .absent } };
+    return changeAt(cell, id, 0);
+}
+fn changeAt(cell: *const f.Types.Values.Cell, id: u64, ordinal: u32) P.Change {
+    return .{ .put = .{ .row = .{ .identity = .{ .origin = 5, .operation = id, .ordinal = ordinal }, .cells = @as(*const [1]f.Types.Values.Cell, @ptrCast(cell)) }, .expect = .absent } };
 }
 
 test "Table admitted work survives lost replies and disk restart; inspection cannot execute and cancellation cannot undo a commit" {
@@ -131,7 +134,7 @@ test "Table cancellation and late constraint rejection are terminal across resta
     try t.expect((try table.admit(cancelled_request, access.guard())) == .cancelled);
     try t.expectError(error.TableOperationTerminal, table.apply(cancelled, cancelled_request.changes, .point, access.guard()));
     const rejected = binding(&table, 3);
-    _ = try table.admit(request(&table, rejected, &.{ change(&second, 3), change(&first, 3) }), access.guard());
+    _ = try table.admit(request(&table, rejected, &.{ change(&second, 3), changeAt(&first, 3, 1) }), access.guard());
     const rows_before = table.root.rows;
     const result = (try table.perform(rejected, access.guard())).rejected;
     try t.expectEqual(.duplicate_key, result.reason);

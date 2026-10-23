@@ -553,6 +553,7 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
 /// Row admission and outcomes belong to the Table partition. None of these
 /// operations publishes a catalog root or resolves the current name again.
 pub fn admitRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
+    try request.validate();
     return self.rowOperation(request.binding, .admit, request, policy);
 }
 pub fn performRows(self: *Self, binding: d.Binding, policy: Policy) !P.OperationState {

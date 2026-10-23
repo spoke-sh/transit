@@ -123,6 +123,7 @@ pub const RowChange = union(enum) {
     delete: Binary,
 };
 pub const Rows = struct {
+    pub const insertIdentity = c.storage.TableDmlIntent.insertIdentity;
     pub const json_schema_sequence_bounds = .{ .changes = P.max_changes };
     binding: d.Binding,
     interpretation: c.storage.TableDeclaration.Stored,

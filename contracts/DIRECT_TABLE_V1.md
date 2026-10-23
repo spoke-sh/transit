@@ -70,6 +70,13 @@ schema. It admits at most 1024 changes within the storage owner's 4 MiB framed
 work bound. Decoding additionally bounds cumulative row/key payloads to 4 MiB;
 that preliminary bound does not promise the complete framed work will fit.
 INSERT, UPDATE and DELETE admit only their matching change shapes.
+INSERT row identities use `origin = original_principal + 1`, the original
+operation ID and the row's zero-based ordinal in the admitted batch.
+`Rows.insertIdentity` constructs that identity. Admission rejects another
+principal, operation or ordinal before claiming the operation or staging work.
+UPDATE preserves each selected row's identity even when its primary key changes;
+deleting and inserting a row assigns a new identity. Identity is scoped to the
+Table, independent of the user-visible key, name and physical row location.
 
 The row intent digest uses `transit.table.direct.rows.v1`, a zero byte and
 canonical JSON of `interpretation`, `schema`, `changes`, `ingestion` in that

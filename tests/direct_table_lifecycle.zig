@@ -56,7 +56,7 @@ fn ddl(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Ddl) 
 }
 fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.Binary {
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = id } } }, .{ .value = .{ .atom = .{ .bytes = "" } } } };
-    const row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &cells };
+    const row: f.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = 1, .ordinal = 0 }, .cells = &cells };
     const scratch = try allocator.alloc(u8, f.Collation.max_sort_key_bytes);
     defer allocator.free(scratch);
     return w.Binary.encode(allocator, try row.storageKey(schema, scratch));
@@ -71,7 +71,7 @@ pub fn evolve(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     var schema = try f.TableSchema.decode(alloc, try initial.value.result.lookup.?.schema.decode(alloc, f.TableSchema.max_bytes));
     defer schema.deinit();
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 10 } } }, .{ .value = .{ .atom = .{ .bytes = "updated" } } } };
-    const replacement: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &cells };
+    const replacement: f.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = 2, .ordinal = 0 }, .cells = &cells };
     const scratch = try alloc.alloc(u8, f.TableRow.max_bytes);
     const updated = try rows(alloc, client, .{ .binding = binding(client, 4, .update, initial.value.result.lookup.?), .interpretation = initial.value.result.lookup.?.interpretation, .schema = initial.value.result.lookup.?.schema, .ingestion = .point, .changes = &.{.{ .update = .{ .key = try key(alloc, schema.schema, 1), .row = try w.Binary.encode(alloc, try replacement.encode(schema.schema, scratch)) } }} });
     try t.expectEqual(@as(u64, 1), updated.outcome.matched);
@@ -189,7 +189,7 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
                 try t.expectEqual(@as(i64, 10), id);
                 try t.expectEqualStrings("updated", payload);
                 try t.expect(row.cells[2] == .null);
-                try t.expectEqualDeep(f.TableRow.Identity{ .origin = 7, .operation = 2, .ordinal = 0 }, row.identity);
+                try t.expectEqualDeep(f.TableRow.Identity{ .origin = 102, .operation = 2, .ordinal = 0 }, row.identity);
             }
             seen += 1;
         }

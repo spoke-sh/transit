@@ -98,7 +98,7 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     defer definition.deinit();
     try t.expectEqual(engine.head.authorization.revision, definition.value.policy_revision);
     const selected = definition.value.result.lookup.?;
-    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 10, .operation = 201, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 12 } } }} };
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = 201, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 12 } } }} };
     var work: w.Rows = .{ .binding = binding, .interpretation = selected.interpretation, .schema = schema_wire, .changes = &.{.{ .insert = try w.Binary.encode(alloc, try row.encode(schema, &buffer)) }}, .ingestion = .bulk };
     work.binding.identity.operation = 201;
     work.binding.action = .insert;
@@ -240,7 +240,7 @@ test "local catalog checks real native registrations, current ownership and exac
     const row_request: c.storage.TableDmlIntent.Request = .{
         .binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 2 }, .target = request.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(9) },
         .interpretation = view.table.root.declared(),
-        .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &row_cells }, .expect = .absent } }},
+        .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 102, .operation = 2, .ordinal = 0 }, .cells = &row_cells }, .expect = .absent } }},
         .ingestion = .point,
     };
     const directory = catalog.store.root;
@@ -260,6 +260,9 @@ test "local catalog checks real native registrations, current ownership and exac
     owner.limits = limits;
     var succeeding = row_request;
     succeeding.binding.identity.operation = 3;
+    var inserted = row_request.changes[0];
+    inserted.put.row.identity = try c.storage.TableDmlIntent.insertIdentity(succeeding.binding.identity, 0);
+    succeeding.changes = &.{inserted};
     const accepted = (try catalog.applyRows(succeeding, policy.policy())).committed;
     try t.expectEqual(@as(u64, 1), accepted.outcome.affected);
     const retained = try catalog.pinRows(request.binding.target, .{ .scope = scope, .principal = 101, .operation = 80 }, accepted.outcome.position, policy.policy());

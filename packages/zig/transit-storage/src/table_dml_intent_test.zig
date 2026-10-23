@@ -14,6 +14,33 @@ fn request(stored: s.TableDeclaration.Stored, changes: []const s.TablePartition.
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = object.scope, .principal = 4, .operation = 9 }, .target = object, .action = .update, .expected_definition = stored.interpretation, .expected_data = .{ .partition = 17, .next_lsn = 8 }, .intent = @splat(7) }, .interpretation = stored, .changes = changes, .ingestion = .point };
 }
 
+test "insert identities bind principal operation and ordinal before admission" {
+    var declaration = try s.TableDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var work = request(try declaration.stored(), &.{});
+    work.binding.action = .insert;
+    const first = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .float = 1.0 } } } };
+    const second = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 2 } } }, .{ .value = .{ .atom = .{ .float = 2.0 } } } };
+    var changes = [_]s.TablePartition.Change{
+        .{ .put = .{ .row = .{ .identity = try Intent.insertIdentity(work.binding.identity, 0), .cells = &first }, .expect = .absent } },
+        .{ .put = .{ .row = .{ .identity = try Intent.insertIdentity(work.binding.identity, 1), .cells = &second }, .expect = .absent } },
+    };
+    work.changes = &changes;
+    try work.validate();
+    changes[1].put.row.identity = changes[0].put.row.identity;
+    try t.expectError(error.InvalidInsertRowIdentity, work.validate());
+    changes[1].put.row.identity = try Intent.insertIdentity(work.binding.identity, 1);
+    var other = work.binding.identity;
+    other.principal += 1;
+    try t.expect(!std.meta.eql(try Intent.insertIdentity(other, 0), changes[0].put.row.identity));
+    changes[0].put.row.identity = try Intent.insertIdentity(other, 0);
+    try t.expectError(error.InvalidInsertRowIdentity, work.validate());
+    other.principal = 0;
+    try t.expectEqual(@as(u64, 1), (try Intent.insertIdentity(other, 0)).origin);
+    other.principal = p.max_counter;
+    try t.expectEqual(p.max_counter + 1, (try Intent.insertIdentity(other, 0)).origin);
+}
+
 test "frozen Table row work retains exact floating bits and complete expectations on disk" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

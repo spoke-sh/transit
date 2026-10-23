@@ -3153,7 +3153,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 214,
+        "try": 215,
         "catch": 2
       },
       "imports": [
@@ -12381,7 +12381,7 @@
           "deadline"
         ],
         "Definition": [
-          "b4c2e47f8dac6fff59724ee96a6e95af0134c065b9895eb5303c4a1155f09b04"
+          "@\"04fb672449029157eed66ce316d0d55d0b12bbbeddb07c3f337fb9f7b95ab036\""
         ],
         "Effect.phase": [
           "pending",
@@ -24328,6 +24328,7 @@
     "packages/zig/transit-storage/src/TableDmlIntent.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
+        "InvalidInsertRowIdentity": 1,
         "InvalidTableKey": 4,
         "InvalidTableMutationIntent": 11,
         "TableBatchTooLarge": 1,
@@ -24339,13 +24340,14 @@
       "error_sets": {},
       "error_returns": {
         "Request.validate()": "<inferred>",
+        "insertIdentity()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 46,
         "catch": 0
       },
       "imports": [
