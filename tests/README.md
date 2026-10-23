@@ -511,6 +511,16 @@ The added storage cases cover:
   root unchanged on pre-commit failure; successful acceptance needs no
   subsequent allocation to install the new declaration.
 
+The subsequent catalog and storage package suites pass after adding immutable
+catalog-wide operation binding and exact accepted-definition observation. A
+real disk reopen preserves the full original binding; attempts to retarget the
+operation to another object or branch, or change its intent, conflict. An
+independent full-width key oracle and corrupted/foreign claim bytes exercise
+the storage boundary. Another 129 operation claims require no resident catalog
+directory. `observeEvidence` returns a rename's original revision after the
+same Table has subsequently been altered and dropped. These claims reserve
+identity only; they do not establish durable operation admission or completion.
+
 These are storage and native-adapter proofs. They do not establish catalog name
 publication, durable pending/rejected/cancelled operations, installed direct SQL,
 physical collection or named KV/Document/computation execution. The storage

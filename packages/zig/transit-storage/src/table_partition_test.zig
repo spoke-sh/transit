@@ -489,6 +489,11 @@ test "Table rename ALTER and DROP preserve exact receipts and pinned original in
     _ = try table.changeDefinition(drop, .{ .drop = "renamed" }, access.guard());
     _ = try table.apply(original, &.{change(&cell, 1)}, .point, access.guard());
     try t.expectEqual(end, table.root.next_lsn);
+    const accepted_rename = (try table.observeEvidence(rename, access.guard())).?;
+    try t.expectEqual(@as(u64, 2), accepted_rename.resulting.interpretation.revision);
+    try t.expect(!accepted_rename.resulting.retired);
+    try t.expectEqualDeep(rename, accepted_rename.binding);
+    try t.expectEqual(@as(u64, 1), (try table.observeEvidence(original, access.guard())).?.resulting.interpretation.revision);
     try t.expectError(error.TableRetired, table.get(t.allocator, row_key, access.guard()));
     try t.expectError(error.TableRetired, table.apply(binding(&table, 20), &.{change(&cell, 20)}, .point, access.guard()));
     for ([_]P.SnapshotHandle{ old_pin, renamed_pin }) |handle| {

@@ -15,6 +15,11 @@ const Snapshot = @import("TableSnapshot.zig");
 const Self = @This();
 pub const Root = r.Root;
 pub const Outcome = r.Outcome;
+pub const Evidence = struct {
+    binding: d.Binding,
+    resulting: Declaration.Stored,
+    outcome: Outcome,
+};
 pub const max_changes = 1024;
 pub const max_row_bytes = Log.max_payload_bytes - r.max_metadata_bytes - r.header_bytes;
 
@@ -192,11 +197,19 @@ fn observed(self: *Self, binding: d.Binding) !?r.Record {
 }
 
 pub fn observe(self: *Self, binding: d.Binding, guard: Guard) !?Outcome {
+    const evidence = try self.observeEvidence(binding, guard) orelse return null;
+    return evidence.outcome;
+}
+
+/// Returns the original resulting definition, even after later DDL. A catalog
+/// must not substitute the current head when finishing an earlier operation.
+pub fn observeEvidence(self: *Self, binding: d.Binding, guard: Guard) !?Evidence {
     try self.ready();
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     const record = try self.observed(binding) orelse return null;
-    return (try record.receipt()).outcome;
+    const receipt = try record.receipt();
+    return .{ .binding = receipt.binding, .resulting = record.root.declared(), .outcome = receipt.outcome };
 }
 
 fn expectations(self: *Self, binding: d.Binding) !void {
