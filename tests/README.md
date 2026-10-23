@@ -1,5 +1,42 @@
 # Validation and evidence
 
+## Console help and statement outcomes — 2026-10-22
+
+`zig build test-console-history` includes the real executable's independent
+help and outcome peers alongside history, editor and terminal input checks.
+The focused run passes compact/alphabetical help, expanded and case-insensitive
+command/topic help, unchanged text in either output mode, argument rejection,
+and removal of the public recovery commands without issuing SQL for help.
+
+The outcome peer verifies authoritative completion/counts, rejection, partial
+application, unchanged writes, lost execute replies, transient observation
+failures, expired sessions, current denial, changed instances, empty results and
+incomplete row streams. It checks that discovery of an accepted write uses the
+same completion budget as direct acceptance. Interrupt schedules cover submit,
+fetch, waiting, completion races and stalled cancellation; trailing batch SQL
+is discarded. Each schedule observes exactly one SQL submission. These are
+client behavior checks, not write-durability evidence.
+
+`zig build test-cli-lifecycle` passes all 31 checks, including partial-result
+warnings alongside typed SQL diagnostics with hidden workflow actions.
+`zig build test-cli-diagnostics` passes 193 public CLI cases. Connection files
+reject the removed execution selector. The native protocol still admits
+captured reads and operation controls; private test clients exercise those
+interfaces without adding console commands. `just test::server-sql-lifetimes`
+passes native lease expiry, idle PostgreSQL/MySQL plaintext/TLS sessions, explicit
+idle expiry and finite partial-frame deadlines.
+
+The real-server reply-loss scenario confirms the original write after lost
+execute/status replies, verifies one submission and its stored value, and keeps
+another console responsive while a reply is held. `just test::server` passes its
+full lifecycle and original-identity restart recovery in 305.75 seconds.
+`just check` passes shared units, diagnostic and terminal checks, generated
+contracts, frontend checks and the documentation build. The physical ENOSPC
+fixture in `tests/server_capacity.py` is migrated to that same native helper;
+this change does not claim a new physical-capacity run. Full shared statement
+results and coherent table rendering across transport batches remain future
+work, directed by the root and CLI agent instructions.
+
 ## Two-command Transit CLI
 
 The installed `transit` exposes `server` and `console`. The removed command
