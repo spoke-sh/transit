@@ -49,6 +49,19 @@ pub fn end(self: *Self) !u64 {
     return if (self.file) |file| (try file.stat(self.io)).size else self.count;
 }
 
+/// History records submissions before validation, including failed SQL. Honor
+/// the same denial floor and bounded disk scan as ordinary terminal recall.
+pub fn latestSql(self: *Self, output: []u8) ![]const u8 {
+    var before = try self.end();
+    while (try self.previous(before, output)) |entry| {
+        if (Signals.interrupted()) return error.ConsoleInterrupted;
+        const text = output[0..entry.length];
+        if (!std.mem.startsWith(u8, std.mem.trimStart(u8, text, " \t\r\n"), ".")) return text;
+        before = entry.position;
+    }
+    return output[0..0];
+}
+
 fn eligible(statement: []const u8) bool {
     const trimmed = std.mem.trim(u8, statement, " \t\r\n");
     if (trimmed.len == 0 or trimmed.len > max_bytes) return false;

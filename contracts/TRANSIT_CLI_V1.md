@@ -320,8 +320,27 @@ not execution identity or recovery authority. The
 [console guide](../apps/transit-cli/docs/console.md#input-commands-and-results)
 defines search keys, local-file handling and limits.
 
+Interactive `.edit` accepts no arguments and loads the latest SQL history entry,
+including failed SQL, while skipping dot commands. With no SQL it opens an empty
+file. `$EDITOR` selects a program and optional quoted/escaped arguments without
+shell expansion, bounded to 4096 bytes and 64 arguments. An unset/empty value
+rejects. The editor gets a private temporary `.sql` file and foreground terminal
+control; the console keeps the session alive while waiting. An editor that
+detaches must be configured to wait for the file to close.
+
+After a successful editor exit, a write or atomic replacement of that file
+selects one fresh SQL submission. Saving identical text still selects execution;
+closing without a save, an empty file, or editor failure does not. Saves do not
+execute while the editor remains open. The saved file must be regular, valid
+UTF-8 SQL within the 4096-byte terminal budget; dot commands reject and a trailing
+semicolon is optional. The console restores terminal ownership/modes and removes
+its temporary directory on completion or handled interruption. Save observation
+failure rejects rather than guessing. SQL is recorded before execution and uses
+the ordinary session, current authorization and a new admission token; this is
+not exact recovery of a prior request.
+
 The console exposes `.help`, `.info`, `.tables`, `.sources`, `.schema`, `.status`,
-`.resume [ID]`, `.cancel`, `.mode table|json`, `.timer on|off`, `.show`, `.connect PATH` and `.quit`.
+`.resume [ID]`, `.cancel`, `.mode table|json`, `.timer on|off`, `.show`, `.connect PATH`, `.edit` and `.quit`.
 `.show` emits one setting per line on stdout, with right-aligned names, aligned
 colons and escaped text values, independently of the query result format.
 Automatic connection selection is `(automatic)`; boolean settings use `on`/`off`.

@@ -379,6 +379,11 @@ pub const Console = struct {
         return .{ .operation = .{ .account = self.client.account.?, .kind = kind, .id = try std.fmt.parseInt(u64, identifier, 10) } };
     }
     fn dispatch(self: *Console, text: []const u8, a: std.mem.Allocator) !void {
+        if (@import("ExternalEditor.zig").isCommand(text)) {
+            const err = if (!std.mem.eql(u8, text, ".edit")) error.InvalidEditCommand else error.EditRequiresTerminal;
+            self.diagnostic.summary = @import("ExternalEditor.zig").message(err);
+            return err;
+        }
         if (std.mem.eql(u8, text, ".help") or std.mem.startsWith(u8, text, ".help ")) return @import("ConsoleHelp.zig").write(self, std.mem.trim(u8, text[5..], " \t"));
         if (std.mem.startsWith(u8, text, ".connect ")) {
             if (self.batch) return error.ConnectionSwitchRequiresTerminal;

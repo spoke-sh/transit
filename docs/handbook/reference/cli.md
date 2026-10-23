@@ -236,6 +236,7 @@ commands are unsupported. Completion never submits.
 | `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
 | `.info` | Current account/database and authorized source bindings |
 | `.execute FILE` | Execute a typed query object |
+| `.edit` | Open the latest SQL, including failed SQL, in `$EDITOR`; save and close to submit |
 | `.status [all\|KIND:ID\|token:HEX]` | Observe currently authorized retained operations |
 | `.resume [KIND:ID\|token:HEX]` | Reconcile the original accepted operation |
 | `.cancel [KIND:ID\|token:HEX]` | Request cancellation through the operation's owner; publication cannot be undone |
@@ -251,6 +252,15 @@ lists authorized retained operations. The [console guide](../../../apps/transit-
 defines controls and source selection. `.new`, `.retry`, `.advance`, `.next`
 and manual recovery exports are not console commands. `query` keeps its separate
 explicit native protocol and recovery commands.
+
+`.edit` is interactive-only, skips dot commands in history and opens a blank
+file when no SQL is available. Configure `$EDITOR`, including a wait argument
+for editors such as `code --wait`. Saving and closing submits once even when
+the SQL is unchanged; closing without a save does nothing. In Vim, `:wq`
+submits and `:q` without a save does not. An editor failure or empty saved file
+submits nothing. The [external editor guide](../../../apps/transit-cli/docs/console.md#external-editor)
+defines temporary files, argument parsing and the statement limit. This is a
+fresh SQL submission under current rights; exact recovery uses `.resume`.
 
 ## Catalog commands
 

@@ -392,8 +392,10 @@
         "ConsoleCommandFailed": 1,
         "ConsoleInputTooLarge": 1,
         "ConsoleInterrupted": 3,
+        "EditRequiresTerminal": 1,
         "EndOfStream": 1,
         "FileNotFound": 1,
+        "InvalidEditCommand": 1,
         "InvalidSqlEndpoint": 2,
         "InvalidSqlOperationReference": 1,
         "InvalidSqlResponse": 11,
@@ -452,6 +454,7 @@
       "imports": [
         "ConsoleHelp.zig",
         "Diagnostic.zig",
+        "ExternalEditor.zig",
         "InputPosition.zig",
         "Options.zig",
         "Output.zig",
@@ -622,6 +625,45 @@
       "imports": [
         "std",
         "transit_query"
+      ]
+    },
+    "apps/transit-cli/ExternalEditor.zig": {
+      "errors": {
+        "ConsoleInterrupted": 1,
+        "EditRequiresSql": 2,
+        "EditRequiresTerminal": 1,
+        "EditorFailed": 3,
+        "EditorLaunchFailed": 2,
+        "EditorNotConfigured": 3,
+        "EditorStopped": 2,
+        "EditorWatchFailed": 7,
+        "InvalidEditCommand": 1,
+        "InvalidEditedFile": 3,
+        "InvalidEditorCommand": 5,
+        "InvalidSqlEncoding": 2,
+        "StatementTooLarge": 1,
+        "TerminalSetupFailed": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Command.parse()": "<inferred>",
+        "Watch.drain()": "<inferred>",
+        "Watch.open()": "<inferred>",
+        "edit()": "<inferred>",
+        "foreground()": "<inferred>",
+        "wait()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 21,
+        "catch": 4
+      },
+      "imports": [
+        "Console.zig",
+        "Output.zig",
+        "Signals.zig",
+        "std"
       ]
     },
     "apps/transit-cli/FileCapture.zig": {
@@ -934,7 +976,7 @@
     },
     "apps/transit-cli/History.zig": {
       "errors": {
-        "ConsoleInterrupted": 2,
+        "ConsoleInterrupted": 3,
         "HistoryBusy": 1,
         "HistoryChanged": 5,
         "HomeDirectoryUnavailable": 2,
@@ -947,6 +989,7 @@
       "error_returns": {
         "decode()": "<inferred>",
         "end()": "<inferred>",
+        "latestSql()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
         "previous()": "<inferred>",
@@ -954,7 +997,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 24,
         "catch": 3
       },
       "imports": [
@@ -1290,6 +1333,7 @@
         "ConsoleRecoverySyncFailed": 1,
         "ConsoleRecoveryWriteFailed": 1,
         "ConsoleWriterRequired": 2,
+        "EditRequiresTerminal": 2,
         "FileQueryInterrupted": 1,
         "InstallationIdentityMismatch": 1,
         "InstallationInUse": 1,
@@ -1298,6 +1342,7 @@
         "InvalidConfiguration": 2,
         "InvalidConfigurationPath": 2,
         "InvalidCredentialFile": 2,
+        "InvalidEditCommand": 2,
         "InvalidInvocation": 1,
         "InvalidQueryInput": 2,
         "InvalidTimingCommand": 2,
@@ -1408,7 +1453,7 @@
     },
     "apps/transit-cli/Terminal.zig": {
       "errors": {
-        "ConsoleInterrupted": 7,
+        "ConsoleInterrupted": 9,
         "ConsoleOutputTimeout": 1,
         "ConsoleQuit": 3,
         "IncompleteSqlStatement": 2,
@@ -1428,6 +1473,7 @@
         "Editor.draw()": "<inferred>",
         "Editor.drawSearch()": "<inferred>",
         "Editor.echo()": "<inferred>",
+        "Editor.editExternal()": "<inferred>",
         "Editor.escape()": "<inferred>",
         "Editor.historyFailure()": "<inferred>",
         "Editor.insert()": "<inferred>",
@@ -1441,11 +1487,12 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 75,
-        "catch": 10
+        "try": 80,
+        "catch": 13
       },
       "imports": [
         "Console.zig",
+        "ExternalEditor.zig",
         "History.zig",
         "Output.zig",
         "Signals.zig",

@@ -60,11 +60,11 @@ pub fn pathFact(value: *d, bytes: []const u8) !void {
 fn general(self: Cli, err: anyerror) !d {
     const cause = self.cause orelse err;
     const local = self.presentation != .general or switch (err) {
-        error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge, error.ConsoleWriterRequired, error.ConsoleCatalogRequired, error.ConsoleRecoveryRequired, error.UnknownConsoleCommand, error.UnknownHelpTopic, error.InvalidTimingCommand, error.UnsupportedFormat => true,
+        error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge, error.ConsoleWriterRequired, error.ConsoleCatalogRequired, error.ConsoleRecoveryRequired, error.UnknownConsoleCommand, error.UnknownHelpTopic, error.InvalidTimingCommand, error.UnsupportedFormat, error.InvalidEditCommand, error.EditRequiresTerminal => true,
         else => false,
     };
     const info: struct { []const u8, d.Category, d.Stage, []const u8 } = switch (err) {
-        error.InvalidInvocation => .{ "cli.invalid_invocation", .syntax, .input, "The command or its options are invalid." },
+        error.InvalidInvocation, error.InvalidEditCommand, error.EditRequiresTerminal => .{ "cli.invalid_invocation", .syntax, .input, "The command or its options are invalid." },
         error.InvalidConfiguration, error.InvalidConfigurationPath => .{ "cli.invalid_configuration", .binding, .input, "The command configuration could not be loaded or validated." },
         error.InvalidCredentialFile => .{ "cli.credential_unavailable", .access, .prepare, "The signing credential could not be loaded. Check the configured file and its permissions without disclosing its contents." },
         error.InvalidQueryInput => .{ "cli.invalid_query_input", .syntax, .input, "Supply a JSON query object or exact scalar parameter array for this interface." },

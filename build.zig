@@ -831,7 +831,7 @@ pub fn build(b: *std.Build) void {
     history_test.addArtifactArg(console_input_gate);
     history_test.has_side_effects = true;
     history_test.stdio = .inherit;
-    b.step("test-console-history", "Check real terminal history search and persistence").dependOn(&history_test.step);
+    b.step("test-console-history", "Check real terminal history, persistence and external editing").dependOn(&history_test.step);
     const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
     file_query_test.addArtifactArg(query_shell);
