@@ -4,6 +4,8 @@ const core = @import("transit_core");
 const backend = @import("transit_backend_local");
 const telemetry = @import("transit_observability").telemetry;
 const server = @import("NativeServer.zig");
+const Maintenance = @import("GrowingMaintenance.zig");
+const Self = @This();
 pub const Store = backend.Store;
 pub const PageStore = backend.PageStore;
 pub const Engine = core.growing.Engine(Store, PageStore);
@@ -19,6 +21,7 @@ const Config = struct {
     storage: core.protocol.Storage.Settings = .{},
     accept_trace_parent: bool = false,
     request_metrics: bool = false,
+    maintenance: ?Maintenance.Config = null,
 };
 
 pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics: *telemetry.Runtime) !void {
@@ -27,6 +30,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     const config = parsed.value;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
+    if (config.storage.maintenance.compact) return error.LocalCompactionUnavailable;
     var owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
     defer owner.deinit();
     var pages = try PageStore.init(&owner, config.resident_pages);
@@ -63,6 +67,37 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         lane.engine.page_store = &lane.pages;
         initialized += 1;
     }
+    if (config.maintenance) |configured| {
+        // This lane shares only the exclusive physical owner. Its mutable
+        // authority, cache and scanner are private to the maintenance task.
+        var maintenance_pages = try PageStore.init(&owner, config.resident_pages);
+        defer maintenance_pages.deinit();
+        maintenance_pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
+        var maintenance_journal: Store = .{ .backend = &owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } };
+        var maintenance_engine = engine;
+        maintenance_engine.journal = &maintenance_journal;
+        maintenance_engine.page_store = &maintenance_pages;
+        var maintenance = configured;
+        maintenance.storage = config.storage.maintenance;
+        const Task = struct {
+            fn run(process: std.process.Init, owned: *Engine, settings: Maintenance.Config, runtime: *telemetry.Runtime) anyerror!void {
+                return Maintenance.run(Self, process, owned, settings, runtime);
+            }
+            fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
+                return server.Host(Self).serve(process, authority, requests, settings, runtime);
+            }
+        };
+        const Result = union(enum) { server: anyerror!void, maintenance: anyerror!void };
+        var results: [2]Result = undefined;
+        var select: std.Io.Select(Result) = .init(init.io, &results);
+        defer select.cancelDiscard(); // Join both tasks before releasing the owner.
+        try select.concurrent(.maintenance, Task.run, .{ init, &maintenance_engine, maintenance, diagnostics });
+        try select.concurrent(.server, Task.serve, .{ init, &engine, lanes, config, diagnostics });
+        return switch (try select.await()) {
+            .server => |result| result,
+            .maintenance => |result| result,
+        };
+    }
     return server.Host(@This()).serve(init, &engine, lanes, config, diagnostics);
 }
 
@@ -88,4 +123,14 @@ pub fn readMetrics(engine: *Engine) ?server.Metrics {
 pub fn trace(engine: *Engine, parent: ?telemetry.Context) void {
     engine.journal.observe.parent = parent;
     engine.page_store.observe.parent = parent;
+}
+
+pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *core.protocol.Growth.Request) !bool {
+    // No local retained-root collector exists yet. Keep every immutable object;
+    // logical lifecycle progress never pretends to have reclaimed physical data.
+    return false;
+}
+
+pub fn reclaimPayload(_: *Engine, _: core.protocol.Growth.Payload) !void {
+    return error.LocalPayloadReclamationUnavailable;
 }

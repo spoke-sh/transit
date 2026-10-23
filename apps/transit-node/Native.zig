@@ -77,7 +77,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if (mode.maintain) {
         var maintenance = config.maintenance orelse return error.MissingMaintenanceConfig;
         maintenance.storage = config.storage.maintenance;
-        return Maintenance.run(init, &engine, maintenance, diagnostics);
+        return Maintenance.run(@This(), init, &engine, maintenance, diagnostics);
     }
     var snapshot_epoch: [16]u8 = undefined;
     try init.io.randomSecure(&snapshot_epoch);
@@ -166,4 +166,38 @@ pub fn readMetrics(engine: *Engine) ?@import("NativeServer.zig").Metrics {
 pub fn trace(engine: *Engine, parent: ?telemetry.Context) void {
     engine.journal.journal.parent_context = parent;
     engine.page_store.authority.parent_context = parent;
+}
+
+pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *g.Request) !bool {
+    var collection = adapter.StorageCollection.init(engine.journal.journal);
+    const saved = try collection.current();
+    if (saved != null and saved.?.phase != .complete) {
+        const now = try engine.clock.?.sample();
+        if (saved.?.phase == .wait and now.lower() > saved.?.grace_until_ms and engine.head.time_floor_ms <= saved.?.grace_until_ms) {
+            request.command = .{ .storage_fence = {} };
+            _ = try engine.submit(try g.sign(request.*, key));
+            return true;
+        }
+        return collection.step(engine, now);
+    }
+    var queue = try engine.page_store.allocations();
+    const inventory = try queue.current();
+    const previous = if (saved) |value| value.inventory_end else 0;
+    if ((saved != null and saved.?.aborted) or inventory.position + 1 - previous >= config.storage.collection_every_records) {
+        if (config.storage.compact and engine.head.compaction.phase != .complete) {
+            request.command = .{ .storage_compact = {} };
+            _ = try engine.submit(try g.sign(request.*, key));
+            return true;
+        }
+        request.command = .{ .storage_fence = {} };
+        const fence = try engine.submit(try g.sign(request.*, key));
+        try collection.start(engine, fence);
+        return true;
+    }
+    return false;
+}
+
+pub fn reclaimPayload(engine: *Engine, payload: g.Payload) !void {
+    var payloads: adapter.PayloadStore = .{ .journal = &engine.journal.journal };
+    try payloads.reclaimPayload(payload);
 }

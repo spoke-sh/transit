@@ -517,8 +517,14 @@ checks bounded numeric provider counters, actual read/write byte accounting and
 diagnostics across restart. The Ursula caller and maintenance fault phases pass;
 the broader Station recovery phase times out at its 240-second schedule limit,
 so the complete Ursula service suite is not recorded as passed for this change.
-This proof does not exercise local maintenance, the
-launcher default, standalone payload publication or direct Table SQL storage.
+The local service target additionally runs maintenance inside the exclusive
+node owner, using the existing public caller's lifecycle assertions. It checks
+accepted-floor WAL trimming, restart after trim, cancellation of pending effects
+and outputs without dispatch, resource/dependent retirement, preservation of an
+independent resource, revocation across restart and resumed trimming after a
+new grant. The independent Python reader verifies the on-disk trim metadata's
+checksum. This does not qualify local immutable-object collection, standalone
+payload publication, the launcher default or direct Table SQL storage.
 
 ## SQL idle lifetimes and readiness observations
 
