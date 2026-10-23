@@ -8,17 +8,26 @@ const Self = @This();
 pub const max_record_bytes = 256 * 1024;
 
 backend: *Backend,
+observe: @import("Diagnostics.zig") = .{},
 cached: ?struct { at: u64, entry: core.growing.Entry } = null,
 /// Failure injection after durable acceptance; used by the recovery proof.
 lose_reply: bool = false,
 
 pub fn tail(self: *Self) !u64 {
+    return self.observe.run(self.backend.io, "native.tail", tailImpl, .{self});
+}
+
+fn tailImpl(self: *Self) !u64 {
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
     return self.backend.wal.log().tail(0);
 }
 
 pub fn appendControlled(self: *Self, expected: u64, entry: core.growing.Entry, control: bool) !bool {
+    return self.observe.run(self.backend.io, "native.append", appendImpl, .{ self, expected, entry, control });
+}
+
+fn appendImpl(self: *Self, expected: u64, entry: core.growing.Entry, control: bool) !bool {
     try validate(entry, expected);
     var bytes: [max_record_bytes]u8 = undefined;
     var out: std.Io.Writer = .fixed(&bytes);
@@ -29,6 +38,7 @@ pub fn appendControlled(self: *Self, expected: u64, entry: core.growing.Entry, c
     const log = self.backend.wal.log();
     if (try log.tail(0) != expected) return false;
     try self.backend.reserve(storage.TransitLog.alignedFrameSize(out.buffered().len) + 128, control);
+    self.observe.metrics.request_payload_bytes +|= out.buffered().len;
     _ = try log.append(0, expected, value_head.storage_epoch, value_head.authorization.revision + 1, if (entry == .genesis) .genesis else .process_turn, out.buffered());
     self.cached = .{ .at = expected, .entry = entry };
     if (self.lose_reply) return error.LostAcknowledgement;
@@ -36,6 +46,10 @@ pub fn appendControlled(self: *Self, expected: u64, entry: core.growing.Entry, c
 }
 
 pub fn read(self: *Self, at: u64) !?core.growing.Entry {
+    return self.observe.run(self.backend.io, "native.read", readImpl, .{ self, at });
+}
+
+fn readImpl(self: *Self, at: u64) !?core.growing.Entry {
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
     // Consult the log even for a cached coordinate: a trim revokes history
@@ -47,6 +61,7 @@ pub fn read(self: *Self, at: u64) !?core.growing.Entry {
     defer batch.deinit();
     if (batch.frames.len == 0) return null;
     const frame = batch.frames[0];
+    self.observe.metrics.response_bytes +|= frame.payload.len;
     if (frame.header.lsn != at or frame.header.partition_id != 0 or frame.payload.len > max_record_bytes) return error.InvalidHistory;
     if (frame.header.kind != (if (at == 0) storage.TransitLog.FrameKind.genesis else .process_turn)) return error.InvalidHistory;
     const parsed = try std.json.parseFromSlice(core.growing.Entry, self.backend.allocator, frame.payload, .{});
@@ -84,6 +99,10 @@ fn validate(entry: core.growing.Entry, at: u64) !void {
 /// The latest entry and all immutable objects remain. Exact retry records and
 /// captured roots continue to live in that entry's catalog.
 pub fn maintain(self: *Self, authorized: core.growing.Head) !void {
+    return self.observe.run(self.backend.io, "native.trim", maintainImpl, .{ self, authorized });
+}
+
+fn maintainImpl(self: *Self, authorized: core.growing.Head) !void {
     if (authorized.history_floor == 0 or authorized.history_floor >= authorized.position) return error.NoCheckpointIntent;
     const position = try self.tail();
     if (position == 0) return error.InvalidHistory;
