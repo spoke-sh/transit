@@ -25,7 +25,7 @@ observe the old or fully published successor Table, never partial deletion.
 After an uncertain response, inspect and resume the original saved operation.
 Repeating SQL creates new work. Cancellation cannot undo an already published
 result; dropping and recreating a name cannot redirect the saved deletion to
-the replacement object. See the [console recovery guide](../../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+the replacement object. See the [console guide](../../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 and [DML contract](../../../../contracts/TABLE_DML_V1.md).
 
 Removing current rows does not remove the Table definition or erase retained

@@ -43,7 +43,8 @@ still applies during continuation and outcome inspection.
 
 Captured readers retain their original schema and cut. New plans resolve the
 new metadata; previously prepared or pending work cannot silently recompile.
-After uncertainty use `.status` and `.resume` on the saved operation. Cancellation
+The console checks the original request after uncertainty and reports an
+unconfirmed outcome if it cannot establish completion. Cancellation
 can close pending work but cannot reverse an applied schema change.
 
 See [Tables](../tables.md), [schema evolution](../../../../contracts/TABLE_SCHEMA_V1.md#pure-schema-evolution)

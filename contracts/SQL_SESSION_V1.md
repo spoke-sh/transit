@@ -186,6 +186,12 @@ this native admission token.
 
 ## Authority, bounds and failure
 
+Errors before durable admission, including invalid session settings and SQL
+validation, do not request operation observation. Errors while locating an
+existing token, admitting work or observing accepted work can require checking
+the original token. A conflicting token is rejected and never substitutes the
+original statement's result for different SQL.
+
 Current account enablement, credential epoch, selected role and object rights
 are checked before protected metadata, each result batch (including repeats and
 empty results), and terminal counts. The service clears protected buffered state

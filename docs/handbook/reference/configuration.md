@@ -162,8 +162,8 @@ Reload is a standalone statement, including when prepared by a database driver.
 Preparation does not dispatch it. It returns an operation ID; inspect history for
 its outcome. Validation failures retain an operation and return an error without
 changing active values. Reusing an exact saved operation returns its retained
-outcome. In the Transit console, `.status` inspects and `.resume` reconciles a
-saved reload; these existing controls do not select a new configuration source.
+outcome. The Transit console waits for the original reload and reports its completion,
+partial application or unconfirmed outcome without selecting a new source.
 An unresolved reload prevents a new console mutation. A timeout or lost reply
 does not prove that reload failed.
 

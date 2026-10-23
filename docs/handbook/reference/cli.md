@@ -50,7 +50,7 @@ required input can add the minimum invocation. Full option lists belong in help.
 
 Console guidance stays in the console: errors point to `.help`, statement help
 such as `.help CREATE TABLE`, or inspection commands such as `.schema`, `.sources`
-and `.status`. Console output does not refer users to documentation pages or
+and `.show`. Console output does not refer users to documentation pages or
 repository paths.
 
 A correction that fits in the error needs no additional guidance:
@@ -121,8 +121,8 @@ Unknown failures retain their identifiers; include the diagnostic and executable
 version when reporting them. Diagnostic wording and underlying error names are
 human interfaces, not a stable machine schema.
 
-Recovery advice respects durable identity. An uncertain operation calls for
-inspection or retry of its saved signed intent. It does not imply rejection,
+Recovery advice respects durable identity. The shared client checks an uncertain statement through its original identity;
+unresolved outcomes remain explicit. It does not imply rejection,
 suggest fresh SQL as a retry, or recommend deleting history. A server identity
 mismatch asks for the recorded configuration and matching executables. Use the same server command
 for first startup and restarts. Set
@@ -155,32 +155,34 @@ script and accept a complete final statement at EOF. Batch execution stops on
 the first error. Dot commands start an empty draft and end at newline; slash
 commands are unsupported. Completion never submits.
 
-| Command | Meaning |
+| Command | Purpose |
 | --- | --- |
-| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE\|ALTER TABLE\|DROP TABLE]` | Show SQL, commands and configured write routes |
-| `.sources`, `.schema` | Inspect the authorized query source and schema |
-| `.tables` | List the configured catalog, or the query source when no catalog is configured |
-| `.mode table\|json` | Select result presentation |
-| `.timer on\|off` | Report query phase wall times to stderr; off by default |
-| `.connect PATH` | Open an independent connection in a terminal; accepted work remains with the service |
-| `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
+| `.connect FILE` | Open a new independent connection in a terminal |
+| `.edit` | Edit the latest SQL in `$EDITOR`; save and close to submit |
+| `.execute FILE` | Execute a typed JSON query object |
+| `.help [--all] [TOPIC]` | List commands or show focused help |
 | `.info` | Current account/database and authorized source bindings |
-| `.execute FILE` | Execute a typed query object |
-| `.edit` | Open the latest SQL, including failed SQL, in `$EDITOR`; save and close to submit |
-| `.status [all\|KIND:ID\|token:HEX]` | Observe currently authorized retained operations |
-| `.resume [KIND:ID\|token:HEX]` | Reconcile the original accepted operation |
-| `.cancel [KIND:ID\|token:HEX]` | Request cancellation through the operation's owner; publication cannot be undone |
-| `.quit`, EOF | Disconnect; durable accepted work persists |
+| `.mode table\|json` | Select SQL result presentation |
+| `.quit`, EOF | Close this session |
+| `.schema [TABLE]` | Show table columns, or list available tables |
+| `.show` | Presentation preferences and their origins |
+| `.sources` | Alias for `.info` |
+| `.tables` | List available tables |
+| `.timer on\|off` | Enable or disable query timing |
 
-SELECT uses a fresh leased snapshot and executes in the shared SQL service.
-`execution: captured` selects durable query execution over a named service-owned
-source. Table writes, captured queries and configuration operations retain their
-original intents in the service's account ledger. Each operation still requires
-current native and catalog rights. `KIND` is `table`, `configuration` or
-`captured`; a bare ID selects a Table operation. In a fresh session, `.status`
-lists authorized retained operations. The [console guide](../../../apps/transit-cli/docs/console.md#input-commands-and-results)
-defines controls and source selection. `.new`, `.retry`, `.advance`, `.next`
-and manual recovery exports are not console commands.
+`.help` prints an alphabetical command index with one description per line.
+`.help --all` expands those same entries with arguments, notes and examples.
+`.help edit` and `.help .EDIT` show the same focused command help. Topics are
+case-insensitive; `.help sql`, `.help settings` and `.help shortcuts` cover SQL,
+configuration and terminal keys. Statement topics such as `.help INSERT` and
+`.help ALTER TABLE` describe only the selected statement. Help always prints
+text, including in JSON result mode, and submits no SQL.
+
+SELECT uses a fresh leased snapshot in the shared SQL service. Table writes and
+configuration reloads remain owned by the service. The console waits for their
+outcome and exposes no operation-management commands. The
+[console guide](../../../apps/transit-cli/docs/console.md#input-commands-and-results)
+defines result presentation and source selection.
 
 `.edit` is interactive-only, skips dot commands in history and opens a blank
 file when no SQL is available. Configure `$EDITOR`, including a wait argument
@@ -189,7 +191,7 @@ the SQL is unchanged; closing without a save does nothing. In Vim, `:wq`
 submits and `:q` without a save does not. An editor failure or empty saved file
 submits nothing. The [external editor guide](../../../apps/transit-cli/docs/console.md#external-editor)
 defines temporary files, argument parsing and the statement limit. This is a
-fresh SQL submission under current rights; exact recovery uses `.resume`.
+fresh SQL submission under current rights, including after an uncertain outcome.
 
 ## Configuration, output and recovery
 
@@ -203,17 +205,31 @@ are explicit. Each result page is bounded; the console does not accumulate
 all rows. Previously displayed output cannot be recalled after revocation.
 
 For `console`, normal disconnect/help exits 0, invalid invocation/configuration
-exits 2, and runtime or piped-command failure exits 1. Ctrl-C stops the current
-wait and asks the service to stop its active read. Accepted mutations survive
-connection loss; `.cancel` explicitly addresses the original operation and does
-not undo published data. Session expiry releases temporary cursors without
-expiring accepted history.
+exits 2, and runtime or piped-command failure exits 1. Batch interruption exits
+130 and stops subsequent input. Ctrl-C clears a draft or requests interruption
+of the current statement. Cancellation cannot undo a completed write; a lost
+response can leave its outcome unconfirmed. Session expiry releases temporary
+cursors without expiring accepted history.
 
-On an uncertain write, retain the request token printed by the console. After
-reconnecting, inspect that token or list account operations before deciding what
-to do next. Repeating the SQL allocates a new token and can create another write.
-Captured results can be opened again from their beginning under current rights,
-possibly repeating displayed rows. An interactive result cannot resume after
-loss of its logical session. The [SQL session reference](sql-sessions.md) and
-[console recovery guide](../../../apps/transit-cli/docs/console.md#exact-recovery-and-bounds)
+The console reports statement completion and authoritative matched/changed
+counts. Accepted statements emit a JSON `completion` object with `outcome`,
+`matched`, `changed` and `pending_restart`; direct session completions retain
+`kind`, `matched` and `changed`. No operation token or workflow phase is printed.
+Rejected, cancelled, partial and unconfirmed outcomes are errors, not successful
+completion records. The current accepted-operation response has no SQL command
+tag, so its human output uses “Statement completed” rather than guessing a
+statement kind from SQL text.
+
+After a lost write response, the shared client checks the original request
+within a bounded deadline. It never submits the SQL again. If the original
+session expired, a separate authenticated observation session can check that
+request against the same instance and account. This does not restore the user's
+session or its settings; further SQL requires reconnection. A timeout, missing
+observation or failed authorization cannot establish that a write failed.
+Unconfirmed outcomes explicitly warn that running the statement again may apply
+changes twice.
+
+An interactive result cannot resume after loss of its logical session. The
+[SQL session reference](sql-sessions.md) and
+[console guide](../../../apps/transit-cli/docs/console.md#session-lifetime-and-bounds)
 define these lifetimes and bounds.

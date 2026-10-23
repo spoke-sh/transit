@@ -41,7 +41,6 @@ password_file: ./sql-password
 ca_file: ./database-ca.pem
 request_timeout_ms: 30000
 format: table
-execution: interactive
 ```
 
 ```sh
@@ -59,9 +58,9 @@ kernel principal, worker, catalog, signing seed or recovery path.
 `source: NAME` selects a service-configured KV, Document or Table source binding.
 The service checks the account, database, source caller and current source
 policy. See [source declarations](../../../packages/zig/transit-sql/docs/sources.md).
-`execution: captured` submits finite source SELECT through the durable query
-owner; it requires a selected source. Ordinary catalog SELECT uses interactive
-snapshots. Settings and Table writes keep their respective owners in either mode.
+Catalog and configured-source SELECT use interactive snapshots. There is no
+console execution-mode setting. Captured queries remain a native service API
+capability, separate from the console's SQL session workflow.
 
 ## Startup preferences
 
@@ -73,7 +72,7 @@ The console merges settings in this order; later assignments win:
 
 Missing files are skipped; an unreadable or invalid file stops startup. Each file
 is at most 64 KiB. Blank lines and `#` comment lines are ignored. Only `.mode`,
-`.timer` and `.connect` settings are accepted; SQL and recovery operations cannot run at startup.
+`.timer` and `.connect` settings are accepted; SQL cannot run at startup.
 For example, a project `.transitrc` can contain:
 
 ```text
@@ -103,8 +102,8 @@ directory with the same topology configuration and environment. A missing or sta
 `SHOW ALL`, `SHOW ports.gateway` and `transit_settings()` inspect the connected
 server. `SELECT transit_reload_conf()` validates and reloads its pinned source
 with its captured startup environment. The service records the original reload
-identity. Reconnection and `.resume` observe or continue that identity without
-reading a newly changed file as a new request. A partial application is reported
+identity. The console waits for that request and reports its outcome without
+reading a newly changed file as a replacement request. A partial application is reported
 as partial, never as success. Configuration operations cannot be cancelled.
 
 `SET query.statement_timeout = '5s'`, `RESET query.statement_timeout` and
@@ -127,9 +126,8 @@ are bound to the prepared type; they are never text substitution. The service
 prepares against currently authorized metadata, validates before execution, and
 rejects changed schemas. Up to 65 scalar bindings and 131072 input-file bytes
 are accepted. Source bindings currently require non-null scalar parameters.
-Captured execution freezes the bound bundle; changing or deleting the input
-file cannot change accepted work. Use `.resume` for recovery; executing SQL again
-requests new work.
+Changing or deleting an input file cannot change already accepted work.
+Executing the SQL again requests new work.
 
 ## Finite relational queries
 
@@ -183,23 +181,44 @@ Errors remain human-readable on stderr.
 
 | Command | Purpose |
 | --- | --- |
-| `.help [SQL\|SETTINGS\|INSERT\|UPDATE\|DELETE\|CREATE TABLE\|ALTER TABLE\|DROP TABLE]` | Offline syntax help |
-| `.tables`, `.schema [NAME]` | Table inventory or named schema |
-| `.sources`, `.info` | Current account/database and authorized source bindings |
-| `.mode table\|json`, `.timer on\|off`, `.show` | Presentation preferences and their origins |
-| `.execute FILE` | Execute a typed query object |
+| `.connect FILE` | Open a new independent connection in a terminal |
 | `.edit` | Edit the latest SQL in `$EDITOR`; save and close to submit |
-| `.connect PATH` | Open a new independent connection in a terminal |
-| `.status [all\|KIND:ID\|token:HEX]` | Observe current authorized retained operations |
-| `.resume [KIND:ID\|token:HEX]` | Reconcile the original accepted operation |
-| `.cancel [KIND:ID\|token:HEX]` | Request cancellation through its owner |
+| `.execute FILE` | Execute a typed JSON query object |
+| `.help [--all] [TOPIC]` | List commands or show focused help |
+| `.info` | Current account/database and authorized source bindings |
+| `.mode table\|json` | Select SQL result presentation |
 | `.quit`, EOF | Close this session |
+| `.schema [TABLE]` | Show table columns, or list available tables |
+| `.show` | Presentation preferences and their origins |
+| `.sources` | Alias for `.info` |
+| `.tables` | List available tables |
+| `.timer on\|off` | Enable or disable query timing |
 
-`KIND` is `table`, `configuration` or `captured`. A bare numeric ID selects a
-Table operation. Without an argument, controls use the last observed identity;
-`.status` in a fresh console lists the account's authorized operations in bounded
-pages. It does not submit work. A captured operation can be observed from another
-session; fetching its result requires selecting its original source binding.
+`.help` prints an alphabetical command index with one description per line.
+`.help --all` expands those same entries with arguments, notes and examples.
+`.help edit` and `.help .EDIT` show the same focused command help. Topics are
+case-insensitive; `.help sql`, `.help settings` and `.help shortcuts` cover SQL,
+configuration and terminal keys. Statement topics such as `.help INSERT` and
+`.help ALTER TABLE` describe only the selected statement. Help always prints
+text, including in JSON result mode, and submits no SQL.
+
+The console reports statement completion and authoritative matched/changed
+counts. Accepted statements emit a JSON `completion` object with `outcome`,
+`matched`, `changed` and `pending_restart`; direct session completions retain
+`kind`, `matched` and `changed`. No operation token or workflow phase is printed.
+Rejected, cancelled, partial and unconfirmed outcomes are errors, not successful
+completion records. The current accepted-operation response has no SQL command
+tag, so its human output uses “Statement completed” rather than guessing a
+statement kind from SQL text.
+
+After a lost write response, the shared client checks the original request
+within a bounded deadline. It never submits the SQL again. If the original
+session expired, a separate authenticated observation session can check that
+request against the same instance and account. This does not restore the user's
+session or its settings; further SQL requires reconnection. A timeout, missing
+observation or failed authorization cannot establish that a write failed.
+Unconfirmed outcomes explicitly warn that running the statement again may apply
+changes twice.
 
 JSON emits a `sql_session_v1` schema header even for an empty result, one typed
 `row` envelope at a time, then a final `complete_coverage` record with exact row
@@ -254,7 +273,8 @@ bytes reject. The console creates a private directory and file under `$TMPDIR`
 (default `/tmp`) and removes them when editing ends. Edited SQL enters history
 before execution, so failed edits remain available to the next `.edit`.
 Execution uses current session settings and permissions and creates a new request
-token. Use `.resume` with the original identity to recover accepted work.
+identity. Editing and submitting SQL is a new execution, including after an
+uncertain outcome.
 
 ## SQL errors
 
@@ -264,37 +284,36 @@ use statement-relative byte offsets; details derive from the failing compilation
 without extra stored-value reads. Errors render this evidence as human-readable text on stderr.
 
 Transport failure does not establish whether a write was accepted. The console
-prints its original request token on uncertainty. Inspect that token or list
-operations after reconnecting; repeating the SQL allocates a new token and can
-create new work. Denial, changed credentials and changed definitions remain
-separate from transient availability failures.
+checks its original request internally and reports an unconfirmed outcome when
+it cannot establish the result. Denial, changed credentials and changed server
+identity do not authorize another execution.
 
-## Exact recovery and bounds
-
-The service durably binds each admission token to instance, account, database,
-source, SQL, typed parameters and execution mode. Reusing a token with different
-input rejects. Repeating the same accepted request finds its original operation
-before compilation. Table intents, configuration requests and captured query
-bundles remain with their respective durable owners. Recovery reuses published
-signed steps; it never reconstructs accepted work from SQL.
+## Session lifetime and bounds
 
 A session is an expiring handle, not a durable operation. Each session has at
 most 32 prepared statements and one active result cursor. Fetching the last batch
 again returns that batch under current rights. Acknowledging it advances the
 existing iterator; invalid sequencing closes the cursor. Session expiry or service
-restart invalidates interactive cursors. Open a new session to inspect accepted
-operations; starting a new SELECT captures a new snapshot.
+restart invalidates interactive cursors. Starting a new SELECT captures a new snapshot; a lost cursor is not reopened
+automatically.
 
 Native messages are limited to 4 MiB; batches carry at most 32 rows and 1 MiB of
 canonical cells. SQL API input is at most 64 KiB; the console editor and source
 compiler retain their 4096-byte statement bound. `request_timeout_ms` is
-1–270000 ms. Idle consoles renew their lease. Service account/session,
+1–270000 ms. Uncertain initial submissions use the remaining request budget;
+known accepted statements are observed for at most 270 seconds from submission.
+Polling and reconnection do not reset those deadlines. Idle consoles renew their lease. Service account/session,
 authentication, execution and operation quotas are explicit settings.
 
-Ctrl-C stops the current wait and asks the service to stop its active read.
-Accepted mutations survive connection loss; `.cancel` explicitly addresses the
-original operation. Cancellation does not undo published data or revoke output
-already displayed. Captured results can be read again after reconnecting, which
-can repeat previously displayed rows. Output writes have a two-second deadline.
+Ctrl-C requests interruption of the current statement and discards remaining
+statements in the submitted draft. Read cancellation releases the active cursor.
+For a write, the client requests cancellation of the original accepted request
+where supported and checks whether completion won the race. A completed write
+remains completed. Configuration reload cannot be cancelled. Cleanup waits at
+most one second; a second Ctrl-C ends statement settlement immediately.
+Unconfirmed cancellation reports an unknown outcome, never rollback. Batch
+interruption stops subsequent input and exits 130. Partial row output has no
+successful completion marker.
+Output writes have a two-second deadline.
 None of these limits expires accepted history. Executed verification and its
 limits are recorded in the [proof ledger](../../../tests/README.md).

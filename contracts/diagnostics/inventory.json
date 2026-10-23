@@ -186,31 +186,31 @@
         "ConnectionSwitchRequiresTerminal": 1,
         "ConsoleCommandFailed": 1,
         "ConsoleInputTooLarge": 1,
-        "ConsoleInterrupted": 3,
+        "ConsoleInterrupted": 6,
         "EditRequiresTerminal": 1,
         "EndOfStream": 1,
         "FileNotFound": 1,
         "InvalidEditCommand": 1,
         "InvalidSqlEndpoint": 2,
-        "InvalidSqlOperationReference": 1,
-        "InvalidSqlResponse": 11,
+        "InvalidSqlResponse": 7,
         "InvalidSqlSyntax": 1,
-        "InvalidSqlToken": 2,
         "InvalidTimingCommand": 2,
-        "NoQuery": 1,
         "ParameterCountMismatch": 1,
-        "SqlOperationIncomplete": 1,
+        "SqlObservationDenied": 2,
+        "SqlOperationPartial": 1,
         "SqlOperationRejected": 1,
-        "SqlOperationWaitEnded": 1,
+        "SqlOutcomeUnknown": 3,
         "SqlServiceError": 2,
+        "SqlSessionExpired": 1,
         "StatementTooLarge": 1,
         "UnknownConsoleCommand": 1,
+        "UnknownHelpTopic": 1,
         "UnsupportedFormat": 1
       },
       "outcomes": {
-        "Config.execution": [
-          "interactive",
-          "captured"
+        "Console.awaitPending().Event": [
+          "reply",
+          "signal"
         ],
         "Console.call().Event": [
           "reply",
@@ -220,12 +220,14 @@
       "error_sets": {},
       "error_returns": {
         "Console.assist()": "<inferred>",
+        "Console.awaitPending()": "anyerror",
         "Console.call()": "<inferred>",
         "Console.checked()": "<inferred>",
         "Console.consume()": "<inferred>",
         "Console.dispatch()": "<inferred>",
         "Console.execute()": "<inferred>",
         "Console.executeWithParameters()": "<inferred>",
+        "Console.finishPending()": "<inferred>",
         "Console.json()": "<inferred>",
         "Console.keepalive()": "<inferred>",
         "Console.perform()": "<inferred>",
@@ -234,17 +236,15 @@
         "Console.query()": "<inferred>",
         "Console.readByte()": "<inferred>",
         "Console.render()": "<inferred>",
-        "Console.showOperation()": "<inferred>",
         "Console.sqlFailure()": "anyerror",
-        "Console.target()": "<inferred>",
         "connection()": "<inferred>",
         "localConfig()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 8,
       "propagation": {
-        "try": 101,
-        "catch": 14
+        "try": 88,
+        "catch": 16
       },
       "imports": [
         "ConsoleHelp.zig",
@@ -275,16 +275,17 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "entry()": "<inferred>",
         "write()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
+        "try": 8,
         "catch": 0
       },
       "imports": [
-        "Console.zig",
-        "std"
+        "std",
+        "transit_query"
       ]
     },
     "apps/transit-cli/ConsoleRelational.zig": {
@@ -322,7 +323,7 @@
         "AuthorityRollback": 1,
         "ChildExited": 2,
         "ConsoleCommandFailed": 1,
-        "ConsoleInterrupted": 1,
+        "ConsoleInterrupted": 2,
         "ConsoleRecoveryIdentityMismatch": 1,
         "ConsoleRecoveryInUse": 1,
         "ConsoleRecoverySyncFailed": 1,
@@ -350,6 +351,8 @@
         "RecoveryIdentityMismatch": 1,
         "RestartBudgetExhausted": 5,
         "RoleReadinessTimeout": 2,
+        "SqlOperationPartial": 1,
+        "SqlOperationRejected": 1,
         "StorageIdentityMismatch": 1,
         "StreamTooLong": 1,
         "SyntaxError": 1,
@@ -383,7 +386,7 @@
       },
       "open_error_set_uses": 18,
       "propagation": {
-        "try": 58,
+        "try": 61,
         "catch": 6
       },
       "imports": [
@@ -401,11 +404,13 @@
       "error_sets": {},
       "error_returns": {
         "escaped()": "<inferred>",
-        "render()": "<inferred>"
+        "render()": "<inferred>",
+        "renderConsole()": "<inferred>",
+        "renderFor()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 35,
         "catch": 0
       },
       "imports": [
@@ -12259,20 +12264,18 @@
           "meta"
         ],
         "Meta": [
+          "connect",
+          "edit",
+          "execute",
           "help",
           "info",
-          "tables",
-          "sources",
-          "schema",
-          "status",
-          "@\"resume\"",
-          "cancel",
           "mode",
           "quit",
-          "connect",
+          "schema",
           "show",
-          "timer",
-          "execute"
+          "sources",
+          "tables",
+          "timer"
         ],
         "Request.mode": [
           "sql",
@@ -12293,7 +12296,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 2
       },
       "imports": [
@@ -16741,10 +16744,12 @@
     "packages/zig/transit-sql-client/src/Client.zig": {
       "errors": {
         "AuthenticationFailed": 3,
+        "Canceled": 1,
         "InvalidSqlClientConfiguration": 1,
         "InvalidSqlEndpoint": 5,
         "InvalidSqlHttpResponse": 2,
         "InvalidSqlResponse": 1,
+        "ReadFailed": 1,
         "SqlInstanceChanged": 1,
         "SqlInstanceRequired": 1,
         "SqlMessageTooLarge": 1,
@@ -16772,8 +16777,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 35,
-        "catch": 0
+        "try": 41,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -16813,6 +16818,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-client/src/Pending.zig": {
+      "errors": {
+        "Canceled": 1,
+        "IncompatibleSqlDefinition": 1,
+        "InvalidSqlResponse": 5,
+        "OutOfMemory": 1,
+        "SqlInstanceChanged": 1,
+        "SqlObservationDenied": 2,
+        "SqlOutcomeUnknown": 5
+      },
+      "outcomes": {
+        "settle().Event": [
+          "result",
+          "timeout"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "observe()": "<inferred>",
+        "run()": "<inferred>",
+        "settle()": "<inferred>",
+        "sleep()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 11,
+        "catch": 1
+      },
+      "imports": [
+        "Client.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -16826,6 +16865,7 @@
       "imports": [
         "Client.zig",
         "Discovery.zig",
+        "Pending.zig",
         "transit_sql_protocol"
       ]
     },
@@ -17778,6 +17818,7 @@
         "SqlSessionExpired": 3,
         "SqlSourceIdentityMismatch": 1,
         "SqlStatementExpired": 1,
+        "SqlTokenConflict": 1,
         "WireParameterCountMismatch": 1
       },
       "outcomes": {},

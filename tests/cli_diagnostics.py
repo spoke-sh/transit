@@ -190,7 +190,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
                          ({'endpoint': 'http://user:private-must-not-appear@127.0.0.1:1'}, 'endpoint'),
                          ({'recovery_file': 'old.json'}, 'unknown field'),
                          ({'catalog': {}}, 'unknown field'), ({'seed_file': 'old.seed'}, 'unknown field'),
-                         ({'execution': 'durable'}, 'configuration')):
+                         ({'execution': 'captured'}, 'unknown field'), ({'execution': 'interactive'}, 'unknown field')):
         path.write_text(json.dumps(dict(console, **patch)))
         invoke(['console', '--no-rc', '--config', path], contains=(field,))
     path.write_text(json.dumps(dict(console, endpoint='https://localhost:19109', authentication='scram', ca_file='missing.pem')))

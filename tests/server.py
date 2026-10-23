@@ -194,6 +194,23 @@ class Fixture:
             return result
         return table_results(json.loads(line) for line in result.stdout.splitlines())
 
+    def sql_session(self, action, **kwargs):
+        from sql_sessions.local import Client
+        client = Client(self.console_config(), self.record()['definition']).open()
+        try:
+            return client.call(action, **kwargs)
+        finally:
+            client.close()
+
+    def sql_operations(self):
+        after, entries = 0, []
+        while True:
+            page = self.sql_session(dict(operations=dict(after=after)))['operations']
+            entries.extend(page['entries'])
+            if page['next'] is None:
+                return entries
+            after = page['next']
+
     def revoke_table_writes(self):
         # Current native domain grants own Table permissions. The old catalog
         # policy record is no longer an authorization source.
@@ -294,7 +311,7 @@ def run(cli, node, host):
                                   'SELECT COUNT(chosen.amount) AS present FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;\n'
                                   'UPDATE items SET value = 101 WHERE id = 1;\n'
                                   'DELETE FROM items WHERE id = 2;\nSELECT value FROM items WHERE id = 1;\n')
-        assert [(row['operation']['matched'], row['operation']['changed']) for row in results if 'operation' in row] == [(2, 2), (1, 1), (1, 1)], results
+        assert [(row['completion']['matched'], row['completion']['changed']) for row in results if 'completion' in row] == [(2, 2), (1, 1), (1, 1)], results
         assert len(results) == 9, results
         for page, count in zip(results[1:6], ('1', '2', '0', '0', '0'), strict=True):
             assert page['complete']['rows'] == '1', page
@@ -320,7 +337,7 @@ def run(cli, node, host):
                               input='.info\n', capture_output=True, text=True, timeout=30)
         assert info.returncode == 0 and json.loads(info.stdout)['database'] == 'transit', info
         # Kill a console after native admission while the owner cannot process
-        # its input. A new console must resume the same saved operation.
+        # its input. The native service must retain and recover the same operation.
         source_pid = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
         os.kill(source_pid, signal.SIGSTOP)
         pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
@@ -330,8 +347,8 @@ def run(cli, node, host):
         try:
             deadline = time.monotonic() + 20
             while True:
-                inventory = fixture.console('.status all\n')
-                unfinished = [entry['operation'] for entry in inventory if entry['operation']['phase'] not in ('terminal', 'abandoned')]
+                inventory = fixture.sql_operations()
+                unfinished = [entry for entry in inventory if entry['phase'] not in ('terminal', 'abandoned')]
                 if unfinished:
                     saved_write = unfinished[-1]
                     operation = saved_write['identity']['id']
@@ -365,14 +382,14 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        observed = fixture.console(f'.status table:{operation}\n')[-1]['operation']
+        observed = fixture.sql_session(dict(status=dict(operation=saved_write['identity'])))['operation']
         assert observed['identity'] == saved_write['identity']
-        resumed = fixture.console(f'.resume table:{operation}\n')[-1]['operation']
+        resumed = fixture.sql_session(dict(resume=saved_write['identity']))['operation']
         deadline = time.monotonic() + 90
         while resumed['phase'] != 'terminal':
             assert resumed['identity'] == saved_write['identity'] and time.monotonic() < deadline, resumed
             time.sleep(.1)
-            resumed = fixture.console(f'.status table:{operation}\n')[-1]['operation']
+            resumed = fixture.sql_session(dict(status=dict(operation=saved_write['identity'])))['operation']
         assert resumed['phase'] == 'terminal' and resumed['outcome'] == 'applied' and resumed['matched'] == resumed['changed'] == 1, resumed
         assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
         fixture.stop(kill=True)
@@ -385,7 +402,7 @@ def run(cli, node, host):
             assert fixture.record()["provision"] == original["provision"]
             fixture.console(".schema\n.quit\n")
             assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
-            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['operation']['changed'] == 0
+            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['completion']['changed'] == 0
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("server.failed ", 1)[-1]

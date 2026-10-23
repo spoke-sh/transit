@@ -155,8 +155,9 @@ configuration and artifacts:
 transit server
 ```
 
-After an interrupted write, use `.status`
-and `.resume` to recover the original operation; repeating SQL creates new work.
+The console checks an interrupted write's original outcome internally. If it
+cannot confirm completion, it reports uncertainty; repeating SQL may apply the
+change twice. Stopping the server does not undo accepted writes.
 Interactive SELECT statements run again against a fresh snapshot.
 If an existing installation contains missing state or a changed artifact,
 startup refuses to recreate its history. Set `startup.require_existing: true`

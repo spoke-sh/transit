@@ -74,15 +74,17 @@ Prepared metadata does not hold a snapshot or permission. Results preserve
 logical values and source basis, including missing/type-error/conflict states.
 Session loss interrupts the result; it does not reopen a different snapshot.
 
-Set `execution: captured` in the native connection file for durable source reads.
+Native session callers request `execute.captured: true` for durable source reads.
+The console uses interactive reads and has no captured execution setting.
 The service publishes the exact compiled bundle in the account ledger, then
 drives the existing Query owner using published signed requests. A dedicated
-recovery task continues accepted work after the console disconnects. Query
+recovery task continues accepted work after the caller disconnects. Query
 manifests and current authorization govern retained result reads.
 
-`.status all` pages account operations. `.status token:<hex>` finds an original
-admission; `.resume captured:<id>` advances its exact saved work and displays a
-complete retained result when available. It never reopens parameter files or
+The native `operations` action pages account operations; `status` by token finds
+an original admission. `resume` by captured-operation identity advances its exact
+saved work and opens a retained result when available. These are native control
+actions, not console commands. Resuming never reopens parameter files or
 recompiles SQL. A source definition changed since admission fails visibly.
 Cancellation settles a published request before asking the Query owner to cancel.
 An incomplete initial bundle can be cancelled without dispatching a query.

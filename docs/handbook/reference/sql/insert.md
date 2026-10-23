@@ -50,8 +50,8 @@ conflict never authorizes disclosure of the existing row's other values.
 
 The console's [SQL service](../sql-sessions.md)
 saves the original intent and exact signed steps before sending. After an
-uncertain response, use `.status` and `.resume`; repeating the SQL creates new
-work. `.cancel` cannot undo a published operation. Saved work remains bound to
+uncertain response, the console checks the original request; repeating SQL
+creates new work. Ctrl-C cannot undo a published operation. Saved work remains bound to
 its original object and schema across ALTER, DROP and name reuse.
 
 `INSERT ... SELECT`, `ON CONFLICT`, other upsert forms and `RETURNING` are

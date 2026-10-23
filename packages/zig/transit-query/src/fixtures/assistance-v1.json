@@ -597,7 +597,63 @@
       "end": 8,
       "mode": "console",
       "items": [
+        "info",
         "INSERT"
+      ]
+    },
+    {
+      "sql": ".ed",
+      "cursor": 3,
+      "start": 0,
+      "end": 3,
+      "mode": "console",
+      "items": [
+        ".edit"
+      ]
+    },
+    {
+      "sql": ".sta",
+      "cursor": 4,
+      "start": 0,
+      "end": 4,
+      "mode": "console",
+      "items": []
+    },
+    {
+      "sql": ".res",
+      "cursor": 4,
+      "start": 0,
+      "end": 4,
+      "mode": "console",
+      "items": []
+    },
+    {
+      "sql": ".can",
+      "cursor": 4,
+      "start": 0,
+      "end": 4,
+      "mode": "console",
+      "items": []
+    },
+    {
+      "sql": ".help sh",
+      "cursor": 8,
+      "start": 6,
+      "end": 8,
+      "mode": "console",
+      "items": [
+        "show",
+        "shortcuts"
+      ]
+    },
+    {
+      "sql": ".help --a",
+      "cursor": 9,
+      "start": 6,
+      "end": 9,
+      "mode": "console",
+      "items": [
+        "--all"
       ]
     }
   ]

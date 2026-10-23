@@ -19,7 +19,7 @@ from table_console import atom
 def run(fixture):
     connection = fixture.console_config()
     upstream_path = connection['endpoint'][5:]
-    state = dict(mode=None, executions=[], entered=threading.Event(), release=threading.Event())
+    state = dict(mode=None, observations=[], executions=[], entered=threading.Event(), release=threading.Event())
 
     class Upstream(HTTPConnection):
         def connect(self):
@@ -48,6 +48,9 @@ def run(fixture):
                 upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                 response = upstream.getresponse()
                 data = response.read()
+                if action in ('execute', 'status'):
+                    observed = json.loads(data).get('result', {})
+                    state['observations'].append((action, {key: observed.get('operation', {}).get(key) for key in ('phase', 'outcome', 'blocked')}, observed.get('err', {}).get('code')))
                 if state['mode'] == 'drop_'+action:
                     state['mode'] = None
                     self.close_connection = True
@@ -74,29 +77,15 @@ def run(fixture):
         thread.start()
         try:
             config = fixture.root/'observation-console.json'
-            config.write_text(json.dumps(dict(connection, endpoint='unix:'+str(path))))
+            config.write_text(json.dumps(dict(connection, endpoint='unix:'+str(path), request_timeout_ms=5000)))
             def invoke(text, expected=0):
                 value = subprocess.run([fixture.cli, 'console', '--no-rc', '--format', 'json', '--config', str(config)], input=text+'\n', text=True, capture_output=True, timeout=60, cwd=fixture.root)
-                assert value.returncode == expected, value
+                assert value.returncode == expected, (state['observations'][-8:], value)
                 return value
             def applied(value):
-                operation = json.loads(value.stdout)['operation']
-                assert operation['phase'] == 'terminal' and operation['outcome'] == 'applied', operation
-                assert (operation['matched'], operation['changed']) == (1, 1), operation
-            def original(failed):
-                token = re.search(r'Original request token: ([0-9a-f]{32})', failed.stderr)
-                assert token, failed
-                assert bytes(state['executions'][-1]['token']).hex() == token[1]
-                return token[1]
-            def recover(token):
-                deadline = time.monotonic()+60
-                while True:
-                    operation = fixture.console('.status token:'+token+'\n')[0]['operation']
-                    if operation['phase'] == 'terminal':
-                        assert operation['outcome'] == 'applied', operation
-                        return operation
-                    assert time.monotonic() < deadline, operation
-                    time.sleep(.05)
+                completion = json.loads(value.stdout)['completion']
+                assert completion['outcome'] == 'applied', completion
+                assert (completion['matched'], completion['changed']) == (1, 1), completion
 
             applied(invoke('INSERT INTO items (id,value) VALUES (-81,810);'))
             applied(invoke('DELETE FROM items WHERE id=-81;'))
@@ -107,23 +96,27 @@ def run(fixture):
                 before = len(state['executions'])
                 state['mode'] = mode
                 try:
-                    failed = invoke(f'INSERT INTO items (id,value) VALUES ({key},820);', 1)
+                    if mode == 'drop_status':
+                        wake = threading.Timer(.5, os.kill, args=(owner, signal.SIGCONT))
+                        wake.start()
+                    completed = invoke(f'INSERT INTO items (id,value) VALUES ({key},820);')
                 finally:
                     if mode == 'drop_status':
                         os.kill(owner, signal.SIGCONT)
-                token = original(failed)
+                applied(completed)
                 assert len(state['executions']) == before+1, 'Console automatically replayed SQL'
-                operation = recover(token)
-                resumed = fixture.console(f".resume table:{operation['identity']['id']}\n")[0]['operation']
-                assert resumed['identity'] == operation['identity'] and resumed['outcome'] == 'applied'
+                token = state['executions'][-1]['token']
+                operation = fixture.sql_session(dict(status=dict(token=token)))['operation']
+                assert operation['outcome'] == 'applied'
                 assert atom(fixture.console(f'SELECT value FROM items WHERE id={key};\n')[-1], 'signed') == '820'
                 applied(invoke(f'DELETE FROM items WHERE id={key};'))
             state['mode'] = 'refuse_execute'
             before = len(state['executions'])
-            token = original(invoke('INSERT INTO items VALUES (-84,840);', 1))
+            failed = invoke('INSERT INTO items VALUES (-84,840);', 1)
+            assert 'Could not confirm' in failed.stderr and 'may apply changes twice' in failed.stderr
+            token = state['executions'][-1]['token']
             assert len(state['executions']) == before+1
-            missing = fixture.console('.status token:'+token+'\n', expected=1)
-            assert 'MissingGatewayOperation' in missing.stderr, missing
+            fixture.sql_session(dict(status=dict(token=token)), error='MissingGatewayOperation')
             assert atom(fixture.console('SELECT COUNT(*) FROM items WHERE id=-84;\n')[-1], 'unsigned') == '0'
             state['mode'] = 'hold_execute'
             with ThreadPoolExecutor(max_workers=1) as pool:
@@ -136,7 +129,7 @@ def run(fixture):
                 applied(pending.result(timeout=60))
             applied(invoke('DELETE FROM items WHERE id=-85;'))
             assert not list(fixture.installation.glob('console-*'))
-            print('SQL session reply loss: original tokens recover without replay; capacity rejection leaves no operation; another console progresses during a held reply.', flush=True)
+            print('SQL session reply loss: console confirms original outcomes without SQL replay; capacity rejection leaves no operation; another console progresses during a held reply.', flush=True)
         finally:
             state['release'].set()
             proxy.shutdown()

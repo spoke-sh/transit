@@ -34,8 +34,8 @@ unchanged assignment contributes to the committed matched count and not the
 changed count; an empty match records zero for both. Counts are part of the
 operation result, never inferred by reading the Table again.
 
-After an uncertain response, recover the original saved operation with `.status`
-and `.resume` in the [console](../../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs).
+After an uncertain response, the shared client checks the original request
+for the [console](../../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs).
 Schema changes or name reuse cannot rebind accepted work. Cancellation cannot
 undo publication. See [typed DML](../../../../contracts/TABLE_DML_V1.md),
 [Tables](../tables.md), [INSERT](insert.md) and [DELETE](delete.md).
