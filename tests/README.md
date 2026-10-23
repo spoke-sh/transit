@@ -643,6 +643,26 @@ before quota reservation or object publication. `just contract::check`, the
 native catalog composition and diagnostic mapping/error/outcome checks pass with
 the new definition. Installed qualification is still separate.
 
+## Direct Table CRUD/DDL recovery — 2026-10-23
+
+`just test::direct-table-service` passes **84 typed HTTP calls** through the
+configured local owner. In addition to CREATE/INSERT/read, it changes a primary
+key through point UPDATE, bulk-deletes another row, rewrites the remaining row
+through ADD COLUMN, renames and drops the Table, and recreates its former name
+with a distinct object. Accepted matched/changed/live counts are checked.
+
+Two actual node restarts preserve all original operation outcomes. Re-executing
+the original UPDATE after DROP returns that original commit and leaves the
+replacement Table empty. One-row pages from retained pins still expose both the
+original two-column data and the rewritten three-column data, including stable
+row identity and a NULL added column. An empty replacement snapshot completes
+explicitly. Pins are released after recovery. No Table work uses actor sends.
+
+The direct schema/signing contract and documentation checks also pass. This run
+covers these concrete CRUD/DDL cases, not every ALTER form or a concurrent HTTP
+schedule. Preview, dependency RESTRICT, default-launcher/SQL integration,
+automatic flushing and collector races remain unqualified.
+
 ## Retained typed Table reader — 2026-10-23
 
 The catalog suite passes **107/107 tests** with `DirectTableReader`. Its new

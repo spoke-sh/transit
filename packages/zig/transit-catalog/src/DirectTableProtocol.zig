@@ -98,14 +98,21 @@ pub const Ddl = struct {
     namespace: u64,
     name: []const u8,
     action: union(enum) { create: struct { owner: u64, schema: Binary }, alter: Change, rename: []const u8, drop },
-    pub fn native(self: Ddl, allocator: std.mem.Allocator, configuration: D.Configuration) !D.Request {
-        const intent: D.Intent = .{ .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
+    fn intent(self: Ddl, allocator: std.mem.Allocator) !D.Intent {
+        return .{ .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
             .create => |value| .{ .create = .{ .owner = value.owner, .schema = (try f.TableSchema.decode(allocator, try value.schema.decode(allocator, f.TableSchema.max_bytes))).schema } },
             .alter => |value| .{ .alter = try value.native(allocator) },
             .rename => |value| .{ .rename = try .init(value) },
             .drop => .drop,
         } };
-        const result: D.Request = .{ .binding = self.binding, .intent = intent };
+    }
+    /// The same canonical intent used by admission, independent of credentials.
+    /// Child decoding belongs to the supplied request arena.
+    pub fn digest(self: Ddl, allocator: std.mem.Allocator) ![32]u8 {
+        return (try self.intent(allocator)).digest(allocator);
+    }
+    pub fn native(self: Ddl, allocator: std.mem.Allocator, configuration: D.Configuration) !D.Request {
+        const result: D.Request = .{ .binding = self.binding, .intent = try self.intent(allocator) };
         try result.validate(allocator, configuration);
         return result;
     }

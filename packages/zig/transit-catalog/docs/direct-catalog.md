@@ -19,6 +19,8 @@ against that exact request. It checks result kind, operation attribution,
 definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route; it does not yet replace installed SQL callers.
+`DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
+by admission; decoded child values belong to the supplied request arena.
 `DirectTableReader.open` inspects an existing durable pin and owns its original
 schema. Keep the pin handle separately while opening: a failed inspection does
 not release the pin. `next` checks every page against the exact retained

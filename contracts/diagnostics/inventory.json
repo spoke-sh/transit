@@ -3397,6 +3397,8 @@
         "Connection.object()": "<inferred>",
         "Connection.owner()": "<inferred>",
         "Connection.validate()": "<inferred>",
+        "Ddl.digest()": "<inferred>",
+        "Ddl.intent()": "<inferred>",
         "Ddl.native()": "<inferred>",
         "Request.context()": "<inferred>",
         "Request.parse()": "<inferred>",
@@ -3407,7 +3409,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 56,
         "catch": 2
       },
       "imports": [

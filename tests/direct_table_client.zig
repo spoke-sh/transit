@@ -7,8 +7,9 @@ const g = p.Growth;
 const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const t = std.testing;
+const Lifecycle = @import("direct_table_lifecycle.zig");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null };
 const Admin = struct {
     client: *wire.Client,
     fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -192,7 +193,11 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
             try save(init, args[3], profile);
-        } else if (std.mem.eql(u8, args[2], "recover")) try recover(init, client, &admin, profile) else return error.UnknownProofPhase;
+        } else if (std.mem.eql(u8, args[2], "recover")) {
+            try recover(init, client, &admin, profile);
+            profile.lifecycle = try Lifecycle.evolve(init.gpa, client, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "lifecycle")) try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true) else return error.UnknownProofPhase;
     }
     try output.interface.print("Direct Table {s}: passed\n", .{args[2]});
     try output.interface.flush();
