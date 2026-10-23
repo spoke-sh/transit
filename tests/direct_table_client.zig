@@ -11,9 +11,10 @@ const t = std.testing;
 const Lifecycle = @import("direct_table_lifecycle.zig");
 const Conditions = @import("direct_sql_conditions.zig");
 const SqlPins = @import("direct_sql_read_recovery.zig");
+const Delegation = @import("direct_table_delegation.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null };
 const Admin = struct {
     client: *wire.Client,
     fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -50,6 +51,8 @@ fn provision(admin: *Admin) !Profile {
     const resource = try admin.submit(.{ .create_resource = .{ .writer = pid, .owned = false } });
     const role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("table-owner"), .login = true } })).?;
     _ = try admin.change(.{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
+    const executor_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("table-reader"), .login = true } })).?;
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 102, .role = executor_role, .public_key = (try key(31)).public_key.toBytes() } });
     const database_domain = (try admin.change(.{ .register_domain = .{ .registrar = 0, .actions = c.TableAuthority.connect } })).?;
     const schema_domain = (try admin.change(.{ .register_domain = .{ .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
     const table_domain = (try admin.change(.{ .register_domain = .{ .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
@@ -198,6 +201,7 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
     try t.expectError(error.AccessDenied, reader.check(client));
+    try t.expectError(error.AccessDenied, Delegation.verify(client, profile.delegation.?));
     try t.expectError(error.AccessDenied, reader.next(client, .{}));
     try t.expectError(error.AccessDenied, empty_query.nextBatch(8));
     try t.expectError(error.AccessDenied, joined.next());
@@ -250,20 +254,27 @@ pub fn main(init: std.process.Init) !void {
         defer directory.close(init.io);
         if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
+            profile.delegation = try Delegation.prepare(client);
             try SqlPins.prepare(init, client, directory);
             profile.conditions = try Conditions.prepare(init.gpa, client);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "recover")) {
+            try Delegation.recover(client, &profile.delegation.?);
             try SqlPins.recover(init, client, directory);
             try Conditions.recover(init.gpa, client, &profile.conditions.?);
             try recover(init, client, &admin, profile, directory);
             var lifecycle = try Lifecycle.evolve(init.gpa, init.io, directory, client, profile.role);
             defer lifecycle.deinit();
             profile.lifecycle = lifecycle.value;
+            try Delegation.verify(client, profile.delegation.?);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "lifecycle")) {
+            try Delegation.verify(client, profile.delegation.?);
             try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true);
             try Conditions.verify(client, profile.conditions.?);
+            try Delegation.close(client, profile.delegation.?);
+        } else if (std.mem.eql(u8, args[2], "delegated-closed")) {
+            try Delegation.closed(client, profile.delegation.?);
         } else return error.UnknownProofPhase;
     }
     try output.interface.print("Direct Table {s}: passed\n", .{args[2]});

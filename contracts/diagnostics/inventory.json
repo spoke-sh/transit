@@ -2325,7 +2325,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -3141,8 +3141,9 @@
         "NullNotAllowed": 1,
         "Overflow": 1,
         "TableDataChanged": 1,
-        "TableDefinitionChanged": 2,
+        "TableDefinitionChanged": 4,
         "TableRetired": 1,
+        "TableSnapshotReleased": 1,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 1
       },
@@ -3196,6 +3197,8 @@
         "perform()": "<inferred>",
         "performRows()": "<inferred>",
         "pinRows()": "<inferred>",
+        "pinRowsChecked()": "<inferred>",
+        "pinRowsDefined()": "<inferred>",
         "pinState()": "<inferred>",
         "preview()": "<inferred>",
         "record()": "<inferred>",
@@ -3219,7 +3222,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 294,
+        "try": 297,
         "catch": 4
       },
       "imports": [
@@ -3369,6 +3372,33 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectReadDelegation.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidTableDelegation": 3,
+        "TableDelegationDenied": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Binding.context()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "allow()": "<inferred>",
+        "prepare()": "<inferred>",
+        "requirePin()": "<inferred>",
+        "requireSource()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableBinding.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
@@ -3395,7 +3425,9 @@
       ]
     },
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
-      "errors": {},
+      "errors": {
+        "InvalidTableDelegation": 1
+      },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
@@ -3405,7 +3437,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 11,
         "catch": 0
       },
       "imports": [
@@ -3515,6 +3547,7 @@
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
         "InvalidTableCursor": 1,
+        "InvalidTableDelegation": 1,
         "InvalidTableReadBudget": 2,
         "TableBatchTooLarge": 1,
         "TablePayloadTooLarge": 6,
@@ -3621,7 +3654,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 83,
         "catch": 2
       },
       "imports": [
@@ -3660,7 +3693,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 41
+        "InvalidTableResponse": 43
       },
       "outcomes": {},
       "error_sets": {},
@@ -3677,7 +3710,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 63,
-        "catch": 0
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -5202,6 +5235,7 @@
         "DeclarativeCatalog.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
+        "DirectReadDelegation.zig",
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
         "DirectTableIntent.zig",
@@ -9282,6 +9316,7 @@
         "UnsupportedCascade": 1,
         "UnsupportedCatalog": 1,
         "UnsupportedCharacterPadding": 1,
+        "UnsupportedColumnCollation": 1,
         "UnsupportedComparison": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedDeclaration": 1,
@@ -12733,7 +12768,7 @@
           "deadline"
         ],
         "Definition": [
-          "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982"
+          "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964"
         ],
         "Effect.phase": [
           "pending",

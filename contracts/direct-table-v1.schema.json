@@ -13,6 +13,7 @@
             "connection",
             "nonce",
             "action",
+            "delegation",
             "proof"
           ],
           "properties": {
@@ -28,8 +29,11 @@
             "action": {
               "$ref": "#/$defs/Request/$defs/T8"
             },
-            "proof": {
+            "delegation": {
               "$ref": "#/$defs/Request/$defs/T112"
+            },
+            "proof": {
+              "$ref": "#/$defs/Request/$defs/T115"
             }
           },
           "required": [
@@ -37,6 +41,7 @@
             "connection",
             "nonce",
             "action",
+            "delegation",
             "proof"
           ],
           "x-transit-defaults": {}
@@ -44,7 +49,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982"
+            "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964"
           ]
         },
         "T2": {
@@ -2985,6 +2990,83 @@
           }
         },
         "T112": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Request/$defs/T113"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T113": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "binding",
+            "proof"
+          ],
+          "properties": {
+            "binding": {
+              "$ref": "#/$defs/Request/$defs/T114"
+            },
+            "proof": {
+              "$ref": "#/$defs/Request/$defs/T115"
+            }
+          },
+          "required": [
+            "binding",
+            "proof"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T114": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "connection",
+            "executor",
+            "interpretation",
+            "expected",
+            "owner",
+            "purpose"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/Request/$defs/T1"
+            },
+            "connection": {
+              "$ref": "#/$defs/Request/$defs/T2"
+            },
+            "executor": {
+              "$ref": "#/$defs/Request/$defs/T4"
+            },
+            "interpretation": {
+              "$ref": "#/$defs/Request/$defs/T13"
+            },
+            "expected": {
+              "$ref": "#/$defs/Request/$defs/T47"
+            },
+            "owner": {
+              "$ref": "#/$defs/Request/$defs/T44"
+            },
+            "purpose": {
+              "$ref": "#/$defs/Request/$defs/T15"
+            }
+          },
+          "required": [
+            "definition",
+            "connection",
+            "executor",
+            "interpretation",
+            "expected",
+            "owner",
+            "purpose"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T115": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2993,10 +3075,10 @@
           ],
           "properties": {
             "claim": {
-              "$ref": "#/$defs/Request/$defs/T113"
+              "$ref": "#/$defs/Request/$defs/T116"
             },
             "signature": {
-              "$ref": "#/$defs/Request/$defs/T114"
+              "$ref": "#/$defs/Request/$defs/T117"
             }
           },
           "required": [
@@ -3005,7 +3087,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T113": {
+        "T116": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3051,7 +3133,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T114": {
+        "T117": {
           "type": "array",
           "minItems": 64,
           "maxItems": 64,
@@ -3103,7 +3185,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982"
+            "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964"
           ]
         },
         "T2": {
@@ -4951,7 +5033,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982"
+            "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964"
           ]
         },
         "T2": {

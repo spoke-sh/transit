@@ -5,7 +5,8 @@ pub fn build(b: *std.Build) void {
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const module = b.addModule("transit_catalog", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_storage", .module = storage.module("transit_storage") } } });
-    const tests = b.addTest(.{ .root_module = module });
+    const filters = b.option([]const []const u8, "test-filter", "Run catalog tests whose names contain a filter") orelse &.{};
+    const tests = b.addTest(.{ .root_module = module, .filters = filters });
     const direct_contract = b.addExecutable(.{ .name = "transit-direct-table-contract", .root_module = b.createModule(.{
         .root_source_file = b.path("src/direct_export.zig"),
         .target = target,

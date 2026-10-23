@@ -794,10 +794,30 @@ fn snapshotAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, o
 /// Pin ownership is private to the original principal. Possession of a handle
 /// never substitutes for current database/schema/Table SELECT rights.
 pub fn pinRows(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, policy: Policy) !P.SnapshotHandle {
+    return self.pinRowsChecked(object, owner, expected, null, policy);
+}
+
+/// A delegated acquisition also freezes interpretation. Exact retries can
+/// recover a retained old definition after the current Table has evolved.
+pub fn pinRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operation, expected: d.Position, policy: Policy) !P.SnapshotHandle {
+    try interpretation.validate();
+    return self.pinRowsChecked(interpretation.object, owner, expected, interpretation, policy);
+}
+
+fn pinRowsChecked(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, interpretation: ?d.Definition, policy: Policy) !P.SnapshotHandle {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
     defer access.view.deinit();
+    if (interpretation) |required| {
+        const state = try access.view.table.pinState(owner, access.current);
+        if (state.handle) |handle| {
+            if (state.released) return error.TableSnapshotReleased;
+            var retained = try access.view.table.inspectSnapshot(arena.allocator(), handle, access.current);
+            defer retained.deinit();
+            if (!std.meta.eql(required, retained.root.interpretation)) return error.TableDefinitionChanged;
+        } else if (!std.meta.eql(required, access.view.table.root.interpretation)) return error.TableDefinitionChanged;
+    }
     return access.view.table.pin(owner, expected, access.current);
 }
 

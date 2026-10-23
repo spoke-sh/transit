@@ -39,13 +39,17 @@ fn proof(engine: *Engine, context: [32]u8) !a.Proof {
 }
 
 fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
+    return dispatchDelegated(service, action, null);
+}
+fn dispatchDelegated(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation) !std.json.Parsed(c.DirectTableProtocol.Response) {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .nonce = @splat(7), .action = action };
-    const signed = try proof(service.engine, try w.Request.context(input, alloc));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = signed };
+    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .nonce = @splat(7), .action = action };
+    const context = try w.Request.context(input, alloc);
+    const signed = if (delegation) |grant| try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = grant.binding.executor, .credential_epoch = (try service.engine.principal(grant.binding.executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(31)) else try proof(service.engine, context);
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
     const output = try alloc.alloc(u8, 1024 * 1024);
@@ -145,6 +149,7 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     // rows if native ownership changes before the final disclosure fence.
     var store = try engine.authorization();
     const native_table = (try store.bound(config.authority.table_domain, try c.TableAuthority.binding(config.scope, .table, 10))).?.reference.id;
+    try delegatedDispatch(&service, snapshot, historical.value.result.snapshot, owner_role, native_table);
     const Revoke = struct {
         fn run(context: *anyopaque, current: *Engine) !void {
             const id: *u64 = @ptrCast(@alignCast(context));
@@ -195,6 +200,96 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     try t.expectError(error.Forbidden, dispatch(&service, .{ .pin = .{ .object = binding.target, .owner = .{ .scope = config.scope, .principal = 101, .operation = 205 }, .expected = private_result.value.result.rows.committed.outcome.position } }));
 }
 
+fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.DirectTableProtocol.Snapshot, source: c.DirectTableProtocol.Source, owner_role: u64, native_table: u64) !void {
+    const w = c.DirectTableProtocol;
+    const engine = service.engine;
+    const executor_role = (try change(engine, .{ .create_role = .{ .name = try .init("read-executor"), .login = true } })).?;
+    _ = try change(engine, .{ .bind_credential = .{ .principal = 102, .role = executor_role, .public_key = (try key(31)).public_key.toBytes() } });
+    const binding: c.DirectReadDelegation.Binding = .{
+        .definition = g.current_definition,
+        .connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null },
+        .executor = 102,
+        .interpretation = source.interpretation.interpretation,
+        .expected = source.accepted,
+        .owner = snapshot.handle.owner,
+        .purpose = @splat(19),
+    };
+    const grant: c.DirectReadDelegation = .{ .binding = binding, .proof = try proof(engine, try binding.context(t.allocator)) };
+    const worker_proof = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 102, .credential_epoch = (try engine.principal(102)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = @splat(21) }, try key(31));
+    // The executor has no CONNECT or Table privileges of its own.
+    try t.expectError(error.Forbidden, Policy.init(engine, service.configuration, worker_proof, @splat(21), null));
+    const read = try dispatchDelegated(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, grant);
+    defer read.deinit();
+    try t.expectEqual(@as(usize, 1), read.value.result.page.rows.len);
+    try t.expectEqualDeep(grant.proof.claim.context, read.value.subject.context);
+    try t.expectEqual(@as(u64, 101), read.value.subject.principal);
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .describe, grant));
+
+    const current = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "through_dispatch" } });
+    defer current.deinit();
+    var fresh = binding;
+    fresh.owner.operation = 206;
+    fresh.expected = current.value.result.lookup.?.position;
+    const acquire: c.DirectReadDelegation = .{ .binding = fresh, .proof = try proof(engine, try fresh.context(t.allocator)) };
+    const acquisition: w.Action = .{ .pin = .{ .object = fresh.interpretation.object, .owner = fresh.owner, .expected = fresh.expected } };
+    const pinned = try dispatchDelegated(service, acquisition, acquire);
+    defer pinned.deinit();
+    const retry = try dispatchDelegated(service, acquisition, acquire);
+    defer retry.deinit();
+    try t.expectEqualDeep(pinned.value.result, retry.value.result);
+    const fresh_snapshot: w.Snapshot = .{ .object = fresh.interpretation.object, .handle = pinned.value.result.pin };
+    const released = try dispatchDelegated(service, .{ .release = fresh_snapshot }, acquire);
+    released.deinit();
+    const released_again = try dispatchDelegated(service, .{ .release = fresh_snapshot }, acquire);
+    released_again.deinit();
+    try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, acquisition, acquire));
+
+    var wrong = binding;
+    wrong.interpretation.revision += 1;
+    const wrong_grant: c.DirectReadDelegation = .{ .binding = wrong, .proof = try proof(engine, try wrong.context(t.allocator)) };
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .snapshot = snapshot }, wrong_grant));
+    try t.expectError(error.TableDefinitionChanged, dispatchDelegated(service, .{ .pin = .{ .object = wrong.interpretation.object, .owner = wrong.owner, .expected = wrong.expected } }, wrong_grant));
+
+    const Rotation = struct {
+        principal: u64,
+        seed: u8,
+        fn run(context: *anyopaque, current_engine: *Engine) !void {
+            const value: *@This() = @ptrCast(@alignCast(context));
+            _ = try change(current_engine, .{ .rotate_credential = .{ .principal = value.principal, .expected_epoch = (try current_engine.principal(value.principal)).credential_epoch, .public_key = (try key(value.seed)).public_key.toBytes() } });
+        }
+    };
+    var worker_rotation: Rotation = .{ .principal = 102, .seed = 32 };
+    service.before_reply = .{ .context = &worker_rotation, .run = Rotation.run };
+    try t.expectError(error.StaleAuthorizationCredential, dispatchDelegated(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, grant));
+    service.before_reply = null;
+    // A fresh executor proof can resume under the retained original delegation.
+    worker_rotation.seed = 31;
+    try Rotation.run(&worker_rotation, engine);
+    const resumed = try dispatchDelegated(service, .{ .snapshot = snapshot }, grant);
+    resumed.deinit();
+
+    const Revoke = struct {
+        fn run(context: *anyopaque, current_engine: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(context));
+            _ = try change(current_engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    var table = native_table;
+    service.before_reply = .{ .context = &table, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatchDelegated(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, grant));
+    service.before_reply = null;
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = owner_role } });
+
+    var caller_rotation: Rotation = .{ .principal = 101, .seed = 30 };
+    service.before_reply = .{ .context = &caller_rotation, .run = Rotation.run };
+    try t.expectError(error.StaleAuthorizationCredential, dispatchDelegated(service, .{ .snapshot = snapshot }, grant));
+    service.before_reply = null;
+    // Retrying never refreshes the original accepted caller proof.
+    caller_rotation.seed = 29;
+    try Rotation.run(&caller_rotation, engine);
+    try t.expectError(error.StaleAuthorizationCredential, dispatchDelegated(service, .{ .snapshot = snapshot }, grant));
+}
+
 test "local catalog checks real native registrations, current ownership and exact request proof" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -216,12 +311,12 @@ test "local catalog checks real native registrations, current ownership and exac
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
     const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     const request_digest: [32]u8 = @splat(5);
-    const signed = try proof(&engine, request_digest);
-    try t.expectError(error.InvalidAuthorizationCredential, Policy.init(&engine, config, signed, @splat(6)));
+    var signed = try proof(&engine, request_digest);
+    try t.expectError(error.InvalidAuthorizationCredential, Policy.init(&engine, config, signed, @splat(6), null));
     var forged = signed;
     forged.signature[0] ^= 1;
-    try t.expectError(error.Forbidden, Policy.init(&engine, config, forged, request_digest));
-    var policy = try Policy.init(&engine, config, signed, request_digest);
+    try t.expectError(error.Forbidden, Policy.init(&engine, config, forged, request_digest, null));
+    var policy = try Policy.init(&engine, config, signed, request_digest, null);
     var control: backend.DataStore = .{ .backend = &owner, .control = true };
     var data: backend.DataStore = .{ .backend = &owner };
     var catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } });
@@ -229,6 +324,10 @@ test "local catalog checks real native registrations, current ownership and exac
     try catalog.recover();
     try catalog.initialize(policy.policy());
     try directDispatch(&engine, config, role);
+    // The dispatch proof deliberately rotates the caller. Later independent
+    // requests prepare a new proof; accepted delegated work keeps its old one.
+    signed = try proof(&engine, request_digest);
+    policy = try Policy.init(&engine, config, signed, request_digest, null);
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const intent: D.Intent = .{ .namespace = 1, .name = try c.TableAuthority.Name.init("events"), .action = .{ .create = .{ .owner = role, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} } } } };
     const request: D.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 1 }, .target = .{ .scope = scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) } };

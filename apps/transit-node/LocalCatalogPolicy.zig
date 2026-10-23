@@ -10,14 +10,19 @@ const Self = @This();
 engine: *backend.DataAuthority.Engine,
 configuration: c.DirectCatalog.Configuration,
 proof: p.Authorization.Proof,
+executor: ?p.Authorization.Proof,
 observed: ?p.Authorization.Guard = null,
 
-pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalog.Configuration, proof: p.Authorization.Proof, request_digest: [32]u8) !Self {
+pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalog.Configuration, proof: p.Authorization.Proof, request_digest: [32]u8, executor: ?p.Authorization.Proof) !Self {
     try configuration.validate();
     try proof.claim.validate();
     if (configuration.scope.realm != engine.genesis.realm or proof.claim.realm != configuration.scope.realm or
         proof.claim.audience != configuration.audience or !std.mem.eql(u8, &proof.claim.context, &request_digest)) return error.InvalidAuthorizationCredential;
-    var result: Self = .{ .engine = engine, .configuration = configuration, .proof = proof };
+    if (executor) |value| {
+        try value.claim.validate();
+        if (value.claim.realm != configuration.scope.realm or value.claim.audience != configuration.audience) return error.InvalidAuthorizationCredential;
+    }
+    var result: Self = .{ .engine = engine, .configuration = configuration, .proof = proof, .executor = executor };
     var initial = result.authority(try a.guard(.{ .signed = proof }, configuration.authority, null, null, .database));
     const guard = initial.guard();
     _ = try guard.acquire(guard.context);
@@ -35,7 +40,7 @@ fn erased(context: *anyopaque) *Self {
 }
 
 fn authority(self: *Self, request: p.Authorization.Guard) backend.DataAuthority {
-    return .{ .engine = self.engine, .request = request, .audience = self.configuration.audience, .resource = self.configuration.scope.resource };
+    return .{ .engine = self.engine, .request = request, .audience = self.configuration.audience, .resource = self.configuration.scope.resource, .executor = if (self.executor) |value| .{ .signed = value } else null };
 }
 
 fn makeGuard(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard) !c.storage.TablePartition.Guard {

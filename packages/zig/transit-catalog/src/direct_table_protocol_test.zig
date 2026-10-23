@@ -19,10 +19,10 @@ test "direct Table consumes independently signed Python OpenSSL request bytes" {
 
 test "direct Table request proof binds the complete typed action and current definition" {
     const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(7), .action = .{ .lookup = .{ .namespace = 1, .name = "events" } } };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .lookup = .{ .namespace = 1, .name = "events" } } };
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, t.allocator) }, key);
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
     const bytes = try p.Json.valueAlloc(t.allocator, request);
     defer t.allocator.free(bytes);
     const parsed = try w.Request.parse(t.allocator, bytes);
@@ -36,6 +36,33 @@ test "direct Table request proof binds the complete typed action and current def
     try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
     // Removing rather than defaulting the compatibility field rejects.
     const missing = try p.Json.valueAlloc(t.allocator, .{ .connection = request.connection, .nonce = request.nonce, .action = request.action, .proof = request.proof });
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, w.Request.parse(t.allocator, missing));
+}
+
+test "direct Table delegation consumes independent caller and executor signatures" {
+    const Fixture = struct { request: w.Request, caller_key: [32]u8, executor_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-delegation-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.executor_key);
+    try request.delegation.?.proof.verify(parsed.value.caller_key);
+    try t.expectEqual(@as(u64, 4), request.connection.principal);
+    try t.expectEqual(@as(u64, 9), request.proof.claim.principal);
+    var changed = request;
+    changed.action = .describe;
+    try t.expectError(error.TableDelegationDenied, changed.validate(t.allocator));
+    changed = request;
+    changed.action.pin.owner.operation -= 1;
+    try t.expectError(error.TableDelegationDenied, changed.validate(t.allocator));
+    changed = request;
+    changed.action.pin.expected.next_lsn += 1;
+    try t.expectError(error.TableDelegationDenied, changed.validate(t.allocator));
+    changed = request;
+    changed.proof.claim.principal = request.connection.principal;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    const missing = try p.Json.valueAlloc(t.allocator, .{ .definition = request.definition, .connection = request.connection, .nonce = request.nonce, .action = request.action, .proof = request.proof });
     defer t.allocator.free(missing);
     try t.expectError(error.MissingField, w.Request.parse(t.allocator, missing));
 }
@@ -102,10 +129,10 @@ test "direct Table responses reject unrelated requests, altered receipts and mal
     defer declaration.deinit();
     const stored = try declaration.stored();
     const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 4, .operation = 1 }, .target = declaration.definition.object, .action = .update, .expected_definition = stored.interpretation, .expected_data = .{ .partition = 2, .next_lsn = 8 }, .intent = @splat(3) };
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .principal = 4, .role = null, .audience = 5 }, .nonce = @splat(1), .action = .{ .operation = .{ .binding = binding, .command = .inspect, .steps = 1 } } };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .principal = 4, .role = null, .audience = 5 }, .delegation = null, .nonce = @splat(1), .action = .{ .operation = .{ .binding = binding, .command = .inspect, .steps = 1 } } };
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .rows = .{ .committed = .{ .binding = binding, .resulting = stored, .outcome = .{ .position = .{ .partition = 2, .next_lsn = 9 }, .matched = 1, .affected = 0, .live_rows = 1 } } } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     var altered = response;
@@ -149,10 +176,10 @@ test "DDL preview responses preserve proposed schema and never imply an accepted
         .action = .{ .create = .{ .owner = 0, .schema = try w.Binary.encode(alloc, try schema.encode(&bytes)) } },
     };
     proposal.binding.intent = try proposal.digest(alloc);
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(7), .action = .{ .preview = proposal } };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .preview = proposal } };
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .preview = .{ .binding = proposal.binding, .directory_position = .{ .partition = 1, .next_lsn = 1 }, .current = null, .reason = .none, .work = .metadata, .schema_fingerprint = try schema.fingerprint() } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     var changed = response;

@@ -248,8 +248,9 @@ pub const Request = struct {
     connection: Connection,
     nonce: [16]u8,
     action: Action,
+    delegation: ?c.DirectReadDelegation,
     proof: p.Authorization.Proof,
-    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action };
+    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
         const bytes = try p.Json.valueAlloc(allocator, value);
         defer allocator.free(bytes);
@@ -260,7 +261,7 @@ pub const Request = struct {
         return hash.finalResult();
     }
     pub fn input(self: Request) Input {
-        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action };
+        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation };
     }
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
@@ -280,7 +281,14 @@ pub const Request = struct {
         try self.proof.claim.validate();
         const claim = self.proof.claim;
         const connection = self.connection;
-        if (claim.realm != connection.scope.realm or claim.principal != connection.principal or claim.role != connection.role or claim.audience != connection.audience or
+        if (self.delegation) |delegation| {
+            try delegation.validate(allocator);
+            if (!std.meta.eql(delegation.binding.connection, connection)) return error.InvalidTableDelegation;
+            try delegation.allow(self.action);
+        }
+        const principal = if (self.delegation) |delegation| delegation.binding.executor else connection.principal;
+        const role: ?u64 = if (self.delegation != null) null else connection.role;
+        if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
             .initialize, .describe => {},

@@ -24,14 +24,16 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     try request.validate(allocator);
     if (!request.connection.matches(self.configuration)) return error.CatalogDenied;
     const context = try w.Request.context(request.input(), allocator);
-    var policy = try Policy.init(self.engine, self.configuration, request.proof, context);
+    const original = if (request.delegation) |delegation| delegation.proof else request.proof;
+    const original_context = if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
+    var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
     const owner = self.engine.journal.backend;
     var control: backend.DataStore = .{ .backend = owner, .control = true };
     var data: backend.DataStore = .{ .backend = owner };
     var catalog = try D.init(allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
     defer catalog.deinit();
     try catalog.recover();
-    const result = try self.apply(allocator, &catalog, policy.policy(), request.action);
+    const result = try self.apply(allocator, &catalog, policy.policy(), request.action, request.delegation);
     const observed = try policy.observation();
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, w.max_response_bytes)]);
     var encoder: std.json.Stringify = .{ .writer = &writer };
@@ -46,7 +48,10 @@ fn schema(allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Bin
     defer allocator.free(buffer);
     return w.Binary.encode(allocator, try value.encode(buffer));
 }
-fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action) anyerror!w.Result {
+fn requireSource(delegation: ?c.DirectReadDelegation, source: c.storage.TablePartition.SnapshotDefinition) !void {
+    if (delegation) |value| try value.requireSource(source.root.interpretation, .{ .partition = source.root.partition, .next_lsn = source.root.next_lsn });
+}
+fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation) anyerror!w.Result {
     switch (action) {
         .initialize => {
             try catalog.initialize(policy);
@@ -77,7 +82,8 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 .access => |access| try catalog.checkAccess(access, policy),
                 .snapshot => |snapshot| {
                     var source = try catalog.snapshotDefinition(allocator, snapshot.object, snapshot.handle, policy);
-                    source.deinit();
+                    defer source.deinit();
+                    try requireSource(delegation, source);
                 },
             };
             // LocalCatalogPolicy accumulates successful requirements and
@@ -125,7 +131,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             try catalog.checkOperation(reference.binding, reference.namespace, policy);
             var intent = try c.DirectTableIntentStore.load(allocator, catalog.data_objects, reference);
             defer intent.deinit();
-            return self.apply(allocator, catalog, policy, intent.parsed.value.work.action());
+            return self.apply(allocator, catalog, policy, intent.parsed.value.work.action(), delegation);
         },
         .admit_ddl => |value| {
             _ = try catalog.admit(try value.native(allocator, self.configuration), policy);
@@ -147,11 +153,20 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 .execute => try catalog.performRows(value.binding, policy),
             } },
         },
-        .pin => |value| return .{ .pin = try catalog.pinRows(value.object, value.owner, value.expected, policy) },
-        .pin_status => |value| return .{ .pin_state = try catalog.pinState(value.object, value.owner, policy) },
+        .pin => |value| return .{ .pin = if (delegation) |grant| try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRows(value.object, value.owner, value.expected, policy) },
+        .pin_status => |value| {
+            const state = try catalog.pinState(value.object, value.owner, policy);
+            if (delegation != null and !state.released) if (state.handle) |handle| {
+                var source = try catalog.snapshotDefinition(allocator, value.object, handle, policy);
+                defer source.deinit();
+                try requireSource(delegation, source);
+            };
+            return .{ .pin_state = state };
+        },
         .snapshot => |value| {
             var found = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);
             defer found.deinit();
+            try requireSource(delegation, found);
             return .{ .snapshot = .{
                 .snapshot = value,
                 .interpretation = found.root.declared(),
@@ -164,6 +179,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
         .scan => |value| {
             var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();
+            try requireSource(delegation, definition);
             var page = try catalog.scanRows(allocator, value.snapshot.object, value.snapshot.handle, value.after, value.limits, policy);
             defer page.deinit();
             const rows = try allocator.alloc(w.Binary, page.count);
@@ -173,6 +189,14 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
         },
         .release => |value| {
+            if (delegation != null) {
+                const state = try catalog.pinState(value.object, value.handle.owner, policy);
+                if (!state.released) {
+                    var source = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);
+                    defer source.deinit();
+                    try requireSource(delegation, source);
+                }
+            }
             try catalog.releaseRows(value.object, value.handle, policy);
             return .released;
         },

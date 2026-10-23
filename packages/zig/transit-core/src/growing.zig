@@ -207,6 +207,14 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try self.refresh();
             return auth_ops.guard(self, guard, audience);
         }
+        /// Authenticate a domain's separately signed executor without granting
+        /// that executor the original caller's object privileges. The domain
+        /// still binds the proof's context and checks its explicit delegation.
+        /// Its storage owner holds the same native fence for both identities.
+        pub fn authenticateDomain(self: *Self, subject: p.Authorization.Subject, audience: u64) !p.Authorization.Verified {
+            try self.refresh();
+            return auth_ops.authenticate(self, subject, audience);
+        }
         /// Lifetime/dependency usability is separate from a role's permissions.
         /// The caller first establishes current authority and holds its fence.
         pub fn requireResourceLifetime(self: *Self, resource: u64) !void {

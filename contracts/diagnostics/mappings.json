@@ -708,6 +708,10 @@
         "IncompatibleColumnCollation": {
           "code": "sql.incompatible_column_collation",
           "category": "binding"
+        },
+        "UnsupportedColumnCollation": {
+          "code": "sql.unsupported_column_collation",
+          "category": "unsupported"
         }
       }
     },

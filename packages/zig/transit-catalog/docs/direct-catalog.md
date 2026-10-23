@@ -21,6 +21,19 @@ definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route.
 
+For explicitly delegated reads, the original caller prepares a
+`DirectReadDelegation` naming one executor, exact Table definition/frontier and
+pin owner. It acquires nothing. The executor sets that delegation on its
+`DirectTableClient` and supplies its own key while preserving the original
+connection. Only the bound pin's acquisition, recovery, reads, checks and release
+are permitted. Both credentials and the original caller's current Table rights
+are fenced by native authority. A worker credential supplies no missing source
+permission. Retained delegation bytes are immutable recovery evidence; a revoked
+caller proof cannot be replaced implicitly. See the
+[delegated-read contract](../../../../contracts/DIRECT_TABLE_V1.md#delegated-retained-reads)
+for exact scope and signing contexts. Captured-query integration must retain that
+binding through its own admission and cleanup journal.
+
 `DirectAuthorizationSql.compile` resolves role, membership, grant/revoke,
 default-privilege and ownership statements through this direct catalog and the
 native authorization client. It returns the shared `AuthorizationSql.Plan` for

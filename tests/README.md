@@ -185,6 +185,42 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Scoped direct Table read delegation — 2026-10-23
+
+The direct request definition is
+`d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964`.
+The catalog package's focused ReleaseSafe run with `-Dtest-filter='direct Table'`
+and `-Dtest-filter='direct read delegation'` passes. Independent Python/OpenSSL
+fixtures verify both caller and executor signatures, the exact definition/data
+frontier, pin owner and purpose commitment. Tampered scope, executor, frontier,
+caller role, action and missing mandatory delegation fields reject.
+
+`just test::direct-table-service` passes 460 typed HTTP calls. An executor with
+no database or Table grants acquires and reads only its caller-delegated pin.
+A corrupted acquisition reply leaves the original grant for exact recovery after
+restart. The same pin returns its two original rows, including a 64 KiB payload,
+after UPDATE/DELETE, ALTER, rename, DROP, name reuse and another restart. Current
+permission revocation denies reads. Discovery, other objects/pin owners and
+delegation chaining reject. A corrupted release reply is reconciled after a
+third restart; the released pin cannot reopen.
+
+`zig build test-local-catalog -Doptimize=ReleaseSafe` also passes. Its real native
+policy fixture changes the executor credential, caller credential and Table
+ownership after rows are buffered but before the final response check. Each
+change suppresses disclosure. A fresh executor proof resumes with the retained
+caller grant; even restoring the caller's original key cannot revive its stale
+credential epoch. The executor's own direct CONNECT check remains denied.
+
+The Fuze ReleaseSafe suite, `just contract::check`, diagnostic mappings, inferred
+error boundaries and 3,387 outcome projections pass. The collation diagnostic
+mapping now includes explicit unsupported-profile rejection. Source inventory
+records 577 production owners and 4,729 owner/error pairs; that inventory alone
+does not certify public mappings. Documentation links also pass.
+
+This proof covers the direct read capability and its native policy owner.
+Captured-query admission/cleanup, result evidence and language SDK migration
+remain separate work. No physical Table collector is exercised or implemented.
+
 ## Direct catalog administration and installed database clients — 2026-10-23
 
 `just test::direct-table-service` passes 433 typed calls against the real node.

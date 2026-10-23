@@ -11,7 +11,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982"
+definition = "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -29,6 +29,7 @@ request_input = {
     },
     "nonce": [7] * 16,
     "action": {"lookup": {"namespace": 1, "name": "evénts"}},
+    "delegation": None,
 }
 context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(request_input)).digest()
 claim = {
@@ -41,6 +42,22 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     key = Key(Path(directory), "public-test-key", 9)
     signature = key.sign(claim_digest)
     public_key = key.public
+    read_binding = {
+        "definition": definition, "connection": request_input["connection"], "executor": 9,
+        "interpretation": {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}, "revision": 2, "digest": [3] * 32},
+        "expected": {"partition": 9, "next_lsn": 10},
+        "owner": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
+        "purpose": [11] * 32,
+    }
+    delegation_context = hashlib.sha256(b"transit.table.read-delegation.v1\0" + canonical(read_binding)).digest()
+    delegated_claim = {**claim, "context": list(delegation_context)}
+    delegated_proof = {"claim": delegated_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(delegated_claim)).digest())}
+    delegated_input = {**request_input, "action": {"pin": {"object": read_binding["interpretation"]["object"], "owner": read_binding["owner"], "expected": read_binding["expected"]}}, "delegation": {"binding": read_binding, "proof": delegated_proof}}
+    executor_context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(delegated_input)).digest()
+    executor_claim = {**claim, "principal": 9, "context": list(executor_context)}
+    executor = Key(Path(directory), "public-executor-key", 31)
+    delegated_request = {**delegated_input, "proof": {"claim": executor_claim, "signature": executor.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(executor_claim)).digest())}}
+    delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public}
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -50,7 +67,8 @@ fixture = {
 }
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
-for field in ("definition", "proof", "nonce"):
+validator.validate(delegated_request)
+for field in ("definition", "proof", "nonce", "delegation"):
     invalid = copy.deepcopy(request)
     del invalid[field]
     assert not validator.is_valid(invalid), field
@@ -76,6 +94,8 @@ def persist(path, content):
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-v1.json",
         (json.dumps(fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-delegation-v1.json",
+        (json.dumps(delegated_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 
 # The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
 # the saved envelope uses the public JSON writer's exact array representation.
