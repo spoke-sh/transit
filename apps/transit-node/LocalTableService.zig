@@ -79,6 +79,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             } else null;
             return .{ .list = .{ .entries = page.entries, .next = next, .directory_position = page.directory_position, .consistency = .independent } };
         },
+        .preview => |value| return .{ .preview = try catalog.preview(try value.native(allocator, self.configuration), policy) },
         .admit_ddl => |value| {
             _ = try catalog.admit(try value.native(allocator, self.configuration), policy);
             return .{ .ddl = try catalog.status(value.binding, policy) };

@@ -45,6 +45,16 @@ pub const Observation = union(enum) {
     cancelled: r.Operation,
 };
 pub const Listed = struct { interpretation: d.Definition, namespace: u64, name: a.Name, position: d.Position, changed_lsn: u64 };
+pub const Preview = struct {
+    pub const Basis = struct { interpretation: s.TableDeclaration.Stored, position: d.Position, changed_lsn: u64, row_count: u64 };
+    binding: d.Binding,
+    directory_position: d.Position,
+    current: ?Basis,
+    reason: r.Reason,
+    work: ?c.fuze.TableEvolution.Work = null,
+    rebuild_key: bool = false,
+    schema_fingerprint: ?[32]u8 = null,
+};
 pub const Page = struct {
     entries: [pages.page_entries]?Listed = @splat(null),
     next: ?pages.Key = null,
@@ -285,6 +295,66 @@ fn record(self: *Self, next_input: r.Root, operation: r.Operation, current: P.Gu
     try self.store.publish(next, .{ .operation = operation }, current);
 }
 
+fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View, current: P.Guard) !r.Reason {
+    const object = request.binding.target.object;
+    if (request.intent.action == .create) {
+        if (known) return .object_conflict;
+    } else if (existing) |view| {
+        if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name)) return .object_conflict;
+        if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) return .stale_definition;
+        if (request.binding.expected_data) |expected| {
+            if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
+        }
+        if (view.table.root.pending != null or try self.pending(object, current)) return .object_conflict;
+    } else return .object_conflict;
+    const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
+    if ((request.intent.action == .create or request.intent.action == .rename) and !try self.available(request.intent.namespace, proposed_name, object, current)) return .name_conflict;
+    return .none;
+}
+
+/// Checks a proposal against current policy and independently observed directory
+/// and Table state. No claim, intent, reservation, native registration or write
+/// is made. Row constraints and publication are still checked during execution.
+pub fn preview(self: *Self, request: Request, policy: Policy) !Preview {
+    try self.requireInitialized();
+    try self.original(policy, request.binding);
+    try request.validate(self.allocator, self.config());
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var existing: ?View = null;
+    defer if (existing) |*view| view.deinit();
+    const known = try self.entry(request.binding.target.object);
+    if (known) |target| if (target.seed != null) {
+        existing = try self.open(self.allocator, target, false);
+    };
+    const view: ?*View = if (existing) |*value| value else null;
+    const current = try self.requestGuard(arena.allocator(), policy, request, view);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |claimed| try request.binding.requireSame(claimed);
+    var result: Preview = .{
+        .binding = request.binding,
+        .directory_position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn },
+        .current = if (view) |value| if (value.table.root.next_lsn != 0) .{ .interpretation = value.table.root.declared(), .position = .{ .partition = value.table.root.partition, .next_lsn = value.table.root.next_lsn }, .changed_lsn = value.table.root.changed_lsn, .row_count = value.table.root.live_rows } else null else null,
+        .reason = try self.admissionReason(request, known != null, view, current),
+    };
+    if (result.reason == .none) {
+        result.work = .metadata;
+        switch (request.intent.action) {
+            .create => |value| result.schema_fingerprint = try value.schema.fingerprint(),
+            .rename, .drop => result.schema_fingerprint = view.?.table.root.schema_fingerprint,
+            .alter => |change| {
+                var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+                const transition = try c.fuze.TableEvolution.apply(view.?.table.declaration.schema.schema, change, &columns);
+                result.work = transition.work;
+                result.rebuild_key = transition.rebuild_key;
+                result.schema_fingerprint = try transition.after.fingerprint();
+            },
+        }
+    }
+    try check(current);
+    return result;
+}
+
 /// Admission preserves the complete exact intent and name reservation. It does
 /// not execute the Table mutation. Repeating it never resolves a replacement.
 pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
@@ -309,17 +379,8 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     const content = try IntentStore.stage(self.allocator, self.store.objects, self.config(), request);
     var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none };
     const object = request.binding.target.object;
-    var reason: r.Reason = .none;
-    if (request.intent.action == .create) {
-        if (known != null) reason = .object_conflict;
-    } else if (existing) |*view| {
-        if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name)) reason = .object_conflict else if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) reason = .stale_definition else if (request.binding.expected_data) |expected| {
-            if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) reason = .stale_data;
-        }
-        if (reason == .none and (view.table.root.pending != null or try self.pending(object, current))) reason = .object_conflict;
-    } else reason = .object_conflict;
+    const reason = try self.admissionReason(request, known != null, if (existing) |*view| view else null, current);
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
-    if (reason == .none and (request.intent.action == .create or request.intent.action == .rename) and !try self.available(request.intent.namespace, proposed_name, object, current)) reason = .name_conflict;
     try self.store.index.begin(self.options.index_work_bytes);
     defer self.store.index.end();
     var next = self.store.root;

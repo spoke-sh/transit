@@ -184,6 +184,7 @@ pub const Action = union(enum) {
     describe,
     list: struct { namespace: u64, after: ?u64 },
     lookup: struct { namespace: u64, name: []const u8 },
+    preview: Ddl,
     admit_ddl: Ddl,
     admit_rows: Rows,
     operation: struct { binding: d.Binding, command: enum { inspect, execute, cancel }, steps: u16 },
@@ -240,7 +241,11 @@ pub const Request = struct {
                 try c.Model.nativeId(value.namespace);
                 _ = try c.TableAuthority.Name.init(value.name);
             },
-            inline .admit_ddl, .admit_rows => |value| try connection.binding(value.binding),
+            inline .preview, .admit_ddl => |value| {
+                try connection.binding(value.binding);
+                if (!std.mem.eql(u8, @tagName(value.binding.action), @tagName(value.action))) return error.InvalidDirectCatalogOperation;
+            },
+            .admit_rows => |value| try connection.binding(value.binding),
             .operation => |value| {
                 try connection.binding(value.binding);
                 if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
@@ -299,6 +304,7 @@ pub const Result = union(enum) {
     description: D.Configuration,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
+    preview: D.Preview,
     ddl: D.Observation,
     rows: P.OperationState,
     pin: P.SnapshotHandle,

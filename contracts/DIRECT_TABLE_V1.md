@@ -40,6 +40,16 @@ disclosure from cached data. Local destruction does not release the durable pin.
 
 ## Declaration and row operations
 
+`preview` checks a frozen DDL proposal against current rights, object/name
+availability, definition/data expectations and schema-evolution rules. It returns
+the exact binding, independently observed directory/Table positions, a reason,
+and the proposed schema fingerprint and work classification when admissible.
+It writes no operation claim, intent, reservation or native registration. A
+preview grants no rights or reservation and does not scan rows to prove that a
+tightened constraint will succeed. Execution rechecks the accepted source and
+all row constraints. Inspect an existing operation for its past outcome; preview
+evaluates the proposal against current state.
+
 `initialize` initializes the configured catalog under its native owner;
 `describe`, `list` and `lookup` inspect current authorized definitions. Listing
 is an independent directory/Table observation, with at most eight entries per

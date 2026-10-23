@@ -45,6 +45,7 @@ fn exclusive(action: w.Action) bool {
 }
 fn target(action: w.Action) ?u64 {
     return switch (action) {
+        .preview => |value| value.binding.target.object,
         .admit_rows => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
         .pin => |value| value.object.object,

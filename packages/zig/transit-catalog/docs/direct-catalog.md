@@ -39,6 +39,14 @@ memory. There is no implicit renewal, replacement cut or remote cleanup.
 
 ## Identity, admission and publication
 
+`preview` performs read-only DDL checks through the same policy and expectation
+rules as admission. It reports current independently observed directory/Table
+positions, conflicts and metadata/validation/rewrite work, with the proposed
+schema fingerprint. It does not claim the operation identity, stage an intent,
+reserve a name, provision native authority or publish a declaration. Existing
+identity claims must still match. Row-dependent constraints and final permission
+checks remain execution work; preview cannot promise their later success.
+
 The configuration fixes one catalog, branch one, its native authorization
 profile and an exclusive control partition. Each reserved Table receives a
 distinct partition above that control partition. The service must reserve this

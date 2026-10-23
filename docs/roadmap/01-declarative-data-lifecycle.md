@@ -76,9 +76,10 @@ covers a 64 KiB point row, bulk `.tseg` publication, exact lost-reply recovery,
 restart, an unflushed retained pin and current revocation. Its subsequent
 [CRUD/DDL recovery run](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
 also covers UPDATE, DELETE, ADD COLUMN, RENAME, DROP and name reuse with retained
-schemas and exact outcomes across a second restart. The default launcher and
-installed SQL still use the actor catalog. Their cutover, preview and dependency
-contracts, automatic point flushing, named resource provisioning and computation
+schemas and exact outcomes across a second restart. [Read-only DDL preview](../../tests/README.md#direct-table-preview--2026-10-23)
+checks current policy, expectations and schema work without claims or admission.
+The default launcher and installed SQL still use the actor catalog. Their
+cutover, dependency contracts, automatic point flushing, named resource provisioning and computation
 evidence remain unfinished. None of the completion matrix rows below is closed
 by this partial caller path.
 

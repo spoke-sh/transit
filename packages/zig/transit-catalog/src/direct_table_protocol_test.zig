@@ -127,3 +127,39 @@ test "direct Table responses reject unrelated requests, altered receipts and mal
     altered.result = .released;
     try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, altered));
 }
+
+test "DDL preview responses preserve proposed schema and never imply an accepted outcome" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns };
+    var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+    var proposal: w.Ddl = .{
+        .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = connection.scope, .principal = 4, .operation = 1 }, .target = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) },
+        .namespace = 1,
+        .name = "events",
+        .action = .{ .create = .{ .owner = 0, .schema = try w.Binary.encode(alloc, try schema.encode(&bytes)) } },
+    };
+    proposal.binding.intent = try proposal.digest(alloc);
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(7), .action = .{ .preview = proposal } };
+    const context = try w.Request.context(input, alloc);
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .proof = proof };
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .result = .{ .preview = .{ .binding = proposal.binding, .directory_position = .{ .partition = 1, .next_lsn = 1 }, .current = null, .reason = .none, .work = .metadata, .schema_fingerprint = try schema.fingerprint() } } };
+    try c.DirectTableClient.validateResponse(alloc, request, response);
+    var changed = response;
+    changed.result.preview.schema_fingerprint.?[0] ^= 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    changed = response;
+    changed.result.preview.reason = .name_conflict;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    changed = response;
+    changed.result.preview.binding.target.object += 1;
+    try t.expectError(error.DataIdentityConflict, c.DirectTableClient.validateResponse(alloc, request, changed));
+    changed = response;
+    changed.result = .{ .ddl = .not_observed };
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    try t.expect(!request.transport().mutation and request.transport().control == null);
+}

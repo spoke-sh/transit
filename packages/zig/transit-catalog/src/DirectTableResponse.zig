@@ -82,6 +82,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .describe => .description,
         .list => .list,
         .lookup => .lookup,
+        .preview => .preview,
         .admit_ddl => .ddl,
         .admit_rows => .rows,
         .operation => |value| switch (value.binding.action) {
@@ -95,6 +96,36 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .preview => |value| {
+            const binding = request.action.preview.binding;
+            try binding.requireSame(value.binding);
+            try frontier(value.directory_position, 0);
+            if ((value.reason == .none) != (value.work != null) or
+                (value.work == null) != (value.schema_fingerprint == null) or
+                (value.work == null and value.rebuild_key)) return error.InvalidTableResponse;
+            if (value.current) |current| {
+                try definition(request.connection, current.interpretation);
+                if (!std.meta.eql(current.interpretation.interpretation.object, binding.target)) return error.InvalidTableResponse;
+                try frontier(current.position, current.changed_lsn);
+            }
+            if (value.reason == .none) {
+                if (binding.action == .create) {
+                    if (value.current != null or value.work.? != .metadata or value.rebuild_key) return error.InvalidTableResponse;
+                    const bytes = try request.action.preview.action.create.schema.decode(allocator, c.fuze.TableSchema.max_bytes);
+                    defer allocator.free(bytes);
+                    var proposed = try c.fuze.TableSchema.decode(allocator, bytes);
+                    defer proposed.deinit();
+                    if (!std.mem.eql(u8, &try proposed.schema.fingerprint(), &value.schema_fingerprint.?)) return error.InvalidTableResponse;
+                } else {
+                    const current = value.current orelse return error.InvalidTableResponse;
+                    if (current.interpretation.retired or !std.meta.eql(binding.expected_definition.?, current.interpretation.interpretation)) return error.InvalidTableResponse;
+                    if (binding.expected_data) |basis| if (!basis.unchangedAt(current.position, current.changed_lsn)) return error.InvalidTableResponse;
+                    if (binding.action == .rename or binding.action == .drop) {
+                        if (value.work.? != .metadata or value.rebuild_key or !std.mem.eql(u8, &current.interpretation.schema_fingerprint, &value.schema_fingerprint.?)) return error.InvalidTableResponse;
+                    }
+                }
+            }
+        },
         .initialized, .released => {},
         .description => |value| {
             try value.validate();

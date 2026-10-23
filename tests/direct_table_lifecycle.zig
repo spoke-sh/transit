@@ -41,6 +41,13 @@ fn rows(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Rows
 fn ddl(allocator: std.mem.Allocator, client: c.DirectTableClient, input: w.Ddl) !E {
     var work = input;
     work.binding.intent = try work.digest(allocator);
+    const proposed = try client.call(.{ .preview = work });
+    defer proposed.deinit();
+    try t.expectEqual(.none, proposed.value.result.preview.reason);
+    try t.expect(proposed.value.result.preview.work != null);
+    const unobserved = try client.call(.{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
+    defer unobserved.deinit();
+    try t.expect(unobserved.value.result.ddl == .not_observed);
     const admitted = try client.call(.{ .admit_ddl = work });
     defer admitted.deinit();
     try t.expect(admitted.value.result.ddl == .admitted);
