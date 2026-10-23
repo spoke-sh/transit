@@ -15,6 +15,9 @@ key: p.Ed25519.KeyPair,
 /// When present, key authenticates this delegation's executor. The connection
 /// still identifies its original caller and selected role.
 delegation: ?c.DirectReadDelegation = null,
+/// Current original-caller permission to close a saved delegation. This never
+/// renews read authority for the accepted computation.
+closure: ?c.DirectReadDelegation.Closure = null,
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
 /// Current rights and exact interpretation only. This prepares no mutation or
@@ -31,10 +34,14 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
         if (!std.meta.eql(delegation.binding.connection, self.connection)) return error.InvalidTableDelegation;
         try delegation.allow(action);
     }
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation };
+    if (self.closure != null) {
+        if (self.delegation == null) return error.InvalidTableDelegation;
+        try c.DirectReadDelegation.Closure.allow(action);
+    }
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const proof = (try authority.proof(self.connection.audience, try w.Request.context(input, self.allocator))).signed;
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .proof = proof };
     try request.validate(self.allocator);
     return request;
 }
@@ -60,6 +67,12 @@ pub fn call(self: Self, action: w.Action) !std.json.Parsed(w.Response) {
 /// At most three signed exchanges occur; no new cut or pin owner is substituted.
 /// A delegated client keeps its original grant and authenticates its executor.
 pub fn closeOriginalPin(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle) !void {
+    return self.closeOriginal(object, owner, expected, known, if (self.delegation) |grant| grant.binding.retention else .snapshot);
+}
+pub fn closeOriginalHistory(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle) !void {
+    return self.closeOriginal(object, owner, expected, known, .history);
+}
+fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle, retention: c.storage.TablePartition.Retention) !void {
     try self.connection.object(object);
     try self.connection.owner(owner);
     try expected.validate();
@@ -87,7 +100,8 @@ pub fn closeOriginalPin(self: Self, object: p.DataLifecycle.Object, owner: p.Dat
         }
         // An unknown handle must be recovered through the original acquisition
         // to verify its retained frontier. A matching owner alone is not enough.
-        const pinned = try self.call(.{ .pin = .{ .object = object, .owner = owner, .expected = expected } });
+        const acquisition: w.Acquisition = .{ .object = object, .owner = owner, .expected = expected };
+        const pinned = try self.call(if (retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition });
         defer pinned.deinit();
         if (handle) |observed| if (!std.meta.eql(observed, pinned.value.result.pin)) return error.InvalidTableResponse;
         handle = pinned.value.result.pin;

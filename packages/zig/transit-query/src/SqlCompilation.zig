@@ -68,7 +68,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: R
 
     const after = try client.describe(definition);
     if (!after.limits.permits(limits)) return error.QueryBudgetExceeded;
-    const bundle = try client.authorizeBundle(description);
+    const bundle = description;
     var bytes: [q.Bundle.max_bytes]u8 = undefined;
     const encoded = try bundle.encode(&bytes);
     var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;

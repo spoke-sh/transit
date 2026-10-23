@@ -89,8 +89,9 @@ def sources():
         field = name.encode()
         return bytes((len(field),)) + field + bytes((5, 0, mode)) + struct.pack('<HH', 4096, 4096) + bytes((1, len(field))) + field
     descriptor = logical_schema('table')
-    table = (b'TQS1' + definition + struct.pack('<QQQQQQII', 1, 7, 9, 3, 9, 1, 0x54434d01, 200) +
-             bytes([1])*32 + struct.pack('<H', len(descriptor)) + descriptor)
+    table = (b'TQS1' + definition + struct.pack('<QQQQQQQQ', 1, 7, 9, 3, 1, 1, 9, 1) +
+             bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32 +
+             struct.pack('<H', len(descriptor)) + descriptor)
     reference = b'SDR1' + struct.pack('<QQQIQ', 7, 2**64-1, 3, 1, 42)
     variants = [
         ('kv', source(1, b'\5data/\1\6\1\2')),
@@ -117,7 +118,7 @@ def bundles():
         named = head + bytes([0, 2, 1, 0, 6]) + b'Result' + b'\0' + suffix
         counted = head + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0'
         def bundle(plan):
-            return b'UQB1' + current_definition() + struct.pack('<HH', len(source), len(plan)) + limits + b'\0' + source + plan
+            return b'UQB1' + current_definition() + struct.pack('<HH', len(source), len(plan)) + limits + b'\0\0' + source + plan
         wire = bundle(plan)
         digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
         for index, offset in enumerate(range(0, len(wire), 256)):
@@ -136,6 +137,7 @@ def uploads():
     commands += [(label, tag+namespace) for label, tag in [
         ('seal', b'UQS1'), ('submit', b'UQX1'), ('cancel', b'UQK1'),
         ('collect', b'UQG1'), ('retire', b'UQR1')]]
+    commands.append(('retry_cleanup', b'UQL1'+namespace+b'\0'))
     status = b'UQU1' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0\0'
     return json.dumps(dict(commands=[dict(kind=kind, wire_hex=wire.hex()) for kind, wire in commands], status_hex=status.hex()), indent=2)+'\n'
 

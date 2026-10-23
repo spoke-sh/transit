@@ -1,4 +1,5 @@
 """Installed consumers for the shared signed source/recovery schedule."""
+import base64
 import copy
 import json
 import os
@@ -21,6 +22,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def compound_profile(state):
     return json.loads((state/'client.json').read_text()).get('compound', False)
+
+
+def client_config(url, connection, state, kind):
+    result = dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind,
+        compound=compound_profile(state), bundle=str(state/'bundle.bin'))
+    if kind == 'table':
+        source = json.loads((state/'client.json').read_text())
+        result.update(tables=source['tables'], capture=source['capture'])
+    return result
 
 
 class Consumer:
@@ -119,8 +129,7 @@ def install(root, languages):
         subprocess.run([python, '-B', script, 'codecs', root/'fixtures.json'], check=True, env=env, cwd=root, timeout=90)
         def open_callers(url, connection, state, kind, python=python, script=script, env=env):
             config = root/'client.json'
-            config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'),
-                kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
+            config.write_text(json.dumps(dict(client_config(url, connection, state, kind), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
             first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True, predicate_programs=True, compilation=True)
             try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True, predicate_programs=True, compilation=True)
             except BaseException:
@@ -131,7 +140,19 @@ def install(root, languages):
     return factories
 
 
-def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node'):
+def install_python_direct(root, packages):
+    root.mkdir()
+    env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'PYTHONHOME', 'TRANSIT_LIBRARY_DIR')}
+    venv = root/'venv'
+    subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
+    python = str(venv/'bin/python')
+    subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index',
+        '--find-links', str(packages), 'transit-station==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
+    script = root/'consumer.py'; shutil.copyfile(ROOT/'tests/python_direct_capture.py', script)
+    return lambda endpoint, profile, phase: subprocess.run([python, '-B', script, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
+
+
+def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node', *, direct=False):
     root.mkdir()
     dependencies = {f'@transit/{name}': 'file:' + str(packages/f'transit-{name}-0.2.0.tgz')
         for name in ('client', 'native-client', 'station', 'native-station')}
@@ -142,16 +163,18 @@ def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node'):
     subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'], 'pnpm', 'install', '--prefer-offline', '--ignore-scripts'],
         cwd=root, env=env, check=True, stdout=subprocess.DEVNULL)
     script = root/'consumer.mjs'
-    shutil.copyfile(ROOT/'tests/node_unified_sdk.mjs', script)
+    shutil.copyfile(ROOT/'tests'/('node_direct_capture.mjs' if direct else 'node_unified_sdk.mjs'), script)
+    if direct:
+        return lambda endpoint, profile, phase: subprocess.run(['node', script, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
     subprocess.run(['node', script, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
+        config.write_text(json.dumps(client_config(url, connection, state, kind)))
         return [Consumer(['node', script, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
-def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby'):
+def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby', *, direct=False):
     root.mkdir()
     default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
     env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
@@ -161,23 +184,25 @@ def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby'):
         'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem')]
     subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=env, cwd=root, check=True, stdout=subprocess.DEVNULL)
     script = root/'consumer.rb'
-    shutil.copyfile(ROOT/'tests/ruby_unified_sdk.rb', script)
+    shutil.copyfile(ROOT/'tests'/('ruby_direct_capture.rb' if direct else 'ruby_unified_sdk.rb'), script)
+    if direct:
+        return lambda endpoint, profile, phase: subprocess.run(['ruby', script, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
     subprocess.run(['ruby', script, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
+        config.write_text(json.dumps(client_config(url, connection, state, kind)))
         return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
-def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/rust'):
+def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/rust', *, direct=False):
     root.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in names:
         with tarfile.open(packages/f'{name}-0.2.0.crate') as archive:
             archive.extractall(root/'vendor', filter='data')
     (root/'src').mkdir()
-    shutil.copyfile(ROOT/'tests/rust_unified_sdk.rs', root/'src/main.rs')
+    shutil.copyfile(ROOT/'tests'/('rust_direct_capture.rs' if direct else 'rust_unified_sdk.rs'), root/'src/main.rs')
     manifest = '''[package]
 name = "transit-unified-proof"
 version = "0.1.0"
@@ -200,6 +225,12 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
     subprocess.run(['cargo', 'build', '--locked', '--offline'], cwd=root, env=env, check=True)
     executable = root/'consumer'
     shutil.copy2(root/'target/debug/transit-unified-proof', executable)
+    if direct:
+        def consume(endpoint, profile, phase):
+            bundle = root/'bundle.bin'
+            bundle.write_bytes(base64.b64decode(json.loads(profile.read_text())['captured']['bundle']['base64']))
+            subprocess.run([executable, endpoint, str(profile), phase, str(bundle)], cwd=root, env=env, check=True, timeout=120)
+        return consume
     subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     # One owned client cannot serve overlapping reads through shared borrows.
     (root/'src/main.rs').write_text('fn overlap(client: &mut transit_station_sdk::unified::Client) { let a = &mut *client; let b = &mut *client; a.status(1).unwrap(); b.status(1).unwrap(); } fn main() {}')
@@ -208,7 +239,7 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
     shutil.rmtree(root/'vendor'); shutil.rmtree(root/'target'); shutil.rmtree(root/'src')
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
+        config.write_text(json.dumps(client_config(url, connection, state, kind)))
         return [Consumer([executable, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
@@ -246,7 +277,7 @@ class CConsumer(Consumer):
         return result
 
 
-def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c'):
+def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c', *, direct=False):
     root.mkdir()
     prefix = root/'installed'
     for artifact in sorted(packages.glob('*.tar.gz')):
@@ -255,11 +286,24 @@ def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c'):
     env['PKG_CONFIG_PATH'] = str(prefix/'lib/pkgconfig')
     flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'transit-station-c' if language == 'c' else 'transit-station-cpp'], text=True, env=env))
     filename = 'c_unified_sdk.c' if language == 'c' else 'cpp_unified_sdk.cpp'
+    if direct: filename = 'c_direct_capture.c' if language == 'c' else 'cpp_direct_capture.cpp'
     source = root/filename; shutil.copyfile(ROOT/'tests'/filename, source)
     shutil.copyfile(ROOT/'tests/unified_inspection_fixture.h', root/'unified_inspection_fixture.h')
     executable = root/'consumer'
     subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', source, *flags, '-lpthread', '-o', executable], cwd=root, env=env, check=True)
     source.unlink()
+    if direct:
+        def consume(endpoint, profile, phase):
+            value = json.loads(profile.read_text())['captured']; route = value['connection']
+            table = value['declaration']['source']['table']; capture = value['capture']
+            seed = root/'capture.seed'; seed.write_text(('1d' if phase == 'prepare' else '3b') * 32); seed.chmod(0o600)
+            bundle = root/'bundle.bin'; bundle.write_bytes(base64.b64decode(value['bundle']['base64']))
+            args = [executable, phase, endpoint, str(seed), str(bundle)]
+            args += [str(route[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
+            args += [str(table['scope']['resource']), str(table['scope']['catalog']), str(table['owner']), str(table['branch'])]
+            args += [str(capture['executor']), str(capture['operation']), str(capture['expected']['partition']), str(capture['expected']['next_lsn'])]
+            subprocess.run(args, cwd=root, env=env, check=True, timeout=120)
+        return consume
     for i, item in enumerate(json.loads((fixtures/'bundles.json').read_text())):
         (fixtures/f'bundle{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
         (fixtures/f'named-bundle{i}.bin').write_bytes(bytes.fromhex(item['named_wire_hex']))
@@ -276,30 +320,38 @@ def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c'):
         arguments = [executable, 'serve', url, str(state/'caller.seed'), kind, str(state/'bundle.bin')]
         arguments += [str(connection[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
         arguments.append('compound' if compound_profile(state) else 'atom')
+        if kind == 'table':
+            config = client_config(url, connection, state, kind); t = config['tables']; c = config['capture']
+            arguments += [t['url'], str(t['connection']['scope']['resource']), str(t['connection']['scope']['catalog']),
+                str(t['connection']['branch']), str(t['connection']['audience']), str(c['executor']), str(c['operation']),
+                str(c['expected']['partition']), str(c['expected']['next_lsn'])]
         return [CConsumer(arguments, env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
-def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java'):
+def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java', *, direct=False):
     root.mkdir(); lib = root/'lib'; lib.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
         shutil.copy2(packages/name, lib/name)
     env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
-    source = root/'JavaUnifiedSdk.java'; shutil.copyfile(ROOT/'tests'/source.name, source)
+    name = 'JavaDirectCapture' if direct else 'JavaUnifiedSdk'
+    source = root/f'{name}.java'; shutil.copyfile(ROOT/'tests'/source.name, source)
     classes = root/'classes'; classes.mkdir()
     subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib/'*'), '-d', classes, source], cwd=root, env=env, check=True)
     source.unlink()
-    command = ['java', f'-Djava.io.tmpdir={root}', '-cp', os.pathsep.join([str(classes), str(lib/'*')]), 'JavaUnifiedSdk']
+    command = ['java', f'-Djava.io.tmpdir={root}', '-cp', os.pathsep.join([str(classes), str(lib/'*')]), name]
+    if direct:
+        return lambda endpoint, profile, phase: subprocess.run([*command, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
     subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
+        config.write_text(json.dumps(client_config(url, connection, state, kind)))
         return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
-def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet'):
+def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet', *, direct=False):
     import xml.etree.ElementTree as ET
     root.mkdir(); source = root/'source'; source.mkdir(); feed = root/'feed'; feed.mkdir()
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
@@ -313,21 +365,23 @@ def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet'):
 </Project>''')
     config = ET.Element('configuration'); sources = ET.SubElement(config, 'packageSources'); ET.SubElement(sources, 'clear')
     ET.SubElement(sources, 'add', key='local-built', value=str(feed)); ET.ElementTree(config).write(source/'NuGet.Config', encoding='utf-8', xml_declaration=True)
-    shutil.copyfile(ROOT/'tests/DotnetUnifiedSdk.cs', source/'Program.cs')
+    shutil.copyfile(ROOT/'tests'/('DotnetDirectCapture.cs' if direct else 'DotnetUnifiedSdk.cs'), source/'Program.cs')
     subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], cwd=source, env=env, check=True)
     app = root/'app'
     subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release', '-o', app], cwd=source, env=env, check=True)
     shutil.rmtree(source); shutil.rmtree(root/'packages')
     command = ['dotnet', str(app/'Consumer.dll')]
+    if direct:
+        return lambda endpoint, profile, phase: subprocess.run([*command, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
     subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
+        config.write_text(json.dumps(client_config(url, connection, state, kind)))
         return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
-def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/beam'):
+def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/beam', *, direct=False):
     root.mkdir(); lib = root/'lib'; lib.mkdir(); classes = root/'classes'; classes.mkdir()
     names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
     if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
@@ -335,20 +389,23 @@ def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/beam
         with tarfile.open(packages/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
     env = {k: v for k, v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST')}
     env.update(ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
-    sources = ['beam_unified_controller.erl'] + (['beam_unified_adapter.erl'] if language == 'erlang' else [])
+    controller = 'beam_direct_capture' if direct else 'beam_unified_controller'
+    sources = [f'{controller}.erl'] + (['beam_unified_adapter.erl'] if language == 'erlang' else [])
     for name in sources:
         source = root/name; shutil.copyfile(ROOT/'tests'/name, source)
         subprocess.run(['erlc', '-Werror', '-o', classes, source], cwd=root, env=env, check=True); source.unlink()
     if language == 'elixir':
         source = root/'elixir_unified_adapter.ex'; shutil.copyfile(ROOT/'tests'/source.name, source)
         subprocess.run(['elixirc', '--warnings-as-errors', '-pa', classes, '-o', classes, source], cwd=root, env=env, check=True); source.unlink()
-        command = ['elixir', '-pa', str(classes), '-e', ':beam_unified_controller.main(ElixirUnifiedAdapter, System.argv())', '--']
+        command = ['elixir', '-pa', str(classes), '-e', f':{controller}.main(ElixirUnifiedAdapter, System.argv())', '--']
     else:
-        command = ['erl', '-noshell', '-pa', str(classes), '-eval', 'beam_unified_controller:main(beam_unified_adapter, init:get_plain_arguments()), halt().', '-extra']
+        command = ['erl', '-noshell', '-pa', str(classes), '-eval', f'{controller}:main(beam_unified_adapter, init:get_plain_arguments()), halt().', '-extra']
+    if direct:
+        return lambda endpoint, profile, phase: subprocess.run([*command, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
     subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
+        config.write_text(json.dumps(client_config(url, connection, state, kind)))
         return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 

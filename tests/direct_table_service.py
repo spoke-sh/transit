@@ -53,7 +53,7 @@ def run(node, caller):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "assertion_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "execute": None, "requests": 0, "commands": []}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -90,7 +90,9 @@ def run(node, caller):
                             data = json.dumps(parsed).encode()
                             fault["pin_changed"] = True
                         release = envelope["action"].get("release")
-                        for action, key, result in ((pin, "delegated_pin", "pin"), (release, "delegated_release", "released")):
+                        history = envelope["action"].get("retain_history")
+                        historical = envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "history"
+                        for action, key, result in ((pin, "delegated_pin", "pin"), (history, "history_pin", "pin"), (release, "history_release" if historical else "delegated_release", "released")):
                             if action and envelope["delegation"] and not fault[key]:
                                 assert response.status == 200, data
                                 parsed = json.loads(data)
@@ -134,7 +136,7 @@ def run(node, caller):
             assert fault["changed"]
             assert fault["pin_changed"]
             assert fault["assertion_changed"]
-            assert fault["delegated_pin"]
+            assert fault["delegated_pin"] and fault["history_pin"]
             segments = list((root / "native").rglob("*.tseg"))
             assert segments, "Bulk acceptance created no .tseg object"
             stop(authority)
@@ -145,7 +147,7 @@ def run(node, caller):
             authority = None
             authority = start()
             subprocess.run([caller, endpoint, "lifecycle", str(profile)], check=True, timeout=180)
-            assert fault["delegated_release"]
+            assert fault["delegated_release"] and fault["history_release"]
             stop(authority)
             authority = None
             authority = start()
@@ -158,7 +160,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, retained logical history with accepted no-ops and original schemas through DROP/recreation, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

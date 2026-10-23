@@ -19,6 +19,7 @@ const Config = struct {
     interval_ms: u32 = 10,
     idle_max_interval_ms: u32 = 0,
     request_timeout_ms: u32 = 5000,
+    tables: ?q.UnifiedBehavior.TableEndpoint = null,
     role: union(enum) {
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
@@ -56,6 +57,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     wire.timeout_ms = config.request_timeout_ms;
+    var table_wire: ?q.wire.Client = if (config.tables) |tables| q.wire.Client.init(init.gpa, init.io, tables.url) else null;
+    defer if (table_wire) |*client| client.deinit();
+    const direct_tables: ?catalog.DirectTableClient = if (config.tables) |tables| table: {
+        if (tables.scope.realm != config.realm or config.role != .unified_source) return error.InvalidConfiguration;
+        table_wire.?.timeout_ms = config.request_timeout_ms;
+        const connection: catalog.DirectTableProtocol.Connection = .{ .scope = tables.scope, .branch = tables.branch, .audience = tables.audience, .principal = config.principal, .role = null };
+        try connection.validate();
+        break :table .{ .allocator = init.gpa, .authority = &wire, .service = &table_wire.?, .connection = connection, .key = key };
+    } else null;
     wire.observer = diagnostics;
     if (config.role == .courier) return courier(init, &wire, config, key);
     if (config.pid == 0 or config.generation == 0) return error.MissingActivation;
@@ -95,6 +105,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             else => 0,
         },
         .resources = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key },
+        .tables = direct_tables,
         .adapter = adapter,
         .workspace = workspace,
         .cancellation = &cancellation,

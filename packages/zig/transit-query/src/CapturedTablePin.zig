@@ -27,7 +27,28 @@ pub const Slot = struct {
     }
 };
 pub const Phase = enum(u8) { acquiring = 1, closing = 2, closed = 3 };
-pub const Retained = struct { handle: Handle, authority: c.DirectReadAuthority };
+pub const Retained = struct {
+    handle: Handle,
+    authority: c.DirectReadAuthority,
+    declaration_bytes: u64,
+    schema: [32]u8,
+    changed_lsn: u64,
+    rows: u64,
+    fn basis(self: Retained, record: Record) !c.DirectTableReader.Basis {
+        const result: c.DirectTableReader.Basis = .{
+            .snapshot = try record.snapshot(self.handle),
+            .interpretation = .{ .interpretation = record.grant.binding.interpretation, .content = .{ .bytes = self.declaration_bytes, .sha256 = record.grant.binding.interpretation.digest }, .schema_fingerprint = self.schema, .retired = false },
+            .accepted = record.grant.binding.expected,
+            .changed_lsn = self.changed_lsn,
+            .row_count = self.rows,
+            .authority = self.authority,
+        };
+        try result.interpretation.validate();
+        try result.authority.validate();
+        if (result.changed_lsn > result.accepted.next_lsn) return error.InvalidQueryRecord;
+        return result;
+    }
+};
 pub const Record = struct {
     phase: Phase,
     resource: u64,
@@ -148,21 +169,40 @@ pub fn prepare(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, grant: Gra
 }
 fn evidence(turn: *Turn, record: Record) !?Retained {
     var current = turn.committed();
-    const value = (try current.read(record.slot.key(2))) orelse return null;
-    if (value.len != 100 or !std.mem.eql(u8, value.data[0..4], "QTH1")) return error.InvalidQueryRecord;
+    return readEvidence(&current, record);
+}
+fn readEvidence(reader: anytype, record: Record) !?Retained {
+    const value = (try reader.read(record.slot.key(2))) orelse return null;
+    if (value.len != 156 or !std.mem.eql(u8, value.data[0..4], "QTH1")) return error.InvalidQueryRecord;
     if (!std.mem.eql(u8, value.data[4..36], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     const result: Retained = .{
         .handle = .{ .owner = record.grant.binding.owner, .content = .{ .bytes = std.mem.readInt(u64, value.data[36..44], .little), .sha256 = value.data[44..76].* } },
         .authority = .{ .database = std.mem.readInt(u64, value.data[76..84], .little), .schema = std.mem.readInt(u64, value.data[84..92], .little), .table = std.mem.readInt(u64, value.data[92..100], .little) },
+        .declaration_bytes = std.mem.readInt(u64, value.data[100..108], .little),
+        .schema = value.data[108..140].*,
+        .changed_lsn = std.mem.readInt(u64, value.data[140..148], .little),
+        .rows = std.mem.readInt(u64, value.data[148..156], .little),
     };
-    _ = try record.snapshot(result.handle);
-    try result.authority.validate();
+    _ = try result.basis(record);
     return result;
 }
+/// Read immutable source evidence after traversal/closure without reopening the
+/// remote pin. The caller separately checks current disclosure authorization.
+pub fn source(allocator: std.mem.Allocator, reader: anytype, slot: Slot, worker: u64) !c.DirectTableReader.Basis {
+    const record = (try observe(allocator, reader, slot, worker)) orelse return error.QueryNotFound;
+    const retained = (try readEvidence(reader, record)) orelse return error.IncompleteSource;
+    return retained.basis(record);
+}
+/// Public native readers can inspect cleanup independently of result status.
+/// This performs no direct action; the reader supplies current resource access.
+pub fn observe(allocator: std.mem.Allocator, reader: anytype, slot: Slot, worker: u64) !?Record {
+    const record = (try read(allocator, reader, slot)) orelse return null;
+    if (record.resource != reader.view.resource or record.worker != worker) return error.QueryIdentityMismatch;
+    return record;
+}
 fn saveHandle(turn: *Turn, record: Record, value: Retained) !void {
-    _ = try record.snapshot(value.handle);
-    try value.authority.validate();
-    var bytes: [100]u8 = undefined;
+    _ = try value.basis(record);
+    var bytes: [156]u8 = undefined;
     bytes[0..4].* = "QTH1".*;
     bytes[4..36].* = p.Growth.definition_bytes;
     std.mem.writeInt(u64, bytes[36..44], value.handle.content.bytes, .little);
@@ -170,6 +210,10 @@ fn saveHandle(turn: *Turn, record: Record, value: Retained) !void {
     std.mem.writeInt(u64, bytes[76..84], value.authority.database, .little);
     std.mem.writeInt(u64, bytes[84..92], value.authority.schema, .little);
     std.mem.writeInt(u64, bytes[92..100], value.authority.table, .little);
+    std.mem.writeInt(u64, bytes[100..108], value.declaration_bytes, .little);
+    bytes[108..140].* = value.schema;
+    std.mem.writeInt(u64, bytes[140..148], value.changed_lsn, .little);
+    std.mem.writeInt(u64, bytes[148..156], value.rows, .little);
     const encoded = try p.Value.init(&bytes);
     if (try turn.read(record.slot.key(2))) |existing| {
         if (!existing.eql(encoded)) return error.SourceChanged;
@@ -183,20 +227,36 @@ fn phase(allocator: std.mem.Allocator, turn: *Turn, original: Record, next: Phas
     // remains present, including after closure, for exact retry/inspection.
     try turn.write(changed.slot.key(0), try p.Value.init(bytes[0..p.Value.max_bytes]));
 }
-/// Commit this one-mutation decision with the job's transition away from reading
-/// its input. It can also close an uncertain acquisition. No release occurs yet.
+/// Commit this one-mutation decision with or after the job's transition away
+/// from reading its input. It can also close an uncertain acquisition. No
+/// release occurs until a later turn observes this committed decision.
 pub fn beginClose(allocator: std.mem.Allocator, turn: *Turn, slot: Slot) !void {
     const record = (try read(allocator, turn, slot)) orelse return error.QueryNotFound;
     try record.check(turn, slot);
     if (record.phase == .acquiring) try phase(allocator, turn, record, .closing);
 }
 
+/// Translate only a checked direct-service rejection. An unavailable or
+/// malformed reply preserves uncertainty and the original acquisition intent.
+pub fn readFailure(client: c.DirectTableClient, err: anyerror) anyerror {
+    if (err == error.AccessDenied) return error.CatalogDenied;
+    if (err == error.Conflict or err == error.Rejected) {
+        if (client.authority.last_rejection == .StaleAuthorizationCredential) return error.QueryDenied;
+        return switch (client.service.last_rejection orelse return err) {
+            .Conflict => error.SourceChanged,
+            .QueryExpired => error.SourceChanged,
+            .StaleAuthorizationCredential => error.QueryDenied,
+            else => err,
+        };
+    }
+    return err;
+}
 const Remote = struct {
     client: c.DirectTableClient,
     fn delegated(self: Remote, grant: Grant) !c.DirectTableClient {
         const connection = self.client.connection;
         const original = grant.binding.connection;
-        if (self.client.delegation != null or connection.principal != grant.binding.executor or connection.role != null or
+        if (self.client.delegation != null or self.client.closure != null or connection.principal != grant.binding.executor or connection.role != null or
             !std.meta.eql(connection.scope, original.scope) or connection.branch != original.branch or connection.audience != original.audience) return error.QueryDenied;
         var result = self.client;
         result.connection = original;
@@ -205,30 +265,59 @@ const Remote = struct {
     }
     fn pin(self: Remote, grant: Grant) !Retained {
         const client = try self.delegated(grant);
-        const response = try client.call(.{ .pin = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected } });
+        const acquisition: c.DirectTableProtocol.Acquisition = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected };
+        const response = client.call(if (grant.binding.retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition }) catch |err| return readFailure(client, err);
         defer response.deinit();
-        const source = try client.call(.{ .snapshot = .{ .object = grant.binding.interpretation.object, .handle = response.value.result.pin } });
-        defer source.deinit();
-        return .{ .handle = response.value.result.pin, .authority = source.value.result.snapshot.authority };
+        const found = client.call(.{ .snapshot = .{ .object = grant.binding.interpretation.object, .handle = response.value.result.pin } }) catch |err| return readFailure(client, err);
+        defer found.deinit();
+        const value = found.value.result.snapshot;
+        return .{ .handle = response.value.result.pin, .authority = value.authority, .declaration_bytes = value.interpretation.content.bytes, .schema = value.interpretation.schema_fingerprint, .changed_lsn = value.changed_lsn, .rows = value.row_count };
     }
     fn close(self: Remote, grant: Grant, known: ?Handle) !void {
         const client = try self.delegated(grant);
         try client.closeOriginalPin(grant.binding.interpretation.object, grant.binding.owner, grant.binding.expected, known);
     }
+    fn closeAuthorized(self: Remote, grant: Grant, authorization: Grant.Closure, known: ?Handle) !void {
+        var client = try self.delegated(grant);
+        client.closure = authorization;
+        try client.closeOriginalPin(grant.binding.interpretation.object, grant.binding.owner, grant.binding.expected, known);
+    }
 };
 /// The configured executor's own key authenticates the original caller's saved
 /// grant. Acquisition only follows committed admission and preserves its cut.
-pub fn acquire(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.DirectTableClient) !c.DirectTableProtocol.Snapshot {
+pub fn acquire(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.DirectTableClient) !c.DirectTableReader.Basis {
     return acquireWith(allocator, turn, slot, Remote{ .client = client });
 }
-fn acquireWith(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, remote: anytype) !c.DirectTableProtocol.Snapshot {
+fn acquireWith(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, remote: anytype) !c.DirectTableReader.Basis {
     const record = try require(allocator, turn, slot);
     if (record.phase != .acquiring or (try read(allocator, turn, slot)).?.phase != .acquiring) return error.QueryClosed;
     const known = try evidence(turn, record);
     const retained = try remote.pin(record.grant);
     if (known) |old| if (!std.meta.eql(old, retained)) return error.SourceChanged;
     try saveHandle(turn, record, retained);
-    return record.snapshot(retained.handle);
+    return retained.basis(record);
+}
+pub fn readClient(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.DirectTableClient) !c.DirectTableClient {
+    const record = try require(allocator, turn, slot);
+    if (record.phase != .acquiring) return error.QueryClosed;
+    return (Remote{ .client = client }).delegated(record.grant);
+}
+/// A pure status read obtains native source requirements without creating a
+/// pin. Admission can then commit under the query worker's own audience proof.
+pub fn authorizeAdmission(turn: *Turn, grant: Grant, client: c.DirectTableClient) !void {
+    const delegated = try (Remote{ .client = client }).delegated(grant);
+    const response = delegated.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } }) catch |err| return readFailure(delegated, err);
+    defer response.deinit();
+    try authorizeSource(turn, grant, response.value.result.pin_state.authority);
+}
+pub fn authorizeSource(turn: *Turn, grant: Grant, authority: c.DirectReadAuthority) !void {
+    const subject = try turn.authorizationSubject(grant.binding.connection.principal);
+    if (subject != .signed) return error.QueryDenied;
+    const original = grant.proof.claim;
+    const current = subject.signed.claim;
+    if (current.definition != original.definition or current.realm != original.realm or current.principal != original.principal or
+        current.credential_epoch != original.credential_epoch or current.role != original.role) return error.QueryDenied;
+    _ = try turn.requireAuthorization(try authority.guard(subject));
 }
 /// Fence a later native progress/result commit with the exact policy objects
 /// observed at direct capture. The enclosing bundle binds this execution proof
@@ -236,18 +325,41 @@ fn acquireWith(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, remote: an
 pub fn authorizeExecution(allocator: std.mem.Allocator, turn: *Turn, slot: Slot) !void {
     const record = try require(allocator, turn, slot);
     const retained = (try evidence(turn, record)) orelse return error.IncompleteSource;
-    const subject = try turn.authorizationSubject(record.grant.binding.connection.principal);
-    if (subject != .signed) return error.QueryDenied;
-    const original = record.grant.proof.claim;
-    const current = subject.signed.claim;
-    if (current.definition != original.definition or current.realm != original.realm or current.principal != original.principal or
-        current.credential_epoch != original.credential_epoch or current.role != original.role) return error.QueryDenied;
-    _ = try turn.requireAuthorization(try retained.authority.guard(subject));
+    try authorizeSource(turn, record.grant, retained.authority);
 }
 /// Reconcile only a committed closing decision. Failure leaves cleanup pending;
 /// publishing closed state is a separate native commit, safe to retry after loss.
 pub fn settle(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.DirectTableClient) !void {
+    const record = try require(allocator, turn, slot);
+    if (record.phase == .closed) return;
+    if (record.phase != .closing) return error.QueryActive;
+    var current = turn.committed();
+    if (try current.read(slot.key(3))) |value| {
+        const authorization = try Grant.Closure.decode(value.slice());
+        const known = try evidence(turn, record);
+        try (Remote{ .client = client }).closeAuthorized(record.grant, authorization, if (known) |retained| retained.handle else null);
+        return phase(allocator, turn, record, .closed);
+    }
     return settleWith(allocator, turn, slot, Remote{ .client = client });
+}
+/// Record fresh closure permission separately from the original read grant.
+/// A later native turn performs release with these committed bytes. Rejection
+/// or a lost response leaves both the original request and this intent intact.
+pub fn authorizeCleanup(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, client: c.DirectTableClient, authorization: Grant.Closure) !void {
+    const record = try require(allocator, turn, slot);
+    if (record.phase == .closed) return;
+    if (record.phase != .closing) return error.QueryActive;
+    const bytes = try authorization.encode();
+    if (try turn.read(slot.key(3))) |previous| {
+        const existing = try Grant.Closure.decode(previous.slice());
+        if (std.meta.eql(existing, authorization)) return;
+        if (authorization.credential_epoch <= existing.credential_epoch) return error.QueryDenied;
+    }
+    var delegated = try (Remote{ .client = client }).delegated(record.grant);
+    delegated.closure = authorization;
+    const status = delegated.call(.{ .pin_status = .{ .object = record.grant.binding.interpretation.object, .owner = record.grant.binding.owner } }) catch |err| return readFailure(delegated, err);
+    defer status.deinit();
+    try turn.write(slot.key(3), try p.Value.init(&bytes));
 }
 fn settleWith(allocator: std.mem.Allocator, turn: *Turn, slot: Slot, remote: anytype) !void {
     const record = try require(allocator, turn, slot);
@@ -276,7 +388,7 @@ test "captured Table pins require committed admission and closure across lost re
                 if (self.released) return error.TableSnapshotReleased;
                 if (self.retained == null) self.retained = .{ .owner = grant.binding.owner, .content = .{ .bytes = 80, .sha256 = @splat(3) } };
                 if (self.lose_reply) return error.ReadFailed;
-                return .{ .handle = self.retained.?, .authority = .{ .database = 11, .schema = 12, .table = 13 } };
+                return .{ .handle = self.retained.?, .authority = .{ .database = 11, .schema = 12, .table = 13 }, .declaration_bytes = 128, .schema = @splat(41), .changed_lsn = 4, .rows = 2 };
             }
             fn close(self: *@This(), grant: Grant, known: ?Handle) !void {
                 self.calls += 1;
@@ -295,6 +407,7 @@ test "captured Table pins require committed admission and closure across lost re
                 .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 9, .catalog = 1 }, .branch = 1, .object = 30 }, .revision = 1, .digest = @splat(1) },
                 .expected = .{ .partition = 31, .next_lsn = 5 },
                 .owner = .{ .scope = .{ .realm = 1, .resource = 9, .catalog = 1 }, .principal = 21, .operation = 32 },
+                .retention = .snapshot,
                 .purpose = @splat(2),
             };
             return .{ .binding = binding, .proof = try p.Authorization.Proof.sign(.{

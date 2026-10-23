@@ -91,7 +91,9 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     if (response.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try p.Authorization.revision(response.policy_revision);
     const subject = response.subject;
-    const original = if (request.delegation) |delegation| delegation.proof.claim else request.proof.claim;
+    const original = if (request.closure) |closure|
+        (try closure.proof(request.delegation.?, allocator)).claim
+    else if (request.delegation) |delegation| delegation.proof.claim else request.proof.claim;
     try p.Authorization.roleId(subject.login_role);
     try p.Authorization.roleId(subject.role);
     if (subject.principal != request.connection.principal or subject.audience != request.connection.audience or
@@ -115,9 +117,13 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             .create, .alter, .rename, .drop => .ddl,
             .insert, .update, .delete => .rows,
         },
-        .pin => .pin,
+        .pin, .retain_history => .pin,
+        .history_start, .history_source => .history_source,
+        .history => .history,
+        .history_scan => .history_page,
         .pin_status => .pin_state,
         .snapshot => .snapshot,
+        .read_key => .point,
         .scan => .page,
         .release => .released,
     };
@@ -233,6 +239,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try rows(binding, value);
         },
         .pin_state => |value| {
+            try value.authority.validate();
             try value.position.validate();
             if (value.position.next_lsn == 0 or (value.released and value.handle == null)) return error.InvalidTableResponse;
             if (value.handle) |handle| {
@@ -243,7 +250,11 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .pin => |value| {
             try value.owner.validate();
             try value.content.validate();
-            if (!std.meta.eql(value.owner, request.action.pin.owner)) return error.InvalidTableResponse;
+            const acquisition = switch (request.action) {
+                inline .pin, .retain_history => |input| input,
+                else => unreachable,
+            };
+            if (!std.meta.eql(value.owner, acquisition.owner)) return error.InvalidTableResponse;
         },
         .snapshot => |value| {
             try value.authority.validate();
@@ -254,25 +265,89 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try frontier(value.accepted, value.changed_lsn);
             try schema(allocator, value.schema, value.interpretation);
         },
-        .page => |value| {
+        .point => |value| {
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
-            const query = request.action.scan;
-            if (!std.meta.eql(value.snapshot, query.snapshot) or value.rows.len > query.limits.rows or
-                value.encoded_bytes > query.limits.encoded_bytes or value.total_rows < value.rows.len) return error.InvalidTableResponse;
+            if (!std.meta.eql(value.snapshot, request.action.read_key.snapshot)) return error.InvalidTableResponse;
             try definition(request.connection, value.interpretation);
             if (!std.meta.eql(value.interpretation.interpretation.object, value.snapshot.object)) return error.InvalidTableResponse;
             try frontier(value.accepted, value.changed_lsn);
-            if (value.next) |next| {
-                if (value.rows.len == 0 or !std.meta.eql(next.source, query.snapshot.handle.content)) return error.InvalidTableResponse;
-                if (query.after) |after| if (std.mem.order(u8, &next.after, &after.after) != .gt) return error.InvalidTableResponse;
+            if (value.row) |row| {
+                if (value.total_rows == 0) return error.InvalidTableResponse;
+                const bytes = try row.decode(allocator, c.fuze.TableRow.max_bytes);
+                defer allocator.free(bytes);
             }
-            var bytes: u64 = 0;
-            for (value.rows) |row| {
-                const decoded = try row.decode(allocator, c.fuze.TableRow.max_bytes);
-                defer allocator.free(decoded);
-                bytes += decoded.len;
+        },
+        .page => |value| {
+            if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
+            const query = request.action.scan;
+            try validatePage(allocator, request.connection, query.snapshot, query.snapshot.handle.content, query.after, query.limits, value);
+        },
+        .history_page => |value| {
+            const query = request.action.history_scan;
+            if (!std.meta.eql(value.point, query.source.point) or !std.meta.eql(value.page.accepted, value.point.position)) return error.InvalidTableResponse;
+            if (request.delegation) |grant| grant.requireHistory(value.page.interpretation.interpretation, value.point.position) catch return error.InvalidTableResponse;
+            try validatePage(allocator, request.connection, .{ .object = query.source.object, .handle = value.point.lease }, try value.point.cursorSource(), query.after, query.limits, value.page);
+        },
+        .history_source => |value| {
+            _ = try value.point.cursorSource();
+            const snapshot: w.Snapshot = switch (request.action) {
+                .history_start => |input| input,
+                .history_source => |input| blk: {
+                    if (!std.meta.eql(input.point, value.point)) return error.InvalidTableResponse;
+                    break :blk .{ .object = input.object, .handle = input.point.lease };
+                },
+                else => unreachable,
+            };
+            const source = value.source;
+            if (!std.meta.eql(source.snapshot, snapshot) or !std.meta.eql(value.point.lease, snapshot.handle) or !std.meta.eql(source.accepted, value.point.position)) return error.InvalidTableResponse;
+            try source.authority.validate();
+            try definition(request.connection, source.interpretation);
+            if (!std.meta.eql(source.interpretation.interpretation.object, snapshot.object)) return error.InvalidTableResponse;
+            try frontier(source.accepted, source.changed_lsn);
+            try schema(allocator, source.schema, source.interpretation);
+            if (request.delegation) |grant| {
+                grant.requireHistory(source.interpretation.interpretation, value.point.position) catch return error.InvalidTableResponse;
+                if (request.action == .history_start) grant.requireSource(source.interpretation.interpretation, value.point.position) catch return error.InvalidTableResponse;
             }
-            if (bytes != value.encoded_bytes) return error.InvalidTableResponse;
+        },
+        .history => |value| {
+            const query = request.action.history;
+            if (!std.meta.eql(value.snapshot, query.snapshot) or !std.meta.eql(value.through, query.through) or value.next.partition != query.from.partition or
+                value.next.next_lsn < query.from.next_lsn or value.next.next_lsn > query.through.next_lsn or
+                value.scanned != @min(query.frames, query.through.next_lsn - query.from.next_lsn) or
+                value.next.next_lsn - query.from.next_lsn != value.scanned or value.entries.len > value.scanned) return error.InvalidTableResponse;
+            var previous = query.from.next_lsn;
+            for (value.entries) |entry| {
+                _ = try entry.point.cursorSource();
+                try definition(request.connection, entry.interpretation);
+                try frontier(entry.point.position, entry.changed_lsn);
+                if (!std.meta.eql(entry.point.lease, query.snapshot.handle) or !std.meta.eql(entry.interpretation.interpretation.object, query.snapshot.object) or
+                    entry.point.position.partition != query.from.partition or entry.point.position.next_lsn <= previous or entry.point.position.next_lsn > value.next.next_lsn or
+                    !std.meta.eql(entry.receipt.outcome.position, entry.point.position) or entry.receipt.outcome.live_rows != entry.row_count) return error.InvalidTableResponse;
+                try entry.receipt.binding.validate();
+                try evidence(entry.receipt.binding, .{ .binding = entry.receipt.binding, .resulting = entry.interpretation, .outcome = entry.receipt.outcome });
+                if (request.delegation) |grant| grant.requireHistory(entry.interpretation.interpretation, entry.point.position) catch return error.InvalidTableResponse;
+                previous = entry.point.position.next_lsn;
+            }
         },
     }
+}
+
+fn validatePage(allocator: std.mem.Allocator, connection: w.Connection, snapshot: w.Snapshot, cursor_source: d.Content, after: ?P.SnapshotCursor, limits: P.ReadLimits, value: w.Page) !void {
+    if (!std.meta.eql(value.snapshot, snapshot) or value.rows.len > limits.rows or
+        value.encoded_bytes > limits.encoded_bytes or value.total_rows < value.rows.len) return error.InvalidTableResponse;
+    try definition(connection, value.interpretation);
+    if (!std.meta.eql(value.interpretation.interpretation.object, value.snapshot.object)) return error.InvalidTableResponse;
+    try frontier(value.accepted, value.changed_lsn);
+    if (value.next) |next| {
+        if (value.rows.len == 0 or !std.meta.eql(next.source, cursor_source)) return error.InvalidTableResponse;
+        if (after) |cursor| if (std.mem.order(u8, &next.after, &cursor.after) != .gt) return error.InvalidTableResponse;
+    }
+    var bytes: u64 = 0;
+    for (value.rows) |row| {
+        const decoded = try row.decode(allocator, c.fuze.TableRow.max_bytes);
+        defer allocator.free(decoded);
+        bytes += decoded.len;
+    }
+    if (bytes != value.encoded_bytes) return error.InvalidTableResponse;
 }

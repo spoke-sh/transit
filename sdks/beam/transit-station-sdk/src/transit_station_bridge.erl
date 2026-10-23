@@ -2,7 +2,7 @@
 -module(transit_station_bridge).
 -include("transit_station_sdk.hrl").
 -export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2, catalog/4, catalog_call/3,
-         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2, query/3, unified_codec/2, unified_query/3]).
+         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2, query/4, unified_codec/2, unified_query/3]).
 -record(bridge, {port, caps}).
 open(#transit_service{client = #transit_config{url = Url, profile = native_v1, timeout_ms = Timeout, native_host = Override},
     activation = #transit_activation{process = #transit_process{realm = Realm, pid = Pid}, generation = Generation,
@@ -25,10 +25,10 @@ open(#transit_service{client = #transit_config{url = Url, profile = native_v1, t
 open(_, _) -> transit_sdk_value:fail(invalid_argument, service_config).
 local(Override) -> create(#{<<"local_codec">> => true}, Override).
 query(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host=Override},
-      #transit_credential{seed_file=Seed}, Connection) ->
+      #transit_credential{seed_file=Seed}, Connection,Tables) ->
     {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),
     create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
-        <<"query_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
+        <<"query_client">>=>#{<<"connection">>=>Connection,<<"tables">>=>Tables,<<"timeout_ms">>=>Timeout}},Override).
 catalog(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host=Override},
         #transit_credential{seed_file=Seed},Connection,TableServiceUrl) ->
     {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),

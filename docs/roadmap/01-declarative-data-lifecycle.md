@@ -125,9 +125,26 @@ grants/revocation and retained recovery through real PostgreSQL/MySQL clients.
 The [scoped read-delegation proof](../../tests/README.md#scoped-direct-table-read-delegation--2026-10-23)
 now qualifies original-caller grants for one executor, exact Table cut and pin
 owner, including uncertain acquisition/closure and retained reads after restart.
-This supplies the direct authority boundary for captured-query migration;
-captured admission, cleanup and verified result publication are still missing.
-Direct namespace lifecycle, captured-query and language SDK migration,
+The [captured-query recovery proof](../../tests/README.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23)
+now covers single-source admission, independent progress storage, original-cut
+traversal, verified results and cleanup across lost replies and replacement.
+Fresh cleanup authorization remains separate from the original execution proof
+after credential rotation. All ten installed SDKs now resolve direct definitions,
+seal the same captured bundle and read its verified result through that fault
+schedule. The captured relational owner now uses the same direct pin protocol
+with independent native progress. Its scoped self-join and two-Table proofs pass
+replacement, shared alias retention, independent Table partitions, cleanup and
+current-source revocation/restoration at result disclosure. Retained source pages
+also preserve nested/wide values through Fuze/Arrow after ALTER, DROP and name
+reuse, including direct composite-key hit/absence under current rights.
+The direct storage/service boundary now has explicit history leases, fixed-bound
+logical acceptance pages and exact historical reads. Its
+[storage and native-policy evidence](../../tests/README.md#direct-table-history-retention--2026-10-23)
+covers restart, no-ops, retention-kind separation and current revocation.
+The maintained-query adapter, older relational caller fixtures and broader
+schedules remain unported, and the full query package remains unqualified during
+the cutover.
+Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
 completion matrix rows below is closed by this partial caller path.

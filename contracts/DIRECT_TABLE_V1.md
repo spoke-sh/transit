@@ -11,7 +11,7 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 ## Requests and authority
 
 A request contains the mandatory current shared definition, connection, nonce,
-action, nullable delegation and transport authorization proof. A null delegation
+action, nullable delegation, nullable closure authorization and transport proof. A null delegation
 uses the original caller's proof. The connection binds the existing
 realm/resource/catalog, branch one, audience, principal and optional selected
 role. Changing any request field changes its context digest. The request domain
@@ -27,7 +27,8 @@ database/schema/Table bindings and their current privileges. A response binds th
 request context, checked policy revision and verified native subject (principal,
 login role, effective role, credential epoch and audience). The client checks
 that subject against the original connection and signed caller claim. With a
-delegation, its context is the delegation digest; the response's separate
+delegation, its context is the delegation digest, or the separately signed
+closure context when a closure authorization is supplied; the response's separate
 `context` still binds the complete transport request. The node checks all successfully
 used requirements again after buffering the complete response. Denial at this
 boundary suppresses the response, even if a mutation has already committed.
@@ -46,14 +47,15 @@ disclosure from cached data. Local destruction does not release the durable pin.
 
 ### Delegated retained reads
 
-`DirectReadDelegation.encode` retains the original grant in a canonical 309-byte
+`DirectReadDelegation.encode` retains the original grant in a canonical 310-byte
 `TRG1` record. It contains the four-byte magic, mandatory 32-byte current
 definition, connection scope (realm/resource/catalog), branch, audience,
 principal, role-present byte and role value, executor, object ID, definition
-revision and 32-byte digest, partition and accepted frontier, pin operation,
+revision and 32-byte digest, partition and accepted frontier, pin operation, retention byte,
 32-byte purpose, credential epoch, 32-byte claim context and 64-byte signature,
 in that order. All integers are unsigned 64-bit little-endian except the
-one-byte role flag. An absent role has flag/value zero. Object and pin scope,
+one-byte role flag and retention tag (`snapshot = 0`, `history = 1`).
+An absent role has flag/value zero. Object and pin scope,
 pin principal and repeated claim fields must match the connection; decoding
 reconstructs only these constrained duplicates. Missing, foreign, truncated,
 noncanonical or context-inconsistent records reject. Loading performs no
@@ -64,11 +66,12 @@ current caller/executor credentials on every request.
 `DirectReadDelegation` contains a `binding` and original-caller `proof`. The binding
 fields, in canonical order, are the current `definition`, original `connection`,
 `executor` principal, exact `interpretation`, `expected` Table frontier, pin
-`owner` operation and nonzero 32-byte `purpose` commitment. Its signing context is
+`owner` operation, mandatory `retention` kind and nonzero 32-byte `purpose` commitment. Its signing context is
 SHA-256 of `transit.table.read-delegation.v1`, a zero byte and canonical JSON of
 that binding. The purpose identifies application-owned immutable work; it does
 not establish honest computation or enforce a SQL predicate. This grants read
-scope over one complete Table cut, with no additional object privileges.
+scope over one complete Table cut for `snapshot`, or that cut and the same
+object’s future history for `history`, with no additional object privileges.
 
 The executor signs the entire request, including that retained delegation, with
 its own current credential and login role. The request connection continues to
@@ -80,8 +83,13 @@ revoking either credential prevents use of the affected proof. Accepted work
 retains the original delegation; recovery cannot replace its caller signature
 or credential epoch implicitly.
 
-Delegation permits only `pin`, `pin_status`, `snapshot`, `scan`, `release` and
-snapshot-only `check_set` for the bound object and pin owner. It permits no name
+Snapshot delegation permits `pin`, `pin_status`, `snapshot`, `scan`, `read_key`,
+`release` and snapshot-only `check_set` for the bound object and pin owner.
+History delegation uses `retain_history` instead of `pin` and additionally
+permits `history_start`, `history`, `history_source` and `history_scan` at or
+after the original frontier. Its ordinary snapshot reads still address only
+the original cut. A snapshot grant cannot follow future history or upgrade an
+existing pin. Both the immutable lease kind and original cut must match the grant. It permits no name
 discovery, mutations, policy changes or further delegation. The first pin also
 checks the exact definition and frontier. A stale acquisition rejects; it never
 chooses newer data. An existing pin can be recovered after the current Table
@@ -95,6 +103,20 @@ named executor's key; it preserves the original connection and never signs as
 that caller. Its response checks bind retained schemas and data frontiers to the
 delegation. The `delegation` request field is mandatory even when null; the
 replaced shared definition rejects previous envelopes without a fallback.
+
+An explicit `DirectReadDelegation.Closure` authorizes cleanup after the original
+credential changes. Its context is SHA-256 of `transit.table.pin-closure.v1`, a
+zero byte and the exact 310-byte original `TRG1` grant, including its original
+signature. It carries a current credential epoch and a 64-byte signature; the
+remaining claim fields come from that original grant. Its compact encoding is
+little-endian uint64 epoch followed by the signature (72 bytes). The transport
+request includes both the unchanged delegation and this closure authorization.
+The owner checks the current closure proof and executor proof together. Only
+`pin_status`, exact-original `pin`/`retain_history` reconciliation and
+`release` are permitted.
+Schema and row reads reject, and cleanup cannot replace execution authority or
+choose a newer cut. Exact-original acquisition may be needed to create a terminal
+release record for an uncertain request whose frontier has not advanced.
 
 ## Declaration and row operations
 
@@ -264,6 +286,15 @@ eight owned rows under an explicit encoded-byte budget, with a cursor bound to
 that retained root and its last returned canonical 20-byte row identity. Rows
 are strictly increasing by identity, independent of their current physical
 locators. It never substitutes the latest name or definition.
+`read_key` accepts one nonempty canonical storage key (base64, at most the
+physical collation key bound). Its `point` result carries the same snapshot,
+interpretation, accepted frontier, logical-change frontier and total row count,
+plus one optional FTR1 row. The owner uses the retained primary-key index and
+checks the decoded row's actual key against the requested bytes, rejecting a
+hash collision. Keyless Tables use canonical row identities as storage keys.
+The reader verifies attribution and key equality under the retained schema;
+a hit or absence does not advance sequential scan coverage. Current rights and
+the live pin are required even when no row matches.
 `release` records terminal pin release through reserved control capacity.
 Current CONNECT/USAGE/SELECT rights apply to every operation, including release.
 
@@ -272,6 +303,28 @@ frontier and Table retirement state. It acquires nothing. Absence at a later
 frontier or after retirement proves the old exact-frontier acquisition cannot
 subsequently succeed. Absence at the original frontier remains unresolved;
 recovery may repeat only that original acquisition before releasing it.
+
+`retain_history` acquires a history lease with the same exact-frontier and
+private-owner rules as `pin`. `history_start` returns its original `HistoryPoint`
+and `Source`. A point contains the lease handle, partition/exclusive frontier
+and complete acceptance-record SHA-256 commitment. `history_source` reopens
+exactly that point. History follows stable object identity through definition
+changes; it never resolves a replacement by name. Each returned source includes
+its original schema and retirement flag, so a computation can enforce its
+schema and lifetime contract.
+
+`history` requires a live history lease, a starting physical position, a fixed
+exclusive upper bound and a budget of 1–8 frames. It returns ordered logical
+acceptances with their original receipts, stored interpretations, row counts,
+logical-change frontiers and points. Accepted no-ops remain entries. Physical
+flushes, pin transitions and operation admission may produce empty pages that
+advance `next`; callers continue until `next == through`. Later writes cannot
+expand that interval. `pin_status` supplies an observed upper bound independently
+of the computation's saved progress. `history_scan` returns up to eight rows
+under a historical point, using the ordinary byte budget and row format. Its
+cursor commitment covers the complete point, so cursors cannot cross revisions.
+Every history read checks current authority and the live lease, including an
+empty result. Releasing the lease closes all its historical reads.
 
 `check_set` accepts 1–16 tagged `access` or `snapshot` checks. Access checks use
 the same exact-definition/action requirements as `check`; snapshot checks verify

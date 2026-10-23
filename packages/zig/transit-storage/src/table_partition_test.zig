@@ -9,6 +9,120 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table history retention preserves exact logical successors and historical reads across restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const definition: s.TableDeclaration.Definition = .{ .object = object, .revision = 1, .schema = schema, .properties = "" };
+    var access: Access = .{};
+    var lease: P.SnapshotHandle = undefined;
+    var point_pin: P.SnapshotHandle = undefined;
+    var initial: P.HistoryPoint = undefined;
+    var upper: p.DataLifecycle.Position = undefined;
+    var selected: [3]P.HistoryPoint = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer table.deinit();
+        try table.recover();
+        const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+        const pin_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 1001 };
+        point_pin = try table.pin(pin_owner, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const history_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 1002 };
+        const beginning: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.retainHistory(history_owner, beginning, access.guard()));
+        table.lose_reply = false;
+        lease = (try table.pinState(history_owner, access.guard())).handle.?;
+        try t.expectEqualDeep(lease, try table.retainHistory(history_owner, beginning, access.guard()));
+        try t.expectError(error.DataIdentityConflict, table.pin(history_owner, beginning, access.guard()));
+        try t.expectError(error.TableHistoryRetentionRequired, table.historyStart(t.allocator, point_pin, access.guard()));
+        var start = try table.historyStart(t.allocator, lease, access.guard());
+        defer start.deinit();
+        initial = start.point;
+        try t.expectEqualDeep(beginning, initial.position);
+        try t.expectEqual(@as(u64, 1), start.root.live_rows);
+        const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        _ = try table.apply(binding(&table, 2), &.{change(&two, 2)}, .point, access.guard());
+        _ = try table.flush(access.guard());
+        var key_bytes: [4096]u8 = undefined;
+        var deletion = binding(&table, 3);
+        deletion.action = .delete;
+        _ = try table.apply(deletion, &.{.{ .remove = try key(1, &key_bytes) }}, .point, access.guard());
+        deletion = binding(&table, 4);
+        deletion.action = .delete;
+        const no_op = try table.apply(deletion, &.{.{ .remove = try key(99, &key_bytes) }}, .point, access.guard());
+        try t.expectEqual(@as(u64, 0), no_op.affected);
+        upper = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        const three: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 3 } } };
+        _ = try table.apply(binding(&table, 5), &.{change(&three, 5)}, .bulk, access.guard());
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    var position = initial.position;
+    var count: usize = 0;
+    var empty: usize = 0;
+    while (position.next_lsn < upper.next_lsn) {
+        const page = try table.retainedHistory(lease, position, upper, 1, access.guard());
+        try t.expectEqual(@as(u8, 1), page.scanned);
+        try t.expect(page.next.next_lsn > position.next_lsn);
+        if (page.count == 0) empty += 1;
+        for (page.entries[0..page.count]) |entry| {
+            try t.expect(count < selected.len);
+            try t.expectEqual(@as(u64, @intCast(count + 2)), entry.?.receipt.binding.identity.operation);
+            selected[count] = .{ .lease = lease, .position = .{ .partition = 17, .next_lsn = entry.?.root.next_lsn }, .commitment = entry.?.commitment };
+            count += 1;
+        }
+        position = page.next;
+    }
+    try t.expectEqual(@as(usize, 3), count);
+    try t.expectEqual(@as(usize, 2), empty); // Lease acquisition and flush.
+    try t.expectError(error.TableHistoryRetentionRequired, table.retainedHistory(point_pin, initial.position, upper, 1, access.guard()));
+    var initial_rows = try table.scanHistory(t.allocator, initial, null, .{}, access.guard());
+    defer initial_rows.deinit();
+    try t.expectEqual(@as(u8, 1), initial_rows.page.count);
+    try t.expectEqual(@as(i128, 1), initial_rows.page.rows[0].?.row().cells[0].value.atom.signed);
+    var inserted = try table.scanHistory(t.allocator, selected[0], null, .{ .rows = 1 }, access.guard());
+    defer inserted.deinit();
+    try t.expectEqual(@as(u64, 2), inserted.page.total_rows);
+    try t.expect(inserted.page.next != null);
+    var remainder = try table.scanHistory(t.allocator, selected[0], inserted.page.next, .{}, access.guard());
+    defer remainder.deinit();
+    try t.expectEqual(@as(i128, 2), remainder.page.rows[0].?.row().cells[0].value.atom.signed);
+    try t.expectError(error.InvalidTableSnapshotCursor, table.scanHistory(t.allocator, selected[1], inserted.page.next, .{}, access.guard()));
+    var removed = try table.historyAt(t.allocator, selected[1], access.guard());
+    defer removed.deinit();
+    var unchanged = try table.historyAt(t.allocator, selected[2], access.guard());
+    defer unchanged.deinit();
+    try t.expectEqual(removed.root.changed_lsn, unchanged.root.changed_lsn);
+    try t.expect(removed.point.position.next_lsn < unchanged.point.position.next_lsn);
+    try t.expect(!std.mem.eql(u8, &removed.point.commitment, &unchanged.point.commitment));
+    var corrupt = selected[0];
+    corrupt.commitment[0] ^= 1;
+    try t.expectError(error.TableHistoryConflict, table.historyAt(t.allocator, corrupt, access.guard()));
+    corrupt = initial;
+    corrupt.position.next_lsn -= 1;
+    try t.expectError(error.InvalidTableBasis, table.historyAt(t.allocator, corrupt, access.guard()));
+    access.deny_at = access.calls + 4;
+    try t.expectError(error.PermissionDenied, table.scanHistory(t.allocator, initial, null, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    try table.releaseSnapshot(lease, access.guard());
+    try t.expectError(error.TableSnapshotReleased, table.historyAt(t.allocator, initial, access.guard()));
+    try t.expectError(error.TableSnapshotReleased, table.retainedHistory(lease, initial.position, upper, 1, access.guard()));
+    var still_pinned = try table.inspectSnapshot(t.allocator, point_pin, access.guard());
+    defer still_pinned.deinit();
+    try t.expectEqual(.snapshot, still_pinned.retention);
+    try table.releaseSnapshot(point_pin, access.guard());
+}
+
 test "physical value constraints precede WAL acceptance and exact values survive flush and reopen" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

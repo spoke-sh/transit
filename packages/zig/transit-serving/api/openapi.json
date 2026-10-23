@@ -318,7 +318,7 @@
               "definition": {
                 "type": "string",
                 "enum": [
-                  "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+                  "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
                 ]
               },
               "realm": {
@@ -431,7 +431,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+              "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
             ]
           },
           "code": {
@@ -1228,7 +1228,7 @@
               "definition": {
                 "type": "string",
                 "enum": [
-                  "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+                  "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
                 ]
               },
               "realm": {
@@ -2599,8 +2599,7 @@
                             "x-transit-field-order": [
                               "kind",
                               "resource",
-                              "revision",
-                              "head"
+                              "position"
                             ],
                             "properties": {
                               "kind": {
@@ -2618,34 +2617,54 @@
                                 "x-transit-bits": 64,
                                 "x-transit-signed": false
                               },
-                              "revision": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991,
-                                "x-transit-bits": 64,
-                                "x-transit-signed": false
-                              },
-                              "head": {
-                                "type": "array",
-                                "minItems": 32,
-                                "maxItems": 32,
-                                "items": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 255,
-                                  "x-transit-bits": 8,
-                                  "x-transit-signed": false
-                                }
+                              "position": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "native_revision"
+                                    ],
+                                    "properties": {
+                                      "native_revision": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991,
+                                        "x-transit-bits": 64,
+                                        "x-transit-signed": false
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "table"
+                                    ],
+                                    "properties": {
+                                      "table": {
+                                        "type": "array",
+                                        "minItems": 32,
+                                        "maxItems": 32,
+                                        "items": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255,
+                                          "x-transit-bits": 8,
+                                          "x-transit-signed": false
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
                               }
                             },
                             "required": [
                               "kind",
                               "resource",
-                              "revision"
+                              "position"
                             ],
-                            "x-transit-defaults": {
-                              "head": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
-                            }
+                            "x-transit-defaults": {}
                           },
                           "contract": {
                             "type": "array",
@@ -3172,7 +3191,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+                      "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
                     ]
                   },
                   "realm": {
@@ -3679,7 +3698,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+                              "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
                             ]
                           },
                           "realm": {
@@ -4174,7 +4193,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+                          "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
                         ]
                       },
                       "realm": {
@@ -4322,7 +4341,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+                          "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
                         ]
                       },
                       "realm": {
@@ -5244,8 +5263,7 @@
                                     "x-transit-field-order": [
                                       "kind",
                                       "resource",
-                                      "revision",
-                                      "head"
+                                      "position"
                                     ],
                                     "properties": {
                                       "kind": {
@@ -5263,34 +5281,54 @@
                                         "x-transit-bits": 64,
                                         "x-transit-signed": false
                                       },
-                                      "revision": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "maximum": 9007199254740991,
-                                        "x-transit-bits": 64,
-                                        "x-transit-signed": false
-                                      },
-                                      "head": {
-                                        "type": "array",
-                                        "minItems": 32,
-                                        "maxItems": 32,
-                                        "items": {
-                                          "type": "integer",
-                                          "minimum": 0,
-                                          "maximum": 255,
-                                          "x-transit-bits": 8,
-                                          "x-transit-signed": false
-                                        }
+                                      "position": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "native_revision"
+                                            ],
+                                            "properties": {
+                                              "native_revision": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991,
+                                                "x-transit-bits": 64,
+                                                "x-transit-signed": false
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "table"
+                                            ],
+                                            "properties": {
+                                              "table": {
+                                                "type": "array",
+                                                "minItems": 32,
+                                                "maxItems": 32,
+                                                "items": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 255,
+                                                  "x-transit-bits": 8,
+                                                  "x-transit-signed": false
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "kind",
                                       "resource",
-                                      "revision"
+                                      "position"
                                     ],
-                                    "x-transit-defaults": {
-                                      "head": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
-                                    }
+                                    "x-transit-defaults": {}
                                   },
                                   "contract": {
                                     "type": "array",

@@ -69,6 +69,11 @@ fn dispatchDelegated(service: *@import("LocalTableService.zig"), action: c.Direc
         altered.result.page.snapshot.handle.owner.operation += 1;
         try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
     }
+    if (response.value.result == .point) {
+        var altered = response.value;
+        altered.result.point.snapshot.handle.owner.operation += 1;
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
+    }
     try t.expectEqualDeep(signed.claim.context, response.value.context);
     return response;
 }
@@ -131,6 +136,15 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     try t.expect(scanned.value.result.page.next == null);
     const decoded = try c.fuze.TableRow.decode(alloc, schema, try scanned.value.result.page.rows[0].decode(alloc, buffer.len));
     try t.expectEqualDeep(row, decoded.row());
+    const present_key = try w.Binary.encode(alloc, try row.storageKey(schema, &buffer));
+    const absent_key = try w.Binary.encode(alloc, try c.fuze.Collation.encodePrimaryKeySortKey(schema, &.{.{ .value = .{ .atom = .{ .signed = 99 } } }}, false, &buffer));
+    const point = try dispatch(&service, .{ .read_key = .{ .snapshot = snapshot, .key = present_key } });
+    defer point.deinit();
+    const point_row = try c.fuze.TableRow.decode(alloc, schema, try point.value.result.point.row.?.decode(alloc, buffer.len));
+    try t.expectEqualDeep(row, point_row.row());
+    const absent = try dispatch(&service, .{ .read_key = .{ .snapshot = snapshot, .key = absent_key } });
+    defer absent.deinit();
+    try t.expect(absent.value.result.point.row == null);
     // Read/modify/write uses the pinned source frontier. Acquiring that pin
     // advances control history but must not make its own data basis stale.
     work.binding.identity.operation = 203;
@@ -161,6 +175,12 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     try t.expectError(error.Forbidden, dispatch(&service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }));
     service.before_reply = null;
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
+    for ([_]w.Binary{ present_key, absent_key }) |lookup_key| {
+        service.before_reply = .{ .context = &revoke_id, .run = Revoke.run };
+        try t.expectError(error.Forbidden, dispatch(&service, .{ .read_key = .{ .snapshot = snapshot, .key = lookup_key } }));
+        service.before_reply = null;
+        _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
+    }
     const released = try dispatch(&service, .{ .release = snapshot });
     defer released.deinit();
     try t.expect(released.value.result == .released);
@@ -212,6 +232,7 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
         .interpretation = source.interpretation.interpretation,
         .expected = source.accepted,
         .owner = snapshot.handle.owner,
+        .retention = .snapshot,
         .purpose = @splat(19),
     };
     const grant: c.DirectReadDelegation = .{ .binding = binding, .proof = try proof(engine, try binding.context(t.allocator)) };
@@ -223,6 +244,17 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     try t.expectEqual(@as(usize, 1), read.value.result.page.rows.len);
     try t.expectEqualDeep(grant.proof.claim.context, read.value.subject.context);
     try t.expectEqual(@as(u64, 101), read.value.subject.principal);
+    const schema_bytes = try source.schema.decode(t.allocator, c.fuze.TableSchema.max_bytes);
+    defer t.allocator.free(schema_bytes);
+    var schema = try c.fuze.TableSchema.decode(t.allocator, schema_bytes);
+    defer schema.deinit();
+    var key_bytes: [c.fuze.Collation.max_sort_key_bytes]u8 = undefined;
+    const point_key = try w.Binary.encode(t.allocator, try c.fuze.Collation.encodePrimaryKeySortKey(schema.schema, &.{.{ .value = .{ .atom = .{ .signed = 12 } } }}, false, &key_bytes));
+    defer t.allocator.free(point_key.base64);
+    const point = try dispatchDelegated(service, .{ .read_key = .{ .snapshot = snapshot, .key = point_key } }, grant);
+    defer point.deinit();
+    try t.expectEqualStrings(read.value.result.page.rows[0].base64, point.value.result.point.row.?.base64);
+    try t.expectEqualDeep(grant.proof.claim.context, point.value.subject.context);
     try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .describe, grant));
 
     const current = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "through_dispatch" } });
@@ -243,6 +275,8 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     const released_again = try dispatchDelegated(service, .{ .release = fresh_snapshot }, acquire);
     released_again.deinit();
     try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, acquisition, acquire));
+
+    try delegatedHistory(service, grant, owner_role, native_table);
 
     var wrong = binding;
     wrong.interpretation.revision += 1;
@@ -288,6 +322,106 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     caller_rotation.seed = 29;
     try Rotation.run(&caller_rotation, engine);
     try t.expectError(error.StaleAuthorizationCredential, dispatchDelegated(service, .{ .snapshot = snapshot }, grant));
+}
+
+fn delegatedHistory(service: *@import("LocalTableService.zig"), snapshot_grant: c.DirectReadDelegation, owner_role: u64, native_table: u64) !void {
+    const w = c.DirectTableProtocol;
+    const current = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "through_dispatch" } });
+    defer current.deinit();
+    const definition = current.value.result.lookup.?;
+    var binding = snapshot_grant.binding;
+    binding.owner.operation = 1200;
+    binding.expected = definition.position;
+    binding.retention = .history;
+    const grant: c.DirectReadDelegation = .{ .binding = binding, .proof = try proof(service.engine, try binding.context(t.allocator)) };
+    const acquisition: w.Acquisition = .{ .object = binding.interpretation.object, .owner = binding.owner, .expected = binding.expected };
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .pin = acquisition }, grant));
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .retain_history = acquisition }, snapshot_grant));
+    const acquired = try dispatchDelegated(service, .{ .retain_history = acquisition }, grant);
+    defer acquired.deinit();
+    const snapshot: w.Snapshot = .{ .object = acquisition.object, .handle = acquired.value.result.pin };
+    const original = try dispatchDelegated(service, .{ .history_start = snapshot }, grant);
+    defer original.deinit();
+    const point = original.value.result.history_source.point;
+    try t.expectEqualDeep(binding.expected, point.position);
+    const read_action: w.Action = .{ .history_scan = .{ .source = .{ .object = snapshot.object, .point = point }, .after = null, .limits = .{} } };
+    const initial = try dispatchDelegated(service, read_action, grant);
+    defer initial.deinit();
+    try t.expectEqual(@as(usize, 1), initial.value.result.history_page.page.rows.len);
+    // A freshly signed snapshot grant for the same owner still cannot read
+    // history or reinterpret an existing history lease as an ordinary pin.
+    var ordinary = binding;
+    ordinary.retention = .snapshot;
+    const wrong: c.DirectReadDelegation = .{ .binding = ordinary, .proof = try proof(service.engine, try ordinary.context(t.allocator)) };
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, read_action, wrong));
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .snapshot = snapshot }, wrong));
+    try t.expectError(error.DataIdentityConflict, dispatchDelegated(service, .{ .pin = acquisition }, wrong));
+
+    const bytes = try definition.schema.decode(t.allocator, c.fuze.TableSchema.max_bytes);
+    defer t.allocator.free(bytes);
+    var schema = try c.fuze.TableSchema.decode(t.allocator, bytes);
+    defer schema.deinit();
+    var scratch: [c.fuze.Collation.max_sort_key_bytes]u8 = undefined;
+    const absent = try w.Binary.encode(t.allocator, try c.fuze.Collation.encodePrimaryKeySortKey(schema.schema, &.{.{ .value = .{ .atom = .{ .signed = 99 } } }}, false, &scratch));
+    defer t.allocator.free(absent.base64);
+    var mutation: w.Rows = .{ .binding = .{ .definition = g.current_definition, .identity = binding.owner, .target = snapshot.object, .action = .delete, .expected_definition = definition.interpretation.interpretation, .expected_data = null, .intent = @splat(1) }, .interpretation = definition.interpretation, .schema = definition.schema, .changes = &.{.{ .delete = absent }}, .ingestion = .point };
+    mutation.binding.identity.operation = 1201;
+    mutation.binding.intent = try mutation.digest(t.allocator);
+    const admitted = try dispatch(service, .{ .admit_rows = mutation });
+    admitted.deinit();
+    const accepted = try dispatch(service, .{ .operation = .{ .binding = mutation.binding, .command = .execute, .steps = 1 } });
+    defer accepted.deinit();
+    const upper = accepted.value.result.rows.committed.outcome.position;
+    var position = point.position;
+    var entries: usize = 0;
+    var empty: usize = 0;
+    var successor: c.storage.TablePartition.HistoryPoint = undefined;
+    while (position.next_lsn < upper.next_lsn) {
+        const response = try dispatchDelegated(service, .{ .history = .{ .snapshot = snapshot, .from = position, .through = upper, .frames = 1 } }, grant);
+        defer response.deinit();
+        const page = response.value.result.history;
+        try t.expectEqual(@as(u8, 1), page.scanned);
+        if (page.entries.len == 0) empty += 1;
+        for (page.entries) |entry| {
+            entries += 1;
+            try t.expectEqual(@as(u64, 1201), entry.receipt.binding.identity.operation);
+            try t.expectEqual(@as(u64, 0), entry.receipt.outcome.affected);
+            try t.expectEqual(original.value.result.history_source.source.changed_lsn, entry.changed_lsn);
+            successor = entry.point;
+        }
+        position = page.next;
+    }
+    try t.expectEqual(@as(usize, 1), entries);
+    try t.expect(empty >= 2); // Lease and durable row admission.
+    const next = try dispatchDelegated(service, .{ .history_source = .{ .object = snapshot.object, .point = successor } }, grant);
+    defer next.deinit();
+    try t.expectEqual(@as(u64, 1), next.value.result.history_source.source.row_count);
+    try t.expect(!std.mem.eql(u8, &point.commitment, &successor.commitment));
+    const retry = try dispatchDelegated(service, .{ .retain_history = acquisition }, grant);
+    defer retry.deinit();
+    try t.expectEqualDeep(snapshot.handle, retry.value.result.pin);
+    var corrupt = successor;
+    corrupt.commitment[0] ^= 1;
+    try t.expectError(error.TableHistoryConflict, dispatchDelegated(service, .{ .history_source = .{ .object = snapshot.object, .point = corrupt } }, grant));
+
+    const Revoke = struct {
+        fn run(context: *anyopaque, engine: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(context));
+            _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    var table = native_table;
+    // Buffered rows and empty history pages both require current rights.
+    for ([_]w.Action{ read_action, .{ .history = .{ .snapshot = snapshot, .from = upper, .through = upper, .frames = 1 } } }) |action| {
+        service.before_reply = .{ .context = &table, .run = Revoke.run };
+        try t.expectError(error.Forbidden, dispatchDelegated(service, action, grant));
+        service.before_reply = null;
+        _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = owner_role } });
+    }
+    const released = try dispatchDelegated(service, .{ .release = snapshot }, grant);
+    released.deinit();
+    try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, read_action, grant));
+    try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, .{ .retain_history = acquisition }, grant));
 }
 
 test "local catalog checks real native registrations, current ownership and exact request proof" {

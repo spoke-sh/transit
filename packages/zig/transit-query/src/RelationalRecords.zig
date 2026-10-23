@@ -65,7 +65,7 @@ pub fn initialChain() [32]u8 {
     std.crypto.hash.sha2.Sha256.hash("transit.query.relational.outputs.v1\x00", &digest, .{});
     return digest;
 }
-pub const Phase = enum(u8) { capturing = 1, complete = 2, failed = 3, cancelled = 4, denied = 5, retired = 6 };
+pub const Phase = enum(u8) { capturing = 1, complete = 2, failed = 3, cancelled = 4, denied = 5, retired = 6, admitted = 7, acquiring = 8 };
 pub const Job = struct {
     id: u64,
     destination: u64,
@@ -73,7 +73,9 @@ pub const Job = struct {
     policy_revision: u64,
     request: Ref,
     request_version: p.Growth.ReadVersionId,
-    phase: Phase = .capturing,
+    phase: Phase = .admitted,
+    source_count: u8,
+    acquired: u8 = 0,
     checkpoint: u64 = 0,
     next_record: u64 = 1,
     state_bytes: u64 = 0,
@@ -101,7 +103,11 @@ pub const Job = struct {
         if (self.outputs == 0 and !std.mem.eql(u8, &self.chain, &initialChain())) return error.InvalidRelationalRecord;
         if (self.phase == .complete and (self.manifest == 0 or self.checkpoint == 0 or self.released)) return error.InvalidRelationalRecord;
         if (self.phase == .capturing and (self.manifest != 0 or self.released)) return error.InvalidRelationalRecord;
-        if (self.phase != .capturing and self.phase != .complete and !self.released) return error.InvalidRelationalRecord;
+        if (self.source_count == 0 or self.source_count > q.fuze.Relational.max_sources or self.acquired > self.source_count) return error.InvalidRelationalRecord;
+        if ((self.phase == .capturing or self.phase == .complete) and self.acquired != self.source_count) return error.InvalidRelationalRecord;
+        if ((self.phase == .admitted or self.phase == .acquiring) and (self.released or self.checkpoint != 0 or self.manifest != 0 or self.outputs != 0)) return error.InvalidRelationalRecord;
+        if (self.phase == .acquiring and self.acquired == self.source_count) return error.InvalidRelationalRecord;
+        if (self.phase != .capturing and self.phase != .complete and self.phase != .admitted and self.phase != .acquiring and !self.released) return error.InvalidRelationalRecord;
         var bytes: [p.Value.max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try start(&writer, "RQJ1");
@@ -113,6 +119,7 @@ pub const Job = struct {
         try writer.writeByte(@backingInt(self.phase));
         try writer.writeAll(&self.chain);
         try writer.writeByte(@intFromBool(self.released));
+        try writer.writeByte(self.source_count | (self.acquired << 2));
         return p.Value.init(writer.buffered());
     }
     pub fn decode(value: p.Value) !Job {
@@ -126,6 +133,10 @@ pub const Job = struct {
         result.phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidRelationalRecord;
         result.chain = (try reader.takeArray(32)).*;
         result.released = try boolean(&reader);
+        const capture = try reader.takeByte();
+        if (capture & 0xf0 != 0) return error.InvalidRelationalRecord;
+        result.source_count = capture & 3;
+        result.acquired = (capture >> 2) & 3;
         if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value)) return error.InvalidRelationalRecord;
         return result;
     }
@@ -167,9 +178,7 @@ pub const Manifest = struct {
         const job = try self.job.encode();
         if (self.job.phase != .complete) return error.IncompleteResult;
         const vector = try q.RelationalCaptured.Vector.decodeStored(self.vector);
-        for (vector.entries[0..vector.count]) |entry| {
-            if (entry.version.input != self.job.id or entry.version.pid != self.job.request_version.pid) return error.InvalidRelationalRecord;
-        }
+        if (vector.count != self.job.source_count) return error.InvalidRelationalRecord;
         try self.checkpoint.validate();
         if (self.checkpoint.domain != .query_result or self.checkpoint.namespace != self.job.namespace() or self.checkpoint.record != self.job.checkpoint or self.checkpoint.spec.format != q.RelationalState.checkpoint_format or self.checkpoint.spec.length > q.fuze.RelationalCheckpoint.max_bytes) return error.InvalidRelationalRecord;
         var writer: std.Io.Writer = .fixed(bytes[0..@min(bytes.len, max_bytes)]);

@@ -6,7 +6,9 @@ const f = q.fuze;
 const g = q.protocol.Growth;
 const Self = @This();
 bundle: q.Bundle,
-source: q.wire.SnapshotReader,
+source: ?q.wire.SnapshotReader = null,
+table: ?q.catalog.DirectTableReader.Basis = null,
+closed: bool = false,
 progress: f.LogicalStream.Progress,
 basis: q.Basis,
 cursor: q.UnifiedSource.Cursor = .{},
@@ -24,7 +26,9 @@ range_available: bool = false,
 diagnostic: ?q.protocol.Diagnostic = null,
 
 pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator: std.mem.Allocator) !Self {
+    _ = allocator;
     try bundle.validate();
+    if (bundle.source.source == .table) return error.QueryTableSnapshotRequired;
     if (client.snapshot_support == null) _ = try client.batchSupport();
     const support = client.snapshot_support orelse return error.InteractiveQueriesUnavailable;
     const request = try opening(client, bundle, nonce);
@@ -37,29 +41,14 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
     result.current = q.UnifiedClient.interactiveBatch(request.current[0].?, acquired.result.current[0].?);
     for (request.points, acquired.result.points) |key, value| if (key) |requested| result.remember(requested, value);
     if (request.range != null) result.acceptRange(acquired.result);
-    var data: CachedReader = .{ .session = &result, .view = result.source.view };
+    const data: CachedReader = .{ .session = &result, .view = result.source.?.view };
     const grant = (try q.UnifiedCapture.policy(&result.current.?, client.connection.requester)) orelse return error.QueryDenied;
-    // The opening snapshot is the admission cut. Current policy is checked
-    // independently before any schema or row is disclosed.
-    // Table admission resolves the complete live schema at the authorization
-    // batch's exact revision; that bounded batch alone is not a schema reader.
-    result.basis = if (bundle.source.source == .table) table: {
-        var cached = (try client.batchSupport()).cached(result.current.?);
-        const authority = try tableAuthority(client, bundle.source);
-        var current = authority.wrapAcquisition(&cached);
-        var retained = authority.wrapAcquisition(&data);
-        const basis = try (try bundle.source.source.table.capture(allocator, &retained, &current, try grant.tablePrincipal(bundle.source.source.table))).record();
-        try retained.finish();
-        try current.finish();
-        break :table basis;
-    } else decoder: {
-        try q.UnifiedSource.checkCurrent(bundle.source, &result.current.?, try grant.principal(bundle.source));
-        if (data.view.resource != bundle.source.resource) return error.SourceChanged;
-        break :decoder try q.UnifiedSource.basis(bundle.source, data.view.revision);
-    };
+    try q.UnifiedSource.checkCurrent(bundle.source, &result.current.?, try grant.principal(bundle.source));
+    if (data.view.resource != bundle.source.resource) return error.SourceChanged;
+    result.basis = try q.UnifiedSource.basis(bundle.source, data.view.revision);
     result.progress = try f.LogicalStream.Progress.start(try bundle.bind(try result.basis.fingerprint()));
     const metadata = try client.interactiveMetadata(bundle.source);
-    const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = metadata });
+    const refreshed = try result.source.?.batch(.{ .snapshot = .{ .existing = result.source.?.snapshot.id }, .current = metadata });
     _ = try client.interactiveDescription(bundle.source, metadata, refreshed);
     // Carry the newly checked live observation into page reads. The retained
     // reader and basis still name the opening cut, including across writes.
@@ -67,7 +56,8 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
     return result;
 }
 pub fn close(self: *Self) !void {
-    try self.source.close();
+    if (self.source) |*source| try source.close();
+    self.closed = true;
 }
 pub fn complete(self: *const Self) bool {
     return self.progress.finished != null;
@@ -79,35 +69,28 @@ pub fn schema(self: *const Self, columns: *[q.SourceDefinition.max_columns]f.Typ
 /// allocator. The caller must discard that arena before requesting another page.
 pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator, workspace: []u8, output: []u8, cancellation: *const q.fuze.execution.Cancellation) !?f.LogicalStream.Segment {
     self.diagnostic = null;
+    if (self.closed) return error.QueryClosed;
     if (self.complete()) return error.QueryComplete;
     if (self.progress.pages >= self.bundle.limits.pages) {
         if (self.diagnosticAllowed(client)) self.diagnostic = q.ExecutionDiagnostic.budget(.pages, self.bundle.limits.pages, std.math.add(u64, self.progress.pages, 1) catch return error.Overflow) catch null;
         return error.QueryBudgetExceeded;
     }
     if (cancellation.load(.acquire)) return error.Cancelled;
-    self.source.cancellation = cancellation;
+    if (self.source) |*source| source.cancellation = cancellation;
     var batch: q.UnifiedSource.Batch = undefined;
     var batch_initialized = false;
     defer if (batch_initialized) batch.deinit();
-    var data: CachedReader = .{ .session = self, .view = self.source.view };
+    var data: CachedReader = .{ .session = self, .view = if (self.source) |source| source.view else .{ .resource = self.bundle.source.resource, .revision = 0 } };
     const bound = try self.bundle.bind(try self.basis.fingerprint());
-    const grant = (try q.UnifiedCapture.policy(&self.current.?, client.connection.requester)) orelse return error.QueryDenied;
-    const principal = try grant.principal(self.bundle.source);
+    const principal = if (self.table != null) client.connection.principal else try ((try q.UnifiedCapture.policy(&self.current.?, client.connection.requester)) orelse return error.QueryDenied).principal(self.bundle.source);
     if (self.bundle.source.source == .table) {
-        var cached = (try client.batchSupport()).cached(self.current.?);
-        const authority = try tableAuthority(client, self.bundle.source);
-        var current = authority.wrapAcquisition(&cached);
-        var retained = authority.wrapAcquisition(&data);
+        const direct = client.tables orelse return error.QuerySourceUnavailable;
+        const retained = self.table orelse return error.QueryTableSnapshotRequired;
         if (self.bundle.plan.limit == 0) {
-            _ = try self.bundle.source.source.table.checkCurrent(&current, principal orelse return error.QueryDenied);
+            try self.checkTable(client);
             batch = .{ .basis = self.basis, .binding = bound.source_basis, .ordinal = self.cursor.ordinal, .next = .{ .ordinal = self.cursor.ordinal + 1, .done = true } };
-            batch_initialized = true;
-        } else {
-            try q.UnifiedSource.tablePage(self.bundle.source, bound, self.basis, self.cursor, &retained, &current, principal orelse return error.QueryDenied, allocator, &batch);
-            batch_initialized = true;
-            try retained.finish();
-        }
-        try current.finish();
+        } else try q.UnifiedSource.tablePage(self.bundle.source, bound, self.basis, retained, self.cursor, direct, allocator, &batch);
+        batch_initialized = true;
     } else if (self.bundle.plan.limit == 0) {
         try q.UnifiedSource.checkCurrent(self.bundle.source, &self.current.?, principal);
         batch = .{ .basis = self.basis, .binding = bound.source_basis, .ordinal = self.cursor.ordinal, .next = .{ .ordinal = self.cursor.ordinal + 1, .done = true } };
@@ -136,9 +119,12 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     }
     // Final live validation also covers entirely cached computation and empty
     // output. The terminal validation releases the pin in the same native call.
-    const current_policy = policy: {
+    const current_policy = if (self.table != null) policy: {
+        try self.checkTable(client);
+        break :policy try client.authorize(self.bundle.source);
+    } else policy: {
         const metadata = try client.interactiveMetadata(self.bundle.source);
-        const validated = try self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata, .finish = candidate.progress.finished != null });
+        const validated = try self.source.?.batch(.{ .snapshot = .{ .existing = self.source.?.snapshot.id }, .current = metadata, .finish = candidate.progress.finished != null });
         const description = try client.interactiveDescription(self.bundle.source, metadata, validated);
         self.current = q.UnifiedClient.interactiveBatch(metadata[0].?, validated.current[0].?);
         break :policy description;
@@ -151,14 +137,36 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     return candidate.segment;
 }
 
-fn tableAuthority(client: *q.UnifiedClient, definition: q.SourceDefinition) !q.catalog.TableAuthority.Context {
-    const authorization = client.authorizationClient();
-    return .{ .client = authorization, .subject = try authorization.proof(client.connection.source, try definition.fingerprint()) };
+/// The caller owns this durable direct pin, including uncertain acquisition
+/// and eventual release. Closing the local evaluator does not release it.
+pub fn openTable(client: *q.UnifiedClient, bundle: q.Bundle, snapshot: q.catalog.DirectTableProtocol.Snapshot, allocator: std.mem.Allocator) !Self {
+    try bundle.validate();
+    if (bundle.source.source != .table) return error.InvalidQuerySource;
+    const description = try client.authorize(bundle.source);
+    if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
+    const retained = try bundle.source.source.table.capture(allocator, client.tables orelse return error.QuerySourceUnavailable, snapshot);
+    const basis = try retained.record();
+    return .{ .bundle = bundle, .table = retained.retained, .basis = basis, .progress = try f.LogicalStream.Progress.start(try bundle.bind(try basis.fingerprint())) };
+}
+fn checkTable(self: *Self, client: *q.UnifiedClient) !void {
+    const retained = self.table orelse return error.QueryTableSnapshotRequired;
+    const direct = client.tables orelse return error.QuerySourceUnavailable;
+    try self.bundle.source.source.table.requireConnection(direct);
+    const response = try direct.call(.{ .snapshot = retained.snapshot });
+    defer response.deinit();
+    const source = response.value.result.snapshot;
+    const actual: q.catalog.DirectTableReader.Basis = .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority };
+    if (!std.meta.eql(actual, retained)) return error.SourceChanged;
 }
 
 fn diagnosticAllowed(self: *Self, client: *q.UnifiedClient) bool {
+    if (self.table != null) {
+        self.checkTable(client) catch return false;
+        const permitted = client.authorize(self.bundle.source) catch return false;
+        return permitted.limits.permits(self.bundle.limits);
+    }
     const metadata = client.interactiveMetadata(self.bundle.source) catch return false;
-    const validated = self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata }) catch return false;
+    const validated = self.source.?.batch(.{ .snapshot = .{ .existing = self.source.?.snapshot.id }, .current = metadata }) catch return false;
     const permitted = client.interactiveDescription(self.bundle.source, metadata, validated) catch return false;
     return permitted.limits.permits(self.bundle.limits);
 }
@@ -179,10 +187,7 @@ fn opening(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8) !g.Snapsho
     switch (bundle.source.source) {
         .kv => |kv| request.range = .{ .prefix = if (kv.prefix.len == 0) null else kv.prefix },
         .document => |document| request.points[0] = (try document.reference.identity().service()).key('v', document.reference.revision),
-        .table => |table| {
-            request.points[0] = q.catalog.Records.key(table.scope.catalog, 'c', 0, 0);
-            request.points[1] = q.station.TableHead.key(table.object);
-        },
+        .table => return error.QueryTableSnapshotRequired,
     }
     if (request.range != null and bundle.plan.predicate == .all) if (bundle.plan.limit) |limit| {
         request.range.?.limit = @intCast(@min(limit, g.SnapshotRead.range_entries));
@@ -205,9 +210,9 @@ const CachedReader = struct {
         return self.session.block_cache.?.read(key, output);
     }
     pub fn prefetchBlocks(self: *@This(), keys: []const q.protocol.Value) !void {
-        if (self.session.source.failed) |err| return err;
-        if (self.session.source.closed) return error.QueryClosed;
-        if (self.session.source.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+        if (self.session.source.?.failed) |err| return err;
+        if (self.session.source.?.closed) return error.QueryClosed;
+        if (self.session.source.?.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
         if (keys.len == 0) return;
         if (keys.len > g.page_size) return error.InvalidResourceRead;
         if (self.session.block_cache) |*cache| {
@@ -216,14 +221,14 @@ const CachedReader = struct {
             } else true;
             if (all) return;
         }
-        var request: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.session.source.snapshot.id } };
+        var request: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.session.source.?.snapshot.id } };
         for (keys, 0..) |key, i| request.blocks[i] = key;
         var body: q.protocol.Blocks.Body = .{};
-        const result = try self.session.source.blockBatch(request, &body);
+        const result = try self.session.source.?.blockBatch(request, &body);
         self.session.block_cache = try q.wire.BlockBatch.init(request.blocks, result.blocks, body);
     }
     pub fn entry(self: *@This(), key: q.protocol.Value) !?q.protocol.Growth.Entry {
-        if (self.session.source.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+        if (self.session.source.?.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
         for (self.session.cache) |slot| if (slot) |cached| {
             if (cached.key.eql(key)) return cached.entry;
         };
@@ -248,7 +253,7 @@ const CachedReader = struct {
             count += 1;
         }
         if (count == 0) return;
-        const result = try self.session.source.batch(.{ .snapshot = .{ .existing = self.session.source.snapshot.id }, .points = missing });
+        const result = try self.session.source.?.batch(.{ .snapshot = .{ .existing = self.session.source.?.snapshot.id }, .points = missing });
         for (missing[0..count], result.points[0..count]) |key, value| self.session.remember(key.?, value);
     }
     pub fn page(self: *@This(), after: ?q.protocol.Value) !q.protocol.Growth.Batch(q.protocol.Growth.Entry, q.protocol.Value) {
@@ -256,7 +261,7 @@ const CachedReader = struct {
         if (!session.range_available) {
             var range = session.range orelse g.SnapshotRead.Range{};
             range.after = after;
-            session.acceptRange(try session.source.batch(.{ .snapshot = .{ .existing = session.source.snapshot.id }, .range = range }));
+            session.acceptRange(try session.source.?.batch(.{ .snapshot = .{ .existing = session.source.?.snapshot.id }, .range = range }));
         }
         var result: g.Batch(g.Entry, q.protocol.Value) = .{};
         var count: usize = 0;

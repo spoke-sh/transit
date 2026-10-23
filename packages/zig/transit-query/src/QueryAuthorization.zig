@@ -49,6 +49,18 @@ pub fn subject(self: Self, audience: u64, requester: u64, requests: u64, body: [
 pub fn readerContext(resources: q.wire.ResourceReader, original: a.Subject, observed: ?*?a.Guard) q.catalog.TableAuthority.Context {
     return .{ .client = .{ .transport = resources.wire, .realm = resources.realm, .principal = resources.principal, .key = resources.key }, .subject = original, .observed = observed };
 }
+/// Recheck saved native source objects without reopening an already released
+/// direct pin or consulting a replacement Table under the old name.
+pub fn checkAuthority(authority: q.catalog.DirectReadAuthority, reader: anytype, subject_value: a.Subject, expected: u64) !void {
+    if (subject_value.principal() != expected) return error.QueryDenied;
+    const Reader = @typeInfo(@TypeOf(reader)).pointer.child;
+    if (Reader == q.wire.ResourceReader.Reader) {
+        _ = try readerContext(reader.client, subject_value, null).client.check(try authority.guard(subject_value));
+    } else if (@hasDecl(Reader, "bindAuthorizationSubject") and @hasDecl(Reader, "requireAuthorization")) {
+        try reader.bindAuthorizationSubject(subject_value);
+        _ = try reader.requireAuthorization(try authority.guard(subject_value));
+    } else return error.UnsupportedAuthorization;
+}
 pub fn checkTable(table: q.TableSource, reader: anytype, original: a.Subject, expected: u64) !void {
     if (original.principal() != expected) return error.QueryDenied;
     const Reader = @typeInfo(@TypeOf(reader)).pointer.child;

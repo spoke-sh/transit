@@ -16,7 +16,7 @@ A source definition declares one resource and exactly one of these adapters:
 | Source   | Declared decoding / projection                                                                                                                                     | Ordering                                           |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
 | KV       | Explicit prefix and independently versioned key/value decoders: binary, UTF-8, little-endian signed/unsigned 64-bit, finite IEEE float64 or canonical boolean byte | Unsigned byte order of keys                        |
-| Table    | Exact catalog scope, owner, stable object, immutable metadata and complete logical row type                                                                                              | Stable internal row identity order                           |
+| Table    | Exact catalog scope, service audience, branch, namespace, stable object, direct interpretation and complete logical row type | Stable internal row identity order |
 | Document | Exact document/epoch/type/change-format/accepted revision; named paths, scalar or materialized-text projections, optional list expansion                           | One root row, or accepted sequence traversal order |
 
 There is no KV schema inference or application callback. A decoder mismatch is a
@@ -31,17 +31,22 @@ list. A text projection has an explicit byte and traversal
 budget and fails on overflow rather than returning a truncated string. All text
 projections share a 4096-transition page budget.
 
-Every batch binds source kind, resource ID, exact resource revision, source
-contract digest and input schema digest. Table capture additionally commits the
-complete captured `TableHead` under SHA-256 of `transit.query.table-head.v1\0`
-followed by its canonical bytes. The full capture fingerprint hashes
-`transit.query.capture.v1\0`, kind u8, resource/revision u64 little-endian,
-contract digest, schema digest and head digest. KV/Document head digests are zero. The contract digest covers the complete
+Every batch binds source kind, resource ID, an exact source position, source
+contract digest and input schema digest. KV/Document positions are native u64
+revisions. A Table position is a 32-byte commitment to canonical protocol JSON
+of `DirectTableReader.Basis`: its pin, complete interpretation, accepted frontier,
+logical-change frontier, row count and native source-authority identities. That
+commitment hashes `transit.table.direct.query.source.v1\0`, the shared definition
+bytes and the canonical JSON. The full capture fingerprint hashes
+`transit.query.capture.v1\0`, the shared definition bytes, kind u8, resource u64,
+the kind-specific position, contract digest and schema digest. Integers are
+little-endian. A Table position is never a native resource revision.
+The contract digest covers the complete
 adapter definition, including decoder/projection versions and Document identity.
 A query has one source cut. There are no cross-resource snapshots or joins.
 Current grants, catalog inspect/read policies and Document floor/retirement
 remain live even when bytes come from a retained cut. A new Table admission
-requires the exact live metadata; admitted jobs retain the original schema/head
+requires an exact interpretation and signed expected frontier; admitted jobs retain the original schema/root
 through ALTER, DROP and name reuse. Current catalog revocation still prevents
 continuation and result disclosure, including empty/LIMIT 0 reads. Retention cannot turn a retired Document into a readable one.
 
@@ -145,12 +150,13 @@ an existing upload. One active upload/query bounds admission independently of
 retained history. Abandon/cancel is explicit; a timeout or frontend disconnect is
 not remote cancellation.
 
-The canonical `UQB1` bundle has a 65-byte minimum header: magic, the 32-byte
+The canonical `UQB1` bundle has a 66-byte minimum header: magic, the 32-byte
 shared current definition, u16 source length, u16 plan length, then u64 maximum
 input pages, segments and result bytes, followed by an authorization-presence
-byte. Integers are little-endian. A present authorization adds the 185 bytes
-defined below before the canonical `UQS1` source and `FQP1` plan. Its total
-budget is 25255 bytes; source and plan bounds are 16557 and 8448 bytes. All three
+byte and its optional 185-byte proof, then a retention-presence byte and its
+optional 310-byte direct read delegation. Both presence bytes are exactly 0 or 1.
+Integers are little-endian. These precede the canonical `UQS1` source and `FQP1`
+plan. Its total budget is 25614 bytes; source and plan bounds are 16605 and 8448 bytes. All three
 work budgets are positive and must fit the current durable source policy. The
 bundle uses the query-request publication domain, record 1, format `0x31425155`,
 referenced by Station's 72-byte `SPF1` encoding. Truncation and trailing bytes
@@ -159,7 +165,8 @@ reject.
 A Table request carries an original caller proof. The presence byte is exactly
 0 or 1; zero represents an unsigned description and cannot execute against a
 Table. KV and Document declarations use their explicit native-peer profile and
-reject a present Table authorization. Present fields, in order, are requester
+reject a present Table authorization or retention grant. Present proof fields,
+in order, are requester
 PID u64, request-resource u64, mandatory shared definition (32 bytes), claim
 realm/principal/credential-epoch u64s, role-presence u8, role u64 (zero when
 absent), audience PID u64, context digest (32 bytes) and Ed25519 signature
@@ -173,15 +180,37 @@ execution every source uses this same original subject, including noncontributin
 join sources.
 Source owners need not equal the coordinator for an authorized foreign read.
 
-SQL compilation seals the Table bundle once before saving or upload. Typed
-callers use `UnifiedClient.authorizeBundle` or the neutral `authorize` operation
-before `next`; the latter also checks current source scope and budgets. The
+SQL compilation returns an unsigned description. Typed callers use
+`UnifiedClient.authorizeCapture` before saving and upload. The neutral `authorize`
+operation takes `{bundle, capture}`, checks current source scope and budgets, and
+requires an explicit executor principal, pin-operation identity and expected
+partition/log frontier. Operation, partition and log position use decimal strings.
+Native KV/Document descriptions omit `capture`; the operation returns their
+unchanged peer-authorized bundle. A Table description without capture rejects.
+The [direct read delegation](DIRECT_TABLE_V1.md#delegated-retained-reads) binds this
+source, cut, original caller and executor. Its purpose hashes
+`transit.query.direct-retention.v1\0`, the worker PID/resource and requester
+PID/resource as little-endian u64s, then the canonical bundle with both proof and
+retention absent. The native query proof includes the resulting delegation.
+Preparing these proofs creates no pin. The
 neutral result is `authorized`, containing canonical bundle hex. Authorizing
 an already sealed request rejects. Continuation and execution recovery
 reuse its exact proof and never replace its epoch, selected role or signature.
 Current native authority checks the proof and all object requirements on each
 use. A configured policy principal is only an equality constraint on the
 verified subject. It cannot authenticate that subject.
+
+The neutral `table: {namespace, name}` action resolves through the configured
+direct Table service and returns `table: null` or `{source, schema, expected}`.
+`source` is the complete neutral direct Table declaration, `schema` preserves the
+full current Table schema (stable column IDs, keys, defaults, encodings and
+collations), and `expected: {partition, next_lsn}` contains canonical decimal
+strings. The response rechecks the exact current definition and read authority
+after projection. Lookup acquires no pin, admits no work and promises no later
+frontier stability. Names resolve only here; saved capture keeps the returned
+object/interpretation and explicit expected frontier. A concurrent accepted change
+can reject capture without rebinding its intent.
+
 
 Completed-result disclosure uses a separate current subject. A signed read binds
 the complete selection through SHA-256 of `transit.query.result-disclosure.v1`,
@@ -257,8 +286,26 @@ V1 reads verified result publications through current signed resource reads;
 references are not bearer grants. It reads immutable source publications through their original call identity. Reads check current
 source/result policy and lifecycle before and after a page. Revocation stops
 later disclosure, including a continuation after an already returned prefix;
-it cannot retract previously disclosed bytes. Retained source pins are released
-on capture completion or explicit closure. Cancelled/failed staging is reclaimed
+it cannot retract previously disclosed bytes. Table admission first commits an
+`admitted` job, then the original pin grant and permanent owner claim with
+`acquiring` progress. Direct acquisition follows that committed decision and
+never refreshes its expected frontier. The acquired full basis is recorded before
+traversal. Native KV/Document versions are released at capture completion or
+closure. Table traversal completion commits `captured` progress; a subsequent
+turn commits pin closure eligibility, and a later turn attempts direct release.
+Completion and physical cleanup remain separate: current denial or unavailability
+leaves the closing record pending for explicit `retry_cleanup`. Completed result
+reads check saved source evidence and current rights without reopening that pin.
+`retry_cleanup` carries a namespace and optional compact closure proof. Its
+canonical `UQL1` command is the tag, little-endian uint64 namespace, a 0/1
+presence byte and the optional 72-byte
+[closure authorization](DIRECT_TABLE_V1.md#delegated-retained-reads).
+The authenticated requester forwards the same proof with the original
+correlation in `UQZ1`. Both reject active work. `prepareCleanup(namespace, bundle)`
+and the neutral `cleanup: {namespace, bundle}` action create a frozen command
+with current closure permission for that bundle's original grant. The worker
+commits this permission before using it and never replaces the execution proof.
+Cancelled/failed staging is reclaimed
 in bounded steps; publication ledgers preserve permanent identity facts.
 
 The source job's result namespace is `2^63 | source_input_position`, reserved by
@@ -266,18 +313,24 @@ the host in that resource; an occupied namespace rejects admission.
 The query-result publication domain separates its budgets and records from
 request uploads and mutations in the same resource. Segment ordinal `n` uses record `n + 1`, format `0x31415155`; the final manifest uses
 record `2^64 - 1`, format `0x314d5155`. `UQJ1` binds the original route, request
-reference, policy revision and retained version. Its final failure-presence byte
-and optional `UQF1` make it 143 or 255 bytes. Failed/denied jobs require a
+reference, policy revision and retention kind. Kind 1 stores a worker PID and
+native version index; its version input is the job identity. Kind 2 stores only
+the worker PID and refers to the job's direct pin records. Its final
+failure-presence byte and optional `UQF1` make native jobs 136 or 248 bytes and
+Table jobs 135 or 247 bytes. Failed/denied jobs require a
 matching failure; all other source phases forbid one. The `UQC1` checkpoint contains
-magic, source kind u8, resource/revision u64, captured head digest (32 bytes),
+magic, source kind u8, resource u64, a native revision u64 or Table commitment (32 bytes),
 126-byte `FQS1`, cursor-done boolean and a source-specific cursor. KV stores an
 after-key presence flag and optional length/bytes (at most 32). Table stores a
 presence flag, 20-byte row identity (zero if absent), and scanned-row u64.
 Document stores counter/replica u64 and traversal-phase u8. Total result bytes
 u64 and the ordered segment digest (32 bytes) finish the record. Integers are
 little-endian except the row identity's canonical big-endian encoding. Cursor
-ordinal is the progress page count. Maximum lengths are KV 254, Table 249 and
-Document 237 bytes, within the unchanged 256-byte KV value.
+ordinal is the progress page count. Maximum lengths are KV 222, Table 241 and
+Document 205 bytes, within the unchanged 256-byte KV value. Table scanned-row
+counts can exceed selected/scanned execution counters when a finite LIMIT stops
+inside a fetched page, and can be smaller than eight times the page count when
+the direct page byte limit binds.
 
 `UQS1` segment metadata (in the separate result-record context) is 125 bytes:
 magic, u64 ordinal, u64 first row, u8 row count, `SPF1` reference and raw Arrow
@@ -300,7 +353,8 @@ Page work is the next page required beyond the completed-page count; result
 counters include the rejected candidate segment, not committed progress.
 
 Tag 4 carries the original runtime witness. Its 104 bytes hold resource u56,
-revision u56, frozen binding SHA-256, one-based scanned row u64, source kind u8,
+native revision u56 (zero and inapplicable for a Table), frozen binding SHA-256,
+one-based scanned row u64, source kind u8,
 operation u8 (validate/predicate/count/sum = 1/2/3/4), column u8, instruction u8
 (255 means absent), flags u8, expected logical type u8, column-length u8, complete
 key-length u16, decoder actual-byte-count u16 and 39 detail bytes. The high bit

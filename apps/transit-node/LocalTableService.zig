@@ -24,8 +24,10 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     try request.validate(allocator);
     if (!request.connection.matches(self.configuration)) return error.CatalogDenied;
     const context = try w.Request.context(request.input(), allocator);
-    const original = if (request.delegation) |delegation| delegation.proof else request.proof;
-    const original_context = if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
+    const original = if (request.closure) |closure|
+        try closure.proof(request.delegation.?, allocator)
+    else if (request.delegation) |delegation| delegation.proof else request.proof;
+    const original_context = if (request.closure != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
     var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
     const owner = self.engine.journal.backend;
     var control: backend.DataStore = .{ .backend = owner, .control = true };
@@ -49,7 +51,31 @@ fn schema(allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Bin
     return w.Binary.encode(allocator, try value.encode(buffer));
 }
 fn requireSource(delegation: ?c.DirectReadDelegation, source: c.storage.TablePartition.SnapshotDefinition) !void {
-    if (delegation) |value| try value.requireSource(source.root.interpretation, .{ .partition = source.root.partition, .next_lsn = source.root.next_lsn });
+    if (delegation) |value| {
+        if (value.binding.retention != source.retention) return error.TableDelegationDenied;
+        try value.requireSource(source.root.interpretation, .{ .partition = source.root.partition, .next_lsn = source.root.next_lsn });
+    }
+}
+fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, delegation: ?c.DirectReadDelegation, object: d.Object, lease: c.storage.TablePartition.SnapshotHandle, point: ?c.storage.TablePartition.HistoryPoint) !w.HistorySource {
+    // Verify the original lease as well as the selected successor. Possession
+    // of a later root cannot replace the grant's exact original acquisition.
+    if (delegation != null) {
+        var original = try catalog.snapshotDefinition(allocator, object, lease, policy);
+        defer original.deinit();
+        try requireSource(delegation, original);
+    }
+    var found = try catalog.historyDefinition(allocator, object, lease, point, policy);
+    defer found.deinit();
+    if (delegation) |grant| try grant.requireHistory(found.root.interpretation, found.point.position);
+    return .{ .point = found.point, .source = .{
+        .snapshot = .{ .object = object, .handle = lease },
+        .interpretation = found.root.declared(),
+        .accepted = found.point.position,
+        .changed_lsn = found.root.changed_lsn,
+        .row_count = found.root.live_rows,
+        .schema = try schema(allocator, found.declaration.schema.schema),
+        .authority = try catalog.readAuthority(object, lease.owner, policy, false),
+    } };
 }
 fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation) anyerror!w.Result {
     switch (action) {
@@ -154,6 +180,38 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             } },
         },
         .pin => |value| return .{ .pin = if (delegation) |grant| try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRows(value.object, value.owner, value.expected, policy) },
+        .retain_history => |value| return .{ .pin = try catalog.retainHistory(value.object, value.owner, value.expected, if (delegation) |grant| grant.binding.interpretation else null, policy) },
+        .history_start => |value| return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.handle, null) },
+        .history_source => |value| return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.point.lease, value.point) },
+        .history => |value| {
+            if (delegation != null) {
+                var original = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
+                defer original.deinit();
+                try requireSource(delegation, original);
+            }
+            const found = try catalog.history(value.snapshot.object, value.snapshot.handle, value.from, value.through, value.frames, policy);
+            const entries = try allocator.alloc(w.HistoryEntry, found.count);
+            for (entries, 0..) |*entry, i| {
+                const accepted = found.entries[i].?;
+                const position: d.Position = .{ .partition = accepted.root.partition, .next_lsn = accepted.root.next_lsn };
+                if (delegation) |grant| try grant.requireHistory(accepted.root.interpretation, position);
+                entry.* = .{ .point = .{ .lease = value.snapshot.handle, .position = position, .commitment = accepted.commitment }, .interpretation = accepted.root.declared(), .changed_lsn = accepted.root.changed_lsn, .row_count = accepted.root.live_rows, .receipt = accepted.receipt };
+            }
+            return .{ .history = .{ .snapshot = value.snapshot, .through = found.through, .next = found.next, .scanned = found.scanned, .entries = entries } };
+        },
+        .history_scan => |value| {
+            const source = try historySource(allocator, catalog, policy, delegation, value.source.object, value.source.point.lease, value.source.point);
+            var declaration = try catalog.historyDefinition(allocator, value.source.object, value.source.point.lease, value.source.point, policy);
+            defer declaration.deinit();
+            var found = try catalog.scanHistory(allocator, value.source.object, value.source.point, value.after, value.limits, policy);
+            defer found.deinit();
+            const page = found.page;
+            const rows = try allocator.alloc(w.Binary, page.count);
+            const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+            defer allocator.free(scratch);
+            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(declaration.declaration.schema.schema, scratch));
+            return .{ .history_page = .{ .point = found.point, .page = .{ .snapshot = source.source.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } } };
+        },
         .pin_status => |value| {
             const state = try catalog.pinState(value.object, value.owner, policy);
             if (delegation != null and !state.released) if (state.handle) |handle| {
@@ -161,7 +219,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 defer source.deinit();
                 try requireSource(delegation, source);
             };
-            return .{ .pin_state = state };
+            return .{ .pin_state = .{ .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = try catalog.readAuthority(value.object, value.owner, policy, true) } };
         },
         .snapshot => |value| {
             var found = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);
@@ -174,8 +232,23 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 .changed_lsn = found.root.changed_lsn,
                 .row_count = found.root.live_rows,
                 .schema = try schema(allocator, found.schema.schema),
-                .authority = try catalog.readAuthority(value.object, value.handle.owner, policy),
+                .authority = try catalog.readAuthority(value.object, value.handle.owner, policy, false),
             } };
+        },
+        .read_key => |value| {
+            var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
+            defer definition.deinit();
+            try requireSource(delegation, definition);
+            const key = try value.key.decode(allocator, c.fuze.Collation.max_sort_key_bytes);
+            defer allocator.free(key);
+            var found = try catalog.readRow(allocator, value.snapshot.object, value.snapshot.handle, key, policy);
+            defer if (found) |*row| row.deinit();
+            const encoded: ?w.Binary = if (found) |row| encoded: {
+                const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+                defer allocator.free(scratch);
+                break :encoded try w.Binary.encode(allocator, try row.row().encode(definition.schema.schema, scratch));
+            } else null;
+            return .{ .point = .{ .snapshot = value.snapshot, .interpretation = definition.root.declared(), .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn }, .changed_lsn = definition.root.changed_lsn, .total_rows = definition.root.live_rows, .row = encoded } };
         },
         .scan => |value| {
             var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);

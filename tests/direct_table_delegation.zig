@@ -36,6 +36,7 @@ pub fn prepare(client: c.DirectTableClient) !State {
         .interpretation = basis.interpretation.interpretation,
         .expected = basis.position,
         .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 8200 },
+        .retention = .snapshot,
         .purpose = @splat(23),
     });
     const delegated = try executor(client, grant);

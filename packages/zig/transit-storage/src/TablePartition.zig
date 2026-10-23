@@ -49,6 +49,7 @@ pub const Options = struct {
 pub const Change = Changes.Change;
 pub const Ingestion = Changes.Ingestion;
 pub const SnapshotHandle = Snapshot.Handle;
+pub const Retention = Snapshot.Retention;
 pub const PinState = struct {
     position: d.Position,
     retired: bool,
@@ -63,6 +64,7 @@ pub const HistoryEntry = struct {
     receipt: r.Receipt,
     commitment: [32]u8,
 };
+pub const HistoryReceipt = r.Receipt;
 pub const HistoryPage = struct {
     object: d.Object,
     through: d.Position,
@@ -70,6 +72,44 @@ pub const HistoryPage = struct {
     scanned: u8 = 0,
     entries: [pages.page_entries]?HistoryEntry = @splat(null),
     count: u8 = 0,
+};
+/// A point within an explicitly retained history. The commitment is the exact
+/// WAL record digest, not the current root or a native resource revision.
+pub const HistoryPoint = struct {
+    lease: SnapshotHandle,
+    position: d.Position,
+    commitment: [32]u8,
+    pub fn cursorSource(self: HistoryPoint) !d.Content {
+        try self.lease.owner.validate();
+        try self.lease.content.validate();
+        try self.position.validate();
+        if (self.position.next_lsn == 0 or std.mem.allEqual(u8, &self.commitment, 0)) return error.InvalidTableHistory;
+        var bytes: [2048]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try std.json.Stringify.value(self, .{}, &writer);
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.table.history.cursor.v1\x00");
+        hash.update(&p.Growth.definition_bytes);
+        hash.update(writer.buffered());
+        return .{ .bytes = writer.end, .sha256 = hash.finalResult() };
+    }
+};
+pub const HistoryDefinition = struct {
+    point: HistoryPoint,
+    root: Root,
+    declaration: Declaration.Owned,
+    pub fn deinit(self: *HistoryDefinition) void {
+        self.declaration.deinit();
+        self.* = undefined;
+    }
+};
+pub const HistoryRows = struct {
+    point: HistoryPoint,
+    page: SnapshotPage,
+    pub fn deinit(self: *HistoryRows) void {
+        self.page.deinit();
+        self.* = undefined;
+    }
 };
 pub const SnapshotCursor = struct { source: d.Content, after: [f.TableRow.Identity.encoded_bytes]u8 };
 pub const ReadLimits = struct {
@@ -312,6 +352,60 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     return result;
+}
+
+/// Traverse accepted logical transactions under a durable history lease. The
+/// fixed upper bound is supplied by the caller; empty pages can advance past
+/// physical records. No-op acceptances remain visible as individual entries.
+pub fn retainedHistory(self: *Self, lease: SnapshotHandle, from: d.Position, through: d.Position, frames: u8, guard: Guard) !HistoryPage {
+    var original = try self.inspectHistoryLease(self.allocator, lease, guard);
+    defer original.deinit();
+    if (from.partition != original.root.partition or from.next_lsn < original.root.next_lsn) return error.InvalidTableBasis;
+    return self.history(from, through, frames, guard);
+}
+
+fn inspectHistoryLease(self: *Self, allocator: std.mem.Allocator, lease: SnapshotHandle, guard: Guard) !SnapshotDefinition {
+    var original = try self.inspectSnapshot(allocator, lease, guard);
+    errdefer original.deinit();
+    if (original.retention != .history) return error.TableHistoryRetentionRequired;
+    return original;
+}
+
+/// Initial inspection always resolves the lease's original point. It never
+/// substitutes the latest Table frontier when work is admitted or resumed.
+pub fn historyStart(self: *Self, allocator: std.mem.Allocator, lease: SnapshotHandle, guard: Guard) !HistoryDefinition {
+    return self.openHistoryPoint(allocator, lease, null, guard);
+}
+
+/// Reopen exactly the saved historical root and interpretation, under current
+/// authority and the original still-live history lease.
+pub fn historyAt(self: *Self, allocator: std.mem.Allocator, point: HistoryPoint, guard: Guard) !HistoryDefinition {
+    _ = try point.cursorSource();
+    return self.openHistoryPoint(allocator, point.lease, point, guard);
+}
+
+fn openHistoryPoint(self: *Self, allocator: std.mem.Allocator, lease: SnapshotHandle, requested: ?HistoryPoint, guard: Guard) !HistoryDefinition {
+    var original = try self.inspectHistoryLease(allocator, lease, guard);
+    defer original.deinit();
+    const position: d.Position = if (requested) |point| point.position else .{ .partition = original.root.partition, .next_lsn = original.root.next_lsn };
+    if (position.partition != original.root.partition or position.next_lsn < original.root.next_lsn or position.next_lsn > self.root.next_lsn or position.next_lsn == 0) return error.InvalidTableBasis;
+    var frame = try self.log.read(self.allocator, position.partition, position.next_lsn - 1, 1);
+    defer frame.deinit();
+    if (frame.frames.len != 1) return error.TableHistoryMissing;
+    const value = frame.frames[0];
+    if (value.header.partition_id != position.partition or value.header.lsn != position.next_lsn - 1 or
+        (value.header.kind != .row_delta and value.header.kind != .manifest_checkpoint)) return error.InvalidTableHistory;
+    const digest = r.hash(value.payload);
+    if (requested) |point| if (!std.mem.eql(u8, &digest, &point.commitment)) return error.TableHistoryConflict;
+    const decoded = try r.decode(self.allocator, value.payload, value.header.lsn);
+    const record = decoded.record;
+    if ((record.action == .mutation) != (value.header.kind == .row_delta) or (record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
+    try self.requireBasis(record.root);
+    var declaration = try Declaration.load(allocator, self.objects, record.root.declared());
+    errdefer declaration.deinit();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return .{ .point = .{ .lease = lease, .position = position, .commitment = digest }, .root = record.root, .declaration = declaration };
 }
 
 fn operationAt(self: *Self, basis: Root, binding: d.Binding) !?Operation {
@@ -1260,6 +1354,16 @@ pub fn flush(self: *Self, guard: Guard) !usize {
 /// this profile has no physical trim/GC operation. Pin ownership and release are
 /// durable, and are a prerequisite for any future retained-root collector.
 pub fn pin(self: *Self, owner: d.Operation, expected: d.Position, guard: Guard) !SnapshotHandle {
+    return self.retain(owner, expected, .snapshot, guard);
+}
+
+/// Explicit retention of the original root and its logical successors. This
+/// does not advance a computation or grant rights to read future history.
+pub fn retainHistory(self: *Self, owner: d.Operation, expected: d.Position, guard: Guard) !SnapshotHandle {
+    return self.retain(owner, expected, .history, guard);
+}
+
+fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Retention, guard: Guard) !SnapshotHandle {
     try self.ready();
     try self.scope(owner);
     {
@@ -1271,14 +1375,14 @@ pub fn pin(self: *Self, owner: d.Operation, expected: d.Position, guard: Guard) 
             const handle: SnapshotHandle = .{ .owner = owner, .content = existing.content };
             var frozen = try Snapshot.load(self.allocator, self.objects, handle);
             defer frozen.deinit();
-            if (expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
+            if (retention != frozen.retention or expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
             return handle;
         }
         if (self.root.retired) return error.TableRetired;
         if (self.root.next_lsn == 0) return error.TableNotCreated;
         if (expected.partition != self.root.partition or expected.next_lsn != self.root.next_lsn) return error.TableDataChanged;
     }
-    const handle = try Snapshot.stage(self.allocator, self.objects, owner, self.root, self.declaration.schema.schema);
+    const handle = try Snapshot.stage(self.allocator, self.objects, owner, retention, self.root, self.declaration.schema.schema);
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
     var next = self.root;
@@ -1373,19 +1477,32 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     try limits.validate();
     var frozen = try self.inspectSnapshot(allocator, handle, guard);
     defer frozen.deinit();
+    return self.scanRetainedRoot(allocator, frozen.root, frozen.schema.schema, handle, handle.content, after, limits, guard);
+}
+
+/// Cursor attribution includes the historical WAL commitment, so a cursor from
+/// one revision cannot skip rows in another revision under the same lease.
+pub fn scanHistory(self: *Self, allocator: std.mem.Allocator, point: HistoryPoint, after: ?SnapshotCursor, limits: ReadLimits, guard: Guard) !HistoryRows {
+    try limits.validate();
+    var historical = try self.historyAt(allocator, point, guard);
+    defer historical.deinit();
+    return .{ .point = point, .page = try self.scanRetainedRoot(allocator, historical.root, historical.declaration.schema.schema, point.lease, try point.cursorSource(), after, limits, guard) };
+}
+
+fn scanRetainedRoot(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, handle: SnapshotHandle, cursor_source: d.Content, after: ?SnapshotCursor, limits: ReadLimits, guard: Guard) !SnapshotPage {
     const cursor: ?pages.Key = if (after) |value| blk: {
-        if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
+        if (!std.meta.eql(value.source, cursor_source)) return error.InvalidTableSnapshotCursor;
         const key = try pages.Key.init(&value.after);
-        if (try self.tree().get(frozen.root.identities, key) == null) return error.InvalidTableSnapshotCursor;
+        if (try self.tree().get(basis.identities, key) == null) return error.InvalidTableSnapshotCursor;
         break :blk key;
     } else null;
-    const batch = try self.tree().scan(frozen.root.identities, cursor);
+    const batch = try self.tree().scan(basis.identities, cursor);
     var result: SnapshotPage = .{
         .source = handle,
-        .interpretation = frozen.root.declared(),
-        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
-        .changed_lsn = frozen.root.changed_lsn,
-        .total_rows = frozen.root.live_rows,
+        .interpretation = basis.declared(),
+        .accepted = .{ .partition = basis.partition, .next_lsn = basis.next_lsn },
+        .changed_lsn = basis.changed_lsn,
+        .total_rows = basis.live_rows,
     };
     errdefer result.deinit();
     const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
@@ -1394,20 +1511,20 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     for (batch.entries) |slot| {
         const entry = slot orelse break;
         if (result.count == limits.rows) {
-            result.next = .{ .source = handle.content, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
+            result.next = .{ .source = cursor_source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
             break;
         }
         if (entry.key.len != f.TableRow.Identity.encoded_bytes or entry.value.len != 32) return error.InvalidTableRowReference;
         const row_key = try pages.Key.init(entry.value.data[0..32]);
-        const locator = try self.tree().get(frozen.root.rows, row_key) orelse return error.InvalidTableRowReference;
-        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, row_key, locator);
+        const locator = try self.tree().get(basis.rows, row_key) orelse return error.InvalidTableRowReference;
+        var row = try self.readRowWithSchema(allocator, basis, schema, row_key, locator);
         var moved = false;
         defer if (!moved) row.deinit();
         if (!std.mem.eql(u8, entry.key.data[0..entry.key.len], &try row.row().identity.encode())) return error.InvalidTableRowReference;
-        const encoded = try row.row().encode(frozen.schema.schema, scratch);
+        const encoded = try row.row().encode(schema, scratch);
         if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
             if (result.count == 0) return error.TableReadBudgetTooSmall;
-            result.next = .{ .source = handle.content, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
+            result.next = .{ .source = cursor_source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
             break;
         }
         result.rows[result.count] = row;
@@ -1418,7 +1535,7 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     }
     if (result.next == null) if (batch.next) |key| {
         if (key.len != f.TableRow.Identity.encoded_bytes) return error.InvalidTableRowReference;
-        result.next = .{ .source = handle.content, .after = key.data[0..f.TableRow.Identity.encoded_bytes].* };
+        result.next = .{ .source = cursor_source, .after = key.data[0..f.TableRow.Identity.encoded_bytes].* };
     };
     // Authorization may change while rows are decoded or copied. Recheck after
     // buffering, including empty output and end-of-source metadata.

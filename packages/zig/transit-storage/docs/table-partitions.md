@@ -130,11 +130,25 @@ empty and still have more work in its fixed interval.
 
 The upper bound does not expand when later writes arrive. Current authorization
 is checked before work and after buffering, including an empty result. Inspecting
-history creates no pin and changes no accepted state. Historical roots rely on
-the owner's retained WAL and immutable pages; a computation must separately
-establish durable retention before using them across future collection. This
-component method is not yet a public direct-service change feed or maintained
-query adapter.
+history creates no pin and changes no accepted state.
+
+`retainHistory(owner, expected, guard)` durably retains the original root and
+its logical successors. The immutable snapshot records mandatory `history`
+retention, distinct from an ordinary `snapshot` pin. Exact retries recover the
+same lease; reusing its owner to change the original frontier or retention kind
+rejects. `historyStart` resolves the original cut, and `historyAt` reopens a
+specific saved partition/frontier and complete acceptance-record digest.
+`retainedHistory` requires that live lease and never starts before its original
+frontier. `scanHistory` reads the selected original schema and rows, with cursors
+bound to the lease, historical position and record digest. Cross-revision cursors
+reject even when both revisions share one lease. Current rights apply before
+work and after buffering, including empty pages. `releaseSnapshot` closes either
+retention kind and prevents subsequent history disclosure.
+
+The owner still retains its complete WAL and immutable pages. It exposes no
+physical collector or trim operation; a future collector must preserve every
+root and log record covered by a live history lease. Lease acquisition does not
+schedule or advance a maintained computation.
 
 ## Typed predicate mutations
 

@@ -217,6 +217,9 @@ pub const Statement = struct {
 };
 
 pub const Snapshot = struct { object: d.Object, handle: P.SnapshotHandle };
+pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position };
+pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
+pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
 pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot };
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
@@ -237,9 +240,15 @@ pub const Action = union(enum) {
     admit_rows: Rows,
     admit_statement: Statement,
     operation: struct { binding: d.Binding, command: enum { inspect, execute, cancel }, steps: u16 },
-    pin: struct { object: d.Object, owner: d.Operation, expected: d.Position },
+    pin: Acquisition,
+    retain_history: Acquisition,
     pin_status: struct { object: d.Object, owner: d.Operation },
     snapshot: Snapshot,
+    history_start: Snapshot,
+    history_source: Historical,
+    history: HistoryRequest,
+    history_scan: struct { source: Historical, after: ?P.SnapshotCursor, limits: P.ReadLimits },
+    read_key: struct { snapshot: Snapshot, key: Binary },
     scan: struct { snapshot: Snapshot, after: ?P.SnapshotCursor, limits: P.ReadLimits },
     release: Snapshot,
 };
@@ -249,8 +258,9 @@ pub const Request = struct {
     nonce: [16]u8,
     action: Action,
     delegation: ?c.DirectReadDelegation,
+    closure: ?c.DirectReadDelegation.Closure = null,
     proof: p.Authorization.Proof,
-    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation };
+    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
         const bytes = try p.Json.valueAlloc(allocator, value);
         defer allocator.free(bytes);
@@ -261,13 +271,13 @@ pub const Request = struct {
         return hash.finalResult();
     }
     pub fn input(self: Request) Input {
-        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation };
+        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure };
     }
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
-            .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .release => true,
+            .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release => true,
             .operation => |value| value.command != .inspect,
             .name_assertion => |value| value.command != .inspect,
             else => false,
@@ -285,6 +295,11 @@ pub const Request = struct {
             try delegation.validate(allocator);
             if (!std.meta.eql(delegation.binding.connection, connection)) return error.InvalidTableDelegation;
             try delegation.allow(self.action);
+        }
+        if (self.closure) |closure| {
+            const original = self.delegation orelse return error.InvalidTableDelegation;
+            _ = try closure.proof(original, allocator);
+            try c.DirectReadDelegation.Closure.allow(self.action);
         }
         const principal = if (self.delegation) |delegation| delegation.binding.executor else connection.principal;
         const role: ?u64 = if (self.delegation != null) null else connection.role;
@@ -333,7 +348,7 @@ pub const Request = struct {
                 try connection.binding(value.binding);
                 if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
             },
-            .pin => |value| {
+            inline .pin, .retain_history => |value| {
                 try connection.object(value.object);
                 try connection.owner(value.owner);
                 try value.expected.validate();
@@ -342,7 +357,27 @@ pub const Request = struct {
                 try connection.object(value.object);
                 try connection.owner(value.owner);
             },
-            inline .snapshot, .release => |value| try validateSnapshot(connection, value),
+            inline .snapshot, .history_start, .release => |value| try validateSnapshot(connection, value),
+            .history_source => |value| try validateHistorical(connection, value),
+            .history => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                try value.from.validate();
+                try value.through.validate();
+                if (value.from.next_lsn == 0 or value.from.partition != value.through.partition or value.from.next_lsn > value.through.next_lsn) return error.InvalidTableBasis;
+                if (value.frames == 0 or value.frames > 8) return error.InvalidTableReadBudget;
+            },
+            .history_scan => |value| {
+                try validateHistorical(connection, value.source);
+                try value.limits.validate();
+                if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
+                if (value.after) |cursor| if (!std.meta.eql(cursor.source, try value.source.point.cursorSource())) return error.InvalidTableCursor;
+            },
+            .read_key => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                const key = try value.key.decode(allocator, f.Collation.max_sort_key_bytes);
+                defer allocator.free(key);
+                if (key.len == 0) return error.InvalidTableKey;
+            },
             .scan => |value| {
                 try validateSnapshot(connection, value.snapshot);
                 try value.limits.validate();
@@ -364,6 +399,10 @@ fn validateSnapshot(connection: Connection, value: Snapshot) !void {
     try connection.owner(value.handle.owner);
     try value.handle.content.validate();
 }
+fn validateHistorical(connection: Connection, value: Historical) !void {
+    try validateSnapshot(connection, .{ .object = value.object, .handle = value.point.lease });
+    _ = try value.point.cursorSource();
+}
 
 pub const Definition = struct {
     interpretation: c.storage.TableDeclaration.Stored,
@@ -376,6 +415,23 @@ pub const Definition = struct {
     schema: Binary,
 };
 pub const Source = struct { snapshot: Snapshot, interpretation: c.storage.TableDeclaration.Stored, accepted: d.Position, changed_lsn: u64, row_count: u64, schema: Binary, authority: c.DirectReadAuthority };
+pub const HistorySource = struct { point: P.HistoryPoint, source: Source };
+pub const HistoryEntry = struct { point: P.HistoryPoint, interpretation: c.storage.TableDeclaration.Stored, changed_lsn: u64, row_count: u64, receipt: P.HistoryReceipt };
+pub const HistoryPage = struct {
+    pub const json_schema_sequence_bounds = .{ .entries = 8 };
+    snapshot: Snapshot,
+    through: d.Position,
+    next: d.Position,
+    scanned: u8,
+    entries: []const HistoryEntry,
+};
+pub const PinState = struct {
+    position: d.Position,
+    retired: bool,
+    handle: ?P.SnapshotHandle,
+    released: bool,
+    authority: c.DirectReadAuthority,
+};
 pub const Page = struct {
     pub const json_schema_sequence_bounds = .{ .rows = 8 };
     snapshot: Snapshot,
@@ -386,6 +442,15 @@ pub const Page = struct {
     rows: []const Binary,
     encoded_bytes: u32,
     next: ?P.SnapshotCursor,
+};
+/// A key lookup is complete for that key, not evidence of a full Table scan.
+pub const Point = struct {
+    snapshot: Snapshot,
+    interpretation: c.storage.TableDeclaration.Stored,
+    accepted: d.Position,
+    changed_lsn: u64,
+    total_rows: u64,
+    row: ?Binary,
 };
 pub const Result = union(enum) {
     initialized,
@@ -401,8 +466,12 @@ pub const Result = union(enum) {
     ddl: D.Observation,
     rows: P.OperationState,
     pin: P.SnapshotHandle,
-    pin_state: P.PinState,
+    pin_state: PinState,
     snapshot: Source,
+    history_source: HistorySource,
+    history: HistoryPage,
+    history_page: struct { point: P.HistoryPoint, page: Page },
+    point: Point,
     page: Page,
     released,
 };

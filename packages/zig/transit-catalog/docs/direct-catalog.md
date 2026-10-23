@@ -74,6 +74,14 @@ the cursor unchanged. Returned batches own their values independently of the
 reader. Completion requires exact source consumption; it establishes no completed
 query result or consistent cut across independently retained Tables.
 
+`readAfter` seeks an ordered suffix on the retained identity index without
+changing sequential coverage. `readKey` performs a collision-checked lookup with
+the retained schema's physical storage key and returns one owned row or absence.
+For keyed Tables, encode the complete key with `Collation.encodePrimaryKeySortKey`;
+keyless Tables use the canonical row identity. The reader validates exact source
+attribution and the returned row's actual key. Neither operation advances `next`'s
+cursor or establishes complete Table consumption.
+
 Before disclosing a result computed from cached rows, call the reader's `check`
 to recheck current rights and source attribution. Reading beyond the end also
 rechecks rights before returning no batch. The reader remains bound to its
@@ -200,7 +208,7 @@ pages can be empty and still have a continuation. Its directory position and
 Table positions are independent observations, not a consistent catalog snapshot.
 Retained Table snapshots use the storage owner's separate durable-pin operations.
 
-`pinRows`, `pinState`, `snapshotDefinition`, `scanRows` and `releaseRows` expose those
+`pinRows`, `pinState`, `snapshotDefinition`, `readRow`, `scanRows` and `releaseRows` expose those
 operations through the same native policy owner. A pin belongs to its original
 principal; its handle does not grant access. Each read requires current CONNECT,
 USAGE and SELECT and retains its original schema after Table alteration or
@@ -256,3 +264,31 @@ row/DDL acceptance, rewrite and pin behavior. The
 [data lifecycle contract](../../../../contracts/DATA_LIFECYCLE_V1.md#direct-catalog-publication-contract)
 defines the publication boundary; the [proof ledger](../../../../tests/README.md)
 records executed tests and their limits.
+
+## Retained logical history
+
+`DirectCatalog.retainHistory` acquires an exact-frontier history lease. Its
+`history` pages enumerate accepted logical operations under a fixed upper bound,
+including no-op statements. Each entry retains the original receipt, definition,
+logical-change frontier and complete WAL-record commitment. Budgets limit physical
+frames visited, so empty pages can advance over pin, flush and admission records.
+`historyDefinition` and `scanHistory` reopen the selected cut under current rights.
+
+The signed service exposes `retain_history`, `history_start`, `history`,
+`history_source` and `history_scan`. A delegated caller must explicitly sign
+`history` retention; an ordinary snapshot grant cannot follow successors. The
+initial lease still binds the exact original definition/frontier and pin owner.
+The service verifies both that initial scope and each requested historical point.
+It follows object identity through definition changes; clients inspect the
+returned schema and retirement flag before continuing their computations.
+
+`DirectTableReader.openHistoryStart` opens the original cut, and `openHistory`
+opens a saved `Historical` point. Both use the ordinary bounded `next`, `readAfter`
+and `check` methods. Historical cursors bind the lease, frontier and acceptance
+record digest; a cursor from another revision rejects. Historical key lookup is
+unsupported. Local destruction releases only local memory. Explicit `release`
+closes the whole history lease; `closeOriginalHistory` reconciles uncertain
+acquisition/closure without choosing another cut. A delegated cleanup proof
+permits only original acquisition, status and release, never history disclosure.
+These methods supply retention and source traversal; maintained-query scheduling
+and publication remain separate owners.

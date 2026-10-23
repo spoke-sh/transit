@@ -5,8 +5,8 @@ resource. The caller supplies an admitted job identity, source ordinal and the
 original caller's `DirectReadDelegation`. The declaration's catalog resource is
 independent of this job state resource. The configured worker principal must
 match the grant's executor; process IDs are never substituted for principals.
-This component supplies retention transitions. The captured-query behavior still
-needs admission, source traversal and result publication integration.
+`UnifiedCapture` uses these transitions for explicit admission, bounded direct
+source traversal and verified result publication.
 
 ## Commit boundaries
 
@@ -33,7 +33,10 @@ needs admission, source traversal and result publication integration.
    independently of the computation's state resource and without raw source
    access. Native preparation uses its recorded time sample; a changed policy or
    resource state invalidates the prepared commit through the existing fence.
-4. Commit `beginClose` with the job's transition away from reading its input.
+4. Commit `beginClose` with or after the job's transition away from reading its input.
+   Unified Table traversal commits its final segment and checkpoint first, then
+   records closure eligibility in a separate turn to preserve the four-mutation
+   limit. A captured job never resumes source traversal during this interval.
    This one metadata mutation also handles an acquisition with an unknown reply.
    A worker restart alone cannot make this transition.
 5. `settle` reads the committed closing decision and reconciles the remote pin
@@ -41,6 +44,22 @@ needs admission, source traversal and result publication integration.
    commit it before claiming cleanup is complete. Lost replies and lost native
    commits repeat the original closure. Current denial or unavailable storage
    leaves the closing record pending.
+
+Credential rotation does not replace an accepted query's execution proof.
+`UnifiedClient.prepareCleanup` instead signs a separate `DirectReadDelegation.Closure`
+over the exact original grant. The authenticated requester forwards it only for
+a terminal job. `authorizeCleanup` verifies current permission through a pure
+pin-status read and commits the compact closure proof separately. A later turn
+uses that proof to reconcile the original acquisition and release. This permits
+no schema or row reads; it cannot resume the query or capture a different cut.
+Save the prepared command for uncertain retries. A later rotation requires
+another explicit cleanup authorization, while unavailable storage or denied
+current access leaves closure pending.
+
+An invalid fresh cleanup proof records a rejected control without replacing the
+saved execution grant or blocking later controls. A job denied before committed
+acquisition eligibility has no pin to settle. Terminal cleanup preserves that
+absence and its original failure; it does not create an acquisition record.
 
 Native admission and direct pin acquisition are independent commits. There is
 no cross-owner atomicity claim: the first establishes recovery ownership before
@@ -51,8 +70,16 @@ removing the grant needed for cleanup; these records live with the computation.
 
 ## Bounds and inspection
 
-Each source has two fixed grant fragments, one optional handle record and one
-permanent owner claim. The source ordinal is a durable key, not an in-memory
+Retained Table traversal preserves the original schema through ALTER, DROP and
+name reuse. A predicate containing exactly one equality for each primary-key
+column can use a direct `read_key` lookup with that schema's collation keys.
+Fuze still evaluates the original predicate. Other predicates scan in bounded
+row-identity pages. A key lookup completes only that selection, leaves the
+sequential reader cursor unchanged, and rechecks current rights before returning
+either a row or an empty result.
+
+Each source has two fixed grant fragments, one optional handle record, one
+optional 72-byte cleanup proof and one permanent owner claim. The source ordinal is a durable key, not an in-memory
 array index. The owner claim stores the complete identity alongside a hashed
 lookup key; a collision rejects instead of sharing a pin. Preparation uses
 three of the four native metadata mutations, acquisition at most one, and each
@@ -69,7 +96,8 @@ its explicit retention policy permits cleanup.
 The original grant uses the mandatory current-definition `TRG1` encoding.
 `QTP1` stores phase, resource, worker, job and source ordinal with that grant;
 `QTH1` stores a mandatory current definition, the original pin content
-length/digest and the three native authority IDs. Reads reject partial fragments,
+length/digest, three native authority IDs, declaration length, schema fingerprint,
+logical-change frontier and row count. Reads reject partial fragments,
 identity changes and incompatible
 definitions. Loading a record carries no permission: remote actions authenticate
 the worker's own key and recheck the original caller's current authority.

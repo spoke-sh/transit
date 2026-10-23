@@ -9,6 +9,32 @@ const wire = q.UnifiedRequest;
 const upload = q.UnifiedUpload;
 const Turn = s.Turn;
 pub const adapter_bytes = 1024 * 1024;
+pub const TableEndpoint = struct {
+    url: []const u8,
+    scope: p.DataLifecycle.Scope,
+    branch: u64,
+    audience: u64,
+};
+pub const PolicyChange = struct {
+    expected_revision: u64,
+    policy: r.Policy,
+    pub fn encode(self: PolicyChange) !p.Value {
+        if (self.expected_revision >= p.max_counter or self.policy.revision != self.expected_revision + 1 or self.policy.target != .catalog) return error.InvalidQueryPolicyChange;
+        const policy = try self.policy.encode();
+        var bytes: [12 + r.Policy.max_bytes]u8 = undefined;
+        bytes[0..4].* = "CQG1".*;
+        std.mem.writeInt(u64, bytes[4..12], self.expected_revision, .little);
+        @memcpy(bytes[12..][0..policy.len], policy.slice());
+        return p.Value.init(bytes[0 .. 12 + policy.len]);
+    }
+    pub fn decode(value: p.Value) !PolicyChange {
+        try value.validate();
+        if (value.len != 12 + r.Policy.max_bytes or !std.mem.eql(u8, value.data[0..4], "CQG1")) return error.InvalidQueryPolicyChange;
+        const result: PolicyChange = .{ .expected_revision = std.mem.readInt(u64, value.data[4..12], .little), .policy = try r.Policy.decode(try p.Value.init(value.slice()[12..])) };
+        _ = try result.encode();
+        return result;
+    }
+};
 fn configuration(first: u64, second: u64) !p.Value {
     try r.identity(first);
     try r.identity(second);
@@ -89,6 +115,11 @@ pub const Requester = struct {
                 try upload.retire(turn, namespace);
                 try collectLater(turn, namespace);
             },
+            .retry_cleanup => |value| {
+                const status = (try upload.status(turn, value.namespace)) orelse return error.QueryUploadNotFound;
+                if (status.phase == .uploading or status.phase == .sealed or status.phase == .admitted or status.correlation == 0) return error.QueryActive;
+                try turn.cast(self.source, try (Cleanup{ .correlation = status.correlation, .authorization = value.authorization }).encode());
+            },
             .collect => |namespace| if (!try upload.collect(turn, namespace)) try collectLater(turn, namespace),
         }
     }
@@ -96,7 +127,7 @@ pub const Requester = struct {
 fn requestError(err: anyerror) bool {
     return switch (err) {
         error.InvalidQueryDraft, error.QueryDraftConflict, error.QueryDraftActive, error.QueryDraftNotFound, error.QueryDraftClosed, error.QueryDraftExhausted, error.QueryBudgetExceeded => true,
-        error.InvalidQueryUpload, error.InvalidQueryBundle, error.QueryUploadIdentityConflict, error.QueryBusy, error.QueryNamespaceInUse, error.QueryUploadClosed, error.QueryUploadNotFound, error.QueryUploadNotActive, error.QueryUploadActive, error.PublicationGap, error.InvalidPublicationOrdinal, error.InvalidPublicationChunk, error.IncompletePublication, error.InvalidPublicationDigest, error.MutationBudgetExceeded => true,
+        error.InvalidQueryUpload, error.InvalidQueryBundle, error.QueryUploadIdentityConflict, error.QueryBusy, error.QueryActive, error.QueryNamespaceInUse, error.QueryUploadClosed, error.QueryUploadNotFound, error.QueryUploadNotActive, error.QueryUploadActive, error.PublicationGap, error.InvalidPublicationOrdinal, error.InvalidPublicationChunk, error.IncompletePublication, error.InvalidPublicationDigest, error.MutationBudgetExceeded => true,
         else => false,
     };
 }
@@ -104,6 +135,7 @@ pub const Source = struct {
     peer: u64,
     initializer: u64,
     resources: s.client.ResourceReader,
+    tables: ?q.catalog.DirectTableClient = null,
     adapter: []u8,
     workspace: []u8,
     cancellation: *const q.fuze.execution.Cancellation,
@@ -116,7 +148,7 @@ pub const Source = struct {
     }
     fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
         const self: *Source = @ptrCast(@alignCast(raw.?));
-        dispatchSource(turn, frame, self.peer, self.initializer, self.resources, self.adapter, self.workspace, self.cancellation) catch |err| {
+        dispatchSource(turn, frame, self.peer, self.initializer, Resources{ .native = self.resources, .tables = self.tables }, self.adapter, self.workspace, self.cancellation) catch |err| {
             // Current request-resource expiry may arrive through the wire's
             // rejection envelope. Own-source read failure still poisons the turn
             // and cannot authorize a fabricated successful closure.
@@ -129,11 +161,49 @@ pub const Source = struct {
         };
     }
 };
+pub const Resources = struct {
+    native: s.client.ResourceReader,
+    tables: ?q.catalog.DirectTableClient,
+    pub fn open(self: Resources, resource: u64) !s.client.ResourceReader.Reader {
+        return self.native.open(resource);
+    }
+};
+pub const Cleanup = struct {
+    correlation: u64,
+    authorization: ?q.catalog.DirectReadDelegation.Closure = null,
+    pub fn encode(self: Cleanup) !p.Value {
+        try r.identity(self.correlation);
+        var bytes: [13 + q.catalog.DirectReadDelegation.Closure.encoded_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try writer.writeAll("UQZ1");
+        try (wire.Cleanup{ .namespace = self.correlation, .authorization = self.authorization }).write(&writer);
+        return p.Value.init(writer.buffered());
+    }
+    pub fn decode(value: p.Value) !Cleanup {
+        try value.validate();
+        var reader: std.Io.Reader = .fixed(value.slice());
+        if (!std.mem.eql(u8, try reader.take(4), "UQZ1")) return error.InvalidQueryContinuation;
+        const control = try wire.Cleanup.read(&reader);
+        const result: Cleanup = .{ .correlation = control.namespace, .authorization = control.authorization };
+        if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value)) return error.InvalidQueryContinuation;
+        return result;
+    }
+};
 /// Public composition point used by source hosts and component fixtures. The
 /// resource reader is current and authenticated; adapter/Arrow memory is bounded.
 pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
     try initialized(turn, 'v', try configuration(peer, initializer));
     if (frame.kind == .cast and external(turn, initializer) and frame.payload.eql(try wire.Command.encode(.initialize))) return;
+    if (frame.kind == .cast and std.mem.startsWith(u8, frame.payload.slice(), "CQG1")) {
+        if (!external(turn, initializer)) return rejected(turn, "QueryPrincipalMismatch");
+        const change = PolicyChange.decode(frame.payload) catch return rejected(turn, "InvalidQueryPolicyChange");
+        if (change.policy.peer != peer) return rejected(turn, "UnexpectedQueryPeer");
+        const current = try q.UnifiedCapture.policy(turn, peer);
+        if (current) |old| if (std.meta.eql(old, change.policy)) return;
+        if ((if (current) |old| old.revision else @as(u64, 0)) != change.expected_revision) return rejected(turn, "StaleQueryPolicy");
+        try q.UnifiedCapture.setPolicy(turn, change.policy);
+        return;
+    }
     return dispatch(turn, frame, peer, resources, adapter, workspace, cancellation);
 }
 /// Catalog composition uses the durable per-requester policy. No process ID is
@@ -144,6 +214,20 @@ pub fn dispatchCatalogSource(turn: *Turn, frame: s.Frame, catalog: q.catalog.Tab
 }
 fn dispatch(turn: *Turn, frame: s.Frame, peer: ?u64, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
     const origin = s.Frame.source(turn.delivery.input) catch 0;
+    if (frame.kind == .cast and std.mem.startsWith(u8, frame.payload.slice(), "UQZ1")) {
+        if (origin == 0 or (peer != null and origin != peer.?)) return rejected(turn, "UnexpectedQueryPeer");
+        const control = try Cleanup.decode(frame.payload);
+        const index = (try turn.read(r.key('i', origin, control.correlation))) orelse return rejected(turn, "QueryNotFound");
+        var fixed: std.heap.FixedBufferAllocator = .init(adapter);
+        q.UnifiedCapture.retryCleanup(fixed.allocator(), turn, try r.readIdentity(index), resources, control.authorization) catch |err| {
+            if (turn.read_error != null) return err;
+            return switch (err) {
+                error.QueryActive, error.QueryDenied, error.CatalogDenied, error.SourceChanged => rejected(turn, @errorName(err)),
+                else => err,
+            };
+        };
+        return;
+    }
     if (frame.kind == .call) {
         if (origin == 0 or (peer != null and origin != peer.?)) return turn.reply(try q.QueryFailure.fromError(error.UnexpectedQueryPeer, .admission).?.encode());
         const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try q.QueryFailure.fromError(error.InvalidPublicationReference, .admission).?.encode());

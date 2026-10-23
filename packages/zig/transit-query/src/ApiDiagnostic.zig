@@ -25,7 +25,7 @@ pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Bin
     }
     const stage: d.Stage = switch (action) {
         .compile => .compile,
-        .authorize, .prepare, .next => .prepare,
+        .authorize, .cleanup, .prepare, .next => .prepare,
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };
@@ -36,6 +36,7 @@ pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Bin
     }, cause, binding, dispatched, identity orelse switch (action) {
         .status => |value| namespace(value),
         .next => |value| namespace(value.namespace),
+        .cleanup => |value| namespace(value.namespace),
         .page => |value| namespace(value.namespace),
         else => null,
     });
@@ -66,7 +67,7 @@ pub fn qualify(out: *?d, connection: q.UnifiedClient.Connection) void {
 pub fn attempt(operation: []const u8, stage: d.Stage, source: ?[]const u8, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
     if (source) |sql| if (q.fuze.SqlDiagnostic.bound(sql, cause, true, binding)) |detail| return detail.structured();
     const sending = stage == .submit and dispatched;
-    const local_input = stage != .read and (cause == error.InvalidQueryRequest or cause == error.InvalidPredicateProgram or cause == error.InvalidFrame);
+    const local_input = stage != .read and (cause == error.InvalidQueryRequest or cause == error.InvalidPredicateProgram or cause == error.InvalidFrame or cause == error.QueryCaptureRequired or cause == error.QueryTableSnapshotRequired);
     const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
     var result = if (sending and !rejected)
         try d.init("query.send_unknown", .unavailable, .submit, .unknown, .saved_intent, "The signed command's outcome is unknown. Retain its exact saved bytes and reconcile before preparing another command.")
@@ -167,4 +168,18 @@ test "every caller code preserves read identity and cannot override an uncertain
     try t.expectEqual(null, namespace("00"));
     try t.expectEqual(null, namespace("0"));
     try t.expectEqual(null, namespace("18446744073709551616"));
+}
+
+test "direct Table preparation failures do not settle a dispatched query" {
+    const t = std.testing;
+    const missing = try attempt("authorize", .prepare, null, error.QueryCaptureRequired, .{}, false, null);
+    try t.expectEqualStrings("query.capture_required", missing.code.slice());
+    try t.expectEqual(.binding, missing.category);
+    try t.expectEqual(.not_submitted, missing.outcome);
+    const retained = try attempt("read", .read, null, error.QueryTableSnapshotRequired, .{}, false, null);
+    try t.expectEqualStrings("query.table_snapshot_required", retained.code.slice());
+    try t.expectEqual(.not_applicable, retained.outcome);
+    const unknown = try attempt("submit", .submit, null, error.QueryCaptureRequired, .{}, true, null);
+    try t.expectEqualStrings("query.send_unknown", unknown.code.slice());
+    try t.expectEqual(.unknown, unknown.outcome);
 }

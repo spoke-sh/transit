@@ -670,12 +670,13 @@ impl QueryNative {
         config: &transit_client::ClientConfig,
         credential: &transit_client::Credential,
         connection: &crate::unified::Connection,
+        tables: Option<&crate::unified::Tables>,
     ) -> Result<Self> {
         let (url, timeout, directory) = settings(config);
         let local = Local::open(directory)?;
         let key = credential_seed(credential)?;
         let bytes = serde_json::to_vec(
-            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout}),
+            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout,"tables":tables.map(|v| v.wire(credential.principal(), connection)).transpose()?}),
         )
         .map_err(|_| Error::new(ErrorKind::InvalidArgument, "query-config"))?;
         let mut pointer = ptr::null_mut();

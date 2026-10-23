@@ -2,6 +2,10 @@
 module Transit
   module Station
     module Catalog
+      # Shared package decoders keep neutral values behind the language-native
+      # API while allowing query lookup to reuse the catalog's schema owner.
+      def Internal.catalog_scope(value) = Values.scope(value)
+      def Internal.catalog_schema(value) = Values.schema(value)
       CONTRACT = JSON.parse(File.binread(File.join(__dir__, 'contract.json'))).freeze
       DEFINITION = CONTRACT.fetch('definition').freeze
       LIMITS = CONTRACT.fetch('limits').freeze

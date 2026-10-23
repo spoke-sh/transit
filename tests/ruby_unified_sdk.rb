@@ -9,10 +9,9 @@ def scalar(type, value)
   Q::Scalar.new(kind: { int64: :signed, uint64: :unsigned }.fetch(type, type), value: value)
 end
 def table_source(columns)
-  metadata = C::Metadata.new(namespace: 1, scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: 1, resource: 7), catalog: 9),
-    object: 9, revision: 1, name: 'items', schema_fingerprint: "\x01".b*32, principal: 17, operation: 1, admitted_input: 1,
-    commitment: C::MetadataCommitment.new(bytes: 200, digest: "\x01".b*32))
-  Q::TableSource.new(owner: Transit::ProcessRef.new(realm: 1, pid: 3), metadata: metadata,
+  Q::TableSource.new(scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: 1, resource: 7), catalog: 9),
+    audience: 3, branch: 1, namespace: 1,
+    interpretation: Q::TableInterpretation.new(revision: 1, digest: "\x01".b*32, byte_count: 200, schema_digest: "\x02".b*32),
     schema: C::Schema.new(object: 9, revision: 1, next_column: columns.length+1, columns: columns))
 end
 def check(value)
@@ -114,19 +113,28 @@ def serve(config)
     requester: Transit::ProcessRef.new(realm: v.fetch('realm'), pid: v.fetch('requester')), requests: Transit::ResourceRef.new(realm: v.fetch('realm'), resource: v.fetch('requests')))
   cfg = Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000)
   credential = Transit::Credential.new(realm: v.fetch('realm'), principal: v.fetch('principal'), seed_file: config.fetch('seed_file'))
+  tables = nil
+  capture = nil
+  if config.fetch('kind') == 'table'
+    t = config.fetch('tables'); scope = t.fetch('connection').fetch('scope')
+    tables = Q::Tables.new(url: t.fetch('url'), scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: resource.realm, resource: scope.fetch('resource')), catalog: Integer(scope.fetch('catalog'))),
+      branch: Integer(t.fetch('connection').fetch('branch')), audience: t.fetch('connection').fetch('audience'))
+    c = config.fetch('capture')
+    capture = Q::Capture.new(executor: c.fetch('executor'), operation: Integer(c.fetch('operation')), partition: Integer(c.fetch('expected').fetch('partition')), next_lsn: Integer(c.fetch('expected').fetch('next_lsn')))
+  end
   source = case config.fetch('kind')
   when 'kv' then Q::KVSource.new(resource: resource, prefix: 'k', key: Q::Decoder.new(type: :binary), value: Q::Decoder.new(type: :utf8))
   when 'table'
-    catalog_connection = C::Connection.new(owner: connection.source, scope: C::Scope.new(resource: resource, catalog: 1))
-    definition = C::Client.open(cfg, credential, catalog_connection) { |client| client.lookup('items') }
+    definition = Q::Client.open(cfg, credential, connection, tables: tables) { |client| client.lookup_table('items') }
     check(!definition.nil?)
-    Q::TableSource.new(owner: connection.source, metadata: definition.metadata, schema: definition.schema)
+    definition.source
   else Q::DocumentSource.new(reference: Transit::Station::DocumentReference.new(resource: resource, document: 17, epoch: 1, type_revision: 1, revision: 13), expand: ['items'], projections: [
     Q::Projection.new(column: Q::DecoderColumn.new(name: 'value', type: :utf8), relative: true),
     Q::Projection.new(column: Q::DecoderColumn.new(name: 'counter', type: :uint64), relative: true, mode: :element_counter),
     Q::Projection.new(column: Q::DecoderColumn.new(name: 'replica', type: :uint64), relative: true, mode: :element_replica),
     Q::Projection.new(column: Q::DecoderColumn.new(name: 'optional', type: :utf8), path: ['optional'])])
   end
+  result_resource = source.is_a?(Q::TableSource) ? source.scope.resource : resource
   doc = config.fetch('kind') == 'document'
   column = doc ? 0 : 1
   predicate = Q::Compare.new(column: column, comparison: :ne, value: Q::Scalar.new(kind: :utf8, value: 'x'*512))
@@ -137,10 +145,10 @@ def serve(config)
       Q::PredicateAtom.new(predicate: Q::IsState.new(column: column, state: :null)), :disjunction, :negate, :conjunction])
   end
   bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], output_names: doc ? ['Result', nil, nil, nil] : ['Result'], predicate: predicate), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
-  Q::Client.open(cfg, credential, connection) do |client|
-    check(client.authorize_bundle(bundle).data == File.binread(config.fetch('bundle')))
+  Q::Client.open(cfg, credential, connection, tables: tables) do |client|
+    check(client.authorize_bundle(bundle, capture: capture).data == File.binread(config.fetch('bundle')))
     description = client.describe(source)
-    check(description.bundle_bytes == 25255 && description.batch_rows == 8)
+    check(description.bundle_bytes == 25614 && description.batch_rows == 8)
     puts JSON.generate(ready: true)
     STDIN.each_line do |line|
       action = JSON.parse(line)
@@ -158,7 +166,7 @@ def serve(config)
           limits = scope.fetch('limits')
           value = client.inspect_sql(source, scope.fetch('name'), request.fetch('sql'), Q::Budgets.new(
             pages: Integer(limits.fetch('pages')), segments: Integer(limits.fetch('segments')), result_bytes: Integer(limits.fetch('result_bytes'))))
-          check(value.resource == resource && value.source_kind.to_s == config.fetch('kind'))
+          check(value.resource == result_resource && value.source_kind.to_s == config.fetch('kind'))
           check(value.source_digest.frozen? && value.schema_digest.frozen? && value.details.frozen?)
           data = value.details
           details = case data
@@ -171,7 +179,7 @@ def serve(config)
               aggregate: data.aggregate, columns: data.columns.map(&:wire), budgets: data.budgets.to_h.transform_values(&:to_s) } }
           else raise 'Unknown SQL inspection result'
           end
-          { inspection: { version: 1, scope: 'configured_source', name: value.name, resource: resource.resource,
+          { inspection: { version: 1, scope: 'configured_source', name: value.name, resource: result_resource.resource,
             source_kind: value.source_kind, contract: value.source_digest.bytes, schema: value.schema_digest.bytes,
             resource_revision: value.resource_revision, policy_revision: value.policy_revision.to_s, details: details } }
         elsif action.key?('next')
@@ -195,7 +203,7 @@ def serve(config)
         elsif action.key?('page')
           value = action.fetch('page')
           page = client.page(Integer(value.fetch('namespace')), value['cursor'].nil? ? nil : Q::Cursor.new(data: value.fetch('cursor')))
-          check(page.manifest.resource == resource && page.manifest.source_kind.to_s == config.fetch('kind'))
+          check(page.manifest.resource == result_resource && page.manifest.source_kind.to_s == config.fetch('kind'))
           check(page.decode.length == page.rows && page.ipc.frozen?)
           { page: { ordinal: page.ordinal.to_s, ipc: page.ipc.unpack1('H*'), manifest: { segments: page.manifest.segments.to_s, selected: page.manifest.selected.to_s, value_count: page.manifest.value_count.to_s }, next: page.next&.data } }
         else raise 'Unsupported test operation'

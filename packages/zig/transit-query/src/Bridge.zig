@@ -16,11 +16,13 @@ pub const Command = union(enum) {
     cancel: []const u8,
     collect: []const u8,
     retire: []const u8,
+    retry_cleanup: struct { namespace: []const u8, authorization: ?q.catalog.DirectReadDelegation.Closure = null },
     pub fn native(self: Command, alloc: Allocator) !q.UnifiedRequest.Command {
         const result: q.UnifiedRequest.Command = switch (self) {
             .initialize => .initialize,
             .begin => |v| .{ .begin = try q.station.PublicationReference.decode(v) },
             .part => |v| .{ .part = .{ .namespace = try c.unsigned(v.namespace), .ordinal = v.ordinal, .second = v.second, .bytes = try c.unhex(alloc, v.bytes, q.UnifiedRequest.part_bytes) } },
+            .retry_cleanup => |v| .{ .retry_cleanup = .{ .namespace = try c.unsigned(v.namespace), .authorization = v.authorization } },
             inline else => |v, tag| @unionInit(q.UnifiedRequest.Command, @tagName(tag), try c.unsigned(v)),
         };
         _ = try result.encode();
@@ -32,11 +34,13 @@ pub const Action = union(enum) {
     capabilities,
     sql_capabilities,
     describe: c.Source,
+    table: struct { namespace: u64, name: []const u8 },
     inspect: q.SqlInspection.Request,
     compile: q.SqlCompilation.Request,
     /// Seal a newly constructed canonical bundle once. Saved/accepted bundles
     /// already carry their proof and must never be resigned during recovery.
-    authorize: []const u8,
+    authorize: struct { bundle: []const u8, capture: ?c.Capture = null },
+    cleanup: struct { namespace: []const u8, bundle: []const u8 },
     prepare: Command,
     next: struct { namespace: []const u8, bundle: []const u8 },
     submit: []const u8,
@@ -52,6 +56,32 @@ pub const Description = struct {
     limits: c.Limits,
     active: ?[]const u8,
 };
+pub const Table = struct {
+    source: c.Source,
+    schema: q.catalog.TableValues.Schema,
+    expected: struct { partition: []const u8, next_lsn: []const u8 },
+};
+/// Resolve through the existing direct owner. This inspection acquires no pin
+/// and admits no query; capture later checks the exact returned frontier.
+fn table(alloc: Allocator, client: *q.UnifiedClient, namespace: u64, name: []const u8) !?Table {
+    const direct = client.tables orelse return error.QuerySourceUnavailable;
+    const response = try direct.call(.{ .lookup = .{ .namespace = namespace, .name = name } });
+    defer response.deinit();
+    const definition = response.value.result.lookup orelse return null;
+    var source = try q.TableSource.from(alloc, direct.connection, definition);
+    defer source.deinit();
+    const bytes = try definition.schema.decode(alloc, q.fuze.TableSchema.max_bytes);
+    defer alloc.free(bytes);
+    var schema = try q.fuze.TableSchema.decode(alloc, bytes);
+    defer schema.deinit();
+    const result: Table = .{
+        .source = try c.Source.fromNative(alloc, .{ .resource = direct.connection.scope.resource, .source = .{ .table = source.source } }),
+        .schema = try q.fuze.TableSchemaJson.foreignInto(alloc, schema.schema),
+        .expected = .{ .partition = try a.decimal(alloc, definition.position.partition), .next_lsn = try a.decimal(alloc, definition.position.next_lsn) },
+    };
+    try source.source.checkDefinition(direct);
+    return result;
+}
 pub const Failure = struct {
     code: q.QueryFailure.Code,
     stage: q.QueryFailure.Stage,
@@ -86,7 +116,7 @@ pub fn statusDiagnostic(value: q.UnifiedRequest.Status) !?p.Diagnostic {
 }
 pub const Manifest = struct {
     job: u64,
-    source: p.Growth.ReadVersionId,
+    source: q.UnifiedRecords.Retention,
     requester: u64,
     correlation: []const u8,
     policy_revision: []const u8,
@@ -121,6 +151,7 @@ pub const Result = union(enum) {
     capabilities: q.UnifiedClient.Capabilities,
     sql_capabilities: q.SqlCompilation.Capabilities,
     description: Description,
+    table: ?Table,
     inspection: q.SqlInspection.Result,
     compiled: q.SqlCompilation.Result,
     authorized: []const u8,
@@ -150,17 +181,25 @@ pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Actio
     switch (action) {
         .relational => return error.QueryInterfaceUnavailable,
         .capabilities => return .{ .capabilities = .{} },
+        .table => |request| return .{ .table = try table(alloc, client, request.namespace, request.name) },
         .sql_capabilities => return .{ .sql_capabilities = .{} },
         .inspect => |request| return .{ .inspection = try q.SqlInspection.applyDiagnostic(alloc, client, request, detail) },
         .compile => |request| return .{ .compiled = try q.SqlCompilation.applyDiagnostic(alloc, client, request, detail) },
-        .authorize => |encoded| {
-            const description = try q.Bundle.decode(alloc, try c.unhex(alloc, encoded, q.Bundle.max_bytes));
+        .authorize => |request| {
+            const description = try q.Bundle.decode(alloc, try c.unhex(alloc, request.bundle, q.Bundle.max_bytes));
             if (description.authorization != null) return error.QueryAlreadyAuthorized;
             const current = try client.describe(description.source);
             if (!current.limits.permits(description.limits)) return error.QueryBudgetExceeded;
-            const bundle = try client.authorizeBundle(description);
+            const bundle = if (request.capture) |capture|
+                try client.authorizeCapture(description, try capture.native())
+            else
+                try client.authorizeBundle(description);
             var bytes: [q.Bundle.max_bytes]u8 = undefined;
             return .{ .authorized = try a.hex(alloc, try bundle.encode(&bytes)) };
+        },
+        .cleanup => |request| {
+            const bundle = try q.Bundle.decode(alloc, try c.unhex(alloc, request.bundle, q.Bundle.max_bytes));
+            return .{ .prepared = try std.json.Stringify.valueAlloc(alloc, try client.prepareCleanup(try c.unsigned(request.namespace), bundle), .{}) };
         },
         .describe => |v| {
             const result = try client.describe(try v.native(alloc));

@@ -86,7 +86,7 @@ distinct. Conflict alternatives retain ordered full-width assignment IDs.
 `Page.to_pyarrow()` requires the optional pinned PyArrow 23.0.0 dependency and
 preserves the nested state/alternative schema. An independently decoded IPC
 stream alone establishes neither current authorization nor complete-result
-coverage. Bundles contain at most 25255 bytes. Table results admit 128 columns;
+coverage. Bundles contain at most 25614 bytes. Table results admit 128 columns;
 segments contain at most eight rows and 64 KiB. Comparison literals retain a
 4 KiB byte limit. Descriptors and recursive cells use the shared logical budgets.
 KV has two columns, and Document projections admit eight scalar decoders.
@@ -99,34 +99,59 @@ Result cells reuse `logical.Missing`, `Null`, `SourceTypeError`, `Present` and
 are immutable tuples. The six KV/Document decoder names remain in `DecoderType`
 and `DecoderColumn` independently of the result type model.
 
-Build a Table source from a catalog lookup:
+A Table source binds a direct catalog scope, service audience, branch, namespace,
+full interpretation commitment and schema. `TableInterpretation` keeps the
+accepted definition revision, declaration digest and byte count, and schema
+digest. `TableSource(scope, audience, branch, namespace, interpretation, schema)`
+uses that exact object identity; it does not bind through an actor catalog record.
+
+Configure `Client(..., tables=Tables(url, scope, branch, audience))` (or
+`AsyncClient`) with the direct Table endpoint. The client uses the same caller,
+credential and selected role for native progress and direct Table operations.
+The query worker's progress resource is independent of the catalog resource.
+Native KV and Document sources still use the configured native resource.
+
+`Manifest.cut` is `NativeCut(revision)` for KV/Document or
+`TableCut(commitment)` for a direct Table. Its `source` is respectively a retained
+`ReadVersion` or the query worker's `ProcessRef`. Table commitments cover the
+original retained interpretation, manifest and accepted WAL frontier. Current
+result disclosure rechecks rights after the source pin has been released; it does
+not reopen that pin or bind to a renamed or replacement object.
+
+Resolve metadata through the configured direct owner before compiling:
 
 ```python
-definition = catalog_client.lookup("people")
+definition = client.lookup_table("people", namespace=1)
 if definition is None:
     raise ValueError("Table not found")
-source = q.TableSource(catalog_client.connection.owner,
-                       definition.metadata, definition.schema)
+description = client.compile_sql(definition.source, "people",
+    "SELECT COUNT(*) AS n FROM people", q.Budgets(100, 100, 1048576))
+bundle = client.authorize_bundle(description,
+    definition.capture(executor=worker_principal, operation=pin_operation))
 ```
 
-Metadata includes the immutable record commitment returned by the shared
-implementation. Preparing a source does not grant access. Current `describe`
-checks its metadata, while retained-result reads check current rights and retain
-their original schema and `Manifest.source_head`. Saved work does not rebind to
-a renamed or replacement object.
-
-Run `just bindings::unified-python kv` for a clean installed-wheel codec and
-signed recovery schedule. `table` and `document` select the other source
-profiles; see [proof evidence](../../../../tests/README.md) for completed runs.
+Lookup starts no query and acquires no pin. A concurrent change can invalidate the
+observed frontier before capture; inspect that conflict instead of substituting a
+new source for saved work.
 
 Connections accept an optional selected native role; omission uses the login role.
 Local bundle construction produces a description. Call `authorize_bundle` once on the
-query client before persisting a newly constructed Table bundle or its fingerprint.
+query client with `Capture(executor, operation, partition, next_lsn)` before
+persisting a newly constructed Table bundle or its fingerprint. `executor` is the
+executor principal; `operation` identifies this pin acquisition, and the last two
+fields specify the exact expected Table frontier. All three storage counters use
+full-width Python integers.
 The returned bytes bind the authenticated caller, role, credential epoch, source
-owner and requester to the exact query and budget. SQL compilation already returns
-an authorized bundle. An already authorized Table bundle rejects resealing.
+owner and requester to the exact query and budget. SQL compilation returns an unsigned description and requires this explicit
+capture authorization for Tables. An already authorized Table bundle rejects resealing.
 
 Persist and recover the original bundle bytes unchanged, alongside each prepared
 command and receipt. Current authorization is checked again during progress and
 result disclosure. Credential or policy changes never justify replacing accepted
-work with a newly signed bundle. The complete bundle bound is 25,255 bytes.
+work with a newly signed bundle. The complete bundle bound is 25,614 bytes.
+
+`prepare_cleanup(namespace, original_bundle)` creates a separate prepared control
+for terminal pin cleanup using the current credential. Persist, submit and observe
+it like the other prepared controls. It preserves the saved execution proof and
+source cut, including after credential rotation; it grants no source scan or query
+resumption. A worker records the fresh cleanup proof before retrying remote closure.

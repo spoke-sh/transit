@@ -11,8 +11,12 @@ const pages = @import("TreeStore.zig").pages;
 const header_bytes = 48;
 pub const max_bytes = header_bytes + r.max_metadata_bytes + f.TableSchema.max_bytes;
 pub const Handle = struct { owner: d.Operation, content: d.Content };
+/// Snapshot retention covers one exact root. History retention additionally
+/// preserves logical successors from that root until explicit release.
+pub const Retention = enum { snapshot, history };
 pub const Owned = struct {
     owner: d.Operation,
+    retention: Retention,
     root: r.Root,
     schema: f.TableSchema.Owned,
     pub fn deinit(self: *Owned) void {
@@ -20,14 +24,14 @@ pub const Owned = struct {
         self.* = undefined;
     }
 };
-const Metadata = struct { owner: d.Operation, root: r.Root };
+const Metadata = struct { owner: d.Operation, retention: Retention, root: r.Root };
 
 fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
     try content.validate();
     return std.fmt.bufPrint(buffer, "table-snapshots/{x}.tman", .{&content.sha256});
 }
 
-pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: d.Operation, root: r.Root, schema: f.TableSchema.Schema) !Handle {
+pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
     try owner.validate();
     try root.validate();
     if (!std.meta.eql(owner.scope, root.interpretation.object.scope) or !std.mem.eql(u8, &try schema.fingerprint(), &root.schema_fingerprint)) return error.InvalidTableBasis;
@@ -40,7 +44,7 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: 
     basis.operations = null;
     basis.pending = null;
     var writer: std.Io.Writer = .fixed(bytes[header_bytes..][0..r.max_metadata_bytes]);
-    try std.json.Stringify.value(Metadata{ .owner = owner, .root = basis }, .{}, &writer);
+    try std.json.Stringify.value(Metadata{ .owner = owner, .retention = retention, .root = basis }, .{}, &writer);
     const metadata = writer.buffered();
     const encoded_schema = try schema.encode(bytes[header_bytes + metadata.len ..]);
     bytes[0..8].* = "TPINOBJ1".*;
@@ -81,7 +85,7 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, handle: 
         !std.mem.eql(u8, &try schema.schema.fingerprint(), &parsed.value.root.schema_fingerprint)) return error.InvalidTableSnapshot;
     var declaration = try Declaration.load(allocator, objects, parsed.value.root.declared());
     defer declaration.deinit();
-    return .{ .owner = handle.owner, .root = parsed.value.root, .schema = schema };
+    return .{ .owner = handle.owner, .retention = parsed.value.retention, .root = parsed.value.root, .schema = schema };
 }
 
 pub const Pin = struct {

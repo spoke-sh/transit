@@ -10,6 +10,7 @@ const Self = @This();
 wire: *q.wire.Client,
 connection: Connection,
 key: p.Ed25519.KeyPair,
+tables: ?q.catalog.DirectTableClient = null,
 batch_reads: ?q.wire.ResourceReader.Batches = null,
 snapshot_support: ?q.wire.SnapshotReader.Support = null,
 pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, requester: u64, requests: u64, role: ?u64 = null };
@@ -55,22 +56,37 @@ pub fn resources(self: *Self) q.wire.ResourceReader {
 pub fn authorizationClient(self: *Self) q.wire.AuthorizationClient {
     return .{ .transport = self.wire, .realm = self.connection.realm, .principal = self.connection.principal, .key = self.key, .role = self.connection.role };
 }
+/// Pure compilation returns an unsigned description. Table activation must
+/// explicitly supply its pin operation, executor and expected Table frontier.
 pub fn authorizeBundle(self: *Self, bundle: q.Bundle) !q.Bundle {
-    // KV/Document declarations retain their explicit native-peer admission
-    // profile. They do not claim original-subject Table authorization.
-    if (bundle.source.source != .table) return bundle;
-    return bundle.authorize(self.authorizationClient(), self.connection.source, self.connection.requester, self.connection.requests);
+    _ = self;
+    if (bundle.source.source == .table) return error.QueryCaptureRequired;
+    return bundle;
+}
+pub fn authorizeCapture(self: *Self, bundle: q.Bundle, capture: q.Bundle.Capture) !q.Bundle {
+    return bundle.authorizeCapture(self.authorizationClient(), self.tables orelse return error.QuerySourceUnavailable, self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests, capture);
+}
+/// Fresh permission closes the exact accepted pin; the original executable
+/// bundle and its credential epoch remain unchanged. Save/retry Prepared bytes.
+pub fn prepareCleanup(self: *Self, namespace: u64, bundle: q.Bundle) !Prepared {
+    try bundle.validate();
+    const grant = bundle.retention orelse return error.QueryCaptureRequired;
+    const original = bundle.authorization orelse return error.QueryDenied;
+    try original.caller(self.connection.principal, self.connection.role);
+    _ = try bundle.subject(self.connection.source, self.connection.requester, self.connection.requests);
+    if (!std.mem.eql(u8, &grant.binding.purpose, &try bundle.retentionPurpose(self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests))) return error.QueryDenied;
+    const permission = try q.catalog.DirectReadDelegation.Closure.prepare(self.tables orelse return error.QuerySourceUnavailable, grant);
+    return self.prepare(.{ .retry_cleanup = .{ .namespace = namespace, .authorization = permission } });
 }
 fn currentSource(self: *Self, data: q.wire.ResourceReader.Batch, definition: q.SourceDefinition, principal: ?u64, check_definition: bool) !void {
     if (definition.source == .table) {
         if (principal != self.connection.principal) return error.QueryDenied;
-        var cached = (try self.batchSupport()).cached(data);
-        const client = self.authorizationClient();
-        const authority: q.catalog.TableAuthority.Context = .{ .client = client, .subject = try client.proof(self.connection.source, try definition.fingerprint()) };
-        var current = authority.wrapAcquisition(&cached);
-        _ = try definition.source.table.checkCurrent(&current, self.connection.principal);
-        if (check_definition) try definition.source.table.checkDefinition(self.wire.http.allocator, &current, self.connection.principal);
-        try current.finish();
+        const client = self.tables orelse return error.QuerySourceUnavailable;
+        if (client.connection.principal != self.connection.principal or client.connection.role != self.connection.role) return error.QueryDenied;
+        try definition.source.table.requireConnection(client);
+        // Retained uploads validate the original pin grant below. Requiring the
+        // live definition here would incorrectly rebind accepted work after ALTER.
+        if (check_definition) try definition.source.table.checkDefinition(client);
     } else try q.UnifiedSource.checkCurrent(definition, &data, principal);
 }
 fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
@@ -100,18 +116,11 @@ pub fn inspectSql(self: *Self, allocator: std.mem.Allocator, request: q.SqlInspe
 /// The complete current source evidence for both inspection and interactive
 /// reads. These are generic keys to the authority, not retained source data.
 fn sourceMetadata(self: *Self, definition: q.SourceDefinition, keys: *[3]p.Value) ![]const p.Value {
-    if (definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
+    if (definition.source != .table and definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
     keys[0] = r.key('p', self.connection.requester, 0);
     switch (definition.source) {
         .kv => return keys[0..1],
-        .table => |table| {
-            const reader = try (try self.batchSupport()).read(definition.resource, null, keys[0..1]);
-            if (reader.resource.writer != self.connection.source) return error.QuerySourceUnavailable;
-            const grant = (try q.UnifiedCapture.policy(&reader, self.connection.requester)) orelse return error.QueryDenied;
-            if (try grant.tablePrincipal(table) != self.connection.principal) return error.QueryDenied;
-            keys[1] = q.catalog.Records.key(table.scope.catalog, 'c', 0, 0);
-            return keys[0..2];
-        },
+        .table => return keys[0..1],
         .document => |document| {
             const service = try document.reference.identity().service();
             keys[1] = service.key('h', 0);
@@ -149,7 +158,7 @@ pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, reque
 pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: []const u8, text: []const u8, limits: q.Bundle.Limits) !q.Bundle {
     const current = try self.describe(definition);
     if (!current.limits.permits(limits)) return error.QueryBudgetExceeded;
-    return self.authorizeBundle(try q.Bundle.fromSql(allocator, definition, name, text, limits));
+    return q.Bundle.fromSql(allocator, definition, name, text, limits);
 }
 /// A template retains exact source identity, not permission or a source pin.
 pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: []const u8, text: []const u8) !q.SqlTemplate {
@@ -158,10 +167,7 @@ pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.Sourc
 /// A new binding is a new finite query. Retry uncertain uploads using their
 /// original saved Bundle/Prepared commands instead of binding again.
 pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Types.Values.Atom, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
-    var result = try template.bindCurrent(allocator, self, definition, values, limits);
-    errdefer result.deinit();
-    result.bundle = try self.authorizeBundle(result.bundle);
-    return result;
+    return template.bindCurrent(allocator, self, definition, values, limits);
 }
 pub fn batchSupport(self: *Self) !q.wire.ResourceReader.Batches {
     if (self.batch_reads == null) {
@@ -259,6 +265,14 @@ fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u
     if (try bundle.subject(self.connection.source, self.connection.requester, self.connection.requests)) |original| {
         try bundle.authorization.?.caller(self.connection.principal, self.connection.role);
         _ = try self.authorizationClient().authenticate(original);
+    }
+    if (bundle.source.source == .table) {
+        const grant = bundle.retention orelse return error.QueryCaptureRequired;
+        try bundle.source.source.table.requireGrant(self.wire.http.allocator, grant);
+        if (!std.mem.eql(u8, &grant.binding.purpose, &try bundle.retentionPurpose(self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests))) return error.QueryDenied;
+        const direct = self.tables orelse return error.QuerySourceUnavailable;
+        const checked_pin = try direct.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
+        defer checked_pin.deinit();
     }
     const description = try self.authorize(bundle.source);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;

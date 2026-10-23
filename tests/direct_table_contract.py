@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677"
+definition = "d332feee5e015f87cf5f622fa887c70aa43f6c73c3c969a926a5eb366bc70247"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -31,6 +31,7 @@ request_input = {
     "nonce": [7] * 16,
     "action": {"lookup": {"namespace": 1, "name": "evénts"}},
     "delegation": None,
+    "closure": None,
 }
 context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(request_input)).digest()
 claim = {
@@ -48,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "interpretation": {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}, "revision": 2, "digest": [3] * 32},
         "expected": {"partition": 9, "next_lsn": 10},
         "owner": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
-        "purpose": [11] * 32,
+        "retention": "snapshot", "purpose": [11] * 32,
     }
     delegation_context = hashlib.sha256(b"transit.table.read-delegation.v1\0" + canonical(read_binding)).digest()
     delegated_claim = {**claim, "context": list(delegation_context)}
@@ -64,10 +65,10 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         b"TRG1" + bytes.fromhex(definition)
         + struct.pack("<QQQQQQBQ", 42, 3, 2**64 - 1, 1, 5, 4, 0, 0)
         + struct.pack("<QQQ", 9, 7, 2) + bytes([3] * 32)
-        + struct.pack("<QQQ", 9, 10, 2**64 - 1) + bytes([11] * 32)
+        + struct.pack("<QQQB", 9, 10, 2**64 - 1, 0) + bytes([11] * 32)
         + struct.pack("<Q", 1) + delegation_context + bytes(delegated_proof["signature"])
     )
-    assert len(retained_grant) == 309
+    assert len(retained_grant) == 310
     delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public,
                          "retained_grant": base64.b64encode(retained_grant).decode()}
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}

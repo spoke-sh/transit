@@ -1,0 +1,188 @@
+"""Captured queries retain direct Table cuts across native worker/node restart."""
+import argparse
+import json
+from http.client import HTTPConnection
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import threading
+import urllib.request
+
+from storage import free_port, wait_ready
+
+
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None):
+    node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
+    with tempfile.TemporaryDirectory(prefix="transit-direct-capture-") as directory:
+        root = Path(directory)
+        installed = []
+        if java_packages is not None:
+            from sdk_unified import install_java
+            installed.append(install_java(root / "java", None, Path(java_packages).resolve(), direct=True))
+        if dotnet_packages is not None:
+            from sdk_unified import install_dotnet
+            installed.append(install_dotnet(root / "dotnet", None, Path(dotnet_packages).resolve(), direct=True))
+        if c_packages is not None:
+            from sdk_unified import install_c
+            for language in ("c", "cpp"):
+                installed.append(install_c(root / language, None, language, Path(c_packages).resolve(), direct=True))
+        if beam_packages is not None:
+            from sdk_unified import install_beam
+            for language in ("erlang", "elixir"):
+                installed.append(install_beam(root / language, None, language, Path(beam_packages).resolve(), direct=True))
+        if rust_packages is not None:
+            from sdk_unified import install_rust
+            installed.append(install_rust(root / "rust", None, Path(rust_packages).resolve(), direct=True))
+        if node_packages is not None:
+            from sdk_unified import install_node
+            installed.append(install_node(root / "node", None, Path(node_packages).resolve(), direct=True))
+        if python_packages is not None:
+            from sdk_unified import install_python_direct
+            installed.append(install_python_direct(root / "python", Path(python_packages).resolve()))
+        if ruby_packages is not None:
+            from sdk_unified import install_ruby
+            installed.append(install_ruby(root / "ruby", None, Path(ruby_packages).resolve(), direct=True))
+        profile = root / "profile.json"
+        config = root / "node.json"
+        seed = root / "registrar.seed"
+        seed.write_text("11" * 32)
+        seed.chmod(0o600)
+        port = free_port()
+        url = f"http://127.0.0.1:{port}"
+        settings = {
+            "genesis": {"realm": 42, "root_key": json.loads(subprocess.check_output([caller, "public"], timeout=15)), "max_clock_error_ms": 10000},
+            "local_directory": str(root / "native"),
+            "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
+        }
+        config.write_text(json.dumps(settings))
+        http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        log = (root / "node.log").open("w+")
+        authority = None
+        proxy = None
+        thread = None
+        faults = {"pin": False, "release": False, "cleanup_release": False}
+
+        class Proxy(BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                envelope = json.loads(body)
+                connection = HTTPConnection("127.0.0.1", port, timeout=70)
+                headers = {"Content-Type": "application/json"}
+                for name in ("x-transit-control", "x-transit-wait"):
+                    if name in self.headers:
+                        headers[name] = self.headers[name]
+                try:
+                    connection.request("POST", self.path, body, headers)
+                    response = connection.getresponse()
+                    data = response.read()
+                    if self.path == "/table/v1" and envelope["delegation"]:
+                        action = next(iter(envelope["action"]))
+                        fault = "cleanup_release" if action == "release" and envelope.get("closure") else action
+                        if fault in faults and not faults[fault]:
+                            assert response.status == 200, data
+                            parsed = json.loads(data)
+                            assert ("pin" if action == "pin" else "released") in parsed["result"]
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
+                            faults[fault] = True
+                    self.send_response(response.status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                finally:
+                    connection.close()
+
+        def consumers(endpoint, phase):
+            for consumer in installed:
+                consumer(endpoint, profile, phase)
+            if python_native is not None:
+                from python_direct_capture import run as python_capture
+                python_capture(profile, endpoint, phase, python_native)
+            if ruby_host is not None:
+                subprocess.run(["ruby", str(Path(__file__).with_name("ruby_direct_capture.rb")),
+                    endpoint, str(profile), phase, str(Path(ruby_host).resolve())], check=True, timeout=120)
+
+        def start():
+            child = subprocess.Popen([node, str(config), "--bootstrap"], stdout=log, stderr=subprocess.STDOUT)
+            try:
+                wait_ready(http, child, url + "/health")
+            except BaseException:
+                child.kill()
+                child.wait(timeout=15)
+                raise
+            return child
+
+        def stop(child):
+            child.terminate()
+            try:
+                child.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=15)
+
+        try:
+            authority = start()
+            subprocess.run([caller, url, "provision", str(profile)], check=True, timeout=180)
+            stop(authority)
+            authority = None
+            settings["table"] = {"catalog": json.loads(profile.read_text())["catalog"], "registrar": {"principal": 0, "seed_file": str(seed)}}
+            config.write_text(json.dumps(settings))
+            authority = start()
+            proxy = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
+            thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+            thread.start()
+            endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            subprocess.run([caller, endpoint, "capture-prepare", str(profile)], check=True, timeout=240)
+            consumers(endpoint, "prepare")
+            for phase in ("capture-uncertain-pin", "capture-uncertain-release"):
+                stop(authority)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, phase, str(profile)], check=True, timeout=240)
+            assert faults["pin"] and faults["release"], faults
+            stop(authority)
+            authority = None
+            authority = start()
+            subprocess.run([caller, endpoint, "capture-resume", str(profile)], check=True, timeout=240)
+            assert all(faults.values()), faults
+            subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=120)
+            subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)
+            consumers(endpoint, "result")
+            print("Direct captured query: independent worker resource, durable pre-acquisition restart, uncertain pin acquisition/release, original unflushed cuts, wide/nested Fuze/Arrow traversal after ALTER/DROP/name reuse, composite-key hit/absence, shared-alias and independent-Table relational capture, executor without Table rights, released-pin result disclosure, current revocation/restoration and separately authorized cleanup after credential rotation passed.")
+        except BaseException:
+            log.flush()
+            log.seek(0)
+            sys.stderr.write(log.read()[-24000:])
+            raise
+        finally:
+            if proxy is not None:
+                proxy.shutdown()
+                proxy.server_close()
+            if thread is not None:
+                thread.join(timeout=15)
+            if authority is not None:
+                stop(authority)
+            log.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("node")
+    parser.add_argument("caller")
+    parser.add_argument("--python-native")
+    parser.add_argument("--ruby-host")
+    parser.add_argument("--java-packages")
+    parser.add_argument("--dotnet-packages")
+    parser.add_argument("--c-packages")
+    parser.add_argument("--beam-packages")
+    parser.add_argument("--rust-packages")
+    parser.add_argument("--node-packages")
+    parser.add_argument("--python-packages")
+    parser.add_argument("--ruby-packages")
+    run(**vars(parser.parse_args()))

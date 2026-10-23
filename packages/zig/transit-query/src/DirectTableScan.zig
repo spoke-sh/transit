@@ -50,13 +50,7 @@ pub fn validateCurrent(self: *Self) !void {
     try self.checkCancellation();
 }
 pub fn fingerprint(self: *const Self) ![32]u8 {
-    const bytes = try q.protocol.Json.valueAlloc(self.allocator, self.reader.basis);
-    defer self.allocator.free(bytes);
-    var digest = std.crypto.hash.sha2.Sha256.init(.{});
-    digest.update("transit.table.direct.query.source.v1\x00");
-    digest.update(&q.protocol.Growth.definition_bytes);
-    digest.update(bytes);
-    return digest.finalResult();
+    return self.reader.basis.fingerprint();
 }
 pub fn next(self: *Self) !?f.LogicalQuery.Row {
     try self.checkCancellation();
