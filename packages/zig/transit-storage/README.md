@@ -5,8 +5,9 @@
 `NvmeCache`, versioned immutable `TableManifest` (`"TMAN"` v1) artifacts, and the
 lock-free multi-writer OCC coordinator (`PartitionLease.OccCoordinator`).
 
-The default launcher selects Ursula. `transit-node` also supports an explicit
-[local native backend](../transit-backend-local/README.md). This package's
+The default local launcher selects the
+[local native backend](../transit-backend-local/README.md). Ursula remains an
+explicit node backend. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
 durable snapshot pins, policy-authorized trimming or multi-process Table commits.
 
@@ -37,6 +38,12 @@ durable snapshot pins, policy-authorized trimming or multi-process Table commits
   manifest rebasing.
 - `TableMemtable.zig`: Tier 0 MVCC Memtable with direct data-plane WAL ingestion,
   read-your-writes snapshot queries, `.tseg`/`.tdel` segment flushing, and crash recovery.
+- `TreeStore.zig`: Immutable data-index pages backed by `TransitObjectStore`,
+  reusing the generic ordered tree in `transit-core`. Each page binds the current
+  definition, its logical digest and its content address. Its configurable cache
+  contains at most 4,096 pages (zero disables caching); private mutation work has
+  a separate encoded-byte budget. Staging never publishes a root. The owning
+  acceptance log must publish it and establish retention before collection.
 
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
@@ -44,6 +51,11 @@ incomplete tails, missing/corrupt acknowledged history, incompatible definitions
 exclusive ownership and an injected sync failure. Power interruption and
 filesystem rollback are separate qualification boundaries. Run through the
 pinned development shell described in [contributing](../../../docs/handbook/guides/contributing.md).
+
+Data-index tests reopen 513 records through a one-page cache, scan with no cache,
+retain an earlier root across updates/deletes, reject corrupt or missing pages,
+and keep the accepted root unchanged when a private work budget is exhausted.
+These tests establish an index primitive, not Table publication or snapshot pins.
 
 The disk object cases exercise two independent handles, concurrent publication,
 stale conditions, immutable identity, corrupted chunks/checksums, 513 objects
