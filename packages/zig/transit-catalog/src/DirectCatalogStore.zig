@@ -142,15 +142,26 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const next = record.action.operation;
     const previous = try self.operationAt(before, next.binding);
     if (previous) |known| {
-        if (known.phase != .admitted or next.phase == .admitted or !std.meta.eql(known.intent, next.intent)) return error.InvalidDirectCatalogTransition;
+        if (!known.pending() or next.phase == .admitted or (next.phase == .ready and known.phase != .admitted) or !std.meta.eql(known.intent, next.intent)) return error.InvalidDirectCatalogTransition;
     } else if (next.phase != .admitted and next.phase != .rejected) return error.InvalidDirectCatalogTransition;
     const result = try self.tree().get(record.root.operations, try r.operationKey(next.binding.identity)) orelse return error.InvalidDirectCatalogTransition;
     if (result.len != 8 or std.mem.readInt(u64, result.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
     const object_key = try r.idKey(next.binding.target.object);
     const after_pending = try self.tree().get(record.root.pending, object_key);
-    if (next.phase == .admitted) {
+    if (next.pending()) {
         const pending_identity = try r.fromValue(p.DataLifecycle.Operation, self.allocator, after_pending orelse return error.InvalidDirectCatalogTransition);
         if (!std.meta.eql(pending_identity, next.binding.identity)) return error.InvalidDirectCatalogTransition;
+        const value = try self.tree().get(record.root.objects, object_key) orelse return error.InvalidDirectCatalogTransition;
+        const target = try r.fromValue(r.Entry, self.allocator, value);
+        try target.validate(before.configuration);
+        if (next.binding.action == .create) {
+            if ((next.phase == .ready) != (target.seed != null)) return error.InvalidDirectCatalogTransition;
+            if (next.phase == .ready) {
+                const earlier = try self.tree().get(before.objects, object_key) orelse return error.InvalidDirectCatalogTransition;
+                const allocated = try r.fromValue(r.Entry, self.allocator, earlier);
+                if (allocated.seed != null or allocated.object != target.object or allocated.partition != target.partition) return error.InvalidDirectCatalogTransition;
+            }
+        }
     } else {
         const before_pending = try self.tree().get(before.pending, object_key);
         const owns = if (before_pending) |value| std.meta.eql(try r.fromValue(p.DataLifecycle.Operation, self.allocator, value), next.binding.identity) else false;

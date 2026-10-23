@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.table-declarations.2026-10-22.
+/// SHA-256 of transit.native.v1.catalog-provisioning.2026-10-22.
 pub const Definition = enum {
-    @"9ecf03c83a3bd5e82dc87da5756ba71a1a2ed3d7ab1e8a9dbbb2033f6f87d66c",
+    @"25f5ba20fd4d8dc23f8be8713b2b8468dc23a65b0aa58bb99f983face981d9c7",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -816,6 +816,7 @@ test "native responses require the current contract definition even with a v1 la
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
         // Before exact Table declarations, schema-independent names and retirement.
+        "9ecf03c83a3bd5e82dc87da5756ba71a1a2ed3d7ab1e8a9dbbb2033f6f87d66c",
         "228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830",
         // Fixed two-column Tables, before general schema/lifecycle and ABI cutover.
         "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",

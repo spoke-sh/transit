@@ -21,6 +21,9 @@ fn outcome(engine: *Engine, id: u64) !a.Outcome {
 }
 fn change(engine: *Engine, action: a.Action) !?u64 {
     const id = try command(engine, .{ .authorization = .{ .begin = .{ .expected_revision = engine.head.authorization.revision, .action = action } } });
+    return finish(engine, id);
+}
+fn finish(engine: *Engine, id: u64) !?u64 {
     while (true) {
         const observed = try outcome(engine, id);
         switch (observed.status) {
@@ -54,7 +57,6 @@ test "local catalog checks real native registrations, current ownership and exac
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
-    const table = (try change(&engine, .{ .register_object = .{ .domain = table_domain, .owner = role, .schema = c.TableAuthority.reference(namespace), .binding = try c.TableAuthority.binding(scope, .table, 7) } })).?;
     const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     const request_digest: [32]u8 = @splat(5);
     const signed = try proof(&engine, request_digest);
@@ -70,9 +72,34 @@ test "local catalog checks real native registrations, current ownership and exac
     try catalog.recover();
     try catalog.initialize(policy.policy());
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
-    const intent: D.Intent = .{ .namespace = 1, .name = try c.TableAuthority.Name.init("events"), .action = .{ .create = .{ .authorization = table, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} } } } };
+    const intent: D.Intent = .{ .namespace = 1, .name = try c.TableAuthority.Name.init("events"), .action = .{ .create = .{ .owner = role, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} } } } };
     const request: D.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 1 }, .target = .{ .scope = scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) } };
     _ = try catalog.admit(request, policy.policy());
+    try t.expectError(error.CatalogRegistrationRequired, catalog.perform(request.binding, policy.policy()));
+    const registration = (try catalog.registration(request.binding, policy.policy())).?;
+    try t.expectEqual(role, registration.action.owner);
+    const at = catalog.store.root.next_lsn;
+    _ = try change(&engine, .{ .create_role = .{ .name = try p.Value.init("unrelated-policy-change") } });
+    try t.expectError(error.StaleAuthorizationRevision, command(&engine, .{ .authorization = .{ .begin = .{ .expected_revision = registration.authorization_revision, .action = .{ .register_object = registration.action } } } }));
+    const fresh = (try catalog.registration(request.binding, policy.policy())).?;
+    const prepared = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .{ .authorization = .{ .begin = .{ .expected_revision = fresh.authorization_revision, .action = .{ .register_object = fresh.action } } } } }, try key(17));
+    const native_change = try engine.submit(prepared);
+    try t.expectEqual(native_change, try engine.submit(prepared));
+    try catalog.recover();
+    try t.expectEqual(at, catalog.store.root.next_lsn);
+    try t.expect((try catalog.status(request.binding, policy.policy())) == .admitted);
+    try t.expect((try catalog.resolve(t.allocator, 1, intent.name, policy.policy())) == null);
+    const table = (try finish(&engine, native_change)).?;
+    try t.expect((try catalog.registration(request.binding, policy.policy())) == null);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.attachRegistration(request.binding, policy.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    try t.expectEqual(.ready, (try catalog.status(request.binding, policy.policy())).admitted.phase);
+    const ready_at = catalog.store.root.next_lsn;
+    _ = try catalog.attachRegistration(request.binding, policy.policy());
+    try t.expectEqual(ready_at, catalog.store.root.next_lsn);
+    try t.expect((try catalog.resolve(t.allocator, 1, intent.name, policy.policy())) == null);
     _ = try change(&engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = 0 } });
     try t.expectError(error.Forbidden, catalog.perform(request.binding, policy.policy()));
     try t.expect((try catalog.resolve(t.allocator, 1, intent.name, policy.policy())) == null);

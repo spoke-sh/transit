@@ -570,6 +570,22 @@ despite retained Table grants. The request adapter rejects a changed request
 digest and a forged signature. This test does not exercise an HTTP Table route
 or automatic registration orchestration.
 
+The subsequent catalog suite passes eight direct-catalog cases after separating
+CREATE admission from native registration. A disk reopen preserves a reservation
+with no native object; cancellation stays terminal, and attachment of the later
+binding preserves the reserved object/partition through a lost reply. The
+local-native composition also passes with registration performed after catalog
+admission: stale checked policy rejects native BEGIN, exact repeated BEGIN
+recovers one native change, and lost attachment remains pending until Table
+acceptance. The client and protocol package suites, `just contract::check` and
+the diagnostic error/outcome checks pass after coordinated regeneration.
+
+This changes stored CREATE intent from a supplied native ID to a selected owner
+role and adds the retained `ready` phase. The current definition is now the
+SHA-256 of `transit.native.v1.catalog-provisioning.2026-10-22`; the preceding
+definition remains an explicit rejection case. The service registration loop
+and public direct Table route are still absent.
+
 ## Table partition acceptance and retained read pins — 2026-10-22
 
 In the pinned development shell, `zig build test` passes in

@@ -61,12 +61,15 @@ pub const Properties = struct {
 pub const Entry = struct {
     object: u64,
     partition: u64,
-    seed: storage.TableDeclaration.Stored,
+    seed: ?storage.TableDeclaration.Stored,
     pub fn validate(self: Entry, config: Configuration) !void {
-        try self.seed.validate();
-        const id = self.seed.interpretation.object;
-        if (self.partition <= config.partition or self.object != id.object or !std.meta.eql(id.scope, config.scope) or id.branch != config.branch or
-            self.seed.interpretation.revision != 1 or self.seed.retired) return error.InvalidDirectCatalogEntry;
+        if (self.partition <= config.partition or self.object == 0) return error.InvalidDirectCatalogEntry;
+        if (self.seed) |seed| {
+            try seed.validate();
+            const id = seed.interpretation.object;
+            if (self.object != id.object or !std.meta.eql(id.scope, config.scope) or id.branch != config.branch or
+                seed.interpretation.revision != 1 or seed.retired) return error.InvalidDirectCatalogEntry;
+        }
     }
 };
 
@@ -104,18 +107,21 @@ pub const Root = struct {
     }
 };
 
-pub const Phase = enum { admitted, rejected, cancelled, settled };
+pub const Phase = enum { admitted, ready, rejected, cancelled, settled };
 pub const Reason = enum { none, name_conflict, object_conflict, stale_definition, stale_data, dependency, constraint };
 pub const Operation = struct {
     binding: d.Binding,
     intent: d.Content,
     phase: Phase,
     reason: Reason,
+    pub fn pending(self: Operation) bool {
+        return self.phase == .admitted or self.phase == .ready;
+    }
     pub fn validate(self: Operation, config: Configuration) !void {
         try self.binding.validate();
         try self.intent.validate();
         if (!std.meta.eql(self.binding.identity.scope, config.scope) or self.binding.target.branch != config.branch or self.intent.bytes > max_intent_bytes or
-            (self.phase == .rejected) != (self.reason != .none)) return error.InvalidDirectCatalogOperation;
+            (self.phase == .rejected) != (self.reason != .none) or (self.phase == .ready and self.binding.action != .create)) return error.InvalidDirectCatalogOperation;
         switch (self.binding.action) {
             .create, .alter, .rename, .drop => {},
             else => return error.InvalidDirectCatalogOperation,
@@ -187,13 +193,13 @@ pub fn fromValue(comptime T: type, allocator: std.mem.Allocator, input: pages.Va
 }
 
 /// Canonical frozen DDL intent, independent of transport nonce or credentials.
-/// Authorization registration is a separate native step; CREATE names its
-/// verified resulting native object explicitly.
+/// CREATE freezes the selected owner role. Its native registration ID is a
+/// later accepted provisioning result, never part of caller-chosen intent.
 pub const Intent = struct {
     namespace: u64,
     name: a.Name,
     action: union(enum) {
-        create: struct { schema: c.fuze.TableSchema.Schema, authorization: u64 },
+        create: struct { schema: c.fuze.TableSchema.Schema, owner: u64 },
         rename: a.Name,
         alter: c.fuze.TableEvolution.Change,
         drop,
@@ -212,7 +218,7 @@ pub const Intent = struct {
         switch (self.action) {
             .create => |value| {
                 try value.schema.validate();
-                try c.Model.nativeId(value.authorization);
+                if (value.owner > p.max_counter) return error.InvalidCatalogIdentity;
                 if (value.schema.object != binding.target.object or value.schema.revision != 1) return error.InvalidDirectCatalogOperation;
             },
             .rename => |name| try name.validate(),
