@@ -13864,6 +13864,26 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/CaptureMemory.zig": {
+      "errors": {
+        "OutOfMemory": 1,
+        "QueryAdapterBudgetExceeded": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "failure()": "anyerror"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/CapturedTablePin.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -16449,10 +16469,8 @@
         "InvalidQueryJob": 6,
         "InvalidQueryPolicy": 2,
         "MissingQueryProgress": 1,
-        "OutOfMemory": 1,
         "PublicationNotFound": 2,
         "QueryActive": 2,
-        "QueryAdapterBudgetExceeded": 1,
         "QueryAfterMutation": 1,
         "QueryBudgetExceeded": 3,
         "QueryDenied": 6,
@@ -16522,6 +16540,7 @@
         "catch": 16
       },
       "imports": [
+        "CaptureMemory.zig",
         "root.zig",
         "std"
       ]
