@@ -177,6 +177,65 @@ established behavior, limits and reasoning into the public owner with the change
 - Do not choose trading venues, strategies, latency targets, or live requirements
   implicitly. Future monetary state needs explicit fixed-point/decimal rules.
 
+### SQL statements and result sets: future implementation direction
+
+Formalize statement results across the SQL service, shared client and consumers
+before expanding their execution or presentation models. This is architectural
+direction, not a claim that a `StatementResult` or `ResultSet` API already exists,
+and does not require implementing that abstraction during unrelated console work.
+Start from the [SQL session contract](contracts/SQL_SESSION_V1.md),
+[query semantics](docs/handbook/reference/queries.md) and
+[shared SQL client](packages/zig/transit-sql-client/README.md).
+
+- Distinguish command completion (including authoritative matched/changed counts)
+  from a row-returning result set. SELECT, SHOW, DESCRIBE and EXPLAIN use the same
+  logical result lifecycle. Command kind and outcome come from shared typed
+  semantics, not SQL-text heuristics in each renderer. Pending durable work may
+  exist internally; an interactive console must not require users to operate a
+  job workflow to obtain a statement's outcome.
+- A result set owns one logical schema, a stream of typed rows and a verified
+  terminal outcome with row count and observation basis. Physical fetch batches,
+  including empty terminal batches, are not separate results. Distinguish a
+  genuinely empty result from end-of-stream after previously returned rows.
+  Failure, cancellation, missing completion or transport EOF cannot establish
+  complete coverage. Never silently restart a SELECT and splice a different
+  snapshot into its existing result.
+- Keep storage pages, Fuze execution vectors, wire fetch batches and display
+  windows separate. Give server batches explicit byte/row budgets and owned or
+  borrowed lifetimes; collecting rows must not retain pointers into scratch
+  memory reset by the next iterator call. Fill bounded batches across read
+  variants and mark the final data batch complete when exhaustion is known.
+  Do not require unbounded lookahead or tie SQL throughput to an old Arrow page
+  or actor frame limit. Recheck current authorization after buffering and before
+  disclosure, including repeated batches, metadata, empty results and terminal
+  counts; batching must preserve revocation behavior.
+- Put reusable statement submission/settlement and result consumption in
+  `transit-sql-client`, with accepted-work execution/recovery in the service.
+  A shared result reader should own schema decoding, cursor sequencing, batch
+  lifetimes, completion evidence and deterministic cleanup on exhaustion, early
+  close or failure. Offer bounded streaming and optional bounded materialization
+  or display windows. Reaching a display/memory limit is not query completion;
+  never accumulate an arbitrarily large result merely to calculate column widths.
+- Align result provenance with the lifecycle's exact definitions and snapshot
+  cuts as those contracts are integrated. Define appropriate catalog/settings
+  observation evidence for metadata results rather than inventing a data
+  snapshot. Do not relabel an independent source vector as an atomic snapshot or
+  treat a descriptor as a durable retention pin.
+- Preserve the original accepted identity when resolving uncertain writes.
+  Keep transport success, durable acceptance, statement completion and result
+  delivery distinct. A timeout or missing observation is not rejection; stopping
+  a wait is not rollback. Shared-client conveniences must not replay SQL as new
+  work, manufacture success, or hide unresolved outcomes. Define cancellation
+  races and bounded settlement in the owning contract rather than building
+  separate recovery state machines in each UI.
+- Deliver the eventual contract through the existing current-v1 cutover policy,
+  migrating native messages, SQL adapters, client APIs, console/SDK consumers,
+  fixtures and documentation together where affected. Prove empty/multi-batch
+  results, scratch-buffer lifetime, early close, bounded memory, revocation after
+  buffering, incomplete prefixes and cancellation racing with write completion.
+  Until then, keep adapters to current APIs small and preserve their guarantees;
+  do not introduce a competing console-only result protocol.
+
 ## Documentation and validation
 
 Use scoped Conventional Commit subjects: `type(scope): description`, such as

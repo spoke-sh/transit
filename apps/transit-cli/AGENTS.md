@@ -10,7 +10,27 @@ The public command policy permits exactly two commands:
 
 - `transit server` starts and supervises a local Transit installation.
 - `transit console` provides interactive and batch SQL sessions through the
-  shared SQL service, including its existing inspection and recovery controls.
+  shared SQL service. Statement execution and recovery belong to shared owners.
+
+## Statement results and future console work
+
+Follow the root [statement/result-set direction](../../AGENTS.md#sql-statements-and-result-sets-future-implementation-direction).
+The target console consumes shared command completions and logical result sets;
+submission/settlement, cursor ownership and cancellation belong in the shared
+SQL client and service, not a parallel console execution framework. This is
+future architecture; help and usability changes need not implement it first.
+
+Render each logical result coherently across fetch batches. A transport batch
+must not create a new table, reset column layout or add an empty table at EOF.
+Use explicit row/byte limits for display buffering, keep JSON consumption
+streaming, and distinguish display truncation from incomplete query execution.
+Only verified terminal evidence permits a successful completion footer.
+
+Keep interim adapters to current APIs small. Preserve typed values, useful SQL
+errors, exact write outcomes and uncertainty without making operation tokens,
+phases or recovery commands part of the target interactive workflow. Do not
+solve this boundary by adding more dot commands or inferring outcomes from SQL
+text. Future result-set work must update its shared owners and consumers together.
 
 ## Output and documentation
 
