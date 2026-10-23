@@ -8,6 +8,26 @@ const d = p.DataLifecycle;
 const Objects = c.storage.TransitObjectStore;
 const header_bytes = 40;
 pub const max_bytes = 4096;
+const Stored = union(enum) {
+    data: d.Binding,
+    name_assertion: c.NameAssertion.Binding,
+    fn validate(self: Stored) !void {
+        switch (self) {
+            inline else => |value| try value.validate(),
+        }
+    }
+    fn identity(self: Stored) d.Operation {
+        return switch (self) {
+            .data => |value| value.identity,
+            .name_assertion => |value| value.identity(),
+        };
+    }
+    fn requireSame(self: Stored, other: Stored) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
+    }
+};
 
 pub fn key(operation: d.Operation, output: *[96]u8) ![]const u8 {
     try operation.validate();
@@ -26,7 +46,7 @@ fn hash(bytes: []const u8) [32]u8 {
     return digest;
 }
 
-pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?d.Binding {
+fn lookupStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?Stored {
     var name: [96]u8 = undefined;
     const object_key = try key(operation, &name);
     const metadata = try objects.head(object_key) orelse return null;
@@ -36,16 +56,36 @@ pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operat
     if (stored.len != metadata.size or !std.mem.eql(u8, &hash(stored), &metadata.sha256)) return error.InvalidOperationBinding;
     if (!std.mem.eql(u8, stored[0..8], "TOPBIND1")) return error.InvalidOperationBinding;
     if (!std.mem.eql(u8, stored[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
-    const parsed = try std.json.parseFromSlice(d.Binding, allocator, stored[header_bytes..], .{});
+    const parsed = try std.json.parseFromSlice(Stored, allocator, stored[header_bytes..], .{});
     defer parsed.deinit();
     try parsed.value.validate();
-    if (!std.meta.eql(parsed.value.identity, operation)) return error.InvalidOperationBinding;
+    if (!std.meta.eql(parsed.value.identity(), operation)) return error.InvalidOperationBinding;
     return parsed.value;
 }
 
 /// Exact retry is idempotent even if the prior immutable publication lost its
 /// reply. The full binding is compared on conflict, never just the target ID.
 pub fn claim(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: d.Binding) !void {
+    return claimStored(allocator, objects, .{ .data = binding });
+}
+pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?d.Binding {
+    const stored = try lookupStored(allocator, objects, operation) orelse return null;
+    return switch (stored) {
+        .data => |value| value,
+        .name_assertion => error.DataIdentityConflict,
+    };
+}
+pub fn claimAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.NameAssertion.Binding) !void {
+    return claimStored(allocator, objects, .{ .name_assertion = binding });
+}
+pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.NameAssertion.Binding {
+    const stored = try lookupStored(allocator, objects, operation) orelse return null;
+    return switch (stored) {
+        .name_assertion => |value| value,
+        .data => error.DataIdentityConflict,
+    };
+}
+fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: Stored) !void {
     try binding.validate();
     var bytes: [max_bytes]u8 = undefined;
     bytes[0..8].* = "TOPBIND1".*;
@@ -55,9 +95,9 @@ pub fn claim(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding
     const encoded = bytes[0 .. header_bytes + writer.end];
     const digest = hash(encoded);
     var name: [96]u8 = undefined;
-    const accepted = objects.putImmutable(try key(binding.identity, &name), encoded, digest) catch |err| {
+    const accepted = objects.putImmutable(try key(binding.identity(), &name), encoded, digest) catch |err| {
         if (err != error.ImmutableObjectConflict) return err;
-        const previous = try lookup(allocator, objects, binding.identity) orelse return error.InvalidOperationBinding;
+        const previous = try lookupStored(allocator, objects, binding.identity()) orelse return error.InvalidOperationBinding;
         try previous.requireSame(binding);
         return;
     };

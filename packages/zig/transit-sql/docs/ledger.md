@@ -40,6 +40,11 @@ and content length/digest. The ledger publishes its canonical `GIR1` envelope
 through `beginIntent`, `intentPart` and `sealIntent`. Row payloads do not pass
 through these native control inputs.
 
+When conditional DDL needs no Table mutation, the envelope instead carries an
+inline `NameAssertion.Binding`. It freezes the original name condition and
+complete proposed declaration commitment. Publishing this reference does not
+admit the assertion or reserve its name.
+
 `admitIntent` validates the complete committed reference, its publication digest,
 operation identity and configured scope. It retains a commitment to the full
 binding and adds the operation to the ready index. All ledger transitions obey
@@ -67,6 +72,12 @@ resulting definition and direct acceptance position. It projects applied,
 rejected or cancelled outcomes, with matched/changed counts for DML. The ledger
 accepts completion only after dispatch eligibility and only for its retained
 binding. Native control processing alone is never Table completion.
+
+`Terminal.fromReference` also validates unchanged, rejected and cancelled catalog
+name assertions. Their retained position belongs to the catalog, their row
+counts are zero, and they carry no resulting Table revision. Dispatch may cancel
+an unobserved assertion directly. Lost replies and changed names cannot replace
+the original condition or turn its outcome into a Table commit.
 
 Status and SQL outcome disclosure reobserve the direct owner under current
 rights. A private summary is insufficient. Unknown remote outcomes remain

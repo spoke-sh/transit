@@ -53,6 +53,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             return .initialized;
         },
         .describe => return .{ .description = self.configuration },
+        .name_assertion => |value| return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) },
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
         .namespaces => |value| {
             var bytes: [8]u8 = undefined;

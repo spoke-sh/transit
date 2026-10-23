@@ -54,6 +54,13 @@ node's configured `/table/v1` owner, which resumes native registration under the
 original caller's current rights. The default launcher and installed SQL caller
 still use the actor path below; that migration remains unfinished.
 
+`NameAssertion` represents conditional DDL requiring no Table mutation.
+`DirectCatalog.assertName` checks an exact existing definition or absent name,
+records unchanged/rejected/cancelled at a catalog position, and preserves that
+outcome across name reuse. Inspection is read-only, acceptance and cancellation
+require explicit calls, and all outcomes require current native rights. Its
+operation identity shares the immutable claim authority with Table operations.
+
 `TableBehavior` accepts initialization and administrator controls, staged Table
 commands, continuation and qualified cancellation/cleanup. It records control or
 rejected-input dispositions independently of the original operation outcome.

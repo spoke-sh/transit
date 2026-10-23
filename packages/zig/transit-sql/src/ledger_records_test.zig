@@ -20,9 +20,9 @@ test "independent ledger metadata bytes preserve full-width quota and outcome co
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const Fixture = struct { head: Case(g.LedgerRecords.Head), operation: Case(g.LedgerRecords.Operation), terminal: Case(g.Terminal) };
+    const Fixture = struct { head: Case(g.LedgerRecords.Head), operation: Case(g.LedgerRecords.Operation), terminal: Case(g.Terminal), assertion: Case(g.Terminal) };
     const fixture = try std.json.parseFromSlice(Fixture, a, @embedFile("fixtures/records.json"), .{});
-    inline for (.{ fixture.value.head, fixture.value.operation, fixture.value.terminal }) |case| {
+    inline for (.{ fixture.value.head, fixture.value.operation, fixture.value.terminal, fixture.value.assertion }) |case| {
         const encoded = try g.LedgerRecords.encode(case.value);
         const bytes = try a.alloc(u8, case.bytes.len / 2);
         _ = try std.fmt.hexToBytes(bytes, case.bytes);

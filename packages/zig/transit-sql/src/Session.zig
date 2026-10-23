@@ -423,7 +423,7 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     const terminal = try self.runtime.execute(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation);
     self.terminal = terminal;
     switch (terminal.state) {
-        .applied => {},
+        .applied, .unchanged => {},
         .rejected => return error.GatewayMutationRejected,
         .cancelled => return error.GatewayMutationCancelled,
     }
@@ -464,6 +464,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.GatewayMutationRejected => blk: {
             const terminal = self.terminal orelse break :blk .{ "XX000".*, "Missing terminal observation" };
             break :blk switch (terminal.kind) {
+                .catalog_assertion => .{ "40001".*, "Conditional Table name changed before acceptance" },
                 .dml => switch (terminal.reason) {
                     1, 2 => .{ "40001".*, "Table definition or data changed" },
                     3 => .{ "23505".*, "Primary key already exists" },

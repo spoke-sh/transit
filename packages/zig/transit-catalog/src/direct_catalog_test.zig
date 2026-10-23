@@ -537,3 +537,112 @@ test "direct catalog CREATE can restart and cancel before native registration ex
     try t.expectEqual(@as(u64, 8), view.table.root.interpretation.object.object);
     try t.expectEqual(@as(u64, 3), view.table.root.partition);
 }
+
+fn nameAssertion(operation: u64, name: []const u8, expected: ?p.DataLifecycle.Definition) !c.NameAssertion.Binding {
+    return .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .operation = operation, .namespace = 1, .name = try .init(name), .action = if (expected != null) .create_if_not_exists else .drop_if_exists, .expected = expected, .intent = @splat(19) };
+}
+
+test "conditional catalog outcomes survive lost replies and never retarget a reused name" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var saved: c.NameAssertion.Binding = undefined;
+    var absent: c.NameAssertion.Binding = undefined;
+    var accepted: c.NameAssertion.Outcome = undefined;
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const create = try creation(7, 1, "events");
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        saved = try nameAssertion(90, "events", view.table.root.interpretation);
+        const before = catalog.store.root;
+        const puts = objects.puts;
+        try t.expect((try catalog.assertName(saved, .inspect, access.policy())) == .not_observed);
+        try t.expectEqualDeep(before, catalog.store.root);
+        try t.expectEqual(puts, objects.puts);
+        const table_tail = try wal.log().tail(view.table.root.partition);
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.assertName(saved, .accept, access.policy()));
+        catalog.store.lose_reply = false;
+        accepted = (try catalog.assertName(saved, .inspect, access.policy())).outcome;
+        try t.expectEqual(.unchanged, accepted.state);
+        try t.expectEqualDeep(accepted, (try catalog.assertName(saved, .cancel, access.policy())).outcome);
+        try t.expectEqual(table_tail, try wal.log().tail(view.table.root.partition));
+        try t.expectEqualDeep(before.names, catalog.store.root.names);
+        try t.expectEqualDeep(before.objects, catalog.store.root.objects);
+        const rename = try edit(&view, 2, .{ .rename = try .init("moved") });
+        _ = try catalog.admit(rename, access.policy());
+        _ = try catalog.perform(rename.binding, access.policy());
+        const replacement = try creation(8, 3, "events");
+        _ = try catalog.admit(replacement, access.policy());
+        _ = try catalog.perform(replacement.binding, access.policy());
+        var stale = saved;
+        stale.operation = 91;
+        try t.expectEqual(.rejected, (try catalog.assertName(stale, .accept, access.policy())).outcome.state);
+        absent = try nameAssertion(92, "missing", null);
+        try t.expectEqual(.unchanged, (try catalog.assertName(absent, .accept, access.policy())).outcome.state);
+        const later = try creation(9, 4, "missing");
+        _ = try catalog.admit(later, access.policy());
+        _ = try catalog.perform(later.binding, access.policy());
+        var conflict = create.binding;
+        conflict.identity = saved.identity();
+        try t.expectError(error.DataIdentityConflict, c.OperationBinding.claim(t.allocator, objects.objectStore(), conflict));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    const before = catalog.store.root;
+    try t.expectEqualDeep(accepted, (try catalog.assertName(saved, .accept, access.policy())).outcome);
+    try t.expectEqual(.unchanged, (try catalog.assertName(absent, .accept, access.policy())).outcome.state);
+    try t.expectEqualDeep(before, catalog.store.root);
+    var replacement = (try resolve(&catalog, &access, "events")).?;
+    defer replacement.deinit();
+    try t.expectEqual(@as(u64, 8), replacement.table.root.interpretation.object.object);
+    var later = (try resolve(&catalog, &access, "missing")).?;
+    defer later.deinit();
+    try t.expectEqual(@as(u64, 9), later.table.root.interpretation.object.object);
+    var changed = saved;
+    changed.intent[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, catalog.assertName(changed, .accept, access.policy()));
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.assertName(saved, .inspect, access.policy()));
+}
+
+test "conditional catalog cancellation and late denial retain bounded exact recovery" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const blocked = try nameAssertion(1, "missing", null);
+    const before = catalog.store.root;
+    access.deny_at = access.calls + 5;
+    try t.expectError(error.CatalogDenied, catalog.assertName(blocked, .accept, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    access.deny_at = std.math.maxInt(usize);
+    try t.expect((try catalog.assertName(blocked, .inspect, access.policy())) == .not_observed);
+    const closed = (try catalog.assertName(blocked, .cancel, access.policy())).outcome;
+    try t.expectEqual(.cancelled, closed.state);
+    try t.expectEqualDeep(closed, (try catalog.assertName(blocked, .accept, access.policy())).outcome);
+    for (2..130) |id| {
+        const binding = try nameAssertion(id, "missing", null);
+        try t.expectEqual(.unchanged, (try catalog.assertName(binding, .accept, access.policy())).outcome.state);
+    }
+    try catalog.recover();
+    try t.expectEqual(@as(usize, 1), catalog.store.index.cache.len);
+    try t.expectEqualDeep(closed, (try catalog.assertName(blocked, .inspect, access.policy())).outcome);
+}

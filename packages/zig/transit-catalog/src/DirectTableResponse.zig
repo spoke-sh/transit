@@ -105,6 +105,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
+        .name_assertion => .name_assertion,
         .preview => .preview,
         .stage => .staged,
         .admit_ddl => .ddl,
@@ -121,6 +122,13 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .name_assertion => |value| switch (value) {
+            .not_observed => if (request.action.name_assertion.command != .inspect) return error.InvalidTableResponse,
+            .outcome => |outcome| {
+                try outcome.validate();
+                try request.action.name_assertion.binding.requireSame(outcome.binding);
+            },
+        },
         .staged => |value| {
             const input = request.action.stage;
             var intent = try c.DirectTableIntent.create(allocator, input.intent.connection, input.intent.work);

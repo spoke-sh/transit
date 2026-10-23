@@ -138,6 +138,17 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 }
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    if (record.action == .assertion) {
+        const outcome = record.action.assertion;
+        if (try self.assertionAt(before, outcome.binding) != null) return error.InvalidDirectCatalogTransition;
+        var unchanged = record.root;
+        unchanged.operations = before.operations;
+        unchanged.next_lsn = before.next_lsn;
+        if (!std.meta.eql(unchanged, before)) return error.InvalidDirectCatalogTransition;
+        const result = try self.tree().get(record.root.operations, try r.operationKey(outcome.binding.identity())) orelse return error.InvalidDirectCatalogTransition;
+        if (result.len != 8 or std.mem.readInt(u64, result.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
+        return;
+    }
     if (record.action != .operation) return;
     const next = record.action.operation;
     const previous = try self.operationAt(before, next.binding);
@@ -174,7 +185,31 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
 /// Adds the exact log position to the candidate's operation directory. Its
 /// existence in staged pages does not make the operation admitted or terminal.
 pub fn receipt(self: *Self, next: *r.Root, binding: p.DataLifecycle.Binding) !void {
+    return self.receiptIdentity(next, binding.identity);
+}
+pub fn receiptIdentity(self: *Self, next: *r.Root, identity: p.DataLifecycle.Operation) !void {
     var bytes: [8]u8 = undefined;
     std.mem.writeInt(u64, &bytes, self.root.next_lsn, .little);
-    next.operations = try self.tree().put(next.operations, try r.operationKey(binding.identity), try pages.Value.init(&bytes));
+    next.operations = try self.tree().put(next.operations, try r.operationKey(identity), try pages.Value.init(&bytes));
+}
+
+pub fn assertion(self: *Self, binding: c.NameAssertion.Binding) !?c.NameAssertion.Outcome {
+    try self.ready();
+    return self.assertionAt(self.root, binding);
+}
+fn assertionAt(self: *Self, basis: r.Root, binding: c.NameAssertion.Binding) !?c.NameAssertion.Outcome {
+    try binding.validate();
+    if (!binding.connection.matches(basis.configuration)) return error.DataIdentityConflict;
+    const value = try self.tree().get(basis.operations, try r.operationKey(binding.identity())) orelse return null;
+    if (value.len != 8) return error.InvalidDirectCatalogOperation;
+    const at = std.mem.readInt(u64, value.data[0..8], .little);
+    if (at >= basis.next_lsn) return error.InvalidDirectCatalogOperation;
+    var batch = try self.log.read(self.allocator, basis.configuration.partition, at, 1);
+    defer batch.deinit();
+    if (batch.frames.len != 1 or batch.frames[0].header.lsn != at or batch.frames[0].header.partition_id != basis.configuration.partition or batch.frames[0].header.kind != .catalog_ddl) return error.CatalogHistoryMissing;
+    const record = try decode(self.allocator, batch.frames[0].payload, at);
+    if (record.action != .assertion) return error.DataIdentityConflict;
+    if (!std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidDirectCatalogOperation;
+    try record.action.assertion.binding.requireSame(binding);
+    return record.action.assertion;
 }

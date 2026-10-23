@@ -372,7 +372,7 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     defer intent.deinit();
     // Complete work is staged once through the direct data plane. The private
     // control ledger receives only its bounded immutable reference.
-    if (intent.bytes.len > self.ledger.configuration.intent_bytes) return error.GatewayRecordTooLarge;
+    if (try intent.workBytes() > self.ledger.configuration.intent_bytes) return error.GatewayRecordTooLarge;
     const reference = try intent.stage(table.*, statement.namespace);
     var storage: [g.IntentReference.max_bytes]u8 = undefined;
     const bytes = try g.IntentReference.encode(reference, &storage);
@@ -427,6 +427,7 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
         .cancellation_requested = item.cancel != 0,
         .outcome = if (outcome) |terminal| switch (terminal.state) {
             .applied => .applied,
+            .unchanged => .unchanged,
             .rejected => .rejected,
             .cancelled => .cancelled,
         } else null,
@@ -448,7 +449,7 @@ fn observe(self: *Self, observer: *g.Client, table: *c.DirectTableClient, intent
         // A cached ledger summary never carries current disclosure rights.
         const native = try intent.operation(table.*, .inspect, 1);
         defer native.deinit();
-        const actual = (try g.Terminal.fromResult(intent.binding, native.value.result)) orelse return error.MissingGatewayTerminal;
+        const actual = (try g.Terminal.fromReference(intent, native.value.result)) orelse return error.MissingGatewayTerminal;
         if (!std.meta.eql(terminal, actual)) return error.GatewayIdentityConflict;
         return terminal;
     }

@@ -7,35 +7,35 @@ const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9, .n
 const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 1024 * 1024, .pending_quota = 2 };
 fn reference(id: u64) g.IntentReference.Reference {
     const scope: c.protocol.DataLifecycle.Scope = .{ .realm = 1, .resource = binding.resource, .catalog = binding.catalog };
-    return .{ .definition = c.protocol.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = binding.owner, .principal = configuration.table_principal, .role = binding.role }, .namespace = binding.namespace, .content = .{ .bytes = 512, .sha256 = @splat(17) }, .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = scope, .principal = configuration.table_principal, .operation = id }, .target = .{ .scope = scope, .branch = 1, .object = id }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(9) } };
+    return .{ .table = .{ .definition = c.protocol.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = binding.owner, .principal = configuration.table_principal, .role = binding.role }, .namespace = binding.namespace, .content = .{ .bytes = 512, .sha256 = @splat(17) }, .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = scope, .principal = configuration.table_principal, .operation = id }, .target = .{ .scope = scope, .branch = 1, .object = id }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(9) } } };
 }
 fn terminal(ref: g.IntentReference.Reference) !g.Terminal {
-    const schema: c.fuze.TableSchema.Schema = .{ .object = ref.binding.target.object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
-    var declaration = try c.storage.TableDeclaration.prepare(t.allocator, .{ .object = ref.binding.target, .revision = 1, .schema = schema, .properties = "" });
+    const schema: c.fuze.TableSchema.Schema = .{ .object = ref.table.binding.target.object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
+    var declaration = try c.storage.TableDeclaration.prepare(t.allocator, .{ .object = ref.table.binding.target, .revision = 1, .schema = schema, .properties = "" });
     defer declaration.deinit();
-    return (try g.Terminal.fromResult(ref.binding, .{ .ddl = .{ .committed = .{ .binding = ref.binding, .resulting = try declaration.stored(), .outcome = .{ .position = .{ .partition = 10, .next_lsn = 1 }, .matched = 0, .affected = 0, .live_rows = 0 } } } })).?;
+    return (try g.Terminal.fromResult(ref.table.binding, .{ .ddl = .{ .committed = .{ .binding = ref.table.binding, .resulting = try declaration.stored(), .outcome = .{ .position = .{ .partition = 10, .next_lsn = 1 }, .matched = 0, .affected = 0, .live_rows = 0 } } } })).?;
 }
 fn publish(store: *Store, ledger: g.Ledger, ref: g.IntentReference.Reference) !void {
     var storage: [g.IntentReference.max_bytes]u8 = undefined;
     const bytes = try g.IntentReference.encode(ref, &storage);
     store.origin = configuration.ingress;
     var turn = try store.capture();
-    try ledger.beginIntent(&turn, ref.binding.identity.operation, try g.station.Publication.Digest.of(g.LedgerRecords.intent_format, bytes));
+    try ledger.beginIntent(&turn, ref.identity().operation, try g.station.Publication.Digest.of(g.LedgerRecords.intent_format, bytes));
     try store.commit(turn);
     var offset: u32 = 0;
     while (offset < bytes.len) {
         turn = try store.capture();
         const count = @min(128, bytes.len - offset);
-        try ledger.intentPart(&turn, ref.binding.identity.operation, offset, bytes[offset..][0..count]);
+        try ledger.intentPart(&turn, ref.identity().operation, offset, bytes[offset..][0..count]);
         try store.commit(turn);
         offset += @intCast(count);
     }
     store.origin = configuration.coordinator;
     turn = try store.capture();
-    try t.expectError(error.PublicationNotPublished, ledger.admitIntent(t.allocator, &turn, ref.binding.identity.operation, store.generation));
+    try t.expectError(error.PublicationNotPublished, ledger.admitIntent(t.allocator, &turn, ref.identity().operation, store.generation));
     store.origin = configuration.ingress;
     turn = try store.capture();
-    try ledger.sealIntent(&turn, ref.binding.identity.operation);
+    try ledger.sealIntent(&turn, ref.identity().operation);
     try store.commit(turn);
 }
 test "frozen direct reference rejects altered connection, content and incompatible canonical bytes" {
@@ -50,14 +50,14 @@ test "frozen direct reference rejects altered connection, content and incompatib
     try t.expectError(error.IncompatibleDefinition, g.IntentReference.decode(t.allocator, bytes));
     storage[4] ^= 1;
     const outcome = try terminal(ref);
-    try outcome.matches(ref.binding);
+    try outcome.matches(ref.table.binding);
     try t.expectEqualDeep(outcome, try g.LedgerRecords.decode(g.Terminal, try g.LedgerRecords.encode(outcome)));
     var altered = ref;
-    altered.binding.target.object += 1;
-    try t.expectError(error.GatewayIdentityConflict, outcome.matches(altered.binding));
+    altered.table.binding.target.object += 1;
+    try t.expectError(error.GatewayIdentityConflict, outcome.matches(altered.table.binding));
     altered = ref;
-    altered.binding.intent[0] ^= 1;
-    try t.expectError(error.GatewayIdentityConflict, outcome.matches(altered.binding));
+    altered.table.binding.intent[0] ^= 1;
+    try t.expectError(error.GatewayIdentityConflict, outcome.matches(altered.table.binding));
 }
 test "ledger gates direct dispatch durably and retains original binding through lost replies and replacement" {
     var store: Store = .{};
@@ -77,10 +77,10 @@ test "ledger gates direct dispatch durably and retains original binding through 
     try t.expectEqualDeep(before, turn.decision);
     const ref = reference(item.id);
     var changed = ref;
-    changed.connection.role = null;
+    changed.table.connection.role = null;
     try t.expectError(error.GatewayIdentityConflict, ledger.checkReference(item, changed));
     changed = ref;
-    changed.namespace += 1;
+    changed.table.namespace += 1;
     try t.expectError(error.GatewayIdentityConflict, ledger.checkReference(item, changed));
     try publish(&store, ledger, ref);
     store.origin = configuration.coordinator;
@@ -296,11 +296,11 @@ test "typed operation index binds tokens once and retains owner identities throu
 
 test "SQL terminal rejects an acceptance position outside the frozen data expectation" {
     const ref = reference(17);
-    const schema: c.fuze.TableSchema.Schema = .{ .object = ref.binding.target.object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
-    var declaration = try c.storage.TableDeclaration.prepare(t.allocator, .{ .object = ref.binding.target, .revision = 1, .schema = schema, .properties = "" });
+    const schema: c.fuze.TableSchema.Schema = .{ .object = ref.table.binding.target.object, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
+    var declaration = try c.storage.TableDeclaration.prepare(t.allocator, .{ .object = ref.table.binding.target, .revision = 1, .schema = schema, .properties = "" });
     defer declaration.deinit();
     const stored = try declaration.stored();
-    var original = ref.binding;
+    var original = ref.table.binding;
     original.action = .update;
     original.expected_definition = stored.interpretation;
     original.expected_data = .{ .partition = 10, .next_lsn = 20 };
@@ -310,4 +310,68 @@ test "SQL terminal rejects an acceptance position outside the frozen data expect
     try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromResult(original, .{ .rows = .{ .committed = evidence } }));
     evidence.outcome.position = original.expected_data.?;
     try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromResult(original, .{ .rows = .{ .committed = evidence } }));
+}
+
+test "conditional DDL retains catalog evidence without inventing a Table commit" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ledger: g.Ledger = .{ .configuration = configuration };
+    var turn = try store.capture();
+    try ledger.initialize(&turn);
+    try store.commit(turn);
+    store.origin = configuration.ingress;
+    turn = try store.capture();
+    const item = try ledger.begin(&turn, @splat(81), binding, @splat(0));
+    try store.commit(turn);
+    const base = reference(item.id).table;
+    const ref: g.IntentReference.Reference = .{ .name_assertion = .{ .definition = c.protocol.Growth.current_definition, .connection = base.connection, .operation = item.id, .namespace = binding.namespace, .name = try .init("absent"), .action = .drop_if_exists, .expected = null, .intent = @splat(81) } };
+    try publish(&store, ledger, ref);
+    store.origin = configuration.coordinator;
+    turn = try store.capture();
+    try ledger.admitIntent(t.allocator, &turn, item.id, 1);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try ledger.activate(&turn, 1);
+    try store.commit(turn);
+    const result: c.DirectTableProtocol.Result = .{ .name_assertion = .{ .outcome = .{ .binding = ref.name_assertion, .position = .{ .partition = 1, .next_lsn = 31 }, .state = .unchanged, .reason = .none } } };
+    const outcome = (try g.Terminal.fromReference(ref, result)).?;
+    try t.expectEqual(.catalog_assertion, outcome.kind);
+    try t.expectEqual(.unchanged, outcome.state);
+    try t.expectEqual(@as(u64, 0), outcome.object);
+    try t.expectEqual(@as(u64, 0), outcome.resulting_revision);
+    turn = try store.capture();
+    try t.expectError(error.GatewayUnresolvedStep, ledger.complete(&turn, item.id, 1, outcome));
+    try ledger.authorizeDispatch(&turn, item.id, 1);
+    try store.commit(turn);
+    store.generation = 2;
+    turn = try store.capture();
+    var committed = turn.committed();
+    try ref.requireSame(try ledger.readReference(t.allocator, &committed, try ledger.operation(&committed, item.id)));
+    try ledger.complete(&turn, item.id, 2, outcome);
+    try store.commit(turn);
+    turn = try store.capture();
+    try ledger.complete(&turn, item.id, 2, outcome);
+    try t.expectEqual(.unchanged, (try ledger.operation(&turn, item.id)).summary);
+    var changed = result;
+    changed.name_assertion.outcome.binding.name = try .init("replacement");
+    try t.expectError(error.DataIdentityConflict, g.Terminal.fromReference(ref, changed));
+    try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromReference(ref, .{ .ddl = .not_observed }));
+    var forged = outcome;
+    forged.kind = .ddl;
+    try t.expectError(error.InvalidGatewayTerminal, forged.validate());
+    forged = outcome;
+    forged.state = .applied;
+    try t.expectError(error.InvalidGatewayTerminal, forged.validate());
+    forged = outcome;
+    forged.partition = 0;
+    try t.expectError(error.InvalidGatewayTerminal, forged.validate());
+    for ([_]@FieldType(c.NameAssertion.Outcome, "state"){ .rejected, .cancelled }) |state| {
+        changed = result;
+        changed.name_assertion.outcome.state = state;
+        changed.name_assertion.outcome.reason = if (state == .rejected) .condition_changed else .none;
+        const terminal_value = (try g.Terminal.fromReference(ref, changed)).?;
+        try t.expectEqual(@as(u64, 31), terminal_value.next_lsn);
+        try t.expectEqualDeep(terminal_value, try g.LedgerRecords.decode(g.Terminal, try g.LedgerRecords.encode(terminal_value)));
+        try t.expectError(error.GatewayIdentityConflict, ledger.complete(&turn, item.id, 2, terminal_value));
+    }
 }

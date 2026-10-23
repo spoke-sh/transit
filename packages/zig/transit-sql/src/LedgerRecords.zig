@@ -6,7 +6,7 @@ const p = g.catalog.protocol;
 const definition = p.Growth.definition_bytes;
 pub const intent_format: u32 = 0x47534901;
 pub const Phase = enum(u8) { reserved = 1, uploading = 2, ready = 3, active = 4, terminal = 5, abandoned = 6 };
-pub const Summary = enum(u8) { none = 0, applied = 1, rejected = 2, cancelled = 3 };
+pub const Summary = enum(u8) { none = 0, applied = 1, rejected = 2, cancelled = 3, unchanged = 4 };
 pub const Nonce = struct {
     pub const magic = "GSN1";
     id: u64,
@@ -142,6 +142,6 @@ pub const IntentBinding = struct {
     }
     pub fn from(reference: g.IntentReference.Reference) !IntentBinding {
         try reference.validate();
-        return .{ .id = reference.binding.identity.operation, .binding = try g.IntentReference.bindingDigest(reference.binding) };
+        return .{ .id = reference.identity().operation, .binding = try reference.digest() };
     }
 };

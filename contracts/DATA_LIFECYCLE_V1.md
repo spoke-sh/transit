@@ -80,7 +80,11 @@ only the owning operation log establishes those states. The primitive is not an
 installed service endpoint.
 
 Claim bytes are `TOPBIND1` at `0..8`, the mandatory shared definition at `8..40`,
-then the canonical typed `Binding` JSON, within a total 4 KiB budget. The key is
+then canonical JSON of a tagged `data` (`Binding`) or `name_assertion`
+(`NameAssertion.Binding`) value, within a total 4 KiB budget. Both kinds share
+one key space and reject cross-kind identity reuse. The assertion contract is
+defined by [direct conditional DDL](DIRECT_TABLE_V1.md#declaration-and-row-operations).
+The key is
 `data-operations/<digest>.data`, where the digest is SHA-256 over the domain
 `transit.catalog.operation.binding.v1` followed by a zero byte and five
 little-endian `u64` values: realm, resource, catalog, principal and operation.

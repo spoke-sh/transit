@@ -8,13 +8,13 @@ const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const Self = @This();
 pub const magic = "GST1";
-kind: enum(u8) { ddl = 1, dml = 2 },
+kind: enum(u8) { ddl = 1, dml = 2, catalog_assertion = 3 },
 identity: [32]u8,
 resource: u64,
 principal: u64,
 operation: u64,
 object: u64,
-state: enum(u8) { applied = 1, rejected = 2, cancelled = 3 },
+state: enum(u8) { applied = 1, rejected = 2, cancelled = 3, unchanged = 4 },
 reason: u8 = 0,
 matched: u64 = 0,
 changed: u64 = 0,
@@ -23,12 +23,47 @@ next_lsn: u64 = 0,
 resulting_revision: u64 = 0,
 
 pub fn validate(self: Self) !void {
-    if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or self.object == 0 or self.changed > self.matched or std.mem.allEqual(u8, &self.identity, 0)) return error.InvalidGatewayTerminal;
+    if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or (self.object == 0 and self.kind != .catalog_assertion) or self.changed > self.matched or std.mem.allEqual(u8, &self.identity, 0)) return error.InvalidGatewayTerminal;
     if ((self.state == .rejected) != (self.reason != 0) or self.reason > 6) return error.InvalidGatewayTerminal;
+    if (self.kind == .catalog_assertion) {
+        if (self.state == .applied or self.reason > 1 or self.partition == 0 or self.next_lsn == 0 or self.resulting_revision != 0 or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
+        return;
+    }
+    if (self.state == .unchanged) return error.InvalidGatewayTerminal;
     if (self.state == .applied) {
         if (self.partition == 0 or self.next_lsn == 0 or self.resulting_revision == 0) return error.InvalidGatewayTerminal;
     } else if (self.matched != 0 or self.changed != 0 or self.partition != 0 or self.next_lsn != 0 or self.resulting_revision != 0) return error.InvalidGatewayTerminal;
     if (self.kind == .ddl and (self.matched != 0 or self.changed != 0)) return error.InvalidGatewayTerminal;
+}
+pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !?Self {
+    try reference.validate();
+    if (reference == .table) return fromResult(reference.table.binding, result);
+    if (result != .name_assertion) return error.InvalidGatewayTerminal;
+    const evidence = switch (result.name_assertion) {
+        .not_observed => return null,
+        .outcome => |value| value,
+    };
+    const binding = reference.name_assertion;
+    try evidence.validate();
+    try binding.requireSame(evidence.binding);
+    const value: Self = .{
+        .kind = .catalog_assertion,
+        .identity = try reference.digest(),
+        .resource = binding.connection.scope.resource,
+        .principal = binding.connection.principal,
+        .operation = binding.operation,
+        .object = if (binding.expected) |expected| expected.object.object else 0,
+        .state = switch (evidence.state) {
+            .unchanged => .unchanged,
+            .rejected => .rejected,
+            .cancelled => .cancelled,
+        },
+        .reason = @backingInt(evidence.reason),
+        .partition = evidence.position.partition,
+        .next_lsn = evidence.position.next_lsn,
+    };
+    try value.validate();
+    return value;
 }
 fn base(binding: d.Binding) !Self {
     try binding.validate();
@@ -83,5 +118,6 @@ pub fn summary(self: Self) g.LedgerRecords.Summary {
         .applied => .applied,
         .rejected => .rejected,
         .cancelled => .cancelled,
+        .unchanged => .unchanged,
     };
 }

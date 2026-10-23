@@ -361,6 +361,58 @@ pub fn listNamespaces(self: *Self, after: ?pages.Key, policy: Policy) !Namespace
     return result;
 }
 
+/// Accept a conditional name outcome under the directory lock, without
+/// allocating a Table object, changing its rows, or pretending it committed.
+/// Inspection and exact retries recheck the original caller's current rights.
+pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.NameAssertion.Command, policy: Policy) !c.NameAssertion.Observation {
+    try self.requireInitialized();
+    try binding.validate();
+    if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.schema(binding.namespace);
+    var required = try self.requirements(policy, namespace, null, if (binding.action == .create_if_not_exists) .create_table else .schema);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required));
+    if (binding.expected) |expected| {
+        const allocated = try self.entry(expected.object.object) orelse return error.CatalogDenied;
+        if (allocated.seed == null) return error.CatalogDenied;
+        var original_view = try self.open(self.allocator, allocated, true);
+        defer original_view.deinit();
+        if (original_view.properties.namespace != binding.namespace or original_view.table.root.next_lsn == 0) return error.CatalogDenied;
+        required = try required.merge(try self.requirements(policy, namespace, original_view.properties.target(allocated.object), .inspect));
+        try check(try policy.make_guard(policy.context, arena.allocator(), required));
+    }
+    if (try c.OperationBinding.lookupAssertion(self.allocator, self.store.objects, binding.identity())) |known| try binding.requireSame(known);
+    if (try self.store.assertion(binding)) |outcome| {
+        try check(try policy.make_guard(policy.context, arena.allocator(), required));
+        return .{ .outcome = outcome };
+    }
+    if (command == .inspect) {
+        try check(try policy.make_guard(policy.context, arena.allocator(), required));
+        return .not_observed;
+    }
+    var matches = false;
+    if (command == .accept) {
+        var current = try self.resolve(self.allocator, binding.namespace, binding.name, policy);
+        defer if (current) |*view| view.deinit();
+        if (current) |view| {
+            required = try required.merge(try self.requirements(policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .inspect));
+            matches = if (binding.expected) |expected| std.meta.eql(expected, view.table.root.interpretation) else false;
+        } else matches = binding.expected == null;
+    }
+    const current_guard = try policy.make_guard(policy.context, arena.allocator(), required);
+    try check(current_guard);
+    try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, binding);
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    const outcome: c.NameAssertion.Outcome = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn }, .state = if (command == .cancel) .cancelled else if (matches) .unchanged else .rejected, .reason = if (command == .accept and !matches) .condition_changed else .none };
+    try self.store.receiptIdentity(&next, binding.identity());
+    try self.store.publish(next, .{ .assertion = outcome }, current_guard);
+    return .{ .outcome = outcome };
+}
+
 fn original(self: *Self, policy: Policy, binding: d.Binding) !void {
     try binding.validate();
     if (policy.subject.principal() != binding.identity.principal or !std.meta.eql(binding.identity.scope, self.config().scope) or binding.target.branch != self.config().branch) return error.CatalogDenied;
