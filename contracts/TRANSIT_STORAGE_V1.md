@@ -153,6 +153,56 @@ cover bounded allocation, verified ranges, stale observations, definition reject
 and six sync failure points. They do not qualify filesystem rollback, distributed
 locks, durable snapshot pins or installed catalog transactions.
 
+## Native authority on local storage
+
+The local native adapter owns one object directory and a `wal/` subdirectory.
+A mandatory 64-byte `.native-owner` file contains `TNOWNER1` at `0..8`, the
+shared definition at `8..40`, and zero bytes at `40..64`. Its exclusive lifetime
+POSIX lock prevents independent native owners. Existing object history without
+this marker rejects; a foreign or incomplete nonempty marker rejects. The
+shared object and WAL markers retain their own validation responsibilities.
+
+Native genesis and operation records are bounded JSON encodings of the core
+`growing.Entry` in partition zero. Their frame kind is `genesis` at LSN zero and
+`process_turn` subsequently. Frame writer epoch equals the published head's
+storage epoch; policy epoch equals its authorization revision plus one. Expected
+LSN and the native record position must agree. The append accepts the complete
+catalog/policy roots, including resource state, input progress, outputs, effect
+intents and exact retry evidence. Staged objects grant no visibility or rights.
+
+Native pages and blocks have this object envelope:
+
+| Offset | Meaning |
+| --- | --- |
+| `0..4` | `TNAT` |
+| `4` | Byte `1` |
+| `5` | ASCII `p` for a core page, `b` for an immutable block |
+| `6..8` | Zero reserved bytes |
+| `8..40` | Mandatory shared definition bytes |
+| `40..end` | Core `TPG1` page bytes or the exact block body |
+
+The logical key is `native/<kind>/<64 lowercase hexadecimal location bytes>`.
+The 32-byte location is SHA-256 over `transit.local.native.object.v1` plus NUL,
+definition bytes, kind byte, little-endian `u64` storage epoch and ordinal,
+16 secure random candidate bytes, and the logical page/block digest. Reads check
+both the envelope and that logical digest, in addition to object-store integrity.
+No page or block reference grants access independently of native authorization.
+
+`Storage.Limits` bounds candidate bytes and encoded-file allocation admission.
+The core carries its control classification with the prepared transition through
+commit; a later candidate cannot change its reserve eligibility. Reservations
+remain conservative after uncertainty. Exclusive reopen counts actual file
+lengths with bounded directory traversal. These are encoded-file bounds, not a
+filesystem block or inode quota. Current local object retention keeps staged and
+superseded content, so admission can eventually stop at the configured quota.
+
+The latest accepted native WAL entry is the recovery root. A native accepted
+history floor can authorize trimming older frames while retaining that entry.
+Exact retry records and durable captures remain in its catalog. This adapter's
+trim does not collect objects or dispatch effects. Standalone payload publication,
+retained-root physical collection and installed runtime composition are separate
+owners; the adapter alone does not establish those capabilities.
+
 ## `.tseg` (`TSEG` v1) hybrid segment layout
 
 A `.tseg` segment stores immutable rows sorted by their composite primary-key

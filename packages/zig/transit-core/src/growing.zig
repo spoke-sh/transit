@@ -131,7 +131,8 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 const policy_root = try auth_ops.bootstrap(page_store, genesis.root_key);
                 const head: Head = .{ .storage_epoch = 1, .compaction = .{}, .definition = g.current_definition, .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot, .authorization = policy_root, .authorization_next_id = policy_root.next_id };
                 if (@hasDecl(PageStore, "finish")) try page_store.finish();
-                _ = try journal.append(0, .{ .genesis = .{ .genesis = genesis, .head = head } });
+                const entry: Entry = .{ .genesis = .{ .genesis = genesis, .head = head } };
+                _ = if (@hasDecl(Journal, "appendControlled")) try journal.appendControlled(0, entry, true) else try journal.append(0, entry);
             }
             return open(journal, page_store, genesis);
         }
@@ -277,7 +278,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try state_ops.authorizeReceipt(self, request);
             return receipt.position;
         }
-        pub const Prepared = struct { record: Record };
+        pub const Prepared = struct { record: Record, storage_control: bool };
         pub fn prepare(self: *Self, signed: g.SignedRequest) !Prepared {
             return self.prepareWithBlocks(signed, null);
         }
@@ -387,10 +388,14 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             next.catalog = candidate.snapshot;
             next.position += 1;
             if (@hasDecl(PageStore, "finish")) try self.page_store.finish();
-            return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };
+            return .{ .storage_control = storage_control, .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };
         }
         pub fn commit(self: *Self, prepared: Prepared) !u64 {
-            if (!try self.journal.append(prepared.record.position, .{ .operation = prepared.record })) return error.Conflict;
+            const accepted = if (@hasDecl(Journal, "appendControlled"))
+                try self.journal.appendControlled(prepared.record.position, .{ .operation = prepared.record }, prepared.storage_control)
+            else
+                try self.journal.append(prepared.record.position, .{ .operation = prepared.record });
+            if (!accepted) return error.Conflict;
             self.head = prepared.record.next;
             return prepared.record.position;
         }

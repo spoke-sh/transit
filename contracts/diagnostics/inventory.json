@@ -2272,6 +2272,122 @@
         "transit_station_http"
       ]
     },
+    "packages/zig/transit-backend-local/src/Backend.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "MissingStorageObject": 1,
+        "NativeStorageInUse": 1,
+        "NativeStorageUnmarked": 2,
+        "StorageObjectTooLarge": 1,
+        "StorageQuota": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bindNativeOwner()": "<inferred>",
+        "countFiles()": "<inferred>",
+        "open()": "<inferred>",
+        "put()": "<inferred>",
+        "read()": "<inferred>",
+        "reserve()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 30,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/PageStore.zig": {
+      "errors": {
+        "ActiveStorageCandidate": 1,
+        "BlockBufferTooSmall": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidPageBatch": 1,
+        "InvalidPageCacheBudget": 1,
+        "InvalidStorageEpoch": 1,
+        "InvalidStorageObject": 1,
+        "NoStorageCandidate": 2,
+        "StorageCandidateTooLarge": 1,
+        "UnsupportedPageLocation": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "begin()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "loadBlock()": "<inferred>",
+        "location()": "<inferred>",
+        "stage()": "<inferred>",
+        "stageBlock()": "<inferred>",
+        "stageMany()": "<inferred>",
+        "unwrap()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 24,
+        "catch": 0
+      },
+      "imports": [
+        "Backend.zig",
+        "std",
+        "transit_core"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/Store.zig": {
+      "errors": {
+        "HistoryReclaimed": 1,
+        "IncompleteHistory": 1,
+        "InvalidHistory": 7,
+        "LostAcknowledgement": 1,
+        "NoCheckpointIntent": 2,
+        "RecordTooLarge": 1,
+        "WalHistoryTrimmed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "appendControlled()": "<inferred>",
+        "maintain()": "<inferred>",
+        "read()": "<inferred>",
+        "tail()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 2
+      },
+      "imports": [
+        "Backend.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Backend.zig",
+        "PageStore.zig",
+        "Store.zig"
+      ]
+    },
     "packages/zig/transit-board-api/src/Document.zig": {
       "errors": {},
       "outcomes": {},
