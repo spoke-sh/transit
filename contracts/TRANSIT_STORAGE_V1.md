@@ -60,8 +60,9 @@ Metadata has a mandatory definition, the preceding payload's complete SHA-256
 The root binds interpretation, immutable declaration content, row-schema
 fingerprint, retirement, partition, exclusive accepted and logical-change
 frontiers, next segment identity, live row count, point/scan index roots, receipt
-index and pin index. Declaration content, schema fingerprint, retirement and
-next segment identity are mandatory; an earlier root cannot default these fields.
+index, pin index, operation index and pending-operation index. Declaration
+content, schema fingerprint, retirement, next segment identity and both operation
+roots are mandatory; an earlier root cannot default these fields.
 
 A declaration object contains `TDECL001` at `0..8`, mandatory shared definition
 bytes at `8..40`, then six little-endian `u64` identities (realm, resource,
@@ -80,11 +81,14 @@ DROP publishes a permanently retired successor; it preserves retained read roots
 and receipts. These transitions and their receipts share the Table acceptance
 record. Catalog name reservation and dependency checks remain the caller's duty.
 
-Row mutation records use `row_delta`; declaration, checkpoint, pin and release records use
+Row mutation records use `row_delta`; declaration, operation control, checkpoint, pin and release records use
 `manifest_checkpoint`. The action carries the exact neutral binding, complete
 ordered mutation digest, ingestion choice and outcome, or the affected pin owner
 and immutable basis. An accepted mutation publishes its result and both row
-indexes atomically. Root `next_lsn` equals frame LSN plus one. Control/physical
+indexes atomically. Outcomes carry mandatory `matched`, `affected` and `live_rows`
+counts with the accepted position; `affected` cannot exceed `matched`. Identical
+canonical row replacements retain their locators and logical-change frontier.
+Root `next_lsn` equals frame LSN plus one. Control/physical
 records preserve `changed_lsn`. Recovery verifies contiguous positions, chain
 links, stable partition/object identity, permitted definition succession and
 top-level page roots before serving. It loads the exact accepted declaration;
@@ -113,6 +117,37 @@ offset. Its value is the 32-byte point key followed by the 49-byte locator.
 Acceptance publishes both indexes together; physical-order traversal does not
 claim SQL sort order. Receipt keys are big-endian principal/operation `u64` pairs
 within the owning Table. Their values are the little-endian accepted frame LSN.
+
+Operation and pending indexes use the same principal/operation key and an
+eight-byte little-endian control-frame LSN. Operation controls retain the exact
+binding, immutable intent content, definition/frontier/logical-change basis,
+phase (`admitted`, `rejected` or `cancelled`) and typed rejection reason. A new
+control is admitted or rejected; an admitted operation can become terminal once.
+An accepted mutation retains its admission evidence and removes pending work in
+the same append that publishes its receipt. Terminal operations cannot reopen.
+DDL requires an empty pending-operation index.
+
+Frozen row work has `TDMLREQ1` at `0..8`, mandatory definition bytes at `8..40`,
+and a little-endian `u32` metadata length at `40..44`. At most 4 KiB of JSON
+metadata encodes binding, original stored declaration, ingestion and `u16` change
+count. The complete object fits 4 MiB and is addressed by its SHA-256 at
+`table-intents/<digest>.data`. Each ordered change is either tag `1`, an expectation
+byte (`0` absent, `1` present, `2` any), little-endian `u32` row length and typed
+binary row; tag `2`, little-endian `u32` storage-key length and key bytes; or tag
+`3`, little-endian `u32` original-key length and key bytes followed by a
+little-endian `u32` replacement-row length and typed binary row. Replacement
+preserves row identity, validates original keys and all destinations, and can
+atomically exchange primary keys. No prefix is published when a destination
+conflicts with a surviving row.
+The admitted action restricts the permitted change shapes. Typed binary rows
+preserve supported finite floating-point bits. Staging has no admission effect;
+missing or altered retained bytes cannot be replaced during execution.
+
+An optional expected data frontier is checked exactly at admission. Execution
+checks the retained definition and logical-change frontier from that admission,
+so intervening control records or flushing do not invalidate the work. A new
+logical data change rejects conditional work. An absent expected data frontier
+does not imply predicate-conflict detection or a consistent multi-source cut.
 Catalog-wide operation-to-target binding remains the enclosing catalog's duty.
 
 Snapshot objects have `TPINOBJ1` at `0..8`, mandatory definition at `8..40`,

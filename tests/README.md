@@ -580,11 +580,56 @@ recovers one native change, and lost attachment remains pending until Table
 acceptance. The client and protocol package suites, `just contract::check` and
 the diagnostic error/outcome checks pass after coordinated regeneration.
 
-This changes stored CREATE intent from a supplied native ID to a selected owner
-role and adds the retained `ready` phase. The current definition is now the
-SHA-256 of `transit.native.v1.catalog-provisioning.2026-10-22`; the preceding
+That change replaced stored CREATE intent's supplied native ID with a selected owner
+role and added the retained `ready` phase. It selected the shared definition
+derived from `transit.native.v1.catalog-provisioning.2026-10-22`; the preceding
 definition remains an explicit rejection case. The service registration loop
 and public direct Table route are still absent.
+
+## Durable Table row admission and outcomes — 2026-10-22
+
+The pinned storage package suite passes **52/52 tests** after adding frozen
+binary row intents, mandatory operation/pending roots, terminal controls and
+matched/changed outcome counts. The additional cases establish:
+
+- Lost admission and row-commit replies survive actual disk reopen. Inspection
+  does not execute work, and late cancellation returns the original commit.
+- Revoked access denies execution and observation. Regrant permits the exact
+  admitted work; a changed row basis produces durable rejection. Control progress
+  and read pins do not invalidate the admitted logical basis.
+- A late duplicate-key failure publishes no row prefix. Cancellation remains
+  terminal across replay. Definition changes reject while row work is pending.
+- Point and bulk UPDATE atomically exchange primary keys while retaining row
+  identities; destination collisions and replacement identities reject. Outcomes
+  survive replay, including canonical no-op matches without changed row bytes.
+- Disk-backed pending work reaches 129 operations with one resident index page.
+  Missing frozen work cannot execute. A forged cancelled-to-admitted transition
+  fails recovery and leaves the owner unavailable.
+- Frozen typed rows preserve supported finite floating-point bits, reject an
+  incompatible definition even under a recomputed object hash, and enforce the
+  admitted action's change shape.
+
+`just test::local-catalog` also passes with real signed native ownership changes
+around row admission and execution. It verifies that revocation denies both
+execution and cancellation, exhausted ordinary storage leaves work admitted,
+and explicit cancellation succeeds through reserved control capacity. Regrant
+permits another exact operation; resource retirement denies its result. Row
+operations leave the catalog directory root unchanged.
+
+These are component and native composition checks. Installed Table SQL still
+uses the actor path; public transport, SQL lowering, concurrent service
+coordination and automatic recovery scheduling remain unqualified here.
+The stored-format cutover uses the shared definition derived from
+`transit.native.v1.table-operation-admission.2026-10-22`, with the prior definition
+retained as an explicit rejection case. No older root defaults missing operation
+directories or outcome counts.
+
+After regeneration, the catalog suite passes **100/100 tests**, including the
+new DML/DDL coordination and lost-reply case. The local backend passes **10/10**,
+including rejection of a supplied object digest that does not match its bytes
+before quota reservation or object publication. `just contract::check`, the
+native catalog composition and diagnostic mapping/error/outcome checks pass with
+the new definition. Installed qualification is still separate.
 
 ## Table partition acceptance and retained read pins — 2026-10-22
 

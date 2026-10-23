@@ -79,6 +79,9 @@ fn put(context: *anyopaque, key: []const u8, bytes: []const u8, expected: [32]u8
     return self.observe.run(self.backend.io, "data.object_put", putImpl, .{ self, key, bytes, expected });
 }
 fn putImpl(self: *Self, key: []const u8, bytes: []const u8, expected: [32]u8) !Objects.ObjectMeta {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    if (!std.mem.eql(u8, &digest, &expected)) return error.ObjectDigestMismatch;
     self.observe.metrics.request_payload_bytes +|= bytes.len;
     try self.backend.put(key, bytes, self.control);
     return .{ .size = bytes.len, .sha256 = expected };

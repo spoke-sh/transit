@@ -57,6 +57,10 @@ test "direct data acceptance fences native policy and storage epochs without a n
     try t.expect(!owner.authority.tryLock(t.io));
     guard.release(guard.context);
     var data: backend.DataStore = .{ .backend = &owner };
+    const allocated = owner.allocated;
+    try t.expectError(error.ObjectDigestMismatch, data.objects().putImmutable("data/wrong-digest.data", "data", @splat(0)));
+    try t.expectEqual(allocated, owner.allocated);
+    try t.expect(try data.objects().head("data/wrong-digest.data") == null);
     const before_native = engine.head.position;
     _ = try submit(&engine, .{ .send = .{ .pid = setup.pid, .value = try p.Value.init("unrelated input") } });
     try t.expect(engine.head.position > before_native);

@@ -117,6 +117,32 @@ test "local catalog checks real native registrations, current ownership and exac
     try t.expectError(error.Forbidden, catalog.resolve(t.allocator, 1, intent.name, policy.policy()));
     _ = try change(&engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = role } });
     try t.expect((try catalog.status(request.binding, policy.policy())) == .committed);
+    const row_cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 1 } } }};
+    const row_request: c.storage.TableDmlIntent.Request = .{
+        .binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 2 }, .target = request.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(9) },
+        .interpretation = view.table.root.declared(),
+        .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &row_cells }, .expect = .absent } }},
+        .ingestion = .point,
+    };
+    const directory = catalog.store.root;
+    _ = try catalog.admitRows(row_request, policy.policy());
+    _ = try change(&engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = 0 } });
+    try t.expectError(error.Forbidden, catalog.performRows(row_request.binding, policy.policy()));
+    try t.expectError(error.Forbidden, catalog.cancelRows(row_request.binding, policy.policy()));
+    _ = try change(&engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = role } });
+    // Exhausted ordinary capacity does not evict admitted work. Explicit
+    // cancellation uses the same physical namespace's reserved control budget.
+    const limits = owner.limits;
+    owner.limits.bytes = owner.allocated;
+    try t.expectError(error.StorageQuota, catalog.performRows(row_request.binding, policy.policy()));
+    try t.expect((try catalog.rowStatus(row_request.binding, policy.policy())) == .admitted);
+    try t.expect((try catalog.cancelRows(row_request.binding, policy.policy())) == .cancelled);
+    try t.expectEqualDeep(directory, catalog.store.root);
+    owner.limits = limits;
+    var succeeding = row_request;
+    succeeding.binding.identity.operation = 3;
+    try t.expectEqual(@as(u64, 1), (try catalog.applyRows(succeeding, policy.policy())).committed.outcome.affected);
     _ = try command(&engine, .{ .retire_resource = resource });
     try t.expectError(error.StateResourceExpired, catalog.status(request.binding, policy.policy()));
+    try t.expectError(error.StateResourceExpired, catalog.rowStatus(succeeding.binding, policy.policy()));
 }
