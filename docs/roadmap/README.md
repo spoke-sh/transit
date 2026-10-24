@@ -16,6 +16,16 @@ mechanisms that **activate** data, materialize changes and coordinate external
 effects. The [current data model](../handbook/reference/data-model.md) describes
 the supported pieces and the gaps between them.
 
+The [observation and feedback loop](../handbook/reference/collaborative-decisions.md#the-observation-and-feedback-loop)
+gives this work a product target: improve what humans and agents can observe
+before acting and what they can learn from the consequences afterward. Track
+observation coverage, latency and cost while preserving meaning, source versions,
+current authorization and uncertainty. The
+[qualification plan](16-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+defines the proposed measures and comparison method; individual milestones
+qualify their contribution as they land. These are evaluation goals, not current
+measurements, and they do not assume that modeling or reasoning is solved.
+
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | In Progress ([#108](https://github.com/spoke-sh/transit/issues/108)) | Shared catalog identities, transaction/snapshot contracts and executable Table/KV/Document/computation lifecycles, with orthogonal $(\tau, \epsilon, \kappa)$ descriptors and direct data operations |

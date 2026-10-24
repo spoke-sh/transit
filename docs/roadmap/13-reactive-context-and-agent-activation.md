@@ -59,5 +59,13 @@ every completed revision with finite recomputation. Measure source-to-result,
 result-to-notification and notification-to-application admission separately;
 socket delivery is not a business latency or exactly-once execution guarantee.
 
+Extend that journey through an authorized action and a later business observation.
+Bind the initial assessment, original action identity and subsequent observation
+without replacing the original prediction. Exercise delayed, missing and
+contradictory feedback as well as known success and failure. Use the
+[observation measures](16-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+to qualify both sides of the loop; a notification or completed tool call alone
+does not establish the application's business consequence.
+
 The [MCP Tasks extension](https://modelcontextprotocol.io/extensions/tasks/overview)
 provides an interaction mechanism; Transit owners supply durable outcomes.
