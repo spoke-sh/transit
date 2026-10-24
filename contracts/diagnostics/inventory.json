@@ -419,6 +419,78 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/EditorState.zig": {
+      "errors": {},
+      "outcomes": {
+        "Action": [
+          "none",
+          "acquire",
+          "validate",
+          "apply",
+          "search_newest",
+          "search_older",
+          "submit",
+          "erase"
+        ],
+        "Event": [
+          "changed",
+          "open",
+          "refresh",
+          "remote",
+          "local",
+          "reply",
+          "failed",
+          "protected_failure",
+          "joined",
+          "accept",
+          "enter",
+          "dismiss",
+          "cancel",
+          "search",
+          "history_accept",
+          "clear",
+          "executed"
+        ],
+        "Freshness": [
+          "pending",
+          "current",
+          "unavailable"
+        ],
+        "Intent": [
+          "choose",
+          "unique"
+        ],
+        "Mode": [
+          "editing",
+          "history",
+          "completion"
+        ],
+        "Request": [
+          "idle",
+          "fetching",
+          "validating",
+          "obsolete",
+          "cancelling",
+          "executing"
+        ],
+        "Source": [
+          "local",
+          "remote"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Undo.zig",
+        "std",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/EnvelopeDiagnostic.zig": {
       "errors": {},
       "outcomes": {},
@@ -898,6 +970,7 @@
         "Editor.clearDisplay()": "<inferred>",
         "Editor.clipped()": "<inferred>",
         "Editor.complete()": "<inferred>",
+        "Editor.dispatch()": "<inferred>",
         "Editor.draw()": "<inferred>",
         "Editor.drawDraft()": "<inferred>",
         "Editor.drawMenu()": "<inferred>",
@@ -910,6 +983,7 @@
         "Editor.key()": "<inferred>",
         "Editor.loop()": "<inferred>",
         "Editor.pollByte()": "<inferred>",
+        "Editor.react()": "anyerror",
         "Editor.readByte()": "<inferred>",
         "Editor.recall()": "<inferred>",
         "Editor.searchHistory()": "<inferred>",
@@ -922,14 +996,15 @@
         "printable()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 4,
       "propagation": {
-        "try": 136,
+        "try": 140,
         "catch": 19
       },
       "imports": [
         "AssistanceRequest.zig",
         "Console.zig",
+        "EditorState.zig",
         "ExternalEditor.zig",
         "History.zig",
         "Output.zig",

@@ -144,6 +144,7 @@ raise that capacity or discard history to complete.
 | `just test::table-ddl-sql` | Compare general Table DDL with independent aliases, defaults, keys, schema bytes and selected evolution semantics |
 | `just test::table-dml-sql` | Compare general Table DML with independent PostgreSQL/ANTLR ASTs and exact typed intent bytes; no native admission claim |
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
+| `just test::console-model` | Checks editor interaction invariants, replays every finite-model edge against Zig, detects removed model guards and checks borrower release under explicit fairness |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |

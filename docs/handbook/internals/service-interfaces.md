@@ -458,6 +458,85 @@ advances only after page validation succeeds. Readiness remains fenced during
 an authority outage: the fault schedule observes a three-second outage and a
 3.290-second successful login, preserving the account's readiness gate.
 
+### Console interaction transitions
+
+The console lets a caller edit declarations and queries before explicitly
+submitting them to the shared SQL service. How do history previews and asynchronous
+metadata requests preserve that draft without acquiring execution authority?
+The [CLI contract](../../../contracts/TRANSIT_CLI_V1.md#shared-incomplete-input-assistance)
+owns the interaction semantics. The editor implementation introduced on
+2026-10-24 separates deterministic decisions from terminal and client I/O;
+[executed evidence](../../../tests/README.md#console-interaction-state-machine--2026-10-24)
+records its qualification and limits.
+
+[EditorState](../../../apps/transit-cli/EditorState.zig) owns volatile draft,
+cursor, saved history draft, search filter, undo journal and the transition
+function. [Terminal](../../../apps/transit-cli/Terminal.zig) retains key/escape
+and paste decoding, text-edit algorithms, history-file scans, grammar payload
+arenas, monotonic deadlines and rendering. Its semantic events produce a new
+editor state and an ordered set of effects. No transition performs I/O or
+submits SQL directly.
+
+| State dimension | Values and meaning |
+| --- | --- |
+| Interaction | Editing a draft, searching history, or using completion |
+| Client ownership | Idle; fetching; validating acceptance; obsolete request awaiting settlement; cancellation awaiting join; foreground execution |
+| Completion evidence | Pending, current, or unavailable; local vocabulary or remote metadata; explicit selection or initial unique-match intent |
+| Presentation | The terminal retains the candidate preview, selected spelling/kind and viewport independently of request ownership |
+
+A text or cursor change makes an outstanding fetch/validation obsolete. A
+successful obsolete reply cannot install candidates or insert text, even if the
+wrapping draft generation counter later repeats. A delivered denial, expired
+session or changed instance still erases protected editor state. Current replies
+pass their complete/ready uniqueness and full metadata-basis comparison through
+pure helpers in the same owner. The terminal applies an approved candidate with
+the existing shared token edit helper and one undo checkpoint.
+
+The adapter interprets cancellation before clearing suggestions or performing a
+follow-up action. [AssistanceRequest](../../../apps/transit-cli/AssistanceRequest.zig)
+joins the single future and releases its buffers before the reducer receives
+`joined`. Foreground execution and cancellation are synchronous at the terminal
+input boundary. Assertions compare logical ownership with the actual future;
+keepalive runs only while the client is idle. Request cancellation does not
+cancel or roll back a previously submitted SQL operation.
+
+History entry captures the draft and cursor separately from the filter. Filter
+edits and history previews cannot replace that snapshot. Cancellation restores
+it; acceptance installs a draft and records the snapshot for undo. Clear and
+protected failure have distinct transitions: ordinary clear remains undoable,
+while protected failure zeros draft/search/saved buffers and clears the journal.
+Only Enter from ordinary editing emits a submission effect. Actual statement
+completeness, submission, settlement and recovery retain their existing owners.
+
+The [finite TLA+ model](../../../tests/verification/models/Console.tla) abstracts
+text into empty/draft/history-match classes, filters into four classes, cursors
+into start/end positions and metadata into uniqueness/equality outcomes. It
+checks restoration, stale/interrupted reply rejection, uniqueness, validation
+basis, client ownership, explicit submission and private-state clearing. A
+separate temporal check assumes weak fairness of response failure/timeout,
+cancellation join and foreground completion, then checks eventual borrower
+release. It cannot establish those environment assumptions or a latency bound.
+
+The [model guide](../../../tests/verification/models/README.md#finite-console-interaction-model)
+provides the pinned reproduction command. The
+[runner](../../../tests/verification/console_model.py) exhausts the finite graph
+and replays every exported edge against the production Zig reducer from a
+shortest representative path. It compares state projections and effects, and
+requires six removed model guards to expose named violations whose schedules
+remain safe in Zig. Missing tools, unmapped records, timeouts and incomplete
+exploration fail. The [model guide](../../../tests/verification/models/README.md#finite-console-interaction-model)
+details bounds, artifacts and interpretation.
+
+Separate state dimensions preserve visible previews during background work;
+one combined menu/request state would couple those independent lifetimes. The
+explicit transition owner reduces scattered flag updates. Maintaining a separate
+specification still costs review effort, so edge replay checks correspondence
+on every modeled transition. This is a bounded conformance check, not a proof of
+all Zig histories or arbitrary buffer contents. Generation arithmetic, undo
+contents, allocation/arena lifetimes, grammar, terminal framing and the effect
+interpreter remain separate unit and real-PTY obligations. The model gives no
+new SQL, authorization, persistence or performance guarantee.
+
 ## Reactive consistency
 
 The implemented reactive profile combines int64 Table notifications with exact

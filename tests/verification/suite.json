@@ -99,6 +99,7 @@
       "bindings::authorization",
       "test::model",
       "test::model-delivery",
+      "test::console-model",
       "test::sql-rewrites",
       "test::sql",
       "bindings::grpc-faults",
@@ -272,7 +273,8 @@
       "test::diagnostic-grammar",
       "test::unit",
       "test::cli-diagnostics",
-      "contract::check"
+      "contract::check",
+      "test::console-history"
     ]
   }
 }

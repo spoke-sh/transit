@@ -44,6 +44,13 @@ invariants and assumptions; they are not a proof of every Zig execution or clust
 size. The selected SQL rewrite theorems are specification results with explicit
 correspondence assumptions; no optimizer rewrite is enabled by those proofs.
 
+The console interaction model checks bounded editor/request transitions and
+replays every exported edge against its Zig owner. Its conditional progress
+check assumes eventual request settlement, cancellation join and foreground
+completion; terminal I/O, arbitrary text and latency remain separate obligations.
+The [interaction account](../internals/service-interfaces.md#console-interaction-transitions)
+defines that correspondence and its limits.
+
 The authority/delivery simulation runs two producer processes and one destination
 against the real core with atomic conditional append and injected acknowledgement
 loss. It preserves the live engine between events, compares its logical state

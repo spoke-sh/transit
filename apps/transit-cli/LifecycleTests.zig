@@ -2,6 +2,7 @@
 test {
     _ = @import("Options.zig");
     _ = @import("Undo.zig");
+    _ = @import("EditorState.zig");
     _ = @import("SqlInput.zig");
     _ = @import("Settings.zig");
     _ = @import("Show.zig");

@@ -49,3 +49,58 @@ for model-checking scope and [the pinned release](https://github.com/tlaplus/tla
 Logs, completion evidence and concrete counterexamples are retained under
 `.cache/verification/model/`. The ordinary bindings lane runs the small model;
 weekly discovery expands it and runs targeted mutations of the actual Zig guards.
+
+## Finite console interaction model
+
+Run `nix develop --command just test::console-model`. The ordinary bindings lane
+owns this check, using the same pinned TLC as the authority model. Each TLC run
+has one worker, fingerprint/seed `0`/`1`, a 512 MiB heap and a 60-second timeout.
+The [specification](Console.tla) and [configuration](Console.cfg) model the
+production [editor owner](../../../apps/transit-cli/EditorState.zig).
+
+The model separates editing/history/completion from idle/fetching/validating/
+obsolete/cancelling/executing client ownership. It represents three draft text
+classes (empty, draft, history match), four filter classes, start/end cursor
+positions, and one request. Ready complete uniqueness and equality of the
+validated metadata basis are abstract inputs. Native units exercise their actual
+field comparisons; the model does not implement a second SQL grammar.
+
+Safety invariants require restored draft/cursor on history cancellation, inert
+stale or interrupted successful replies, complete uniqueness for automatic
+insertion, matching validation evidence, exclusive client ownership, explicit
+submission, and cleared private projections after protected failure. Logical
+request obsolescence is independent of the wrapping draft generation counter.
+The counter itself is outside the finite model.
+
+The [runner](../console_model.py) checks all reachable states, exports the complete
+TLC graph and rejects incomplete state/edge counts. It finds a shortest path to
+every state and replays every outgoing edge against the actual Zig reducer via
+[the private trace adapter](../../console_state.zig). It compares projected text,
+cursors, filter, history match/failure, modes and emitted effects. Unknown fields,
+actions and incomplete replay fail. The adapter supplies synthetic edits and
+history results; it neither interprets the requested I/O effects nor executes SQL.
+
+Six independent model variants remove freshness/interruption, uniqueness,
+metadata equality, draft restoration, ownership and protected-failure guards.
+Each must produce its named invariant violation and an explicit counterexample;
+parser errors and timeouts are inconclusive failures. The concrete reducer must
+follow the safe graph for that schedule and differ from the violating model
+state. These are mutations of the model, not mutations of production Zig.
+
+A separate `FairSpec` run checks eventual borrower release under weak fairness
+of request failure/timeout, cancellation join and foreground completion. This is
+an environment assumption: indefinitely stalled network cancellation or foreground
+execution is outside that progress result. It establishes no wall-clock bound.
+
+The graph check and edge replay do not prove all Zig histories, arbitrary text,
+undo journals, allocation/arena lifetimes, terminal decoding/rendering, network
+behavior or a refinement theorem. The
+[terminal suite](../../console_editing.py) covers the actual effect interpreter
+and display. The [mechanism account](../../../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)
+explains ownership and integration assumptions. Executed counts and commands
+belong to the [proof ledger](../../README.md).
+
+Logs, the graph, removed-guard traces, source/binary hashes and completion status
+are retained under `.cache/verification/console-model/`. `--seconds N` changes
+the per-process timeout; exhausting it never counts as a pass. There is no depth
+cutoff: the stated finite abstraction must be exhausted.

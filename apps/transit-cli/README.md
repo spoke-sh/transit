@@ -53,6 +53,16 @@ configures `.connect`, `.mode` and `.timer`; server `transit.yaml` settings over
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.
 
+Terminal interaction decisions belong to [EditorState.zig](EditorState.zig):
+draft/history snapshots, completion acceptance and exclusive client ownership
+transition without I/O. [Terminal.zig](Terminal.zig) decodes keys, performs the
+requested effects and renders the result. `just test::console-history` exercises
+that adapter through real terminals; native unit tests check the state owner.
+`just test::console-model` checks a bounded TLA+ model and replays every exported
+edge against the same Zig reducer. See the
+[interaction mechanism](../../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)
+for ownership, proof scope and remaining integration assumptions.
+
 The [local PostgreSQL/MySQL guide](docs/sql.md) covers opt-in listeners, explicit
 account enrollment, verified TLS, grants and retained-operation recovery.
 
