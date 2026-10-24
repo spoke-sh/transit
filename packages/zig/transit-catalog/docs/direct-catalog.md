@@ -14,6 +14,13 @@ dispatcher calls this owner with current native policy and rechecks disclosed
 requirements after response buffering. The SQL coordinator dispatches exact
 retained references through this same owner.
 
+`DirectTableDispatch` composes the typed actions over these catalog and storage
+owners. Its embedding host validates signed requests/delegations, coordinates
+access, supplies native registration execution and checks the accumulated
+permissions again after buffering. The local node supplies those boundaries in
+`LocalTableService` and `LocalCatalogRunner`. The dispatcher is an implementation
+interface, not an authenticated endpoint or another policy store.
+
 `DirectTableClient.signed` binds a typed action to the caller's current native
 credential; `call` makes one owned HTTP exchange and validates the response
 against that exact request. It checks result kind, operation attribution,

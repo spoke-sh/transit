@@ -162,6 +162,16 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## Shared direct action dispatch — 2026-10-23
+
+The typed Table/namespace dispatch now resides in `transit-catalog`, while the
+local host retains signed-request validation, native policy, lock coordination,
+registration execution and the final disclosure fence. After that ownership
+move, `zig build test-local-catalog --summary all` passes **2/2** Debug tests,
+including Table CRUD, delegated reads/history, original-input prerequisites and
+namespace authority/recovery schedules. Wire and persisted definitions are
+unchanged by this move; application consumer migration remains separate.
+
 ## Direct namespace lifecycle — 2026-10-23
 
 The current shared definition is

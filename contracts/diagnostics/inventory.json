@@ -3585,6 +3585,32 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableDispatch.zig": {
+      "errors": {
+        "InvalidCatalogCursor": 2,
+        "TableDelegationDenied": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Execution.ddl()": "anyerror",
+        "Execution.namespace()": "anyerror",
+        "apply()": "anyerror",
+        "encodeDefinition()": "<inferred>",
+        "historySource()": "<inferred>",
+        "requireSource()": "<inferred>",
+        "schema()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 98,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableIntent.zig": {
       "errors": {
         "CatalogIdentityConflict": 3,
@@ -5416,6 +5442,7 @@
         "DirectReadDelegation.zig",
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
+        "DirectTableDispatch.zig",
         "DirectTableIntent.zig",
         "DirectTableIntentStore.zig",
         "DirectTablePreparedDml.zig",
