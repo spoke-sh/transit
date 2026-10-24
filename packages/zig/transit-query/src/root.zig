@@ -82,6 +82,7 @@ pub const Bridge = @import("Bridge.zig");
 pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
 pub const TableAssistance = @import("TableAssistance.zig");
+pub const TableCompletionGrammar = @import("TableCompletionGrammar.zig");
 pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
 pub const SqlCompilation = @import("SqlCompilation.zig");
