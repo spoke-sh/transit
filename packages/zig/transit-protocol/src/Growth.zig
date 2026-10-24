@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.table-definition-rejection.2026-10-23.
+/// SHA-256 of transit.native.v1.query-owned-computation-evidence.2026-10-23.
 pub const Definition = enum {
-    @"312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0",
+    @"554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -706,7 +706,7 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
 
 test "contract definitions reject numeric enum aliases in both JSON decoders" {
     const t = std.testing;
-    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8\"", "\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
+    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0\"", "\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, t.allocator, bytes, .{}));
         const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
         defer value.deinit();

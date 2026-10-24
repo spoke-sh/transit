@@ -28,7 +28,7 @@ pub const Configuration = struct {
 };
 pub const Right = enum { inspect, create, read, insert, update, delete, alter, drop };
 pub const Kind = enum(u8) { create = 1, alter = 2, rename = 3, drop = 4 };
-pub const ObjectKind = enum(u8) { table = 1, kv = 2, document = 3, computation = 4 };
+pub const ObjectKind = enum(u8) { table = 1, kv = 2, document = 3 };
 pub const LifecycleState = enum(u8) { defined = 1, published = 2, pending = 3, complete = 4, unavailable = 5 };
 pub const LifecycleEvidence = struct {
     kind: ObjectKind,
@@ -192,21 +192,4 @@ pub const PolicyReferences = struct {
     can_read: bool,
     redacted: bool,
     resource_revision: u64,
-};
-pub const ComputationEvidence = struct {
-    scope: Scope,
-    namespace: u64,
-    object: u64,
-    revision: u64,
-    name: Meta.Name,
-    state: LifecycleState,
-    source_object: u64,
-    source_revision: u64,
-    current_source_revision: u64 = 0,
-    output_object: u64 = 0,
-    fresh: bool = false,
-    source_available: bool = false,
-    resource_revision: u64,
-    admitted_input: u64 = 0,
-    completed_input: u64 = 0,
 };

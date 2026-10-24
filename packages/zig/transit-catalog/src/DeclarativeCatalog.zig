@@ -1,6 +1,7 @@
-//! Named KV, Document and Computation catalog lifecycles over shared catalog
-//! authority. Creation uses an explicit two-phase provisioning/publication
-//! transition; RESTRICT dependencies block DROP and retired IDs never rebind.
+//! Named KV and Document catalog metadata over shared catalog
+//! authority. Creation records a supplied resource identity in two transitions;
+//! it does not provision or initialize storage. RESTRICT dependencies block DROP
+//! and retired IDs never rebind. Query owners provide computation evidence.
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
@@ -14,31 +15,19 @@ configuration: m.Configuration,
 namespace: ?u64 = null,
 registration: ?*?p.Authorization.Action = null,
 
-pub const StateKind = enum(u8) { kv = 2, document = 3, computation = 4 };
-pub const ComputationSpec = struct {
-    source_object: u64,
-    source_revision: u64,
-    output_object: u64 = 0,
-    pub fn validate(self: ComputationSpec) !void {
-        if (self.source_object == 0 or self.source_revision == 0) return error.InvalidCatalogDefinition;
-        if (self.output_object != 0 and self.output_object == self.source_object) return error.InvalidCatalogDefinition;
-    }
-};
+pub const StateKind = enum(u8) { kv = 2, document = 3 };
 pub const Spec = union(StateKind) {
     kv: c.fuze.model.Type,
     document: void,
-    computation: ComputationSpec,
     pub fn objectKind(self: Spec) m.ObjectKind {
         return switch (self) {
             .kv => .kv,
             .document => .document,
-            .computation => .computation,
         };
     }
     pub fn validate(self: Spec) !void {
         switch (self) {
             .kv, .document => {},
-            .computation => |comp| try comp.validate(),
         }
     }
     pub fn fingerprint(self: Spec) ![32]u8 {
@@ -49,13 +38,6 @@ pub const Spec = union(StateKind) {
         switch (self) {
             .kv => |vt| hash.update(&.{@backingInt(vt)}),
             .document => {},
-            .computation => |comp| {
-                var buf: [24]u8 = undefined;
-                std.mem.writeInt(u64, buf[0..8], comp.source_object, .little);
-                std.mem.writeInt(u64, buf[8..16], comp.source_revision, .little);
-                std.mem.writeInt(u64, buf[16..24], comp.output_object, .little);
-                hash.update(&buf);
-            },
         }
         return hash.finalResult();
     }
@@ -97,7 +79,6 @@ pub const Action = union(enum(u8)) {
     create: struct { spec: Spec, resource_id: u64, if_not_exists: bool = false } = 1,
     rename: a.Name = 2,
     drop: struct { if_exists: bool = false } = 3,
-    complete_computation: struct { source_revision: u64 } = 4,
 };
 
 pub const Request = struct {
@@ -112,7 +93,7 @@ pub const Request = struct {
     pub fn right(self: Request) m.Right {
         return switch (self.action) {
             .create => .create,
-            .rename, .complete_computation => .alter,
+            .rename => .alter,
             .drop => .drop,
         };
     }
@@ -133,9 +114,6 @@ pub const Request = struct {
             },
             .drop => |value| {
                 if ((self.object == 0) != (self.expected_revision == 0) or (self.object == 0 and !value.if_exists)) return error.InvalidCatalogCommand;
-            },
-            .complete_computation => |value| {
-                if (self.object == 0 or self.expected_revision == 0 or value.source_revision == 0) return error.InvalidCatalogCommand;
             },
         }
     }
@@ -355,59 +333,12 @@ pub fn status(self: Self, source: anytype, who: u64, id: u64, expected_digest: [
     return found;
 }
 
-pub fn inspectComputation(self: Self, source: anytype, who: u64, id: u64) !?m.ComputationEvidence {
-    const tc = self.tables();
-    _ = try tc.authorizeDatabase(source, who);
-    const current = (try self.record(source, id)) orelse return null;
-    if (current.spec != .computation) return error.InvalidCatalogObject;
-    _ = try self.authorizeObject(source, who, id, .inspect);
-    const comp = current.spec.computation;
-    const source_ev = tc.inspectLifecycle(source, who, comp.source_object) catch |err| switch (err) {
-        error.CatalogDenied, error.TableNotFound => null,
-        else => return err,
-    };
-    const source_available = if (source_ev) |ev| ev.state != .unavailable and ev.revision != 0 else false;
-    const current_source_rev: u64 = if (source_ev) |ev| ev.revision else 0;
-    const fresh = source_available and current.state == .live and current.completed_input != 0 and current_source_rev == comp.source_revision;
-    const state: m.LifecycleState = switch (current.state) {
-        .initializing => .pending,
-        .retired => .unavailable,
-        .live => if (!source_available)
-            .unavailable
-        else if (current.pending_operation != 0)
-            .pending
-        else if (current.completed_input != 0)
-            (if (fresh) .complete else .pending)
-        else
-            (if (current_source_rev == comp.source_revision) .published else .pending),
-    };
-    return .{
-        .scope = current.scope,
-        .namespace = current.namespace,
-        .object = current.object,
-        .revision = current.revision,
-        .name = try Meta.Name.init(current.name.slice()),
-        .state = state,
-        .source_object = comp.source_object,
-        .source_revision = comp.source_revision,
-        .current_source_revision = current_source_rev,
-        .output_object = comp.output_object,
-        .fresh = fresh,
-        .source_available = source_available,
-        .resource_revision = source.view.revision,
-        .admitted_input = current.admitted_input,
-        .completed_input = current.completed_input,
-    };
-}
-
 pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.LifecycleEvidence {
     const tc = self.tables();
     _ = try tc.authorizeDatabase(source, who);
     const current = (try self.record(source, id)) orelse return null;
     _ = try self.authorizeObject(source, who, id, .inspect);
-    const state: m.LifecycleState = if (current.spec == .computation)
-        (try self.inspectComputation(source, who, id)).?.state
-    else switch (current.state) {
+    const state: m.LifecycleState = switch (current.state) {
         .initializing => .pending,
         .retired => .unavailable,
         .live => if (current.pending_operation != 0) .pending else .published,
@@ -426,20 +357,6 @@ pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.Life
         .admitted_input = current.admitted_input,
         .completed_input = current.completed_input,
     };
-}
-
-pub fn bindComputationDependency(self: Self, turn: *s.Turn, id: u64, present: bool) !void {
-    const tc = self.tables();
-    const current = (try self.record(turn, id)) orelse return error.TableNotFound;
-    if (current.spec != .computation) return error.InvalidCatalogObject;
-    const comp = current.spec.computation;
-    try tc.setDependency(turn, .{
-        .scope = current.scope,
-        .object = comp.source_object,
-        .identity = current.object,
-        .owner = self.configuration.owner,
-        .kind = .query_source,
-    }, present);
 }
 
 pub fn preview(self: Self, source: anytype, who: u64, request: Request) !m.Preview {
@@ -512,7 +429,6 @@ pub fn preview(self: Self, source: anytype, who: u64, request: Request) !m.Previ
                 .create => unreachable,
                 .rename => .rename,
                 .drop => .drop,
-                .complete_computation => .alter,
             };
             const existing = (try scoped.bound(source, request.namespace, request.name)) orelse {
                 const absent_ok = request.action == .drop and request.action.drop.if_exists and request.object == 0;
@@ -635,19 +551,6 @@ pub fn preview(self: Self, source: anytype, who: u64, request: Request) !m.Previ
                         .resource_revision = source.view.revision,
                     };
                 },
-                .complete_computation => {
-                    if (existing.spec != .computation) return error.InvalidCatalogCommand;
-                    return .{
-                        .kind = .computation,
-                        .action = .alter,
-                        .name = meta_name,
-                        .object = existing.object,
-                        .expected_revision = existing.revision + 1,
-                        .disposition = .admissible,
-                        .definition_digest = fp,
-                        .resource_revision = source.view.revision,
-                    };
-                },
             }
         },
     }
@@ -722,9 +625,6 @@ pub fn apply(self: Self, turn: *s.Turn, request: Request) !Outcome {
                 current.resource_id = creation.resource_id;
                 current.pending_principal = 0;
                 current.pending_operation = 0;
-                if (creation.spec == .computation) {
-                    // Register restricting query_source dependency from computation to source_object if in same turn budget or via explicit dependency
-                }
                 try scoped.saveRecord(turn, current);
                 try turn.write(try scoped.nameKey(request.namespace, request.name, request.object), try r.encode('N', m.Binding{ .scope = request.scope, .object = request.object }));
                 return scoped.closeOutcome(turn, prior, .applied, .none, request.object, 1, creation.resource_id);
@@ -789,7 +689,6 @@ pub fn apply(self: Self, turn: *s.Turn, request: Request) !Outcome {
                 .create => unreachable,
                 .rename => .rename,
                 .drop => .drop,
-                .complete_computation => .alter,
             };
             const pending_base: Outcome = .{
                 .scope = request.scope,
@@ -843,15 +742,6 @@ pub fn apply(self: Self, turn: *s.Turn, request: Request) !Outcome {
                     }
                     try turn.write(try scoped.nameKey(request.namespace, current.name, current.object), null);
                     current.state = .retired;
-                    current.revision = std.math.add(u64, current.revision, 1) catch return error.CatalogCapacity;
-                    current.next_revision = std.math.add(u64, current.next_revision, 1) catch return error.CatalogCapacity;
-                    try scoped.saveRecord(turn, current);
-                    return scoped.closeOutcome(turn, pending, .applied, .none, current.object, current.revision, current.resource_id);
-                },
-                .complete_computation => |comp_update| {
-                    if (current.spec != .computation) return error.InvalidCatalogCommand;
-                    current.spec.computation.source_revision = comp_update.source_revision;
-                    current.completed_input = turn.delivery.input.position;
                     current.revision = std.math.add(u64, current.revision, 1) catch return error.CatalogCapacity;
                     current.next_revision = std.math.add(u64, current.next_revision, 1) catch return error.CatalogCapacity;
                     try scoped.saveRecord(turn, current);
