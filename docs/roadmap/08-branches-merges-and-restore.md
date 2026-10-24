@@ -1,13 +1,18 @@
-# 7. Branches, merges and restore
+# 8. Branches, merges and restore
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Add isolated application-state branching, three-way merging and point-in-time
 restore built directly on the [immutable `.tseg` segment and Manifest architecture](02-storage-and-query-performance.md)
-and [historical catalog binding](04-standards-and-catalogs.md). The
+and [historical catalog binding](05-standards-and-catalogs.md). The
 [state model](../handbook/internals/state-model.md) owns the authority/lifetime
 model. Branching is the underlying versioning primitive within a realm. Branches
 never copy live process identities, grants or effect rights.
+
+Restore here means publishing earlier application data as a new forward successor
+under current authority. [Operations](18-operations-and-recovery.md) separately
+owns backup capture, installation disaster recovery and runtime upgrades; a
+branch snapshot alone is not sufficient recovery material for an installation.
 
 Make branches understandable as separately advancing histories of declared
 application data and its catalog interpretation under the realm's current policy.
@@ -72,9 +77,9 @@ authority/process evidence separate from branchable application state.
 Branch creation, read, edit and merge have independent permissions under current
 realm policy. Support installations with all merging disabled, and protect
 destination heads against equivalent direct writes. This milestone establishes
-the native data/policy primitives; [enterprise identity](09-control-and-policy-plane.md)
+the native data/policy primitives; [enterprise identity](10-control-and-policy-plane.md)
 binds external subjects and delegated actors, and
-[reviewed collaboration](11-reviewed-data-collaboration.md) adds published
+[reviewed collaboration](12-reviewed-data-collaboration.md) adds published
 proposals, intent-bound approval and shared human/agent review. Reading or
 copying historical application data cannot restore historical grants.
 

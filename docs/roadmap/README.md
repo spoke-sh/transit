@@ -21,7 +21,7 @@ gives this work a product target: improve what humans and agents can observe
 before acting and what they can learn from the consequences afterward. Track
 observation coverage, latency and cost while preserving meaning, source versions,
 current authorization and uncertainty. The
-[qualification plan](16-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[qualification plan](20-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
@@ -31,26 +31,82 @@ measurements, and they do not assume that modeling or reasoning is solved.
 | 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | In Progress ([#108](https://github.com/spoke-sh/transit/issues/108)) | Shared catalog identities, transaction/snapshot contracts and executable Table/KV/Document/computation lifecycles, with orthogonal $(\tau, \epsilon, \kappa)$ descriptors and direct data operations |
 | 2 | [Storage hierarchy, `.tseg` segments and query performance](02-storage-and-query-performance.md) | In Progress ([#109](https://github.com/spoke-sh/transit/issues/109)) | Shared storage for native durable owners, logical change history and safe retention, hybrid segments, encoded query access, codecs/collations and partitioned/OCC concurrency |
 | 3 | [Live storage engine and SQL execution cutover](03-live-storage-and-sql-cutover.md) | In Progress ([#110](https://github.com/spoke-sh/transit/issues/110)) | Installed local storage across native owners, direct Table writes/bounded SQL reads, observable flushing and exact restart recovery, with delivered cache/wakeup improvements preserved |
-| 4 | [Standards, collations and historical catalogs](04-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
-| 5 | [Managed computations and WAL-activated dataflows](05-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
-| 6 | [Multi-model and multi-format foreign relations](06-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
-| 7 | [Branches, merges and restore](07-branches-merges-and-restore.md) | Planned | Branching within a realm over durable pinned versions, logical three-way merges and forward restore |
-| 8 | [Service and SDK coverage](08-service-and-sdk-coverage.md) | In Progress | Go raw callers and broader types, sources and streaming interactions through shared contracts |
-| 9 | [Enterprise identity and the Control & Policy Plane](09-control-and-policy-plane.md) | Planned | Trusted identity bindings, IAM membership lifecycle, bounded delegation and shared branch/publication authorization |
-| 10 | [Published business resources and consistent investigations](10-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy, shared typed results and one retained basis across related calls |
-| 11 | [Versioned proposals and reviewed publication](11-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
-| 12 | [MCP service and interactive Apps](12-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional views generated from shared published capabilities |
-| 13 | [Reactive context, subscriptions and agent activation](13-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions and tasks |
-| 14 | [Recorded outbound MCP and application guidance](14-recorded-mcp-integrations.md) | Planned | Governed external capabilities, captured observations, network-free replay and optional reviewed prompts/skills |
-| 15 | [Clustered execution and storage-disaggregated placement](15-clustered-execution.md) | Planned | Fenced lease transfer, verified object/NVMe range caching and locality-aware distributed query execution |
-| 16 | [Qualification and complete benchmarks](16-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
-| 17 | [Release distribution](17-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
+| 4 | [SQL statement results and client consumption](04-statement-results-and-consumption.md) | Planned | Shared command/result lifecycle, bounded server batching and client readers, verified completion and coherent console presentation |
+| 5 | [Standards, collations and historical catalogs](05-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
+| 6 | [Managed computations and WAL-activated dataflows](06-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
+| 7 | [Multi-model and multi-format foreign relations](07-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
+| 8 | [Branches, merges and restore](08-branches-merges-and-restore.md) | Planned | Branching within a realm over durable pinned versions, logical three-way merges and forward restore |
+| 9 | [Service and SDK coverage](09-service-and-sdk-coverage.md) | In Progress | Go raw callers and broader types, sources and streaming interactions through shared contracts |
+| 10 | [Enterprise identity and the Control & Policy Plane](10-control-and-policy-plane.md) | Planned | Trusted identity bindings, IAM membership lifecycle, bounded delegation and shared branch/publication authorization |
+| 11 | [Published business resources and consistent investigations](11-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy, shared typed results and one retained basis across related calls |
+| 12 | [Versioned proposals and reviewed publication](12-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
+| 13 | [MCP service and interactive Apps](13-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional views generated from shared published capabilities |
+| 14 | [Reactive context, subscriptions and agent activation](14-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions and tasks |
+| 15 | [Recorded outbound MCP and application guidance](15-recorded-mcp-integrations.md) | Planned | Governed external capabilities, captured observations, network-free replay and optional reviewed prompts/skills |
+| 16 | [Language-native programming model and mixed application composition](16-programming-model.md) | Planned | First-class data clients, optional Station behaviors and typed composition over shared contracts, recovery and language-native runtime ownership |
+| 17 | [Replication and durable failover](17-replication-and-failover.md) | Planned | Explicit durability/failure policies, complete replicated history and objects, bounded catch-up and fenced failover |
+| 18 | [Operations, backup, restore and upgrades](18-operations-and-recovery.md) | Planned | Verified backups, authority-safe disaster recovery, compatible upgrades and explicit incompatible cutovers with resumable operational progress |
+| 19 | [Clustered execution and storage-disaggregated placement](19-clustered-execution.md) | Planned | Fenced lease transfer, verified object/NVMe range caching and locality-aware distributed query execution over qualified replication and operations |
+| 20 | [Qualification and complete benchmarks](20-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
+| 21 | [Release distribution](21-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
 milestone trackers above.
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
+
+## Programming model review — 2026-10-24
+
+[Language-native programming and mixed composition](16-programming-model.md)
+follows recorded outbound MCP and application guidance. Direct data applications,
+Station behaviors and applications combining both need a coherent public model:
+shared types, operation identities, results and recovery with explicit execution
+scopes. Current raw clients and Station runners are independently usable, but
+several ordinary data/query APIs are packaged with Station and expose protocol
+orchestration to applications. The new milestone separates those concerns and
+qualifies idiomatic use in each supported language.
+
+This is distinct from [service/SDK coverage](09-service-and-sdk-coverage.md),
+which retains its existing operation and platform obligations. Shared result
+semantics remain with [statement results](04-statement-results-and-consumption.md).
+Programming-model contract work can proceed alongside those owners; the later
+delivery position is not a reason to defer their existing work or introduce
+another execution protocol. No transparent durability of host tasks or new
+cross-resource transaction is implied.
+
+The new milestone is Planned at 16. Replication, operations, clustered execution,
+qualification and releases move from 16–20 to 17–21 with their scope and statuses
+preserved. The index and dependency links use this numbering.
+
+## Result sets, replication and operations — 2026-10-24
+
+[Statement results and client consumption](04-statement-results-and-consumption.md)
+follows the live cutover as an independently reviewable SQL service/client
+outcome. It covers statement completion, result identity/schema/basis, safe
+batching, shared readers and bounded presentation. Storage/query performance
+retains encoded execution ownership; the live cutover retains safe bounded
+reads and runtime wiring. Their existing promises are not deferred by this split.
+Contract work can proceed together. Published resources now consume the earlier
+result contract and own disclosure plus retained investigations across calls.
+
+[Replication](17-replication-and-failover.md) and
+[operations](18-operations-and-recovery.md) precede
+[clustered execution](19-clustered-execution.md). Replication qualifies complete
+durable history, object coverage and safe failover for explicit failure profiles.
+Operations owns backup/restore, upgrades and maintenance, including the
+backup/restore/migration work previously grouped under clustered execution.
+Clustered execution adds scheduling and distributed queries, and proves those
+operational contracts across placement changes. Branch restore remains logical
+data publication under current authority, separate from installation recovery.
+
+This revision inserted three Planned milestones: former milestones 4–14 moved
+to 5–15, and clustered execution, qualification and releases moved from 15–17 to
+18–20 before the programming-model insertion above. Existing statuses, delivered
+slices and proof obligations are preserved. Replication and operational
+contract work depends on storage and live runtime foundations, not on every
+intervening MCP or collaboration adapter completing first. No backup, replication
+topology, result API or upgrade profile is qualified by this planning change.
 
 ## Enterprise collaboration and MCP direction — 2026-10-23
 
@@ -60,27 +116,30 @@ and publish changes only under the installation's policy. The
 [business stories](../handbook/reference/collaborative-decisions.md) explain that
 proposed experience and its current building blocks without requiring this plan.
 
-Milestones 1–8 retain their existing identities and delivered/remaining scope.
-Six independently reviewable milestones now precede clustered placement,
-qualification and release; those former milestones 9–11 move to 15–17 with their
-scope preserved. Every new milestone is Planned. This documentation records
-direction and acceptance gates, not executed runtime evidence.
+The 2026-10-23 revision preserved the then-numbered milestones 1–8 and inserted
+six collaboration milestones before clustered placement, qualification and
+release. The 2026-10-24 revision above inserts result sets and separates
+replication/operations; the table and dependency links use that current numbering.
+Delivered work and evidence retain their status. These revisions record direction
+and acceptance gates, not executed runtime evidence.
 
 The sequence is linear, with explicit prerequisites per milestone. Contract work
 and a read-only MCP spike can start before all earlier implementations finish;
 an adapter may expose only the capabilities whose owning contracts and evidence
-are complete. Native branch operations use current realm authority; milestone 9
-adds enterprise identity/delegation integration and milestone 11 adds the shared
+are complete. Native branch operations use current realm authority; milestone 10
+adds enterprise identity/delegation integration and milestone 12 adds the shared
 proposal/approval experience. A protocol spike does not qualify those additions.
 
 | Shared contract | Delivery owner | Required boundary |
 | --- | --- | --- |
-| Identity, membership, delegation and access decisions | 9 | Trusted issuer/subject and actor/represented-subject bindings; current authority, membership freshness and explicit approval powers across every adapter |
-| Published resources and statement/results | 10 | Headless definitions, deliberate exposure, typed complete results, approved disclosure and a retained investigation basis independent of connections |
-| Branch histories and reviewed proposals | 7, 11 | Branching within one realm; frozen base/source/target and candidate; no copied grants or effects; no protected-destination bypass |
-| MCP and presentation bindings | 12 | Generated descriptions and views over shared owners; exact host/revision matrix; useful structured/text fallback |
-| Meaningful activation and durable interests | 5, 13 | Source changes, completed results and business conditions remain distinct; no implied agent execution from socket delivery |
-| External MCP observations and effects | 14 | Recorded intent/attempt/capture, explicit remote reconciliation, no network dispatch on replay |
+| Statement outcomes and result consumption | 4 | One typed result lifecycle, bounded readers and verified completion, reused by publication and adapter owners |
+| Application programming model and execution scopes | 16 | Direct clients, optional Station behaviors and typed mixed composition reuse data/result owners with explicit commit, effect, recovery and language-runtime boundaries |
+| Identity, membership, delegation and access decisions | 10 | Trusted issuer/subject and actor/represented-subject bindings; current authority, membership freshness and explicit approval powers across every adapter |
+| Published resources and retained investigations | 11 | Headless definitions, deliberate exposure, typed complete results, approved disclosure and a retained investigation basis independent of connections |
+| Branch histories and reviewed proposals | 8, 12 | Branching within one realm; frozen base/source/target and candidate; no copied grants or effects; no protected-destination bypass |
+| MCP and presentation bindings | 13 | Generated descriptions and views over shared owners; exact host/revision matrix; useful structured/text fallback |
+| Meaningful activation and durable interests | 6, 14 | Source changes, completed results and business conditions remain distinct; no implied agent execution from socket delivery |
+| External MCP observations and effects | 15 | Recorded intent/attempt/capture, explicit remote reconciliation, no network dispatch on replay |
 
 The Control & Policy Plane owns identity bindings, catalog definitions, access and
 publication policy. Data owners enforce reads and conditional writes; process
@@ -146,7 +205,7 @@ atomicity and recovery guarantees.
 
 | Required contract | Owner | Gate before dependent implementation |
 | --- | --- | --- |
-| Catalog/branch roots and transactions | [#125](https://github.com/spoke-sh/transit/issues/125), [#111](https://github.com/spoke-sh/transit/issues/111) | Define atomic domains, isolation, head publication and consistent snapshots including accepted unflushed WAL state. Start with the complete single-owner Table slice; milestone 5 implements the selected transaction-session extension. |
+| Catalog/branch roots and transactions | [#125](https://github.com/spoke-sh/transit/issues/125), [#111](https://github.com/spoke-sh/transit/issues/111) | Define atomic domains, isolation, head publication and consistent snapshots including accepted unflushed WAL state. Start with the complete single-owner Table slice; milestone 6 implements the selected transaction-session extension. |
 | Native durable-state ownership | [#126](https://github.com/spoke-sh/transit/issues/126) | Map each control/process/KV/Document/payload owner to log transitions, checkpoint evidence and immutable objects; preserve input/state/output atomicity, retirement and effect outcomes. |
 | Logical history and retention | [#127](https://github.com/spoke-sh/transit/issues/127) | Separate state recovery, net-result deltas and every-change capture; define subscriptions, snapshot-to-tail handoff, pins and safe physical trimming. |
 | Encoded query access | [#128](https://github.com/spoke-sh/transit/issues/128), [#118](https://github.com/spoke-sh/transit/issues/118) | Define layouts, buffer ownership, encoded operators, collation identity and five-state/export semantics before changing segment/query interpretation. |
@@ -219,19 +278,21 @@ Sequence the recovery work as follows:
    to **Partitioned Policy/Data Logs**, **Fenced Partition Leases**, and
    **Multi-Writer OCC** over authorized conditional publication. Formal progress
    and metadata-complexity claims require scoped evidence.
-3. **Cut over live executables and activate derived views, multi-format foreign sources, branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[15](15-clustered-execution.md)).**
+3. **Cut over live executables and activate derived views, multi-format foreign sources, branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[19](19-clustered-execution.md)).**
    Wire the storage hierarchy, `.tseg` segments, write-through caches and immediate
-   wakeups into the live node, SQL gateway and server executables; bind historical
+   wakeups into the live node, SQL gateway and server executables; formalize shared
+   statement outcomes and bounded result consumption; bind historical
    catalog snapshots to immutable manifest versions and collations;
    drive maintained SQL views, reactive watches and Station processes directly
    from `TransitLog` (`+row`/`-row`) delta streams; read Parquet, Arrow IPC,
    CSV/JSONL and mainframe fixed/variable (`FB`/`VB`) copybook datasets through
    the shared `Fuze` segment boundary; implement branch creation over complete
-   durable snapshots and logical three-way merges over immutable state; and schedule distributed
-   Station and `Fuze` workers over shared object storage with fenced lease handoff.
+   durable snapshots and logical three-way merges over immutable state; qualify
+   replication, backup/restore and upgrades; and schedule distributed Station and
+   `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](16-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](20-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -259,7 +320,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `17-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `21-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 

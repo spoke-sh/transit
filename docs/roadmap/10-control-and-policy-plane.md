@@ -1,4 +1,4 @@
-# 9. Enterprise identity and the Control & Policy Plane
+# 10. Enterprise identity and the Control & Policy Plane
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -11,8 +11,8 @@ MCP and application interfaces use the same owners; ingress adds no grant store.
 ## Prerequisites and scope
 
 Build on the [data lifecycle](01-declarative-data-lifecycle.md),
-[historical identities](04-standards-and-catalogs.md),
-[branch scope](07-branches-merges-and-restore.md) and current
+[historical identities](05-standards-and-catalogs.md),
+[branch scope](08-branches-merges-and-restore.md) and current
 [authorization contract](../../contracts/AUTHORIZATION_V1.md).
 Contract design can begin against current native principals and roles. Qualify
 branch-dependent enforcement after the corresponding branch operations exist.

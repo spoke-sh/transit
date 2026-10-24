@@ -1,10 +1,14 @@
-# 17. Release distribution
+# 21. Release distribution
 
 [Roadmap](README.md) · **Status:** Planned
 
 Publish a qualified tagged revision with one artifact/compatibility manifest.
 Existing [Nix packages](../../nix/README.md) and
 [source onboarding](../handbook/guides/quickstart.md) are the baseline, not a release pipeline.
+
+Consume the qualified [operations and upgrade procedures](18-operations-and-recovery.md).
+This milestone packages and verifies their installation experience; operational
+recovery, compatibility and conversion semantics remain with that owner.
 
 ## Delivery sequence
 
@@ -17,7 +21,10 @@ Existing [Nix packages](../../nix/README.md) and
    Docker/OCI and Helm packages where qualified. Define cache trust, registry
    ownership and failure/rollback policy.
 4. Package SDKs/libraries with generated resources and native dependency closure.
-   Test consumers outside the checkout.
+   Test consumers outside the checkout, including the qualified
+   [direct-client, Station and mixed programming models](16-programming-model.md).
+   An ordinary data-client installation must not require the optional Station
+   runner artifact; each release advertises its actual operation/language matrix.
 5. Publish matching handbook/specifications and test installed startup, SQL access,
    the first-dataset walkthrough, declared computation and policy inspection,
    application installation and compatible worker replacement. State the released
@@ -36,7 +43,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](16-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](20-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.

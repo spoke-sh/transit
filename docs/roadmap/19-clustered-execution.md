@@ -1,4 +1,4 @@
-# 15. Clustered execution and storage-disaggregated placement
+# 19. Clustered execution and storage-disaggregated placement
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -20,6 +20,13 @@ declaration progress and freshness; rescheduling a healthy pod does not
 establish that a derived result is current.
 
 ## Delivery sequence
+
+Require [replication and durable failover](17-replication-and-failover.md) and
+[operations, backup, restore and upgrades](18-operations-and-recovery.md) for the
+selected storage/deployment profile. They establish recoverable durable state,
+promotion rules and operational procedures before this milestone automates
+worker placement. The [statement-result milestone](04-statement-results-and-consumption.md)
+supplies the shared result/batch lifecycle for distributed Fuze consumers.
 
 Consume the provider trust/durability profiles in
 [#117](https://github.com/spoke-sh/transit/issues/117) and
@@ -55,9 +62,12 @@ or commit authority.
    ensure background `.tseg` compaction and multi-writer Manifest CAS commits
    proceed safely alongside worker rescheduling without stalling interactive
    reads or `TransitLog` tailing.
-5. **Define backup/restore/migration, partial Board observations and operational recovery:**
-   leverage immutable `.tseg` segments and manifests for incremental cross-region
-   object-store replication and point-in-time recovery.
+5. **Qualify existing operational procedures across placement changes:**
+   exercise the operations milestone's backup cuts, restore activation,
+   maintenance/drain and upgrades while partitions move and workers fail.
+   Expose partial Board observations with their source/coverage evidence. Reuse
+   the replication milestone's promotion and copy guarantees; cross-region
+   object copying alone cannot establish live failover or point-in-time recovery.
 
 ## Completion evidence
 
@@ -72,5 +82,7 @@ Compare distributed `Fuze` queries with independent single-node finite oracles
 across partitions, worker churn and network faults. Report lease-handoff latency,
 NVMe cache hit/warm rates and topology limits separately from correctness. Pod
 recovery does not prove host power-loss durability or live disaster recovery.
+Repeat qualified backup/restore and upgrade scenarios during lease transfer and
+worker churn, preserving their original operation identities and authority fences.
 Measure checkpoint discovery/loading, replay and cache warming separately;
 recovery work is not universally proportional only to the number of WAL frames.
