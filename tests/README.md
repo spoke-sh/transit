@@ -1,5 +1,37 @@
 # Validation and evidence
 
+## Named resource dependency authority and retirement — 2026-10-24
+
+Under shared current-v1 definition
+`77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde`,
+`zig build test-direct-named-resources` passes **107 typed catalog HTTP calls**
+with eight withheld resource-stage replies, four withheld dependency replies and
+eleven abrupt node replacements in the pinned Nix shell. Separate caller processes
+preserve the saved declaration and registration/removal bindings. Real initialized
+KV and Document objects serve as both sources and dependents. Both graph directions,
+source native-read denial, independent metadata inspection, DROP RESTRICT, exact
+registration/removal recovery and no resurrection from an old receipt pass before
+the existing typed data, rename and retirement checks.
+
+Focused catalog checks cover both resource kinds, exact allocated dependent
+definitions before publication, wrong-kind rejection, unsupported source mutation
+masks, dependent metadata denial/redaction, lost registration acknowledgement,
+rename without edge retargeting, retained edges after consumer retirement and
+explicit cleanup without source data access. An initial test left the intentional
+lost-reply flag enabled for subsequent mutations; the corrected fixture scopes
+that fault to registration. It is not counted as passing evidence.
+
+The cutover regenerates schemas, binding declarations and independent signing
+fixtures because named dependency authority no longer refers to the catalog's
+backing native resource. `just contract::check` passes. The existing Table
+dependency HTTP regression also passes **30 typed calls**, two withheld replies
+and abrupt node replacement, preserving exact receipts, metadata revocation,
+redacted blockers and DROP/name replacement. Diagnostic inventory/mapping checks
+and documentation links pass. This qualifies explicit same-catalog named-resource registration,
+not atomic resource/dependency publication, automatic reconciliation, cross-catalog
+named resources, query publication integration or distributed placement. Full
+repository and clean-checkout qualification remain required before delivery.
+
 ## Named native resource allocation and initialization — 2026-10-24
 
 Under shared current-v1 definition
@@ -20,6 +52,10 @@ put/get/delete, actual Document change staging/acceptance and current read denia
 after revocation pass. Metadata rename and logical DROP preserve the initial
 marker, original completion receipt and independently readable native data.
 The final resource listing excludes the retired catalog bindings.
+
+The existing direct Table HTTP regression also passes **1090 typed calls** under
+this definition, including full CRUD/DDL, retained reads/history, namespace and
+conditional-name recovery, original-caller delegation, cleanup and three restarts.
 
 Focused catalog tests pass shared Table/name/operation conflicts, disk recovery
 after each lost stage acknowledgement, allocation-reservation recovery and

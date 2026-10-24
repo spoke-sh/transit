@@ -48,6 +48,16 @@ an existing populated resource is not adopted. A framework descriptor already
 proposed by GenServer is compatible with the committed-state emptiness check;
 private user writes are rejected.
 
+If the declaration has explicit source dependencies, use
+`definition.dependent(allocator)` to bind its exact allocated interpretation.
+Save and accept a `DirectDependency.Binding` for each declared source before
+publishing the name. The source is an exact published Table or named KV/Document
+definition in the same catalog. Named resource sources support the SELECT read
+requirement, checked against native INSPECT/READ; mutation masks reject. The
+dependent's metadata ownership authorizes registration, independently of its
+native data permissions. Inspect each original registration after an uncertain
+reply. Registration does not initialize or publish the consumer.
+
 Execute the original catalog binding again after initialization. Publication
 checks the exact native allocation, current lifetime and initialization marker
 under a single native fence. This checks accepted writer evidence; it does not
@@ -74,6 +84,15 @@ metadata ownership. After rename, `definition.initial()` recovers the original
 initialization identity for data access. A retained successful receipt continues
 to describe its original publication after rename, native expiry or revocation.
 It cannot authorize current data access.
+
+Explicit incoming dependencies block DROP even when their metadata is hidden
+from the caller. Rename preserves each edge's old exact definition, so the owner
+must explicitly revise a stale consumer. Retiring a consumer retains its outgoing
+registrations: save and accept separate removal bindings after retirement or
+abandoned-publication recovery. Removal requires current consumer metadata
+ownership but no source data grant. Repeating an old registration returns its
+original receipt and cannot restore a removed edge. There is no implicit CASCADE
+or dependency discovery from values and associations.
 
 Cancellation retains any already accepted allocation and its resource ID. Cleanup
 uses the ordinary authorized native retirement operation separately. Cancellation

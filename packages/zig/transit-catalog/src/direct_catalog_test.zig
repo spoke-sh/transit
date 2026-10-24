@@ -1172,6 +1172,97 @@ fn namedAllocation(catalog: *D, access: *Access, binding: c.DirectResource.Bindi
     return (try catalog.attachResource(binding, resource, access.policy())).operation.resulting.?;
 }
 
+test "named dependencies bind actual kinds and metadata authority before publication and preserve RESTRICT after rename" {
+    for ([_]bool{ false, true }) |document_source| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        var source = try namedCreation(150, 1500, "source");
+        var consumer = try namedCreation(151, 1501, "consumer");
+        const document: c.DirectResource.Spec = .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } };
+        if (document_source) source.action.create.spec = document else consumer.action.create.spec = document;
+        _ = try catalog.resourceOperation(source, .admit, access.policy());
+        const source_value = try namedAllocation(&catalog, &access, source, 750);
+        access.initialization = try source_value.initialization(t.allocator);
+        _ = try catalog.resourceOperation(source, .execute, access.policy());
+        _ = try catalog.resourceOperation(consumer, .admit, access.policy());
+        const consumer_value = try namedAllocation(&catalog, &access, consumer, 751);
+        var registration = dependencyBinding(try source_value.interpretation(t.allocator), 1502, 151);
+        registration.edge.dependent = try consumer_value.dependent(t.allocator);
+        var invalid = registration;
+        invalid.operation = 1503;
+        invalid.edge.dependent.kind = if (document_source) .document else .kv;
+        try t.expectEqual(.stale_definition, (try catalog.dependencyOperation(invalid, .accept, access.policy())).outcome.reason);
+        invalid.operation = 1504;
+        invalid.edge.dependent.kind = .captured;
+        try t.expectEqual(.stale_definition, (try catalog.dependencyOperation(invalid, .accept, access.policy())).outcome.reason);
+        invalid = registration;
+        invalid.operation = 1505;
+        invalid.edge.privileges = a.update;
+        try t.expectError(error.InvalidCatalogDependency, catalog.dependencyOperation(invalid, .accept, access.policy()));
+        access.denied_resource = source_value.resource;
+        try t.expectError(error.CatalogDenied, catalog.dependencyOperation(registration, .accept, access.policy()));
+        // Source data is read-authorized at registration. The consumer instead
+        // requires its metadata ownership, even while data access is revoked.
+        access.denied_resource = consumer_value.resource;
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.dependencyOperation(registration, .accept, access.policy()));
+        catalog.store.lose_reply = false;
+        try catalog.recover();
+        const receipt = (try catalog.dependencyOperation(registration, .inspect, access.policy())).outcome;
+        try t.expect(receipt.changed and receipt.phase == .applied);
+        try t.expectEqual(null, try catalog.resolveResource(1, consumer.action.create.name, access.policy()));
+        try t.expectEqualDeep(registration.edge, (try catalog.dependencyPage(.{ .dependencies = consumer.object }, null, .dependent, access.policy())).entries[0].?);
+        access.denied_metadata = consumer_value.authorization;
+        try t.expectError(error.CatalogDenied, catalog.dependencyOperation(registration, .inspect, access.policy()));
+        try t.expectEqual(null, (try catalog.dependencyPage(.{ .dependents = source.object }, null, .dependent, access.policy())).entries[0]);
+        var drop = source;
+        drop.operation = 1506;
+        drop.expected = registration.edge.source;
+        drop.action = .drop;
+        try t.expectEqual(.dependency, (try catalog.resourceOperation(drop, .admit, access.policy())).operation.reason);
+        access.denied_metadata = null;
+        access.denied_resource = null;
+        access.initialization = try consumer_value.initialization(t.allocator);
+        _ = try catalog.resourceOperation(consumer, .execute, access.policy());
+        var rename = source;
+        rename.operation = 1507;
+        rename.expected = registration.edge.source;
+        rename.action = .{ .rename = try a.Name.init("renamed_source") };
+        _ = try catalog.resourceOperation(rename, .admit, access.policy());
+        const renamed = (try catalog.resourceOperation(rename, .execute, access.policy())).operation.resulting.?;
+        invalid = registration;
+        invalid.operation = 1508;
+        try t.expectEqual(.stale_definition, (try catalog.dependencyOperation(invalid, .accept, access.policy())).outcome.reason);
+        drop.operation = 1509;
+        drop.expected = try renamed.interpretation(t.allocator);
+        try t.expectEqual(.dependency, (try catalog.resourceOperation(drop, .admit, access.policy())).operation.reason);
+        // Explicit retirement of the consumer does not silently discard the
+        // separately registered edge. Cleanup remains authorized and recoverable.
+        var retire = consumer;
+        retire.operation = 1510;
+        retire.expected = registration.edge.dependent.interpretation;
+        retire.action = .drop;
+        _ = try catalog.resourceOperation(retire, .admit, access.policy());
+        try t.expect((try catalog.resourceOperation(retire, .execute, access.policy())).operation.retired);
+        access.denied_resource = source_value.resource;
+        var removal = registration;
+        removal.operation = 1511;
+        removal.action = .remove;
+        try t.expect((try catalog.dependencyOperation(removal, .accept, access.policy())).outcome.changed);
+        try t.expectEqualDeep(receipt, (try catalog.dependencyOperation(registration, .accept, access.policy())).outcome);
+        drop.operation = 1512;
+        _ = try catalog.resourceOperation(drop, .admit, access.policy());
+        try t.expect((try catalog.resourceOperation(drop, .execute, access.policy())).operation.retired);
+        try t.expectEqual(null, (try catalog.dependencyPage(.{ .dependencies = consumer.object }, null, .dependent, access.policy())).entries[0]);
+    }
+}
+
 test "named resource catalog reserves shared names and requires actual initialization before visibility" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

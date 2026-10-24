@@ -92,8 +92,11 @@ a prepared mutation binds its original Table and metadata; a maintained result
 records its source revision vector. The direct Table path preserves accepted
 read cuts across rename and DROP. The direct owner separately registers exact
 definition dependencies and enforces DROP RESTRICT for those registrations;
-retained cuts do not register dependencies implicitly. Named resource and query
-publication still require integration with that registry.
+retained cuts do not register dependencies implicitly. Named KV/Document objects
+can be sources or exact allocated/published dependents; registration uses object
+metadata ownership separately from native data access. Their owners explicitly
+register before publication and remove after retirement or abandoned-publication
+recovery. Named query publication still requires integration with that registry.
 The separate catalog metadata helpers inspect explicitly registered dependencies
 and do not discover every external reader.
 
@@ -195,7 +198,7 @@ interfaces provide different portions of that experience:
 | Declaration | Available today | Remaining public lifecycle |
 | --- | --- | --- |
 | [Tables and schemas](tables.md) | Direct CREATE/ALTER/RENAME/DROP, read-only preview, frozen DML intents, atomic point/bulk acceptance, retained reads and supported physical codecs through configured SQL and typed callers; explicit exact-definition dependency registration and DROP RESTRICT; namespace lifecycle with RESTRICT over live/pending Tables | Named consumer integration with the dependency registry; automatic point flushing and tiering; non-binary SQL collation and broader transaction sessions |
-| [KV](state.md) and [Documents](documents.md) | Explicit typed named-resource admission, original caller allocation, actual writer initialization, publication, rename, logical DROP and inspection; offline SQL definition compilation | Executable console SQL publication and integration with exact definition dependencies |
+| [KV](state.md) and [Documents](documents.md) | Explicit typed named-resource admission, original caller allocation, actual writer initialization, publication, rename, logical DROP and inspection; exact dependency registration and DROP RESTRICT; offline SQL definition compilation | Executable console SQL publication and automatic dependency reconciliation |
 | [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, separate authorization and explicit activation through typed Zig owners; original result/revision attribution and actual source-vector freshness | A shared dependency/inspection surface; SQL view/subscription adapters and automatic service-managed scheduling |
 | [Connections, connector sources and sinks](connectors.md) | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |
 | [Permissions](security.md) and [retention](retention.md) | Native authorization, selected SQL administration plans, `policyReferences` inspection with read-privilege redaction, and explicit supported retention policies | One declaration/reconciliation surface covering all data kinds and computations |

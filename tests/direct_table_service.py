@@ -92,8 +92,8 @@ def run(node, caller, mode="tables"):
                                 data = json.dumps(parsed).encode()
                                 resource_faults.add(identity)
                         dependency = envelope["action"].get("dependency_operation")
-                        if (mode == "dependencies" and dependency and dependency["command"] == "accept"
-                                and dependency["binding"]["operation"] in (70001, 70002)
+                        if (mode in ("dependencies", "resources") and dependency and dependency["command"] == "accept"
+                                and dependency["binding"]["operation"] in ((70001, 70002) if mode == "dependencies" else (83000, 83001, 83010, 83011))
                                 and dependency["binding"]["operation"] not in dependency_faults
                                 and response.status == 200):
                             parsed = json.loads(data)
@@ -181,10 +181,23 @@ def run(node, caller, mode="tables"):
                     authority.wait(timeout=15)
                     authority = None
                     authority = start()
+                subprocess.run([caller, endpoint, "resource-dependency-save", str(profile)], check=True, timeout=180)
+                assert json.loads(profile.read_bytes())["named_resources"]["bindings"] == json.loads(saved)["named_resources"]["bindings"]
+                saved = profile.read_bytes()
+                for phase in ("register", "remove"):
+                    subprocess.run([caller, endpoint, f"resource-dependency-{phase}", str(profile)], check=True, timeout=180)
+                    assert profile.read_bytes() == saved, "Recovery changed the saved dependency bindings"
+                    authority.kill()
+                    authority.wait(timeout=15)
+                    authority = None
+                    authority = start()
+                    if phase == "register":
+                        subprocess.run([caller, endpoint, "resource-dependency-recover", str(profile)], check=True, timeout=180)
                 subprocess.run([caller, endpoint, "resource-verify", str(profile)], check=True, timeout=240)
                 assert resource_faults == {(identity, phase) for identity in (80000, 80001) for phase in ("admitted", "prepared", "allocated", "complete")}, resource_faults
                 assert profile.read_bytes() == saved
-                print(f"Named resources: {fault['requests']} typed catalog calls, 8 withheld stage replies and 9 abrupt node replacements, unchanged saved declarations, serialized original caller allocation without data grants, actual Station KV/Document initialization, typed KV writes/deletes, Document publication and current data revocation passed.")
+                assert dependency_faults == {83000, 83001, 83010, 83011}, dependency_faults
+                print(f"Named resources: {fault['requests']} typed catalog calls, 8 withheld stage replies, 4 withheld dependency replies and 11 abrupt node replacements, unchanged saved declarations and dependency bindings, serialized original caller allocation without data grants, actual Station KV/Document initialization, typed KV writes/deletes, Document publication, current data revocation, both graph directions, DROP RESTRICT and explicit original-edge cleanup passed.")
                 return
             if mode == "dependencies":
                 subprocess.run([caller, endpoint, "dependency-prepare", str(profile)], check=True, timeout=180)

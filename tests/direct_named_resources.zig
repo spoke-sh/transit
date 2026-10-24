@@ -9,7 +9,7 @@ const R = c.DirectResource;
 const Owner = app.NamedResource;
 const doc = app.query.document;
 const t = std.testing;
-pub const State = struct { bindings: [2]R.Binding };
+pub const State = struct { bindings: [2]R.Binding, dependencies: ?[2]c.DirectDependency.Binding = null };
 
 fn key(seed: u8) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(seed));
@@ -19,7 +19,7 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
     (try client.call(.initialize)).deinit();
     const worker_role = (try admin.client.query(.{ .realm = 42, .principal = 102, .kind = .{ .authorization = .{ .kind = .identity } } }, try key(31))).body.authorization.body.identity.login_role;
     for ([_]u64{ role, worker_role }) |native_role| _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = native_role, .privileges = p.permission(.inspect) } });
-    var result: State = undefined;
+    var result: State = .{ .bindings = undefined };
     for (&result.bindings, 0..) |*binding, i| {
         const writer = try admin.submit(.{ .spawn = .{} });
         _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = role, .privileges = p.permission(.admin) | p.permission(.send) } });
@@ -154,8 +154,78 @@ pub fn publish(client: c.DirectTableClient, state: State) !void {
     const resources: c.DirectResourceClient = .{ .catalog = client };
     for (state.bindings) |binding| try t.expectError(error.InvalidTableResponse, resources.operation(binding, .execute, 64));
 }
+pub fn dependencyPlan(client: c.DirectTableClient, state: State) ![2]c.DirectDependency.Binding {
+    const resources: c.DirectResourceClient = .{ .catalog = client };
+    var definitions: [2]R.Definition = undefined;
+    for (state.bindings, &definitions) |binding, *definition| {
+        const known = (try resources.operation(binding, .inspect, 1)).operation;
+        try t.expectEqual(.complete, known.phase);
+        definition.* = known.resulting.?;
+    }
+    var result: [2]c.DirectDependency.Binding = undefined;
+    for (&result, 0..) |*binding, i| binding.* = .{
+        .definition = g.current_definition,
+        .connection = client.connection,
+        .operation = 83000 + i,
+        .action = .register,
+        .authority = .dependent,
+        .edge = .{ .source = try definitions[i].interpretation(client.allocator), .dependent = try definitions[1 - i].dependent(client.allocator), .privileges = c.TableAuthority.select },
+    };
+    return result;
+}
+fn dependency(client: c.DirectTableClient, binding: c.DirectDependency.Binding, command: c.DirectDependency.Command) !c.DirectDependency.Observation {
+    const response = try client.call(.{ .dependency_operation = .{ .binding = binding, .command = command } });
+    defer response.deinit();
+    return response.value.result.dependency_operation;
+}
+fn graph(client: c.DirectTableClient, selection: c.DirectDependency.Selection) !c.DirectDependency.Page {
+    const response = try client.call(.{ .dependencies = .{ .selection = selection, .cursor = null, .authority = .dependent } });
+    defer response.deinit();
+    return response.value.result.dependencies;
+}
+fn removal(registration: c.DirectDependency.Binding) c.DirectDependency.Binding {
+    var result = registration;
+    result.operation += 10;
+    result.action = .remove;
+    return result;
+}
+pub fn dependencyUncertain(client: c.DirectTableClient, state: State, remove: bool) !void {
+    for (state.dependencies.?) |binding| try t.expectError(error.InvalidTableResponse, dependency(client, if (remove) removal(binding) else binding, .accept));
+}
+pub fn dependencyRecover(client: c.DirectTableClient, admin: anytype, state: State) !void {
+    const resources: c.DirectResourceClient = .{ .catalog = client };
+    for (state.dependencies.?, 0..) |binding, i| {
+        const receipt = (try dependency(client, binding, .inspect)).outcome;
+        try t.expect(receipt.changed and receipt.phase == .applied);
+        try t.expectEqualDeep(receipt, (try dependency(client, binding, .accept)).outcome);
+        try t.expectEqualDeep(binding.edge, (try graph(client, .{ .dependents = binding.edge.source.object })).entries[0].?);
+        try t.expectEqualDeep(binding.edge, (try graph(client, .{ .dependencies = binding.edge.dependent.interpretation.object })).entries[0].?);
+        var drop = state.bindings[i];
+        drop.operation = 83100 + i;
+        drop.expected = binding.edge.source;
+        drop.action = .drop;
+        try t.expectEqual(.dependency, (try resources.preview(drop)).reason);
+        try t.expectEqual(.dependency, (try resources.operation(drop, .admit, 1)).operation.reason);
+        const definition = (try resources.operation(state.bindings[i], .inspect, 1)).operation.resulting.?;
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = definition.resource, .subject = 101, .permissions = 0 } });
+        var retry = binding;
+        retry.operation = 83200 + i;
+        try t.expectError(error.AccessDenied, dependency(client, retry, .accept));
+        try t.expectEqualDeep(binding.edge, (try graph(client, .{ .dependents = binding.edge.source.object })).entries[0].?);
+        try t.expectEqualDeep(receipt, (try dependency(client, binding, .inspect)).outcome);
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = definition.resource, .subject = 101, .permissions = p.State.all_permissions } });
+    }
+}
 pub fn verify(io: std.Io, client: c.DirectTableClient, admin: anytype, state: State) !void {
     const resources: c.DirectResourceClient = .{ .catalog = client };
+    for (state.dependencies.?) |binding| {
+        const closed = (try dependency(client, removal(binding), .inspect)).outcome;
+        try t.expect(closed.changed and closed.phase == .applied);
+        try t.expectEqualDeep(closed, (try dependency(client, removal(binding), .accept)).outcome);
+        try t.expect((try dependency(client, binding, .accept)).outcome.position.next_lsn < closed.position.next_lsn);
+        try t.expectEqual(null, (try graph(client, .{ .dependents = binding.edge.source.object })).entries[0]);
+        try t.expectEqual(null, (try graph(client, .{ .dependencies = binding.edge.dependent.interpretation.object })).entries[0]);
+    }
     for (state.bindings, 0..) |binding, i| {
         const original = (try resources.operation(binding, .inspect, 1)).operation;
         try t.expectEqual(.complete, original.phase);

@@ -1349,9 +1349,29 @@ fn hasDependents(self: *Self, object: u64) !bool {
 fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: bool) !p.Authorization.Guard {
     try object.validate();
     if (object.scope.realm != self.config().scope.realm or object.branch != 1) return error.CatalogDenied;
+    if (std.meta.eql(object.scope, self.config().scope)) {
+        const known = try self.namedRecord(object.object) orelse return error.CatalogDenied;
+        const value = known.resulting orelse return error.CatalogDenied;
+        return self.requirements(policy, try self.authorizationSchema(value.namespace), .{ .id = object.object, .schema = value.namespace, .authorization = value.authorization }, if (write) .alter else .inspect);
+    }
     var result = try self.requirements(policy, null, null, .database);
     result.requirements[1] = .{ .object = .{ .kind = .resource, .id = object.scope.resource }, .privileges = if (write) 4 else 1 };
     return result;
+}
+
+/// Resource declarations use their catalog metadata authority, never write
+/// access to the shared catalog's backing native resource. Registration may
+/// precede publication after allocation has fixed the exact interpretation.
+fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
+    const object = dependent.interpretation.object;
+    if (dependent.kind == .captured or dependent.kind == .maintained)
+        return !std.meta.eql(object.scope, self.config().scope);
+    if (!std.meta.eql(object.scope, self.config().scope)) return false;
+    const known = try self.namedRecord(object.object) orelse return false;
+    if ((known.phase != .allocated and known.phase != .complete) or known.retired) return false;
+    const value = known.resulting.?;
+    if ((dependent.kind == .kv) != (value.creation.spec == .kv)) return false;
+    return std.meta.eql(dependent.interpretation, try value.interpretation(self.allocator));
 }
 
 fn dependencyAdministration(self: *Self, policy: Policy) !p.Authorization.Guard {
@@ -1363,25 +1383,41 @@ fn dependencyAdministration(self: *Self, policy: Policy) !p.Authorization.Guard 
 fn dependencyOperationRequirements(self: *Self, policy: Policy, binding: Dependency.Binding, write: bool) !p.Authorization.Guard {
     if (binding.authority == .dependent) return self.dependentRequirements(policy, binding.edge.dependent.interpretation.object, write);
     var found = try self.dependencySource(binding.edge.source.object, policy, 0);
-    defer found.view.deinit();
     found.requirements.requirements[2].?.privileges = 0;
     found.requirements.requirements[2].?.access = .ownership;
     return (try self.dependencyAdministration(policy)).merge(found.requirements);
 }
 
-fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u64) !struct { view: View, requirements: p.Authorization.Guard } {
+const DependencySource = struct { interpretation: d.Definition, live: bool, requirements: p.Authorization.Guard };
+fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u64) !DependencySource {
     try object.validate();
     if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
     const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.resource) |at| {
+        const known = try self.store.resourceRecord(at);
+        const value = known.resulting orelse return error.CatalogDenied;
+        if (!std.meta.eql(value.object, object)) return error.InvalidDirectCatalogEntry;
+        // SELECT is the shared logical read requirement. It maps to native
+        // INSPECT/READ for named KV/Document data; row mutation masks are not
+        // meaningful for these source kinds and must not be reinterpreted.
+        if (privileges != 0 and privileges != a.select) return error.InvalidCatalogDependency;
+        var required = try self.requirements(policy, try self.authorizationSchema(value.namespace), .{ .id = object.object, .schema = value.namespace, .authorization = value.authorization }, .inspect);
+        if (privileges != 0) {
+            var native: p.Authorization.Guard = .{ .subject = policy.subject, .requirements = @splat(null) };
+            native.requirements[0] = .{ .object = .{ .kind = .resource, .id = value.resource }, .privileges = p.State.permission(.inspect) | p.State.permission(.read) };
+            required = try required.merge(native);
+        }
+        return .{ .interpretation = try value.interpretation(self.allocator), .live = known.phase == .complete and !known.retired, .requirements = required };
+    }
     if (target.seed == null) return error.CatalogDenied;
     var view = try self.open(self.allocator, target, false);
-    errdefer view.deinit();
+    defer view.deinit();
     var requested = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .inspect);
     if (privileges != 0) {
         requested.requirements[2].?.privileges = privileges;
         requested.requirements[2].?.access = .all;
     }
-    return .{ .view = view, .requirements = requested };
+    return .{ .interpretation = view.table.root.interpretation, .live = view.table.root.next_lsn != 0 and !view.table.root.retired, .requirements = requested };
 }
 
 fn dependencyEdge(self: *Self, edge: Dependency.Edge) !?pages.Value {
@@ -1415,13 +1451,11 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     }
     if (command == .inspect) return .not_observed;
     var requested = try self.dependencyOperationRequirements(policy, binding, true);
-    var source: ?View = null;
-    defer if (source) |*view| view.deinit();
+    var source: ?DependencySource = null;
     if (command == .accept and binding.action == .register) {
-        var found = try self.dependencySource(binding.edge.source.object, policy, binding.edge.privileges);
-        errdefer found.view.deinit();
+        const found = try self.dependencySource(binding.edge.source.object, policy, binding.edge.privileges);
         requested = try requested.merge(found.requirements);
-        source = found.view;
+        source = found;
     }
     const current = try policy.make_guard(policy.context, arena.allocator(), requested, null);
     try check(current);
@@ -1433,8 +1467,8 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
         .reason = .none,
         .changed = false,
     };
-    if (source) |*view| {
-        if (view.table.root.next_lsn == 0 or view.table.root.retired or !std.meta.eql(view.table.root.interpretation, binding.edge.source)) {
+    if (source) |value| {
+        if (!value.live or !std.meta.eql(value.interpretation, binding.edge.source) or !try self.dependentDefinition(binding.edge.dependent)) {
             outcome.phase = .rejected;
             outcome.reason = .stale_definition;
         } else if (try self.pending(binding.edge.source.object.object, current)) {
@@ -1476,8 +1510,7 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
     var requested: p.Authorization.Guard = undefined;
     switch (selection) {
         .dependents => |object| {
-            var found = try self.dependencySource(object, policy, 0);
-            defer found.view.deinit();
+            const found = try self.dependencySource(object, policy, 0);
             requested = found.requirements;
             prefix = try r.idKey(object.object);
         },
@@ -1521,8 +1554,7 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
         const extra = if (selection == .dependents)
             (if (authority == .dependent) try self.dependentRequirements(policy, edge.dependent.interpretation.object, false) else try self.dependencyAdministration(policy))
         else blk: {
-            var found = try self.dependencySource(edge.source.object, policy, 0);
-            defer found.view.deinit();
+            const found = try self.dependencySource(edge.source.object, policy, 0);
             break :blk found.requirements;
         };
         const combined = try requested.merge(extra);

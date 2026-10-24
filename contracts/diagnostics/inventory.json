@@ -3056,7 +3056,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 35,
+        "CatalogDenied": 38,
         "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
         "CatalogNameHashCollision": 1,
@@ -3074,9 +3074,9 @@
         "IbmHfpUnderflow": 1,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 2,
-        "InvalidCatalogDependency": 5,
+        "InvalidCatalogDependency": 6,
         "InvalidDirectCatalogCompletion": 1,
-        "InvalidDirectCatalogEntry": 8,
+        "InvalidDirectCatalogEntry": 9,
         "InvalidDirectCatalogName": 2,
         "InvalidDirectCatalogOperation": 20,
         "InvalidDirectCatalogTransition": 1,
@@ -3149,6 +3149,7 @@
         "dependencyOperationRequirements()": "<inferred>",
         "dependencyPage()": "<inferred>",
         "dependencySource()": "<inferred>",
+        "dependentDefinition()": "<inferred>",
         "dependentRequirements()": "<inferred>",
         "entry()": "<inferred>",
         "guard()": "<inferred>",
@@ -3221,7 +3222,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 631,
+        "try": 641,
         "catch": 7
       },
       "imports": [
@@ -3650,6 +3651,7 @@
         "Binding.requireSame()": "<inferred>",
         "Binding.validate()": "<inferred>",
         "Create.validate()": "<inferred>",
+        "Definition.dependent()": "<inferred>",
         "Definition.initial()": "<inferred>",
         "Definition.initialization()": "<inferred>",
         "Definition.interpretation()": "<inferred>",
@@ -3662,7 +3664,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 33,
+        "try": 34,
         "catch": 0
       },
       "imports": [
@@ -13180,7 +13182,7 @@
           "deadline"
         ],
         "Definition": [
-          "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf"
+          "@\"77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde\""
         ],
         "Effect.phase": [
           "pending",

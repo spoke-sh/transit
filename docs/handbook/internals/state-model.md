@@ -84,6 +84,20 @@ caller's current rights, and reads check them again after buffering. A completed
 catalog receipt remains historical publication evidence after later revocation,
 retirement or expiry.
 
+An explicit dependency edge binds exact source and consumer interpretations.
+For a named resource consumer, its allocated definition already fixes `I`, so
+registration can precede name publication without inventing a future resource ID.
+The catalog verifies its actual kind and definition and requires its metadata
+owner's authority. Requiring WRITE on the shared catalog backing resource would
+couple independent object owners and expose an unrelated authority; native data
+permissions would incorrectly make metadata cleanup depend on data availability.
+Source reads instead require their own current rights. Published named sources
+participate in the same paged forward/reverse graph and DROP restriction as Tables.
+Rename preserves old exact edges. Consumer retirement and edge removal remain
+separate explicit acceptances, so an interrupted cleanup leaves conservative
+DROP protection. These edges neither retain data cuts nor discover undeclared
+consumers, and computation publication still needs its own registration adapter.
+
 The implementation is in
 [DirectCatalog](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),
 [LocalCatalogPolicy](../../../apps/transit-node/LocalCatalogPolicy.zig) and
