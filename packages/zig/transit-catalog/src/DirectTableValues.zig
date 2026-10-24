@@ -164,6 +164,112 @@ pub const Reference = struct {
     }
 };
 
+pub const NameAssertion = struct {
+    definition: p.Growth.Definition,
+    connection: Connection,
+    operation: []const u8,
+    namespace: u64,
+    name: []const u8,
+    action: @FieldType(c.NameAssertion.Binding, "action"),
+    expected: ?Interpretation,
+    intent: []const u8,
+    pub fn native(self: NameAssertion) !c.NameAssertion.Binding {
+        const result: c.NameAssertion.Binding = .{ .definition = self.definition, .connection = try self.connection.native(), .operation = try v.unsigned(self.operation), .namespace = self.namespace, .name = try .init(self.name), .action = self.action, .expected = if (self.expected) |value| try value.native() else null, .intent = try v.digest(self.intent) };
+        try result.validate();
+        return result;
+    }
+    pub fn foreign(allocator: Allocator, value: c.NameAssertion.Binding) !NameAssertion {
+        try value.validate();
+        return .{ .definition = value.definition, .connection = try Connection.foreign(allocator, value.connection), .operation = try v.decimal(allocator, value.operation), .namespace = value.namespace, .name = try allocator.dupe(u8, value.name.slice()), .action = value.action, .expected = if (value.expected) |item| try Interpretation.foreign(allocator, item) else null, .intent = try v.hex(allocator, &value.intent) };
+    }
+};
+
+pub const Metadata = struct {
+    binding: PreparedBinding,
+    authorization: u64,
+    position: Position,
+    changed_lsn: []const u8,
+    row_count: []const u8,
+    schema: c.fuze.TableSchemaJson.Schema,
+    pub fn foreign(allocator: Allocator, connection: w.Connection, value: w.Definition) !Metadata {
+        var temporary = std.heap.ArenaAllocator.init(allocator);
+        defer temporary.deinit();
+        var schema = try c.fuze.TableSchema.decode(allocator, try value.schema.decode(temporary.allocator(), c.fuze.TableSchema.max_bytes));
+        defer schema.deinit();
+        if (schema.schema.object != value.interpretation.interpretation.object.object or !std.mem.eql(u8, &try schema.schema.fingerprint(), &value.interpretation.schema_fingerprint)) return error.InvalidTableResponse;
+        return .{ .binding = try PreparedBinding.foreign(allocator, try .init(connection, value)), .authorization = value.authorization, .position = try Position.foreign(allocator, value.position), .changed_lsn = try v.decimal(allocator, value.changed_lsn), .row_count = try v.decimal(allocator, value.row_count), .schema = try c.fuze.TableSchemaJson.foreignInto(allocator, schema.schema) };
+    }
+};
+
+pub const Evidence = struct {
+    binding: Binding,
+    resulting: Stored,
+    outcome: struct { position: Position, matched: []const u8, affected: []const u8, live_rows: []const u8 },
+    pub fn foreign(allocator: Allocator, value: c.storage.TablePartition.Evidence) !Evidence {
+        return .{ .binding = try Binding.foreign(allocator, value.binding), .resulting = try Stored.foreign(allocator, value.resulting), .outcome = .{ .position = try Position.foreign(allocator, value.outcome.position), .matched = try v.decimal(allocator, value.outcome.matched), .affected = try v.decimal(allocator, value.outcome.affected), .live_rows = try v.decimal(allocator, value.outcome.live_rows) } };
+    }
+};
+pub const DdlOperation = struct {
+    const Native = @FieldType(c.DirectCatalog.Observation, "admitted");
+    binding: Binding,
+    intent: Content,
+    phase: @FieldType(Native, "phase"),
+    reason: @FieldType(Native, "reason"),
+    pub fn foreign(allocator: Allocator, value: Native) !DdlOperation {
+        return .{ .binding = try Binding.foreign(allocator, value.binding), .intent = try Content.foreign(allocator, value.intent), .phase = value.phase, .reason = value.reason };
+    }
+};
+pub const RowOperation = struct {
+    const Native = c.storage.TablePartition.Operation;
+    binding: Binding,
+    intent: Content,
+    basis: struct { interpretation: Interpretation, position: Position, changed_lsn: []const u8 },
+    phase: @FieldType(Native, "phase"),
+    reason: @FieldType(Native, "reason"),
+    pub fn foreign(allocator: Allocator, value: Native) !RowOperation {
+        try value.validate();
+        return .{ .binding = try Binding.foreign(allocator, value.binding), .intent = try Content.foreign(allocator, value.intent), .basis = .{ .interpretation = try Interpretation.foreign(allocator, value.basis.interpretation), .position = try Position.foreign(allocator, value.basis.position), .changed_lsn = try v.decimal(allocator, value.basis.changed_lsn) }, .phase = value.phase, .reason = value.reason };
+    }
+};
+pub const AssertionOutcome = struct {
+    binding: NameAssertion,
+    position: Position,
+    state: @FieldType(c.NameAssertion.Outcome, "state"),
+    reason: @FieldType(c.NameAssertion.Outcome, "reason"),
+    pub fn foreign(allocator: Allocator, value: c.NameAssertion.Outcome) !AssertionOutcome {
+        try value.validate();
+        return .{ .binding = try NameAssertion.foreign(allocator, value.binding), .position = try Position.foreign(allocator, value.position), .state = value.state, .reason = value.reason };
+    }
+};
+pub const DdlState = union(enum) { not_observed, admitted: DdlOperation, rejected: DdlOperation, cancelled: DdlOperation, committed: Evidence };
+pub const RowState = union(enum) { not_observed, admitted: RowOperation, rejected: RowOperation, cancelled: RowOperation, committed: Evidence };
+pub const AssertionState = union(enum) { not_observed, outcome: AssertionOutcome };
+pub const Observation = union(enum) {
+    ddl: DdlState,
+    rows: RowState,
+    name_assertion: AssertionState,
+    /// The shared client validates the exact response binding before projection.
+    pub fn foreign(allocator: Allocator, value: w.Result) !Observation {
+        return switch (value) {
+            .ddl => |state| .{ .ddl = switch (state) {
+                .not_observed => .not_observed,
+                inline .admitted, .rejected, .cancelled => |item, tag| @unionInit(DdlState, @tagName(tag), try DdlOperation.foreign(allocator, item)),
+                .committed => |item| .{ .committed = try Evidence.foreign(allocator, item) },
+            } },
+            .rows => |state| .{ .rows = switch (state) {
+                .not_observed => .not_observed,
+                inline .admitted, .rejected, .cancelled => |item, tag| @unionInit(RowState, @tagName(tag), try RowOperation.foreign(allocator, item)),
+                .committed => |item| .{ .committed = try Evidence.foreign(allocator, item) },
+            } },
+            .name_assertion => |state| .{ .name_assertion = switch (state) {
+                .not_observed => .not_observed,
+                .outcome => |item| .{ .outcome = try AssertionOutcome.foreign(allocator, item) },
+            } },
+            else => error.InvalidTableResponse,
+        };
+    }
+};
+
 test "direct host references preserve full-width identities and reject missing compatibility" {
     const t = std.testing;
     var arena = std.heap.ArenaAllocator.init(t.allocator);

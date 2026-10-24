@@ -1,5 +1,28 @@
 # Validation and evidence
 
+## Shared direct caller session — 2026-10-24
+
+`just test::direct-table-service` passes **1150 typed HTTP calls** in the pinned
+ReleaseSafe profile under current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`.
+The new host session sequence compiles CREATE with independent operation/object
+IDs, saves and restores it after destroying its original session, stages without
+admission, admits and executes it, and decodes its metadata. Conditional CREATE
+returns the owning unchanged name outcome; conditional execute rejects. INSERT
+returns the exact committed matched/affected counts. After source DROP and local
+forgetting, the original reference still recovers the identical CREATE receipt.
+Existing SQL, DDL, retained history, current revocation, lost replies and three
+node-restart schedules also pass.
+
+The `direct host session` package test passes inert loading against an unreachable
+endpoint, failed output allocation without replacing the prior intent, wrong
+namespace/caller rejection and explicit local forgetting. Reflected host action,
+result and saved-work contracts pass independent Python validation; diagnostics,
+formatting and documentation links pass. This qualifies the shared caller's
+lookup, SQL compilation and explicit recovery path. Typed declaration/batch
+preparation, preview, SDK/ABI wiring and the final integrated/clean-checkout gates
+remain separate work.
+
 ## Lossless direct caller references — 2026-10-24
 
 The catalog package's `direct host references` tests pass full-width unsigned

@@ -37,6 +37,17 @@ The [host value contract](../../../../contracts/DIRECT_TABLE_V1.md) and generate
 schemas define these representations. General Table SDK/ABI dispatch still
 requires migration to the direct caller.
 
+`DirectTableBridge.Session` uses those values for SQL compilation and explicit
+saved-work recovery. Serialize access to the handle and persist the returned
+saved work before staging, then persist the complete reference before admission.
+Loading and forgetting perform no I/O; destruction does not cancel remote work.
+Inspection, execution and cancellation take the full reference and work after the
+local intent is forgotten. Output states and counts come from the direct owner.
+An uncertain response requires observation of that original reference. The
+shared caller currently supports lookup, unparameterized DDL/DML compilation and
+those recovery operations. Typed declaration/batch preparation, preview and
+general SDK/ABI dispatch require further integration.
+
 The `observe` action reads an exact current interpretation and optionally its
 first bounded row page. It returns definition, data position, row count and
 checked native authority references together. It requires current SELECT even

@@ -89,6 +89,48 @@ pub fn recover(allocator: std.mem.Allocator, client: c.DirectTableClient, state:
     try mutate(client, try bind(allocator, client, "DROP TABLE IF EXISTS conditional_created", 508));
     try verify(client, state.*);
     try sharedPreparation(allocator, client);
+    try sharedHost(allocator, client);
+}
+
+fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
+    const Host = c.DirectTableBridge;
+    var output = std.heap.ArenaAllocator.init(allocator);
+    defer output.deinit();
+    var original: Host.Session = .{ .allocator = allocator };
+    const compiled = (try original.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "513", .create_object = "1513", .sql = "CREATE TABLE host_prepared (id BIGINT PRIMARY KEY)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
+    const saved = try c.protocol.Json.valueAlloc(output.allocator(), Host.Action{ .load = compiled.saved });
+    original.deinit();
+    const loaded = try Host.parse(output.allocator(), saved);
+    defer loaded.deinit();
+    var recovered: Host.Session = .{ .allocator = allocator };
+    defer recovered.deinit();
+    const summary = (try recovered.apply(&output, client, loaded.value, null)).loaded;
+    try t.expectEqualDeep(compiled.summary, summary);
+    const reference = (try recovered.apply(&output, client, .{ .stage = summary.id }, null)).staged;
+    try t.expect((try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .inspect, .steps = 1 } }, null)).observation.ddl == .not_observed);
+    _ = try recovered.apply(&output, client, .{ .admit = reference }, null);
+    const accepted = (try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .execute, .steps = 32 } }, null)).observation;
+    try t.expect(accepted.ddl == .committed);
+    const metadata = (try recovered.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = "host_prepared" } }, null)).metadata.?;
+    try t.expectEqualStrings("1513", metadata.binding.interpretation.interpretation.object.object);
+    try t.expectEqualStrings("0", metadata.row_count);
+    const conditional = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "514", .create_object = "1514", .sql = "CREATE TABLE IF NOT EXISTS host_prepared (ignored TEXT)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
+    const condition = (try recovered.apply(&output, client, .{ .stage = conditional.summary.id }, null)).staged;
+    const unchanged = (try recovered.apply(&output, client, .{ .admit = condition }, null)).observation;
+    try t.expectEqual(.unchanged, unchanged.name_assertion.outcome.state);
+    try t.expectError(error.InvalidCatalogAssertion, recovered.apply(&output, client, .{ .operation = .{ .reference = condition, .command = .execute, .steps = 1 } }, null));
+    const insert = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "515", .create_object = null, .sql = "INSERT INTO host_prepared (id) VALUES (7)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
+    const inserted = (try recovered.apply(&output, client, .{ .stage = insert.summary.id }, null)).staged;
+    _ = try recovered.apply(&output, client, .{ .admit = inserted }, null);
+    const rows = (try recovered.apply(&output, client, .{ .operation = .{ .reference = inserted, .command = .execute, .steps = 32 } }, null)).observation.rows.committed;
+    try t.expectEqualStrings("1", rows.outcome.matched);
+    try t.expectEqualStrings("1", rows.outcome.affected);
+    try mutate(client, try bind(allocator, client, "DROP TABLE host_prepared", 516));
+    try t.expectEqualDeep(accepted, (try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .inspect, .steps = 1 } }, null)).observation);
+    _ = try recovered.apply(&output, client, .{ .forget = insert.summary.id }, null);
+    try t.expect(recovered.active == null);
+    // Recovery is independent of the ephemeral handle and keeps the same receipt.
+    try t.expectEqualDeep(accepted, (try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .inspect, .steps = 1 } }, null)).observation);
 }
 
 fn sharedPreparation(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {

@@ -530,6 +530,29 @@ Conversion checks the original owning types and rejects changed interpretation
 commitments. It does not resolve names, acquire rights or admit work. These value
 contracts do not themselves expose a catalog ABI or migrate a language SDK.
 
+`DirectTableBridge.Session` owns one loaded intent for serialized host calls.
+Its reflected `HostAction`, `HostResult` and `HostSaved` schemas define lookup,
+SQL compilation, loading, forgetting, staging, admission and operation control.
+Compilation uses the shared DDL/DML preparation owners, explicit operation and
+CREATE object identities, the selected dialect and point/bulk ingestion. This
+compile action takes no SQL parameter values. A saved Table value carries the
+current definition, namespace and lowercase hex of the complete `TDI1` bytes;
+a conditional name assertion carries its complete binding.
+
+Loading performs no I/O and does not replace an existing loaded intent until
+validation and output allocation succeed. Staging a Table returns its exact
+direct reference; staging a conditional assertion only returns its binding.
+Admission is separate. Inspection, bounded execution and cancellation accept the
+complete recovery reference independently of the ephemeral session handle.
+Conditional assertions have no execution phase: their execute request rejects.
+Results retain the owning DDL/row/assertion state and reason; committed Table
+outcomes include the exact resulting interpretation, position and decimal counts.
+Transport or output-allocation failure can follow acceptance. Persist the saved
+work and reference before dispatch; this bridge never recompiles or retries work
+implicitly. Forgetting and session destruction release only local memory.
+This shared caller implementation is not yet connected to the general catalog
+ABI or language SDK entry points.
+
 Saved intents start with `TDI1`, the 32-byte current definition, then canonical
 JSON of mandatory `definition`, `connection` and `work` fields in that order.
 `work` is exactly one of `ddl`, `rows` or `statement`, carrying the corresponding
