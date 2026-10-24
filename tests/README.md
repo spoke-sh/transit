@@ -1,5 +1,19 @@
 # Validation and evidence
 
+## History search starts from the draft — 2026-10-24
+
+`nix develop --command just check` passes, including the complete PTY suite,
+native/CLI diagnostics, frontend checks and documentation build. A focused PTY
+regression fails on the preceding implementation because Ctrl-R opens an empty
+filter after `CREATE TABLE`.
+
+The passing schedules use the full draft even with the cursor at its start,
+immediately preview the newest match, and retain the filter when finding older
+matches and skipping duplicates. SQL, dot-command and multiline filters preserve
+the original draft and cursor for Ctrl-G and acceptance undo. Ctrl-U and query
+undo operate on the filter. No-match handling and entry from a completion menu
+leave persisted history unchanged and issue no SQL or assistance requests.
+
 ## Console keyword continuation and unique insertion — 2026-10-24
 
 `nix develop --command just check` passes, including native units, all CLI

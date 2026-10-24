@@ -193,6 +193,8 @@ authorization before insertion. Acceptance adds missing token separators, so
 `SHOW` plus `ALL` becomes `SHOW ALL`, while preserving existing whitespace and
 punctuation. The completion and any added separator undo together. Acceptance
 never executes a statement.
+Ctrl-R uses the whole current draft as its history filter and previews the newest
+match; press it again for older matches or Ctrl-U to clear the filter.
 Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
 the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,
 completion and clearing. Up/Down moves between multiline rows before browsing

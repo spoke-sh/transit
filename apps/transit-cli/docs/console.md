@@ -254,7 +254,7 @@ Bracketed paste preserves newlines, normalizes CRLF and never submits.
 | Enter | Submit or insert newline | Accept current selection; wait during refresh, or dismiss if no list is visible | Accept match for editing |
 | Up/Down | Move rows, then browse history | Select previous/next item | Select older/newer match |
 | Shift-Tab | Open suggestions without insertion | Select previous item | No action |
-| Ctrl-R | Begin an empty search | Begin an empty search | Find older match |
+| Ctrl-R | Search using the current draft | Search using the current draft | Find older match |
 | Esc / Ctrl-C | Clear draft | Clear draft and suggestions | Clear search and original draft |
 | Ctrl-G | Keep draft | Dismiss suggestions | Restore original draft and cursor |
 | Ctrl-Z / Ctrl-_ | Undo | Undo and close suggestions | Undo query editing |
@@ -307,6 +307,10 @@ Unsupported context, literal/comment context, no matches and unavailable
 service have separate messages. Completion never samples row values or executes
 SQL. Enter/Tab acceptance consumes that key; execution requires another Enter.
 
+Ctrl-R seeds the history filter with the whole current draft, including multiline
+content, and immediately previews the newest match. An empty draft opens an empty
+filter. Further Ctrl-R presses find older matches using the same filter; Ctrl-U
+clears the filter without changing the saved draft.
 History search matches literal substrings with ASCII case folding and collapsed
 whitespace runs, so a single-line query can match multiline SQL. Previews retain
 original spelling and newlines. Navigation skips duplicate text. Ctrl-G restores

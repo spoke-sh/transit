@@ -45,13 +45,13 @@ def check(binary):
             draft([''])
             terminal.send('original')
             draft(['original'])
-            terminal.send('\x12old')
+            terminal.send('\x12\x15old')
             terminal.expect('>\r\n.old')
             terminal.send('\x1a')
             terminal.expect('search  >')
             terminal.send('\x07')
             draft(['original'])
-            terminal.send('\x12old')
+            terminal.send('\x12\x15old')
             terminal.expect('>\r\n.old')
             terminal.send('\x1b')
             draft([''])
@@ -138,6 +138,7 @@ def check(binary):
             assert all(action in ('hello', 'open', 'touch') for action, _ in actions), actions
         finally:
             terminal.close()
+    seeded_search(binary)
     delayed(binary)
     responsive(binary)
     spacing(binary)
@@ -145,6 +146,68 @@ def check(binary):
     session_loss(binary)
     execution_escape(binary)
     print('Console editing: general undo, clear/dismiss, search isolation/deduplication, vertical movement, literal paste, escape decoding and local completion passed.')
+
+
+def seeded_search(binary):
+    older = 'CREATE TABLE older (id INT64);'
+    newer = 'CREATE TABLE newer (id INT64);'
+    records = [older, 'SELECT *\nFROM items;', '.tables', newer, newer]
+    with tempfile.TemporaryDirectory(prefix='transit-seeded-search-') as directory, peer() as (endpoint, actions):
+        root = Path(directory)
+        config = root / 'connection.json'
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+        history = root / '.transit_history'
+        history.write_text(''.join(json.dumps(text) + '\n' for text in records))
+        saved = history.read_bytes()
+        terminal = Terminal(binary, config, home=root)
+        terminal.display = Screen()
+        terminal.display.feed(terminal.screen)
+        def draft(text, at_start=False):
+            lines = text.split('\n')
+            rows = [('transit> ' if index == 0 else '    ...> ') + line for index, line in enumerate(lines)]
+            expect_draft(terminal, [row.rstrip() for row in rows], (0, 9) if at_start else (len(lines)-1, 9+len(lines[-1])))
+        try:
+            for seed, match in (('CREATE TABLE', newer), ('.tab', '.tables'), ('select *\nfrom', 'SELECT *\nFROM items;')):
+                terminal.send('\x1b[200~' + seed + '\x1b[201~\x01')
+                draft(seed, at_start=True)
+                terminal.send('\x12')
+                terminal.expect('search ' + seed.replace('\n', '\\n') + ' >\r\n' + match.replace('\n', '\r\n'))
+                if seed == 'CREATE TABLE':
+                    terminal.send('\x12')
+                    terminal.expect('>\r\n' + older)  # same filter, duplicate newer entry skipped
+                    terminal.send('\x15')
+                    terminal.expect('search  >\r\n' + newer)
+                    terminal.send('\x1a')
+                    terminal.expect('search CREATE TABLE >\r\n' + newer)
+                terminal.send('\x07')
+                draft(seed, at_start=True)
+                terminal.send('\x12\t')
+                draft(match)
+                terminal.send('\x1a')
+                draft(seed, at_start=True)
+                terminal.send('\x1b')
+                draft('')
+            terminal.send('absent draft\x12')
+            terminal.expect('search absent draft >\r\n(no match)')
+            terminal.send('\r')
+            terminal.expect('(no match)')
+            terminal.send('\x1b')
+            draft('')
+            terminal.send('\x1a')
+            draft('absent draft')
+            terminal.send('\x1b')
+            draft('')
+            terminal.send('.t\t')
+            terminal.expect('> .tables')
+            terminal.send('\x12')
+            terminal.expect('search .t >\r\n.tables')
+            terminal.send('\x07')
+            draft('.t')
+            assert history.read_bytes() == saved, 'search edited persisted history'
+            assert all(action in ('hello', 'open', 'touch') for action, _ in actions), actions
+        finally:
+            terminal.close()
+    print('Console history seeding: draft filters, immediate/older matches, full multiline content, cursor restore, query undo, acceptance undo, no match and completion-menu entry passed.')
 
 
 def delayed(binary):

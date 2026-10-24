@@ -256,7 +256,10 @@ Ctrl-Z, Ctrl-_ and Ctrl-X Ctrl-U undo draft/query edits, including clearing.
 The combined volatile journal retains 128 groups and 256 KiB of snapshot bytes;
 submission resets it and access loss erases protected copies. Search folds ASCII
 case and whitespace runs and skips duplicate command text, preserving original
-bytes for preview and insertion. Incomplete Enter inserts at the cursor.
+bytes for preview and insertion. Entering search copies the entire current draft
+into the filter and previews its newest match; an empty draft opens an empty
+filter. Repeated Ctrl-R searches older matches. Ctrl-U clears the filter, and
+Ctrl-G restores the saved draft and cursor. Incomplete Enter inserts at the cursor.
 Draft newlines render as separate rows with continuation text aligned after the
 primary prompt. Long lines wrap within the display width, and a bounded viewport
 keeps the cursor visible when a draft exceeds the terminal height. Clearing or

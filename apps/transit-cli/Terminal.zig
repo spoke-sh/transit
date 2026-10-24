@@ -310,10 +310,12 @@ const Editor = struct {
             self.journal.boundary();
             self.saveDraft();
             self.searching = true;
-            self.search_length = 0;
+            @memcpy(self.search[0..self.length], self.text());
+            self.search_length = self.length;
             self.search_failed = false;
             self.history_position = null;
             self.changed();
+            if (self.search_length > 0) try self.searchHistory(false);
             return;
         }
         try self.searchHistory(true);
