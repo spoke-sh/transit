@@ -4064,6 +4064,44 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableValues.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Binding.foreign()": "<inferred>",
+        "Binding.native()": "<inferred>",
+        "Connection.foreign()": "<inferred>",
+        "Connection.native()": "<inferred>",
+        "Content.foreign()": "<inferred>",
+        "Content.native()": "<inferred>",
+        "Interpretation.foreign()": "<inferred>",
+        "Interpretation.native()": "<inferred>",
+        "Object.foreign()": "<inferred>",
+        "Object.native()": "<inferred>",
+        "Operation.foreign()": "<inferred>",
+        "Operation.native()": "<inferred>",
+        "Position.foreign()": "<inferred>",
+        "Position.native()": "<inferred>",
+        "PreparedBinding.foreign()": "<inferred>",
+        "PreparedBinding.native()": "<inferred>",
+        "Reference.foreign()": "<inferred>",
+        "Reference.native()": "<inferred>",
+        "Stored.foreign()": "<inferred>",
+        "Stored.native()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 76,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Inspection.zig": {
       "errors": {
         "InvalidCatalogPage": 3
@@ -5563,7 +5601,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -5600,6 +5638,7 @@
         "DirectTablePreparedDml.zig",
         "DirectTableProtocol.zig",
         "DirectTableReader.zig",
+        "DirectTableValues.zig",
         "Inspection.zig",
         "Model.zig",
         "NameAssertion.zig",

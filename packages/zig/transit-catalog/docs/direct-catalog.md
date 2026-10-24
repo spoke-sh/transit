@@ -28,6 +28,15 @@ definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route.
 
+`DirectTableValues` converts exact prepared bindings and saved-intent references
+to host values without rounding full-width storage identities. Those identities
+use decimal strings and commitments use lowercase hex. Conversion performs no
+I/O and validates the corresponding direct owner type. Allocate foreign values
+in a request arena; returned strings and partial allocations belong to it.
+The [host value contract](../../../../contracts/DIRECT_TABLE_V1.md) and generated
+schemas define these representations. General Table SDK/ABI dispatch still
+requires migration to the direct caller.
+
 The `observe` action reads an exact current interpretation and optionally its
 first bounded row page. It returns definition, data position, row count and
 checked native authority references together. It requires current SELECT even

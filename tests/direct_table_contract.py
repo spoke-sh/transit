@@ -217,4 +217,38 @@ for field in ("definition", "connection", "work"):
 saved_bytes = b"TDI1" + bytes.fromhex(definition) + canonical(saved)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-intent-v1.json",
         (json.dumps({"saved": saved, "base64": base64.b64encode(saved_bytes).decode()}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Host references keep full-width storage identities in canonical decimal text.
+# Native authorization identities remain bounded JSON integers.
+native_reference = {
+    "definition": definition, "connection": request_input["connection"],
+    "namespace": 1, "binding": binding,
+    "content": {"bytes": len(saved_bytes), "sha256": list(hashlib.sha256(saved_bytes).digest())},
+}
+host_reference = copy.deepcopy(native_reference)
+host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
+host_reference["connection"]["branch"] = "1"
+host_binding = host_reference["binding"]
+host_binding["identity"]["scope"]["catalog"] = str(2**64 - 1)
+host_binding["identity"]["operation"] = str(2**64 - 1)
+for obj in (host_binding["target"], host_binding["expected_definition"]["object"]):
+    obj["scope"]["catalog"] = str(2**64 - 1)
+    obj["branch"] = str(obj["branch"])
+    obj["object"] = str(obj["object"])
+host_binding["expected_definition"]["revision"] = "2"
+host_binding["expected_definition"]["digest"] = bytes([3] * 32).hex()
+host_binding["expected_data"] = {"partition": "9", "next_lsn": "10"}
+host_binding["intent"] = intent_digest.hex()
+host_reference["content"] = {"bytes": str(len(saved_bytes)), "sha256": hashlib.sha256(saved_bytes).hexdigest()}
+host_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostReference"})
+host_validator.validate(host_reference)
+for field in ("definition", "connection", "binding", "content"):
+    invalid = copy.deepcopy(host_reference)
+    del invalid[field]
+    assert not host_validator.is_valid(invalid), field
+invalid = copy.deepcopy(host_reference)
+invalid["binding"]["identity"]["operation"] = 2**64 - 1
+assert not host_validator.is_valid(invalid)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-host-reference-v1.json",
+        (json.dumps({"native": native_reference, "host": host_reference}, ensure_ascii=False, indent=2) + "\n").encode())
 print("Direct Table: reflected envelopes, exact wide integers, mandatory proof/definition, independent signed request and saved intent passed.")

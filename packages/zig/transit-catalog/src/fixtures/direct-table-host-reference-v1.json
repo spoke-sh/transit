@@ -1,0 +1,221 @@
+{
+  "native": {
+    "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
+    "connection": {
+      "scope": {
+        "realm": 42,
+        "resource": 3,
+        "catalog": 18446744073709551615
+      },
+      "branch": 1,
+      "audience": 5,
+      "principal": 4,
+      "role": null
+    },
+    "namespace": 1,
+    "binding": {
+      "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
+      "identity": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": 18446744073709551615
+        },
+        "principal": 4,
+        "operation": 18446744073709551615
+      },
+      "target": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 7
+      },
+      "action": "drop",
+      "expected_definition": {
+        "object": {
+          "scope": {
+            "realm": 42,
+            "resource": 3,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 7
+        },
+        "revision": 2,
+        "digest": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "expected_data": {
+        "partition": 9,
+        "next_lsn": 10
+      },
+      "intent": [
+        143,
+        17,
+        70,
+        192,
+        245,
+        208,
+        7,
+        121,
+        15,
+        10,
+        94,
+        34,
+        70,
+        4,
+        130,
+        218,
+        119,
+        181,
+        215,
+        251,
+        231,
+        98,
+        140,
+        50,
+        174,
+        88,
+        69,
+        245,
+        220,
+        90,
+        38,
+        182
+      ],
+      "prerequisite": null
+    },
+    "content": {
+      "bytes": 1044,
+      "sha256": [
+        170,
+        45,
+        61,
+        140,
+        188,
+        104,
+        239,
+        70,
+        154,
+        49,
+        3,
+        78,
+        167,
+        205,
+        112,
+        18,
+        2,
+        162,
+        169,
+        139,
+        164,
+        58,
+        37,
+        51,
+        131,
+        204,
+        26,
+        202,
+        112,
+        171,
+        157,
+        111
+      ]
+    }
+  },
+  "host": {
+    "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
+    "connection": {
+      "scope": {
+        "realm": 42,
+        "resource": 3,
+        "catalog": "18446744073709551615"
+      },
+      "branch": "1",
+      "audience": 5,
+      "principal": 4,
+      "role": null
+    },
+    "namespace": 1,
+    "binding": {
+      "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
+      "identity": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": "18446744073709551615"
+        },
+        "principal": 4,
+        "operation": "18446744073709551615"
+      },
+      "target": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": "18446744073709551615"
+        },
+        "branch": "1",
+        "object": "7"
+      },
+      "action": "drop",
+      "expected_definition": {
+        "object": {
+          "scope": {
+            "realm": 42,
+            "resource": 3,
+            "catalog": "18446744073709551615"
+          },
+          "branch": "1",
+          "object": "7"
+        },
+        "revision": "2",
+        "digest": "0303030303030303030303030303030303030303030303030303030303030303"
+      },
+      "expected_data": {
+        "partition": "9",
+        "next_lsn": "10"
+      },
+      "intent": "8f1146c0f5d007790f0a5e22460482da77b5d7fbe7628c32ae5845f5dc5a26b6",
+      "prerequisite": null
+    },
+    "content": {
+      "bytes": "1044",
+      "sha256": "aa2d3d8cbc68ef469a31034ea7cd701202a2a98ba43a253383cc1aca70ab9d6f"
+    }
+  }
+}

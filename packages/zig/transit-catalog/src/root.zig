@@ -18,6 +18,7 @@ pub const DirectTableIntent = @import("DirectTableIntent.zig");
 pub const DirectTableIntentStore = @import("DirectTableIntentStore.zig");
 pub const DirectTablePreparedDml = @import("DirectTablePreparedDml.zig");
 pub const DirectTablePreparedDdl = @import("DirectTablePreparedDdl.zig");
+pub const DirectTableValues = @import("DirectTableValues.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
 pub const OperationBinding = @import("OperationBinding.zig");
 pub const NameAssertion = @import("NameAssertion.zig");
@@ -49,6 +50,7 @@ pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
 pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = DirectTableValues;
     _ = DirectTableProtocol;
     _ = DirectTableIntent;
     _ = DirectTableReader;

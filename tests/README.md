@@ -1,5 +1,28 @@
 # Validation and evidence
 
+## Lossless direct caller references — 2026-10-24
+
+The catalog package's `direct host references` tests pass full-width unsigned
+catalog, object, operation, definition-revision and LSN conversion, owned JSON
+restoration after the source arena is released, malformed decimal rejection,
+missing compatibility rejection and mismatched interpretation-content rejection.
+`just contract::direct-table-generate` generates the host reference/preparation
+schemas from their Zig owners and checks an independent Python fixture against
+the exact canonical saved intent and its SHA-256 content commitment. The fixture
+contains operation/catalog identity `18446744073709551615`; host schemas reject
+a numeric operation and missing required identity fields. Zig reconstructs the
+original native reference from that independent fixture.
+
+The complete catalog package tests, generated direct-contract drift check,
+diagnostic mappings/inventory, Zig formatting and documentation links pass in
+the pinned Nix shell. This does not replace the final integrated repository and
+clean-checkout checks.
+
+This adds value contracts under the existing current-v1 definition; native
+requests and stored formats are unchanged. It is prerequisite evidence for
+general Table SDK/ABI migration, not proof that those callers already dispatch
+through the direct owner.
+
 ## Shared direct Table DDL preparation — 2026-10-24
 
 Under current-v1 definition
