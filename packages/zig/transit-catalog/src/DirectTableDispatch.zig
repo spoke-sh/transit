@@ -125,6 +125,22 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .observation = .{ .definition = try encodeDefinition(allocator, &current.view), .authority = current.authority, .page = page } };
         },
+        .read_current => |value| {
+            var found = try catalog.readCurrent(allocator, value, policy);
+            defer found.deinit();
+            const declared = found.current.view.table.declaration.schema.schema;
+            const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+            defer allocator.free(scratch);
+            const selection: @FieldType(w.CurrentReadResult, "selection") = switch (found.selection) {
+                .key => |maybe| .{ .key = if (maybe) |row| try w.Binary.encode(allocator, try row.row().encode(declared, scratch)) else null },
+                .rows => |page| blk: {
+                    const rows = try allocator.alloc(w.Binary, page.count);
+                    for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(declared, scratch));
+                    break :blk .{ .rows = .{ .rows = rows, .encoded_bytes = page.encoded_bytes, .next = if (page.next) |next| try c.fuze.TableRow.Identity.decode(&next) else null } };
+                },
+            };
+            return .{ .current_read = .{ .definition = try encodeDefinition(allocator, &found.current.view), .authority = found.current.authority, .selection = selection } };
+        },
         .list => |value| {
             var bytes: [8]u8 = undefined;
             const after = if (value.after) |id| blk: {

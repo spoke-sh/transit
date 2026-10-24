@@ -162,6 +162,48 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## Optimistic current Table reads — 2026-10-23
+
+The current shared definition is
+`dec0151b4f9d664f75113d65fd43b3ba9a47f07ffb28fdda7e4b91b3d369bb60`;
+the preceding namespace definition rejects. `read_current` supplies a point
+lookup or bounded ordered suffix under an exact definition and original logical
+data basis. Generated schemas, binding resources and signing fixtures use this
+definition, including an independent Python/OpenSSL full-width seek request.
+
+In the pinned Nix shell, the storage package's
+`zig build test -Doptimize=ReleaseSafe -Dtest-filter="current Table" --summary all`
+passes **4/4** tests. The added schedules traverse 33 mixed WAL/segment rows with
+a one-page resident cache and disk reopen between pages, preserving order through
+no-op acceptance, pin/release and flush. They check row ownership after owner
+destruction, invalid/future/wrong-partition bases, invalid seeks, byte limits,
+logical-change rejection, DROP and authorization failure after buffering a hit,
+absence, rows or an empty suffix. Reads preserve log roots and object put counts.
+This is focused storage evidence; the earlier full storage and catalog attempts
+were stopped before the final definition/fixtures and are not counted as passed.
+
+`zig build test-local-catalog --summary all` passes **2/2** Debug tests. Its new
+signed native cases recheck current Table ownership after complete response
+buffering for a hit, absence, a row page and an empty suffix, and reject retained
+delegation used for a current read. The existing CRUD, history, namespace and
+original-input prerequisite schedules also pass. The protocol package passes
+**51/51** ReleaseSafe tests, including rejection of the replaced definition.
+`just contract::check transit-board::contract` passes after regeneration.
+
+The catalog package passes **132/132** ReleaseSafe tests. New response checks
+reject stale logical bases, wrong definitions/partitions, mismatched point keys,
+repeated identities, forged continuations and invalid counts/byte budgets.
+`just test::direct-table-service` passes **627** typed HTTP calls, including a
+64 KiB current point read, ordered continuation, empty suffix, stale-basis
+rejection and current revocation/restoration after node restart. The existing
+CRUD/DDL, namespace, history, delegation, lost-reply and three-restart schedules
+also pass. Diagnostic inventory/mappings and `just transit-docs::check` pass,
+including **9** documentation tests and the static site build.
+
+These reads do not migrate Work items, retain a source after mutation, establish
+cross-Table atomic reads or qualify distributed locking and physical collection.
+Full `just check` and committed-HEAD `just ci-clean` remain outstanding.
+
 ## Shared direct action dispatch — 2026-10-23
 
 The typed Table/namespace dispatch now resides in `transit-catalog`, while the

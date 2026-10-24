@@ -56,7 +56,7 @@ fn exclusive(action: w.Action) bool {
 fn target(action: w.Action) ?u64 {
     return switch (action) {
         .check => |value| if (value.target) |expected| expected.object.object else null,
-        .observe => |value| value.interpretation.object.object,
+        inline .observe, .read_current => |value| value.interpretation.object.object,
         .read_authority => |value| value.object,
         .stage => |value| value.intent.work.binding().target.object,
         .admit_saved => |value| value.binding.target.object,

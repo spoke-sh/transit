@@ -225,6 +225,14 @@ pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected:
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
 pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot };
+/// Read current data only while this exact definition and original logical
+/// basis remain valid. The seek key does not retain data or prove prior reads.
+pub const CurrentRead = struct {
+    namespace: u64,
+    interpretation: d.Definition,
+    expected: d.Position,
+    selection: union(enum) { key: Binary, rows: struct { after: ?f.TableRow.Identity, limits: P.ReadLimits } },
+};
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     initialize,
@@ -240,6 +248,7 @@ pub const Action = union(enum) {
     lookup: struct { namespace: u64, name: []const u8 },
     /// One read-only current observation; rows are optional and never resumable.
     observe: struct { namespace: u64, interpretation: d.Definition, rows: ?P.ReadLimits },
+    read_current: CurrentRead,
     read_authority: d.Object,
     name_assertion: struct { binding: c.NameAssertion.Binding, command: c.NameAssertion.Command },
     preview: Ddl,
@@ -371,6 +380,25 @@ pub const Request = struct {
                 try connection.object(value.interpretation.object);
                 if (value.rows) |limits| try limits.validate();
             },
+            .read_current => |value| {
+                try c.Model.nativeId(value.namespace);
+                try value.interpretation.validate();
+                try connection.object(value.interpretation.object);
+                try value.expected.validate();
+                if (value.expected.next_lsn == 0) return error.InvalidTableBasis;
+                switch (value.selection) {
+                    .key => |binary| {
+                        const key = try binary.decode(allocator, f.Collation.max_sort_key_bytes);
+                        defer allocator.free(key);
+                        if (key.len == 0) return error.InvalidTableKey;
+                    },
+                    .rows => |value_rows| {
+                        try value_rows.limits.validate();
+                        if (value_rows.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
+                        if (value_rows.after) |after| try after.validate();
+                    },
+                }
+            },
             .read_authority => |value| try connection.object(value),
             inline .preview, .admit_ddl => |value| {
                 try connection.binding(value.binding);
@@ -457,6 +485,17 @@ pub const CurrentPage = struct {
     more: bool,
 };
 pub const Current = struct { definition: Definition, authority: c.DirectReadAuthority, page: ?CurrentPage };
+pub const CurrentReadResult = struct {
+    pub const RowSuffix = struct {
+        pub const json_schema_sequence_bounds = .{ .rows = 8 };
+        rows: []const Binary,
+        encoded_bytes: u32,
+        next: ?f.TableRow.Identity,
+    };
+    definition: Definition,
+    authority: c.DirectReadAuthority,
+    selection: union(enum) { key: ?Binary, rows: RowSuffix },
+};
 pub const HistorySource = struct { point: P.HistoryPoint, source: Source };
 pub const HistoryEntry = struct { point: P.HistoryPoint, interpretation: c.storage.TableDeclaration.Stored, changed_lsn: u64, row_count: u64, receipt: P.HistoryReceipt };
 pub const HistoryPage = struct {
@@ -507,6 +546,7 @@ pub const Result = union(enum) {
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
     observation: Current,
+    current_read: CurrentReadResult,
     read_authority: c.DirectReadAuthority,
     name_assertion: c.NameAssertion.Observation,
     preview: D.Preview,

@@ -119,6 +119,17 @@ test "direct preview checks current expectations and schema work without claims 
         defer metadata_only.deinit();
         try t.expect(metadata_only.page == null);
         try t.expectEqualDeep(observed.view.table.root, metadata_only.view.table.root);
+        const read: c.DirectTableProtocol.CurrentRead = .{ .namespace = 1, .interpretation = view.table.root.interpretation, .expected = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, .selection = .{ .rows = .{ .after = null, .limits = .{} } } };
+        var empty = try catalog.readCurrent(t.allocator, read, access.policy());
+        defer empty.deinit();
+        try t.expectEqualDeep(view.table.root, empty.current.view.table.root);
+        try t.expectEqual(@as(u8, 0), empty.selection.rows.count);
+        var changed = read;
+        changed.interpretation.revision += 1;
+        try t.expectError(error.TableDefinitionChanged, catalog.readCurrent(t.allocator, changed, access.policy()));
+        changed = read;
+        changed.expected.next_lsn += 1;
+        try t.expectError(error.TableDataChanged, catalog.readCurrent(t.allocator, changed, access.policy()));
     }
     var stale_access = requested;
     stale_access.target.?.revision += 1;

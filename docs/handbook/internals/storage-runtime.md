@@ -50,6 +50,41 @@ reproduction commands. Those runs do not establish arbitrary power-loss safety,
 cloud storage placement or physical Table collection. Automatic point flushing,
 cache tiering and distributed OCC remain design work in the model below.
 
+### Optimistic current reads and retained cuts
+
+Can a caller read one row or traverse a stable Table without creating durable
+retention work? In the serialized local-owner model, `read_current` uses an
+optimistic logical-change fence. Let `e` be the caller's original exclusive
+accepted frontier, `a` the current frontier and `c` the most recent logical
+change frontier. A request requires the same partition, the exact original
+definition, and `c <= e <= a`. A no-op or physical publication advances `a`
+without advancing `c`; a row mutation advances both. Even changing a value back
+cannot make an older basis valid again. Definition equality separately prevents
+reinterpretation after schema or name changes.
+
+[`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+checks that condition before reading the current immutable root. Ordered suffixes
+use stable row identities and bounded row/byte budgets. The service's Table lock
+excludes publication during each call, while its final native authorization fence
+protects already-buffered rows, absence and completion metadata. Across calls,
+the unchanged original expectation detects logical drift; a caller must reject
+its incomplete prefix on failure rather than splice in a newer basis. Checking
+strict identity order and the original row count is necessary for a consumer
+claiming complete coverage. A supplied seek key alone does not establish that
+earlier rows were consumed.
+
+This trades read availability during mutation for avoiding durable pin acquisition
+and release. It suits conditional application reads and migrations whose source
+is expected to remain unchanged. Retained queries use explicit pins instead,
+because they need the original data after writes. Neither mechanism provides a
+cross-Table atomic cut. The
+[request contract](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
+and [`DirectTableResponse`](../../../packages/zig/transit-catalog/src/DirectTableResponse.zig)
+define wire attribution and consumer checks. The
+[scoped proof](../../../tests/README.md#optimistic-current-table-reads--2026-10-23)
+records disk-reopen, physical-progress, logical-drift and disclosure schedules;
+it does not establish distributed read locking or physical collection safety.
+
 ### Namespace retirement and retained authority
 
 Namespace retirement must exclude live or admitted Table declarations without

@@ -34,6 +34,18 @@ test "direct Table consumes independently signed Python OpenSSL request bytes" {
     try t.expectEqualSlices(u8, &parsed.value.binary.bytes, binary);
 }
 
+test "current Table read consumes an independent full-width signed seek request" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-current-read-v1.json"));
+    defer parsed.deinit();
+    try parsed.value.request.validate(t.allocator);
+    try parsed.value.request.proof.verify(parsed.value.public_key);
+    const after = parsed.value.request.action.read_current.selection.rows.after.?;
+    try t.expectEqual(std.math.maxInt(u64), after.origin);
+    try t.expectEqual(std.math.maxInt(u64) - 1, after.operation);
+    try t.expectEqual(std.math.maxInt(u32), after.ordinal);
+}
+
 test "direct Table request proof binds the complete typed action and current definition" {
     const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .lookup = .{ .namespace = 1, .name = "events" } } };
@@ -344,4 +356,84 @@ test "current observations reject wrong definitions invented coverage and altere
         }
         try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
     }
+}
+
+test "current suffix and point responses bind logical basis ordered seek and requested key" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const properties: c.DirectCatalog.Properties = .{ .namespace = 1, .authorization = 13, .name = try .init("events") };
+    var property_bytes: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
+    var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .revision = 1, .schema = schema, .properties = try properties.encode(&property_bytes) });
+    defer declaration.deinit();
+    const stored = try declaration.stored();
+    const scratch = try alloc.alloc(u8, c.fuze.TableRow.max_bytes);
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 2, .operation = 3, .ordinal = 1 }, .cells = &cells };
+    const bytes = try row.encode(schema, scratch);
+    const row_binary = try w.Binary.encode(alloc, bytes);
+    const row_len: u32 = @intCast(bytes.len);
+    const before: c.fuze.TableRow.Identity = .{ .origin = 2, .operation = 3, .ordinal = 0 };
+    const read: w.CurrentRead = .{ .namespace = 1, .interpretation = stored.interpretation, .expected = .{ .partition = 2, .next_lsn = 7 }, .selection = .{ .rows = .{ .after = before, .limits = .{ .rows = 2 } } } };
+    const request = try signedCurrentRead(alloc, connection, read);
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .current_read = .{
+        .definition = .{ .interpretation = stored, .namespace = 1, .authorization = 13, .name = properties.name, .position = .{ .partition = 2, .next_lsn = 8 }, .changed_lsn = 7, .row_count = 3, .schema = try w.Binary.encode(alloc, try schema.encode(scratch)) },
+        .authority = .{ .database = 11, .schema = 12, .table = 13 },
+        .selection = .{ .rows = .{ .rows = &.{row_binary}, .encoded_bytes = row_len, .next = row.identity } },
+    } } };
+    try c.DirectTableClient.validateResponse(alloc, request, response);
+    try t.expect(!request.transport().mutation and request.transport().control == null);
+    inline for (0..10) |case| {
+        var changed = response;
+        const found = &changed.result.current_read;
+        switch (case) {
+            0 => found.definition.interpretation.interpretation.revision += 1,
+            1 => found.definition.changed_lsn = 8,
+            2 => found.definition.position.next_lsn = 6,
+            3 => found.definition.position.partition += 1,
+            4 => found.authority.table += 1,
+            5 => found.selection.rows.encoded_bytes += 1,
+            6 => found.selection.rows.next.?.ordinal += 1,
+            7 => found.definition.row_count = 1,
+            8 => {
+                found.selection.rows.rows = &.{ row_binary, row_binary };
+                found.selection.rows.encoded_bytes = 2 * row_len;
+            },
+            9 => found.selection = .{ .key = row_binary },
+            else => unreachable,
+        }
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    }
+    var later = read;
+    later.selection.rows.after = row.identity;
+    const later_request = try signedCurrentRead(alloc, connection, later);
+    var repeated = response;
+    repeated.context = later_request.proof.claim.context;
+    repeated.subject.context = later_request.proof.claim.context;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, later_request, repeated));
+    repeated.result.current_read.selection.rows = .{ .rows = &.{}, .encoded_bytes = 0, .next = null };
+    try c.DirectTableClient.validateResponse(alloc, later_request, repeated);
+    // An empty suffix proves exhaustion at this seek, not prior coverage.
+    var point = read;
+    point.selection = .{ .key = try w.Binary.encode(alloc, try row.storageKey(schema, scratch)) };
+    const point_request = try signedCurrentRead(alloc, connection, point);
+    var point_response = response;
+    point_response.context = point_request.proof.claim.context;
+    point_response.subject.context = point_request.proof.claim.context;
+    point_response.result.current_read.selection = .{ .key = row_binary };
+    try c.DirectTableClient.validateResponse(alloc, point_request, point_response);
+    const wrong: c.fuze.TableRow.Row = .{ .identity = row.identity, .cells = &.{.{ .value = .{ .atom = .{ .signed = 43 } } }} };
+    point_response.result.current_read.selection.key = try w.Binary.encode(alloc, try wrong.encode(schema, scratch));
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, point_request, point_response));
+    point_response.result.current_read.selection.key = null;
+    try c.DirectTableClient.validateResponse(alloc, point_request, point_response);
+}
+
+fn signedCurrentRead(allocator: std.mem.Allocator, connection: w.Connection, read: w.CurrentRead) !w.Request {
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .read_current = read } };
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, allocator) }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    return .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
 }

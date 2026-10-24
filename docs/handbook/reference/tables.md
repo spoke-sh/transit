@@ -204,6 +204,18 @@ current authorization before disclosure. Durable query jobs separately retain
 their source and publish verified result segments. An initial result page is
 an incomplete prefix. Catalog schema caches retain no permission.
 
+Typed direct callers can also read current Table data without retaining a
+snapshot. `observe` returns metadata and an optional bounded first page.
+`read_current` performs a primary-key lookup or scans an ordered suffix under
+an exact definition and the original Table position. It rejects if logical data
+changes between pages; physical flushes and accepted no-ops do not invalidate
+that position. These reads require current CONNECT, USAGE and SELECT, including
+for absence and empty output. They create no retention pin. A complete scan
+requires uninterrupted traversal from the beginning and a verified row count;
+a failed page cannot be replaced with a newer source position. See the
+[direct read contract](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
+for budgets, cursor semantics and response checks.
+
 [Reactive watches](reactive.md) have an explicit two-INT64-column snapshot
 transport profile. Rich finite Table values do not widen that transport,
 continuous SQL, Flight SQL or future joins and grouping implicitly.

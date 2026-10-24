@@ -3135,6 +3135,7 @@
         "InvalidStorageBudget": 1,
         "InvalidTableAccessRequest": 1,
         "InvalidTableBasis": 1,
+        "InvalidTableKey": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 1,
         "Overflow": 1,
@@ -3146,6 +3147,10 @@
         "UnsupportedTableAction": 1
       },
       "outcomes": {
+        "CurrentRead.selection": [
+          "key",
+          "rows"
+        ],
         "Observation": [
           "not_observed",
           "admitted",
@@ -3215,6 +3220,7 @@
         "previewNamespace()": "<inferred>",
         "readAccess()": "<inferred>",
         "readAuthority()": "<inferred>",
+        "readCurrent()": "<inferred>",
         "readRow()": "<inferred>",
         "record()": "<inferred>",
         "recordNamespace()": "<inferred>",
@@ -3241,7 +3247,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 410,
+        "try": 416,
         "catch": 4
       },
       "imports": [
@@ -3603,7 +3609,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 98,
+        "try": 107,
         "catch": 0
       },
       "imports": [
@@ -3709,13 +3715,13 @@
         "InvalidCatalogCursor": 2,
         "InvalidCatalogStepBudget": 2,
         "InvalidDirectCatalogOperation": 1,
-        "InvalidTableBasis": 2,
+        "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
         "InvalidTableCursor": 2,
         "InvalidTableDelegation": 5,
-        "InvalidTableKey": 1,
-        "InvalidTableReadBudget": 4,
+        "InvalidTableKey": 2,
+        "InvalidTableReadBudget": 5,
         "TableBatchTooLarge": 1,
         "TablePayloadTooLarge": 6,
         "TableSchemaChanged": 2
@@ -3733,6 +3739,7 @@
           "list",
           "lookup",
           "observe",
+          "read_current",
           "read_authority",
           "name_assertion",
           "preview",
@@ -3772,6 +3779,14 @@
           "type",
           "physical"
         ],
+        "CurrentRead.selection": [
+          "key",
+          "rows"
+        ],
+        "CurrentReadResult.selection": [
+          "key",
+          "rows"
+        ],
         "Ddl.action": [
           "create",
           "alter",
@@ -3794,6 +3809,7 @@
           "list",
           "lookup",
           "observation",
+          "current_read",
           "read_authority",
           "name_assertion",
           "preview",
@@ -3844,7 +3860,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 105,
+        "try": 112,
         "catch": 2
       },
       "imports": [
@@ -3896,7 +3912,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 65
+        "InvalidTableResponse": 72
       },
       "outcomes": {},
       "error_sets": {},
@@ -3913,7 +3929,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 100,
+        "try": 116,
         "catch": 7
       },
       "imports": [
@@ -12973,7 +12989,7 @@
           "deadline"
         ],
         "Definition": [
-          "e8677230beea38e3f824c3413009a123a2386f7c6c7a1cfcaa7efe51e8486c78"
+          "dec0151b4f9d664f75113d65fd43b3ba9a47f07ffb28fdda7e4b91b3d369bb60"
         ],
         "Effect.phase": [
           "pending",
@@ -25582,25 +25598,25 @@
         "InvalidTableReceipt": 2,
         "InvalidTableRowReference": 16,
         "InvalidTableSegment": 2,
-        "InvalidTableSnapshotCursor": 2,
+        "InvalidTableSnapshotCursor": 3,
         "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
         "TableBatchTooLarge": 5,
-        "TableDataChanged": 5,
+        "TableDataChanged": 6,
         "TableDefinitionChanged": 4,
         "TableHistoryConflict": 1,
         "TableHistoryMissing": 7,
         "TableHistoryRetentionRequired": 1,
-        "TableKeyHashCollision": 3,
+        "TableKeyHashCollision": 4,
         "TableNotCreated": 2,
-        "TableNotFound": 1,
+        "TableNotFound": 2,
         "TableOperationTerminal": 1,
         "TableOperationsPending": 1,
         "TableReadBudgetTooSmall": 1,
         "TableRecoveryRequired": 1,
-        "TableRetired": 7,
+        "TableRetired": 8,
         "TableRowIdentityChanged": 2,
         "TableRowMissing": 2,
         "TableSchemaChanged": 2,
@@ -25640,6 +25656,7 @@
         "applyStatement()": "<inferred>",
         "cancel()": "<inferred>",
         "changeDefinition()": "<inferred>",
+        "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "flush()": "<inferred>",
         "get()": "<inferred>",
@@ -25666,6 +25683,7 @@
         "pin()": "<inferred>",
         "pinState()": "<inferred>",
         "publish()": "<inferred>",
+        "readCurrent()": "<inferred>",
         "readRow()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
         "readSegment()": "<inferred>",
@@ -25683,6 +25701,7 @@
         "retainedHistory()": "<inferred>",
         "rewrite()": "<inferred>",
         "scan()": "<inferred>",
+        "scanCurrent()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRetainedRoot()": "<inferred>",
         "scanRootRows()": "<inferred>",
@@ -25696,7 +25715,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 392,
+        "try": 406,
         "catch": 4
       },
       "imports": [

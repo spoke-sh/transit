@@ -153,12 +153,12 @@ pub const CurrentPage = struct {
         self.* = undefined;
     }
 };
-const RowPage = struct {
+pub const RowPage = struct {
     rows: [pages.page_entries]?OwnedRow = @splat(null),
     count: u8 = 0,
     encoded_bytes: u32 = 0,
     next: ?[f.TableRow.Identity.encoded_bytes]u8 = null,
-    fn deinit(self: *RowPage) void {
+    pub fn deinit(self: *RowPage) void {
         for (&self.rows) |*slot| if (slot.*) |*value| value.deinit();
         self.* = undefined;
     }
@@ -1563,6 +1563,52 @@ pub fn observeRows(self: *Self, allocator: std.mem.Allocator, limits: ReadLimits
         .encoded_bytes = page.encoded_bytes,
         .more = page.next != null,
     };
+}
+
+/// An optimistic read of current data. The position is a logical-change fence,
+/// not a retention pin: any intervening logical change rejects the read.
+/// Physical/control publications and accepted no-ops may advance the root.
+fn currentBasis(self: *Self, expected: d.Position, guard: Guard) !Root {
+    try self.ready();
+    try expected.validate();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    if (self.root.retired) return error.TableRetired;
+    if (self.root.next_lsn == 0) return error.TableNotFound;
+    if (expected.next_lsn == 0 or !expected.unchangedAt(.{ .partition = self.root.partition, .next_lsn = self.root.next_lsn }, self.root.changed_lsn)) return error.TableDataChanged;
+    return self.root;
+}
+
+pub fn readCurrent(self: *Self, allocator: std.mem.Allocator, expected: d.Position, key: []const u8, guard: Guard) !?OwnedRow {
+    const basis = try self.currentBasis(expected, guard);
+    const index_key = try r.rowKey(key);
+    var row: ?OwnedRow = if (try self.tree().get(basis.rows, index_key)) |value|
+        try self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, index_key, value)
+    else
+        null;
+    errdefer if (row) |*value| value.deinit();
+    if (row) |value| {
+        var actual: [f.Collation.max_sort_key_bytes]u8 = undefined;
+        if (!std.mem.eql(u8, key, try value.row().storageKey(self.declaration.schema.schema, &actual))) return error.TableKeyHashCollision;
+    }
+    // Absence and buffered rows both need current disclosure authority.
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return row;
+}
+
+/// Ordered suffix under the original logical-change fence. Calls must remain
+/// serialized by the owner. A cursor is only a seek key; complete coverage
+/// requires an unbroken traversal from null and the original total row count.
+pub fn scanCurrent(self: *Self, allocator: std.mem.Allocator, expected: d.Position, after: ?f.TableRow.Identity, limits: ReadLimits, guard: Guard) !RowPage {
+    try limits.validate();
+    const basis = try self.currentBasis(expected, guard);
+    const cursor: ?pages.Key = if (after) |identity| blk: {
+        const key = try pages.Key.init(&try identity.encode());
+        if (try self.tree().get(basis.identities, key) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key;
+    } else null;
+    return self.scanRootRows(allocator, basis, self.declaration.schema.schema, cursor, limits, guard);
 }
 
 fn scanRootRows(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, cursor: ?pages.Key, limits: ReadLimits, guard: Guard) !RowPage {
