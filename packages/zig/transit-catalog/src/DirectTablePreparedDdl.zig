@@ -115,7 +115,7 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTab
                 .alter => |alter| switch (alter.action) {
                     .columns => |change| {
                         ddl.binding.action = .alter;
-                        ddl.action = .{ .alter = try wireChange(a, change, self.schema.?.schema) };
+                        ddl.action = .{ .alter = try encodeChange(a, change, self.schema.?.schema) };
                     },
                     .rename_table => |name| {
                         ddl.binding.action = .rename;
@@ -140,7 +140,8 @@ fn wireCell(allocator: std.mem.Allocator, value: ?f.Types.Values.Cell, logical_t
     defer allocator.free(output);
     return try c.DirectTableProtocol.Binary.encode(allocator, try f.Types.Codec.encode(cell, .{ .name = "", .type = logical_type, .nullable = true }, output));
 }
-fn wireChange(allocator: std.mem.Allocator, change: f.TableEvolution.Change, schema: f.TableSchema.Schema) !c.DirectTableProtocol.Change {
+/// Encode a validated logical column change for the shared direct DDL owner.
+pub fn encodeChange(allocator: std.mem.Allocator, change: f.TableEvolution.Change, schema: f.TableSchema.Schema) !c.DirectTableProtocol.Change {
     return switch (change) {
         .add => |v| .{ .add = .{ .name = v.name, .type = v.type, .nullable = v.nullable, .default = try wireCell(allocator, v.default, v.type), .max_characters = v.max_characters, .encoding = v.encoding, .collation = v.collation } },
         .drop => |v| .{ .drop = v },

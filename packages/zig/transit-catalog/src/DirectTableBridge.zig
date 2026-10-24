@@ -37,6 +37,7 @@ pub const Action = union(enum) {
         ingestion: c.storage.TablePartition.Ingestion,
     },
     load: Saved,
+    prepare: c.DirectTableTyped.Request,
     forget: Id,
     stage: Id,
     admit: Recovery,
@@ -174,6 +175,7 @@ pub const Session = struct {
                 };
                 return self.install(allocator, namespace, work, false);
             },
+            .prepare => |input| return self.install(allocator, input.namespace, try c.DirectTableTyped.prepare(self.allocator, client, input), true),
             .forget => |id| {
                 _ = try self.get(id, client.connection);
                 self.active.?.work.deinit();

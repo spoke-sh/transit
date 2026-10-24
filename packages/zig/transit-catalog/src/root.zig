@@ -20,6 +20,7 @@ pub const DirectTablePreparedDml = @import("DirectTablePreparedDml.zig");
 pub const DirectTablePreparedDdl = @import("DirectTablePreparedDdl.zig");
 pub const DirectTableValues = @import("DirectTableValues.zig");
 pub const DirectTableBridge = @import("DirectTableBridge.zig");
+pub const DirectTableTyped = @import("DirectTableTyped.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
 pub const OperationBinding = @import("OperationBinding.zig");
 pub const NameAssertion = @import("NameAssertion.zig");

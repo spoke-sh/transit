@@ -247,6 +247,24 @@ host_action_validator.validate({"admit": {"table": host_reference}})
 host_saved = {"table": {"definition": definition, "namespace": 1, "bytes": saved_bytes.hex()}}
 host_action_validator.validate({"load": host_saved})
 host_action_validator.validate({"operation": {"reference": {"table": host_reference}, "command": "inspect", "steps": 1}})
+typed_absence = {"prepare": {"definition": definition, "namespace": 1, "operation": str(2**64 - 1), "name": "absent", "action": {"drop": {"basis": None, "if_exists": True}}}}
+host_action_validator.validate(typed_absence)
+missing_typed_definition = copy.deepcopy(typed_absence)
+del missing_typed_definition["prepare"]["definition"]
+assert not host_action_validator.is_valid(missing_typed_definition)
+host_basis = {
+    "definition": definition, "connection": host_reference["connection"], "namespace": 1, "name": "events",
+    "interpretation": {"interpretation": host_binding["expected_definition"], "content": {"bytes": "104", "sha256": "03" * 32}, "schema_fingerprint": "04" * 32, "retired": False},
+}
+host_bulk = {"prepare": {"definition": definition, "namespace": 1, "operation": "9", "name": "events", "action": {"mutate": {
+    "basis": host_basis, "ingestion": "bulk", "mutation": {"predicate": None, "action": {"insert": [
+        [{"column": "1", "value": {"cell": {"value": {"atom": {"signed": str(index)}}}}},
+         {"column": "2", "value": {"cell": {"value": {"atom": {"utf8": "x" * 32768}}}}}]
+        for index in range(9)
+    ]}},
+}}}}
+assert len(canonical(host_bulk)) > 256 * 1024
+host_action_validator.validate(host_bulk)
 jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostResult"}).validate({"staged": {"table": host_reference}})
 for field in ("definition", "connection", "binding", "content"):
     invalid = copy.deepcopy(host_reference)

@@ -3653,6 +3653,7 @@
           "lookup",
           "compile",
           "load",
+          "prepare",
           "forget",
           "stage",
           "admit",
@@ -3703,7 +3704,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 41,
         "catch": 1
       },
       "imports": [
@@ -3850,10 +3851,10 @@
       "error_returns": {
         "assertion()": "<inferred>",
         "bind()": "<inferred>",
+        "encodeChange()": "<inferred>",
         "prepare()": "<inferred>",
         "validate()": "<inferred>",
-        "wireCell()": "<inferred>",
-        "wireChange()": "<inferred>"
+        "wireCell()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -4129,6 +4130,39 @@
       "propagation": {
         "try": 136,
         "catch": 7
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTableTyped.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDataOperation": 1,
+        "InvalidTableSchema": 1,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 2
+      },
+      "outcomes": {
+        "Request.action": [
+          "create",
+          "alter",
+          "rename",
+          "drop",
+          "mutate"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "assertion()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -5743,6 +5777,7 @@
         "DirectTablePreparedDml.zig",
         "DirectTableProtocol.zig",
         "DirectTableReader.zig",
+        "DirectTableTyped.zig",
         "DirectTableValues.zig",
         "Inspection.zig",
         "Model.zig",
