@@ -37,6 +37,15 @@ either can follow accepted work and a failed final disclosure check. Preserve
 the saved binding and inspect its owner. Reset this per-invocation evidence
 explicitly; it is neither an operation receipt nor a durable recovery journal.
 
+`DirectTableDiagnostic` projects failures at the shared host action boundary.
+It retains SQL compiler locations and distinguishes failed reads
+(`not_applicable`) from preparation failures (`not_submitted`). Its reviewed
+direct caller codes cover changed directories and interpretations, malformed
+bindings, limits and current credential changes. A recorded mutation attempt
+always takes precedence and preserves `unknown`, including errors encountered
+while constructing a response. A selected operation identity is a recovery
+target, not evidence that the operation exists or has completed.
+
 `DirectTableValues` converts exact prepared bindings and saved-intent references
 to host values without rounding full-width storage identities. Those identities
 use decimal strings and commitments use lowercase hex. Conversion performs no
