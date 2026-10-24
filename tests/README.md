@@ -1,5 +1,23 @@
 # Validation and evidence
 
+## Installed Work items direct lifecycle — 2026-10-24
+
+`nix develop -c just test::server-applications` passes on frozen source
+`cde2f0848` with separately built ReleaseSafe consumer binaries and frozen local
+runtime artifacts. The local installation migrates **19 rows in 19 row steps**,
+retains **21 receipts**, reaches worker generation **9**, preserves exact earlier
+receipts after replacement and restart, and checks current access and logical
+identities. The full schedule takes **390.194 seconds**; manager RSS peaks at
+**52,432,896 bytes** and installation checkpoints at **3,037 bytes**.
+
+The earlier installed attempt remains failed: migration step 22 exhausted
+recovery with ConnectionRefused after the manager's node restart budget was
+exhausted. The successful run uses a fresh owned installation and completes the
+original schedule without increasing its retry or timeout budgets. Its retained
+directory is `/var/tmp/transit-server-proof-szi0g_8x`; the failed directory is
+`/var/tmp/transit-server-proof-pbcvzasf`. This is local application installation
+evidence, not Kubernetes/Substrate placement or a final SDK cutover check.
+
 ## Direct caller mutation-attempt evidence — 2026-10-24
 
 The focused `direct caller attempt` package run passes **4 tests**, including

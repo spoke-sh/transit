@@ -307,8 +307,10 @@ Real native and browser schedules pass exact recovery, worker replacement,
 bounded row migration, verified activation, fresh queries and current denial.
 The [Compose placement proof](../../tests/README.md#work-items-direct-storage-in-compose--2026-10-24)
 also passes persistent native/Table recovery and the real browser schedule with
-separate workers. Installed application provisioning and Reference placement
-remain under qualification. This does not make native progress and direct Table acceptance
+separate workers. [Installed local application qualification](../../tests/README.md#installed-work-items-direct-lifecycle--2026-10-24)
+also passes separately built consumers, 19-row migration and exact receipt
+recovery through node/worker replacement. Reference placement remains under
+qualification. This does not make native progress and direct Table acceptance
 atomic or retire the remaining actor-Table consumers.
 
 The [Station ledger migration](../../tests/README.md#station-ledger-over-the-direct-table-owner--2026-10-24)
