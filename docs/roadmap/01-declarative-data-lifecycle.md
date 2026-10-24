@@ -284,7 +284,8 @@ reply publication. Its real native caller schedule passes lost replies,
 node/worker replacement, captured-query authorization, incompatible bindings,
 supervision and expiry. Its local launcher also passes three-worker upgrades,
 credential rotation, Board inspection, courier loss and stop/start recovery.
-Compose/reference qualification remains separate; this does not make Table
+Compose passes the same persistent workflow. Reference qualification remains
+separate; this does not make Table
 changes atomic with application progress.
 
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
