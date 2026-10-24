@@ -96,7 +96,8 @@ participate in the same paged forward/reverse graph and DROP restriction as Tabl
 Rename preserves old exact edges. Consumer retirement and edge removal remain
 separate explicit acceptances, so an interrupted cleanup leaves conservative
 DROP protection. These edges neither retain data cuts nor discover undeclared
-consumers, and computation publication still needs its own registration adapter.
+consumers. The [named computation workflow](query-engine.md#immutable-names-and-query-attribution)
+uses a saved registration plan before its separate native publication.
 
 The implementation is in
 [DirectCatalog](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),

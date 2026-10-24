@@ -32,7 +32,6 @@ pub const TableMetadataStore = @import("TableMetadataStore.zig");
 pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
 pub const TableCatalog = @import("TableCatalog.zig");
 pub const TableStorageEngine = @import("TableStorageEngine.zig");
-pub const DeclarativeCatalog = @import("DeclarativeCatalog.zig");
 pub const TableDdlRequest = @import("TableDdlRequest.zig");
 pub const TableDmlRequest = @import("TableDmlRequest.zig");
 pub const TableCommand = @import("TableCommand.zig");

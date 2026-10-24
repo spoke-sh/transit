@@ -2925,91 +2925,6 @@
         "root.zig"
       ]
     },
-    "packages/zig/transit-catalog/src/DeclarativeCatalog.zig": {
-      "errors": {
-        "CatalogCapacity": 4,
-        "CatalogCleanupNotClosed": 1,
-        "CatalogCursorChanged": 1,
-        "CatalogDefinitionChanged": 1,
-        "CatalogDefinitionMissing": 3,
-        "CatalogDenied": 7,
-        "CatalogIdentityConflict": 6,
-        "CatalogOperationNotFound": 3,
-        "CatalogOwnerChanged": 3,
-        "CatalogRegistrationRequired": 1,
-        "InvalidCatalogBinding": 3,
-        "InvalidCatalogCommand": 4,
-        "InvalidCatalogIdentity": 2,
-        "InvalidCatalogName": 1,
-        "InvalidCatalogObject": 7,
-        "InvalidCatalogReceipt": 5,
-        "TableBusy": 2,
-        "TableNotFound": 1
-      },
-      "outcomes": {
-        "Action": [
-          "create",
-          "rename",
-          "drop"
-        ],
-        "Outcome.state": [
-          "provisioning",
-          "applied",
-          "unchanged",
-          "rejected",
-          "cancelled"
-        ],
-        "Record.state": [
-          "initializing",
-          "live",
-          "retired"
-        ],
-        "Spec": [
-          "kv",
-          "document"
-        ],
-        "StateKind": [
-          "kv",
-          "document"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Outcome.validate()": "<inferred>",
-        "Record.validate()": "<inferred>",
-        "Request.digest()": "<inferred>",
-        "Request.fromDeclaration()": "<inferred>",
-        "Request.validate()": "<inferred>",
-        "Spec.fingerprint()": "<inferred>",
-        "Spec.validate()": "<inferred>",
-        "apply()": "<inferred>",
-        "authorizeObject()": "<inferred>",
-        "bound()": "<inferred>",
-        "boundMeta()": "<inferred>",
-        "cancel()": "<inferred>",
-        "cleanup()": "<inferred>",
-        "closeOutcome()": "<inferred>",
-        "inspectLifecycle()": "<inferred>",
-        "list()": "<inferred>",
-        "lookup()": "<inferred>",
-        "nameKey()": "<inferred>",
-        "outcome()": "<inferred>",
-        "preview()": "<inferred>",
-        "record()": "<inferred>",
-        "saveOutcome()": "<inferred>",
-        "saveRecord()": "<inferred>",
-        "status()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 130,
-        "catch": 7
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig": {
       "errors": {
         "CatalogDatabaseMismatch": 1,
@@ -4628,7 +4543,7 @@
         "CatalogCursorChanged": 3,
         "CatalogDefinitionChanged": 13,
         "CatalogDefinitionMissing": 8,
-        "CatalogDenied": 19,
+        "CatalogDenied": 17,
         "CatalogDependencyConflict": 1,
         "CatalogIdentityConflict": 8,
         "CatalogNotInitialized": 1,
@@ -4647,7 +4562,7 @@
         "InvalidCatalogReceipt": 5,
         "InvalidTableWriteStatus": 2,
         "QueryAfterMutation": 1,
-        "TableBusy": 6,
+        "TableBusy": 5,
         "TableNotFound": 6,
         "TableRetired": 2,
         "TableUploadNotReady": 1,
@@ -4738,8 +4653,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 382,
-        "catch": 7
+        "try": 361,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -5634,7 +5549,6 @@
       },
       "imports": [
         "AuthorizationSql.zig",
-        "DeclarativeCatalog.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
         "DirectDependency.zig",
@@ -13185,7 +13099,7 @@
           "deadline"
         ],
         "Definition": [
-          "fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0"
+          "@\"1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029\""
         ],
         "Effect.phase": [
           "pending",

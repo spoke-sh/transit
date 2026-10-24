@@ -1,5 +1,30 @@
 # Validation and evidence
 
+## Obsolete named metadata owner removal — 2026-10-24
+
+The supplied-resource-ID `DeclarativeCatalog` implementation is removed. Its
+Table name-collision, lifecycle and dependency fallbacks are removed with it.
+The retained Table dependency/redaction regression uses actual Table definitions;
+named KV/Document allocation, initialization and dependency coverage belongs to
+the direct owner and the executed schedules below. Caller-supplied computation
+completion remains a rejected action. Removing that metadata helper does not
+finish migration of the remaining actor Table callers.
+
+Shared current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`
+replaces the stored interpretation; old artifacts are not adopted or reset.
+Schemas, host resources and independent signing fixtures are regenerated.
+The complete catalog package tests, diagnostic mappings/inventory,
+`just contract::check`, documentation links and the complete handbook check pass
+in the pinned Nix shell. The first contract-check attempt reached the generated
+host-type check and failed because this fresh worktree lacked installed frontend
+dependencies. After `just transit-board::install`, the complete contract and
+handbook rerun passes, including types, nine content tests and production build.
+
+This records component and format qualification for the removal. Public named
+resource/query fault schedules below retain their exact earlier source definitions;
+full-repository and clean-checkout qualification remain separate delivery gates.
+
 ## Named query dependency publication and retirement — 2026-10-24
 
 Under shared current-v1 definition

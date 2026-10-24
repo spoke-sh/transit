@@ -1376,159 +1376,6 @@ test "lifecycle inspection and non-mutating DDL preview distinguish pending publ
     try t.expectEqual(m.LifecycleState.unavailable, retired_ev.state);
 }
 
-test "declarative catalog manages KV and Document lifecycles with two-phase provisioning RESTRICT drop and retirement" {
-    var store: TestStore = .{};
-    defer store.deinit();
-    try ready(&store);
-    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
-
-    // Parse SQL CREATE KV and CREATE DOCUMENT via Fuze Declaration
-    const kv_def = try c.fuze.Declaration.compile("CREATE KV session_tokens (UTF8)");
-    const doc_def = try c.fuze.Declaration.compile("CREATE DOCUMENT customer_profile");
-
-    const kv_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 101, 1, 50, 9001, kv_def);
-    var turn = try store.capture(17);
-    const kv_preview = try decl.preview(&turn, 17, kv_req);
-    try t.expectEqual(m.ObjectKind.kv, kv_preview.kind);
-    try t.expectEqual(.admissible, kv_preview.disposition);
-
-    // Phase 1: reserve initializing record
-    turn = try store.capture(17);
-    const phase1 = try decl.apply(&turn, kv_req);
-    try t.expectEqual(.provisioning, phase1.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const pending_ev = (try owner.inspectLifecycle(&turn, 17, 50)).?;
-    try t.expectEqual(m.ObjectKind.kv, pending_ev.kind);
-    try t.expectEqual(m.LifecycleState.pending, pending_ev.state);
-    try t.expectEqual(null, try decl.lookup(&turn, 17, kv_req.name));
-
-    // Phase 2: bind resource and publish
-    const phase2 = try decl.apply(&turn, kv_req);
-    try t.expectEqual(.applied, phase2.state);
-    try t.expectEqual(@as(u64, 9001), phase2.resource_id);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const published_ev = (try owner.inspectLifecycle(&turn, 17, 50)).?;
-    try t.expectEqual(m.ObjectKind.kv, published_ev.kind);
-    try t.expectEqual(m.LifecycleState.published, published_ev.state);
-    const looked_up = (try decl.lookup(&turn, 17, kv_req.name)).?;
-    try t.expectEqual(@as(u64, 50), looked_up.object);
-    try t.expectEqual(@as(u64, 9001), looked_up.resource_id);
-
-    // Interrupted provisioning on Document (cancel + cleanup)
-    const doc_req_cancelled = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 102, 1, 60, 9002, doc_def);
-    turn = try store.capture(17);
-    const doc_p1 = try decl.apply(&turn, doc_req_cancelled);
-    try t.expectEqual(.provisioning, doc_p1.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const cancelled_doc = try decl.cancel(&turn, 17, 102, try doc_req_cancelled.digest());
-    try t.expectEqual(.cancelled, cancelled_doc.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    try t.expect(try decl.cleanup(&turn, 17, 102, try doc_req_cancelled.digest()));
-    try store.commit(turn);
-
-    // Publish Document with fresh object ID 61
-    const doc_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 103, 1, 61, 9003, doc_def);
-    turn = try store.capture(17);
-    _ = try decl.apply(&turn, doc_req);
-    try store.commit(turn);
-    turn = try store.capture(17);
-    const doc_p2 = try decl.apply(&turn, doc_req);
-    try t.expectEqual(.applied, doc_p2.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const page = try decl.list(&turn, 17, null);
-    try t.expectEqual(@as(u64, 50), page.entries[0].?.object);
-    try t.expectEqual(@as(u64, 61), page.entries[1].?.object);
-
-    // Table with same name as KV is rejected with name_conflict
-    const table_conflict = try ddl(&store, try createRequest(70, 104, "session_tokens"));
-    try t.expectEqual(.rejected, table_conflict.operation.state);
-    try t.expectEqual(.name_conflict, table_conflict.operation.reason);
-
-    // Rename KV and test RESTRICT drop
-    const rename_req: c.DeclarativeCatalog.Request = .{
-        .scope = owner.configuration.scope,
-        .principal = 17,
-        .operation = 105,
-        .namespace = 1,
-        .object = 50,
-        .expected_revision = 1,
-        .name = kv_req.name,
-        .action = .{ .rename = try c.TableAuthority.Name.init("active_tokens") },
-    };
-    turn = try store.capture(17);
-    const renamed = try decl.apply(&turn, rename_req);
-    try t.expectEqual(.applied, renamed.state);
-    try t.expectEqual(@as(u64, 2), renamed.revision);
-    try store.commit(turn);
-
-    // Add restricting dependency on KV object 50
-    turn = try store.capture(17);
-    const dep: m.Dependency = .{ .scope = owner.configuration.scope, .object = 50, .identity = 88, .owner = 4, .kind = .query_source };
-    try owner.setDependency(&turn, dep, true);
-    try store.commit(turn);
-
-    const drop_req: c.DeclarativeCatalog.Request = .{
-        .scope = owner.configuration.scope,
-        .principal = 17,
-        .operation = 106,
-        .namespace = 1,
-        .object = 50,
-        .expected_revision = 2,
-        .name = try c.TableAuthority.Name.init("active_tokens"),
-        .action = .{ .drop = .{} },
-    };
-    turn = try store.capture(17);
-    const blocked = try decl.apply(&turn, drop_req);
-    try t.expectEqual(.rejected, blocked.state);
-    try t.expectEqual(.dependency, blocked.reason);
-    try t.expectEqual(@as(u64, 88), blocked.blocker.dependency.identity);
-    try store.commit(turn);
-
-    // Remove dependency and drop KV object 50
-    turn = try store.capture(17);
-    try owner.setDependency(&turn, dep, false);
-    try store.commit(turn);
-
-    var drop_req2 = drop_req;
-    drop_req2.operation = 107;
-    turn = try store.capture(17);
-    const dropped = try decl.apply(&turn, drop_req2);
-    try t.expectEqual(.applied, dropped.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const retired_kv = (try owner.inspectLifecycle(&turn, 17, 50)).?;
-    try t.expectEqual(m.LifecycleState.unavailable, retired_kv.state);
-
-    // Reusing retired object ID 50 is rejected with object_conflict; fresh ID 51 succeeds
-    var reuse_id_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 108, 1, 50, 9004, try c.fuze.Declaration.compile("CREATE KV active_tokens (UTF8)"));
-    turn = try store.capture(17);
-    const reused = try decl.apply(&turn, reuse_id_req);
-    try t.expectEqual(.rejected, reused.state);
-    try t.expectEqual(.object_conflict, reused.reason);
-    try store.commit(turn);
-
-    reuse_id_req.operation = 109;
-    reuse_id_req.object = 51;
-    turn = try store.capture(17);
-    _ = try decl.apply(&turn, reuse_id_req);
-    try store.commit(turn);
-    turn = try store.capture(17);
-    const replaced = try decl.apply(&turn, reuse_id_req);
-    try t.expectEqual(.applied, replaced.state);
-    try store.commit(turn);
-}
-
 test "dependency graph and policy reference inspection enforce current rights and redact details without read access" {
     var store: TestStore = .{};
     defer store.deinit();
@@ -1536,14 +1383,8 @@ test "dependency graph and policy reference inspection enforce current rights an
     _ = try ddl(&store, try createRequest(10, 1, "people"));
     _ = try ddl(&store, try createRequest(20, 2, "secret_audit"));
 
-    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
-    const kv_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 3, 1, 30, 9100, try c.fuze.Declaration.compile("CREATE KV user_cache (UTF8)"));
+    _ = try ddl(&store, try createRequest(30, 3, "user_cache"));
     var turn = try store.capture(17);
-    _ = try decl.apply(&turn, kv_req);
-    try store.commit(turn);
-    turn = try store.capture(17);
-    _ = try decl.apply(&turn, kv_req);
-    try store.commit(turn);
 
     // Register dependencies: identity 30 (user_cache) depends on 10 (people) and 20 (secret_audit)
     turn = try store.capture(17);
@@ -1570,10 +1411,10 @@ test "dependency graph and policy reference inspection enforce current rights an
     try t.expect(full_policy.authorization_object != 0);
     try t.expect(full_policy.schema_authorization != 0);
 
-    const kv_policy = (try owner.policyReferences(&turn, 17, 30)).?;
-    try t.expectEqual(m.ObjectKind.kv, kv_policy.kind);
-    try t.expect(kv_policy.can_read);
-    try t.expect(!kv_policy.redacted);
+    const dependent_policy = (try owner.policyReferences(&turn, 17, 30)).?;
+    try t.expectEqual(m.ObjectKind.table, dependent_policy.kind);
+    try t.expect(dependent_policy.can_read);
+    try t.expect(!dependent_policy.redacted);
 
     // Revoke read access for principal 17 (keep inspect via insert/update/delete or visible grant)
     var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
@@ -1595,13 +1436,14 @@ test "dependency graph and policy reference inspection enforce current rights an
     try t.expectEqual(null, foreign_redacted.authorization_object);
     try t.expectEqual(null, foreign_redacted.schema_authorization);
 
-    // Principal 18 granted only SELECT on table 10 and KV 30, not on table 20
+    // Principal 18 granted only SELECT on table 10 and Table 30, not on table 20
     var def10 = (try owner.lookup(t.allocator, &turn, 17, try Meta.Name.init("people"))).?;
     defer def10.deinit();
-    const rec30 = (try decl.record(&turn, 30)).?;
+    var def30 = (try owner.lookup(t.allocator, &turn, 17, try Meta.Name.init("user_cache"))).?;
+    defer def30.deinit();
     try store.setRights(.{ .principal = 18, .create = false, .read = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
     try store.grantObject(18, def10.authority.authorization, c.TableAuthority.select);
-    try store.grantObject(18, rec30.authorization, c.TableAuthority.select);
+    try store.grantObject(18, def30.authority.authorization, c.TableAuthority.select);
 
     turn = try store.capture(18);
     // Principal 18 inspecting dependencies of 30 sees 10, while unauthorized 20 is filtered out
@@ -1612,33 +1454,6 @@ test "dependency graph and policy reference inspection enforce current rights an
     try t.expectError(error.CatalogDenied, owner.policyReferences(&turn, 18, 20));
 }
 
-test "retired computation metadata and supplied completion reject as catalog work" {
-    const declaration = c.DeclarativeCatalog;
-    var request: declaration.Request = .{
-        .scope = owner.configuration.scope,
-        .principal = 17,
-        .operation = 2,
-        .namespace = 1,
-        .object = 80,
-        .expected_revision = 0,
-        .name = try c.TableAuthority.Name.init("people_summary"),
-        .action = .{ .create = .{ .spec = .document, .resource_id = 9800 } },
-    };
-    var encoded = try c.Records.encode('L', request);
-    _ = try c.Records.decode(declaration.Request, 'L', encoded);
-    // The trailing create payload is kind:u8, resource:u64, if_not_exists:u8.
-    // The removed computation kind was 4. Changing the definition header must
-    // not make such an old body a valid Document or caller-certified result.
-    try t.expectEqual(@as(u8, 3), encoded.data[encoded.len - 10]);
-    encoded.data[encoded.len - 10] = 4;
-    try t.expectError(error.InvalidCatalogRecord, c.Records.decode(declaration.Request, 'L', encoded));
-    request.expected_revision = 1;
-    request.action = .{ .drop = .{} };
-    encoded = try c.Records.encode('L', request);
-    _ = try c.Records.decode(declaration.Request, 'L', encoded);
-    // A DROP ends in its tag and if_exists flag; supplied completion used tag 4.
-    try t.expectEqual(@as(u8, 3), encoded.data[encoded.len - 2]);
-    encoded.data[encoded.len - 2] = 4;
-    try t.expectError(error.InvalidCatalogRecord, c.Records.decode(declaration.Request, 'L', encoded));
+test "retired supplied computation completion is not a caller action" {
     try t.expectError(error.UnknownField, c.TableBridge.parse(t.allocator, "{\"computation\":\"80\"}"));
 }

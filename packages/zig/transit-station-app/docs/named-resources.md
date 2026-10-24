@@ -15,6 +15,10 @@ nullability, native byte keys and FVL1 values. Document settings select its ID,
 type revision and publication limits. The deadline and history policies are
 explicit nullable fields; absence of a finite policy means unlimited retention.
 
+CREATE always allocates its own native resource. It accepts no supplied backing
+resource ID and does not adopt existing populated state. Metadata records alone
+cannot substitute for the native receipt and exact initialization marker.
+
 Save the binding with `DirectResourceClient.save` before admission. `load` rejects
 missing or foreign compatibility definitions. `preview` checks metadata admission
 without accepting work. `operation(binding, .admit, steps)` reserves the shared
