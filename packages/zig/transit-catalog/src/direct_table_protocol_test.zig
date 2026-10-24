@@ -4,6 +4,23 @@ const c = @import("root.zig");
 const w = c.DirectTableProtocol;
 const p = c.protocol;
 
+test "pin status binds mandatory current interpretation to the requested object" {
+    const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .object = 7 };
+    const owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 99 };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = object.scope, .branch = 1, .principal = 4, .role = null, .audience = 5 }, .delegation = null, .nonce = @splat(7), .action = .{ .pin_status = .{ .object = object, .owner = owner } } };
+    const context = try w.Request.context(input, t.allocator);
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    const state: w.PinState = .{ .interpretation = .{ .object = object, .revision = 2, .digest = @splat(3) }, .position = .{ .partition = 9, .next_lsn = 10 }, .retired = false, .handle = null, .released = false, .authority = .{ .database = 1, .schema = 2, .table = 3 } };
+    var response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .pin_state = state } };
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    response.result.pin_state.interpretation.object.object += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, response));
+    const missing = try p.Json.valueAlloc(t.allocator, .{ .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = state.authority });
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(w.PinState, t.allocator, missing));
+}
+
 test "direct Table consumes independently signed Python OpenSSL request bytes" {
     const Fixture = struct { request: w.Request, context: [32]u8, public_key: [32]u8, binary: struct { bytes: [4]u8, base64: []const u8 } };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-v1.json"));

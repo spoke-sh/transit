@@ -305,5 +305,13 @@ unsupported. Local destruction releases only local memory. Explicit `release`
 closes the whole history lease; `closeOriginalHistory` reconciles uncertain
 acquisition/closure without choosing another cut. A delegated cleanup proof
 permits only original acquisition, status and release, never history disclosure.
+
+`pin_status` reports the current immutable interpretation together with the pin
+directory state under the Table owner fence. An absent current-frontier capture
+can close after its definition revision has advanced: the saved grant can no
+longer acquire a new pin. An existing pin still requires recovery and release
+under that grant. Data progress alone does not establish closure for current
+selection. Missing interpretation evidence, current denial and transport errors
+leave the original cleanup decision unresolved.
 These methods supply retention and source traversal; maintained-query scheduling
 and publication remain separate owners.

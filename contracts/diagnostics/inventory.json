@@ -3499,7 +3499,7 @@
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {
         "InvalidTableDelegation": 3,
-        "InvalidTableResponse": 6
+        "InvalidTableResponse": 7
       },
       "outcomes": {},
       "error_sets": {},
@@ -3803,7 +3803,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 61
+        "InvalidTableResponse": 62
       },
       "outcomes": {},
       "error_sets": {},
@@ -3820,7 +3820,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 95,
         "catch": 7
       },
       "imports": [
@@ -12881,7 +12881,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"02553baa7d791340e9ea3339002537bf15495c26bd2f2bd2e2fde5950589e53f\""
+          "@\"18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8\""
         ],
         "Effect.phase": [
           "pending",

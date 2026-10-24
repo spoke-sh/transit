@@ -456,6 +456,7 @@ pub const HistoryPage = struct {
     entries: []const HistoryEntry,
 };
 pub const PinState = struct {
+    interpretation: d.Definition,
     position: d.Position,
     retired: bool,
     handle: ?P.SnapshotHandle,

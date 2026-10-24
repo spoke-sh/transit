@@ -239,6 +239,7 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
     try t.expectError(error.AccessDenied, reader.check(client));
     try t.expectError(error.AccessDenied, Delegation.verify(client, profile.delegation.?));
+    try Delegation.deniedClosure(client, profile.delegation.?);
     try t.expectError(error.AccessDenied, reader.next(client, .{}));
     try t.expectError(error.AccessDenied, empty_query.nextBatch(8));
     try t.expectError(error.AccessDenied, joined.next());
@@ -303,7 +304,7 @@ pub fn main(init: std.process.Init) !void {
             try SqlPins.recover(init, client, directory);
             try Conditions.recover(init.gpa, client, &profile.conditions.?);
             try recover(init, client, &admin, profile, directory);
-            var lifecycle = try Lifecycle.evolve(init.gpa, init.io, directory, client, profile.role);
+            var lifecycle = try Lifecycle.evolve(init.gpa, init.io, directory, client, profile.role, profile.delegation.?);
             defer lifecycle.deinit();
             profile.lifecycle = lifecycle.value;
             try Delegation.verify(client, profile.delegation.?);
