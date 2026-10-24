@@ -273,6 +273,9 @@ separate workers. Installed application provisioning and Reference placement
 remain under qualification. This does not make native progress and direct Table acceptance
 atomic or retire the remaining actor-Table consumers.
 
+The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
+removes unused actor Table execution/recovery code and corrects DROP guidance;
+it does not supply the shared dependency registry.
 Relational and remaining caller migration, dependency contracts, named resource
 provisioning and computation evidence also remain unfinished. Automatic point
 flushing belongs to the following storage milestone. None of the

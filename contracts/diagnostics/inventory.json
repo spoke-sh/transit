@@ -309,33 +309,6 @@
         "transit_query"
       ]
     },
-    "apps/transit-cli/ConsoleRelational.zig": {
-      "errors": {
-        "ConsoleInterrupted": 2,
-        "IncompleteSource": 1,
-        "UnsupportedConstruct": 3
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "failed()": "anyerror",
-        "run()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 25,
-        "catch": 6
-      },
-      "imports": [
-        "Console.zig",
-        "Output.zig",
-        "Results.zig",
-        "Signals.zig",
-        "std",
-        "transit_catalog",
-        "transit_query"
-      ]
-    },
     "apps/transit-cli/Diagnostic.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -907,42 +880,6 @@
         "server/AuthorizationProfile.zig",
         "server/Config.zig",
         "server/Files.zig"
-      ]
-    },
-    "apps/transit-cli/TableRecovery.zig": {
-      "errors": {
-        "ConsoleRecoveryIdentityMismatch": 2,
-        "ConsoleRecoveryInUse": 1,
-        "ConsoleRecoverySyncFailed": 1,
-        "ConsoleRecoveryTooLarge": 1,
-        "ConsoleRecoveryWriteFailed": 3,
-        "FileNotFound": 3,
-        "InvalidConsoleRecovery": 11,
-        "UnresolvedSubmission": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "clearComplete()": "<inferred>",
-        "install()": "<inferred>",
-        "intentPath()": "<inferred>",
-        "open()": "<inferred>",
-        "remove()": "<inferred>",
-        "save()": "<inferred>",
-        "testing.client()": "<inferred>",
-        "testing.intent()": "<inferred>",
-        "testing.prepared()": "<inferred>",
-        "validate()": "<inferred>",
-        "write()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 38,
-        "catch": 3
-      },
-      "imports": [
-        "std",
-        "transit_catalog"
       ]
     },
     "apps/transit-cli/Terminal.zig": {

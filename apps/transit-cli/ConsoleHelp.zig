@@ -29,7 +29,7 @@ const topics = .{
     .{ "CREATE SCHEMA", "CREATE SCHEMA reporting AUTHORIZATION CURRENT_USER;\n\nRequires database ownership and SET eligibility for the chosen owner.\nPublishes an empty namespace with a stable identity; SHOW SCHEMAS lists it.\nIt does not change the session's configured namespace or grant PUBLIC access." },
     .{ "ALTER SCHEMA", "ALTER SCHEMA reporting RENAME TO reports;\n\nRequires current schema ownership. Retains the schema identity and Table bindings.\nPrepared metadata rejects a later schema change or replacement." },
     .{ "DROP SCHEMA", "DROP SCHEMA reports RESTRICT;\n\nRequires current schema ownership. Live or pending Table declarations block DROP.\nCASCADE is unsupported. Name reuse allocates a new identity.\nDisconnecting does not undo an accepted change." },
-    .{ "DROP TABLE", "DROP TABLE people;\nDROP TABLE IF EXISTS people;\n\nUses RESTRICT: registered dependencies can block deletion. CASCADE is unsupported.\nRequires current catalog drop rights. Dropping a table is not undone by disconnecting." },
+    .{ "DROP TABLE", "DROP TABLE people;\nDROP TABLE IF EXISTS people;\n\nRetires the original Table and removes its live name. CASCADE is unsupported.\nThe direct runtime does not yet check shared query/resource dependencies.\nRequires current catalog drop rights. Dropping a table is not undone by disconnecting." },
 };
 
 fn entry(out: *std.Io.Writer, value: Entry, extended: bool) !void {

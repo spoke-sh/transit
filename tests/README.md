@@ -1,5 +1,22 @@
 # Validation and evidence
 
+## CLI actor Table helper retirement — 2026-10-24
+
+The console already executes through the shared SQL service. Its unreferenced
+`ConsoleRelational` implementation and actor `TableRecovery` journal are removed,
+including the obsolete journal's unit-test import. Their recovery semantics do
+not describe the installed service-owned operation ledger and pin journal.
+The diagnostic inventory no longer treats these files as production owners.
+
+In the pinned Nix shell, `zig build test-cli-lifecycle -Doptimize=ReleaseSafe
+--summary all` passes **33/33** tests. `just test::cli-diagnostics` passes **193**
+server/console cases and **127** artifact/file cases. Diagnostic inventory,
+semantic mappings and documentation links pass; the site passes nine tests and
+its production build. The DROP TABLE help and SQL reference now state the
+direct runtime's missing shared dependency check and Table garbage collector;
+they no longer promise the old actor catalog's RESTRICT behavior. This cleanup
+does not implement those missing owners or retire the remaining actor consumers.
+
 ## Direct Table change-reader checkpoints — 2026-10-24
 
 The shared current-v1 definition is
@@ -71,7 +88,8 @@ query worker is stopped, inert preparation, stale schema rejection, visible
 dependency diagnostics, abrupt restart, original outcomes and deliberate
 default-Table deletion/name reuse. The fixture logs each static Table statement
 to identify a failing stage without exposing saved credentials or requests.
-The repository-wide `just check` is running and is not yet counted as passed.
+The repository-wide `just check` subsequently passed. It began before the
+following change-reader cutover, so it is not final committed-HEAD qualification.
 Contract generation/checks, diagnostic inventory/mappings,
 inferred error boundaries and **3411** diagnostic outcome projections pass.
 The earlier documentation site check passes nine tests and its build, preceding

@@ -9,11 +9,11 @@ DROP TABLE people;
 DROP TABLE IF EXISTS people RESTRICT;
 ```
 
-RESTRICT is the default. Registered query-source, writer, watch and maintained
-relation dependencies can block removal; the rejection identifies an authorized
-blocker. Dependency records are installed explicitly through the owning public
-control. The registry does not automatically discover external application
-references. CASCADE is unsupported.
+The optional RESTRICT keyword is accepted, but the direct runtime does not yet
+consult a shared query/resource dependency registry. Named computations, writers
+and watches do not automatically block Table retirement. Inspect the application's
+consumers before applying DROP. Namespace DROP separately rejects live Tables and
+pending Table declarations. CASCADE is unsupported.
 
 IF EXISTS prepared against absence records that absence; it cannot later delete
 a Table created under the same name. The shared direct runtime records an
@@ -30,11 +30,12 @@ can finish against their original schema and cut while current authorization
 and their own lifetimes allow it. Historical definitions and recovery evidence
 remain distinct from a live name.
 
-DROP does not physically erase data or grant access to history. Accepted history
-retains its separate retention policy. Qualified cleanup of rejected/cancelled
-candidate storage preserves receipts and identity floors. After an uncertain
-send, the console checks the original request; do not repeat DROP against a
-reused name when its outcome remains unconfirmed.
+DROP does not physically erase data or grant access to history. The direct
+service exposes no Table garbage collector. Accepted history, operation receipts
+and retained cuts remain distinct from logical retirement; callers explicitly
+release their read leases. After an uncertain send, the console checks the
+original request; do not repeat DROP against a reused name when its outcome
+remains unconfirmed.
 
 See [Tables](../tables.md) and the
-[catalog lifecycle and dependency rules](../../../../packages/zig/transit-catalog/docs/table-metadata.md).
+[direct lifecycle contract](../../../../contracts/DIRECT_TABLE_V1.md#declaration-and-row-operations).
