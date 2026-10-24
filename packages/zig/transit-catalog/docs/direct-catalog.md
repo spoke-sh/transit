@@ -45,7 +45,12 @@ Inspection, execution and cancellation take the full reference and work after th
 local intent is forgotten. Output states and counts come from the direct owner.
 An uncertain response requires observation of that original reference. The
 shared caller currently supports lookup, unparameterized DDL/DML compilation and
-those recovery operations. Typed declaration/batch preparation, preview and
+those recovery operations. Its `prepare` action also accepts typed declarations,
+column changes and INSERT/UPDATE/DELETE batches through `DirectTableTyped`.
+Existing objects bind to the exact prepared definition; typed values use Fuze's
+shared schema, cell, predicate and assignment admission. INSERT supports up to
+1024 rows within the 4 MiB encoded mutation budget and point/bulk ingestion.
+Saved work owns its values independently of the request arena. Preview and
 general SDK/ABI dispatch require further integration.
 
 The `observe` action reads an exact current interpretation and optionally its

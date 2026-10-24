@@ -1,5 +1,25 @@
 # Validation and evidence
 
+## Typed direct caller preparation — 2026-10-24
+
+`just test::direct-table-service` passes **1184 typed HTTP calls** in the pinned
+ReleaseSafe profile under current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`.
+The added host sequence prepares typed CREATE, inserts nine 32 KiB UTF8 values
+through a serialized host action larger than the 256 KiB actor frame, and reads
+back a complete value from the direct owner. Typed ALTER adds a default; a DROP
+prepared against the earlier definition rejects. RENAME, DROP and absent
+conditional DROP use the same saved-work, staging, admission and explicit
+execution path as SQL. The existing SQL, history, lost-reply, revocation and
+three-restart regression also passes.
+
+Host session package tests, independently validated generated contracts,
+diagnostic mappings/inventory, Zig formatting and documentation links pass.
+The independent Python contract check includes the wide typed batch and rejects
+a missing definition. These are additive caller types; native and stored formats
+are unchanged. Preview, SDK/ABI wiring, removal of remaining actor Table callers
+and the final integrated/clean-checkout gates remain unfinished.
+
 ## Shared direct caller session — 2026-10-24
 
 `just test::direct-table-service` passes **1150 typed HTTP calls** in the pinned

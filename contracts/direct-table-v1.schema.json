@@ -12341,11 +12341,23 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
+                "prepare"
+              ],
+              "properties": {
+                "prepare": {
+                  "$ref": "#/$defs/HostAction/$defs/T21"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
                 "forget"
               ],
               "properties": {
                 "forget": {
-                  "$ref": "#/$defs/HostAction/$defs/T21"
+                  "$ref": "#/$defs/HostAction/$defs/T115"
                 }
               }
             },
@@ -12357,7 +12369,7 @@
               ],
               "properties": {
                 "stage": {
-                  "$ref": "#/$defs/HostAction/$defs/T21"
+                  "$ref": "#/$defs/HostAction/$defs/T115"
                 }
               }
             },
@@ -12369,7 +12381,7 @@
               ],
               "properties": {
                 "admit": {
-                  "$ref": "#/$defs/HostAction/$defs/T22"
+                  "$ref": "#/$defs/HostAction/$defs/T116"
                 }
               }
             },
@@ -12381,7 +12393,7 @@
               ],
               "properties": {
                 "operation": {
-                  "$ref": "#/$defs/HostAction/$defs/T45"
+                  "$ref": "#/$defs/HostAction/$defs/T137"
                 }
               }
             }
@@ -12417,7 +12429,7 @@
         },
         "T3": {
           "type": "string",
-          "maxLength": 256
+          "maxLength": 16793672
         },
         "T4": {
           "type": "object",
@@ -12749,6 +12761,3029 @@
           "additionalProperties": false,
           "x-transit-field-order": [
             "definition",
+            "namespace",
+            "operation",
+            "name",
+            "action"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/HostAction/$defs/T11"
+            },
+            "namespace": {
+              "$ref": "#/$defs/HostAction/$defs/T2"
+            },
+            "operation": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "action": {
+              "$ref": "#/$defs/HostAction/$defs/T22"
+            }
+          },
+          "required": [
+            "definition",
+            "namespace",
+            "operation",
+            "name",
+            "action"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T22": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "create"
+              ],
+              "properties": {
+                "create": {
+                  "$ref": "#/$defs/HostAction/$defs/T23"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "alter"
+              ],
+              "properties": {
+                "alter": {
+                  "$ref": "#/$defs/HostAction/$defs/T81"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rename"
+              ],
+              "properties": {
+                "rename": {
+                  "$ref": "#/$defs/HostAction/$defs/T92"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "drop"
+              ],
+              "properties": {
+                "drop": {
+                  "$ref": "#/$defs/HostAction/$defs/T93"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mutate"
+              ],
+              "properties": {
+                "mutate": {
+                  "$ref": "#/$defs/HostAction/$defs/T95"
+                }
+              }
+            }
+          ]
+        },
+        "T23": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "schema",
+            "if_not_exists"
+          ],
+          "properties": {
+            "schema": {
+              "$ref": "#/$defs/HostAction/$defs/T24"
+            },
+            "if_not_exists": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            }
+          },
+          "required": [
+            "schema",
+            "if_not_exists"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T24": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "object",
+            "revision",
+            "next_column",
+            "columns",
+            "primary_key"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/HostAction/$defs/T11"
+            },
+            "object": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "revision": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "next_column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "columns": {
+              "$ref": "#/$defs/HostAction/$defs/T25"
+            },
+            "primary_key": {
+              "$ref": "#/$defs/HostAction/$defs/T80"
+            }
+          },
+          "required": [
+            "definition",
+            "object",
+            "revision",
+            "next_column",
+            "columns",
+            "primary_key"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T25": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T26"
+          }
+        },
+        "T26": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "id",
+            "name",
+            "type",
+            "nullable",
+            "default",
+            "max_characters",
+            "encoding",
+            "collation"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "type": {
+              "$ref": "#/$defs/HostAction/$defs/T27"
+            },
+            "nullable": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            },
+            "default": {
+              "$ref": "#/$defs/HostAction/$defs/T52"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/HostAction/$defs/T77"
+            },
+            "encoding": {
+              "$ref": "#/$defs/HostAction/$defs/T78"
+            },
+            "collation": {
+              "$ref": "#/$defs/HostAction/$defs/T79"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "type",
+            "nullable",
+            "default",
+            "max_characters",
+            "encoding",
+            "collation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T27": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int64"
+              ],
+              "properties": {
+                "int64": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint64"
+              ],
+              "properties": {
+                "uint64": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float64"
+              ],
+              "properties": {
+                "float64": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int8"
+              ],
+              "properties": {
+                "int8": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int16"
+              ],
+              "properties": {
+                "int16": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int32"
+              ],
+              "properties": {
+                "int32": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int128"
+              ],
+              "properties": {
+                "int128": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint8"
+              ],
+              "properties": {
+                "uint8": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint16"
+              ],
+              "properties": {
+                "uint16": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint32"
+              ],
+              "properties": {
+                "uint32": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint128"
+              ],
+              "properties": {
+                "uint128": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float32"
+              ],
+              "properties": {
+                "float32": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/HostAction/$defs/T29"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date"
+              ],
+              "properties": {
+                "date": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time"
+              ],
+              "properties": {
+                "time": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp"
+              ],
+              "properties": {
+                "timestamp": {
+                  "$ref": "#/$defs/HostAction/$defs/T31"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/HostAction/$defs/T32"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/HostAction/$defs/T46"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/HostAction/$defs/T49"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/HostAction/$defs/T51"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/HostAction/$defs/T32"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            }
+          ]
+        },
+        "T28": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T29": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "precision",
+            "scale"
+          ],
+          "properties": {
+            "precision": {
+              "$ref": "#/$defs/HostAction/$defs/T30"
+            },
+            "scale": {
+              "$ref": "#/$defs/HostAction/$defs/T30"
+            }
+          },
+          "required": [
+            "precision",
+            "scale"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T30": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "T31": {
+          "type": "string",
+          "enum": [
+            "civil",
+            "utc"
+          ]
+        },
+        "T32": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T33"
+          }
+        },
+        "T33": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "name",
+            "type",
+            "nullable",
+            "optional"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T34"
+            },
+            "type": {
+              "$ref": "#/$defs/HostAction/$defs/T35"
+            },
+            "nullable": {
+              "$ref": "#/$defs/HostAction/$defs/T42"
+            },
+            "optional": {
+              "$ref": "#/$defs/HostAction/$defs/T42"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ],
+          "x-transit-defaults": {
+            "nullable": false,
+            "optional": false
+          }
+        },
+        "T34": {
+          "type": "string",
+          "maxLength": 16793672
+        },
+        "T35": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int64"
+              ],
+              "properties": {
+                "int64": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint64"
+              ],
+              "properties": {
+                "uint64": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float64"
+              ],
+              "properties": {
+                "float64": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int8"
+              ],
+              "properties": {
+                "int8": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int16"
+              ],
+              "properties": {
+                "int16": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int32"
+              ],
+              "properties": {
+                "int32": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int128"
+              ],
+              "properties": {
+                "int128": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint8"
+              ],
+              "properties": {
+                "uint8": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint16"
+              ],
+              "properties": {
+                "uint16": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint32"
+              ],
+              "properties": {
+                "uint32": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uint128"
+              ],
+              "properties": {
+                "uint128": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float32"
+              ],
+              "properties": {
+                "float32": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/HostAction/$defs/T37"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date"
+              ],
+              "properties": {
+                "date": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time"
+              ],
+              "properties": {
+                "time": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp"
+              ],
+              "properties": {
+                "timestamp": {
+                  "$ref": "#/$defs/HostAction/$defs/T39"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/HostAction/$defs/T32"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/HostAction/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/HostAction/$defs/T43"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/HostAction/$defs/T45"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/HostAction/$defs/T32"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/HostAction/$defs/T36"
+                }
+              }
+            }
+          ]
+        },
+        "T36": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T37": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "precision",
+            "scale"
+          ],
+          "properties": {
+            "precision": {
+              "$ref": "#/$defs/HostAction/$defs/T38"
+            },
+            "scale": {
+              "$ref": "#/$defs/HostAction/$defs/T38"
+            }
+          },
+          "required": [
+            "precision",
+            "scale"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T38": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "T39": {
+          "type": "string",
+          "enum": [
+            "civil",
+            "utc"
+          ]
+        },
+        "T40": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "type",
+            "nullable"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/HostAction/$defs/T41"
+            },
+            "nullable": {
+              "$ref": "#/$defs/HostAction/$defs/T42"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "x-transit-defaults": {
+            "nullable": false
+          }
+        },
+        "T41": {
+          "$ref": "#/$defs/HostAction/$defs/T35"
+        },
+        "T42": {
+          "type": "boolean"
+        },
+        "T43": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "element",
+            "length"
+          ],
+          "properties": {
+            "element": {
+              "$ref": "#/$defs/HostAction/$defs/T40"
+            },
+            "length": {
+              "$ref": "#/$defs/HostAction/$defs/T44"
+            }
+          },
+          "required": [
+            "element",
+            "length"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T44": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "T45": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "key",
+            "value"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/HostAction/$defs/T41"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T40"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T46": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "type",
+            "nullable"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/HostAction/$defs/T47"
+            },
+            "nullable": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "x-transit-defaults": {
+            "nullable": false
+          }
+        },
+        "T47": {
+          "$ref": "#/$defs/HostAction/$defs/T27"
+        },
+        "T48": {
+          "type": "boolean"
+        },
+        "T49": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "element",
+            "length"
+          ],
+          "properties": {
+            "element": {
+              "$ref": "#/$defs/HostAction/$defs/T46"
+            },
+            "length": {
+              "$ref": "#/$defs/HostAction/$defs/T50"
+            }
+          },
+          "required": [
+            "element",
+            "length"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T50": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "T51": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "key",
+            "value"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/HostAction/$defs/T47"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T46"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T52": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HostAction/$defs/T53"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T53": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "missing"
+              ],
+              "properties": {
+                "missing": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "null"
+              ],
+              "properties": {
+                "null": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type_error"
+              ],
+              "properties": {
+                "type_error": {
+                  "$ref": "#/$defs/HostAction/$defs/T54"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/HostAction/$defs/T55"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "conflict"
+              ],
+              "properties": {
+                "conflict": {
+                  "$ref": "#/$defs/HostAction/$defs/T72"
+                }
+              }
+            }
+          ]
+        },
+        "T54": {
+          "type": "string",
+          "enum": [
+            "unknown",
+            "int64",
+            "uint64",
+            "float64",
+            "boolean",
+            "utf8",
+            "binary",
+            "int8",
+            "int16",
+            "int32",
+            "int128",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint128",
+            "float32",
+            "decimal",
+            "date",
+            "time",
+            "timestamp",
+            "interval",
+            "uuid",
+            "structure",
+            "list",
+            "array",
+            "map",
+            "tagged_union",
+            "json",
+            "null_value",
+            "text",
+            "character"
+          ]
+        },
+        "T55": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "atom"
+              ],
+              "properties": {
+                "atom": {
+                  "$ref": "#/$defs/HostAction/$defs/T56"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/HostAction/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/HostAction/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/HostAction/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/HostAction/$defs/T67"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/HostAction/$defs/T75"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            }
+          ]
+        },
+        "T56": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signed"
+              ],
+              "properties": {
+                "signed": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unsigned"
+              ],
+              "properties": {
+                "unsigned": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float_bits"
+              ],
+              "properties": {
+                "float_bits": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/HostAction/$defs/T48"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date_days"
+              ],
+              "properties": {
+                "date_days": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time_nanos"
+              ],
+              "properties": {
+                "time_nanos": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp_micros"
+              ],
+              "properties": {
+                "timestamp_micros": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/HostAction/$defs/T57"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            }
+          ]
+        },
+        "T57": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "properties": {
+            "months": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "days": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "nanos": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            }
+          },
+          "required": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T58": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T59"
+          }
+        },
+        "T59": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "missing"
+              ],
+              "properties": {
+                "missing": {
+                  "$ref": "#/$defs/HostAction/$defs/T60"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "null"
+              ],
+              "properties": {
+                "null": {
+                  "$ref": "#/$defs/HostAction/$defs/T60"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type_error"
+              ],
+              "properties": {
+                "type_error": {
+                  "$ref": "#/$defs/HostAction/$defs/T61"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/HostAction/$defs/T62"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "conflict"
+              ],
+              "properties": {
+                "conflict": {
+                  "$ref": "#/$defs/HostAction/$defs/T72"
+                }
+              }
+            }
+          ]
+        },
+        "T60": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T61": {
+          "type": "string",
+          "enum": [
+            "unknown",
+            "int64",
+            "uint64",
+            "float64",
+            "boolean",
+            "utf8",
+            "binary",
+            "int8",
+            "int16",
+            "int32",
+            "int128",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint128",
+            "float32",
+            "decimal",
+            "date",
+            "time",
+            "timestamp",
+            "interval",
+            "uuid",
+            "structure",
+            "list",
+            "array",
+            "map",
+            "tagged_union",
+            "json",
+            "null_value",
+            "text",
+            "character"
+          ]
+        },
+        "T62": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "atom"
+              ],
+              "properties": {
+                "atom": {
+                  "$ref": "#/$defs/HostAction/$defs/T63"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/HostAction/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/HostAction/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/HostAction/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/HostAction/$defs/T67"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/HostAction/$defs/T69"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            }
+          ]
+        },
+        "T63": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signed"
+              ],
+              "properties": {
+                "signed": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unsigned"
+              ],
+              "properties": {
+                "unsigned": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float_bits"
+              ],
+              "properties": {
+                "float_bits": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/HostAction/$defs/T65"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date_days"
+              ],
+              "properties": {
+                "date_days": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time_nanos"
+              ],
+              "properties": {
+                "time_nanos": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp_micros"
+              ],
+              "properties": {
+                "timestamp_micros": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/HostAction/$defs/T66"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/HostAction/$defs/T64"
+                }
+              }
+            }
+          ]
+        },
+        "T64": {
+          "type": "string",
+          "maxLength": 16793672
+        },
+        "T65": {
+          "type": "boolean"
+        },
+        "T66": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "properties": {
+            "months": {
+              "$ref": "#/$defs/HostAction/$defs/T64"
+            },
+            "days": {
+              "$ref": "#/$defs/HostAction/$defs/T64"
+            },
+            "nanos": {
+              "$ref": "#/$defs/HostAction/$defs/T64"
+            }
+          },
+          "required": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T67": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T68"
+          }
+        },
+        "T68": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "key",
+            "value"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/HostAction/$defs/T63"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T59"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T69": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "index",
+            "value"
+          ],
+          "properties": {
+            "index": {
+              "$ref": "#/$defs/HostAction/$defs/T70"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T71"
+            }
+          },
+          "required": [
+            "index",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T70": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "T71": {
+          "$ref": "#/$defs/HostAction/$defs/T59"
+        },
+        "T72": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T73"
+          }
+        },
+        "T73": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "counter",
+            "replica",
+            "value"
+          ],
+          "properties": {
+            "counter": {
+              "$ref": "#/$defs/HostAction/$defs/T64"
+            },
+            "replica": {
+              "$ref": "#/$defs/HostAction/$defs/T64"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T74"
+            }
+          },
+          "required": [
+            "counter",
+            "replica",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T74": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "null"
+              ],
+              "properties": {
+                "null": {
+                  "$ref": "#/$defs/HostAction/$defs/T60"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type_error"
+              ],
+              "properties": {
+                "type_error": {
+                  "$ref": "#/$defs/HostAction/$defs/T61"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/HostAction/$defs/T62"
+                }
+              }
+            }
+          ]
+        },
+        "T75": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "index",
+            "value"
+          ],
+          "properties": {
+            "index": {
+              "$ref": "#/$defs/HostAction/$defs/T30"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T76"
+            }
+          },
+          "required": [
+            "index",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T76": {
+          "$ref": "#/$defs/HostAction/$defs/T53"
+        },
+        "T77": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HostAction/$defs/T50"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T78": {
+          "type": "string",
+          "enum": [
+            "plain",
+            "bitpacked",
+            "rle",
+            "dictionary",
+            "fsst",
+            "comp",
+            "comp_3",
+            "zoned",
+            "ibm_hfp",
+            "ebcdic"
+          ]
+        },
+        "T79": {
+          "type": "string",
+          "enum": [
+            "none",
+            "utf8_binary",
+            "ascii_ci",
+            "ebcdic_cp037",
+            "icu_root"
+          ]
+        },
+        "T80": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T3"
+          }
+        },
+        "T81": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "basis",
+            "change"
+          ],
+          "properties": {
+            "basis": {
+              "$ref": "#/$defs/HostAction/$defs/T82"
+            },
+            "change": {
+              "$ref": "#/$defs/HostAction/$defs/T85"
+            }
+          },
+          "required": [
+            "basis",
+            "change"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T82": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "connection",
+            "namespace",
+            "name",
+            "interpretation"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/HostAction/$defs/T11"
+            },
+            "connection": {
+              "$ref": "#/$defs/HostAction/$defs/T14"
+            },
+            "namespace": {
+              "$ref": "#/$defs/HostAction/$defs/T2"
+            },
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "interpretation": {
+              "$ref": "#/$defs/HostAction/$defs/T83"
+            }
+          },
+          "required": [
+            "definition",
+            "connection",
+            "namespace",
+            "name",
+            "interpretation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T83": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "interpretation",
+            "content",
+            "schema_fingerprint",
+            "retired"
+          ],
+          "properties": {
+            "interpretation": {
+              "$ref": "#/$defs/HostAction/$defs/T19"
+            },
+            "content": {
+              "$ref": "#/$defs/HostAction/$defs/T84"
+            },
+            "schema_fingerprint": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "retired": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            }
+          },
+          "required": [
+            "interpretation",
+            "content",
+            "schema_fingerprint",
+            "retired"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T84": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "bytes",
+            "sha256"
+          ],
+          "properties": {
+            "bytes": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "sha256": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            }
+          },
+          "required": [
+            "bytes",
+            "sha256"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T85": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "add"
+              ],
+              "properties": {
+                "add": {
+                  "$ref": "#/$defs/HostAction/$defs/T86"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "drop"
+              ],
+              "properties": {
+                "drop": {
+                  "$ref": "#/$defs/HostAction/$defs/T3"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rename"
+              ],
+              "properties": {
+                "rename": {
+                  "$ref": "#/$defs/HostAction/$defs/T87"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "default"
+              ],
+              "properties": {
+                "default": {
+                  "$ref": "#/$defs/HostAction/$defs/T88"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "nullable"
+              ],
+              "properties": {
+                "nullable": {
+                  "$ref": "#/$defs/HostAction/$defs/T89"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "$ref": "#/$defs/HostAction/$defs/T90"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "physical"
+              ],
+              "properties": {
+                "physical": {
+                  "$ref": "#/$defs/HostAction/$defs/T91"
+                }
+              }
+            }
+          ]
+        },
+        "T86": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "name",
+            "type",
+            "nullable",
+            "default",
+            "max_characters",
+            "encoding",
+            "collation"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "type": {
+              "$ref": "#/$defs/HostAction/$defs/T27"
+            },
+            "nullable": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            },
+            "default": {
+              "$ref": "#/$defs/HostAction/$defs/T52"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/HostAction/$defs/T77"
+            },
+            "encoding": {
+              "$ref": "#/$defs/HostAction/$defs/T78"
+            },
+            "collation": {
+              "$ref": "#/$defs/HostAction/$defs/T79"
+            }
+          },
+          "required": [
+            "name",
+            "type",
+            "nullable",
+            "default",
+            "max_characters",
+            "encoding",
+            "collation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T87": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "name"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            }
+          },
+          "required": [
+            "column",
+            "name"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T88": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T52"
+            }
+          },
+          "required": [
+            "column",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T89": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            }
+          },
+          "required": [
+            "column",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T90": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "type",
+            "max_characters"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "type": {
+              "$ref": "#/$defs/HostAction/$defs/T27"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/HostAction/$defs/T77"
+            }
+          },
+          "required": [
+            "column",
+            "type",
+            "max_characters"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T91": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "encoding",
+            "collation"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "encoding": {
+              "$ref": "#/$defs/HostAction/$defs/T78"
+            },
+            "collation": {
+              "$ref": "#/$defs/HostAction/$defs/T79"
+            }
+          },
+          "required": [
+            "column",
+            "encoding",
+            "collation"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T92": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "basis",
+            "name"
+          ],
+          "properties": {
+            "basis": {
+              "$ref": "#/$defs/HostAction/$defs/T82"
+            },
+            "name": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            }
+          },
+          "required": [
+            "basis",
+            "name"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T93": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "basis",
+            "if_exists"
+          ],
+          "properties": {
+            "basis": {
+              "$ref": "#/$defs/HostAction/$defs/T94"
+            },
+            "if_exists": {
+              "$ref": "#/$defs/HostAction/$defs/T48"
+            }
+          },
+          "required": [
+            "basis",
+            "if_exists"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T94": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HostAction/$defs/T82"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T95": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "basis",
+            "mutation",
+            "ingestion"
+          ],
+          "properties": {
+            "basis": {
+              "$ref": "#/$defs/HostAction/$defs/T82"
+            },
+            "mutation": {
+              "$ref": "#/$defs/HostAction/$defs/T96"
+            },
+            "ingestion": {
+              "$ref": "#/$defs/HostAction/$defs/T8"
+            }
+          },
+          "required": [
+            "basis",
+            "mutation",
+            "ingestion"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T96": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "action",
+            "predicate"
+          ],
+          "properties": {
+            "action": {
+              "$ref": "#/$defs/HostAction/$defs/T97"
+            },
+            "predicate": {
+              "$ref": "#/$defs/HostAction/$defs/T102"
+            }
+          },
+          "required": [
+            "action",
+            "predicate"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T97": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "insert"
+              ],
+              "properties": {
+                "insert": {
+                  "$ref": "#/$defs/HostAction/$defs/T98"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "update"
+              ],
+              "properties": {
+                "update": {
+                  "$ref": "#/$defs/HostAction/$defs/T99"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "delete"
+              ],
+              "properties": {
+                "delete": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            }
+          ]
+        },
+        "T98": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T99"
+          }
+        },
+        "T99": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T100"
+          }
+        },
+        "T100": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T3"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T101"
+            }
+          },
+          "required": [
+            "column",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T101": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "default"
+              ],
+              "properties": {
+                "default": {
+                  "$ref": "#/$defs/HostAction/$defs/T28"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cell"
+              ],
+              "properties": {
+                "cell": {
+                  "$ref": "#/$defs/HostAction/$defs/T53"
+                }
+              }
+            }
+          ]
+        },
+        "T102": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HostAction/$defs/T103"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T103": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/HostAction/$defs/T104"
+          }
+        },
+        "T104": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "atom"
+              ],
+              "properties": {
+                "atom": {
+                  "$ref": "#/$defs/HostAction/$defs/T105"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "negate"
+              ],
+              "properties": {
+                "negate": {
+                  "$ref": "#/$defs/HostAction/$defs/T106"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "conjunction"
+              ],
+              "properties": {
+                "conjunction": {
+                  "$ref": "#/$defs/HostAction/$defs/T106"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "disjunction"
+              ],
+              "properties": {
+                "disjunction": {
+                  "$ref": "#/$defs/HostAction/$defs/T106"
+                }
+              }
+            }
+          ]
+        },
+        "T105": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "all"
+              ],
+              "properties": {
+                "all": {
+                  "$ref": "#/$defs/HostAction/$defs/T106"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "state"
+              ],
+              "properties": {
+                "state": {
+                  "$ref": "#/$defs/HostAction/$defs/T107"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "compare"
+              ],
+              "properties": {
+                "compare": {
+                  "$ref": "#/$defs/HostAction/$defs/T110"
+                }
+              }
+            }
+          ]
+        },
+        "T106": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T107": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T108"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T109"
+            }
+          },
+          "required": [
+            "column",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T108": {
+          "type": "string",
+          "maxLength": 16793672
+        },
+        "T109": {
+          "type": "string",
+          "enum": [
+            "missing",
+            "null",
+            "type_error",
+            "value",
+            "conflict"
+          ]
+        },
+        "T110": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "column",
+            "op",
+            "value"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/HostAction/$defs/T108"
+            },
+            "op": {
+              "$ref": "#/$defs/HostAction/$defs/T111"
+            },
+            "value": {
+              "$ref": "#/$defs/HostAction/$defs/T112"
+            }
+          },
+          "required": [
+            "column",
+            "op",
+            "value"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T111": {
+          "type": "string",
+          "enum": [
+            "eq",
+            "ne",
+            "lt",
+            "le",
+            "gt",
+            "ge"
+          ]
+        },
+        "T112": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signed"
+              ],
+              "properties": {
+                "signed": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unsigned"
+              ],
+              "properties": {
+                "unsigned": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float_bits"
+              ],
+              "properties": {
+                "float_bits": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/HostAction/$defs/T113"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date_days"
+              ],
+              "properties": {
+                "date_days": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time_nanos"
+              ],
+              "properties": {
+                "time_nanos": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp_micros"
+              ],
+              "properties": {
+                "timestamp_micros": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/HostAction/$defs/T114"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/HostAction/$defs/T108"
+                }
+              }
+            }
+          ]
+        },
+        "T113": {
+          "type": "boolean"
+        },
+        "T114": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "properties": {
+            "months": {
+              "$ref": "#/$defs/HostAction/$defs/T108"
+            },
+            "days": {
+              "$ref": "#/$defs/HostAction/$defs/T108"
+            },
+            "nanos": {
+              "$ref": "#/$defs/HostAction/$defs/T108"
+            }
+          },
+          "required": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T115": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
             "digest"
           ],
           "properties": {
@@ -12765,7 +15800,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T22": {
+        "T116": {
           "oneOf": [
             {
               "type": "object",
@@ -12775,7 +15810,7 @@
               ],
               "properties": {
                 "table": {
-                  "$ref": "#/$defs/HostAction/$defs/T23"
+                  "$ref": "#/$defs/HostAction/$defs/T117"
                 }
               }
             },
@@ -12793,7 +15828,7 @@
             }
           ]
         },
-        "T23": {
+        "T117": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -12814,10 +15849,10 @@
               "$ref": "#/$defs/HostAction/$defs/T2"
             },
             "binding": {
-              "$ref": "#/$defs/HostAction/$defs/T24"
+              "$ref": "#/$defs/HostAction/$defs/T118"
             },
             "content": {
-              "$ref": "#/$defs/HostAction/$defs/T44"
+              "$ref": "#/$defs/HostAction/$defs/T84"
             }
           },
           "required": [
@@ -12829,7 +15864,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T24": {
+        "T118": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -12847,25 +15882,25 @@
               "$ref": "#/$defs/HostAction/$defs/T11"
             },
             "identity": {
-              "$ref": "#/$defs/HostAction/$defs/T25"
+              "$ref": "#/$defs/HostAction/$defs/T119"
             },
             "target": {
               "$ref": "#/$defs/HostAction/$defs/T20"
             },
             "action": {
-              "$ref": "#/$defs/HostAction/$defs/T26"
+              "$ref": "#/$defs/HostAction/$defs/T120"
             },
             "expected_definition": {
               "$ref": "#/$defs/HostAction/$defs/T18"
             },
             "expected_data": {
-              "$ref": "#/$defs/HostAction/$defs/T27"
+              "$ref": "#/$defs/HostAction/$defs/T121"
             },
             "intent": {
               "$ref": "#/$defs/HostAction/$defs/T3"
             },
             "prerequisite": {
-              "$ref": "#/$defs/HostAction/$defs/T29"
+              "$ref": "#/$defs/HostAction/$defs/T123"
             }
           },
           "required": [
@@ -12880,7 +15915,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T25": {
+        "T119": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -12906,7 +15941,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T26": {
+        "T120": {
           "type": "string",
           "enum": [
             "create",
@@ -12918,17 +15953,17 @@
             "delete"
           ]
         },
-        "T27": {
+        "T121": {
           "anyOf": [
             {
-              "$ref": "#/$defs/HostAction/$defs/T28"
+              "$ref": "#/$defs/HostAction/$defs/T122"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T28": {
+        "T122": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -12949,17 +15984,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T29": {
+        "T123": {
           "anyOf": [
             {
-              "$ref": "#/$defs/HostAction/$defs/T30"
+              "$ref": "#/$defs/HostAction/$defs/T124"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T30": {
+        "T124": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -12969,10 +16004,10 @@
           ],
           "properties": {
             "subject": {
-              "$ref": "#/$defs/HostAction/$defs/T31"
+              "$ref": "#/$defs/HostAction/$defs/T125"
             },
             "requirements": {
-              "$ref": "#/$defs/HostAction/$defs/T38"
+              "$ref": "#/$defs/HostAction/$defs/T131"
             },
             "selectable": {
               "$ref": "#/$defs/HostAction/$defs/T16"
@@ -12986,7 +16021,7 @@
             "selectable": null
           }
         },
-        "T31": {
+        "T125": {
           "oneOf": [
             {
               "type": "object",
@@ -12996,7 +16031,7 @@
               ],
               "properties": {
                 "signed": {
-                  "$ref": "#/$defs/HostAction/$defs/T32"
+                  "$ref": "#/$defs/HostAction/$defs/T126"
                 }
               }
             },
@@ -13008,13 +16043,13 @@
               ],
               "properties": {
                 "accepted": {
-                  "$ref": "#/$defs/HostAction/$defs/T37"
+                  "$ref": "#/$defs/HostAction/$defs/T130"
                 }
               }
             }
           ]
         },
-        "T32": {
+        "T126": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -13023,10 +16058,10 @@
           ],
           "properties": {
             "claim": {
-              "$ref": "#/$defs/HostAction/$defs/T33"
+              "$ref": "#/$defs/HostAction/$defs/T127"
             },
             "signature": {
-              "$ref": "#/$defs/HostAction/$defs/T36"
+              "$ref": "#/$defs/HostAction/$defs/T129"
             }
           },
           "required": [
@@ -13035,7 +16070,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T33": {
+        "T127": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -13067,7 +16102,7 @@
               "$ref": "#/$defs/HostAction/$defs/T2"
             },
             "context": {
-              "$ref": "#/$defs/HostAction/$defs/T34"
+              "$ref": "#/$defs/HostAction/$defs/T128"
             }
           },
           "required": [
@@ -13081,30 +16116,23 @@
           ],
           "x-transit-defaults": {}
         },
-        "T34": {
+        "T128": {
           "type": "array",
           "minItems": 32,
           "maxItems": 32,
           "items": {
-            "$ref": "#/$defs/HostAction/$defs/T35"
+            "$ref": "#/$defs/HostAction/$defs/T30"
           }
         },
-        "T35": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 255,
-          "x-transit-bits": 8,
-          "x-transit-signed": false
-        },
-        "T36": {
+        "T129": {
           "type": "array",
           "minItems": 64,
           "maxItems": 64,
           "items": {
-            "$ref": "#/$defs/HostAction/$defs/T35"
+            "$ref": "#/$defs/HostAction/$defs/T30"
           }
         },
-        "T37": {
+        "T130": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -13130,25 +16158,25 @@
           ],
           "x-transit-defaults": {}
         },
-        "T38": {
+        "T131": {
           "type": "array",
           "minItems": 16,
           "maxItems": 16,
           "items": {
-            "$ref": "#/$defs/HostAction/$defs/T39"
+            "$ref": "#/$defs/HostAction/$defs/T132"
           }
         },
-        "T39": {
+        "T132": {
           "anyOf": [
             {
-              "$ref": "#/$defs/HostAction/$defs/T40"
+              "$ref": "#/$defs/HostAction/$defs/T133"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T40": {
+        "T133": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -13158,13 +16186,13 @@
           ],
           "properties": {
             "object": {
-              "$ref": "#/$defs/HostAction/$defs/T41"
+              "$ref": "#/$defs/HostAction/$defs/T134"
             },
             "privileges": {
               "$ref": "#/$defs/HostAction/$defs/T2"
             },
             "access": {
-              "$ref": "#/$defs/HostAction/$defs/T43"
+              "$ref": "#/$defs/HostAction/$defs/T136"
             }
           },
           "required": [
@@ -13175,7 +16203,7 @@
             "access": "all"
           }
         },
-        "T41": {
+        "T134": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -13184,7 +16212,7 @@
           ],
           "properties": {
             "kind": {
-              "$ref": "#/$defs/HostAction/$defs/T42"
+              "$ref": "#/$defs/HostAction/$defs/T135"
             },
             "id": {
               "$ref": "#/$defs/HostAction/$defs/T2"
@@ -13196,7 +16224,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T42": {
+        "T135": {
           "type": "string",
           "enum": [
             "realm",
@@ -13205,7 +16233,7 @@
             "domain"
           ]
         },
-        "T43": {
+        "T136": {
           "type": "string",
           "enum": [
             "all",
@@ -13214,28 +16242,7 @@
             "visible"
           ]
         },
-        "T44": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "bytes",
-            "sha256"
-          ],
-          "properties": {
-            "bytes": {
-              "$ref": "#/$defs/HostAction/$defs/T3"
-            },
-            "sha256": {
-              "$ref": "#/$defs/HostAction/$defs/T3"
-            }
-          },
-          "required": [
-            "bytes",
-            "sha256"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T45": {
+        "T137": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -13245,13 +16252,13 @@
           ],
           "properties": {
             "reference": {
-              "$ref": "#/$defs/HostAction/$defs/T22"
+              "$ref": "#/$defs/HostAction/$defs/T116"
             },
             "command": {
-              "$ref": "#/$defs/HostAction/$defs/T46"
+              "$ref": "#/$defs/HostAction/$defs/T138"
             },
             "steps": {
-              "$ref": "#/$defs/HostAction/$defs/T47"
+              "$ref": "#/$defs/HostAction/$defs/T139"
             }
           },
           "required": [
@@ -13261,7 +16268,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T46": {
+        "T138": {
           "type": "string",
           "enum": [
             "inspect",
@@ -13269,7 +16276,7 @@
             "cancel"
           ]
         },
-        "T47": {
+        "T139": {
           "type": "integer",
           "minimum": 0,
           "maximum": 65535,
@@ -13521,7 +16528,7 @@
         },
         "T8": {
           "type": "string",
-          "maxLength": 256
+          "maxLength": 16793672
         },
         "T9": {
           "anyOf": [
@@ -14170,7 +17177,7 @@
         },
         "T26": {
           "type": "string",
-          "maxLength": 256
+          "maxLength": 16793672
         },
         "T27": {
           "oneOf": [
@@ -15413,7 +18420,7 @@
         },
         "T55": {
           "type": "string",
-          "maxLength": 256
+          "maxLength": 16793672
         },
         "T56": {
           "type": "boolean"
@@ -16913,7 +19920,7 @@
         },
         "T8": {
           "type": "string",
-          "maxLength": 256
+          "maxLength": 16793672
         },
         "T9": {
           "anyOf": [

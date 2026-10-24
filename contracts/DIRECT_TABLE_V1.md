@@ -539,6 +539,23 @@ compile action takes no SQL parameter values. A saved Table value carries the
 current definition, namespace and lowercase hex of the complete `TDI1` bytes;
 a conditional name assertion carries its complete binding.
 
+The `prepare` action accepts `DirectTableTyped.Request`: a mandatory current
+definition, namespace, operation identity, name and typed CREATE, ALTER, RENAME,
+DROP or mutation. Existing objects require the complete `PreparedBinding`;
+current lookup and action authorization must still agree with it. Missing
+DROP IF EXISTS uses an explicit null basis and requires the name to remain
+absent. CREATE carries the shared neutral schema, including its new object ID;
+ALTER carries shared column identities, codecs, collations and logical defaults.
+Typed conditional no-ops commit to the complete proposed typed request.
+
+Typed INSERT accepts at most 1024 rows within the shared 4 MiB encoded mutation
+budget and derives row identities from the explicit operation. Point/bulk
+ingestion uses the same direct row owner as SQL. UPDATE/DELETE lower the shared
+typed predicate/assignment plan and freeze the observed data frontier. These
+requests never become actor mailbox frames. Host parsing has its own bounded
+envelope; logical cell and storage admission limits still apply independently.
+Preparation returns independently owned saved work and admits nothing.
+
 Loading performs no I/O and does not replace an existing loaded intent until
 validation and output allocation succeed. Staging a Table returns its exact
 direct reference; staging a conditional assertion only returns its binding.

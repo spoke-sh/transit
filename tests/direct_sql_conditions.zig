@@ -90,6 +90,78 @@ pub fn recover(allocator: std.mem.Allocator, client: c.DirectTableClient, state:
     try verify(client, state.*);
     try sharedPreparation(allocator, client);
     try sharedHost(allocator, client);
+    try sharedTypedHost(allocator, client);
+}
+
+fn applyHost(arena: *std.heap.ArenaAllocator, session: *c.DirectTableBridge.Session, client: c.DirectTableClient, compiled: c.DirectTableBridge.Compiled) !c.DirectTableValues.Observation {
+    const reference = (try session.apply(arena, client, .{ .stage = compiled.summary.id }, null)).staged;
+    var state = (try session.apply(arena, client, .{ .admit = reference }, null)).observation;
+    for (0..64) |_| {
+        switch (state) {
+            .name_assertion => return state,
+            inline .ddl, .rows => |value| if (value == .committed) return state else try t.expect(value == .admitted),
+        }
+        state = (try session.apply(arena, client, .{ .operation = .{ .reference = reference, .command = .execute, .steps = 32 } }, null)).observation;
+    }
+    return error.TableOperationPending;
+}
+fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
+    const Host = c.DirectTableBridge;
+    var output = std.heap.ArenaAllocator.init(allocator);
+    defer output.deinit();
+    const a = output.allocator();
+    var session: Host.Session = .{ .allocator = allocator };
+    defer session.deinit();
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 1517, .revision = 1, .next_column = 3, .columns = &.{ .{ .id = 1, .name = "id", .type = .int64, .nullable = false }, .{ .id = 2, .name = "payload", .type = .utf8 } }, .primary_key = &.{1} };
+    var request: c.DirectTableTyped.Request = .{ .definition = c.protocol.Growth.current_definition, .namespace = 1, .operation = "517", .name = "host_typed", .action = .{ .create = .{ .schema = try c.fuze.TableSchemaJson.foreignInto(a, schema), .if_not_exists = false } } };
+    const created = (try session.apply(&output, client, .{ .prepare = request }, null)).compiled;
+    _ = try applyHost(&output, &session, client, created);
+    var metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
+    const payload = try a.alloc(u8, 32 * 1024);
+    @memset(payload, 'x');
+    var assignments: [9][2]c.TableTyped.Assignment = undefined;
+    var rows: [9][]const c.TableTyped.Assignment = undefined;
+    for (&assignments, &rows, 0..) |*row, *slice, i| {
+        row.* = .{ .{ .column = "1", .value = .{ .cell = .{ .value = .{ .atom = .{ .signed = try std.fmt.allocPrint(a, "{d}", .{i + 1}) } } } } }, .{ .column = "2", .value = .{ .cell = .{ .value = .{ .atom = .{ .utf8 = payload } } } } } };
+        slice.* = row;
+    }
+    request.operation = "518";
+    request.action = .{ .mutate = .{ .basis = metadata.binding, .mutation = .{ .action = .{ .insert = &rows }, .predicate = null }, .ingestion = .bulk } };
+    const wire = try c.protocol.Json.valueAlloc(a, Host.Action{ .prepare = request });
+    try t.expect(wire.len > c.protocol.max_body);
+    const decoded = try Host.parse(a, wire);
+    defer decoded.deinit();
+    const inserted = (try session.apply(&output, client, decoded.value, null)).compiled;
+    const accepted = (try applyHost(&output, &session, client, inserted)).rows.committed;
+    try t.expectEqualStrings("9", accepted.outcome.affected);
+    const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = request.name } });
+    defer current.deinit();
+    const source = current.value.result.lookup.?;
+    const read = try client.call(.{ .read_current = .{ .namespace = 1, .interpretation = source.interpretation.interpretation, .expected = source.position, .selection = .{ .rows = .{ .after = null, .limits = .{ .rows = 1 } } } } });
+    defer read.deinit();
+    const prefix = read.value.result.current_read.selection.rows;
+    var row = try c.fuze.TableRow.decode(allocator, schema, try prefix.rows[0].decode(a, c.fuze.TableRow.max_bytes));
+    defer row.deinit();
+    try t.expectEqualStrings(payload, row.row().cells[1].value.atom.bytes);
+    metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
+    const stale = metadata.binding;
+    request.operation = "519";
+    request.action = .{ .alter = .{ .basis = metadata.binding, .change = .{ .add = .{ .name = "note", .type = .utf8, .nullable = true, .default = .{ .value = .{ .atom = .{ .utf8 = "typed" } } }, .max_characters = null, .encoding = .plain, .collation = .none } } } };
+    _ = try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled);
+    request.operation = "520";
+    request.action = .{ .drop = .{ .basis = stale, .if_exists = false } };
+    try t.expectError(error.TableDefinitionChanged, session.apply(&output, client, .{ .prepare = request }, null));
+    metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
+    request.action = .{ .rename = .{ .basis = metadata.binding, .name = "host_typed_renamed" } };
+    _ = try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled);
+    request.name = "host_typed_renamed";
+    metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
+    request.operation = "521";
+    request.action = .{ .drop = .{ .basis = metadata.binding, .if_exists = false } };
+    _ = try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled);
+    request.operation = "522";
+    request.action = .{ .drop = .{ .basis = null, .if_exists = true } };
+    try t.expectEqual(.unchanged, (try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled)).name_assertion.outcome.state);
 }
 
 fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {

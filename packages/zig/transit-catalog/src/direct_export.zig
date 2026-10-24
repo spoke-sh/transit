@@ -21,7 +21,7 @@ pub fn main(init: std.process.Init) !void {
     }
     inline for (.{ "Action", "Result", "Saved" }) |name| {
         try out.objectField("Host" ++ name);
-        try c.protocol.Schema.writeRecursiveAt(@field(c.DirectTableBridge, name), &out, .{ .safe_integers = true, .text_max_length = 256, .sequence_max_length = 128, .output = comptime std.mem.eql(u8, name, "Result") }, "/$defs/Host" ++ name);
+        try c.protocol.Schema.writeRecursiveAt(@field(c.DirectTableBridge, name), &out, .{ .safe_integers = true, .text_max_length = c.DirectTableBridge.max_input_bytes, .sequence_max_length = 128, .output = comptime std.mem.eql(u8, name, "Result") }, "/$defs/Host" ++ name);
     }
     try out.endObject();
     try out.endObject();
