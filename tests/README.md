@@ -1,5 +1,22 @@
 # Validation and evidence
 
+## Direct completion after console and Go integration — 2026-10-24
+
+The lifecycle branch rebases onto `origin/main` at `84afe73b`, retaining the
+console interaction reducer and Go SDK. Direct Table completion now applies the
+shared keyword-continuation rule with one bounded catalog page budget and a
+final authorization/definition check. The Go declarations are regenerated for
+the current shared definition.
+
+In the pinned Nix shell, the query package's ReleaseSafe `test-unit` target
+passes **148/148** tests. `just test::console-history` passes the complete PTY
+suite. `just test::direct-table-service` passes **651** typed HTTP calls,
+including eleven console keyword/range cases and unchanged SQL-editor behavior,
+alongside its CRUD/DDL, lost-reply, retained-read, revocation and restart schedules.
+`just bindings::check`, the diagnostic inventory and the Markdown link check
+pass. These runs do not establish full `just check`, installed Go qualification,
+Work items migration or committed-HEAD `just ci-clean` for this branch.
+
 ## Console interaction state machine — 2026-10-24
 
 `nix develop --command just test::console-model` passes with 5,278 distinct
