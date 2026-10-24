@@ -1,5 +1,24 @@
 # Validation and evidence
 
+## Installed Work items physical exhaustion — 2026-10-24
+
+In the pinned Nix shell, `just test::server-application-capacity` passes in
+**165.82 s** after explicitly provisioning the direct catalog authority and
+initializing its first Table. The owned ext4 image reaches actual ENOSPC with an
+accepted native input outstanding. After shutdown, space release and restart,
+the saved request completes with the original receipt, PID and resource and
+exactly one row. Bounded recovery retries check that the complete saved request
+bytes remain unchanged. The container keeps PATH unavailable and uses an
+explicit pinned OpenSSL executable for the proof's independent signatures.
+
+This run uses the `f444c2a1` definition and the stop-on-error worker policy. It
+precedes the SQL namespace contract cutover. The longer installed application
+schedule passed replacement and abrupt restart, then failed at migration step
+22 after authority timeouts exhausted the supervisor's restart budget. It is
+not counted as passed. Management retries now verify their saved request bytes,
+and replacement rejection compares against the immediately preceding active
+generation while preserving original logical identities.
+
 ## Work items direct storage in Compose — 2026-10-24
 
 In the pinned serving environment, `just test::work-items-placement compose`

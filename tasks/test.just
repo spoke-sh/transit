@@ -720,7 +720,7 @@ server-application-faults:
 
 # Accepted application input across real ENOSPC in an owned ext4 image.
 server-application-capacity:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
