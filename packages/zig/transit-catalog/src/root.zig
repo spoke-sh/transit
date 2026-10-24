@@ -8,6 +8,7 @@ pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const DirectCatalog = @import("DirectCatalog.zig");
 pub const DirectTableProtocol = @import("DirectTableProtocol.zig");
+pub const DirectTableDispatch = @import("DirectTableDispatch.zig");
 pub const DirectTableClient = @import("DirectTableClient.zig");
 pub const DirectAuthorizationSql = @import("DirectAuthorizationSql.zig");
 pub const DirectReadDelegation = @import("DirectReadDelegation.zig");
