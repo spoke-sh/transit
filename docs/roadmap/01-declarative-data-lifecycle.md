@@ -167,6 +167,12 @@ sources after DROP, adapter/Arrow exhaustion, preserved large stored rows,
 retryable separate-client allocation failures and explicit result retirement.
 Native KV/Document capture checks remain in place. A local allocating writer's
 failure now requires evidence of adapter exhaustion before closing the query.
+The [current-observation proof](../../tests/README.md#read-only-current-table-observations--2026-10-23)
+adds an authorized, bounded direct read of current Table metadata and rows without
+creating a retention pin or publishing storage state. Its component and HTTP
+checks cover byte limits, exact interpretation, restart, revocation and rejection
+after DROP/name reuse. Reactive watch and freshness consumers still require
+migration to this operation.
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

@@ -185,6 +185,33 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Read-only current Table observations — 2026-10-23
+
+`nix develop --command zig build test-direct-table-service
+-Doptimize=ReleaseSafe --summary all` passes 526 typed HTTP exchanges under
+definition `38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`.
+The new `observe` request returns an empty current Table without advancing its
+acceptance position. After disk restart it returns metadata, a one-row prefix
+containing the original 64 KiB value, and a complete two-row page at the same
+current position. Revocation denies the observation and restored rights permit
+it. After DROP and name reuse the old interpretation rejects, while the existing
+retained-source tests continue to read their original cuts. This run also retains
+the earlier CRUD/DDL, three-restart, history, lost-reply and cleanup assertions.
+
+Focused storage tests pass 4/4 for retained/current pages, including mixed WAL
+and segment storage, owned variable-length cells, byte budgets, final denial
+after buffering and empty completion. Current observations leave the root,
+log position, object writes and pin state unchanged. The catalog selection
+passes 33/33 tests (`direct`, `current observations`, `borrowed Table` filters).
+Injected catalog policy checks final denial and unchanged persistent state;
+response checks reject unrelated interpretations, altered authority references,
+false coverage, byte-count changes and duplicate identities. Retained-query and
+borrowed grants reject the current-observation action.
+
+The direct contract generation/check, verification catalog, documentation's nine
+tests and production site build pass. This adds a public read-only observation
+primitive; reactive watch integration and full repository checks remain pending.
+
 ## Direct maintained successors and query fixture migration — 2026-10-23
 
 The direct runner's `--exchanges-only` and `--relational-failures-only` schedules

@@ -19,6 +19,14 @@ credentials private and checks the signed original subject on every request.
 It requires current catalog/schema/Table rights, without raw-resource read grants.
 Each Table has its own acceptance partition within the catalog's logical scope.
 
+The typed direct caller can observe one current definition and data position,
+optionally with up to eight rows, without acquiring a snapshot or changing
+storage. Metadata and rows describe the same Table root and require current
+SELECT rights. A partial observation reports `more`; a later request may see
+newer data. Complete traversal across requests uses an explicitly retained
+snapshot. See [current observations](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
+for exact bounds and response semantics.
+
 A caller can explicitly delegate reads of one exact Table definition and data
 frontier to an executor through `DirectReadDelegation`. The grant names one pin
 owner and immutable application-work commitment. The executor uses its own

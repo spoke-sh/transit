@@ -335,6 +335,9 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
 }
 pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: State, release: bool) !void {
     try verifyPhysical(allocator, client, state.codecs, release);
+    // Current observation cannot masquerade as a retained read after DROP and
+    // name reuse. The original durable snapshots below remain independently valid.
+    try t.expectError(error.Conflict, client.call(.{ .observe = .{ .namespace = 1, .interpretation = state.renamed.resulting.interpretation, .rows = null } }));
     try t.expectError(error.AccessDenied, state.prepared.require(client, .read));
     for (state.statements, state.intents) |result, encoded| {
         const bytes = try encoded.decode(allocator, c.DirectTableIntent.max_bytes);

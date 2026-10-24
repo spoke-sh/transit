@@ -46,6 +46,29 @@ original schema, advances only after fully decoding a valid page and verifies
 the complete row count. Its explicit `check` revalidates current rights before
 disclosure from cached data. Local destruction does not release the durable pin.
 
+### Current observations
+
+`observe` accepts a namespace, exact interpretation (object, revision and digest)
+and nullable row limits. It requires CONNECT, USAGE and SELECT, including for a
+metadata-only request. It returns the current immutable definition/schema,
+accepted Table position, last logical change position, total row count and the
+native authority references checked for that read. A supplied row budget also
+returns the first physical page, its encoded byte count and `more`. Limits are
+1–8 rows and 1–16 MiB of encoded rows (default 8 rows and 4 MiB). An individual
+row that cannot fit the byte budget rejects; there is no truncated row.
+
+The Table owner serializes this observation with writes and definition changes;
+all returned metadata and rows describe that one root. Current rights are
+rechecked after buffering, including empty pages. A changed definition or retired
+Table rejects. The response preserves exact row types and physical identity order;
+the client validates row encodings, count, byte budget and ordered identities.
+
+This operation writes no log record, pin, intent or publication. It returns no
+continuation or durable snapshot handle. `more` means the bounded observation
+does not contain the complete Table; a later observation can see another root.
+Consumers needing resumable traversal must explicitly acquire a durable pin.
+Retained-read delegations and borrowed-read grants do not authorize `observe`.
+
 ### Delegated retained reads
 
 `DirectReadDelegation.encode` retains the original grant in a canonical 310-byte

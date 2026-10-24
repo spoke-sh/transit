@@ -232,6 +232,8 @@ pub const Action = union(enum) {
     check_set: []const ReadCheck,
     list: struct { namespace: u64, after: ?u64 },
     lookup: struct { namespace: u64, name: []const u8 },
+    /// One read-only current observation; rows are optional and never resumable.
+    observe: struct { namespace: u64, interpretation: d.Definition, rows: ?P.ReadLimits },
     name_assertion: struct { binding: c.NameAssertion.Binding, command: c.NameAssertion.Command },
     preview: Ddl,
     stage: struct { namespace: u64, intent: c.DirectTableIntent.Saved },
@@ -346,6 +348,12 @@ pub const Request = struct {
                 try c.Model.nativeId(value.namespace);
                 _ = try c.TableAuthority.Name.init(value.name);
             },
+            .observe => |value| {
+                try c.Model.nativeId(value.namespace);
+                try value.interpretation.validate();
+                try connection.object(value.interpretation.object);
+                if (value.rows) |limits| try limits.validate();
+            },
             inline .preview, .admit_ddl => |value| {
                 try connection.binding(value.binding);
                 if (!std.mem.eql(u8, @tagName(value.binding.action), @tagName(value.action))) return error.InvalidDirectCatalogOperation;
@@ -422,6 +430,13 @@ pub const Definition = struct {
     schema: Binary,
 };
 pub const Source = struct { snapshot: Snapshot, interpretation: c.storage.TableDeclaration.Stored, accepted: d.Position, changed_lsn: u64, row_count: u64, schema: Binary, authority: c.DirectReadAuthority };
+pub const CurrentPage = struct {
+    pub const json_schema_sequence_bounds = .{ .rows = 8 };
+    rows: []const Binary,
+    encoded_bytes: u32,
+    more: bool,
+};
+pub const Current = struct { definition: Definition, authority: c.DirectReadAuthority, page: ?CurrentPage };
 pub const HistorySource = struct { point: P.HistoryPoint, source: Source };
 pub const HistoryEntry = struct { point: P.HistoryPoint, interpretation: c.storage.TableDeclaration.Stored, changed_lsn: u64, row_count: u64, receipt: P.HistoryReceipt };
 pub const HistoryPage = struct {
@@ -468,6 +483,7 @@ pub const Result = union(enum) {
     staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
+    observation: Current,
     name_assertion: c.NameAssertion.Observation,
     preview: D.Preview,
     ddl: D.Observation,

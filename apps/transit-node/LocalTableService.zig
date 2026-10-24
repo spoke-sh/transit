@@ -50,6 +50,18 @@ fn schema(allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Bin
     defer allocator.free(buffer);
     return w.Binary.encode(allocator, try value.encode(buffer));
 }
+fn encodeDefinition(allocator: std.mem.Allocator, view: *const D.View) !w.Definition {
+    return .{
+        .interpretation = view.table.root.declared(),
+        .namespace = view.properties.namespace,
+        .authorization = view.properties.authorization,
+        .name = view.properties.name,
+        .position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn },
+        .changed_lsn = view.table.root.changed_lsn,
+        .row_count = view.table.root.live_rows,
+        .schema = try schema(allocator, view.table.declaration.schema.schema),
+    };
+}
 fn requireSource(delegation: ?c.DirectReadDelegation, source: c.storage.TablePartition.SnapshotDefinition) !void {
     if (delegation) |value| {
         if (value.binding.retention != source.retention) return error.TableDelegationDenied;
@@ -119,16 +131,19 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
         .lookup => |value| {
             var view = (try catalog.resolve(allocator, value.namespace, try .init(value.name), policy)) orelse return .{ .lookup = null };
             defer view.deinit();
-            return .{ .lookup = .{
-                .interpretation = view.table.root.declared(),
-                .namespace = view.properties.namespace,
-                .authorization = view.properties.authorization,
-                .name = view.properties.name,
-                .position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn },
-                .changed_lsn = view.table.root.changed_lsn,
-                .row_count = view.table.root.live_rows,
-                .schema = try schema(allocator, view.table.declaration.schema.schema),
-            } };
+            return .{ .lookup = try encodeDefinition(allocator, &view) };
+        },
+        .observe => |value| {
+            var current = try catalog.observe(allocator, value.namespace, value.interpretation, value.rows, policy);
+            defer current.deinit();
+            const page: ?w.CurrentPage = if (current.page) |*found| blk: {
+                const rows = try allocator.alloc(w.Binary, found.count);
+                const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+                defer allocator.free(scratch);
+                for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try found.rows[i].?.row().encode(current.view.table.declaration.schema.schema, scratch));
+                break :blk .{ .rows = rows, .encoded_bytes = found.encoded_bytes, .more = found.more };
+            } else null;
+            return .{ .observation = .{ .definition = try encodeDefinition(allocator, &current.view), .authority = current.authority, .page = page } };
         },
         .list => |value| {
             var bytes: [8]u8 = undefined;
