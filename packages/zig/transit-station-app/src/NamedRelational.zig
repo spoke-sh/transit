@@ -24,6 +24,7 @@ pub fn control(self: Self, turn: *s.Turn, workspace: []u8) !void {
         .authorize => |permission| {
             _ = try self.authorize(turn, permission.reference, permission.expected, permission.principal, permission.allow);
         },
+        .retire => |reference| try self.retire(turn, reference),
     }
 }
 
@@ -78,7 +79,7 @@ pub fn lookup(self: Self, source: anytype, name: r.Name) !?r.Reference {
     const value = (try source.read(try r.nameKey(self.configuration.scope.namespace, name))) orelse return null;
     const reference = try r.Reference.decode(value);
     if (!std.meta.eql(reference.identity.scope, self.configuration.scope) or !std.meta.eql(reference.identity.name, name)) return error.InvalidNamedQuery;
-    _ = try self.definition(source, reference);
+    if (try self.retired(source, reference)) return null;
     return reference;
 }
 pub fn definition(self: Self, source: anytype, reference: r.Reference) !r.Definition {
@@ -88,6 +89,31 @@ pub fn definition(self: Self, source: anytype, reference: r.Reference) !r.Defini
     const stored = try r.decodeRecord(r.Definition, "NRD1", (try source.read(r.definitionKey(reference.identity))) orelse return error.NamedQueryNotFound);
     if (!std.meta.eql(try stored.reference(), reference)) return error.NamedQueryChanged;
     return stored;
+}
+
+pub fn retired(self: Self, source: anytype, reference: r.Reference) !bool {
+    _ = try self.definition(source, reference);
+    const identity = reference.identity;
+    const value = try source.read(r.key('t', identity.scope.namespace, identity.object, identity.revision)) orelse return false;
+    const control_value = try r.Control.decode(value);
+    if (control_value != .retire or !std.meta.eql(control_value.retire, reference)) return error.NamedQueryChanged;
+    return true;
+}
+
+/// Logical retirement closes this exact definition to new activation and
+/// authorization. It retains history, active executions and explicit graph
+/// edges; their cleanup remains separately authorized work.
+pub fn retire(self: Self, turn: *s.Turn, reference: r.Reference) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.administrator(turn);
+    try fresh(turn);
+    if (try self.retired(turn, reference)) return;
+    const value = try (r.Control{ .retire = reference }).encode();
+    try self.reserve(turn, 1, value.len);
+    const identity = reference.identity;
+    try turn.write(r.key('t', identity.scope.namespace, identity.object, identity.revision), value);
+    try turn.validate();
 }
 fn requestBytes(view: anytype, reference: s.PublicationReference, bytes: []u8) ![]const u8 {
     var cursor = try reference.publication().open(view, reference.record);
@@ -117,10 +143,11 @@ pub fn publish(self: Self, turn: *s.Turn, proposal: Proposal, workspace: []u8) !
     if (proposal.peer == 0) return error.InvalidNamedQuery;
     if (try turn.read(r.definitionKey(identity))) |value| {
         const existing = try r.decodeRecord(r.Definition, "NRD1", value);
-        if (!std.meta.eql(existing.identity, identity) or existing.peer != proposal.peer or !std.meta.eql(existing.request, proposal.request)) return error.NamedQueryConflict;
+        if (!std.meta.eql(existing.identity, identity) or existing.peer != proposal.peer or !std.meta.eql(existing.request, proposal.request) or !std.mem.eql(u8, &(try existing.reference()).digest, &proposal.expected_digest)) return error.NamedQueryConflict;
         return existing.reference();
     }
     const old = try self.lookup(turn, proposal.name);
+    const head_exists = try turn.read(try r.nameKey(self.configuration.scope.namespace, proposal.name)) != null;
     if (old) |head| {
         if (head.identity.object != proposal.object or head.identity.revision != proposal.expected) return error.NamedQueryConflict;
     } else {
@@ -140,9 +167,10 @@ pub fn publish(self: Self, turn: *s.Turn, proposal: Proposal, workspace: []u8) !
     const definition_value: r.Definition = .{ .identity = identity, .peer = proposal.peer, .request = proposal.request, .version = try view.retain(), .fingerprint = try bundle.fingerprint(), .lifetime = bundle.plan.lifetime };
     const encoded = try r.encodeRecord("NRD1", definition_value);
     const reference = try definition_value.reference();
+    if (!std.mem.eql(u8, &reference.digest, &proposal.expected_digest)) return error.NamedQueryChanged;
     const head_value = try reference.encode();
     const retained_bytes = std.math.add(u64, encoded.len, proposal.request.spec.length) catch return error.NamedQueryQuota;
-    try self.reserve(turn, if (old == null) 2 else 1, std.math.add(u64, retained_bytes, if (old == null) head_value.len else 0) catch return error.NamedQueryQuota);
+    try self.reserve(turn, if (head_exists) 1 else 2, std.math.add(u64, retained_bytes, if (head_exists) 0 else head_value.len) catch return error.NamedQueryQuota);
     try turn.write(r.definitionKey(identity), encoded);
     try turn.write(try r.nameKey(identity.scope.namespace, identity.name), head_value);
     try turn.validate();
@@ -166,6 +194,7 @@ pub fn authorize(self: Self, turn: *s.Turn, reference: r.Reference, expected: u6
         if (!existing.eql(encoded)) return error.NamedQueryConflict;
         return .{ .reference = reference, .policy_revision = next };
     }
+    if (try self.retired(turn, reference)) return error.NamedQueryRetired;
     const current = try q.RelationalCapture.policy(turn, policy.peer);
     if ((if (current) |value| value.revision else 0) != expected) return error.NamedQueryConflict;
     try self.reserve(turn, 1, encoded.len);
@@ -253,6 +282,7 @@ pub fn activate(self: Self, turn: *s.Turn, activation: r.Activation, clients: []
     if (frame.kind != .call or !frame.payload.eql(try activation.encode())) return error.ExpectedCall;
     const peer = try s.Frame.source(turn.delivery.input);
     const definition_value = try self.definition(turn, activation.reference);
+    if (try self.retired(turn, activation.reference)) return error.NamedQueryRetired;
     if (peer != definition_value.peer) return error.NamedQueryDenied;
     if (!std.meta.eql(activation.reference, try self.attribution(turn, peer, activation.policy_revision))) return error.NamedQueryChanged;
     const current = (try q.RelationalCapture.policy(turn, peer)) orelse return error.QueryDenied;

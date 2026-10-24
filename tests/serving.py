@@ -44,14 +44,14 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
     if 'send' in command:
         command['send'].setdefault('role', None)
-    request = dict(version=1, definition='77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -76,7 +76,7 @@ def subject_proof(key, principal, ingress, context, credential_epoch=None, role=
     if credential_epoch is None:
         observation = post(key.authority_port, '/v1/query', native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
         credential_epoch = observation['body']['authorization']['body']['identity']['credential_epoch']
-    claim = dict(definition='77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
+    claim = dict(definition='fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
     return dict(claim=claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest()))
 
 

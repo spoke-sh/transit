@@ -266,6 +266,13 @@ returns HTTP 409 (`CatalogObservationChanged`), requiring a fresh traversal;
 pages from different observations cannot be joined into one complete graph.
 Durable graph cardinality is independent of resident cache and page size.
 
+`dependency_state` accepts one exact edge and returns that edge, the current
+catalog position and a `present` boolean. It reads both indices under current
+source and dependent metadata authority, rechecked before disclosure. It neither
+registers an edge nor starts work. A missing edge is distinct from an immutable
+successful registration receipt whose edge was subsequently removed. This bounded
+point observation does not certify data availability or a cross-catalog snapshot.
+
 The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
 byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
 Document=2, captured=3, maintained=4), dependent definition, and a big-endian

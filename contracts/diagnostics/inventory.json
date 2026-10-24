@@ -3149,6 +3149,7 @@
         "dependencyOperationRequirements()": "<inferred>",
         "dependencyPage()": "<inferred>",
         "dependencySource()": "<inferred>",
+        "dependencyState()": "<inferred>",
         "dependentDefinition()": "<inferred>",
         "dependentRequirements()": "<inferred>",
         "entry()": "<inferred>",
@@ -3222,7 +3223,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 641,
+        "try": 650,
         "catch": 7
       },
       "imports": [
@@ -3770,7 +3771,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 116,
+        "try": 117,
         "catch": 0
       },
       "imports": [
@@ -3897,6 +3898,7 @@
           "namespace_preview",
           "namespace_operation",
           "dependency_operation",
+          "dependency_state",
           "dependencies",
           "resource_preview",
           "resource_operation",
@@ -3973,6 +3975,7 @@
           "namespace_preview",
           "namespace_operation",
           "dependency_operation",
+          "dependency_state",
           "dependencies",
           "resource_preview",
           "resource_operation",
@@ -4034,7 +4037,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 119,
+        "try": 121,
         "catch": 2
       },
       "imports": [
@@ -4086,7 +4089,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 91
+        "InvalidTableResponse": 92
       },
       "outcomes": {},
       "error_sets": {},
@@ -4104,7 +4107,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 134,
+        "try": 136,
         "catch": 7
       },
       "imports": [
@@ -13182,7 +13185,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde\""
+          "fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0"
         ],
         "Effect.phase": [
           "pending",
@@ -21130,12 +21133,13 @@
         "ExpectedCall": 1,
         "InvalidNamedQuery": 14,
         "InvalidQueryBundle": 2,
-        "NamedQueryChanged": 6,
+        "NamedQueryChanged": 8,
         "NamedQueryConfigurationChanged": 1,
         "NamedQueryConflict": 6,
         "NamedQueryDenied": 3,
         "NamedQueryNotFound": 2,
         "NamedQueryQuota": 3,
+        "NamedQueryRetired": 2,
         "NamedQueryUninitialized": 1,
         "PublicationReferenceChanged": 1,
         "QueryAfterMutation": 1,
@@ -21170,12 +21174,46 @@
         "publish()": "<inferred>",
         "requestBytes()": "<inferred>",
         "reserve()": "<inferred>",
+        "retire()": "<inferred>",
+        "retired()": "<inferred>",
         "scoped()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 104,
+        "try": 120,
         "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-station-app/src/NamedRelationalPublication.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "DataIdentityConflict": 3,
+        "IncompatibleDefinition": 1,
+        "InvalidNamedQuery": 8,
+        "NamedQueryChanged": 2,
+        "NamedQueryDependencyMissing": 1,
+        "NamedQueryDependencyRejected": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "clientFor()": "<inferred>",
+        "load()": "<inferred>",
+        "prepare()": "<inferred>",
+        "publication()": "<inferred>",
+        "register()": "<inferred>",
+        "removals()": "<inferred>",
+        "save()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -21185,13 +21223,16 @@
     "packages/zig/transit-station-app/src/NamedRelationalRecords.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidNamedQuery": 19
+        "InvalidNamedQuery": 22,
+        "NamedQueryChanged": 1,
+        "RelationalSourceChanged": 1
       },
       "outcomes": {
         "Control": [
           "initialize",
           "publish",
-          "authorize"
+          "authorize",
+          "retire"
         ]
       },
       "error_sets": {},
@@ -21204,10 +21245,15 @@
         "Definition.reference()": "<inferred>",
         "Definition.validate()": "<inferred>",
         "Identity.validate()": "<inferred>",
+        "Logical.reference()": "<inferred>",
+        "Logical.validate()": "<inferred>",
         "Name.init()": "<inferred>",
         "Name.validate()": "<inferred>",
+        "Proposal.prepare()": "<inferred>",
+        "Proposal.reference()": "<inferred>",
         "Reference.decode()": "<inferred>",
         "Reference.encode()": "<inferred>",
+        "Reference.interpretation()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "Scope.validate()": "<inferred>",
         "decodeRecord()": "<inferred>",
@@ -21218,8 +21264,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
-        "catch": 1
+        "try": 57,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -21643,6 +21689,7 @@
         "MigrationFailure.zig",
         "Model.zig",
         "NamedRelational.zig",
+        "NamedRelationalPublication.zig",
         "NamedRelationalRecords.zig",
         "NamedResource.zig",
         "Native.zig",

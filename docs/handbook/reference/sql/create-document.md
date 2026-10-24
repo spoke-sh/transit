@@ -30,6 +30,9 @@ structured values and collaborative text live in an explicitly provisioned
 resource. Document identity, replica identity, accepted revision and merge epoch
 remain distinct. Tentative edits are not accepted state.
 
+The typed [named resource operations](../../../../packages/zig/transit-station-app/docs/named-resources.md)
+allocate, initialize and publish named Document resources with explicit identity,
+writer and current permissions. They are separate from this offline SQL form.
 Use the [Document service](../../../../packages/zig/transit-station-document/docs/service.md)
 and [caller interface](../../../../packages/zig/transit-station-document/docs/remote.md)
 for initialization, changes and reads. Current authorization and writer fencing

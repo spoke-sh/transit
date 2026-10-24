@@ -33,9 +33,12 @@ Actual reads and mutations use the public client under current resource policy
 and writer ownership. Mutations share a turn's commit decision with input
 progress and outputs; the declaration creates no new transaction boundary.
 
-Use [growing client operations](../../../../packages/zig/transit-client/docs/growing.md)
-or [application installation](../applications.md#installation-and-bootstrap) to
-provision and access supported state. Unified SQL needs an explicitly declared
+The typed [named resource operations](../../../../packages/zig/transit-station-app/docs/named-resources.md)
+allocate, initialize and publish named KV resources with explicit interpretation,
+writer and current permissions. They are separate from this offline SQL form.
+[Growing client operations](../../../../packages/zig/transit-client/docs/growing.md)
+and [application installation](../applications.md#installation-and-bootstrap)
+also provision native state. Unified SQL needs an explicitly declared
 KV decoder and schema; arbitrary stored bytes are not implicitly SQL values.
 See [query source profiles](../queries.md#source-declarations).
 The [offline declaration contract](../../../../contracts/STATE_DECLARATION_V1.md)

@@ -53,6 +53,11 @@ pub const Reference = struct {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.identity.validate();
     }
+    pub fn interpretation(self: Reference) !p.DataLifecycle.Definition {
+        try self.validate();
+        const scope = self.identity.scope;
+        return .{ .object = .{ .scope = .{ .realm = scope.realm, .resource = scope.resource, .catalog = scope.namespace }, .branch = 1, .object = self.identity.object }, .revision = self.identity.revision, .digest = self.digest };
+    }
     pub fn encode(self: Reference) !p.Value {
         try self.validate();
         return encodeRecord("NRR1", .{ .identity = self.identity, .digest = self.digest });
@@ -75,6 +80,27 @@ pub const Configuration = struct {
     }
 };
 pub const Budget = struct { records: u64, bytes: u64 };
+/// Logical identity can be frozen before publication. The native version is a
+/// retained physical locator in Definition, not part of the declared meaning.
+pub const Logical = struct {
+    identity: Identity,
+    peer: u64,
+    request: Ref,
+    fingerprint: [32]u8,
+    lifetime: q.fuze.Relational.Lifetime,
+    pub fn validate(self: Logical) !void {
+        try self.identity.validate();
+        try q.RelationalBundle.checkReference(self.request);
+        if (self.peer == 0 or self.lifetime == .interactive) return error.InvalidNamedQuery;
+    }
+    pub fn reference(self: Logical) !Reference {
+        try self.validate();
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.application.named-relational.v1\x00");
+        hash.update((try encodeRecord("NRL1", self)).slice());
+        return .{ .definition = p.Growth.current_definition, .identity = self.identity, .digest = hash.finalResult() };
+    }
+};
 pub const Definition = struct {
     identity: Identity,
     peer: u64,
@@ -82,6 +108,9 @@ pub const Definition = struct {
     version: p.Growth.ReadVersionId,
     fingerprint: [32]u8,
     lifetime: q.fuze.Relational.Lifetime,
+    pub fn logical(self: Definition) Logical {
+        return .{ .identity = self.identity, .peer = self.peer, .request = self.request, .fingerprint = self.fingerprint, .lifetime = self.lifetime };
+    }
     pub fn validate(self: Definition) !void {
         try self.identity.validate();
         try q.RelationalBundle.checkReference(self.request);
@@ -90,14 +119,33 @@ pub const Definition = struct {
     }
     pub fn reference(self: Definition) !Reference {
         try self.validate();
-        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.application.named-relational.v1\x00");
-        hash.update((try encodeRecord("NRD1", self)).slice());
-        return .{ .definition = p.Growth.current_definition, .identity = self.identity, .digest = hash.finalResult() };
+        return self.logical().reference();
     }
 };
 pub const Authorization = struct { identity: Identity, digest: [32]u8, policy: q.RelationalRecords.Policy };
-pub const Proposal = struct { name: Name, object: u64, expected: u64, peer: u64, request: Ref };
+pub const Draft = struct { name: Name, object: u64, expected: u64, peer: u64, request: Ref };
+pub const Proposal = struct {
+    name: Name,
+    object: u64,
+    expected: u64,
+    peer: u64,
+    request: Ref,
+    expected_digest: [32]u8,
+    /// Pure preparation binds the complete bundle publication and resulting
+    /// logical reference before any dependency registration or native send.
+    pub fn prepare(scope: Scope, draft: Draft, bundle: q.RelationalBundle) !Proposal {
+        try scope.validate();
+        if (!std.meta.eql(draft.request, try bundle.reference(draft.request.resource, draft.request.namespace))) return error.NamedQueryChanged;
+        for (bundle.sources) |source| if (source.scope.realm != scope.realm) return error.RelationalSourceChanged;
+        const logical: Logical = .{ .identity = .{ .scope = scope, .name = draft.name, .object = draft.object, .revision = std.math.add(u64, draft.expected, 1) catch return error.InvalidNamedQuery }, .peer = draft.peer, .request = draft.request, .fingerprint = try bundle.fingerprint(), .lifetime = bundle.plan.lifetime };
+        return .{ .name = draft.name, .object = draft.object, .expected = draft.expected, .peer = draft.peer, .request = draft.request, .expected_digest = (try logical.reference()).digest };
+    }
+    pub fn reference(self: Proposal, scope: Scope) !Reference {
+        const result: Reference = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .name = self.name, .object = self.object, .revision = std.math.add(u64, self.expected, 1) catch return error.InvalidNamedQuery }, .digest = self.expected_digest };
+        try result.validate();
+        return result;
+    }
+};
 pub const Permission = struct { reference: Reference, expected: u64, principal: u64, allow: bool };
 /// Casts from the configured external administrator. This command does not
 /// include activation; activation is a separate authenticated publishing-peer call.
@@ -105,6 +153,7 @@ pub const Control = union(enum) {
     initialize,
     publish: Proposal,
     authorize: Permission,
+    retire: Reference,
     pub fn encode(self: Control) !p.Value {
         return switch (self) {
             .initialize => encodeRecord("NRI1", .{}),
@@ -119,6 +168,10 @@ pub const Control = union(enum) {
                 if (value.principal == 0 or value.expected == std.math.maxInt(u64)) return error.InvalidNamedQuery;
                 break :blk encodeRecord("NRG1", .{ .identity = value.reference.identity, .digest = value.reference.digest, .expected = value.expected, .principal = value.principal, .allow = value.allow });
             },
+            .retire => |value| blk: {
+                try value.validate();
+                break :blk encodeRecord("NRT1", .{ .identity = value.identity, .digest = value.digest });
+            },
         };
     }
     pub fn decode(value: p.Value) !Control {
@@ -131,6 +184,9 @@ pub const Control = union(enum) {
         } else if (std.mem.eql(u8, magic, "NRU1")) .{ .publish = try decodeRecord(Proposal, "NRU1", value) } else if (std.mem.eql(u8, magic, "NRG1")) blk: {
             const body = try decodeRecord(struct { identity: Identity, digest: [32]u8, expected: u64, principal: u64, allow: bool }, "NRG1", value);
             break :blk .{ .authorize = .{ .reference = .{ .definition = p.Growth.current_definition, .identity = body.identity, .digest = body.digest }, .expected = body.expected, .principal = body.principal, .allow = body.allow } };
+        } else if (std.mem.eql(u8, magic, "NRT1")) blk: {
+            const body = try decodeRecord(struct { identity: Identity, digest: [32]u8 }, "NRT1", value);
+            break :blk .{ .retire = .{ .definition = p.Growth.current_definition, .identity = body.identity, .digest = body.digest } };
         } else return error.InvalidNamedQuery;
         if (!(try result.encode()).eql(value)) return error.InvalidNamedQuery;
         return result;

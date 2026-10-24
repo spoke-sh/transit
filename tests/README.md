@@ -1,5 +1,53 @@
 # Validation and evidence
 
+## Named query dependency publication and retirement — 2026-10-24
+
+Under shared current-v1 definition
+`fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0`,
+the Station application naming tests pass pure saved publication preparation,
+owned JSON restoration, exact source/dependent bindings, logical references
+independent of retained physical locators, conditional publication, retirement,
+name reuse and preserved original attribution. Independent Python fixtures verify
+the `NRL1` logical digest, mandatory proposal digest, `NRT1` retirement record and
+exact keys. The complete Station application package suite passes; reproduce it
+with `zig build test` from `packages/zig/transit-station-app` in the pinned Nix
+shell. The complete catalog package suite and its additional `dependency
+membership` filter pass current graph observation, metadata denial, inert reads,
+removed membership despite an old successful receipt, exact response binding and
+rejection of a missing membership field or substituted operation result.
+
+An initial saved-plan test exposed borrowed JSON strings that outlived their
+temporary preparation buffer. The loader now owns its decoded bytes and the
+regression passes. The first two public captured-query runs reached their
+600-second supervisor deadline while progressing through the added node-restart
+schedule. Neither is passing evidence. The dedicated captured schedule now allows
+1200 seconds for twelve accepted-reply faults and both query/retirement shapes;
+per-operation and bounded-work assertions remain in force.
+
+The public captured schedule passes `zig build test-direct-captured-query --
+--named-only`: six exact source registrations and six native naming acceptances
+withhold their replies, each followed by abrupt node replacement. Publication,
+authorization and retirement recover their original native receipts after worker
+generation/key rotation. Four saved publication plans remain byte-identical.
+Self-joins share an edge; independent Tables retain distinct cuts and edges.
+Both shapes verify inert publication, explicit activation, original result
+attribution, current disclosure denial/restoration, stale/error freshness,
+DROP RESTRICT before cleanup, exact retirement/removal and complete retained
+results after source DROP. Replaying the old registration cannot restore a
+removed edge or make its publication plan ready.
+
+Maintained recovery qualification is in progress through `zig build
+test-direct-captured-query -- --maintained-only`; its added cleanup schedule is
+not yet counted as passed.
+
+Generated schema/ABI/signing fixtures and `just contract::check` pass.
+Diagnostic mappings and inventory pass with 594 production owners, 4864
+owner/error pairs and 5071 error-return boundaries. The complete handbook check
+passes formatting, types, nine content tests and production build. Full
+repository and clean-checkout qualification remain required before delivery.
+These checks do not establish atomic catalog/native publication, automatic
+reconciliation, SQL view publication or service-managed query scheduling.
+
 ## Named resource dependency authority and retirement — 2026-10-24
 
 Under shared current-v1 definition

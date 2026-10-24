@@ -134,6 +134,8 @@ pub const Outcome = struct {
     }
 };
 pub const Observation = union(enum) { not_observed, outcome: Outcome };
+/// Current graph membership is distinct from an immutable operation receipt.
+pub const State = struct { edge: Edge, position: d.Position, present: bool };
 
 pub const Selection = union(enum) { dependents: d.Object, dependencies: d.Object };
 pub const Cursor = struct { selection: Selection, authority: Authority, position: d.Position, after: [32]u8 };

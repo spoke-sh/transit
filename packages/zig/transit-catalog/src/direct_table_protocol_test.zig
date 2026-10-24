@@ -426,6 +426,38 @@ test "borrowed Table reads bind independent signatures and deny lifecycle contro
     try t.expectError(error.InvalidTableDelegation, invalid.validate(t.allocator));
 }
 
+test "dependency membership binds exact edges and keeps receipts separate from current state" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
+    defer parsed.deinit();
+    var request = parsed.value.request;
+    const edge = request.action.dependency_operation.binding.edge;
+    request.action = .{ .dependency_state = edge };
+    request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
+    request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    try request.validate(t.allocator);
+    try t.expect(!request.transport().mutation and request.transport().control == null);
+    const claim = request.proof.claim;
+    var response: w.Response = .{ .definition = p.Growth.current_definition, .context = claim.context, .policy_revision = 1, .subject = .{ .principal = claim.principal, .login_role = claim.principal, .role = claim.role orelse claim.principal, .credential_epoch = claim.credential_epoch, .audience = claim.audience, .context = claim.context }, .result = .{ .dependency_state = .{ .edge = edge, .position = .{ .partition = 3, .next_lsn = 7 }, .present = true } } };
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    response.result.dependency_state.present = false;
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    inline for (0..4) |case| {
+        var changed = response;
+        switch (case) {
+            0 => changed.result.dependency_state.edge.source.digest[0] ^= 1,
+            1 => changed.result.dependency_state.edge.dependent.interpretation.digest[0] ^= 1,
+            2 => changed.result.dependency_state.position.next_lsn = 0,
+            3 => changed.result = .{ .dependency_operation = .not_observed },
+            else => unreachable,
+        }
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    }
+    const incomplete = try p.Json.valueAlloc(t.allocator, .{ .edge = edge, .position = response.result.dependency_state.position });
+    defer t.allocator.free(incomplete);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(c.DirectDependency.State, t.allocator, incomplete));
+}
+
 test "current observations reject wrong definitions invented coverage and altered row pages" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();

@@ -20,6 +20,7 @@ pub const MigrationDiagnostic = @import("MigrationDiagnostic.zig");
 pub const Migration = @import("Migration.zig");
 pub const query = @import("transit_query");
 pub const NamedRelational = @import("NamedRelational.zig");
+pub const NamedRelationalPublication = @import("NamedRelationalPublication.zig");
 pub const NamedRelationalRecords = @import("NamedRelationalRecords.zig");
 pub const NamedResource = @import("NamedResource.zig");
 test {

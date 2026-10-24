@@ -317,14 +317,24 @@ registration can precede publication after allocation fixes the interpretation;
 metadata ownership remains separate from native data rights. Public lost-reply
 and restart checks cover both graph directions, read denial, DROP RESTRICT and
 original-edge removal. Component checks preserve old edges through rename and
-consumer retirement. Named query publication still requires its own integration;
-these registrations do not make independent owners atomic or imply automatic
-cleanup.
+consumer retirement. These registrations do not make independent owners atomic
+or imply automatic cleanup.
+
+The [named query publication work](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24)
+adds a saved original-caller plan with exact source registrations and a logical
+definition reference prepared before native publication. Current graph membership
+is checked separately from immutable operation receipts. Exact definition
+retirement preserves old attribution and permits fresh-object name reuse;
+registration removal remains explicit. Component and contract checks pass.
+The public captured schedule also passes twelve withheld acceptance replies and
+node replacements, current disclosure rights, DROP RESTRICT, explicit retirement
+and edge removal, with complete retained results after source DROP. The maintained
+dependency/retirement schedule remains under qualification.
 
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
 it does not complete named consumer integration with the dependency registry.
-Relational and remaining caller migration, named dependency integration and
+Relational and remaining caller migration, named dependency qualification and
 broader resource/computation qualification also remain unfinished. Automatic point
 flushing belongs to the following storage milestone. None of the
 completion matrix rows below is closed by this partial caller path.

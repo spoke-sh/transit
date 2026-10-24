@@ -18,7 +18,7 @@ pub fn handle(turn: *s.Turn, frame: s.Frame, workspace: []u8) !bool {
         return true;
     }
     if (frame.kind != .cast) return false;
-    if (std.mem.startsWith(u8, text, "NRI1") or std.mem.startsWith(u8, text, "NRU1") or std.mem.startsWith(u8, text, "NRG1")) {
+    if (std.mem.startsWith(u8, text, "NRI1") or std.mem.startsWith(u8, text, "NRU1") or std.mem.startsWith(u8, text, "NRG1") or std.mem.startsWith(u8, text, "NRT1")) {
         try naming.control(turn, workspace);
         return true;
     }
@@ -53,7 +53,26 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         const revision = if (maintained) (try q.RelationalMaintenance.head(&source, .{ .peer = config.writer.pid, .correlation = correlation })).policy_revision else (try q.RelationalCapture.job(&source, try q.UnifiedRecords.readIdentity((try source.read(q.RelationalRecords.key('i', config.writer.pid, correlation))).?))).policy_revision;
         return Test.print(init, try naming.attribution(&source, config.writer.pid, revision));
     }
-    const payload: p.Value = if (std.mem.eql(u8, mode, "initialize")) try (@as(r.Control, .initialize)).encode() else if (std.mem.eql(u8, mode, "publish")) try (r.Control{ .publish = .{ .name = try r.Name.init(args[4]), .object = try std.fmt.parseInt(u64, args[5], 10), .expected = try std.fmt.parseInt(u64, args[6], 10), .peer = config.writer.pid, .request = request } }).encode() else if (std.mem.eql(u8, mode, "authorize")) try (r.Control{ .authorize = .{ .reference = try Test.load(r.Reference, init, directory, args[4]), .expected = try std.fmt.parseInt(u64, args[5], 10), .principal = 1234, .allow = std.mem.eql(u8, args[6], "allow") } }).encode() else if (std.mem.eql(u8, mode, "activate")) blk: {
+    var publication: ?r.Proposal = null;
+    if (std.mem.eql(u8, mode, "publish")) {
+        try q.RelationalBundle.checkReference(request);
+        var request_source = try (s.client.ResourceReader{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }).open(request.resource);
+        var cursor = try request.publication().open(&request_source, request.record);
+        const bytes = try init.arena.allocator().alloc(u8, request.spec.length);
+        var offset: usize = 0;
+        while (true) {
+            const part = try request.publication().read(&request_source, cursor);
+            if (part.bytes.len > bytes.len - offset) return error.InvalidQueryBundle;
+            @memcpy(bytes[offset..][0..part.bytes.len], part.bytes.slice());
+            offset += part.bytes.len;
+            cursor = part.next orelse break;
+        }
+        if (offset != bytes.len) return error.InvalidQueryBundle;
+        var decoded = try q.RelationalBundle.decode(init.arena.allocator(), bytes);
+        defer decoded.deinit();
+        publication = try r.Proposal.prepare(naming.configuration.scope, .{ .name = try r.Name.init(args[4]), .object = try std.fmt.parseInt(u64, args[5], 10), .expected = try std.fmt.parseInt(u64, args[6], 10), .peer = config.writer.pid, .request = request }, decoded.bundle);
+    }
+    const payload: p.Value = if (std.mem.eql(u8, mode, "initialize")) try (@as(r.Control, .initialize)).encode() else if (std.mem.eql(u8, mode, "publish")) try (r.Control{ .publish = publication.? }).encode() else if (std.mem.eql(u8, mode, "authorize")) try (r.Control{ .authorize = .{ .reference = try Test.load(r.Reference, init, directory, args[4]), .expected = try std.fmt.parseInt(u64, args[5], 10), .principal = 1234, .allow = std.mem.eql(u8, args[6], "allow") } }).encode() else if (std.mem.eql(u8, mode, "activate")) blk: {
         const activation: r.Activation = .{ .reference = try Test.load(r.Reference, init, directory, args[4]), .policy_revision = try std.fmt.parseInt(u64, args[5], 10) };
         const encoded = try activation.encode();
         var bytes: [256]u8 = undefined;
