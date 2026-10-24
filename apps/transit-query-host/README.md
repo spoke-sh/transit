@@ -92,8 +92,9 @@ Reference Flight qualification exposed the former timeout-only
 retry path when a Substrate worker encountered a temporary DNS failure.
 
 The real provisioning/proof uses a separate public-API caller and these actual
-binaries (`just test::public-query`), with disk Ursula, an authority, two workers
-and the scoped courier. It is not a production deployment launcher.
+binaries (`just test::public-query`), with a local durable authority/direct Table
+owner, two computation workers and the scoped courier. Source data uses the
+direct catalog; the source worker's resource stores computation progress.
 
 The [v1 contract](../../contracts/UNIFIED_QUERY_V1.md) and
 [caller guide](../../packages/zig/transit-query/docs/unified-client.md) cover

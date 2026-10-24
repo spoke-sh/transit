@@ -99,7 +99,14 @@ Compose and reference installations and executes the actual Python/C consumers.
 
 ## Identity, retry and result lifetime
 
-Every RPC authenticates its caller. Statement admission requires a canonical
+Every RPC authenticates its caller. Table data belongs to the direct storage
+owner; the source worker's native resource holds computation progress. The gateway
+configuration binds the exact Table declaration, source executor and minimum
+Table frontier. A new query acquires and retains one current cut at or beyond
+that frontier. Its original first sequence identifies the pin operation, so
+gateway replacement and exact upload retry cannot substitute a newer cut.
+
+Statement admission requires a canonical
 decimal `x-transit-request-sequence`; the same sequence and original SQL/schema
 reconstruct the same signed upload commands under the same configured key, native
 credential epoch and selected role. The query freezes that original authority;

@@ -87,6 +87,12 @@ ip6tables -w -A OUTPUT -j REJECT
 
 class DirectReference(Reference):
     """Serving native history and direct Tables persist on one owned PVC."""
+    def deploy(self):
+        # The native owner below mounts this claim. An unused Helm claim with
+        # delayed binding would wait forever for a consumer pod.
+        self.values['node']['persistence'] = dict(existingClaim='serving-authority')
+        return super().deploy()
+
     def setup(self):
         if self.namespace_uid is not None: return
         super().setup()

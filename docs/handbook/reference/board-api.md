@@ -22,6 +22,10 @@ The query workspace's `inspect` request accepts `DESCRIBE`, `SHOW TABLES` and
 It returns current metadata within the configured source scope, separate from
 compiled query bundles or submitted results. It creates no query or snapshot.
 The worksheet's Run action retains its explicit SELECT submission interface.
+An Atlas query entry identifies the worker's progress resource; a declared
+worksheet binds its data source. Direct Table data and query progress can have
+different resource IDs. SQL inspection, suggestions and result source evidence
+refer to the data declaration, while query recovery retains its execution route.
 
 Resource-entry inspection interprets a typed Table head only when its current
 format, object key and resource identity agree. It reports the recorded head

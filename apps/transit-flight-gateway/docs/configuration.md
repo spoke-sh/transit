@@ -11,14 +11,24 @@ The private JSON file is limited to 16 KiB. Required fields are `url` (trusted
 native authority), `inspector`, `inspector_seed_file`, `ticket_seed_file`, `port`
 and `callers`. Each caller supplies `credential_file`, `seed_file`, `connection`
 (realm, principal, source, resource, name, requester and requests), `service`,
-`binding_revision` and a `definition` in the shared neutral query-source format.
+`binding_revision`, a `definition` in the shared neutral query-source format,
+and `capture: {executor, minimum: {partition, next_lsn}}`.
 The definition must select a Table with catalog scope, owner, decimal-string
 object identity, immutable metadata reference and recursive logical `row_type`.
-Its realm/resource/owner must match the connection. It replaces the positional
-`table` and `columns` configuration. Missing identities are rejected.
-The native principal is dedicated to that requester's admission sequence and is
-scoped to its PID. Associate its source resource explicitly and grant current
-source/requester inspect and read rights. Publish the matching binding and read/
+Its realm must match the connection. Its catalog resource and service audience
+are independent of the query worker PID and progress resource. Missing identities
+are rejected. The native authority and direct Table service share `url`.
+
+`capture.executor` identifies the native principal running the source worker.
+`capture.minimum` is a fixed, authorized observation of the Table partition.
+Acquisition selects one current cut at or beyond that frontier; the selected cut
+is retained for the query. The first upload sequence also identifies that query's
+pin operation. Keep these deployment inputs unchanged for exact retry. The gateway
+does not reread a frontier or create another pin when reconstructing an upload.
+The native caller is dedicated to that requester's admission sequence. Grant
+SEND to the requester and independent inspection/read access to the source and
+request progress resources, plus database CONNECT, schema USAGE and Table SELECT.
+Publish the matching binding and read/
 command policy through `FiniteService`; grant the inspector read-only inspection.
 Provision the definition from authorized catalog metadata. A published definition
 is fixed; updating it changes ticket scope and cannot reinterpret an earlier

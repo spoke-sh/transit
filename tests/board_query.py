@@ -201,9 +201,9 @@ def run(node, host, proof, board, browser=False):
         url = f"http://127.0.0.1:{port}"
         public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
         node_config = fixture.root / "node.json"
-        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 45, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "board-query", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 45, "root_key": public, "max_clock_error_ms": 10000}, "local_directory": str(fixture.root / "authority"), "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         def admin(mode):
-            # This is the same multi-turn catalog setup as public_query.py.
+            # This is the same direct catalog setup as public_query.py.
             # Its setup budget is separate from individual control/query waits.
             started = time.monotonic()
             result = subprocess.run([proof, url, mode, str(fixture.root if mode == "provision" else fixture.root / "cli.json")], capture_output=True, timeout=300 if mode == "provision" else 60)
@@ -214,6 +214,14 @@ def run(node, host, proof, board, browser=False):
         try:
             subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30)
             authority = start("node", [node, str(node_config)])
+            wait_ready(fixture.http, authority, url + "/health")
+            subprocess.run([proof, url, "catalog-bootstrap", str(fixture.root)], check=True, capture_output=True, timeout=300)
+            authority.terminate(); authority.wait(timeout=10)
+            processes.remove(authority)
+            settings = json.loads(node_config.read_text())
+            settings["table"] = json.loads((fixture.root / "catalog-node.json").read_text())
+            node_config.write_text(json.dumps(settings))
+            authority = start("node-catalog", [node, str(node_config)])
             wait_ready(fixture.http, authority, url + "/health")
             admin("provision")
             workers = {name: start(name, [host, str(fixture.root / f"{name}.json")]) for name in ("source", "requester", "courier")}
@@ -346,7 +354,7 @@ def run(node, host, proof, board, browser=False):
             invalid_cursor = api({"assist": {"sql": "SELECT value FROM items", "cursor": 1000, "generation": 1}}, status=400, retry=False)
             assert invalid_cursor['diagnostic']['code'] == 'query.invalid_sql_cursor'
             assert admin("next-sequence").stdout == before, 'parameter compilation allocated a command sequence'
-            compiled = parameterized
+            compiled = api({"capture": {"bundle": parameterized["bundle"], "operation": "1"}})["compiled"]
             assert "9007199254740994" in json.dumps(compiled["plan"])
             prepared = api({"next": {"namespace": "1", "bundle": compiled["bundle"]}})["prepared"]
             malformed = json.loads(prepared["token"])
@@ -425,6 +433,7 @@ def run(node, host, proof, board, browser=False):
             # a separate frozen command with its own exact retry identity.
             workers["source"].send_signal(signal.SIGSTOP)
             pending = api({"compile": {"sql": "SELECT * FROM items"}})["compiled"]
+            pending = api({"capture": {"bundle": pending["bundle"], "operation": "2"}})["compiled"]
             upload("2", pending["bundle"])
             assert api({"status": "2"})["status"]["phase"] == "admitted"
             api({"page": {"namespace": "2"}}, status=409)

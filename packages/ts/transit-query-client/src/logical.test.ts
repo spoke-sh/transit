@@ -289,7 +289,7 @@ test("the complete admitted query bundle fits the bounded browser request envelo
   try {
     await expect(
       httpTransport("/query")({
-        next: { namespace: "18446744073709551615", bundle: "00".repeat(25255) },
+        next: { namespace: "18446744073709551615", bundle: "00".repeat(25615) },
       }),
     ).resolves.toEqual({ prepared: null });
     const body = fetcher.mock.calls[0]![1].body as string;

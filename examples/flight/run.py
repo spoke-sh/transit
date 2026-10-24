@@ -2,6 +2,7 @@
 import argparse
 from contextlib import ExitStack
 import json
+import ipaddress
 import os
 from pathlib import Path
 import shutil
@@ -29,7 +30,7 @@ def run(profile, node, host, gateway, proof):
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with tempfile.TemporaryDirectory(prefix='transit-flight-') as directory, ExitStack() as owned:
         work = Path(directory)
-        for name in ('operator', 'ingress', 'application', 'courier', 'gateway-0'):
+        for name in ('operator', 'authority', 'ingress', 'application', 'courier', 'gateway-0'):
             (work / name).mkdir(mode=0o700)
             (work / (name + '-data')).mkdir(mode=0o700)
         (work / 'wal').mkdir()
@@ -46,6 +47,7 @@ def run(profile, node, host, gateway, proof):
             config = json.loads((work / (name + '.json')).read_text())
             role = 'application' if name == 'source' else 'ingress'
             config.update(url=placement.authority, activation_directory='/runtime-data', request_timeout_ms=10000)
+            if config.get('tables'): config['tables']['url'] = placement.authority
             if profile == 'reference':
                 config.pop('seed_file')
                 config['generation'] += 1
@@ -88,25 +90,34 @@ def run(profile, node, host, gateway, proof):
 
         try:
             placement = (Compose if profile == 'compose' else Reference)(work)
-            cold = owned.enter_context(ColdStore())
-            if profile == 'reference':
-                subprocess.run(['docker', 'network', 'connect', 'kind', cold.name], check=True, capture_output=True)
-                network = 'kind'
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks']['kind']['IPAddress']
-                endpoint = 'http://' + placement.cold_address + ':9000'
-            else: endpoint = 'http://flight-cold:9000'
-            wal = '/data/wal' if profile == 'reference' else '/wal'
-            (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config().replace(cold.url, endpoint))
-            (work / 'ursula.toml').chmod(0o600)
-            public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
-            write(work / 'operator/node.json', dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), ursula_url='http://ursula:8080', bucket='flight', journal='authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
             if profile == 'compose':
+                (work / 'ursula.toml').touch()
                 placement.call('create', 'ursula')
                 network = placement.project + '_storage'
-                subprocess.run(['docker', 'network', 'connect', '--alias', 'flight-cold', network, cold.name], check=True, capture_output=True)
+            else:
+                network = 'kind'
+            addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config']
+            bridge = next((item['Gateway'] for item in addresses if 'Gateway' in item and ipaddress.ip_address(item['Gateway']).version == 4), None)
+            if bridge is None: raise RuntimeError('Flight placement needs a private IPv4 bridge gateway')
+            cold = owned.enter_context(ColdStore(bind_address=bridge))
+            placement.cold_address, placement.cold_port = bridge, cold.port
+            wal = '/data/wal' if profile == 'reference' else '/wal'
+            (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config())
+            (work / 'ursula.toml').chmod(0o600)
+            public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
+            node_config = dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), local_directory='/authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000)
+            write(work / 'operator/node.json', node_config)
             storage = placement.start('ursula'); wait_ready(http, storage, placement.url('ursula') + '/__ursula/ready')
             placement.initialize()
+            authority = placement.start('node'); url = placement.url('node'); wait_ready(http, authority, url + '/health')
+            subprocess.run([proof, url, 'catalog-bootstrap', str(work)], check=True, capture_output=True, timeout=300)
+            placement.stop_for_recovery('node', authority)
+            table = json.loads((work / 'catalog-node.json').read_text())
+            table['registrar']['seed_file'] = '/operator/registrar.seed'
+            shutil.copyfile(work / 'registrar.seed', work / 'operator/registrar.seed')
+            (work / 'operator/registrar.seed').chmod(0o600)
+            node_config['table'] = table
+            write(work / 'operator/node.json', node_config)
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http, authority, url + '/health')
             subprocess.run([proof, url, 'provision-flight', str(work)], check=True, capture_output=True, timeout=300)
             activate('source'); activate('requester'); delivery = courier()
@@ -119,7 +130,7 @@ def run(profile, node, host, gateway, proof):
             caller = json.loads((work / 'cli.json').read_text())
             connection = dict(caller['connection'], name=caller['workspace']['name'])
             write(work / 'gateway-0/config.json', dict(url=placement.authority, inspector=55, inspector_seed_file=mount+'/inspector.seed', ticket_seed_file=mount+'/ticket.seed', listen='0.0.0.0', port=8080, ticket_ttl_ms=120000, native_timeout_ms=10000,
-                callers=[dict(credential_file=mount+'/credential', seed_file=mount+'/caller.seed', connection=connection, service=1, binding_revision=1, definition=caller['workspace']['source'])]))
+                callers=[dict(credential_file=mount+'/credential', seed_file=mount+'/caller.seed', connection=connection, service=1, binding_revision=1, definition=caller['workspace']['source'], capture=json.loads((work / 'flight-capture.json').read_text()))]))
             serving = start_gateway()
             target = urlsplit(placement.url('gateway-0'))
             edge = owned.enter_context(TLSProxy(work / 'tls', target.port, target.hostname, grpc=True, read_timeout=185))
@@ -194,7 +205,6 @@ def run(profile, node, host, gateway, proof):
                 if process.poll() is None: process.kill()
                 process.wait(timeout=10)
             for log in logs: log.close()
-            if cold and network: subprocess.run(['docker','network','disconnect',network,cold.name], capture_output=True, timeout=15)
             if placement: placement.close()
 
 

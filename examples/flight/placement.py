@@ -16,8 +16,11 @@ class Compose(serving.Compose):
         serving.BaseCompose.__init__(self, work, 'flight')
         self.command[-1] = str(Path(__file__).with_name('docker-compose.yaml'))
 
+    def initialize(self):
+        self.call('run', '--rm', '--no-deps', '-T', 'node', '/operator/node.json', '--initialize')
 
-class Reference(serving.Reference):
+
+class Reference(serving.DirectReference):
     binary_names = BINARIES
 
     def __init__(self, work):

@@ -1,8 +1,9 @@
 # Finite Flight example
 
-Fixture provisioning creates and populates the Table through signed catalog
-commands handled by the production catalog/query owner. Gateway configuration
-uses the resulting immutable catalog definition.
+Fixture provisioning creates and populates the Table through signed direct
+catalog operations. Query workers hold computation progress separately from the
+Table data. Gateway configuration binds the resulting immutable definition,
+source executor and fixed minimum Table frontier for exact upload recovery.
 
 The [gateway](../../apps/transit-flight-gateway/README.md) composes actual public
 Table query hosts and shared finite serving policy. Each owned installation runs
@@ -20,8 +21,10 @@ just test::flight-placement compose
 just test::flight-placement reference
 ```
 
-Tasks enter the pinned `flight` tool environment. Native proofs need Docker for
-the owned disk-backed Ursula store. Compose uses the checked-in
+Tasks enter the pinned `flight` tool environment. The authority and direct Tables
+persist in one local directory, mounted on an owned volume in Compose and a PVC
+in the reference installation. The fixture also starts isolated Ursula/MinIO
+services; their presence does not establish tiered Table persistence. Compose uses the checked-in
 [topology](docker-compose.yaml) and static Zig images. Reference requires the
 existing [reference infrastructure](../../deploy/reference/README.md): it creates
 an isolated namespace, registers fresh source/requester Substrate activations,

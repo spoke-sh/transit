@@ -31,7 +31,20 @@ export class FollowRecovery {
     const bytes = JSON.stringify(saved);
     try {
       if (new TextEncoder().encode(bytes).length > maxBytes) throw new Error();
-      this.storage().setItem(key, bytes);
+      const storage = this.storage();
+      // Hiding a manual worksheet can pause an unused Follow owner. That has
+      // no recovery obligation. A reset still replaces an existing saved intent.
+      if (
+        saved.preparation === null &&
+        saved.view === null &&
+        owners.session.description === null &&
+        owners.session.pending === null &&
+        owners.session.scope === null &&
+        owners.session.selection === null &&
+        storage.getItem(key) === null
+      )
+        return;
+      storage.setItem(key, bytes);
     } catch {
       throw new ReactiveError(0, "follow_recovery_storage_unavailable");
     }

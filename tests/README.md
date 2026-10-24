@@ -1,5 +1,64 @@
 # Validation and evidence
 
+## Direct Flight and captured-query consumers — 2026-10-24
+
+The public-query, Board captured-query and Flight fixtures now provision Tables
+through `DirectTablePreparedDdl`/`DirectTablePreparedDml` and the signed direct
+service. Catalog storage, source worker progress and requester progress have
+different resource identities. The local authority and Table owner share one
+durable directory; the fixture's Ursula/MinIO services do not establish tiered
+Table persistence.
+
+Executed with the pinned development environments:
+
+- `nix develop .#serving --command just test::public-query` passes actual query
+  hosts and the operation-fixture shell: 41 exact int64/null rows, lost accepted
+  replies, original signed retry, fresh fenced ownership, incomplete-prefix
+  refusal, busy admission, cancellation and current read denial. A forged logical
+  column type with an unchanged definition identity rejects before admission.
+- `nix develop .#serving --command zig build test-board-query -Doptimize=ReleaseSafe`
+  passes explicit capture, identical preparation/submission recovery, typed pages,
+  bounded capacity retries, exhaustion and current denial. This command does not
+  include the browser schedule.
+- Adding `-Dquery-browser=true` also passes the embedded Board/Chromium schedule
+  in 52.7 seconds of browser execution: Canvas/Browse navigation, exact lost-send
+  retry, typed results, current revocation, restored access and explicit reopening
+  of the retained result. The fixture separates data and progress resource IDs.
+  It exposed and corrected their conflation in workspace validation and recovery
+  links, empty Follow recovery storage, and replay of a prior draft denial during
+  access refresh. Failed attempts are superseded by this complete rerun.
+- `nix develop .#flight --command just test::flight` passes native TLS PyArrow,
+  ADBC Python/C and saved diagnostic recovery on the updated schema check. Flight
+  repeats an original query after a direct row change and retains the old result;
+  a distinct first sequence captures the changed row. The finite-statement
+  portion completes in 64.22 seconds; that is not the full command's elapsed time.
+- `nix develop .#flight --command just test::flight-faults` passes on the updated
+  schema-validation implementation with two scoped mappings: lost acceptance,
+  gateway replacement, unchanged retry bytes/receipt, current SELECT denial after
+  a returned batch, released pins, bounded concurrent fetch/control work,
+  malformed/slow peers, requester retirement and original result recovery through
+  worker/node/gateway replacement. Sampled gateway RSS is 81,383,424 bytes, below
+  the fixture's unchanged 192 MiB ceiling; this is not a measured peak.
+- `nix develop .#flight --command just test::flight-placement compose` passes
+  TLS PyArrow/ADBC Python/C and physical gateway, query worker, node and store
+  replacement in 507.16 seconds. The original ticket and admission retry retain
+  their accepted results. Native history and direct Table files persist in the
+  authority directory; the fixture reports no cold Table objects.
+- The focused query-package `test-unit -Dtest-filter='general Table'` passes.
+  Query-client browser-library tests pass all 57 cases and Board unit tests pass
+  all 95 cases. Board formatting, lint and strict TypeScript checks pass.
+
+The schema regression exposed that checking the stored definition identifier
+alone did not authenticate its separately supplied logical descriptor. New-work
+metadata now compares that descriptor with the authorized stored schema;
+retained execution still uses its original pin and interpretation.
+
+The reference placement run passes its initial TLS snapshot, physical recovery,
+original ticket/admission retry and ADBC Python checks, then fails the ADBC C
+consumer's existing 180-second deadline. That command is not passed evidence.
+These scoped runs do not close the remaining actor-Table consumer
+removal, coordinated artifact cutover or final repository/clean-build gates.
+
 ## Direct serving counter acceptance — 2026-10-24
 
 `nix develop --command zig build test-serving-counter -Doptimize=ReleaseSafe`

@@ -14,6 +14,9 @@ connection. The query worker's progress resource is independent of the source
 catalog resource. `describe(source)` verifies current source/schema
 availability, policy declaration, permitted work limits and the active requester
 slot. Its capabilities describe the current v1 finite query interface.
+For Tables, this check reads the exact stored definition and compares the
+supplied logical descriptor with its schema, including names and nullability.
+A matching definition identifier does not validate a separately supplied type.
 PID-scoped source workers additionally need a non-required association to the
 request resource, established before activation, and a separate current read
 grant. Associations do not grant access.

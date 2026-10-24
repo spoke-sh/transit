@@ -122,7 +122,15 @@ pub fn requireConnection(self: Self, client: c.DirectTableClient) !void {
 /// check the original pin, so ALTER/DROP cannot substitute their newer schema.
 pub fn checkDefinition(self: Self, client: c.DirectTableClient) !void {
     try self.requireConnection(client);
-    _ = try client.require(.{ .namespace = self.namespace, .target = self.interpretation.interpretation, .access = .read });
+    const response = try client.call(.{ .observe = .{ .namespace = self.namespace, .interpretation = self.interpretation.interpretation, .rows = null } });
+    defer response.deinit();
+    var current = try Self.from(client.allocator, client.connection, response.value.result.observation.definition);
+    defer current.deinit();
+    // An exact definition identity alone does not authenticate the separately
+    // supplied logical descriptor used by SQL binding and metadata disclosure.
+    if (!std.meta.eql(current.source.interpretation, self.interpretation) or
+        current.source.namespace != self.namespace or
+        !try current.source.row_type.eql(self.row_type)) return error.TableSchemaChanged;
 }
 pub fn requireGrant(self: Self, allocator: std.mem.Allocator, grant: c.DirectReadDelegation) !void {
     try self.validate();
