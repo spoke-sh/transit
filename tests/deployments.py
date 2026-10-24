@@ -145,6 +145,35 @@ def run():
         rendered = render(external)
         assert not any(kind == "PersistentVolumeClaim" for kind, _ in rendered)
         assert json.loads(rendered["ConfigMap", "test-runtime-node"]["data"]["config.json"])["ursula_url"] == "http://storage.example.invalid:8080"
+        local = copy.deepcopy(minimal)
+        local['ursula'] = dict(enabled=False)
+        local['node']['config'].pop('bucket')
+        local['node']['config'].pop('journal')
+        local['node']['config']['local_directory'] = '/data/native'
+        local['node']['existingSecret'] = 'native-owner-credentials'
+        local['node']['config']['maintenance'] = dict(principal=3, seed_file='/secrets/maintenance')
+        rendered = render(local)
+        assert ('PersistentVolumeClaim', 'test-runtime-node') in rendered
+        assert ('Deployment', 'test-runtime-ursula') not in rendered
+        assert ('Deployment', 'test-runtime-maintenance') not in rendered
+        pod = rendered['Deployment', 'test-runtime-node']['spec']['template']['spec']
+        assert next(v for v in pod['volumes'] if v['name'] == 'node-secrets')['secret']['secretName'] == 'native-owner-credentials'
+        claim = next(v for v in pod['volumes'] if v['name'] == 'native-data')['persistentVolumeClaim']['claimName']
+        boot_local = copy.deepcopy(local)
+        boot_local['node']['enabled'] = False
+        boot_local['initialize'] = dict(enabled=True)
+        rendered = render(boot_local)
+        pod = rendered['Job', 'test-runtime-initialize']['spec']['template']['spec']
+        assert next(v for v in pod['volumes'] if v['name'] == 'native-data')['persistentVolumeClaim']['claimName'] == claim
+        assert not any('secret' in v for v in pod['volumes']), 'Bootstrap received an execution credential'
+        local['node']['persistence'] = dict(existingClaim='retained-native')
+        rendered = render(local)
+        assert not any(kind == 'PersistentVolumeClaim' for kind, _ in rendered)
+        local['maintenance']['enabled'] = True
+        render(local, 'maintenance.enabled=false')
+        local['maintenance']['enabled'] = False
+        local['node']['config']['local_directory'] = '/ephemeral'
+        render(local, 'must be /data/native')
         existing = copy.deepcopy(minimal)
         existing["ursula"] = {"persistence": {"existingClaim": "retained-data"}}
         rendered = render(existing)

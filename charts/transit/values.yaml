@@ -7,9 +7,16 @@ node:
   enabled: true
   nameOverride: ""
   image: ""
-  # transit-node JSON configuration; genesis is required. The chart fixes the
-  # listener to 0.0.0.0:8080 and supplies the internal Ursula URL when enabled.
+  # transit-node JSON configuration; genesis is required. For local storage,
+  # set local_directory to /data/native and disable Ursula and external maintenance.
   config: {}
+  # Optional direct registrar/in-process maintenance credentials, mounted only
+  # in the node at /secrets. Configuration names the exact Secret keys as paths.
+  existingSecret: ""
+  persistence:
+    existingClaim: ""
+    size: 1Gi
+    storageClass: null
   logging: {level: info, format: json}
   resources:
     requests: {cpu: 100m, memory: 128Mi}

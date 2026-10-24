@@ -13,7 +13,14 @@ app: {{ include "transit.name" . | quote }}
 {{- define "transit.nodeConfig" -}}
 {{- $config := deepCopy .Values.node.config -}}
 {{- $_ := required "node.config.genesis is required" $config.genesis -}}
-{{- if .Values.ursula.enabled -}}
+{{- if hasKey $config "local_directory" -}}
+{{- if or .Values.ursula.enabled .Values.maintenance.enabled -}}
+{{- fail "local_directory requires ursula.enabled=false and maintenance.enabled=false; configure node.config.maintenance for in-process work" -}}
+{{- end -}}
+{{- if ne $config.local_directory "/data/native" -}}
+{{- fail "node.config.local_directory must be /data/native on the retained node PVC" -}}
+{{- end -}}
+{{- else if .Values.ursula.enabled -}}
 {{- $_ := set $config "ursula_url" (printf "http://%s:8080" (include "transit.name" (dict "root" . "component" "ursula"))) -}}
 {{- else -}}
 {{- $_ := required "node.config.ursula_url is required with external Ursula" $config.ursula_url -}}

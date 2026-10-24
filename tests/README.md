@@ -1,5 +1,18 @@
 # Validation and evidence
 
+## Retained native storage in the Helm chart — 2026-10-24
+
+In the pinned Nix shell, `python3 -B tests/deployments.py` passes chart lint and
+rendered deployment checks. A native local owner and its explicit initializer
+mount the same retained PVC; an existing claim is reused without another claim
+being created. Only the node receives the configured credential Secret. The
+chart rejects an ephemeral local path, simultaneous Ursula configuration and an
+external maintenance process for the exclusively owned directory. Existing
+Ursula and private-network checks remain in the same passing schedule.
+
+This is manifest validation, not a Kubernetes recovery run. The Station reference
+deployment's direct-storage execution remains unverified.
+
 ## Named publication recovery with current credentials — 2026-10-24
 
 Under the `b840e71b` current-v1 definition, both focused direct-service schedules
