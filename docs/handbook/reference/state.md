@@ -11,15 +11,19 @@ is independent of resident cache, subject to explicit operation, admission and
 storage bounds. A turn mutates one resource owned by its writer PID. It does not
 supply arbitrary transactions across resources.
 
-Station Tables add typed schemas and rows within that commit boundary. Station
-Documents add accepted structured/text changes and immutable indexes. Neither
-introduces an alternate state authority or silently converts old history. Named
-KV and Document objects can also be registered in a shared catalog namespace
-through `DeclarativeCatalog`: `Declaration.compile` validates `CREATE KV` and
-`CREATE DOCUMENT` definitions and lowers them to two-phase catalog operations
-(`initializing` reservation followed by `live` resource binding and publication),
-with `rename`, `DROP RESTRICT` dependency enforcement, permanent retirement of
-dropped object IDs, and shared `inspectLifecycle` / `policyReferences` inspection.
+[Direct Tables](tables.md) accept typed schemas and rows through their own data
+partition. Table acceptance and native input progress are separate decisions.
+Station Documents add accepted structured/text changes and immutable indexes
+within the native resource boundary.
+
+`Declaration.compile` validates `CREATE KV` and `CREATE DOCUMENT` definitions.
+`DeclarativeCatalog` records their metadata through an `initializing` reservation
+followed by a `live` binding to a supplied resource ID. These transitions neither
+provision the resource nor verify its initialization. Resource creation and
+kind-specific initialization require their existing public owners; a live
+catalog record alone does not establish a usable KV or Document.
+The metadata owner supports rename, registered-dependency `DROP RESTRICT`,
+permanent object-ID retirement and `inspectLifecycle` / `policyReferences`.
 
 ## Identity, access and ownership
 
