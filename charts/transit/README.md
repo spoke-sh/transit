@@ -1,10 +1,9 @@
 # Transit Helm chart
 
-[Transit](../../docs/handbook/reference/processes.md) is the streaming runtime subsystem. This chart
-packages its current single-realm deployment: a node, disk-backed Ursula,
-optional maintenance, [delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md), runtime/framework controllers, and
-Agent Substrate worker capacity. Transit is the intended downstream trading
-application.
+Transit is programmable, versioned data infrastructure. This chart packages one
+realm's native authority, persistent storage, optional maintenance,
+[delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md),
+runtime/framework controllers and Agent Substrate worker capacity.
 
 The [reference proof](../../deploy/reference/README.md) installs this chart and
 qualifies controller/worker recovery, persistent storage, maintenance, and Board
@@ -49,6 +48,15 @@ sets internal service URLs; disable Ursula and provide `node.config.ursula_url`
 for an external backend. Board and delivery require the chart's node. Log level/format and
 resource requests/limits are per component. Config changes trigger replacement
 through a checksum; externally rotated Secrets require an explicit rollout.
+
+For the native local owner, set `node.config.local_directory: /data/native`,
+`ursula.enabled: false` and `maintenance.enabled: false`. The node and explicit
+initializer mount the same retained PVC, configured by `node.persistence`.
+`node.existingSecret` mounts credentials at `/secrets` in the node only; the
+initializer receives no execution credential. Configure direct catalog registrar
+and in-process maintenance key paths in `node.config`. An external maintenance
+process cannot open the node's exclusive directory. Normal node replacement
+recovers that directory; initialization remains an explicit separate phase.
 
 For bounded hot storage with an external cold tier, set
 `ursula.existingConfigSecret` to a separately created Secret containing

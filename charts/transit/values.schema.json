@@ -48,6 +48,31 @@
               ]
             }
           }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "existingClaim": {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "size": {
+              "type": "string"
+            },
+            "storageClass": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "existingSecret": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
         }
       }
     },

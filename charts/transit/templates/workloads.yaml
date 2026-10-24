@@ -115,6 +115,12 @@ spec:
           {{- end }}
           volumeMounts:
             - {name: config, mountPath: /config, readOnly: true}
+            {{- if and (has $component (list "node" "initialize")) (hasKey $.Values.node.config "local_directory") }}
+            - {name: native-data, mountPath: /data}
+            {{- end }}
+            {{- if and (eq $component "node") $.Values.node.existingSecret }}
+            - {name: node-secrets, mountPath: /secrets, readOnly: true}
+            {{- end }}
             {{- if eq $component "ursula" }}
             - {name: data, mountPath: /data}
             {{- else if has $component (list "maintenance" "board" "controller" "delivery" "station") }}
@@ -129,6 +135,17 @@ spec:
         {{- end }}
         {{- end }}
       volumes:
+        {{- if and (has $component (list "node" "initialize")) (hasKey $.Values.node.config "local_directory") }}
+        - name: native-data
+          persistentVolumeClaim:
+            claimName: {{ default (include "transit.name" (dict "root" $ "component" "node")) $.Values.node.persistence.existingClaim }}
+        {{- end }}
+        {{- if and (eq $component "node") $.Values.node.existingSecret }}
+        - name: node-secrets
+          secret:
+            secretName: {{ $.Values.node.existingSecret }}
+            defaultMode: 288
+        {{- end }}
         - name: config
           {{- if and (eq $component "ursula") $settings.existingConfigSecret }}
           secret:
