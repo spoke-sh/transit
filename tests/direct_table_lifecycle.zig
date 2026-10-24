@@ -439,6 +439,17 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     create_binding.expected_definition = null;
     create_binding.expected_data = null;
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
+    // A new explicit interactive query can use the original saved Table binding
+    // and retained schema after name reuse. It never resolves the replacement.
+    const retained_query = try q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM events", &.{prepared}, &.{original}, relational_options, null);
+    defer retained_query.deinit();
+    const original_rows = try q.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "retired-source", client, retained_query, &.{original}, relational_options, null);
+    defer original_rows.deinit();
+    try t.expectEqual(@as(u128, 2), (try original_rows.next()).?.cells[0].value.atom.unsigned);
+    try t.expect(try original_rows.next() == null);
+    try t.expect(original_rows.complete);
+    try t.expectError(error.RelationalSourceChanged, q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM renamed", &.{prepared}, &.{original}, relational_options, null));
+    try t.expectError(error.RelationalSourceChanged, q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM events", &.{prepared}, &.{rewritten}, relational_options, null));
     const predicates = try predicateWork(alloc, client);
     const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .staged = predicates.staged, .prepared = prepared, .codecs = codecs, .namespaces = namespace_state };
     try verify(allocator, client, state, false);

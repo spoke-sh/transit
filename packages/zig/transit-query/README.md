@@ -97,6 +97,14 @@ native KV/Document capture retains native read versions.
 `DirectRelationalCompilation` prepares the finite relational profile against
 current direct definitions. `DirectRelationalQuery.openPreparedRetained` receives
 the original pins and owns the cloned plan, bounded readers and private spill.
+`DirectRelationalCompilation.fromRetained` binds a new explicit interactive query
+to supplied saved Table bindings and their retained schemas. It checks source
+names, exact interpretations and current snapshot rights without resolving live
+names or acquiring pins. This permits original sources after ALTER, DROP and
+name reuse; a different saved interpretation is rejected even when its columns
+match. Opening from retained work validates those snapshots rather than requiring
+the original interpretation to remain the live definition. It does not restore
+the row cursor or completion evidence of a lost query.
 It uses `independent_table_snapshots`; aliases of one Table must share the same
 pin. Every cut explicitly distinguishes a native resource revision from a direct
 Table's branch/object/partition frontier. Neither form is inferred from a v1
