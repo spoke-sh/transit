@@ -351,6 +351,12 @@ including separators, fits the 4 KiB statement bound or returns an error before
 writing output. The helper provides no metadata or authorization evidence;
 callers validate the current candidate before applying the edit.
 
+Console-mode assistance advances past a fully typed keyword when it is the
+sole match with complete coverage, then obtains the next production-parser
+expectations. The replacement becomes the zero-width cursor range. Partial
+words, interior cursors, identifiers and limited results retain their original
+range. The ordinary SQL editor mode continues to replace the current token.
+
 `TableAssistance` handles the catalog console's Table and relational SQL.
 Relational completion discovers up to two declared aliases, reads their current
 authorized schemas, and rechecks the catalog revision/policy before disclosure.

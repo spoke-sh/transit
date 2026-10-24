@@ -182,7 +182,10 @@ configuration and terminal keys. Statement topics such as `.help INSERT` and
 text, including in JSON result mode, and submits no SQL.
 
 In the interactive editor, Tab requests grammar/catalog completion and accepts
-selected suggestions or history matches. The menu keeps its selection while
+selected suggestions or history matches. One complete match inserts without
+flashing a menu. A fully typed keyword requests its next grammar continuation,
+so `CREATE` followed by Tab becomes `CREATE TABLE`; `CRE` completes to `CREATE`.
+The menu keeps its selection while
 idle. Typing within the same token filters it immediately, with fresh suggestions
 arriving in the background. Opening starts immediately; acquisition and validation
 show no loading placeholders. Catalog suggestions recheck metadata and

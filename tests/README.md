@@ -1,5 +1,31 @@
 # Validation and evidence
 
+## Console keyword continuation and unique insertion — 2026-10-24
+
+`nix develop --command just check` passes, including native units, all CLI
+diagnostics, the complete terminal suite, frontend checks and the documentation
+build. Shared units cover complete keywords, partial/interior words, lowercase
+input, retained suffixes, second statements, identifiers, ordinary SQL editor
+mode and allocation failure cleanup while advancing grammar.
+
+Real PTYs hold the validation response for a unique completion and inspect every
+rendered frame: no candidate menu appears before insertion. `CREATE`, `CREATE `,
+`CRE` and `DELETE` complete with one Tab and one undo restores the original draft.
+New ambiguity displays the current choices without insertion; Esc cancels hidden
+validation. These peers execute no SQL. The no-flash assertion fails against
+the preceding implementation by observing a transient `TABLE` menu.
+
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway
+-Doptimize=ReleaseSafe -- sessions-basic` passes. Eleven direct native-service
+cases establish keyword continuation and exact cursor ranges for `CREATE`,
+`ALTER`, `DROP`, `DELETE` and `INSERT`, including lowercase, partial/interior
+words, a semicolon and a second statement. A real console over TLS completes
+`CREATE` to `CREATE TABLE` without a menu flash, preserves partial-word behavior
+and undoes each edit. Existing catalog/settings, authentication, concurrent
+session, revocation and recovery checks also pass in this basic session profile.
+These results do not extend SQL execution capabilities or the catalog search
+budget. Clean-checkout qualification is reported separately.
+
 ## Console completion separators — 2026-10-24
 
 `nix develop --command zig build transit test` and `just check` pass for the

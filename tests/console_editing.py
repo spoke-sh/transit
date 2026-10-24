@@ -141,6 +141,7 @@ def check(binary):
     delayed(binary)
     responsive(binary)
     spacing(binary)
+    unique(binary)
     session_loss(binary)
     execution_escape(binary)
     print('Console editing: general undo, clear/dismiss, search isolation/deduplication, vertical movement, literal paste, escape decoding and local completion passed.')
@@ -378,6 +379,89 @@ def responsive(binary):
             release.set()
             terminal.close()
     print('Console completion: immediate filtering, quiet acquisition/validation, stable selection, latest-draft coalescing and empty-preview coverage passed.')
+
+
+def unique(binary):
+    validating, release = threading.Event(), threading.Event()
+    state = {}
+    def assist(value):
+        state['calls'] += 1
+        assert value['text'] == state['text'] and value['cursor'] == state['cursor'], value
+        candidates = [state['candidate']]
+        if state['calls'] == 2:
+            validating.set()
+            assert release.wait(3), 'test did not release unique validation'
+            if state.get('ambiguous'):
+                candidates.append('TABLESPACE')
+        return dict(assistance=dict(coverage='complete', status='ready', profile='catalog_v1', resource=4,
+                                    contract=[7]*32, resource_revision=1, policy_revision='1',
+                                    range=dict(start=state['start'], end=state['cursor'], quoted=False),
+                                    items=[dict(text=item, kind='keyword', detail='SQL grammar') for item in candidates]))
+    def quiet(terminal):
+        until = time.monotonic() + .15
+        while time.monotonic() < until:
+            if select.select([terminal.master], [], [], .02)[0]:
+                terminal.record_display(os.read(terminal.master, 65536))
+        assert b'\n> ' not in ANSI.sub(b'', terminal.screen), terminal.screen
+        assert b'SQL grammar' not in terminal.screen, terminal.screen
+    with tempfile.TemporaryDirectory(prefix='transit-unique-') as directory, peer(assist=assist) as (endpoint, actions):
+        root = Path(directory)
+        config = root / 'connection.json'
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+        terminal = Terminal(binary, config, home=root)
+        terminal.display = Screen()
+        terminal.display.feed(terminal.screen)
+        try:
+            for text, start, candidate, expected in (
+                ('CREATE', 6, 'TABLE', 'CREATE TABLE'),
+                ('CREATE ', 7, 'TABLE', 'CREATE TABLE'),
+                ('CRE', 0, 'CREATE', 'CREATE'),
+                ('DELETE', 6, 'FROM', 'DELETE FROM'),
+            ):
+                state.update(text=text, cursor=len(text), start=start, candidate=candidate, calls=0)
+                validating.clear()
+                release.clear()
+                terminal.send(text + '\t')
+                assert validating.wait(3)
+                quiet(terminal)
+                expect_draft(terminal, [('transit> ' + text).rstrip()], (0, 9+len(text)))
+                release.set()
+                expect_draft(terminal, ['transit> ' + expected], (0, 9+len(expected)))
+                quiet(terminal)
+                assert state['calls'] == 2, state
+                terminal.send('\x1a')
+                expect_draft(terminal, [('transit> ' + text).rstrip()], (0, 9+len(text)))
+                terminal.send('\x1b')
+                expect_draft(terminal, ['transit>'], (0, 9))
+            # Losing uniqueness during validation displays the current choices.
+            state.update(text='CREATE', cursor=6, start=6, candidate='TABLE', calls=0, ambiguous=True)
+            validating.clear()
+            release.clear()
+            terminal.send('CREATE\t')
+            assert validating.wait(3)
+            quiet(terminal)
+            release.set()
+            terminal.expect('> TABLE')
+            terminal.expect('TABLESPACE')
+            assert 'transit> CREATE' in terminal.display.text(), terminal.display.text()
+            terminal.send('\x1b')
+            expect_draft(terminal, ['transit>'], (0, 9))
+            # Clearing during hidden validation cancels the pending insertion.
+            state.update(calls=0, ambiguous=False)
+            validating.clear()
+            release.clear()
+            terminal.send('CREATE\t')
+            assert validating.wait(3)
+            quiet(terminal)
+            terminal.send('\x1b')
+            release.set()
+            expect_draft(terminal, ['transit>'], (0, 9))
+            quiet(terminal)
+            assert not [a for a, _ in actions if a == 'execute'], actions
+        finally:
+            release.set()
+            terminal.close()
+    print('Console unique completion: no menu frames during validation, atomic undo, changed uniqueness and clear cancellation passed.')
 
 
 def spacing(binary):

@@ -276,7 +276,15 @@ the background; a selected candidate stays selected if it still matches.
 Moving to another context hides unrelated candidates. PgUp/PgDn pages through the selected
 candidate's full spelling and details when clipped. A limited result says so;
 a single candidate inserts automatically only with complete matching coverage.
+Tab keeps that insertion's validation quiet, without flashing a one-item menu.
+Shift-Tab still opens suggestions for inspection. Typing into an open menu
+filters candidates; insertion requires Tab or Enter.
 No automatic semicolon or generated statement is added.
+
+At the end of a fully typed, unambiguous grammar keyword, completion offers the
+next token: `CREATE` followed by Tab becomes `CREATE TABLE`. Partial words still
+complete in place: `CRE` becomes `CREATE`. A cursor inside a word replaces the
+whole word, including its suffix. Quoted names remain identifier completions.
 
 Acceptance inserts a missing separator between adjacent words, identifiers or
 literal values: selecting `ALL` after `SHOW` produces `SHOW ALL`. Completing
@@ -293,7 +301,7 @@ request and one latest draft; background refresh waits for 75 ms of idle editing
 and times out after one second (or the smaller connection timeout).
 Typing, clearing and dismissing remain available during acquisition. Acceptance
 rechecks the current source, profile, revisions and authorization through the
-service while keeping the list visible. Tab/Enter during a refresh does not queue
+service while keeping an already displayed list visible. Tab/Enter during a refresh does not queue
 an insertion. A changed basis refreshes the list without accepting a replacement.
 Unsupported context, literal/comment context, no matches and unavailable
 service have separate messages. Completion never samples row values or executes

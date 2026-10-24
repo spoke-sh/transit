@@ -21,6 +21,13 @@ unquoted prefixes fold case. Inserted catalog identifiers are quoted. Literal
 and comment positions suppress completion. Depth, input, result and work bounds
 are independent of retained data cardinality.
 
+In console mode, a fully typed keyword at the token's end advances to the next
+grammar position when it is the sole match with complete coverage. The response
+then uses a zero-width range at the cursor; the console's shared edit helper
+adds any required separator. Partial words, interior cursors, quoted names and
+limited matches retain their replacement. Ordinary SQL editor mode continues
+to complete the current token.
+
 Fuze's production parser supplies keyword, punctuation and name-context
 expectations. The query owner supplies authorized names/types and filters against
 its executable v1 capabilities. An explicit source alias in the parsed prefix

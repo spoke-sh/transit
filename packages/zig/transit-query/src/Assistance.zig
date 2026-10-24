@@ -33,6 +33,17 @@ pub const Response = struct {
     range: ?input.Range,
     items: []const Item,
 };
+/// In console mode, a fully typed, unambiguous keyword requests the next token.
+/// Identifiers, partial tokens and limited shortlists retain their replacement.
+pub fn continuation(request: Request, result: Completion) ?input.Range {
+    if (request.mode != .console) return null;
+    const range = result.range orelse return null;
+    if (result.status != .ready or result.coverage != .complete or result.items.len != 1 or
+        range.quoted or range.start == range.end or range.end != request.cursor) return null;
+    const item = result.items[0];
+    if (item.kind != .keyword or !std.ascii.eqlIgnoreCase(request.sql[range.start..range.end], item.text)) return null;
+    return .{ .start = request.cursor, .end = request.cursor };
+}
 /// A local draft edit, not metadata evidence or permission to execute SQL.
 pub const Edit = struct { text: []const u8, cursor: usize };
 /// Apply an already validated candidate with separators at adjacent word/value
@@ -134,20 +145,25 @@ const Builder = struct {
 };
 pub fn complete(allocator: std.mem.Allocator, name: []const u8, schema: q.fuze.Types.Type, request: Request) !Completion {
     const span = try input.active(request.sql, request.cursor, request.mode == .console);
-    var result = try completeStatement(allocator, name, schema, .{ .sql = request.sql[span.start..span.end], .cursor = request.cursor - span.start, .generation = request.generation, .mode = request.mode });
+    const local_request: Request = .{ .sql = request.sql[span.start..span.end], .cursor = request.cursor - span.start, .generation = request.generation, .mode = request.mode };
+    var result = try completeStatement(allocator, name, schema, local_request, null);
+    if (continuation(local_request, result)) |range| {
+        result.deinit(allocator);
+        result = try completeStatement(allocator, name, schema, local_request, range);
+    }
     if (result.range) |*range| {
         range.start += span.start;
         range.end += span.start;
     }
     return result;
 }
-fn completeStatement(allocator: std.mem.Allocator, name: []const u8, schema: q.fuze.Types.Type, request: Request) !Completion {
+fn completeStatement(allocator: std.mem.Allocator, name: []const u8, schema: q.fuze.Types.Type, request: Request, following: ?input.Range) !Completion {
     try schema.validate(.{});
     if (schema != .structure) return error.InvalidQuerySchema;
     _ = try input.Scan.init(request.sql);
     if (request.cursor > request.sql.len or !std.unicode.utf8ValidateSlice(request.sql[0..request.cursor])) return error.InvalidSqlCursor;
     if (request.mode == .console and std.mem.startsWith(u8, request.sql, ".")) return meta(allocator, request);
-    const range = try input.replacement(request.sql, request.cursor);
+    const range = following orelse try input.replacement(request.sql, request.cursor);
     var builder: Builder = .{ .allocator = allocator, .prefix = "", .quoted = false };
     errdefer builder.clear();
     const selected = range orelse return builder.finish(null);
@@ -387,6 +403,44 @@ fn metaRange(text: []const u8, cursor: u16) input.Range {
     return .{ .start = @intCast(start), .end = @intCast(finish) };
 }
 
+test "complete keywords continue grammar while partial words and identifiers retain their range" {
+    const t = std.testing;
+    const columns = [_]q.fuze.Types.Field{.{ .name = "value", .type = .int64 }};
+    const schema: q.fuze.Types.Type = .{ .structure = &columns };
+    for ([_]struct { text: []const u8, cursor: u16, start: u16, end: u16, expected: []const u8 }{
+        .{ .text = "SE", .cursor = 2, .start = 0, .end = 2, .expected = "SELECT" },
+        .{ .text = "SELECT", .cursor = 6, .start = 6, .end = 6, .expected = "\"value\"" },
+        .{ .text = "select", .cursor = 6, .start = 6, .end = 6, .expected = "\"value\"" },
+        .{ .text = "SELECT", .cursor = 3, .start = 0, .end = 6, .expected = "SELECT" },
+        .{ .text = "SELECT * FROM", .cursor = 13, .start = 13, .end = 13, .expected = "\"items\"" },
+        .{ .text = "SELECT value", .cursor = 12, .start = 7, .end = 12, .expected = "\"value\"" },
+        .{ .text = "SELECT 1; SELECT", .cursor = 16, .start = 16, .end = 16, .expected = "\"value\"" },
+        .{ .text = "SELECT;", .cursor = 6, .start = 6, .end = 6, .expected = "\"value\"" },
+    }) |case| {
+        const result = try complete(t.allocator, "items", schema, .{ .sql = case.text, .cursor = case.cursor, .generation = 1, .mode = .console });
+        defer result.deinit(t.allocator);
+        errdefer std.debug.print("keyword continuation: {s}\n", .{case.text});
+        try t.expectEqual(case.start, result.range.?.start);
+        try t.expectEqual(case.end, result.range.?.end);
+        const found = for (result.items) |item| {
+            if (std.mem.eql(u8, case.expected, item.text)) break true;
+        } else false;
+        try t.expect(found);
+    }
+    const request: Request = .{ .sql = "CREATE", .cursor = 6, .generation = 1, .mode = .console };
+    var result: Completion = .{ .range = .{ .start = 0, .end = 6 }, .items = &.{.{ .text = "CREATE", .kind = .keyword, .detail = "" }} };
+    try t.expectEqual(input.Range{ .start = 6, .end = 6 }, continuation(request, result).?);
+    result.coverage = .limited;
+    try t.expectEqual(null, continuation(request, result));
+    result.coverage = .complete;
+    result.items = &.{ .{ .text = "CREATE", .kind = .keyword, .detail = "" }, .{ .text = "CREATED", .kind = .keyword, .detail = "" } };
+    try t.expectEqual(null, continuation(request, result));
+    const sql_editor = try complete(t.allocator, "items", schema, .{ .sql = "SELECT", .cursor = 6, .generation = 1 });
+    defer sql_editor.deinit(t.allocator);
+    try t.expectEqual(input.Range{ .start = 0, .end = 6 }, sql_editor.range.?);
+    try t.expectEqualStrings("SELECT", sql_editor.items[0].text);
+}
+
 test "completion edits separate adjacent tokens without reformatting the draft" {
     const Case = struct { text: []const u8, start: u16, end: u16, candidate: []const u8, expected: []const u8 };
     var output: [sql.max_statement_bytes]u8 = undefined;
@@ -529,8 +583,10 @@ test "completion allocation failures release every partially constructed suggest
     try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
         fn run(allocator: std.mem.Allocator) !void {
             const columns = [_]q.fuze.Types.Field{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .utf8 } };
-            const result = try complete(allocator, "items", .{ .structure = &columns }, .{ .sql = "SELECT ", .cursor = 7, .generation = 0 });
-            defer result.deinit(allocator);
+            for ([_][]const u8{ "SELECT ", "SELECT" }) |text| {
+                const result = try complete(allocator, "items", .{ .structure = &columns }, .{ .sql = text, .cursor = @intCast(text.len), .generation = 0, .mode = .console });
+                defer result.deinit(allocator);
+            }
         }
     }.run, .{});
 }

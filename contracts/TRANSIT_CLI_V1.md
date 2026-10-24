@@ -415,6 +415,12 @@ unchanged surrounding text, including the suffix. It does not establish current
 coverage or insertion evidence. An empty preview is hidden until the current
 response establishes the result. Selection follows candidate spelling and kind
 through filtering and replacement of the list.
+At the end of a fully typed keyword that is the sole complete grammar match,
+console assistance advances to the next token using a zero-width cursor range.
+Thus `CREATE` offers `TABLE`; partial and interior words keep their replacement
+range. Identifiers and limited results never establish this keyword transition.
+An initial Tab with one complete match validates and inserts without rendering
+a menu. Shift-Tab explicitly opens suggestions, including a single match.
 It joins cancelled I/O before reusing the session client. Acceptance re-acquires
 current evidence and compares generation, cursor/range, profile, source, contract,
 resource revision and policy revision before one atomic text replacement.
@@ -425,7 +431,9 @@ Accepting `ALL` after `SHOW` therefore produces `SHOW ALL`; completing a partial
 word adds no unconditional trailing space. The edit includes any required
 separators in the 4 KiB statement limit and one undo group. Its cursor follows
 the candidate, before any separator inserted ahead of retained suffix text.
-Validation keeps the menu visible. Tab/Enter during refresh does not queue an
+Validation keeps an already displayed menu visible. A unique automatic
+insertion remains hidden during validation; losing uniqueness displays the
+current choices without insertion. Tab/Enter during refresh does not queue an
 insertion. Changed metadata refreshes suggestions without replaying acceptance. Static dot
 vocabulary completes locally. PgUp/PgDn exposes clipped selected-item details.
 

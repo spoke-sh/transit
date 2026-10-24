@@ -417,7 +417,8 @@ const Editor = struct {
                 const found = for (current.items) |candidate| {
                     if (std.mem.eql(u8, candidate.text, selected.text) and candidate.kind == selected.kind) break true;
                 } else false;
-                if (same and found) {
+                const unique = !self.auto_unique or (current.coverage == .complete and current.items.len == 1);
+                if (same and found and unique) {
                     try self.apply();
                     return true;
                 }
@@ -425,9 +426,8 @@ const Editor = struct {
             }
             self.installAssistance(current, &fresh);
             if (self.auto_unique and current.status == .ready and current.coverage == .complete and current.items.len == 1) {
-                self.auto_unique = false;
                 try self.accept();
-            }
+            } else self.auto_unique = false;
             return true;
         }
         if (self.needsRefresh() and !self.unavailable and self.now() >= self.refresh_at) {
@@ -964,6 +964,7 @@ const Editor = struct {
     }
     fn menuRows(self: *Editor) usize {
         if (!self.completing or self.rows < 3) return 0;
+        if (self.auto_unique and self.accepting) return 0;
         if (!self.unavailable and self.needsRefresh() and self.visible_count == 0) return 0;
         const count = self.visible_count;
         return @min(@max(1, count + 2), @max(1, self.rows / 2));
