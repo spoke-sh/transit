@@ -162,6 +162,16 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## Changed Table inspection diagnostics — 2026-10-23
+
+Board maps the native `TableDefinitionChanged` cause to
+`inspection.observation_changed`, with an explicit fresh-observation action and
+no mutation outcome or fabricated completion. Its API package passes **13/13**
+Debug tests. `just test::diagnostic-outcomes` passes **3,411** projections across
+**29** declared surfaces, including the added reviewed native case. The broader
+`just check` run first exposed this missing case and stopped at that gate;
+later repository checks were not executed in that run.
+
 ## Direct mutation authorization prerequisites — 2026-10-23
 
 Direct mutation bindings retain an optional native guard through admission,

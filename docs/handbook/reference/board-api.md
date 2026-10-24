@@ -83,6 +83,11 @@ returns 502; an invalid locally supplied frame remains 400. Internal failures
 return 500. An unknown submission always remains 503 with its exact recovery
 identity. The diagnostic's stable code supplies the specific reason.
 
+A native `TableDefinitionChanged` response reports
+`inspection.observation_changed` and permits a fresh observation. It does not
+establish an empty Table, complete a previous read or restart a saved query.
+Results from the earlier and newer definitions remain separate.
+
 The worksheet displays the semantic message, byte location, exact counters,
 provided or unavailable facts and permitted recovery guidance. Saved query
 failures and Live draft failures use the same display. Current denial clears

@@ -13131,6 +13131,13 @@
             "inspect_scope"
           ]
         },
+        "TableDefinitionChanged": {
+          "code": "inspection.observation_changed",
+          "category": "conflict",
+          "actions": [
+            "refresh"
+          ]
+        },
         "StaleStateResource": {
           "code": "inspection.observation_changed",
           "category": "conflict",

@@ -11,7 +11,7 @@ fn classification(cause: anyerror, native: ?p.ErrorCode) Class {
         return codes.fromError(error.AccessDenied).?;
     if (cause == error.UnsafePrincipal)
         return codes.fromError(error.UnsafePrincipal).?;
-    if (cause == error.QueryChanged or cause == error.QueryReadConflict or native == .StaleStateResource or native == .QueryExpired or native == .StaleAuthorizationRevision or native == .StaleAuthorizationCredential)
+    if (cause == error.QueryChanged or cause == error.QueryReadConflict or native == .TableDefinitionChanged or native == .StaleStateResource or native == .QueryExpired or native == .StaleAuthorizationRevision or native == .StaleAuthorizationCredential)
         return codes.fromError(error.QueryChanged).?;
     if (cause == error.DocumentHistoryGap or cause == error.DocumentResyncRequired or native == .HistoryReclaimed)
         return codes.fromError(error.DocumentHistoryGap).?;
@@ -75,6 +75,7 @@ test "inspection failure categories retain native cause without inventing outcom
         .{ error.AccessDenied, @as(?p.ErrorCode, .AccessDenied), "inspection.denied", d.Category.access },
         .{ error.UnsafePrincipal, @as(?p.ErrorCode, null), "inspection.unsafe_principal", d.Category.access },
         .{ error.Conflict, @as(?p.ErrorCode, .QueryExpired), "inspection.observation_changed", d.Category.conflict },
+        .{ error.Rejected, @as(?p.ErrorCode, .TableDefinitionChanged), "inspection.observation_changed", d.Category.conflict },
         .{ error.Rejected, @as(?p.ErrorCode, .HistoryReclaimed), "inspection.history_reclaimed", d.Category.lifecycle },
         .{ error.Rejected, @as(?p.ErrorCode, .StateResourceExpired), "inspection.resource_unavailable", d.Category.lifecycle },
         .{ error.Rejected, @as(?p.ErrorCode, .UnknownProcess), "inspection.object_not_found", d.Category.lifecycle },
