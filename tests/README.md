@@ -1,5 +1,17 @@
 # Validation and evidence
 
+## Direct caller diagnostic projection — 2026-10-24
+
+The focused catalog package run on committed source `ba51e4226` passes **4 tests**,
+including root imports. Every direct registry entry retains its reviewed category,
+failed reads report `not_applicable`, local failures report `not_submitted`, and
+recorded mutation attempts preserve `unknown` and the original full-width operation
+identity. The semantic mapping gate covers **106 direct/common causes across 66
+owner/error pairs**, with no exceptions in this boundary. The inventory records
+603 owners and 4,904 owner/error pairs; inventory coverage is separate from this
+executable projection proof. This slice does not establish SDK/ABI migration or
+inject allocation failures into a real accepted request.
+
 ## Installed Work items direct lifecycle — 2026-10-24
 
 `nix develop -c just test::server-applications` passes on frozen source
