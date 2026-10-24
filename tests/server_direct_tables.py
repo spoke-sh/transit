@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import subprocess
 import sys
 
 from server import Fixture, children, command
@@ -21,7 +22,7 @@ def gateway_lookup(fixture, record):
     identity = post(port, '/v1/query', native(key, record['realm'], 10,
         dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
     body = dict(definition=record['definition'], connection=connection, nonce=[71]*16,
-                action=dict(lookup=dict(namespace=1, name='items')), delegation=None)
+                action=dict(lookup=dict(namespace=1, name='items')), delegation=None, closure=None, borrow=None)
     context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
     claim = dict(definition=record['definition'], realm=record['realm'], principal=10,
                  credential_epoch=identity['credential_epoch'], role=None,
@@ -56,6 +57,15 @@ def run(cli, node, host, board, gateway):
         assert before['table_registrar_receipt'] and before['default_table_complete']
         assert before['default_table']['binding']['target']['object'] == 1
         gateway_lookup(fixture, before)
+        for text, cursor, expected, profile in (
+            ('SELECT va FROM items', 9, '"value"', 'direct_table_v1'),
+            ('.mode table\nSELECT 1; SELECT va FROM items', 31, '"value"', 'direct_table_v1'),
+            ('SET query.statement_t', 21, 'query.statement_timeout', 'configuration_v1'),
+        ):
+            result = fixture.sql_session(dict(assist=dict(text=text, cursor=cursor)))['assistance']
+            assert result['profile'] == profile and result['status'] == 'ready', (text, result)
+            assert expected in [item['text'] for item in result['items']], (text, result)
+            assert result['coverage'] in ('complete', 'limited') and len(result['items']) <= 8
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '0'
         # The old query worker is unrelated to direct Table mutation acceptance.
         source = next(pid for pid in children(fixture.process.pid) if '"unified_source":' in command(pid))
@@ -65,12 +75,17 @@ def run(cli, node, host, board, gateway):
                                      'UPDATE items SET value = 11 WHERE id = 1;\n'
                                      'SELECT COUNT(*) FROM items;\n')
             assert atom(values[-1], 'unsigned') == '2', values
-            fixture.console('CREATE TABLE IF NOT EXISTS items (ignored TEXT);\n'
-                            'DROP TABLE IF EXISTS absent_name;\n'
-                            'CREATE TABLE other (id BIGINT PRIMARY KEY);\n'
-                            'ALTER TABLE other ADD COLUMN label TEXT;\n'
-                            'ALTER TABLE other RENAME TO renamed;\n'
-                            'DROP TABLE renamed;\n')
+            try:
+                fixture.console('CREATE TABLE IF NOT EXISTS items (ignored TEXT);\n'
+                                'DROP TABLE IF EXISTS absent_name;\n'
+                                'CREATE TABLE other (id BIGINT PRIMARY KEY);\n'
+                                'ALTER TABLE other ADD COLUMN label TEXT;\n'
+                                'ALTER TABLE other RENAME TO renamed;\n'
+                                'DROP TABLE renamed;\n')
+            except subprocess.TimeoutExpired as error:
+                print('Timed-out DDL batch stdout:', error.stdout, file=sys.stderr)
+                print('Timed-out DDL batch stderr:', error.stderr, file=sys.stderr)
+                raise
         finally:
             os.kill(source, signal.SIGCONT)
         fixture.stop(kill=True)

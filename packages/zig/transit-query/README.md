@@ -96,6 +96,11 @@ the caller remains responsible for durable pin release.
 
 `DirectTableAssistance` uses the same production parser and suggestion builders
 as Table completion, obtaining metadata through direct lookups and paged lists.
+It completes the statement at the cursor, reports complete or limited candidate
+coverage, and distinguishes unsupported syntax from a cursor inside quoted text.
+The shortlist holds eight candidates; source enumeration visits at most 128
+pages. Ranking retains the exact definition of each selected name, including
+names that replace earlier candidates in a full shortlist.
 It rechecks all disclosed definitions and current rights together. Its contract
 fingerprint binds that metadata vector; it supplies no native resource revision
 or data snapshot. Installed launcher/SQL recovery qualification and durable

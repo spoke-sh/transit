@@ -123,10 +123,10 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     # The actual native route shares grammar, metadata and settings assistance.
     assistance_samples = []
     for text, cursor, expected, profile in (
-        ('SELECT va FROM native_sessions', 9, '"value"', 'catalog_v1'),
-        ('SELECT n.va FROM native_sessions AS n', 11, '"value"', 'catalog_v1'),
-        ('.mode table\nSELECT 1; SELECT va FROM native_sessions', 31, '"value"', 'catalog_v1'),
-        ('UPDATE native_sessions SET va', 29, '"value"', 'catalog_v1'),
+        ('SELECT va FROM native_sessions', 9, '"value"', 'direct_table_v1'),
+        ('SELECT n.va FROM native_sessions AS n', 11, '"value"', 'direct_table_v1'),
+        ('.mode table\nSELECT 1; SELECT va FROM native_sessions', 31, '"value"', 'direct_table_v1'),
+        ('UPDATE native_sessions SET va', 29, '"value"', 'direct_table_v1'),
         ('SET query.statement_t', 21, 'query.statement_timeout', 'configuration_v1'),
     ):
         result = first.call(dict(assist=dict(text=text, cursor=cursor)))['assistance']
