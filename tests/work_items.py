@@ -6,24 +6,28 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import tempfile
+import urllib.request
+from types import SimpleNamespace
 import time
 
-from storage import Fixture, free_port, wait_ready
-from cold_storage import ColdStore
+from storage import free_port, wait_ready
 
 
 def run(node, worker_binary, caller, query_host):
     node, worker_binary, caller, query_host = [str(Path(path).resolve()) for path in (node, worker_binary, caller, query_host)]
-    with ColdStore() as cold, Fixture(cold.config()) as fixture:
+    with tempfile.TemporaryDirectory(prefix="transit-work-items-") as directory:
+        fixture = SimpleNamespace(root=Path(directory), http=urllib.request.build_opener(urllib.request.ProxyHandler({})))
         started = time.monotonic()
         public = json.loads(subprocess.check_output([caller, 'public'], timeout=10))
         port = free_port()
         url = f'http://127.0.0.1:{port}'
         config = fixture.root/'node.json'
-        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=51,
-            root_key=public, max_clock_error_ms=10000, allow_history_trim=True),
-            ursula_url=fixture.url, bucket='work-items', journal='authority', port=port,
-            resident_pages=16, request_timeout_ms=10000)))
+        settings = dict(genesis=dict(realm=51, root_key=public,
+            max_clock_error_ms=10000, allow_history_trim=True),
+            local_directory=str(fixture.root / 'native'), port=port,
+            resident_pages=16, request_timeout_ms=10000)
+        config.write_text(json.dumps(settings))
         faults, retries, failures = {}, set(), []
         observed = dict(turns=0, max_mutations=0, max_value_bytes=0, pages=0, transport_disconnects=0)
 
@@ -55,7 +59,10 @@ def run(node, worker_binary, caller, query_host):
                             for change in changes:
                                 if change['value']:
                                     observed['max_value_bytes'] = max(observed['max_value_bytes'], len(bytes.fromhex(change['value'])))
-                                if change['value'] and bytes.fromhex(change['value']).startswith(b'STH1') and int.from_bytes(bytes.fromhex(change['value'])[44:52], 'little') == 2 and int.from_bytes(bytes.fromhex(change['value'])[52:60], 'little') > 1:
+                                value = bytes.fromhex(change['value']) if change['value'] else b''
+                                if value.startswith(b'AP1G') and int.from_bytes(value[4:12], 'little') == 2:
+                                    cursor = value[14:14+value[13]]
+                                    assert cursor.startswith(b'AP1c') and int.from_bytes(cursor[26:34], 'little') == 1
                                     selected = 'worker-copy'
                         for name, (request, receipt) in faults.items():
                             if body == request:
@@ -92,17 +99,21 @@ def run(node, worker_binary, caller, query_host):
             processes.append(process)
             return process
         def authority():
-            process = spawn('node', [node, str(config)])
+            process = spawn('node', [node, str(config), '--bootstrap'])
             wait_ready(fixture.http, process, url+'/health')
             return process
         def invoke(phase):
-            subprocess.run([caller, origin, phase, str(fixture.root)], check=True, timeout=180)
+            subprocess.run([caller, origin, phase, str(fixture.root)], check=True, timeout=600)
         def worker(name):
             return spawn(name, [worker_binary, str(fixture.root/'worker.json')])
         try:
-            subprocess.run([node, str(config), '--initialize'], check=True, timeout=30)
             current_node = authority()
             invoke('setup')
+            current_node.terminate(); current_node.wait(timeout=15)
+            settings['table'] = json.loads((fixture.root / 'data-catalog.json').read_text())
+            config.write_text(json.dumps(settings))
+            current_node = authority()
+            invoke('initialize-data')
             current_worker = worker('worker-first')
             courier = spawn('courier', [query_host, str(fixture.root/'courier.json')])
             invoke('seed')
@@ -113,7 +124,6 @@ def run(node, worker_binary, caller, query_host):
                 time.sleep(.05)
             current_worker.kill(); current_worker.wait(timeout=10)
             current_node.kill(); current_node.wait(timeout=10)
-            fixture.stop(); fixture.start()
             current_node = authority()
             invoke('fence')
             # The old accepted proposal is not a capability after worker-key
@@ -133,7 +143,6 @@ def run(node, worker_binary, caller, query_host):
             # Rejected-input witnesses must survive a cold store reconstruction
             # before later successful steps and activation can change the ledger.
             current_node.kill(); current_node.wait(timeout=10)
-            fixture.stop(); fixture.start()
             current_node = authority()
             invoke('fence')
             current_worker = worker('worker-verify-recovered')

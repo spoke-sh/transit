@@ -239,9 +239,8 @@ for the original accepted application input, independently of the worker's
 current Table rights. The [scoped native/storage evidence](../../tests/README.md#direct-mutation-authorization-prerequisites--2026-10-23)
 covers current revocation at acceptance, fresh worker credentials, unchanged
 saved bindings and inspection/cancellation after the original condition fails.
-This supplies an authorization boundary needed by remaining application callers;
-it does not migrate Work items or make its native progress and Table acceptance
-one atomic operation.
+This supplies an authorization boundary needed by application callers. Native
+progress and Table acceptance remain separate operations.
 
 The [direct namespace evidence](../../tests/README.md#direct-namespace-lifecycle--2026-10-23)
 now covers typed CREATE/RENAME/DROP, separate native registration, permanent
@@ -256,8 +255,13 @@ adds conditional point reads and bounded ordered suffixes under the original
 logical basis. These reads avoid transient retention work for application
 read/modify/write preparation and migrations that require an unchanged source.
 They reject logical drift and recheck disclosure rights, including empty output.
-Work items still needs its direct catalog binding and durable dispatch/progress
-flow; this primitive alone does not complete that consumer migration.
+The [Work items consumer proof](../../tests/README.md#work-items-over-the-direct-data-owner--2026-10-24)
+now uses an explicit direct catalog binding and durable dispatch/progress flow.
+Real native and browser schedules pass exact recovery, worker replacement,
+bounded row migration, verified activation, fresh queries and current denial.
+Installed application provisioning and physical placements remain under
+qualification. This does not make native progress and direct Table acceptance
+atomic or retire the remaining actor-Table consumers.
 
 Interactive namespace administration, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource

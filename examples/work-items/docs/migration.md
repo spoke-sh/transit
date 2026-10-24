@@ -6,37 +6,54 @@ The migration plan ID also selects its target Table, so this application's plan
 IDs must fit a nonzero u32 and exceed 1. This is an application command limit; the general Table identity is u64. It is
 not a resident limit on work items or historical migration receipts.
 
-Bootstrap initializes the migration ledger, initializes its catalog, then explicitly
-prepares Table 1 through the general catalog DDL owner. These are distinct native
-inputs. An administrator prepares the empty target before beginning a migration;
-publication alone neither activates it nor pauses the source. Tables use an
-INT64 primary key and an INT64 NOT NULL state column. The application selects
-4 KiB immutable records, eight staging records and a 32 KiB staging quota per
-Table; retained rows and operation histories have no total-cardinality cap.
+Bootstrap initializes the native migration ledger and records an explicit direct
+catalog binding. The data service and namespace already exist. The binding names
+the realm/resource/catalog, branch, service audience, namespace, first global
+Table object and owning role. Local Table N maps to `first_object + N - 1` and
+`work_items_N`. An administrator explicitly prepares the source and empty target
+through direct catalog DDL. Publication neither activates a target nor pauses the
+source. Tables use an INT64 primary key and an INT64 NOT NULL state column.
 
-Begin checks the complete application source/target commitments, verifies the
-empty prepared target, requires accepted writes to finish, and records its three
-ledger values while pausing normal writes. Application commitments bind realm,
-resource, owner, Table schema and state encoding. Query declarations separately
-bind the actual published catalog metadata. Each copy step freezes its original
-ordinal and arguments, then stages one transformed row. Its final turn publishes
-the Table head, Table outcome, migration progress and exact step receipt in four
-writes. A second pass over
-the target verifies every value against the unchanged source and checks the
-copied/verified counts. Only a separately requested activation can change the
-active Table and epoch. The ledger's three activation writes and one Table
-selector share one native four-mutation commit. Old command epochs fail closed. Activation leaves normal writes paused until
-the administrator explicitly releases the reviewed epoch and complete target
-contract. This lets a deployment publish and verify its compatible interface
-before reopening writes. Release is an explicit administrator decision, not an
-inferred or atomically verified cross-owner publication.
+Begin validates the application source/target commitments, requires queued puts
+to finish, checks the empty target and records both Table definitions, logical
+positions and row counts alongside three ledger values. It pauses Work items
+commands. Application commitments bind realm, native resource, worker, layout
+and state encoding; query declarations bind the actual direct Table definition.
 
-The durable cursor carries phase, an optional stable row identity and two counts.
-The optional identity contains origin u64, operation u64 and ordinal u32; it is
-independent of the user's signed integer key. Each turn reads one row after it: the exclusive data owner
-and explicit write pause establish stable contents across these distinct read
-positions. This is not reuse of a snapshot cursor across revisions. Empty tables,
-negative/full-width row keys and more than one resident page are supported.
+Each copy step freezes its original native input, ordinal and arguments. A later
+turn stages a complete immutable direct Table intent and commits its reference
+and dispatch eligibility in one bounded native block. Only a subsequent turn
+reading that committed reference may admit or execute it. Table acceptance and
+native progress are separate commits. After observing the original Table
+outcome, the worker advances the target basis, migration cursor and exact receipt
+in three native writes. Lost replies or discarded native progress recover that
+same Table operation before checking the target's now-advanced basis. They never
+create another insert identity or replan a rejected operation.
+
+The second pass verifies every target value against the original source basis
+and checks complete copied/verified counts. A separately requested activation
+records the selected Table and new epoch with three ledger writes in one native
+four-mutation commit. Old command epochs fail closed. Activation leaves Work
+items writes paused until the administrator releases the reviewed epoch and
+complete target contract; interface publication remains a separate operation.
+
+The cursor carries phase, an optional row identity and copied/verified counts.
+Identity contains origin u64, operation u64 and ordinal u32, independently of the
+signed integer primary key. Reads fetch one row under the exact definition and
+original logical position. Accepted no-ops and physical storage changes may
+advance the current frontier; a logical edit, including a change later restored,
+invalidates the traversal. Exhaustion and counts both establish complete coverage.
+Empty Tables, full-width keys and multiple resident pages use the same path.
+
+The application pause does not remove direct Table privileges. Independently
+authorized writers can still change either Table; subsequent conditional reads
+reject that changed basis. Activation records the bases that were verified; it
+does not atomically freeze both Tables with the native ledger or assert that
+those bases remain current at native publication. `inspect` exposes the recorded
+verification basis separately from its current Table observation. These basis
+records are metadata, not retention pins. Each direct row read is bounded to one
+row and 4 KiB; each dispatch record is bounded to 16 KiB. Durable rows, pending
+writes and operation receipts have no fixed total-cardinality array.
 
 Abandonment resumes epoch-1 writes but preserves the partial target, plan and
 receipts. A new attempt requires a fresh Table/plan ID. Activation cannot be
@@ -50,25 +67,28 @@ payload. Field encoding follows the shared fixed application codec: little-endia
 integers, explicitly numbered union tags, one-byte booleans and bounded Values.
 Tags are initialize=0, policy=1, put=2, begin=3, step=4, abandon=5,
 release_writes=6, catalog_initialize=7 and prepare_table=8.
-`catalog_initialize` carries the six u64 IDs in `TableAuthority.Profile`;
-native authority validates their stable bindings before initialization.
-`prepare_table` carries a u32 object ID. Native roles and object privileges govern
+`catalog_initialize` carries a mandatory 32-byte current definition identifier
+and eight u64 binding fields: realm, resource, catalog, branch, audience,
+namespace, first object and owner role. An existing binding cannot be replaced.
+`prepare_table` carries a u32 local Table ID. Native roles and object privileges govern
 Table access. The application migration policy independently controls which
 caller may advance a migration; it does not grant Table access.
 
-Accepted puts retain their original native input, principal and chosen Table in
-paged state. A later turn freezes insert/update identity before staging. The
-Table receipt and removal of that queued work commit together. Only authenticated
-owner self-messages continue DDL, queued puts or admitted migration steps.
-Continuations bind the original accepted input and caller. Queued puts require
-current SELECT and INSERT or UPDATE; migration reads and target INSERT require
-current grants, including the final native publication guard. Revocation retains
-pending work and cannot turn the worker's own identity into caller authority. A
-revoked migration policy stops continuation while preserving the pending step;
-restored policy permits an explicit exact step to resume it. Abandonment retains
-unpublished staging for separate cleanup. Native input consumption alone is not
-Table or migration-step completion. The operator waits for the respective domain
-outcome and retains its recovery file if completion cannot be observed.
+Accepted puts retain their original input, principal and selected Table in
+paged native state. A later turn records the complete insert/update reference;
+Table acceptance precedes removal of the pending native write. Only authenticated
+owner self-messages continue DDL, puts or migration steps. The service checks the
+worker's current rights independently of the original accepted input's frozen
+SEND and Table requirements, including both source SELECT and target INSERT for
+copying. Revocation leaves pending work intact. Inspection of already accepted
+outcomes can recover native progress without rerunning the write.
+
+The application migration policy independently gates every continuation. A
+revoked policy stops progress; restoring it permits an exact step to resume.
+Abandonment preserves staged references and accepted outcomes; it does not undo
+or cancel already admitted data work. Native input consumption alone does not
+establish Table or migration completion. The operator waits for the domain
+outcome and retains its recovery file when completion cannot be observed.
 
 The declared writer is separate from the administrator and current per-operator migration
 policies. Files, reviewed plans and interface declarations confer no rights.

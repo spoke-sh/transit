@@ -1,5 +1,6 @@
 //! Explicit application provisioning through public, recoverable authorization.
-//! Worker activation only reads the resulting catalog; it never repeats grants.
+//! The operator names an existing direct catalog and namespace. Worker
+//! activation reads the retained binding; it never provisions another catalog.
 const std = @import("std");
 const W = @import("work_items");
 const c = W.query.catalog;
@@ -8,6 +9,16 @@ const p = wire.protocol;
 const A = wire.Application;
 const Change = wire.AuthorizationChange;
 const Admin = struct { version: u8, connection: wire.AuthorizationBridge.Connection, url: []const u8, seed_file: []const u8, request_timeout_ms: u32 = 5000 };
+/// Explicit deployment choice, including the worker's existing login role.
+/// This is not a credential and does not create a data service or namespace.
+pub const Target = struct {
+    definition: p.Growth.Definition,
+    connection: c.DirectTableProtocol.Connection,
+    seed_file: []const u8,
+    namespace: u64,
+    first_object: u64,
+    worker_login_role: u64,
+};
 const Journal = struct {
     init: std.process.Init,
     directory: std.Io.Dir,
@@ -80,9 +91,10 @@ fn sameBindings(left: []const A.Binding, right: []const A.Binding) bool {
     return true;
 }
 /// Arguments: admin configuration, operator/writer/inspector exports, an existing
-/// private recovery directory. The caller writes the returned profile explicitly.
-pub fn run(init: std.process.Init, args: []const []const u8) !c.TableAuthority.Profile {
-    if (args.len != 5) return error.InvalidInvocation;
+/// private recovery directory and explicit Target file. The caller saves the
+/// resulting application binding before initializing the worker.
+pub fn run(init: std.process.Init, args: []const []const u8) !W.Data.Binding {
+    if (args.len != 6) return error.InvalidInvocation;
     const admin = try read(Admin, init, args[0]);
     try admin.connection.validate();
     if (admin.version != 1 or admin.connection.principal != 0 or admin.connection.role != null or admin.request_timeout_ms == 0 or admin.request_timeout_ms > 60000) return error.InvalidAuthorizationConnection;
@@ -97,7 +109,11 @@ pub fn run(init: std.process.Init, args: []const []const u8) !c.TableAuthority.P
         if (!std.mem.eql(u8, connection.application, operator.application) or !sameBindings(connection.roles, operator.roles) or !sameBindings(connection.resources, operator.resources) or !sameBindings(connection.callers, operator.callers)) return error.RecoveryIdentityMismatch;
     }
     const owner_pid = try A.binding(operator.roles, "data");
-    const scope: c.Model.Scope = .{ .realm = operator.realm, .resource = try A.binding(operator.resources, "data"), .catalog = 1 };
+    const target = try read(Target, init, args[5]);
+    if (target.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    try target.connection.validate();
+    if (target.connection.scope.realm != operator.realm or target.first_object == 0) return error.RecoveryIdentityMismatch;
+    const scope = target.connection.scope;
     var transport = wire.Client.init(init.gpa, init.io, admin.url);
     defer transport.deinit();
     transport.timeout_ms = admin.request_timeout_ms;
@@ -105,8 +121,18 @@ pub fn run(init: std.process.Init, args: []const []const u8) !c.TableAuthority.P
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     const authority: wire.AuthorizationClient = .{ .transport = &transport, .realm = scope.realm, .principal = 0, .key = key };
     const process = (try transport.query(.{ .realm = scope.realm, .principal = 0, .kind = .{ .process = owner_pid } }, key)).body.process.process;
-    const registrar = process.owner orelse return error.WorkerUnavailable;
-    if (process.lifecycle != .running or registrar == 0) return error.WorkerUnavailable;
+    if (process.lifecycle != .running or process.owner == null or process.owner == 0) return error.WorkerUnavailable;
+    const worker_role = (try authority.read(.{ .role = target.worker_login_role })).body.authorization.body.role;
+    if (!worker_role.login or !worker_role.enabled or worker_role.retired) return error.WorkerUnavailable;
+    var catalog_key = try wire.readKey(init.gpa, init.io, target.seed_file);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&catalog_key));
+    const direct: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &transport, .service = &transport, .connection = target.connection, .key = catalog_key };
+    const described = try direct.call(.describe);
+    defer described.deinit();
+    const profile = described.value.result.description.authority;
+    const namespace_response = try direct.call(.{ .namespace = target.namespace });
+    defer namespace_response.deinit();
+    const namespace = namespace_response.value.result.namespace orelse return error.UnknownCatalogSchema;
     var roles: [3]u64 = undefined;
     for (connections, &roles) |connection, *role| role.* = try login(init, &transport, connection);
     const directory = try std.Io.Dir.cwd().openDir(init.io, args[4], .{ .iterate = true });
@@ -119,15 +145,13 @@ pub fn run(init: std.process.Init, args: []const []const u8) !c.TableAuthority.P
     const owner = (try journal.apply(.{ .create_role = .{ .name = try p.Value.init(try std.fmt.bufPrint(&name, "work_items/{d}/{d}", .{ scope.realm, owner_pid })), .login = false } })).?;
     _ = try journal.apply(.{ .membership = .{ .member = roles[0], .role = owner, .inherit = true, .set = true } });
     _ = try journal.apply(.{ .grant = .{ .object = .{ .kind = .process, .id = owner_pid }, .grantee = owner, .privileges = p.permission(.send) } });
-    const database_domain = (try journal.apply(.{ .register_domain = .{ .registrar = registrar, .actions = c.TableAuthority.connect } })).?;
-    const schema_domain = (try journal.apply(.{ .register_domain = .{ .registrar = registrar, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
-    const table_domain = (try journal.apply(.{ .register_domain = .{ .registrar = registrar, .actions = c.TableAuthority.table_actions } })).?;
-    const database = (try journal.apply(.{ .register_object = .{ .domain = database_domain, .owner = owner, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
-    const schema = (try journal.apply(.{ .register_object = .{ .domain = schema_domain, .owner = owner, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
+    _ = try journal.apply(.{ .membership = .{ .member = worker_role.id, .role = owner, .inherit = false, .set = true } });
+    _ = try journal.apply(.{ .grant = .{ .object = c.TableAuthority.reference(profile.database), .grantee = owner, .privileges = c.TableAuthority.connect } });
+    _ = try journal.apply(.{ .grant = .{ .object = c.TableAuthority.reference(namespace.authorization), .grantee = owner, .privileges = c.TableAuthority.usage | c.TableAuthority.create } });
     for (roles[1..], [_]u64{ c.TableAuthority.select | c.TableAuthority.insert | c.TableAuthority.update, c.TableAuthority.select }) |role, privileges| {
-        _ = try journal.apply(.{ .grant = .{ .object = c.TableAuthority.reference(database), .grantee = role, .privileges = c.TableAuthority.connect } });
-        _ = try journal.apply(.{ .grant = .{ .object = c.TableAuthority.reference(schema), .grantee = role, .privileges = c.TableAuthority.usage } });
-        _ = try journal.apply(.{ .default_grant = .{ .creator = owner, .schema = c.TableAuthority.reference(schema), .domain = table_domain, .grantee = role, .privileges = privileges } });
+        _ = try journal.apply(.{ .grant = .{ .object = c.TableAuthority.reference(profile.database), .grantee = role, .privileges = c.TableAuthority.connect } });
+        _ = try journal.apply(.{ .grant = .{ .object = c.TableAuthority.reference(namespace.authorization), .grantee = role, .privileges = c.TableAuthority.usage } });
+        _ = try journal.apply(.{ .default_grant = .{ .creator = owner, .schema = c.TableAuthority.reference(namespace.authorization), .domain = profile.table_domain, .grantee = role, .privileges = privileges } });
     }
-    return .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = schema };
+    return .{ .definition = p.Growth.definition_bytes, .scope = scope, .branch = target.connection.branch, .audience = target.connection.audience, .namespace = target.namespace, .first_object = target.first_object, .owner_role = owner };
 }

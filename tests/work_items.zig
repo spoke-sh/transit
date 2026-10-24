@@ -11,7 +11,7 @@ const Worker = 65536;
 const Admin = @import("growing_support.zig").Admin(Realm);
 const c = W.query.catalog;
 const authorization = @import("table_authorization_support.zig");
-pub const Saved = struct { authority: ?c.TableAuthority.Profile = null, pid: u64, resource: u64, generation: u64, activation: u8 = 8, denied_input: u64 = 0, cursor_input: u64 = 0, ordinal_input: u64 = 0 };
+pub const Saved = struct { data: ?W.Data.Binding = null, authority: ?c.TableAuthority.Profile = null, pid: u64, resource: u64, generation: u64, worker_key: [32]u8, activation: u8 = 8, denied_input: u64 = 0, cursor_input: u64 = 0, ordinal_input: u64 = 0 };
 pub fn owner(allocator: std.mem.Allocator, saved: Saved) W {
     return .{ .allocator = allocator, .configuration = .{ .owner = saved.pid, .application = 9, .realm = Realm, .administrator = Operator, .writer = Operator, .resource = saved.resource } };
 }
@@ -35,11 +35,27 @@ pub const Caller = struct {
         return .{ .wire = self.wire, .realm = Realm, .principal = Operator, .key = self.key };
     }
     pub fn read(self: *@This()) !s.client.ResourceReader.Reader {
-        return self.resources().open(self.saved.resource);
+        const start = std.Io.Clock.awake.now(self.wire.http.io);
+        while (true) return self.resources().open(self.saved.resource) catch |err| {
+            if (!s.client.Client.unavailable(err) or start.durationTo(std.Io.Clock.awake.now(self.wire.http.io)).toMilliseconds() >= 10000) return err;
+            try self.wire.http.io.sleep(.fromMilliseconds(25), .awake);
+            continue;
+        };
+    }
+    pub fn http(self: *@This()) W.Data.Http {
+        return .{ .allocator = self.wire.http.allocator, .resources = self.resources() };
     }
     pub fn authorized(self: *@This(), source: *s.client.ResourceReader.Reader) !c.TableAuthority.Source(*s.client.ResourceReader.Reader) {
-        var client: c.TableClient = .{ .transport = self.wire, .connection = .{ .scope = .{ .realm = Realm, .resource = self.saved.resource, .catalog = 1 }, .owner = self.saved.pid, .principal = Operator }, .key = self.key };
-        return (try client.authorizationContext()).wrap(source);
+        var data = self.http();
+        return (try data.authorization(self.saved.data orelse return error.MissingProofDataBinding)).wrap(source);
+    }
+    pub fn row(self: *@This(), table: u32, key: i64) !?W.Table.Row {
+        var data = self.http();
+        const binding = self.saved.data orelse return error.MissingProofDataBinding;
+        const client = try data.transport().bind(binding);
+        var metadata = try W.Table.definition(client, binding, table);
+        defer metadata.deinit();
+        return W.Table.get(self.wire.http.allocator, client, metadata.value, metadata.value.position, key);
     }
     pub fn query(self: *@This(), kind: @FieldType(g.Query, "kind")) !g.Response {
         const start = std.Io.Clock.awake.now(self.wire.http.io);
@@ -72,14 +88,32 @@ pub const Caller = struct {
             };
         }
     }
+    fn completed(self: *@This(), command: W.Command, input: u64) !bool {
+        var source = try self.read();
+        var reader = try self.authorized(&source);
+        var data = self.http();
+        var application = owner(self.wire.http.allocator, self.saved);
+        application.transport = data.transport();
+        return application.completed(&reader, command, input);
+    }
+    pub fn progress(self: *@This(), plan: W.app.Model.Wide) !W.app.Migration.Progress {
+        const start = std.Io.Clock.awake.now(self.wire.http.io);
+        const ledger = try owner(self.wire.http.allocator, self.saved).ledger();
+        while (true) {
+            var reader = try self.read();
+            return ledger.progress(&reader, plan) catch |err| {
+                if (!self.observationChanged(err) or start.durationTo(std.Io.Clock.awake.now(self.wire.http.io)).toMilliseconds() >= 10000) return err;
+                try self.wire.http.io.sleep(.fromMilliseconds(25), .awake);
+                continue;
+            };
+        }
+    }
     pub fn send(self: *@This(), io: std.Io, command: W.Command, reason: ?[]const u8) !u64 {
         const input = try self.sendPayload(io, try command.encode(), reason);
         if (reason == null) {
             const started = std.Io.Clock.awake.now(io);
             while (true) {
-                var source = try self.read();
-                var reader = try self.authorized(&source);
-                const done = owner(self.wire.http.allocator, self.saved).completed(&reader, command, input) catch |err| value: {
+                const done = self.completed(command, input) catch |err| value: {
                     if (!self.observationChanged(err)) return err;
                     break :value false;
                 };
@@ -120,6 +154,28 @@ pub const Caller = struct {
         return receipt.position;
     }
 };
+pub fn provisionData(init: std.process.Init, admin: *Admin, saved: *Saved, owner_role: u64, directory: []const u8) !void {
+    const resource = try admin.submit(.{ .create_resource = .{ .writer = saved.pid } });
+    const scope: p.DataLifecycle.Scope = .{ .realm = Realm, .resource = resource, .catalog = 1 };
+    const profile = try authorization.profile(c, admin, scope, 0, owner_role);
+    _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = saved.pid }, .grantee = owner_role, .privileges = p.permission(.send) } });
+    const worker_role = try authorization.loginRole(c, admin.wire, Realm, Worker, try p.Ed25519.KeyPair.generateDeterministic(@splat(saved.activation)));
+    _ = try admin.authorization(.{ .membership = .{ .member = worker_role, .role = owner_role, .inherit = false, .set = true } });
+    saved.authority = profile;
+    saved.data = .{ .definition = p.Growth.definition_bytes, .scope = scope, .branch = 1, .audience = saved.pid, .namespace = 1, .first_object = 1000, .owner_role = owner_role };
+    const config: c.DirectCatalog.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = saved.pid, .authority = profile, .database_name = try .init("work_items"), .initial_schema_name = try .init("public") };
+    const seed: [32]u8 = @splat(7);
+    const seed_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}/registrar.seed", .{directory});
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = seed_path, .data = &std.fmt.bytesToHex(seed, .lower) });
+    try write(init, try std.fmt.allocPrint(init.arena.allocator(), "{s}/data-catalog.json", .{directory}), .{ .catalog = config, .registrar = .{ .principal = @as(u64, 0), .seed_file = seed_path } });
+}
+pub fn initializeData(allocator: std.mem.Allocator, wire: *s.client.Client, saved: Saved) !void {
+    const binding = saved.data orelse return error.MissingProofDataBinding;
+    const client: c.DirectTableClient = .{ .allocator = allocator, .authority = wire, .service = wire, .connection = try binding.connection(Operator, null), .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9)) };
+    const response = try client.call(.initialize);
+    defer response.deinit();
+    try t.expect(response.value.result == .initialized);
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const root_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
@@ -144,9 +200,9 @@ pub fn main(init: std.process.Init) !void {
     var saved: Saved = undefined;
     if (std.mem.eql(u8, phase, "setup")) {
         const created = try admin.provision(Worker, try p.Ed25519.KeyPair.generateDeterministic(@splat(8)));
-        saved = .{ .pid = created.pid, .resource = created.resource, .generation = created.generation };
+        saved = .{ .pid = created.pid, .resource = created.resource, .generation = created.generation, .worker_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(8))).public_key.toBytes() };
         const owner_role = try authorization.login(c, &admin, "work-items-owner", Operator, operator_key, saved.pid);
-        saved.authority = try authorization.profile(c, &admin, .{ .realm = Realm, .resource = saved.resource, .catalog = 1 }, Worker, owner_role);
+        try provisionData(init, &admin, &saved, owner_role, directory);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         const courier_seed: [32]u8 = @splat(10);
         const courier_key = try p.Ed25519.KeyPair.generateDeterministic(courier_seed);
@@ -161,14 +217,11 @@ pub fn main(init: std.process.Init) !void {
     }
     if (std.mem.eql(u8, phase, "setup") or std.mem.eql(u8, phase, "fence")) {
         if (std.mem.eql(u8, phase, "fence")) {
-            _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = Worker } });
-            saved.generation += 1;
             saved.activation += 1;
-            const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(saved.activation));
-            _ = try admin.submit(.{ .grant = .{ .subject = Worker, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = saved.pid } });
-            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Worker, .permissions = p.State.all_permissions } });
-            _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = Worker } });
+            const next = try p.Ed25519.KeyPair.generateDeterministic(@splat(saved.activation));
+            _ = try admin.submit(.{ .rotate_worker = .{ .pid = saved.pid, .worker = Worker, .expected_generation = saved.generation, .expected_public_key = saved.worker_key, .expected_permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .public_key = next.public_key.toBytes() } });
             saved.generation += 1;
+            saved.worker_key = next.public_key.toBytes();
         }
         const seed: [32]u8 = @splat(saved.activation);
         const hex = std.fmt.bytesToHex(seed, .lower);
@@ -176,12 +229,13 @@ pub fn main(init: std.process.Init) !void {
         try write(init, saved_path, saved);
         return write(init, config_path, .{ .url = args[1], .principal = Worker, .pid = saved.pid, .generation = saved.generation, .seed_file = key_path, .activation_directory = directory, .application = owner(init.gpa, saved).configuration, .request_timeout_ms = @as(u32, 5000) });
     }
+    if (std.mem.eql(u8, phase, "initialize-data")) return initializeData(init.gpa, &wire, saved);
     var caller: Caller = .{ .wire = &wire, .key = operator_key, .saved = saved, .sequence = 0 };
     caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
     const ledger = try owner(init.gpa, saved).ledger();
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
-        _ = try caller.send(init.io, .{ .catalog_initialize = saved.authority orelse return error.MissingProofAuthority }, null);
+        _ = try caller.send(init.io, .{ .catalog_initialize = saved.data orelse return error.MissingProofDataBinding }, null);
         for ([_]u32{ 1, 2 }) |table| _ = try caller.send(init.io, .{ .prepare_table = table }, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = Operator, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);
         for (0..19) |i| _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 10, .state = @intCast(i % 2) } }, null);
@@ -221,7 +275,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqualSlices(u8, &head.contract, &try owner(init.gpa, saved).contract(2));
         for (0..19) |i| {
             const key = @as(i64, @intCast(i)) - 10;
-            try t.expectEqual(@as(i64, if (i % 2 == 0) 10 else 20), (try W.Table.get(init.gpa, &reader, 2, key)).?.state);
+            try t.expectEqual(@as(i64, if (i % 2 == 0) 10 else 20), (try caller.row(2, key)).?.state);
         }
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 99, .state = 1 } }, "WorkItemEpochChanged");
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 2 }, .id = 99, .state = 20 } }, "WorkItemPublicationPaused");
