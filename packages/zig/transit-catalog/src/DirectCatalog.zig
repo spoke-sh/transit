@@ -12,6 +12,7 @@ const r = @import("DirectCatalogRecords.zig");
 const Store = @import("DirectCatalogStore.zig");
 const IntentStore = @import("DirectCatalogIntent.zig");
 const N = c.DirectNamespace;
+const Dependency = c.DirectDependency;
 const P = s.TablePartition;
 const pages = s.TreeStore.pages;
 const Self = @This();
@@ -748,6 +749,7 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
         if (view.table.root.pending != null or try self.pending(object, current)) return .object_conflict;
+        if (request.intent.action == .drop and try self.hasDependents(object)) return .dependency;
     } else return .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
     if ((request.intent.action == .create or request.intent.action == .rename) and !try self.available(request.intent.namespace, proposed_name, object, current)) return .name_conflict;
@@ -966,6 +968,10 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, true);
+    if (binding.action == .drop and try self.hasDependents(binding.target.object)) {
+        try self.terminal(observed.admitted, .rejected, .dependency, current);
+        return self.status(binding, policy);
+    }
     var properties = view.properties;
     if (request.value.intent.action == .rename) properties.name = request.value.intent.action.rename;
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
@@ -991,6 +997,214 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     // No catalog publication is needed for visibility or the accepted result.
     // A later explicit settlement only removes the pending-work directory entry.
     return .{ .committed = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome } };
+}
+
+fn hasDependents(self: *Self, object: u64) !bool {
+    const prefix = try r.idKey(object);
+    const page = try self.store.tree().scan(self.store.root.dependents, prefix);
+    const first = page.entries[0] orelse return false;
+    if (!std.mem.startsWith(u8, first.key.slice(), prefix.slice())) return false;
+    const edge = try r.fromValue(Dependency.Edge, self.allocator, first.value);
+    try edge.validate();
+    if (!std.meta.eql(first.key, try edge.forwardKey()) or edge.source.object.object != object) return error.InvalidCatalogDependency;
+    return true;
+}
+
+fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: bool) !p.Authorization.Guard {
+    try object.validate();
+    if (object.scope.realm != self.config().scope.realm or object.branch != 1) return error.CatalogDenied;
+    var result = try self.requirements(policy, null, null, .database);
+    result.requirements[1] = .{ .object = .{ .kind = .resource, .id = object.scope.resource }, .privileges = if (write) 4 else 1 };
+    return result;
+}
+
+fn dependencyAdministration(self: *Self, policy: Policy) !p.Authorization.Guard {
+    var result = try self.requirements(policy, null, null, .database);
+    result.requirements[1] = .{ .object = .{ .kind = .realm, .id = 0 }, .privileges = p.permission(.admin) };
+    return result;
+}
+
+fn dependencyOperationRequirements(self: *Self, policy: Policy, binding: Dependency.Binding, write: bool) !p.Authorization.Guard {
+    if (binding.authority == .dependent) return self.dependentRequirements(policy, binding.edge.dependent.interpretation.object, write);
+    var found = try self.dependencySource(binding.edge.source.object, policy, 0);
+    defer found.view.deinit();
+    found.requirements.requirements[2].?.privileges = 0;
+    found.requirements.requirements[2].?.access = .ownership;
+    return (try self.dependencyAdministration(policy)).merge(found.requirements);
+}
+
+fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u64) !struct { view: View, requirements: p.Authorization.Guard } {
+    try object.validate();
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    var view = try self.open(self.allocator, target, false);
+    errdefer view.deinit();
+    var requested = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .inspect);
+    if (privileges != 0) {
+        requested.requirements[2].?.privileges = privileges;
+        requested.requirements[2].?.access = .all;
+    }
+    return .{ .view = view, .requirements = requested };
+}
+
+fn dependencyEdge(self: *Self, edge: Dependency.Edge) !?pages.Value {
+    const found = try self.store.tree().get(self.store.root.dependents, try edge.forwardKey());
+    const reverse = try self.store.tree().get(self.store.root.dependencies, try edge.reverseKey());
+    if (!std.meta.eql(found, reverse)) return error.InvalidCatalogDependency;
+    if (found) |value| {
+        const saved = try r.fromValue(Dependency.Edge, self.allocator, value);
+        try saved.validate();
+        if (!std.meta.eql(saved, edge)) return error.DataIdentityConflict;
+    }
+    return found;
+}
+
+/// One bounded catalog acceptance updates both directions and its exact receipt.
+/// Register requires current source actions and dependent metadata write access.
+/// Remove/cancel can close an explicitly known edge after source rights change;
+/// they require dependent write access, never infer permission from PID ownership.
+pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: Dependency.Command, policy: Policy) !Dependency.Observation {
+    try self.requireInitialized();
+    try binding.validate();
+    if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const inspect = try policy.make_guard(policy.context, arena.allocator(), try self.dependencyOperationRequirements(policy, binding, false), null);
+    try check(inspect);
+    if (try c.OperationBinding.lookupDependency(self.allocator, self.store.objects, binding.identity())) |known| try known.requireSame(binding);
+    if (try self.store.dependency(binding)) |outcome| {
+        try check(inspect);
+        return .{ .outcome = outcome };
+    }
+    if (command == .inspect) return .not_observed;
+    var requested = try self.dependencyOperationRequirements(policy, binding, true);
+    var source: ?View = null;
+    defer if (source) |*view| view.deinit();
+    if (command == .accept and binding.action == .register) {
+        var found = try self.dependencySource(binding.edge.source.object, policy, binding.edge.privileges);
+        errdefer found.view.deinit();
+        requested = try requested.merge(found.requirements);
+        source = found.view;
+    }
+    const current = try policy.make_guard(policy.context, arena.allocator(), requested, null);
+    try check(current);
+    try c.OperationBinding.claimDependency(self.allocator, self.store.objects, binding);
+    var outcome: Dependency.Outcome = .{
+        .binding = binding,
+        .position = .{ .partition = self.config().partition, .next_lsn = try std.math.add(u64, self.store.root.next_lsn, 1) },
+        .phase = if (command == .cancel) .cancelled else .applied,
+        .reason = .none,
+        .changed = false,
+    };
+    if (source) |*view| {
+        if (view.table.root.next_lsn == 0 or view.table.root.retired or !std.meta.eql(view.table.root.interpretation, binding.edge.source)) {
+            outcome.phase = .rejected;
+            outcome.reason = .stale_definition;
+        } else if (try self.pending(binding.edge.source.object.object, current)) {
+            outcome.phase = .rejected;
+            outcome.reason = .source_busy;
+        }
+    }
+    const previous = try self.dependencyEdge(binding.edge);
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    if (outcome.phase == .applied) {
+        outcome.changed = (binding.action == .register) == (previous == null);
+        if (outcome.changed) {
+            if (binding.action == .register) {
+                const encoded = try r.pageValue(binding.edge);
+                next.dependents = try self.store.tree().put(next.dependents, try binding.edge.forwardKey(), encoded);
+                next.dependencies = try self.store.tree().put(next.dependencies, try binding.edge.reverseKey(), encoded);
+            } else {
+                next.dependents = try self.store.tree().remove(next.dependents, try binding.edge.forwardKey());
+                next.dependencies = try self.store.tree().remove(next.dependencies, try binding.edge.reverseKey());
+            }
+        }
+    }
+    next.next_lsn = outcome.position.next_lsn;
+    try self.store.receiptIdentity(&next, binding.identity());
+    try self.store.publish(next, .{ .dependency = outcome }, current);
+    return .{ .outcome = outcome };
+}
+
+/// Bounded, current-authorized graph inspection. A continuation is tied to the
+/// catalog position; a changed directory rejects rather than stitching pages.
+/// Filtered entries still advance the bounded scan but reveal no dependent IDs.
+pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dependency.Cursor, authority: Dependency.Authority, policy: Policy) !Dependency.Page {
+    try self.requireInitialized();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var prefix: pages.Key = undefined;
+    var requested: p.Authorization.Guard = undefined;
+    switch (selection) {
+        .dependents => |object| {
+            var found = try self.dependencySource(object, policy, 0);
+            defer found.view.deinit();
+            requested = found.requirements;
+            prefix = try r.idKey(object.object);
+        },
+        .dependencies => |object| {
+            try object.validate();
+            if (object.scope.realm != self.config().scope.realm or object.branch != 1) return error.CatalogDenied;
+            requested = if (authority == .dependent) try self.dependentRequirements(policy, object, false) else try self.dependencyAdministration(policy);
+            prefix = try pages.Key.init(&try Dependency.dependentKey(object));
+        },
+    }
+    if (authority == .catalog_administrator) requested = try requested.merge(try self.dependencyAdministration(policy));
+    const current = try policy.make_guard(policy.context, arena.allocator(), requested, null);
+    try check(current);
+    const position: d.Position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn };
+    var after_key = prefix;
+    if (cursor) |after| {
+        if (!std.meta.eql(after.selection, selection) or after.authority != authority) return error.InvalidCatalogCursor;
+        if (!std.meta.eql(after.position, position)) return error.CatalogObservationChanged;
+        @memcpy(after_key.data[after_key.len..][0..32], &after.after);
+        after_key.len += 32;
+    }
+    const page = try self.store.tree().scan(if (selection == .dependents) self.store.root.dependents else self.store.root.dependencies, after_key);
+    var result: Dependency.Page = .{ .position = position };
+    var count: usize = 0;
+    var disclosure = current;
+    var last: ?pages.Key = null;
+    for (page.entries[0..Dependency.page_entries]) |slot| {
+        const item = slot orelse break;
+        if (!std.mem.startsWith(u8, item.key.slice(), prefix.slice())) {
+            try check(disclosure);
+            return result;
+        }
+        const edge = try r.fromValue(Dependency.Edge, self.allocator, item.value);
+        try edge.validate();
+        switch (selection) {
+            .dependents => |object| if (!std.meta.eql(object, edge.source.object)) return error.InvalidCatalogDependency,
+            .dependencies => |object| if (!std.meta.eql(object, edge.dependent.interpretation.object)) return error.InvalidCatalogDependency,
+        }
+        if (!std.meta.eql(item.key, if (selection == .dependents) try edge.forwardKey() else try edge.reverseKey())) return error.InvalidCatalogDependency;
+        last = item.key;
+        const extra = if (selection == .dependents)
+            (if (authority == .dependent) try self.dependentRequirements(policy, edge.dependent.interpretation.object, false) else try self.dependencyAdministration(policy))
+        else blk: {
+            var found = try self.dependencySource(edge.source.object, policy, 0);
+            defer found.view.deinit();
+            break :blk found.requirements;
+        };
+        const combined = try requested.merge(extra);
+        const disclosure_guard = try policy.make_guard(policy.context, arena.allocator(), combined, null);
+        check(disclosure_guard) catch |err| {
+            if (err == error.CatalogDenied or err == error.Forbidden) continue;
+            return err;
+        };
+        requested = combined;
+        disclosure = disclosure_guard;
+        result.entries[count] = edge;
+        count += 1;
+    }
+    if (last) |after| if (page.entries[Dependency.page_entries] != null or page.next != null) {
+        result.next = .{ .selection = selection, .authority = authority, .position = position, .after = after.slice()[prefix.len..][0..32].* };
+    };
+    try check(disclosure);
+    return result;
 }
 
 /// Row admission and outcomes belong to the Table partition. None of these

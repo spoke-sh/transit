@@ -234,7 +234,7 @@ pub fn Host(comptime Provider: type) type {
                     const response = executed catch |err| switch (err) {
                         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
                         error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
-                        error.DataIdentityConflict, error.CatalogObjectBusy, error.TableDataChanged, error.TableHistoryConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
+                        error.DataIdentityConflict, error.CatalogObjectBusy, error.CatalogObservationChanged, error.TableDataChanged, error.TableHistoryConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
                         error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
                         error.TableHistoryMissing, error.WalHistoryMissing, error.WalHistoryTrimmed => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .HistoryReclaimed }),
                         error.InvalidTableBasis, error.TableHistoryRetentionRequired, error.IncompatibleColumnEncoding, error.IncompatibleColumnCollation, error.UnsupportedColumnCollation, error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),

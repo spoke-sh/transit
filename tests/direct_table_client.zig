@@ -18,9 +18,10 @@ const RelationalFailures = @import("direct_relational_failures.zig");
 const Predicates = @import("direct_table_predicates.zig");
 const Delegation = @import("direct_table_delegation.zig");
 const History = @import("direct_table_history.zig");
+const Dependencies = @import("direct_dependencies.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -374,7 +375,18 @@ pub fn main(init: std.process.Init) !void {
         const client: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &native, .service = &service, .connection = .{ .scope = profile.catalog.scope, .branch = 1, .audience = profile.catalog.audience, .principal = 101, .role = null }, .key = try key(29) };
         const directory = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(args[3]) orelse ".", .{});
         defer directory.close(init.io);
-        if (std.mem.eql(u8, args[2], "write")) {
+        if (std.mem.eql(u8, args[2], "dependency-prepare")) {
+            profile.dependencies = try Dependencies.prepare(client, &admin, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "dependency-register")) {
+            try Dependencies.uncertain(client, profile.dependencies.?.registration);
+        } else if (std.mem.eql(u8, args[2], "dependency-recover")) {
+            try Dependencies.recover(client, &admin, profile.dependencies.?);
+        } else if (std.mem.eql(u8, args[2], "dependency-remove")) {
+            try Dependencies.uncertain(client, profile.dependencies.?.removal);
+        } else if (std.mem.eql(u8, args[2], "dependency-final")) {
+            try Dependencies.finish(client, profile.dependencies.?);
+        } else if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
             profile.delegation = try Delegation.prepare(client);
             try SqlPins.prepare(init, client, directory);

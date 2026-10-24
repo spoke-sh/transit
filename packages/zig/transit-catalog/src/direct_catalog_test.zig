@@ -17,6 +17,7 @@ const Access = struct {
     mismatch: bool = false,
     missing_table: bool = false,
     missing_schema: bool = false,
+    denied_resource: ?u64 = null,
     const Context = struct { access: *Access, requested: p.Authorization.Guard };
     fn erased(context: *anyopaque) *Access {
         return @ptrCast(@alignCast(context));
@@ -32,6 +33,9 @@ const Access = struct {
         const value: *Context = @ptrCast(@alignCast(context));
         value.access.calls += 1;
         if (value.access.calls >= value.access.deny_at) return error.CatalogDenied;
+        for (value.requested.requirements) |slot| if (slot) |requirement| {
+            if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
+        };
         if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
         return .{ .writer_epoch = 1, .policy_epoch = 1 };
     }
@@ -235,6 +239,195 @@ fn edit(view: *D.View, operation: u64, action: @FieldType(D.Intent, "action")) !
 }
 fn resolve(catalog: *D, access: *Access, name: []const u8) !?D.View {
     return catalog.resolve(t.allocator, 1, try a.Name.init(name), access.policy());
+}
+
+fn dependencyBinding(source: p.DataLifecycle.Definition, operation: u64, dependent: u64) c.DirectDependency.Binding {
+    return .{
+        .definition = p.Growth.current_definition,
+        .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null },
+        .operation = operation,
+        .edge = .{
+            .source = source,
+            .dependent = .{ .kind = .captured, .interpretation = .{
+                .object = .{ .scope = .{ .realm = 1, .resource = 11, .catalog = 8 }, .branch = 1, .object = dependent },
+                .revision = 1,
+                .digest = @splat(2),
+            } },
+            .privileges = a.select,
+        },
+        .action = .register,
+        .authority = .dependent,
+    };
+}
+
+test "direct dependency lost replies retain exact DROP protection across restart and name replacement" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var binding: c.DirectDependency.Binding = undefined;
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const create = try creation(7, 1, "events");
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        _ = try catalog.settle(create.binding, access.policy());
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        binding = dependencyBinding(view.table.root.interpretation, 2, 99);
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.dependencyOperation(binding, .accept, access.policy()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    const accepted = (try catalog.dependencyOperation(binding, .inspect, access.policy())).outcome;
+    try t.expect(accepted.phase == .applied and accepted.changed);
+    try t.expectEqualDeep(accepted, (try catalog.dependencyOperation(binding, .accept, access.policy())).outcome);
+    var changed = binding;
+    changed.edge.dependent.interpretation.revision += 1;
+    try t.expectError(error.DataIdentityConflict, catalog.dependencyOperation(changed, .accept, access.policy()));
+    try t.expectError(error.DataIdentityConflict, catalog.preview(try creation(8, 2, "replacement"), access.policy()));
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    const blocked = try edit(&view, 3, .drop);
+    try t.expectEqual(.dependency, (try catalog.preview(blocked, access.policy())).reason);
+    try t.expectEqual(.dependency, (try catalog.admit(blocked, access.policy())).reason);
+    try t.expect((try catalog.perform(blocked.binding, access.policy())) == .rejected);
+    const rename = try edit(&view, 4, .{ .rename = try a.Name.init("renamed") });
+    _ = try catalog.admit(rename, access.policy());
+    _ = try catalog.perform(rename.binding, access.policy());
+    _ = try catalog.settle(rename.binding, access.policy());
+    changed = binding;
+    changed.operation = 5;
+    try t.expectEqual(.stale_definition, (try catalog.dependencyOperation(changed, .accept, access.policy())).outcome.reason);
+    const graph = try catalog.dependencyPage(.{ .dependents = binding.edge.source.object }, null, .dependent, access.policy());
+    try t.expectEqualDeep(binding.edge, graph.entries[0].?);
+    try t.expect(graph.entries[1] == null and graph.next == null);
+    var removal = binding;
+    removal.operation = 6;
+    removal.action = .remove;
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.dependencyOperation(removal, .accept, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    try t.expect((try catalog.dependencyOperation(removal, .inspect, access.policy())).outcome.changed);
+    try t.expectEqualDeep(accepted, (try catalog.dependencyOperation(binding, .accept, access.policy())).outcome);
+    try t.expect((try catalog.dependencyPage(.{ .dependents = binding.edge.source.object }, null, .dependent, access.policy())).entries[0] == null);
+    var renamed = (try resolve(&catalog, &access, "renamed")).?;
+    defer renamed.deinit();
+    const drop = try edit(&renamed, 7, .drop);
+    _ = try catalog.admit(drop, access.policy());
+    try t.expect((try catalog.perform(drop.binding, access.policy())) == .committed);
+    const replacement = try creation(8, 8, "renamed");
+    _ = try catalog.admit(replacement, access.policy());
+    try t.expect((try catalog.perform(replacement.binding, access.policy())) == .committed);
+    try t.expect((try catalog.dependencyPage(.{ .dependencies = binding.edge.dependent.interpretation.object }, null, .dependent, access.policy())).entries[0] == null);
+    try t.expectEqualDeep(accepted, (try catalog.dependencyOperation(binding, .inspect, access.policy())).outcome);
+}
+
+test "direct dependency cancellation and publication fence preserve original registration intent" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    var binding = dependencyBinding(view.table.root.interpretation, 2, 99);
+    const cancelled = (try catalog.dependencyOperation(binding, .cancel, access.policy())).outcome;
+    try t.expect(cancelled.phase == .cancelled and !cancelled.changed);
+    try t.expectEqualDeep(cancelled, (try catalog.dependencyOperation(binding, .accept, access.policy())).outcome);
+    binding.operation = 3;
+    const root = catalog.store.root;
+    access.deny_at = access.calls + 3;
+    try t.expectError(error.CatalogDenied, catalog.dependencyOperation(binding, .accept, access.policy()));
+    try t.expectEqualDeep(root, catalog.store.root);
+    access.deny_at = std.math.maxInt(usize);
+    try t.expect((try catalog.dependencyOperation(binding, .inspect, access.policy())) == .not_observed);
+    try t.expect((try catalog.dependencyOperation(binding, .accept, access.policy())).outcome.changed);
+    binding.operation = 4;
+    try t.expect(!(try catalog.dependencyOperation(binding, .accept, access.policy())).outcome.changed);
+    access.denied_resource = 11;
+    try t.expectError(error.CatalogDenied, catalog.dependencyOperation(binding, .inspect, access.policy()));
+    const hidden = try catalog.dependencyPage(.{ .dependents = binding.edge.source.object }, null, .dependent, access.policy());
+    try t.expect(hidden.entries[0] == null);
+    // Redaction never makes the source unprotected.
+    const drop = try edit(&view, 5, .drop);
+    try t.expectEqual(.dependency, (try catalog.preview(drop, access.policy())).reason);
+    access.denied_resource = null;
+    var removal = binding;
+    removal.operation = 6;
+    removal.action = .remove;
+    _ = try catalog.dependencyOperation(removal, .accept, access.policy());
+    const admitted_drop = try edit(&view, 7, .drop);
+    _ = try catalog.admit(admitted_drop, access.policy());
+    binding.operation = 8;
+    try t.expectEqual(.source_busy, (try catalog.dependencyOperation(binding, .accept, access.policy())).outcome.reason);
+    try t.expect((try catalog.perform(admitted_drop.binding, access.policy())) == .committed);
+}
+
+test "direct dependency pages grow beyond cache with redaction and exact continuation basis" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    for (0..41) |i| {
+        var binding = dependencyBinding(view.table.root.interpretation, 2 + i, 99 + i);
+        if (i % 2 == 0) binding.edge.dependent.interpretation.object.scope.resource = 12;
+        _ = try catalog.dependencyOperation(binding, .accept, access.policy());
+    }
+    try catalog.recover();
+    access.denied_resource = 11;
+    const puts = objects.puts;
+    const root = catalog.store.root;
+    var cursor: ?c.DirectDependency.Cursor = null;
+    var count: usize = 0;
+    var rounds: usize = 0;
+    while (true) {
+        const page = try catalog.dependencyPage(.{ .dependents = view.table.root.interpretation.object }, cursor, .dependent, access.policy());
+        rounds += 1;
+        try t.expect(rounds <= 12);
+        for (page.entries) |slot| if (slot) |edge| {
+            try t.expectEqual(@as(u64, 12), edge.dependent.interpretation.object.scope.resource);
+            count += 1;
+        };
+        cursor = page.next;
+        if (cursor == null) break;
+    }
+    try t.expectEqual(@as(usize, 21), count);
+    try t.expect(rounds > 8);
+    try t.expectEqualDeep(root, catalog.store.root);
+    try t.expectEqual(puts, objects.puts);
+    const first = try catalog.dependencyPage(.{ .dependents = view.table.root.interpretation.object }, null, .dependent, access.policy());
+    access.denied_resource = null;
+    _ = try catalog.dependencyOperation(dependencyBinding(view.table.root.interpretation, 50, 150), .accept, access.policy());
+    try t.expectError(error.CatalogObservationChanged, catalog.dependencyPage(.{ .dependents = view.table.root.interpretation.object }, first.next, .dependent, access.policy()));
 }
 
 test "current Table capture freezes once across lost replies, mutation, restart and definition changes" {

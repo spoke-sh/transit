@@ -26,6 +26,9 @@ local-catalog:
 direct-table-service:
     zig build test-direct-table-service -Doptimize=ReleaseSafe
 
+direct-dependencies:
+    zig build test-direct-dependencies -Doptimize=ReleaseSafe
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe

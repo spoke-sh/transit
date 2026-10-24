@@ -651,6 +651,110 @@ fn namespaceDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) 
     try t.expectEqualDeep(created, original.value.result.namespace_operation.operation);
 }
 
+fn dependencyDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 40, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const intent: D.Intent = .{ .namespace = 1, .name = try .init("dependency_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 10000 }, .target = .{ .scope = config.scope, .branch = 1, .object = 40 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
+    var bytes: [65536]u8 = undefined;
+    const admitted = try dispatch(&service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = intent.name.slice(), .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(alloc, try schema.encode(&bytes)) } } } });
+    defer admitted.deinit();
+    const created = try dispatch(&service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+    defer created.deinit();
+    const interpretation = created.value.result.ddl.committed.resulting.interpretation;
+    const metadata = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = intent.name.slice() } });
+    defer metadata.deinit();
+    _ = try change(engine, .{ .grant = .{ .object = c.TableAuthority.reference(metadata.value.result.lookup.?.authorization), .grantee = owner_role, .privileges = c.TableAuthority.select } });
+    const pid = try command(engine, .{ .spawn = .{} });
+    const resource = try command(engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
+    const dependency: c.DirectDependency.Binding = .{
+        .definition = g.current_definition,
+        .connection = .{ .scope = config.scope, .branch = 1, .audience = config.audience, .principal = 101, .role = null },
+        .operation = 10001,
+        .edge = .{ .source = interpretation, .dependent = .{ .kind = .captured, .interpretation = .{
+            .object = .{ .scope = .{ .realm = 42, .resource = resource, .catalog = 9 }, .branch = 1, .object = 99 },
+            .revision = 1,
+            .digest = @splat(7),
+        } }, .privileges = c.TableAuthority.select },
+        .action = .register,
+        .authority = .dependent,
+    };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .dependency_operation = .{ .binding = dependency, .command = .accept } }));
+    // Metadata inspect/write grants suffice; no read of dependent data is implied.
+    _ = try command(engine, .{ .grant_resource = .{ .resource = resource, .subject = 101, .permissions = 5 } });
+    const Race = struct {
+        resource: u64,
+        fn revoke(raw: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            _ = try command(authority, .{ .grant_resource = .{ .resource = self.resource, .subject = 101, .permissions = 0 } });
+        }
+    };
+    var race: Race = .{ .resource = resource };
+    service.before_reply = .{ .context = &race, .run = Race.revoke };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .dependency_operation = .{ .binding = dependency, .command = .accept } }));
+    service.before_reply = null;
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .dependency_operation = .{ .binding = dependency, .command = .inspect } }));
+    const hidden = try dispatch(&service, .{ .dependencies = .{ .selection = .{ .dependents = interpretation.object }, .cursor = null, .authority = .dependent } });
+    defer hidden.deinit();
+    try t.expect(hidden.value.result.dependencies.entries[0] == null);
+    var drop = binding;
+    const drop_intent: D.Intent = .{ .namespace = 1, .name = intent.name, .action = .drop };
+    drop.identity.operation = 10002;
+    drop.action = .drop;
+    drop.expected_definition = interpretation;
+    drop.intent = try drop_intent.digest(alloc);
+    const restricted = try dispatch(&service, .{ .preview = .{ .binding = drop, .namespace = 1, .name = intent.name.slice(), .action = .drop } });
+    defer restricted.deinit();
+    try t.expectEqual(.dependency, restricted.value.result.preview.reason);
+    _ = try command(engine, .{ .grant_resource = .{ .resource = resource, .subject = 101, .permissions = 1 } });
+    const recovered = try dispatch(&service, .{ .dependency_operation = .{ .binding = dependency, .command = .inspect } });
+    defer recovered.deinit();
+    try t.expect(recovered.value.result.dependency_operation.outcome.changed);
+    var removal = dependency;
+    removal.operation = 10003;
+    removal.action = .remove;
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .dependency_operation = .{ .binding = removal, .command = .accept } }));
+    const visible = try dispatch(&service, .{ .dependencies = .{ .selection = .{ .dependencies = dependency.edge.dependent.interpretation.object }, .cursor = null, .authority = .dependent } });
+    defer visible.deinit();
+    try t.expectEqualDeep(dependency.edge, visible.value.result.dependencies.entries[0].?);
+    _ = try command(engine, .{ .grant_resource = .{ .resource = resource, .subject = 101, .permissions = 5 } });
+    const removed = try dispatch(&service, .{ .dependency_operation = .{ .binding = removal, .command = .accept } });
+    defer removed.deinit();
+    try t.expect(removed.value.result.dependency_operation.outcome.changed);
+    var orphan = dependency;
+    orphan.operation = 10004;
+    const registered = try dispatch(&service, .{ .dependency_operation = .{ .binding = orphan, .command = .accept } });
+    defer registered.deinit();
+    _ = try command(engine, .{ .retire_resource = resource });
+    // Native metadata rights can survive logical resource retirement. They do
+    // not make that resource usable for another accepted computation.
+    const retired_receipt = try dispatch(&service, .{ .dependency_operation = .{ .binding = orphan, .command = .inspect } });
+    defer retired_receipt.deinit();
+    try t.expect(retired_receipt.value.result.dependency_operation.outcome.changed);
+    _ = try command(engine, .{ .grant_resource = .{ .resource = resource, .subject = 101, .permissions = 0 } });
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .dependency_operation = .{ .binding = orphan, .command = .inspect } }));
+    // Retirement does not silently remove the edge. Explicit administration can
+    // inspect its retained catalog metadata without reading the expired resource.
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .dependencies = .{ .selection = .{ .dependents = interpretation.object }, .cursor = null, .authority = .catalog_administrator } }));
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = owner_role, .privileges = p.permission(.admin) } });
+    const orphaned = try dispatch(&service, .{ .dependencies = .{ .selection = .{ .dependents = interpretation.object }, .cursor = null, .authority = .catalog_administrator } });
+    defer orphaned.deinit();
+    try t.expectEqualDeep(orphan.edge, orphaned.value.result.dependencies.entries[0].?);
+    var cleanup = orphan;
+    cleanup.operation = 10005;
+    cleanup.action = .remove;
+    cleanup.authority = .catalog_administrator;
+    const cleaned = try dispatch(&service, .{ .dependency_operation = .{ .binding = cleanup, .command = .accept } });
+    defer cleaned.deinit();
+    try t.expect(cleaned.value.result.dependency_operation.outcome.changed);
+    _ = try change(engine, .{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = owner_role, .privileges = p.permission(.admin) } });
+}
+
 test "local catalog checks real native registrations, current ownership and exact request proof" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -687,6 +791,7 @@ test "local catalog checks real native registrations, current ownership and exac
     try directDispatch(&engine, config, role);
     try prerequisiteDispatch(&engine, config, role);
     try namespaceDispatch(&engine, config, role);
+    try dependencyDispatch(&engine, config, role);
     // The dispatch proof deliberately rotates the caller. Later independent
     // requests prepare a new proof; accepted delegated work keeps its old one.
     signed = try proof(&engine, request_digest);

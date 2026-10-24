@@ -240,8 +240,8 @@ definition publication. The [naming recovery proof](../../tests/README.md#named-
 now covers lost publication/policy replies, abrupt node replacement and worker
 key/generation rotation for both captured and maintained definitions. Current
 credentials recover the exact original receipt; retired signatures and altered
-requests reject. Direct dependency registration, migration of the older actor
-fixtures and broader activation/failure fault schedules remain open.
+requests reject. Integration with direct dependency registration, migration of
+the older actor fixtures and broader activation/failure fault schedules remain open.
 
 Direct mutation bindings now retain an optional native authorization prerequisite
 for the original accepted application input, independently of the worker's
@@ -290,10 +290,20 @@ The full repository check passes after the coordinated fixture regeneration.
 These checks do not make Table changes atomic with application progress or
 complete the remaining shared lifecycle gates.
 
+The [direct dependency evidence](../../tests/README.md#direct-definition-dependencies-and-restricted-retirement--2026-10-24)
+now covers explicit exact-definition registration/removal, Table DROP RESTRICT,
+both paged graph directions, redacted blockers and current metadata rights.
+Lost replies and abrupt node replacement recover original terminal receipts;
+replaying an old registration cannot restore a removed edge. Native checks cover
+denial after buffering and explicit orphan cleanup. The format uses mandatory
+graph indices through the coordinated current-v1 cutover. Named resource and
+computation publication still require integration; registration alone does not
+establish publication, usability, activation or data retention.
+
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
-it does not supply the shared dependency registry.
-Relational and remaining caller migration, dependency contracts, named resource
+it does not complete named consumer integration with the dependency registry.
+Relational and remaining caller migration, named dependency integration, resource
 provisioning and computation evidence also remain unfinished. Automatic point
 flushing belongs to the following storage milestone. None of the
 completion matrix rows below is closed by this partial caller path.

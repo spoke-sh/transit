@@ -106,6 +106,84 @@ namespace identity. Exact retries after rename, retirement or credential
 replacement return the original outcome; changed bindings or cross-kind reuse
 of an operation identity reject. Response disclosure is fenced after buffering.
 
+### Explicit definition dependencies
+
+`dependency_operation` accepts a `DirectDependency.Binding` and `inspect`,
+`accept` or `cancel`. The binding has mandatory current `definition`, exact
+`connection`, unsigned 64-bit `operation`, `edge`, `action` (`register` or
+`remove`) and `authority` (`dependent` or `catalog_administrator`). Its identity
+shares the catalog/principal/operation claim with DDL, DML, namespace changes
+and conditional name assertions. A reused identity must match the entire saved
+binding, including authority. Transport credential replacement does not change it.
+
+An edge binds the source Table's exact `DataLifecycle.Definition`, a dependent's
+kind (`kv`, `document`, `captured`, `maintained`) and exact definition, and a
+nonzero mask of required Table actions. Both objects use branch one and the same
+realm; their resources/catalogs may differ. These actions describe required
+access and never grant it. The dependent's resource owns its metadata rights.
+Registration protects a source from DROP but does not establish that a dependent
+exists, is published, is active or has usable data. It does not retain a data
+snapshot or change history. The dependent owner must register before publication
+and remove after retirement or recovery of an abandoned publication. These steps
+across owners are not atomic. Automatic registration by named resource and query
+publication is not part of this operation.
+
+Registration requires current database CONNECT, dependent resource metadata
+write and source schema USAGE plus every declared Table action. It requires the
+exact live source definition; a changed/retired definition produces
+`rejected/stale_definition`, and a pending source DDL operation produces
+`rejected/source_busy`. Ordinary row mutations do not block registration.
+Dependent mode removal and cancellation need CONNECT and metadata write;
+inspection needs CONNECT and metadata inspect. They need no current source data
+grant. Normal graph inspection requires source metadata visibility and dependent
+metadata inspect, independently of data-read permission. All successful
+requirements are rechecked after buffering before response disclosure.
+
+Explicit administrator graph inspection requires native realm ADMIN and source
+metadata visibility, and can expose retained registrations without dependent
+resource rights. Administrator removal additionally requires current ownership
+of the source Table. It only removes the specified edge; it does not retire the
+consumer, cancel work, delete data or release pins. Administrator registration
+rejects. Native metadata rights may survive logical resource retirement; neither
+those rights nor a dependency receipt establish that resource's usability.
+
+Acceptance atomically publishes both graph directions and a terminal receipt in
+one catalog WAL record. The response is `not_observed` or an `outcome` containing
+the exact binding, catalog position, phase (`applied`, `rejected`, `cancelled`),
+reason (`none`, `stale_definition`, `source_busy`) and `changed`. A no-op register
+or removal is `applied` with `changed=false`. Cancellation of an unknown binding
+records an exact tombstone. Cancellation or acceptance after a terminal receipt
+returns that original receipt. In particular, retrying an old registration after
+its removal does not restore the edge. A lost reply requires inspection of the
+same binding; it does not establish rejection.
+
+Table DROP preview, admission and execution check explicitly registered edges
+and report a generic dependency blocker without revealing its metadata. There
+is no CASCADE or implicit expiry. ALTER and RENAME preserve exact registered
+definitions and may leave a consumer stale; they do not rewrite it. Namespace
+DROP still checks live/pending Table membership. Neither registry discovers
+unregistered consumers or dependencies embedded in arbitrary payloads.
+
+`dependencies` selects `dependents` of a source object or `dependencies` of a
+dependent object, with an explicit authority and nullable cursor. Each call scans
+at most four edges; denied edges are omitted while scan progress advances.
+An empty page with `next` is incomplete. The cursor binds selection, authority,
+catalog position and the last scanned edge digest. A changed catalog position
+returns HTTP 409 (`CatalogObservationChanged`), requiring a fresh traversal;
+pages from different observations cannot be joined into one complete graph.
+Durable graph cardinality is independent of resident cache and page size.
+
+The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
+byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
+Document=2, captured=3, maintained=4), dependent definition, and a big-endian
+unsigned 64-bit privilege mask. Each 80-byte definition contains big-endian
+unsigned 64-bit realm/resource/catalog/branch/object/revision, then its 32-byte
+digest. Forward keys prefix the digest with the source's big-endian object ID.
+Reverse keys prefix it with SHA-256 over `transit.catalog.dependent.v1`, a zero
+byte and the dependent's five big-endian object fields. Full edge records must
+match when a key already exists. Persisted catalog roots require both graph
+indices; old stored definitions reject rather than defaulting them to empty.
+
 ### Current observations
 
 `observe` accepts a namespace, exact interpretation (object, revision and digest)

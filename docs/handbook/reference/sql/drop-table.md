@@ -9,11 +9,13 @@ DROP TABLE people;
 DROP TABLE IF EXISTS people RESTRICT;
 ```
 
-The optional RESTRICT keyword is accepted, but the direct runtime does not yet
-consult a shared query/resource dependency registry. Named computations, writers
-and watches do not automatically block Table retirement. Inspect the application's
-consumers before applying DROP. Namespace DROP separately rejects live Tables and
-pending Table declarations. CASCADE is unsupported.
+DROP always applies RESTRICT to explicitly registered definition dependencies;
+the keyword is optional. A blocker is reported without disclosing metadata the
+caller cannot inspect. Named computations, writers and watches do not register
+themselves automatically. Their owners must register before publication and
+remove the exact edge after retirement or abandoned-publication recovery.
+Namespace DROP separately rejects live Tables and pending Table declarations.
+CASCADE is unsupported. See the [dependency operations](../tables.md#schema-lifecycle-and-retained-reads).
 
 IF EXISTS prepared against absence records that absence; it cannot later delete
 a Table created under the same name. The shared direct runtime records an

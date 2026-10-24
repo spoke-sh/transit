@@ -56,7 +56,7 @@ pub fn recover(self: *Self) !void {
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.dependents, next.dependencies }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -138,6 +138,8 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 }
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    if (record.action == .dependency) return self.dependencyTransition(before, record);
+    if (!std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
     if (record.action == .namespace) return self.namespaceTransition(before, record);
     if (record.action == .assertion) {
         const outcome = record.action.assertion;
@@ -186,6 +188,58 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
 pub fn namespaceOperation(self: *Self, binding: c.DirectNamespace.Binding) !?c.DirectNamespace.Operation {
     try self.ready();
     return self.namespaceAt(self.root, binding);
+}
+
+pub fn dependency(self: *Self, binding: c.DirectDependency.Binding) !?c.DirectDependency.Outcome {
+    try self.ready();
+    return self.dependencyAt(self.root, binding);
+}
+fn dependencyAt(self: *Self, basis: r.Root, binding: c.DirectDependency.Binding) !?c.DirectDependency.Outcome {
+    try binding.validate();
+    if (!binding.connection.matches(basis.configuration)) return error.DataIdentityConflict;
+    const value = try self.tree().get(basis.operations, try r.operationKey(binding.identity())) orelse return null;
+    if (value.len != 8) return error.InvalidDirectCatalogOperation;
+    const at = std.mem.readInt(u64, value.data[0..8], .little);
+    if (at >= basis.next_lsn) return error.InvalidDirectCatalogOperation;
+    var batch = try self.log.read(self.allocator, basis.configuration.partition, at, 1);
+    defer batch.deinit();
+    if (batch.frames.len != 1 or batch.frames[0].header.lsn != at or batch.frames[0].header.partition_id != basis.configuration.partition or batch.frames[0].header.kind != .catalog_ddl) return error.CatalogHistoryMissing;
+    const record = try decode(self.allocator, batch.frames[0].payload, at);
+    if (record.action != .dependency) return error.DataIdentityConflict;
+    if (!std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidDirectCatalogOperation;
+    try record.action.dependency.binding.requireSame(binding);
+    return record.action.dependency;
+}
+fn dependencyTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    const outcome = record.action.dependency;
+    if (try self.dependencyAt(before, outcome.binding) != null) return error.InvalidDirectCatalogTransition;
+    var unchanged = record.root;
+    unchanged.operations = before.operations;
+    unchanged.dependents = before.dependents;
+    unchanged.dependencies = before.dependencies;
+    unchanged.next_lsn = before.next_lsn;
+    if (!std.meta.eql(unchanged, before)) return error.InvalidDirectCatalogTransition;
+    const receipt_value = try self.tree().get(record.root.operations, try r.operationKey(outcome.binding.identity())) orelse return error.InvalidDirectCatalogTransition;
+    if (receipt_value.len != 8 or std.mem.readInt(u64, receipt_value.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
+    const edge = outcome.binding.edge;
+    const forward = try edge.forwardKey();
+    const reverse = try edge.reverseKey();
+    const previous = try self.tree().get(before.dependents, forward);
+    if (!std.meta.eql(previous, try self.tree().get(before.dependencies, reverse))) return error.InvalidDirectCatalogTransition;
+    if (previous) |value| {
+        if (!std.meta.eql(edge, try r.fromValue(c.DirectDependency.Edge, self.allocator, value))) return error.DataIdentityConflict;
+    }
+    const should_change = outcome.phase == .applied and ((outcome.binding.action == .register) == (previous == null));
+    if (outcome.changed != should_change) return error.InvalidDirectCatalogTransition;
+    if (!outcome.changed) {
+        if (!std.meta.eql(record.root.dependents, before.dependents) or !std.meta.eql(record.root.dependencies, before.dependencies)) return error.InvalidDirectCatalogTransition;
+    }
+    const expected: ?pages.Value = if (outcome.changed)
+        (if (outcome.binding.action == .register) try r.pageValue(edge) else null)
+    else
+        previous;
+    if (!std.meta.eql(expected, try self.tree().get(record.root.dependents, forward)) or
+        !std.meta.eql(expected, try self.tree().get(record.root.dependencies, reverse))) return error.InvalidDirectCatalogTransition;
 }
 fn namespaceAt(self: *Self, basis: r.Root, binding: c.DirectNamespace.Binding) !?c.DirectNamespace.Operation {
     try binding.validate();
