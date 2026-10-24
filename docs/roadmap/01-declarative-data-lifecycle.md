@@ -59,8 +59,9 @@ exact intent before dispatch. Its separate data receipt and native progress/repl
 commit have [component, HTTP and TLS refresh recovery evidence](../../tests/README.md#direct-serving-counter-acceptance--2026-10-24).
 The refresh proof uses separately prepared direct captures, retains the original
 request through worker replacement and enforces current Table SELECT. TLS,
-capacity, lifetime and retained growth qualification also pass. Browser and
-placement qualification remains open; this does not close the
+capacity, lifetime and retained growth qualification also pass. The native browser
+now verifies direct Follow results and denial between verification and disclosure.
+Reload/credential-rotation and placement qualification remain open; this does not close the
 coordinated consumer cutover gate.
 
 The feature branch supplies the neutral data operation/snapshot contract, local

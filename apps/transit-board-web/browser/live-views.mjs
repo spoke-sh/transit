@@ -38,8 +38,8 @@ for (const page of [counter, board]) {
       if (map.size > 4) map.delete(map.keys().next().value);
     };
     if (request.page && result.page?.evidence?.manifest) {
-      const { basis, plan } = result.page.evidence.manifest;
-      retain(resultIdentities, request.page.namespace, { basis, plan });
+      const { basis, plan, table_position } = result.page.evidence.manifest;
+      retain(resultIdentities, request.page.namespace, { basis, plan, table_position });
     }
     if (
       path.startsWith("/reactive/") &&
@@ -86,7 +86,15 @@ async function settledPause(page, button, status) {
   while (!(await status.textContent()).includes("Follow paused.")) {
     assert(Date.now() < until, "logical pause did not settle");
     const recovery = page.getByRole("button", { name: "Recover exact control", exact: true });
-    if ((await recovery.isVisible()) && (await recovery.isEnabled())) await recovery.click();
+    if (await recovery.isVisible()) {
+      try {
+        // Completion can remove the recovery button between observations.
+        // Keep this attempt inside the enclosing logical-pause deadline.
+        await recovery.click({ timeout: 500 });
+      } catch (error) {
+        if (error.name !== "TimeoutError") throw error;
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
@@ -218,8 +226,13 @@ try {
     const recoveryStart = performance.now();
     await stage("restart");
     // A fresh actual page read must retrieve the old identity after all physical
-    // services restart. Cached rendering alone is not recovery evidence.
-    await board.waitForResponse(
+    // services restart. Re-enter the retained workspace explicitly, with the
+    // listener installed first; background polling may finish before stage ack.
+    await board.getByRole("link", { name: "Resource directory", exact: true }).click();
+    await board
+      .getByRole("button", { name: `Select resource ${config.resource}`, exact: true })
+      .click();
+    const recoveredPage = board.waitForResponse(
       async (response) => {
         if (!response.url().endsWith("/api/v1/query") || response.status() !== 200) return false;
         const request = response.request().postDataJSON();
@@ -227,14 +240,18 @@ try {
       },
       { timeout: 60000 },
     );
+    await board.getByRole("button", { name: "Enter resource", exact: true }).click();
+    await recoveredPage;
     await expect(board.getByLabel("Verified query result")).toHaveText(original);
     assert.equal(displayedNamespace, namespace);
     timings.physicalRecoveryMs = Math.round(performance.now() - recoveryStart);
   }
   await board.getByRole("button", { name: "Follow changes", exact: true }).click();
+  // Follow first prepares eight independently authorized finite captures. Allow
+  // the same bounded execution deadline as a query, including exact recovery.
   await expect(board.getByLabel("Query follow controls").getByRole("status")).toContainText(
     "current",
-    { timeout: 40000 },
+    { timeout: 180000 },
   );
   await stage("ready");
   const queryStart = performance.now();
@@ -251,10 +268,16 @@ try {
   const refreshedIdentity = resultIdentities.get(displayedNamespace);
   assert(refreshedIdentity);
   assert.notEqual(displayedNamespace, originalNamespace);
-  assert.equal(refreshedIdentity.basis.cut.resource, originalIdentity.basis.cut.resource);
-  assert.deepEqual(refreshedIdentity.basis.contract, originalIdentity.basis.contract);
-  assert.deepEqual(refreshedIdentity.basis.schema, originalIdentity.basis.schema);
-  assert(refreshedIdentity.basis.cut.revision > originalIdentity.basis.cut.revision);
+  assert.equal(originalIdentity.basis.cut.kind, "table");
+  assert.equal(refreshedIdentity.basis.cut.kind, "table");
+  const previousPosition = originalIdentity.table_position;
+  const refreshedPosition = refreshedIdentity.table_position;
+  assert(previousPosition && refreshedPosition);
+  assert.equal(refreshedPosition.resource, previousPosition.resource);
+  assert.equal(refreshedPosition.partition, previousPosition.partition);
+  assert.deepEqual(refreshedPosition.contract, previousPosition.contract);
+  assert.deepEqual(refreshedPosition.schema, previousPosition.schema);
+  assert(BigInt(refreshedPosition.accepted) > BigInt(previousPosition.accepted));
   assert.notDeepEqual(refreshedIdentity.plan, originalIdentity.plan);
   for (const [name, page] of [
     ["board", board],
@@ -281,10 +304,29 @@ try {
   await expect(board.getByLabel("Verified query result")).toHaveCount(0);
   assert.deepEqual(errors, []);
   assert.deepEqual(await context.cookies(), []);
-  assert.deepEqual(
-    await board.evaluate(() => [localStorage.length, sessionStorage.length]),
-    [0, 0],
-  );
+  const stored = await board.evaluate(() => ({
+    local: localStorage.length,
+    keys: Object.keys(sessionStorage),
+    follow: sessionStorage.getItem("transit.query.follow.v1"),
+  }));
+  assert.equal(stored.local, 0);
+  assert.deepEqual(stored.keys, ["transit.query.follow.v1"]);
+  assert(Buffer.byteLength(stored.follow) <= 1179648);
+  const savedFollow = JSON.parse(stored.follow);
+  assert.deepEqual(Object.keys(savedFollow).sort(), [
+    "definition",
+    "preparation",
+    "session",
+    "version",
+    "view",
+  ]);
+  assert.equal(savedFollow.version, 1);
+  // Recovery is retained after denial, but contains intent/control state rather
+  // than the protected result that was just cleared from the workspace.
+  const savedView = savedFollow.view === null ? null : JSON.parse(savedFollow.view);
+  assert(!savedView || !("snapshot" in savedView));
+  assert(!("inspection" in JSON.parse(savedFollow.session)));
+  assert(!stored.follow.includes('"private_key"'));
   console.log(
     "Live views: actual shared-client counter and Board metadata, exact query retry, bounded full-result verification, new finite refresh, pause and current read-only revocation passed.",
   );
