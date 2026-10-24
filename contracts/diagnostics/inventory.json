@@ -926,7 +926,7 @@
       "open_error_set_uses": 3,
       "propagation": {
         "try": 134,
-        "catch": 17
+        "catch": 19
       },
       "imports": [
         "AssistanceRequest.zig",
@@ -12367,15 +12367,17 @@
         "Builder.add()": "<inferred>",
         "Builder.finish()": "<inferred>",
         "Builder.unsupported()": "<inferred>",
+        "Spelling.identifier()": "<inferred>",
         "complete()": "<inferred>",
         "completeStatement()": "<inferred>",
         "local()": "<inferred>",
         "meta()": "<inferred>",
-        "offer()": "<inferred>"
+        "offer()": "<inferred>",
+        "refine()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 40,
         "catch": 2
       },
       "imports": [

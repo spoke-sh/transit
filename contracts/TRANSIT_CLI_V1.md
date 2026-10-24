@@ -404,15 +404,22 @@ eight ranked candidates and scans at most 128 catalog pages; it never samples
 row values. Settings assistance uses the actual configuration route. The current
 shared definition rejects missing coverage/status fields.
 
-The terminal keeps one cancellable metadata borrower and one latest draft,
-refreshes open suggestions after 75 ms of idle editing, displays loading after
-150 ms and limits an acquisition to one second or the smaller connection budget.
+The terminal keeps one cancellable metadata borrower and one latest draft.
+Opening starts acquisition immediately, with no opening delay or loading
+placeholder. Same-token edits filter the disclosed shortlist synchronously;
+background acquisition follows 75 ms of idle editing and is limited to one second
+or the smaller connection budget. Local static vocabulary updates synchronously.
 An idle menu retains its candidates, selection and detail page without periodic
-acquisition. Editing or cursor movement invalidates its input context.
+acquisition. A retained preview requires the same lexical token context and
+unchanged surrounding text, including the suffix. It does not establish current
+coverage or insertion evidence. An empty preview is hidden until the current
+response establishes the result. Selection follows candidate spelling and kind
+through filtering and replacement of the list.
 It joins cancelled I/O before reusing the session client. Acceptance re-acquires
 current evidence and compares generation, cursor/range, profile, source, contract,
 resource revision and policy revision before one atomic text replacement.
-Changed metadata refreshes suggestions without replaying acceptance. Static dot
+Validation keeps the menu visible. Tab/Enter during refresh does not queue an
+insertion. Changed metadata refreshes suggestions without replaying acceptance. Static dot
 vocabulary completes locally. PgUp/PgDn exposes clipped selected-item details.
 
 Assistance grants no access and does not compile,

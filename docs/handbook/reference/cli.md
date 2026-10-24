@@ -183,8 +183,10 @@ text, including in JSON result mode, and submits no SQL.
 
 In the interactive editor, Tab requests grammar/catalog completion and accepts
 selected suggestions or history matches. The menu keeps its selection while
-idle; editing or moving the cursor refreshes suggestions. Catalog suggestions
-recheck metadata and authorization before insertion. Acceptance never executes
+idle. Typing within the same token filters it immediately, with fresh suggestions
+arriving in the background. Opening starts immediately; acquisition and validation
+show no loading placeholders. Catalog suggestions recheck metadata and
+authorization before insertion. Acceptance never executes
 a statement.
 Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
 the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,

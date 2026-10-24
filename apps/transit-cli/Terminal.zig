@@ -75,13 +75,17 @@ const Editor = struct {
     arena: std.heap.ArenaAllocator,
     acquisition: AssistanceRequest,
     assistance: ?q.Assistance.Response = null,
+    assistance_text: [max_bytes]u8 = undefined,
+    assistance_length: usize = 0,
+    assistance_cursor: u16 = 0,
+    visible: [q.Assistance.max_items]q.Assistance.Item = undefined,
+    visible_count: usize = 0,
     completing: bool = false,
     local_completion: bool = false,
     unavailable: bool = false,
     accepting: bool = false,
     auto_unique: bool = false,
     refresh_at: i64 = 0,
-    started_at: i64 = 0,
     selected: usize = 0,
     detail_page: usize = 0,
     pasting: bool = false,
@@ -96,6 +100,9 @@ const Editor = struct {
     }
     fn invalidate(self: *Editor) void {
         self.assistance = null;
+        std.crypto.secureZero(u8, &self.assistance_text);
+        self.assistance_length = 0;
+        self.visible_count = 0;
         _ = self.arena.reset(.free_all);
         self.selected = 0;
         self.detail_page = 0;
@@ -110,10 +117,49 @@ const Editor = struct {
         self.journal.boundary();
     }
     fn changed(self: *Editor) void {
-        self.invalidate();
         self.generation +%= 1;
         self.auto_unique = false;
-        if (self.completing) self.refresh_at = self.now() + 75;
+        self.accepting = false;
+        self.unavailable = false;
+        if (!self.completing) return;
+        if (self.local_completion) {
+            self.acquire() catch |err| self.assistanceFailure(err);
+            return;
+        }
+        const selected = self.selection();
+        self.visible_count = 0;
+        if (self.assistance) |prior| {
+            self.visible_count = q.Assistance.refine(.{ .sql = self.assistance_text[0..self.assistance_length], .cursor = self.assistance_cursor, .generation = prior.generation, .mode = .console }, self.request(), prior, &self.visible) catch 0;
+        }
+        self.selected = selectionIndex(self.visible[0..self.visible_count], selected);
+        self.detail_page = 0;
+        self.refresh_at = self.now() + 75;
+    }
+    fn selection(self: *Editor) ?q.Assistance.Item {
+        return if (self.visible_count == 0) null else self.visible[self.selected];
+    }
+    fn selectionIndex(items: []const q.Assistance.Item, selected: ?q.Assistance.Item) usize {
+        if (selected) |prior| for (items, 0..) |item, index| {
+            if (item.kind == prior.kind and std.mem.eql(u8, item.text, prior.text)) return index;
+        };
+        return 0;
+    }
+    fn needsRefresh(self: *Editor) bool {
+        return if (self.assistance) |value| value.generation != self.generation else true;
+    }
+    fn installAssistance(self: *Editor, value: q.Assistance.Response, fresh: *std.heap.ArenaAllocator) void {
+        const selected = selectionIndex(value.items, self.selection());
+        self.invalidate();
+        self.arena.deinit();
+        self.arena = fresh.*;
+        fresh.* = .init(self.console.init.gpa);
+        self.assistance = value;
+        @memcpy(self.assistance_text[0..self.length], self.text());
+        self.assistance_length = self.length;
+        self.assistance_cursor = @intCast(self.cursor);
+        @memcpy(self.visible[0..value.items.len], value.items);
+        self.visible_count = value.items.len;
+        self.selected = selected;
     }
     fn erasePrivate(self: *Editor) void {
         self.dismiss();
@@ -313,13 +359,15 @@ const Editor = struct {
         try self.acquire();
     }
     fn acquire(self: *Editor) !void {
-        self.started_at = self.now();
-        if (try q.Assistance.local(self.arena.allocator(), self.request())) |value| {
+        var fresh: std.heap.ArenaAllocator = .init(self.console.init.gpa);
+        defer fresh.deinit();
+        if (try q.Assistance.local(fresh.allocator(), self.request())) |value| {
             self.local_completion = true;
-            self.assistance = .{ .generation = self.generation, .coverage = value.coverage, .status = value.status, .resource = 0, .contract = @splat(0), .resource_revision = 0, .policy_revision = "", .range = value.range, .items = value.items };
+            self.installAssistance(.{ .generation = self.generation, .coverage = value.coverage, .status = value.status, .resource = 0, .contract = @splat(0), .resource_revision = 0, .policy_revision = "", .range = value.range, .items = value.items }, &fresh);
             if (self.auto_unique and value.coverage == .complete and value.items.len == 1) try self.apply();
             return;
         }
+        if (self.local_completion) self.visible_count = 0;
         self.local_completion = false;
         try self.acquisition.start(self.request());
     }
@@ -342,7 +390,7 @@ const Editor = struct {
             const reply = self.acquisition.ready() catch |err| {
                 if (self.protectedFailure(err) or self.acquisition.generation == self.generation) self.assistanceFailure(err);
                 return true;
-            } orelse return self.now() - self.started_at >= 150;
+            } orelse return false;
             defer reply.deinit();
             // Do not disclose or insert a response while a newer key is queued.
             if (reply.value.result == .err) {
@@ -352,10 +400,9 @@ const Editor = struct {
                 };
             }
             if (Signals.pending() or self.acquisition.generation != self.generation) {
-                self.invalidate();
                 self.auto_unique = false;
-                self.refresh_at = self.now() + 75;
-                return true;
+                self.accepting = false;
+                return false;
             }
             var fresh: std.heap.ArenaAllocator = .init(self.console.init.gpa);
             defer fresh.deinit();
@@ -366,7 +413,7 @@ const Editor = struct {
             if (self.accepting) {
                 const prior = self.assistance orelse return false;
                 const same = current.generation == prior.generation and current.profile == prior.profile and current.resource == prior.resource and current.resource_revision == prior.resource_revision and std.meta.eql(current.range, prior.range) and std.mem.eql(u8, &current.contract, &prior.contract) and std.mem.eql(u8, current.policy_revision, prior.policy_revision);
-                const selected = prior.items[self.selected];
+                const selected = self.selection() orelse return false;
                 const found = for (current.items) |candidate| {
                     if (std.mem.eql(u8, candidate.text, selected.text) and candidate.kind == selected.kind) break true;
                 } else false;
@@ -376,21 +423,16 @@ const Editor = struct {
                 }
                 self.auto_unique = false;
             }
-            self.invalidate();
-            // Move the whole owned arena only after the old selection is gone.
-            self.arena.deinit();
-            self.arena = fresh;
-            fresh = .init(self.console.init.gpa);
-            self.assistance = current;
+            self.installAssistance(current, &fresh);
             if (self.auto_unique and current.status == .ready and current.coverage == .complete and current.items.len == 1) {
                 self.auto_unique = false;
                 try self.accept();
             }
             return true;
         }
-        if (self.assistance == null and !self.unavailable and self.now() >= self.refresh_at) {
+        if (self.needsRefresh() and !self.unavailable and self.now() >= self.refresh_at) {
             try self.acquire();
-            return true;
+            return self.local_completion;
         }
         return false;
     }
@@ -398,6 +440,7 @@ const Editor = struct {
         if (!self.completing) return self.complete(true);
         if (self.unavailable) return self.complete(false);
         if (self.acquisition.future != null or self.accepting) return;
+        if (self.needsRefresh()) return self.acquire();
         const prior = self.assistance orelse return;
         if (prior.items.len == 0 or prior.range == null) {
             self.dismiss();
@@ -411,7 +454,8 @@ const Editor = struct {
     fn apply(self: *Editor) !void {
         const prior = self.assistance orelse return;
         const range = prior.range orelse return;
-        const selected = prior.items[self.selected];
+        if (self.needsRefresh()) return;
+        const selected = self.selection() orelse return;
         if (range.start > range.end or range.end > self.length or !std.unicode.utf8ValidateSlice(self.text()[0..range.start]) or !std.unicode.utf8ValidateSlice(self.text()[0..range.end]) or !std.unicode.utf8ValidateSlice(selected.text)) return error.InvalidSqlResponse;
         const length = self.length - (range.end - range.start) + selected.text.len;
         if (length > max_bytes) return error.StatementTooLarge;
@@ -680,7 +724,7 @@ const Editor = struct {
             9 => try self.accept(),
             10, 13 => {
                 if (self.completing) {
-                    if (self.assistance != null and self.acquisition.future == null) try self.accept() else self.dismiss();
+                    if (self.visible_count > 0) try self.accept() else self.dismiss();
                 } else if (!try self.submit()) return error.ConsoleQuit;
             },
             1 => self.move(0),
@@ -780,8 +824,7 @@ const Editor = struct {
     fn select(self: *Editor, up: bool) void {
         self.detail_page = 0;
         if (self.accepting) return;
-        const assistance = self.assistance orelse return;
-        if (assistance.items.len > 0) self.selected = if (up) (self.selected + assistance.items.len - 1) % assistance.items.len else (self.selected + 1) % assistance.items.len;
+        if (self.visible_count > 0) self.selected = if (up) (self.selected + self.visible_count - 1) % self.visible_count else (self.selected + 1) % self.visible_count;
     }
     fn vertical(self: *Editor, up: bool) !void {
         const size = dimensions();
@@ -926,7 +969,8 @@ const Editor = struct {
     }
     fn menuRows(self: *Editor) usize {
         if (!self.completing or self.rows < 3) return 0;
-        const count = if (self.assistance) |value| value.items.len else 0;
+        if (!self.unavailable and self.needsRefresh() and self.visible_count == 0) return 0;
+        const count = self.visible_count;
         return @min(@max(1, count + 2), @max(1, self.rows / 2));
     }
     fn clipped(out: *std.Io.Writer, text_value: []const u8, width: usize) !void {
@@ -945,7 +989,7 @@ const Editor = struct {
     fn drawMenu(self: *Editor, out: *std.Io.Writer, rows: usize) !usize {
         if (rows == 0) return 0;
         const assistance = self.assistance;
-        const message: ?[]const u8 = if (self.unavailable) "Completion unavailable; Tab retries" else if (self.accepting) "Checking suggestion..." else if (assistance == null) (if (self.now() - self.started_at >= 150) "Loading suggestions..." else "Suggestions") else if (assistance.?.status == .inside_text) "No completion inside this text" else if (assistance.?.status == .unsupported) "No suggestions for this SQL context" else if (assistance.?.items.len == 0) (if (assistance.?.coverage == .limited) "Limited search; type more to narrow" else "No matching suggestions") else null;
+        const message: ?[]const u8 = if (self.unavailable) "Completion unavailable; Tab retries" else if (assistance.?.status == .inside_text) "No completion inside this text" else if (assistance.?.status == .unsupported) "No suggestions for this SQL context" else if (self.visible_count == 0) (if (assistance.?.coverage == .limited) "Limited search; type more to narrow" else "No matching suggestions") else null;
         if (message) |value| {
             try out.writeAll("\r\n");
             try clipped(out, value, self.columns - 1);
@@ -954,7 +998,7 @@ const Editor = struct {
         const value = assistance.?;
         var detail_storage: [8192]u8 = undefined;
         var detail: std.Io.Writer = .fixed(&detail_storage);
-        const selected = value.items[self.selected];
+        const selected = self.selection().?;
         try clipped(&detail, selected.text, detail_storage.len);
         try detail.print("  [{s}] ", .{@tagName(selected.kind)});
         try clipped(&detail, selected.detail, detail_storage.len - detail.end);
@@ -962,10 +1006,10 @@ const Editor = struct {
         const pages = (detail.end + width - 1) / width;
         self.detail_page = @min(self.detail_page, pages -| 1);
         const part = detail.buffered()[@min(detail.end, self.detail_page * width)..];
-        const count = @min(value.items.len, @max(1, rows -| 2));
-        const first = @min(self.selected -| (count / 2), value.items.len - count);
+        const count = @min(self.visible_count, @max(1, rows -| 2));
+        const first = @min(self.selected -| (count / 2), self.visible_count - count);
         var used: usize = 0;
-        for (value.items[first..][0..count], first..) |item, index| {
+        for (self.visible[first..][0..count], first..) |item, index| {
             try out.writeAll(if (index == self.selected) "\r\n> " else "\r\n  ");
             if (rows == 1 and self.detail_page > 0 and index == self.selected) try out.writeAll(part[0..@min(part.len, self.columns - 3)]) else try clipped(out, item.text, self.columns - 3);
             used += 1;

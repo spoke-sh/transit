@@ -204,6 +204,75 @@ pub fn local(allocator: std.mem.Allocator, request: Request) !?Completion {
     return result;
 }
 
+/// Filter an already disclosed shortlist for presentation only. A preview has
+/// no current metadata evidence and cannot establish coverage or authorize an
+/// insertion. Keep the surrounding statement (including its suffix) identical.
+pub fn refine(previous: Request, current: Request, prior: Response, matches: *[max_items]Item) !usize {
+    const range = prior.range orelse return 0;
+    if (prior.status != .ready) return 0;
+    if (previous.mode != current.mode or range.start > range.end or range.end > previous.sql.len) return 0;
+    const span = try input.active(current.sql, current.cursor, current.mode == .console);
+    const statement = current.sql[span.start..span.end];
+    const cursor = current.cursor - span.start;
+    if (range.start < span.start) return 0;
+    var next = (if (prior.profile == .configuration_v1)
+        q.SettingsAssistance.replacement(statement, range.start - span.start, cursor)
+    else if (current.mode == .console and std.mem.startsWith(u8, statement, "."))
+        metaRange(statement, cursor)
+    else
+        try input.replacement(statement, cursor)) orelse return 0;
+    next.start += span.start;
+    next.end += span.start;
+    if (range.start != next.start or range.quoted != next.quoted or
+        !std.mem.eql(u8, previous.sql[0..range.start], current.sql[0..next.start]) or
+        !std.mem.eql(u8, previous.sql[range.end..], current.sql[next.end..])) return 0;
+    var count: usize = 0;
+    for (prior.items) |item| {
+        const identifier = item.kind == .source or item.kind == .column;
+        if (next.quoted and !identifier) continue;
+        var prefix = Spelling.init(current.sql[next.start..current.cursor], next.quoted);
+        var candidate = if (identifier) try Spelling.identifier(item.text) else Spelling.init(item.text, false);
+        const matches_prefix = while (prefix.next()) |byte| {
+            const actual = candidate.next() orelse break false;
+            if (if (next.quoted) byte != actual else std.ascii.toLower(byte) != std.ascii.toLower(actual)) break false;
+        } else true;
+        if (!matches_prefix) continue;
+        if (count == matches.len) break;
+        matches[count] = item;
+        count += 1;
+    }
+    return count;
+}
+const Spelling = struct {
+    text: []const u8,
+    quoted: bool,
+    fn identifier(text: []const u8) !Spelling {
+        // A disambiguated column is inserted as "alias"."column", but its
+        // matching prefix belongs to the column's raw name, not the alias.
+        var scan = try input.Scan.init(text);
+        var name = text;
+        while (try scan.next()) |token| if (token.kind == .quoted) {
+            name = text[token.start..token.end];
+        };
+        return init(name, true);
+    }
+    fn init(text: []const u8, quoted: bool) Spelling {
+        var value = text;
+        if (quoted and std.mem.startsWith(u8, value, "\"")) {
+            value = value[1..];
+            if (std.mem.endsWith(u8, value, "\"")) value = value[0 .. value.len - 1];
+        }
+        return .{ .text = value, .quoted = quoted };
+    }
+    fn next(self: *Spelling) ?u8 {
+        if (self.text.len == 0) return null;
+        const byte = self.text[0];
+        self.text = self.text[1..];
+        if (self.quoted and byte == '"' and std.mem.startsWith(u8, self.text, "\"")) self.text = self.text[1..];
+        return byte;
+    }
+};
+
 /// Retain a bounded, deterministic shortlist while continuing to establish
 /// coverage. Exact-case prefix matches precede folded matches of the same role.
 pub fn offer(allocator: std.mem.Allocator, items: *[max_items]Item, exact: *[max_items]bool, count: *usize, limited: *bool, prefix: []const u8, raw: []const u8, text: []const u8, kind: @FieldType(Item, "kind"), detail: []const u8) !void {
@@ -247,7 +316,7 @@ pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     errdefer builder.clear();
     if (request.cursor <= end) {
         inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add("." ++ command, .meta, metaSummary(@field(Meta, command)));
-        return builder.finish(.{ .start = 0, .end = @intCast(end) });
+        return builder.finish(metaRange(request.sql, request.cursor));
     }
     var start = end;
     while (start < request.cursor and std.mem.indexOfScalar(u8, " \t", request.sql[start]) != null) start += 1;
@@ -264,9 +333,67 @@ pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
         try builder.add("on", .meta, "Enable query timing");
         try builder.add("off", .meta, "Disable query timing");
     }
-    var finish = request.cursor;
-    while (finish < request.sql.len and std.mem.indexOfScalar(u8, " \t\r\n", request.sql[finish]) == null) finish += 1;
-    return builder.finish(.{ .start = @intCast(start), .end = @intCast(finish) });
+    return builder.finish(metaRange(request.sql, request.cursor));
+}
+
+fn metaRange(text: []const u8, cursor: u16) input.Range {
+    const end = std.mem.indexOfAny(u8, text, " \t\r\n") orelse text.len;
+    if (cursor <= end) return .{ .start = 0, .end = @intCast(end) };
+    var start = end;
+    while (start < cursor and std.mem.indexOfScalar(u8, " \t", text[start]) != null) start += 1;
+    var finish: usize = cursor;
+    while (finish < text.len and std.mem.indexOfScalar(u8, " \t\r\n", text[finish]) == null) finish += 1;
+    return .{ .start = @intCast(start), .end = @intCast(finish) };
+}
+
+test "shortlist previews preserve token context and identifier spelling" {
+    const items: []const Item = &.{
+        .{ .text = "SELECT", .kind = .keyword, .detail = "" },
+        .{ .text = "SET", .kind = .keyword, .detail = "" },
+        .{ .text = "\"name\"", .kind = .column, .detail = "" },
+        .{ .text = "\"a\"\"bc\"", .kind = .column, .detail = "" },
+        .{ .text = "\"🌱name\"", .kind = .column, .detail = "" },
+    };
+    const Case = struct { before: []const u8, after: []const u8, start: u16, end: u16, cursor: u16, quoted: bool = false, expected: []const []const u8 };
+    for ([_]Case{
+        .{ .before = "SE", .after = "SEL", .start = 0, .end = 2, .cursor = 3, .expected = &.{"SELECT"} },
+        .{ .before = "SEL", .after = "se", .start = 0, .end = 3, .cursor = 2, .expected = &.{ "SELECT", "SET" } },
+        .{ .before = "SE", .after = "SE ", .start = 0, .end = 2, .cursor = 3, .expected = &.{} },
+        .{ .before = "SELECT na FROM items", .after = "SELECT nam FROM items", .start = 7, .end = 9, .cursor = 10, .expected = &.{"\"name\""} },
+        .{ .before = "SELECT na FROM items", .after = "SELECT nam FROM other", .start = 7, .end = 9, .cursor = 10, .expected = &.{} },
+        .{ .before = "SELECT na FROM items", .after = "SELECT 'na FROM items", .start = 7, .end = 9, .cursor = 10, .expected = &.{} },
+        .{ .before = "SELECT na FROM items", .after = "SELECT /*na FROM items", .start = 7, .end = 9, .cursor = 11, .expected = &.{} },
+        .{ .before = "SELECT \"n", .after = "SELECT \"na", .start = 7, .end = 9, .cursor = 10, .quoted = true, .expected = &.{"\"name\""} },
+        .{ .before = "SELECT \"n", .after = "SELECT \"N", .start = 7, .end = 9, .cursor = 9, .quoted = true, .expected = &.{} },
+        .{ .before = "SELECT \"a", .after = "SELECT \"a\"\"b", .start = 7, .end = 9, .cursor = 12, .quoted = true, .expected = &.{"\"a\"\"bc\""} },
+        .{ .before = "SELECT \"", .after = "SELECT \"🌱", .start = 7, .end = 8, .cursor = 12, .quoted = true, .expected = &.{"\"🌱name\""} },
+        .{ .before = "SELECT 1;\nSELECT n FROM items", .after = "SELECT 1;\nSELECT na FROM items", .start = 17, .end = 18, .cursor = 19, .expected = &.{"\"name\""} },
+        .{ .before = ".schema n", .after = ".schema na", .start = 8, .end = 9, .cursor = 10, .expected = &.{"\"name\""} },
+    }) |case| {
+        var matches: [max_items]Item = undefined;
+        const count = try refine(.{ .sql = case.before, .cursor = case.end, .generation = 1, .mode = .console }, .{ .sql = case.after, .cursor = case.cursor, .generation = 2, .mode = .console }, .{ .generation = 1, .coverage = .limited, .status = .ready, .resource = 4, .contract = @splat(7), .resource_revision = 1, .policy_revision = "1", .range = .{ .start = case.start, .end = case.end, .quoted = case.quoted }, .items = items }, &matches);
+        errdefer std.debug.print("preview: {s} -> {s}\n", .{ case.before, case.after });
+        try std.testing.expectEqual(case.expected.len, count);
+        for (case.expected, matches[0..count]) |expected, actual| try std.testing.expectEqualStrings(expected, actual.text);
+    }
+}
+
+test "previews match disambiguated columns and dotted settings by owner spelling" {
+    var matches: [max_items]Item = undefined;
+    var prior: Response = .{ .generation = 1, .coverage = .limited, .status = .ready, .resource = 4, .contract = @splat(7), .resource_revision = 1, .policy_revision = "1", .range = .{ .start = 7, .end = 8 }, .items = &.{
+        .{ .text = "\"left\".\"name\"", .kind = .column, .detail = "" },
+        .{ .text = "\"right\".\"name\"", .kind = .column, .detail = "" },
+    } };
+    const columns = try refine(.{ .sql = "SELECT n FROM items", .cursor = 8, .generation = 1 }, .{ .sql = "SELECT na FROM items", .cursor = 9, .generation = 2 }, prior, &matches);
+    try std.testing.expectEqual(2, columns);
+    try std.testing.expectEqualStrings("\"left\".\"name\"", matches[0].text);
+    try std.testing.expectEqualStrings("\"right\".\"name\"", matches[1].text);
+    prior.profile = .configuration_v1;
+    prior.range = .{ .start = 5, .end = 12 };
+    prior.items = &.{.{ .text = "query.statement_timeout", .kind = .keyword, .detail = "" }};
+    const settings = try refine(.{ .sql = "SHOW query.s", .cursor = 12, .generation = 1 }, .{ .sql = "SHOW query.st", .cursor = 13, .generation = 2 }, prior, &matches);
+    try std.testing.expectEqual(1, settings);
+    try std.testing.expectEqualStrings("query.statement_timeout", matches[0].text);
 }
 
 test "independent cursor fixtures preserve grammar, scope, type and range boundaries" {

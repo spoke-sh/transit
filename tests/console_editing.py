@@ -124,10 +124,22 @@ def check(binary):
             draft(['.timer o'])
             terminal.send('\x07')
             draft(['.timer o'])
+            terminal.send('\t\x1b[B')
+            terminal.expect('> on')
+            terminal.send('n')
+            terminal.expect('transit> .timer on')
+            terminal.expect('> on')
+            assert 'off' not in '\n'.join(terminal.display.text()), terminal.display.text()
+            terminal.send('\x7f')
+            terminal.expect('> on')  # synchronous local refresh preserves selection
+            assert 'off' in '\n'.join(terminal.display.text()), terminal.display.text()
+            terminal.send('\x07')
+            draft(['.timer o'])
             assert all(action in ('hello', 'open', 'touch') for action, _ in actions), actions
         finally:
             terminal.close()
     delayed(binary)
+    responsive(binary)
     session_loss(binary)
     execution_escape(binary)
     print('Console editing: general undo, clear/dismiss, search isolation/deduplication, vertical movement, literal paste, escape decoding and local completion passed.')
@@ -257,15 +269,132 @@ def delayed(binary):
             terminal.close()
 
 
+def responsive(binary):
+    began, release = threading.Event(), threading.Event()
+    calls = []
+    def assist(value):
+        text = value['text']
+        calls.append(text)
+        began.set()
+        assert release.wait(3), 'test did not release metadata'
+        candidates = {'SE': ['SELECT', 'SET'], 'SET': ['SET', 'SETTINGS'],
+                      'SEL': ['SELECT'], 'SELE': ['SELECT'], 'SEZ': ['SEZ_NEW']}.get(text, [])
+        return dict(assistance=dict(coverage='limited', status='ready', profile='catalog_v1', resource=4,
+                                    contract=[7]*32, resource_revision=1, policy_revision='1',
+                                    range=dict(start=0, end=len(text), quoted=False),
+                                    items=[dict(text=item, kind='keyword', detail='SQL grammar') for item in candidates]))
+    with tempfile.TemporaryDirectory(prefix='transit-responsive-') as directory, peer(assist=assist) as (endpoint, actions):
+        root = Path(directory)
+        config = root / 'connection.json'
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+        terminal = Terminal(binary, config, home=root)
+        terminal.display = Screen()
+        terminal.display.feed(terminal.screen)
+        def observe(seconds=.2):
+            until = time.monotonic() + seconds
+            while time.monotonic() < until:
+                assert terminal.process.poll() is None
+                if select.select([terminal.master], [], [], .01)[0]:
+                    terminal.record_display(os.read(terminal.master, 65536))
+            for placeholder in (b'Loading suggestions', b'Checking suggestion', b'Suggestions'):
+                assert placeholder not in terminal.screen, terminal.screen
+            return '\n'.join(terminal.display.text())
+        def pause():
+            release.clear()
+            began.clear()
+        try:
+            terminal.send('SE\t')
+            assert began.wait(.6), 'opening should start acquisition immediately'
+            observe()
+            expect_draft(terminal, ['transit> SE'], (0, 11))  # no initial placeholder or menu space
+            release.set()
+            terminal.expect('> SELECT')
+            terminal.send('\x1b[B')
+            terminal.expect('> SET')
+            pause()
+            terminal.send('T')
+            terminal.expect('transit> SET', timeout=.6)
+            screen = observe()
+            assert '> SET' in screen and 'SELECT' not in screen, screen
+            assert began.is_set() and calls == ['SE', 'SET'], calls
+            terminal.send('\t\r')  # pending refresh must not replay acceptance or submit
+            assert '> SET' in observe()
+            release.set()
+            terminal.expect('SETTINGS')
+            assert 'transit> SET' in observe()
+            pause()
+            terminal.send('\x7f')
+            assert '> SET' in observe(), terminal.display.text()
+            assert began.is_set()
+            release.set()
+            terminal.expect('  SELECT')
+            assert '> SET' in observe(), 'selection must survive result reordering'
+            pause()
+            terminal.send('\t')
+            assert began.wait(.6)
+            assert '> SET' in observe(), 'validation must keep the menu visible'
+            release.set()
+            expect_draft(terminal, ['transit> SET'], (0, 12))
+
+            terminal.send('\x1b')
+            expect_draft(terminal, ['transit>'], (0, 9))
+            terminal.send('SE\t')
+            terminal.expect('> SELECT')
+            pause()
+            terminal.send('L')
+            assert began.wait(.6)
+            terminal.send('ECT\x7f\x7f')  # coalesce several edits while SEL is in flight
+            screen = observe()
+            assert 'transit> SELE' in screen and '> SELECT' in screen, screen
+            assert calls[-1] == 'SEL', calls
+            count = len(calls)
+            release.set()
+            terminal.expect('> SELECT')
+            observe()
+            assert calls[count:] == ['SELE'], calls  # no intervening drafts acquired
+            terminal.send('\x07')
+            expect_draft(terminal, ['transit> SELE'], (0, 13))
+
+            terminal.send('\x1b')
+            expect_draft(terminal, ['transit>'], (0, 9))
+            terminal.send('SE\t')
+            terminal.expect('> SELECT')
+            pause()
+            terminal.send('Z')
+            observe()
+            expect_draft(terminal, ['transit> SEZ'], (0, 12))  # empty preview is not proof of no matches
+            assert b'No matching' not in terminal.screen
+            release.set()
+            terminal.expect('SEZ_NEW')  # omitted from the old bounded shortlist
+            pause()
+            terminal.send(' ')
+            observe()
+            assert 'SEZ_NEW' not in '\n'.join(terminal.display.text()), 'changed context retained old candidates'
+            release.set()
+            terminal.expect('Limited search; type more to narrow')
+            assert not [a for a, _ in actions if a == 'execute'], actions
+        finally:
+            release.set()
+            terminal.close()
+    print('Console completion: immediate filtering, quiet acquisition/validation, stable selection, latest-draft coalescing and empty-preview coverage passed.')
+
+
 def session_loss(binary):
-    for changed_instance in (False, True):
+    for changed_instance, preview in ((False, False), (True, False), (False, True), (True, True)):
         began, release = threading.Event(), threading.Event()
-        def assist(_):
+        calls = []
+        def assist(value):
+            calls.append(value)
+            if preview and len(calls) == 1:
+                return dict(assistance=dict(coverage='limited', status='ready', profile='catalog_v1', resource=4,
+                                            contract=[7]*32, resource_revision=1, policy_revision='1',
+                                            range=dict(start=0, end=2, quoted=False),
+                                            items=[dict(text='SELECT', kind='keyword', detail='SQL grammar')]))
             began.set()
             release.wait(3)
             return dict(err=dict(code='SqlSessionExpired', sqlstate=list(b'08003'), message='Expired', retry='never', operation=None, diagnostic=None))
         def instance(action):
-            return [9 if changed_instance and action == 'assist' else 2] * 16
+            return [9 if changed_instance and action == 'assist' and began.is_set() else 2] * 16
         with tempfile.TemporaryDirectory(prefix='transit-completion-session-') as directory, peer(assist=assist, instance=instance) as (endpoint, actions):
             root = Path(directory)
             config = root / 'connection.json'
@@ -275,6 +404,9 @@ def session_loss(binary):
             terminal.display.feed(terminal.screen)
             try:
                 terminal.send('SE\t')
+                if preview:
+                    terminal.expect('> SELECT')
+                    terminal.send('\t')  # fail validation while the disclosed menu stays visible
                 assert began.wait(3)
                 terminal.send('L')  # response now belongs to an older draft
                 terminal.expect('transit> SEL', timeout=.6)
@@ -282,7 +414,7 @@ def session_loss(binary):
                 expect_draft(terminal, ['transit>'], (0, 9))
                 terminal.send('\x1a')
                 expect_draft(terminal, ['transit>'], (0, 9))
-                assert len([a for a, _ in actions if a == 'assist']) == 1, actions
+                assert len([a for a, _ in actions if a == 'assist']) == 1 + preview, actions
                 assert not [a for a, _ in actions if a == 'execute'], actions
             finally:
                 release.set()
