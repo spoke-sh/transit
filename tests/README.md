@@ -12,13 +12,30 @@ protected-failure violations. The same schedules follow the safe graph in Zig.
 A separate fairness configuration passes eventual borrower release, conditional
 on request failure/timeout, cancellation join and foreground completion.
 
+An isolated checkout of `6bd1b4c3` removes the actual Zig obsolete-reply guard.
+The mutant compiles and the conformance runner rejects `Accept → Type →
+ReplyUniqueSame`: the implementation installs an obsolete response where the
+model requires no effect. The mismatch and source/binary identities are retained
+under `.cache/verification/console-model/zig-obsolete-guard-mutant/`. This single
+production-source mutation is a separately executed negative control; the regular
+task mutates the six model guards.
+
 `nix develop --command zig build test-cli-lifecycle test-console-history` passes
 for the initial extraction. It exercises the complete terminal suite, including
 multiline rendering, immediate completion refinement, quiet unique validation,
 space-aware insertion, seeded history, draft-preserving cancellation, signals,
 persistence and statement outcomes. Native units also check exact metadata-field
-comparisons, complete/ready uniqueness and protected-buffer clearing. Subsequent
-full-check and committed-source qualification are reported separately.
+comparisons, complete/ready uniqueness and protected-buffer clearing.
+
+The native SQL session proof (`nix develop .#sql-wire --command zig build
+test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-basic`) passes at
+`6bd1b4c3`, including actual console completion, partial words and undo over TLS,
+plus existing authentication, concurrent sessions, revocation and recovery.
+Repository checks pass the native, diagnostic, terminal and frontend stages.
+After correcting the public Internals command example to link its reproduction
+guide, `nix develop --command just transit-docs::check` passes ownership, type,
+format and production-build checks. Final aggregate and committed-source CI
+qualification are reported separately.
 
 The [model guide](verification/models/README.md#finite-console-interaction-model)
 and [mechanism account](../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)

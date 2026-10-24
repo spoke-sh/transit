@@ -517,7 +517,8 @@ separate temporal check assumes weak fairness of response failure/timeout,
 cancellation join and foreground completion, then checks eventual borrower
 release. It cannot establish those environment assumptions or a latency bound.
 
-Reproduce with `nix develop --command just test::console-model`. The
+The [model guide](../../../tests/verification/models/README.md#finite-console-interaction-model)
+provides the pinned reproduction command. The
 [runner](../../../tests/verification/console_model.py) exhausts the finite graph
 and replays every exported edge against the production Zig reducer from a
 shortest representative path. It compares state projections and effects, and
