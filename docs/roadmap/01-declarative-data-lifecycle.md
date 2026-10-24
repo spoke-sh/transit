@@ -308,8 +308,11 @@ initialization turns. Typed KV writes/deletes, actual Document change acceptance
 native data revocation, metadata rename/DROP and permanent original receipts pass.
 One prepared native allocation per caller is durably serialized within the
 catalog. This closes the metadata-only provisioning gap for that explicit typed
-profile; old owner retirement and broader physical placement qualification remain
-open.
+profile; broader physical placement qualification remains open. The
+[obsolete metadata owner removal](../../tests/README.md#obsolete-named-metadata-owner-removal--2026-10-24)
+also deletes the supplied-resource-ID publication path and its Table fallbacks,
+with a coordinated current-v1 cutover. Named resource publication now has one
+owner. Remaining actor Table caller migration is a separate unfinished gate.
 
 The [named dependency proof](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24)
 extends the graph to actual KV/Document source and dependent definitions. Explicit
