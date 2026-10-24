@@ -28,8 +28,9 @@ The ordinary worker configuration is described in the [README](../README.md).
 Two optional, mutually exclusive roles compose existing native handlers:
 
 - `query_peer` is the requester PID. The data owner accepts administrator-issued
-  query policy only for that peer, its catalog scope and the configured
-  administrator's catalog rights. Query capture
+  query policy only for that peer and its retained direct catalog binding.
+  The administrator's current Table rights gate policy publication; the named
+  query caller's current rights separately govern query capture. Query capture
   initialization is a separate turn from data initialization, preserving the
   four-mutation boundary. The worker needs current read access and an association
   to the requester's resource, in addition to its own resource grant.
@@ -57,6 +58,12 @@ key. Its private deployment admits the browser; native resource grants, query
 policy, catalog inspect/read and publication policy are checked independently.
 The gateway resolves the active Table from its published catalog metadata; it
 never constructs a physical source commitment from a Table name alone.
+The application reads its direct service binding from native state. The gateway
+uses the query caller's key for direct metadata reads, and the capture worker
+authenticates with its login identity to use that caller's retained read grant.
+The Table role selected for application mutations supplies no query authority.
+Finite query capture retains explicit Table cuts; the migration's conditional
+current reads have a separate lifetime.
 
 `GET /api/v1/interface` reads the current publication.
 `POST /api/v1/application` exposes the shared signed operator host.

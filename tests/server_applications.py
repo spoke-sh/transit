@@ -93,9 +93,35 @@ def provision_authority(fixture, operator, connections):
     administrator.chmod(0o600)
     recovery = fixture.root / 'authorization-recovery'
     recovery.mkdir(mode=0o700)
-    profile = fixture.root / 'catalog-authority.json'
+    # Explicit deployment input over the neighborhood's configured direct owner.
+    # Resolve the installed worker's private role through public root inspection;
+    # the application helper receives a chosen role ID, never a worker key.
+    from server_application_faults import ExistingKey, native, post
+    root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    worker = next(role for role in fixture.status()['roles'] if role['name'] == 'data')
+    after, worker_role = None, None
+    while True:
+        query = dict(authorization=dict(role=None, kind=dict(roles=after)))
+        roles = post(fixture.config['ports']['node'], '/v1/query',
+            native(root, caller['realm'], 0, query), retry_unavailable=True)['body']['authorization']['body']['roles']
+        for role in roles['records']:
+            if role and role['native'] and role['enabled'] and not role['retired'] and bytes.fromhex(role['name']).decode() == f"native/{worker['principal']}/{role['id']}":
+                assert worker_role is None
+                worker_role = role['id']
+        after = roles['next']
+        if after is None:
+            break
+    assert worker_role is not None
+    installation = fixture.record()
+    connection = installation['default_table']['connection']
+    target = fixture.root / 'data-target.json'
+    target.write_text(json.dumps(dict(definition=capabilities['capabilities']['definition'],
+        connection=connection, seed_file=str(fixture.installation / 'caller.seed'),
+        namespace=1, first_object=1000, worker_login_role=worker_role)))
+    target.chmod(0o600)
+    profile = fixture.root / 'data-binding.json'
     provisioning = [operator, 'provision-authority', str(administrator),
-        *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(profile)]
+        *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(target), str(profile)]
     def invoke(timeout):
         deadline = time.monotonic() + timeout
         while True:

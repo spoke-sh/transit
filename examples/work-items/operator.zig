@@ -39,10 +39,10 @@ pub fn main(init: std.process.Init) void {
 }
 fn run(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len == 8 and std.mem.eql(u8, args[1], "provision-authority")) {
-        const profile = try @import("CatalogSetup.zig").run(init, args[2..7]);
-        try write(init, args[7], profile);
-        return print(init, .{ .authority = profile, .complete = true });
+    if (args.len == 9 and std.mem.eql(u8, args[1], "provision-authority")) {
+        const profile = try @import("CatalogSetup.zig").run(init, args[2..8]);
+        try write(init, args[8], profile);
+        return print(init, .{ .binding = profile, .complete = true });
     }
     if (args.len == 3 and std.mem.eql(u8, args[1], "manifest")) {
         const declaration: A.Declaration = .{ .application = "work-items", .roles = &.{.{ .name = "data", .contract = "work-items-v1", .artifact = .{ .path = args[2] }, .configuration = "{\"application\":9}", .accesses = &.{.{ .name = "state", .resource = "data", .permissions = 7 }} }}, .resources = &.{.{ .name = "data", .writer = "data" }}, .callers = &.{ .{ .name = "operator", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "writer", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "inspector", .reads = &.{.{ .resource = "data" }} } }, .initialize = &.{.{ .role = "data", .caller = "operator", .value = try (s.Frame{ .kind = .cast, .payload = try W.Command.encode(.initialize) }).encode() }} };
@@ -53,7 +53,7 @@ fn run(init: std.process.Init) !void {
     try config.validate();
     const pid = try A.binding(config.roles, "data");
     const resource = try A.binding(config.resources, "data");
-    const owner: W = .{ .allocator = init.gpa, .configuration = .{ .owner = pid, .application = 9, .realm = config.realm, .administrator = try A.binding(config.callers, "operator"), .writer = try A.binding(config.callers, "writer"), .resource = resource } };
+    var owner: W = .{ .allocator = init.gpa, .configuration = .{ .owner = pid, .application = 9, .realm = config.realm, .administrator = try A.binding(config.callers, "operator"), .writer = try A.binding(config.callers, "writer"), .resource = resource } };
     const ledger = try owner.ledger();
     var key = try s.client.readKey(init.gpa, init.io, config.seed_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
@@ -61,36 +61,60 @@ fn run(init: std.process.Init) !void {
     defer wire.deinit();
     wire.timeout_ms = 3000;
     const resources: s.client.ResourceReader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key };
+    var data: W.Data.Http = .{ .allocator = init.gpa, .resources = resources };
+    owner.transport = data.transport();
     const mode = args[2];
     if (std.mem.eql(u8, mode, "inspect")) {
         if (args.len != 3) return error.InvalidInvocation;
         var source = try resources.open(resource);
-        var tables = tableClient(resources, pid, resource);
-        var reader = (try tables.authorizationContext()).wrap(&source);
+        const binding = try owner.data(&source);
+        var reader = (try data.authorization(binding)).wrap(&source);
         const head = try ledger.head(&reader);
         const plan = try ledger.plan(&reader, .{ .value = 2 });
         const progress = if (plan != null) try ledger.progress(&reader, .{ .value = 2 }) else null;
         const table = try owner.selected(&reader);
-        const catalog = try owner.catalog(&reader);
+        const direct = try data.transport().bind(binding);
+        var metadata = try W.Table.definition(direct, binding, table);
+        defer metadata.deinit();
+        var original = if (head.epoch.value == 2) try W.Table.definition(direct, binding, 1) else null;
+        defer if (original) |*value| value.deinit();
+        const verification = try owner.migrationBasis(&reader, .{ .value = 2 });
+        var target_basis = W.TableBasis.from(metadata.value);
+        var source_basis: ?W.TableBasis = null;
+        if (original) |value| {
+            const retained = verification orelse return error.WorkItemStateMissing;
+            try retained.target.require(metadata.value);
+            try retained.source.require(value.value);
+            target_basis = retained.target;
+            source_basis = retained.source;
+        }
         var cursor: ?W.Table.Identity = null;
         var count: u64 = 0;
         var row_steps: u64 = 0;
         while (true) {
             if (row_steps == 1000) return error.InspectionPageBudget;
-            _ = try catalog.authorizeObject(&reader, config.principal, table, .read);
-            if (head.epoch.value == 2) _ = try catalog.authorizeObject(&reader, config.principal, 1, .read);
-            const row = try W.Table.next(init.gpa, &reader, table, cursor) orelse break;
-            if (head.epoch.value == 2) {
-                const before = (try W.Table.get(init.gpa, &reader, 1, row.key)) orelse return error.MissingSourceRow;
-                if (row.state != (if (before.state == 0) @as(i64, 10) else 20)) return error.IncorrectMigration;
+            const row = try W.Table.next(init.gpa, direct, metadata.value, target_basis.position, cursor) orelse break;
+            if (original) |value| {
+                const before = (try W.Table.get(init.gpa, direct, value.value, source_basis.?.position, row.key)) orelse return error.MissingSourceRow;
+                const expected: i64 = switch (before.state) {
+                    0 => 10,
+                    1 => 20,
+                    else => return error.InvalidStoredWorkItemState,
+                };
+                if (row.state != expected) return error.IncorrectMigration;
             }
             count += 1;
             row_steps += 1;
             cursor = row.identity;
         }
-        _ = try catalog.authorizeObject(&reader, config.principal, table, .read);
-        if (head.epoch.value == 2) _ = try catalog.authorizeObject(&reader, config.principal, 1, .read);
-        return print(init, .{ .head = head, .migration = progress, .migration_diagnostic = if (progress) |value| try W.app.MigrationDiagnostic.progress(9, config.realm, resource, plan.?, value) else null, .cursor = if (progress) |value| try W.Cursor.decode(value.cursor) else null, .rows = count, .row_steps = row_steps });
+        if (count != metadata.value.row_count) return error.IncompleteWorkItemInspection;
+        // Validate every source again after buffering, including an empty target.
+        _ = try W.Table.next(init.gpa, direct, metadata.value, target_basis.position, cursor);
+        if (original) |value| {
+            if (count != source_basis.?.rows) return error.IncompleteWorkItemInspection;
+            _ = try W.Table.next(init.gpa, direct, value.value, source_basis.?.position, null);
+        }
+        return print(init, .{ .head = head, .migration = progress, .verification_basis = verification, .table_basis = W.TableBasis.from(metadata.value), .migration_diagnostic = if (progress) |value| try W.app.MigrationDiagnostic.progress(9, config.realm, resource, plan.?, value) else null, .cursor = if (progress) |value| try W.Cursor.decode(value.cursor) else null, .rows = count, .row_steps = row_steps });
     }
     if (args.len < 4) return error.ExpectedRecoveryFile;
     const path = args[3];
@@ -102,7 +126,7 @@ fn run(init: std.process.Init) !void {
         if (err != error.FileNotFound) return err;
         var command: W.Command = undefined;
         if (std.mem.eql(u8, mode, "initialize-catalog") and args.len == 5) {
-            command = .{ .catalog_initialize = try read(W.query.catalog.TableAuthority.Profile, init, args[4]) };
+            command = .{ .catalog_initialize = try read(W.Data.Binding, init, args[4]) };
         } else if (std.mem.eql(u8, mode, "prepare-table") and args.len == 5) {
             command = .{ .prepare_table = try std.fmt.parseInt(u32, args[4], 10) };
         } else if (std.mem.eql(u8, mode, "authorize") and args.len == 4) {
@@ -128,9 +152,7 @@ fn run(init: std.process.Init) !void {
         var role: ?u64 = null;
         if (command == .prepare_table) {
             var source = try resources.open(resource);
-            const catalog = try owner.catalog(&source);
-            const authority: s.client.AuthorizationClient = .{ .transport = &wire, .realm = config.realm, .principal = config.principal, .key = key };
-            role = (try authority.read(.{ .object = W.query.catalog.TableAuthority.reference(catalog.configuration.authority.database) })).body.authorization.body.object.owner;
+            role = (try owner.data(&source)).owner_role;
         }
         const next: Saved = .{ .definition = g.current_definition, .realm = config.realm, .principal = config.principal, .pid = pid, .resource = resource, .intent = intent, .signed = try g.sign(.{ .realm = config.realm, .principal = config.principal, .sequence = current.principal_sequence + 1, .command = .{ .send = .{ .pid = pid, .role = role, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, key) };
         try write(init, path, next);
@@ -168,15 +190,12 @@ fn run(init: std.process.Init) !void {
 }
 fn observe(init: std.process.Init, resources: s.client.ResourceReader, owner: W, command: W.Command, input: u64) !bool {
     var source = try resources.open(owner.configuration.resource);
-    var tables = tableClient(resources, owner.configuration.owner, owner.configuration.resource);
-    var reader = (try tables.authorizationContext()).wrap(&source);
-    if (try W.Failure.read(owner.configuration, &reader, resources.principal, input)) |failure| {
+    if (try W.Failure.read(owner.configuration, &source, resources.principal, input)) |failure| {
         std.debug.print("work-items: {s} [{s}] ({s})\n", .{ failure.diagnostic.message.slice(), failure.diagnostic.code.slice(), failure.record.cause.slice() });
         try print(init, .{ .accepted = input, .committed = false, .err = failure.record.cause.slice(), .diagnostic = failure.diagnostic });
         return error.DomainRejected;
     }
+    var data: W.Data.Http = .{ .allocator = init.gpa, .resources = resources };
+    var reader = (try data.authorization(try owner.data(&source))).wrap(&source);
     return owner.completed(&reader, command, input);
-}
-fn tableClient(resources: s.client.ResourceReader, owner: u64, resource: u64) W.query.catalog.TableClient {
-    return .{ .transport = resources.wire, .connection = .{ .scope = .{ .realm = resources.realm, .resource = resource, .catalog = 1 }, .owner = owner, .principal = resources.principal }, .key = resources.key };
 }

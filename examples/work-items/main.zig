@@ -72,7 +72,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         return err;
     };
     file.close(init.io);
-    var behavior: W.Behavior = .{ .owner = .{ .allocator = init.gpa, .configuration = config.application } };
+    var data: W.Data.Http = .{ .allocator = init.gpa, .resources = .{ .wire = &wire, .realm = config.application.realm, .principal = config.principal, .key = key }, .select_owner = true };
+    var behavior: W.Behavior = .{ .owner = .{ .allocator = init.gpa, .configuration = config.application, .transport = data.transport() } };
     const adapter: []u8 = if (config.query_peer != null) try init.gpa.alloc(u8, W.query.UnifiedBehavior.adapter_bytes) else &.{};
     defer if (adapter.len != 0) init.gpa.free(adapter);
     const workspace: []u8 = if (config.query_peer != null) try init.gpa.alloc(u8, W.query.fuze.Unified.Arrow.working_bytes) else &.{};
@@ -86,15 +87,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (true) {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         const step = host.step(handler, now + 30000) catch |err| {
-            if (err == error.CatalogRegistrationRequired) {
-                const action = behavior.registration orelse return err;
-                if (action != .register_object or host.pending != null) return err;
-                if (host.ready != null) try host.discard();
-                const registrar: s.client.AuthorizationClient = .{ .transport = &wire, .realm = config.application.realm, .principal = config.principal, .key = key };
-                const next = try registrar.registration(action.register_object);
-                if (next == .submit) _ = try wire.submit(next.submit);
-                continue;
-            }
             diagnostics.event(.{ .name = "worker.step", .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
             if (s.client.Client.unavailable(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();

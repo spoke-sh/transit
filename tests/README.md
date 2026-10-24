@@ -1,5 +1,48 @@
 # Validation and evidence
 
+## Work items over the direct data owner — 2026-10-24
+
+Work items now retains an explicit direct catalog binding and immutable dispatch
+records in its native progress resource. Table admission follows committed
+dispatch eligibility and retains the original input authorization prerequisite.
+Migration records independent source/target bases, copies one transformed row
+per bounded step, verifies every target row and separately activates the data
+contract. Native progress and direct Table acceptance are separate decisions.
+
+In the pinned Nix shell, `zig build test-work-items-unit
+-Doptimize=ReleaseSafe` passes **13/13** tests. They exercise a 33-row migration,
+empty and abandoned targets, current denial, conflicting contents, lost Table
+acceptance replies, committed dispatch eligibility and unchanged exact recovery.
+Inspection checks the recorded verification bases and rejects later row changes.
+`zig build test-work-items test-work-items-browser -Doptimize=ReleaseSafe` passes
+both real disk-backed schedules: native recovery in **84.97 s** and the embedded
+browser in **184.88 s**, including **26.83 s** of browser provisioning.
+The native schedule covers 19 rows, two fresh-key fenced worker replacements,
+node restart, exact caller/worker retries, complete verification and old-epoch
+rejection. It observes 243 turns, at most four metadata mutations per turn,
+244-byte metadata values, 81 pages and 22 injected transport disconnects.
+
+The browser covers all 19 rows over three result pages, application schema and
+publication changes, gateway replacement, original uncertain-upload recovery and
+cancellation, a fresh query and current-access denial. Responsive layout,
+keyboard access and axe checks pass. Peak RSS is 125,267,968 bytes for the node,
+33,419,264 for either gateway, 28,545,024 for the data worker, 14,942,208 for
+publication, 19,255,296 for the requester and 13,463,552 for delivery. These are
+observed fixture measurements, not deployment limits or latency guarantees.
+
+The stored application binding/dispatch change replaces the shared current-v1
+definition with `f444c2a15245cf6a5852c727ebf3922f214a7fb8d3e078ea2d92b6b1eb668463`.
+The prior definition and missing/foreign application binding bytes reject.
+Protocol units pass **51/51**; regenerated contracts, SDK bindings, independent
+Work items command fixtures and diagnostic checks pass. The direct HTTP proof
+also passes **651** calls against this definition, including its existing
+CRUD/DDL, SQL, retained-read, revocation and restart schedules.
+
+Installed-application and physical placement qualification are recorded
+separately below when complete. This slice does not establish an atomic
+cross-plane migration freeze, historical query access from current-read bases,
+automatic point flushing, full `just check` or committed-HEAD `just ci-clean`.
+
 ## Direct completion after console and Go integration — 2026-10-24
 
 The lifecycle branch rebases onto `origin/main` at `84afe73b`, retaining the

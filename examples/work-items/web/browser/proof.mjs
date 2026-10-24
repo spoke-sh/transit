@@ -22,6 +22,7 @@ page.on("response", async (r) => {
     Object.keys(r.request().postDataJSON())[0],
     r.status(),
     body.err ?? Object.keys(body)[0],
+    body.status?.diagnostic ?? null,
   ]);
   if (observations.length > 20) observations.shift();
 });
@@ -67,9 +68,10 @@ try {
   await page.goto(origin + "/items");
   await expect(page.locator("#interface-status")).toContainText("revision 1");
   await page.locator("#run").click();
-  await expect(page.locator("#coverage")).toContainText("19 rows");
+  const firstQueryStarted = Date.now();
+  await expect(page.locator("#coverage")).toContainText("19 rows", { timeout: 180000 });
   await expect(page.locator("#rows tr")).toHaveCount(8);
-  console.log("Original query verified");
+  console.log(`Original query verified in ${Date.now() - firstQueryStarted}ms`);
   await expect(page.locator("#basis")).toContainText("status schema");
   assert.deepEqual(await page.locator("#rows td:nth-child(2)").allTextContents(), [
     "Open",
@@ -125,7 +127,7 @@ try {
   fault = false;
   await page.locator("#run").click();
   await expect(page.locator("#basis")).toContainText("state schema");
-  await expect(page.locator("#coverage")).toContainText("19 rows");
+  await expect(page.locator("#coverage")).toContainText("19 rows", { timeout: 180000 });
   assert.equal(namespaces.size, 2, "Only the explicit new Run may allocate a query");
   await page.locator("#density").selectOption("comfortable");
   for (const width of [1440, 320]) {

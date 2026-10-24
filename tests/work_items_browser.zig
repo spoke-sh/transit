@@ -19,12 +19,15 @@ fn publication() app.Publication {
     return .{ .configuration = .{ .application = 9, .realm = 51, .namespace = .{ .value = 19 }, .administrator = 65537, .name_digest = app.Publication.nameDigest("work_items") } };
 }
 fn policy(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
-    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .catalog = .{ .scope = .{ .realm = 51, .resource = saved.data.resource, .catalog = 1 }, .owner = saved.data.pid, .principal = 1234 } }, .allow = true, .limits = limits }).encode(), null);
+    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .catalog = .{ .scope = saved.data.data.?.scope, .owner = saved.data.data.?.audience, .principal = 1234 } }, .allow = true, .limits = limits }).encode(), null);
 }
 fn publish(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
     var source = try caller.read();
     var data_reader = try caller.authorized(&source);
-    var table_source = try proof.owner(init.gpa, saved.data).source(&data_reader, 65537, @intCast(revision));
+    var data = caller.http();
+    var application = proof.owner(init.gpa, saved.data);
+    application.transport = data.transport();
+    var table_source = try application.source(&data_reader, 65537, @intCast(revision));
     defer table_source.deinit();
     caller.saved = saved.publication;
     defer caller.saved = saved.data;
@@ -37,7 +40,7 @@ fn publish(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision
     const bindings = try init.arena.allocator().dupe(app.Model.Binding, parsed.definition.bindings);
     parsed.definition.bindings = bindings;
     for (bindings) |*binding| if (binding.source == .query) {
-        binding.source.query.resource = saved.data.resource;
+        binding.source.query.resource = saved.data.data.?.scope.resource;
         binding.source.query.schema = try table_source.definition.fingerprint();
     };
     var buffer: [app.Model.max_program_bytes]u8 = undefined;
@@ -68,7 +71,7 @@ fn seedFile(init: std.process.Init, directory: []const u8, name: []const u8, see
 }
 fn provision(admin: *Admin, principal: u64, seed: u8, foreign: ?u64) !proof.Saved {
     const v = try admin.provisionReader(principal, try key(seed), foreign);
-    return .{ .pid = v.pid, .resource = v.resource, .generation = v.generation, .activation = seed };
+    return .{ .pid = v.pid, .resource = v.resource, .generation = v.generation, .worker_key = (try key(seed)).public_key.toBytes(), .activation = seed };
 }
 fn workerFiles(init: std.process.Init, url: []const u8, directory: []const u8, saved: Saved) !void {
     const data = saved.data;
@@ -112,7 +115,7 @@ pub fn main(init: std.process.Init) !void {
         const authorization = @import("table_authorization_support.zig");
         const owner_role = try authorization.login(q.catalog, &admin, "work-items-owner", 65537, try key(9), null);
         const reader_role = try authorization.login(q.catalog, &admin, "work-items-reader", 1234, try key(10), null);
-        data.authority = try authorization.profile(q.catalog, &admin, .{ .realm = 51, .resource = data.resource, .catalog = 1 }, 65536, owner_role);
+        try proof.provisionData(init, &admin, &data, owner_role, directory);
         try authorization.grantDefaults(q.catalog, &admin, data.authority.?, owner_role, reader_role, q.catalog.TableAuthority.select);
         const saved: Saved = .{ .data = data, .requests = requests, .publication = pub_owner };
         for ([_]struct { subject: u64, resource: u64 }{
@@ -127,6 +130,7 @@ pub fn main(init: std.process.Init) !void {
     }
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, saved_path, init.arena.allocator(), .limited(4096));
     var saved = (try std.json.parseFromSlice(Saved, init.arena.allocator(), bytes, .{})).value;
+    if (std.mem.eql(u8, phase, "initialize-data")) return proof.initializeData(init.gpa, &wire, saved.data);
     if (std.mem.eql(u8, phase, "host-generation") or std.mem.eql(u8, phase, "activate-host") or std.mem.eql(u8, phase, "fence-host")) {
         if (args.len != (if (std.mem.eql(u8, phase, "activate-host")) @as(usize, 6) else 5)) return error.Usage;
         const selected: *proof.Saved = if (std.mem.eql(u8, args[4], "data")) &saved.data else if (std.mem.eql(u8, args[4], "requester")) &saved.requests else if (std.mem.eql(u8, args[4], "publication")) &saved.publication else return error.InvalidRole;
@@ -135,6 +139,7 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, phase, "host-generation")) return print(init, .{ .generation = process.generation });
         const replacement = std.mem.eql(u8, phase, "fence-host");
         const old_key = try key(selected.activation);
+        if (replacement) try std.testing.expectEqualSlices(u8, &selected.worker_key, &old_key.public_key.toBytes());
         const public_key = if (replacement) value: {
             selected.activation = try std.math.add(u8, selected.activation, 32);
             break :value (try key(selected.activation)).public_key.toBytes();
@@ -144,11 +149,9 @@ pub fn main(init: std.process.Init) !void {
             if (registration.version != 1 or registration.realm != 51 or registration.pid != selected.pid or registration.principal != principal or registration.generation != process.generation + 1) return error.InvalidRegistration;
             break :value registration.public_key;
         };
-        _ = try admin.submit(.{ .grant = .{ .subject = principal, .public_key = public_key, .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = selected.pid } });
-        _ = try admin.submit(.{ .grant_resource = .{ .resource = selected.resource, .subject = principal, .permissions = p.State.all_permissions } });
-        if (selected == &saved.data) _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.requests.resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-        _ = try admin.submit(.{ .own = .{ .pid = selected.pid, .expected_generation = process.generation, .worker = principal } });
+        _ = try admin.submit(.{ .rotate_worker = .{ .pid = selected.pid, .worker = principal, .expected_generation = process.generation, .expected_public_key = selected.worker_key, .expected_permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .public_key = public_key } });
         selected.generation = process.generation + 1;
+        selected.worker_key = public_key;
         try proof.write(init, saved_path, saved);
         if (replacement) {
             try std.testing.expectError(error.AccessDenied, wire.query(.{ .realm = 51, .principal = principal, .kind = .{ .identity = {} } }, old_key));
@@ -161,7 +164,7 @@ pub fn main(init: std.process.Init) !void {
     caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
-        _ = try caller.send(init.io, .{ .catalog_initialize = saved.data.authority orelse return error.MissingProofAuthority }, null);
+        _ = try caller.send(init.io, .{ .catalog_initialize = saved.data.data orelse return error.MissingProofDataBinding }, null);
         for ([_]u32{ 1, 2 }) |table| _ = try caller.send(init.io, .{ .prepare_table = table }, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = 65537, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);
         for (0..19) |i| _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 10, .state = @intCast(i % 2) } }, null);
@@ -180,10 +183,8 @@ pub fn main(init: std.process.Init) !void {
         try publish(&caller, init, saved, 1);
     } else if (std.mem.eql(u8, phase, "migrate")) {
         _ = try caller.send(init.io, .{ .begin = try proof.owner(init.gpa, saved.data).proposal(2) }, null);
-        const ledger = try proof.owner(init.gpa, saved.data).ledger();
         for (0..64) |_| {
-            var reader = try caller.read();
-            const progress = try ledger.progress(&reader, .{ .value = 2 });
+            const progress = try caller.progress(.{ .value = 2 });
             if (progress.phase == .applied) break;
             const cursor = try W.Cursor.decode(progress.cursor);
             _ = try caller.send(init.io, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = progress.next, .operation = if (cursor.phase == .ready) 2 else 1, .arguments = progress.cursor } }, null);

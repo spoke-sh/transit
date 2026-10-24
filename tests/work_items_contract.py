@@ -4,12 +4,15 @@ from pathlib import Path
 import struct
 import sys
 
-PATH = Path(__file__).resolve().parents[1]/'examples/work-items/fixtures/commands-v1.json'
+ROOT = Path(__file__).resolve().parents[1]
+PATH = ROOT/'examples/work-items/fixtures/commands-v1.json'
 
 
 def fixture():
     cursor = b'AP1c'+struct.pack('<BBQQIQQ', 1, 1, 44, 2**64-1, 2, 33, 2)
+    definition = bytes.fromhex(json.loads((ROOT/'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'])
     return dict(version=1,
+        catalog_initialize=(b'WI1i\x07'+definition+struct.pack('<QQQQQQQQ',49,70,1,1,3,1,1000,33)).hex(),
         put=(b'WI1i\x02'+struct.pack('<Qqq', 2**64-1, -(2**63), 20)).hex(),
         cursor=cursor.hex(),
         step=(b'WI1i\x04'+struct.pack('<QQHB', 2**32-1, 2**64-1, 1, len(cursor))+cursor).hex())
