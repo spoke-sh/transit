@@ -450,6 +450,22 @@ application-owned work, not verified computation.
 
 ## Declaration and row operations
 
+`preview_rows` and `preview_statement` check a frozen mutation against the
+original caller's current mutation and inspection rights, acceptance
+prerequisites, exact definition, optional data frontier and pending DDL. They
+return the original binding, independently observed directory/Table positions,
+current stored interpretation, row count and `none`, `stale_definition`,
+`stale_data` or `object_conflict`. They do not select matching rows or predict
+matched/changed counts, duplicate-key success or a later commit. They stage no
+payload, claim no identity and append no acceptance record. Existing identity
+claims must match. Preview is current validation, not past receipt recovery.
+
+`name_preview` checks the same original rights and condition as conditional
+acceptance. It returns the original binding, catalog position, current matching
+Table definition when present, and a `matches` boolean. An unavailable name
+reservation or a different object kind also prevents an absent-name match.
+Preview records no conditional outcome and cannot reserve the observed name.
+
 `preview` checks a frozen DDL proposal against current rights, object/name
 availability, definition/data expectations and schema-evolution rules. It returns
 the exact binding, independently observed directory/Table positions, a reason,
@@ -555,6 +571,10 @@ typed predicate/assignment plan and freeze the observed data frontier. These
 requests never become actor mailbox frames. Host parsing has its own bounded
 envelope; logical cell and storage admission limits still apply independently.
 Preparation returns independently owned saved work and admits nothing.
+
+The host `preview` action dispatches the loaded frozen work to its owning DDL,
+row or conditional-name preview. Its discriminated result retains these distinct
+observation bases and reasons; all full-width counters use decimal strings.
 
 Loading performs no I/O and does not replace an existing loaded intent until
 validation and output allocation succeed. Staging a Table returns its exact

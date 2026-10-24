@@ -265,7 +265,21 @@ host_bulk = {"prepare": {"definition": definition, "namespace": 1, "operation": 
 }}}}
 assert len(canonical(host_bulk)) > 256 * 1024
 host_action_validator.validate(host_bulk)
-jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostResult"}).validate({"staged": {"table": host_reference}})
+host_result_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostResult"})
+host_result_validator.validate({"staged": {"table": host_reference}})
+host_action_validator.validate({"preview": {"definition": definition, "digest": "07" * 32}})
+row_preview = {"preview": {"rows": {
+    "binding": host_binding, "directory_position": {"partition": "1", "next_lsn": str(2**64 - 1)},
+    "current": {"interpretation": host_basis["interpretation"], "position": {"partition": "9", "next_lsn": "10"}, "changed_lsn": "9", "row_count": str(2**64 - 1)},
+    "reason": "none",
+}}}
+host_result_validator.validate(row_preview)
+invalid_preview = copy.deepcopy(row_preview)
+invalid_preview["preview"]["rows"]["current"]["row_count"] = 2**64 - 1
+assert not host_result_validator.is_valid(invalid_preview)
+invalid_preview = copy.deepcopy(row_preview)
+invalid_preview["preview"]["rows"]["reason"] = "committed"
+assert not host_result_validator.is_valid(invalid_preview)
 for field in ("definition", "connection", "binding", "content"):
     invalid = copy.deepcopy(host_reference)
     del invalid[field]

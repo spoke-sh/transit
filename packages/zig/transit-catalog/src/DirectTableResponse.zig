@@ -129,6 +129,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .read_authority => .read_authority,
         .name_assertion => .name_assertion,
         .preview => .preview,
+        .name_preview => .name_preview,
+        .preview_rows, .preview_statement => .row_preview,
         .stage => .staged,
         .admit_ddl => .ddl,
         .admit_rows, .admit_statement => .rows,
@@ -288,6 +290,41 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                         if (value.work.? != .metadata or value.rebuild_key or !std.mem.eql(u8, &current.interpretation.schema_fingerprint, &value.schema_fingerprint.?)) return error.InvalidTableResponse;
                     }
                 }
+            }
+        },
+        .name_preview => |value| {
+            try request.action.name_preview.requireSame(value.binding);
+            try frontier(value.position, 0);
+            if (value.current) |current| {
+                try current.validate();
+                try request.connection.object(current.object);
+                if (value.matches != std.meta.eql(value.binding.expected, @as(?d.Definition, current))) return error.InvalidTableResponse;
+            } else if (value.matches and value.binding.expected != null) return error.InvalidTableResponse;
+        },
+        .row_preview => |value| {
+            const binding = switch (request.action) {
+                inline .preview_rows, .preview_statement => |input| input.binding,
+                else => unreachable,
+            };
+            try binding.requireSame(value.binding);
+            try frontier(value.directory_position, 0);
+            try definition(request.connection, value.current.interpretation);
+            if (!std.meta.eql(value.current.interpretation.interpretation.object, binding.target)) return error.InvalidTableResponse;
+            try frontier(value.current.position, value.current.changed_lsn);
+            const same_definition = !value.current.interpretation.retired and std.meta.eql(binding.expected_definition, @as(?d.Definition, value.current.interpretation.interpretation));
+            const same_data = if (binding.expected_data) |basis| basis.unchangedAt(value.current.position, value.current.changed_lsn) else true;
+            switch (value.reason) {
+                .none => {
+                    if (!same_definition or !same_data) return error.InvalidTableResponse;
+                    const proposed_interpretation = switch (request.action) {
+                        inline .preview_rows, .preview_statement => |input| input.interpretation,
+                        else => unreachable,
+                    };
+                    if (!std.meta.eql(proposed_interpretation, value.current.interpretation)) return error.InvalidTableResponse;
+                },
+                .stale_definition => if (same_definition or value.current.interpretation.retired) return error.InvalidTableResponse,
+                .stale_data => if (!same_definition or same_data) return error.InvalidTableResponse,
+                .object_conflict => {},
             }
         },
         .initialized, .released, .checked => {},

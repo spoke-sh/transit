@@ -1,5 +1,35 @@
 # Validation and evidence
 
+## Shared direct preview — 2026-10-24
+
+`just test::direct-table-callers` passes **124 typed HTTP calls** through the
+real local node. The host previews loaded DDL, bulk rows, predicate statements
+and conditional names without admission. Repeated previews preserve positions;
+operation inspection remains unobserved. A competing INSERT invalidates the
+saved predicate's data frontier, ALTER invalidates the saved row definition,
+and DROP reports an object conflict. Conditional previews distinguish the
+original existing definition from its later absence. Exact original receipts
+remain independently recoverable.
+
+The complete catalog package suite and `just test::local-catalog` pass.
+Disk-backed component assertions verify unchanged object-put counts, catalog
+roots and Table log tails, absent identity claims and current denial during
+preview. Native policy checks reject revoked Table ownership and an independently
+revoked acceptance prerequisite. Response tests reject changed identities,
+invented success against a changed frontier, altered schema fingerprints and
+inconsistent stale reasons. The first expanded package run failed because the
+new test used a change frontier equal to its saved frontier; the corrected
+fixture uses a strictly later change and the complete rerun passes.
+
+Reflected host/native schemas, independent full-width preview values,
+diagnostic mappings/inventory and documentation links pass. The initial contract
+regeneration caught a shadowed local variable; it is corrected. These additive
+preview operations leave stored formats and the current definition unchanged.
+The focused caller task does not itself inject faults or replace nodes. The
+complete `just test::direct-table-service` regression also passes **1213 typed
+HTTP calls**, including lost replies, retained history, current revocation and
+three restarts. Final integrated/clean-checkout gates remain separate.
+
 ## Typed direct caller preparation — 2026-10-24
 
 `just test::direct-table-service` passes **1184 typed HTTP calls** in the pinned

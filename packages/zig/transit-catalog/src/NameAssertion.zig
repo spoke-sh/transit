@@ -51,6 +51,12 @@ pub const Outcome = struct {
     }
 };
 pub const Observation = union(enum) { not_observed, outcome: Outcome };
+pub const Preview = struct {
+    binding: Binding,
+    position: d.Position,
+    current: ?d.Definition,
+    matches: bool,
+};
 
 test "catalog name assertions distinguish absent names from exact existing definitions" {
     const t = std.testing;

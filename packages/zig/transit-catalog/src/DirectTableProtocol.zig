@@ -259,6 +259,9 @@ pub const Action = union(enum) {
     read_authority: d.Object,
     name_assertion: struct { binding: c.NameAssertion.Binding, command: c.NameAssertion.Command },
     preview: Ddl,
+    name_preview: c.NameAssertion.Binding,
+    preview_rows: Rows,
+    preview_statement: Statement,
     stage: struct { namespace: u64, intent: c.DirectTableIntent.Saved },
     admit_saved: c.DirectTableIntent.Reference,
     admit_ddl: Ddl,
@@ -443,11 +446,15 @@ pub const Request = struct {
                 }
             },
             .read_authority => |value| try connection.object(value),
+            .name_preview => |binding| {
+                try binding.validate();
+                if (!std.meta.eql(binding.connection, connection)) return error.CatalogIdentityConflict;
+            },
             inline .preview, .admit_ddl => |value| {
                 try connection.binding(value.binding);
                 if (!std.mem.eql(u8, @tagName(value.binding.action), @tagName(value.action))) return error.InvalidDirectCatalogOperation;
             },
-            inline .admit_rows, .admit_statement => |value| try connection.binding(value.binding),
+            inline .preview_rows, .preview_statement, .admit_rows, .admit_statement => |value| try connection.binding(value.binding),
             .operation => |value| {
                 try connection.binding(value.binding);
                 if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
@@ -600,6 +607,8 @@ pub const Result = union(enum) {
     read_authority: c.DirectReadAuthority,
     name_assertion: c.NameAssertion.Observation,
     preview: D.Preview,
+    name_preview: c.NameAssertion.Preview,
+    row_preview: D.RowPreview,
     ddl: D.Observation,
     rows: P.OperationState,
     pin: P.SnapshotHandle,

@@ -39,6 +39,7 @@ pub const Action = union(enum) {
     load: Saved,
     prepare: c.DirectTableTyped.Request,
     forget: Id,
+    preview: Id,
     stage: Id,
     admit: Recovery,
     operation: struct { reference: Recovery, command: enum { inspect, execute, cancel }, steps: u16 },
@@ -48,6 +49,7 @@ pub const Result = union(enum) {
     compiled: Compiled,
     loaded: Summary,
     forgotten,
+    preview: h.Preview,
     staged: Recovery,
     observation: h.Observation,
 };
@@ -181,6 +183,19 @@ pub const Session = struct {
                 self.active.?.work.deinit();
                 self.active = null;
                 return .forgotten;
+            },
+            .preview => |id| {
+                const entry = try self.get(id, client.connection);
+                const response = try client.call(switch (entry.work) {
+                    .table => |*intent| switch (intent.parsed.value.work) {
+                        .ddl => |value| .{ .preview = value },
+                        .rows => |value| .{ .preview_rows = value },
+                        .statement => |value| .{ .preview_statement = value },
+                    },
+                    .name_assertion => |binding| .{ .name_preview = binding },
+                });
+                defer response.deinit();
+                return .{ .preview = try h.Preview.foreign(allocator, response.value.result) };
             },
             .stage => |id| {
                 const entry = try self.get(id, client.connection);

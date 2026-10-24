@@ -642,6 +642,15 @@ pub fn observeEvidence(self: *Self, binding: d.Binding, guard: Guard) !?Evidence
     return .{ .binding = receipt.binding, .resulting = record.root.declared(), .outcome = receipt.outcome };
 }
 
+/// Read-only expectation check under the current caller's authority fence.
+/// This neither claims an identity nor admits or evaluates row work.
+pub fn checkExpectations(self: *Self, binding: d.Binding, guard: Guard) !void {
+    try self.ready();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    try self.expectations(binding);
+}
+
 fn expectations(self: *Self, binding: d.Binding) !void {
     try binding.validate();
     if (self.root.retired) return error.TableRetired;

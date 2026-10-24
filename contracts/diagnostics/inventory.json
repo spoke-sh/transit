@@ -2971,7 +2971,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 38,
+        "CatalogDenied": 39,
         "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
         "CatalogNameHashCollision": 1,
@@ -3007,12 +3007,14 @@
         "NativeAllocationBusy": 1,
         "NullNotAllowed": 1,
         "Overflow": 1,
-        "TableDataChanged": 2,
-        "TableDefinitionChanged": 8,
-        "TableRetired": 1,
+        "TableDataChanged": 3,
+        "TableDefinitionChanged": 9,
+        "TableNotCreated": 1,
+        "TableRetired": 2,
+        "TableSchemaChanged": 1,
         "TableSnapshotReleased": 2,
         "UnrepresentableEbcdic037": 1,
-        "UnsupportedTableAction": 1
+        "UnsupportedTableAction": 2
       },
       "outcomes": {
         "CurrentRead.selection": [
@@ -3028,6 +3030,12 @@
         ],
         "Page.consistency": [
           "independent"
+        ],
+        "RowPreview.reason": [
+          "none",
+          "stale_definition",
+          "stale_data",
+          "object_conflict"
         ],
         "rowOperation().action": [
           "admit",
@@ -3046,6 +3054,8 @@
         "admitRows()": "<inferred>",
         "applyRows()": "<inferred>",
         "assertName()": "<inferred>",
+        "assertionCondition()": "<inferred>",
+        "assertionRequirements()": "<inferred>",
         "attachRegistration()": "<inferred>",
         "attachResource()": "<inferred>",
         "authorizationSchema()": "<inferred>",
@@ -3099,8 +3109,10 @@
         "pinState()": "<inferred>",
         "prepareResourceAllocation()": "<inferred>",
         "preview()": "<inferred>",
+        "previewName()": "<inferred>",
         "previewNamespace()": "<inferred>",
         "previewResource()": "<inferred>",
+        "previewRows()": "<inferred>",
         "readAccess()": "<inferred>",
         "readAuthority()": "<inferred>",
         "readCurrent()": "<inferred>",
@@ -3138,8 +3150,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 650,
-        "catch": 7
+        "try": 671,
+        "catch": 8
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -3655,6 +3667,7 @@
           "load",
           "prepare",
           "forget",
+          "preview",
           "stage",
           "admit",
           "operation"
@@ -3673,6 +3686,7 @@
           "compiled",
           "loaded",
           "forgotten",
+          "preview",
           "staged",
           "observation"
         ],
@@ -3704,7 +3718,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 44,
         "catch": 1
       },
       "imports": [
@@ -3758,7 +3772,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 117,
+        "try": 120,
         "catch": 0
       },
       "imports": [
@@ -3891,7 +3905,7 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 4,
-        "CatalogIdentityConflict": 8,
+        "CatalogIdentityConflict": 9,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
@@ -3934,6 +3948,9 @@
           "read_authority",
           "name_assertion",
           "preview",
+          "name_preview",
+          "preview_rows",
+          "preview_statement",
           "stage",
           "admit_saved",
           "admit_ddl",
@@ -4011,6 +4028,8 @@
           "read_authority",
           "name_assertion",
           "preview",
+          "name_preview",
+          "row_preview",
           "ddl",
           "rows",
           "pin",
@@ -4058,7 +4077,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 121,
+        "try": 122,
         "catch": 2
       },
       "imports": [
@@ -4110,7 +4129,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 92
+        "InvalidTableResponse": 99
       },
       "outcomes": {},
       "error_sets": {},
@@ -4128,7 +4147,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 136,
+        "try": 144,
         "catch": 7
       },
       "imports": [
@@ -4172,7 +4191,7 @@
     "packages/zig/transit-catalog/src/DirectTableValues.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidTableResponse": 2
+        "InvalidTableResponse": 3
       },
       "outcomes": {
         "AssertionState": [
@@ -4187,6 +4206,11 @@
           "committed"
         ],
         "Observation": [
+          "ddl",
+          "rows",
+          "name_assertion"
+        ],
+        "Preview": [
           "ddl",
           "rows",
           "name_assertion"
@@ -4224,6 +4248,8 @@
         "Position.native()": "<inferred>",
         "PreparedBinding.foreign()": "<inferred>",
         "PreparedBinding.native()": "<inferred>",
+        "Preview.foreign()": "<inferred>",
+        "PreviewBasis.foreign()": "<inferred>",
         "Reference.foreign()": "<inferred>",
         "Reference.native()": "<inferred>",
         "RowOperation.foreign()": "<inferred>",
@@ -4232,7 +4258,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 119,
+        "try": 133,
         "catch": 0
       },
       "imports": [
@@ -26082,6 +26108,7 @@
         "applyStatement()": "<inferred>",
         "cancel()": "<inferred>",
         "changeDefinition()": "<inferred>",
+        "checkExpectations()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "flush()": "<inferred>",
@@ -26141,7 +26168,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 406,
+        "try": 409,
         "catch": 4
       },
       "imports": [

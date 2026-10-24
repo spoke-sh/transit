@@ -13,7 +13,7 @@ from storage import free_port, wait_ready
 
 
 def run(node, caller, mode="tables"):
-    if mode not in ("tables", "dependencies", "resources"):
+    if mode not in ("tables", "dependencies", "resources", "callers"):
         raise ValueError("Unknown direct service proof mode")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-table-") as directory:
@@ -170,6 +170,11 @@ def run(node, caller, mode="tables"):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "callers":
+                subprocess.run([caller, endpoint, "callers", str(profile)], check=True, timeout=240)
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(f"Direct Table callers: {fault['requests']} typed HTTP calls, shared SQL/typed preparation, frozen session restoration, wide bulk values, preview, explicit admission and retained receipts passed.")
+                return
             if mode == "resources":
                 subprocess.run([caller, endpoint, "resource-save", str(profile)], check=True, timeout=180)
                 saved = profile.read_bytes()

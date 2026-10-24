@@ -376,7 +376,10 @@ pub fn main(init: std.process.Init) !void {
         const client: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &native, .service = &service, .connection = .{ .scope = profile.catalog.scope, .branch = 1, .audience = profile.catalog.audience, .principal = 101, .role = null }, .key = try key(29) };
         const directory = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(args[3]) orelse ".", .{});
         defer directory.close(init.io);
-        if (std.mem.eql(u8, args[2], "resource-save")) {
+        if (std.mem.eql(u8, args[2], "callers")) {
+            (try client.call(.initialize)).deinit();
+            try Conditions.callers(init.gpa, client);
+        } else if (std.mem.eql(u8, args[2], "resource-save")) {
             profile.named_resources = try NamedResources.prepare(client, &admin, profile.role);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "resource-admit")) {

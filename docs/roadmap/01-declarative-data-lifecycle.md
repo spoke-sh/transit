@@ -100,7 +100,10 @@ staging/admission/recovery, including receipt inspection after DROP and local
 forgetting. [Typed declaration/batch preparation](../../tests/README.md#typed-direct-caller-preparation--2026-10-24)
 now shares that path and passes a nine-row bulk request larger than an actor
 mailbox frame, exact prepared-definition rejection and conditional DROP.
-Preview and language/ABI adapters remain unfinished.
+[Shared preview](../../tests/README.md#shared-direct-preview--2026-10-24) now
+reports current DDL, row and conditional-name checks without staging, claims or
+acceptance, including stale data/definitions and native revocation. Language/ABI
+adapters remain unfinished.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step

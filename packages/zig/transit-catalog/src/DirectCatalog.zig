@@ -85,6 +85,12 @@ pub const Preview = struct {
     rebuild_key: bool = false,
     schema_fingerprint: ?[32]u8 = null,
 };
+pub const RowPreview = struct {
+    binding: d.Binding,
+    directory_position: d.Position,
+    current: Preview.Basis,
+    reason: enum { none, stale_definition, stale_data, object_conflict },
+};
 pub const Page = struct {
     entries: [pages.page_entries]?Listed = @splat(null),
     next: ?pages.Key = null,
@@ -951,18 +957,14 @@ pub fn namespaceRegistration(self: *Self, binding: N.Binding, policy: Policy) !?
     return .{ .action = .{ .domain = self.config().authority.schema_domain, .owner = binding.action.create.owner, .schema = a.reference(self.config().authority.database), .binding = try a.binding(self.config().scope, .schema, binding.namespace) }, .authorization_revision = fence.policy_epoch - 1 };
 }
 
-/// Accept a conditional name outcome under the directory lock, without
-/// allocating a Table object, changing its rows, or pretending it committed.
-/// Inspection and exact retries recheck the original caller's current rights.
-pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.NameAssertion.Command, policy: Policy) !c.NameAssertion.Observation {
+/// Common current rights and original identity checks for conditional names.
+fn assertionRequirements(self: *Self, allocator: std.mem.Allocator, binding: c.NameAssertion.Binding, policy: Policy) !p.Authorization.Guard {
     try self.requireInitialized();
     try binding.validate();
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
-    defer arena.deinit();
     const namespace = try self.schema(binding.namespace);
     var required = try self.requirements(policy, namespace, null, if (binding.action == .create_if_not_exists) .create_table else .schema);
-    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    try check(try policy.make_guard(policy.context, allocator, required, null));
     if (binding.expected) |expected| {
         const allocated = try self.entry(expected.object.object) orelse return error.CatalogDenied;
         if (allocated.seed == null) return error.CatalogDenied;
@@ -970,9 +972,40 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
         defer original_view.deinit();
         if (original_view.properties.namespace != binding.namespace or original_view.table.root.next_lsn == 0) return error.CatalogDenied;
         required = try required.merge(try self.requirements(policy, namespace, original_view.properties.target(allocated.object), .inspect));
-        try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+        try check(try policy.make_guard(policy.context, allocator, required, null));
     }
     if (try c.OperationBinding.lookupAssertion(self.allocator, self.store.objects, binding.identity())) |known| try binding.requireSame(known);
+    return required;
+}
+
+fn assertionCondition(self: *Self, allocator: std.mem.Allocator, binding: c.NameAssertion.Binding, required: *p.Authorization.Guard, policy: Policy) !c.NameAssertion.Preview {
+    var current = try self.resolve(self.allocator, binding.namespace, binding.name, policy);
+    defer if (current) |*view| view.deinit();
+    var result: c.NameAssertion.Preview = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = null, .matches = false };
+    if (current) |view| {
+        required.* = try required.merge(try self.requirements(policy, try self.schema(binding.namespace), view.properties.target(view.table.root.interpretation.object.object), .inspect));
+        result.current = view.table.root.interpretation;
+        result.matches = if (binding.expected) |expected| std.meta.eql(expected, result.current.?) else false;
+    } else result.matches = binding.expected == null and try self.available(binding.namespace, binding.name, 0, try policy.make_guard(policy.context, allocator, required.*, null));
+    try check(try policy.make_guard(policy.context, allocator, required.*, null));
+    return result;
+}
+
+/// Observe the current condition without claiming an operation or recording an
+/// outcome. A matching preview is not an accepted conditional declaration.
+pub fn previewName(self: *Self, binding: c.NameAssertion.Binding, policy: Policy) !c.NameAssertion.Preview {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var required = try self.assertionRequirements(arena.allocator(), binding, policy);
+    return self.assertionCondition(arena.allocator(), binding, &required, policy);
+}
+
+/// Accept a conditional name outcome under the directory lock without a Table
+/// mutation. Inspection and retries recheck the original caller's current rights.
+pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.NameAssertion.Command, policy: Policy) !c.NameAssertion.Observation {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var required = try self.assertionRequirements(arena.allocator(), binding, policy);
     if (try self.store.assertion(binding)) |outcome| {
         try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
         return .{ .outcome = outcome };
@@ -981,15 +1014,7 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
         try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
         return .not_observed;
     }
-    var matches = false;
-    if (command == .accept) {
-        var current = try self.resolve(self.allocator, binding.namespace, binding.name, policy);
-        defer if (current) |*view| view.deinit();
-        if (current) |view| {
-            required = try required.merge(try self.requirements(policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .inspect));
-            matches = if (binding.expected) |expected| std.meta.eql(expected, view.table.root.interpretation) else false;
-        } else matches = binding.expected == null and try self.available(binding.namespace, binding.name, 0, try policy.make_guard(policy.context, arena.allocator(), required, null));
-    }
+    const matches = command == .accept and (try self.assertionCondition(arena.allocator(), binding, &required, policy)).matches;
     const current_guard = try policy.make_guard(policy.context, arena.allocator(), required, null);
     try check(current_guard);
     try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, binding);
@@ -1591,6 +1616,46 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
 
 /// Row admission and outcomes belong to the Table partition. None of these
 /// operations publishes a catalog root or resolves the current name again.
+pub fn previewRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !RowPreview {
+    try self.requireInitialized();
+    try self.original(policy, request.binding);
+    try request.validate();
+    const target = try self.entry(request.binding.target.object) orelse return error.CatalogDenied;
+    var view = try self.open(self.allocator, target, false);
+    defer view.deinit();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.authorizationSchema(view.properties.namespace);
+    const access: a.Access = switch (request.binding.action) {
+        .insert => .insert,
+        .update => .update,
+        .delete => .delete,
+        else => return error.UnsupportedTableAction,
+    };
+    const required = try (try self.requirements(policy, namespace, view.properties.target(target.object), access)).merge(try self.requirements(policy, namespace, view.properties.target(target.object), .inspect));
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, request.binding.prerequisite);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.data_objects, request.binding.identity)) |known| try request.binding.requireSame(known);
+    var result: RowPreview = .{
+        .binding = request.binding,
+        .directory_position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn },
+        .current = .{ .interpretation = view.table.root.declared(), .position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, .changed_lsn = view.table.root.changed_lsn, .row_count = view.table.root.live_rows },
+        .reason = .none,
+    };
+    view.table.checkExpectations(request.binding, current) catch |err| switch (err) {
+        error.TableDefinitionChanged => result.reason = .stale_definition,
+        error.TableDataChanged => result.reason = .stale_data,
+        error.TableRetired, error.TableNotCreated => result.reason = .object_conflict,
+        else => return err,
+    };
+    if (result.reason == .none) {
+        if (!std.meta.eql(request.interpretation, result.current.interpretation)) return error.TableSchemaChanged;
+        if (try self.pending(target.object, current)) result.reason = .object_conflict;
+    }
+    try check(current);
+    return result;
+}
+
 pub fn admitRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
     try request.validate();
     return self.rowOperation(request.binding, .admit, request, policy);

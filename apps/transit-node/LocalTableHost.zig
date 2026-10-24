@@ -40,7 +40,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
-        .initialize, .admit_ddl, .check_set, .name_assertion => true,
+        .initialize, .admit_ddl, .check_set, .name_assertion, .name_preview => true,
         .namespace_operation => |value| value.command != .inspect,
         .dependency_operation => |value| value.command != .inspect,
         .resource_operation => |value| value.command != .inspect,
@@ -63,7 +63,7 @@ fn target(action: w.Action) ?u64 {
         .stage => |value| value.intent.work.binding().target.object,
         .admit_saved => |value| value.binding.target.object,
         .preview => |value| value.binding.target.object,
-        inline .admit_rows, .admit_statement => |value| value.binding.target.object,
+        inline .preview_rows, .preview_statement, .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
         inline .pin, .retain_history, .pin_status => |value| value.object.object,
         inline .scan, .read_key, .history => |value| value.snapshot.object.object,
