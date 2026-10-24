@@ -1,5 +1,28 @@
 # Validation and evidence
 
+## Work items direct storage in Compose — 2026-10-24
+
+In the pinned serving environment, `just test::work-items-placement compose`
+passes in **556.46 s**, including **210.06 s** building physical images. Native
+history and direct Table data use the node's persistent local directory. Explicit
+initialization precedes native provisioning, Table service configuration and
+public catalog setup. Replacements open that same directory.
+
+Separate data, publication, requester, delivery and gateway processes complete
+the real browser schedule across worker, node and gateway replacement. It checks
+fresh worker keys, unchanged original query recovery, full migration and
+verification, schema publication, a new query and current denial. The TLS edge,
+private ingress and egress probes pass. Ursula and MinIO serve only as isolated
+denial targets in this topology; this run establishes no tiered cold-store data
+recovery. The two finite browser queries allow 180 seconds each for complete
+verified coverage. This is a bounded fixture deadline, not a latency guarantee.
+
+The run uses the direct data migration and membership fix; it predates the
+subsequent stop-on-error worker policy qualified in the next record. The Reference
+fixture now has an explicit initialization job and separate native/Table PVC,
+but that profile has not run: this checkout lacks the owned reference
+infrastructure and matching runtime image. It remains an open execution gate.
+
 ## Work items direct-admission reply loss — 2026-10-24
 
 Direct data calls fail outside the native turn reader. The Work items worker

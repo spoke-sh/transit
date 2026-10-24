@@ -259,8 +259,10 @@ The [Work items consumer proof](../../tests/README.md#work-items-over-the-direct
 now uses an explicit direct catalog binding and durable dispatch/progress flow.
 Real native and browser schedules pass exact recovery, worker replacement,
 bounded row migration, verified activation, fresh queries and current denial.
-Installed application provisioning and physical placements remain under
-qualification. This does not make native progress and direct Table acceptance
+The [Compose placement proof](../../tests/README.md#work-items-direct-storage-in-compose--2026-10-24)
+also passes persistent native/Table recovery and the real browser schedule with
+separate workers. Installed application provisioning and Reference placement
+remain under qualification. This does not make native progress and direct Table acceptance
 atomic or retire the remaining actor-Table consumers.
 
 Interactive namespace administration, relational and remaining caller migration,

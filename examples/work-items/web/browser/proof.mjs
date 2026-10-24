@@ -126,8 +126,10 @@ try {
   await expect(page.locator("#run")).toBeEnabled();
   fault = false;
   await page.locator("#run").click();
-  await expect(page.locator("#basis")).toContainText("state schema");
+  const nextQueryStarted = Date.now();
   await expect(page.locator("#coverage")).toContainText("19 rows", { timeout: 180000 });
+  await expect(page.locator("#basis")).toContainText("state schema");
+  console.log(`New query verified in ${Date.now() - nextQueryStarted}ms`);
   assert.equal(namespaces.size, 2, "Only the explicit new Run may allocate a query");
   await page.locator("#density").selectOption("comfortable");
   for (const width of [1440, 320]) {
