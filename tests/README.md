@@ -47,6 +47,13 @@ and conditional-name recovery, retained joins and history, original-caller read
 delegation, explicit pin cleanup and three restarts. It does not acquire
 dependency registrations implicitly.
 
+The full `just check` run at committed revision `6d64dbd5c` passes, including
+the unit suites, generated contracts and independent fixtures, frontend checks,
+and handbook tests and build. This result covers the dependency registry and
+the existing application changes at that revision; subsequent named-resource
+implementation requires its own qualification. The final clean-checkout gate
+has not yet run for this implementation branch.
+
 ## Station ledger over the direct Table owner — 2026-10-24
 
 The shared current-v1 definition is
