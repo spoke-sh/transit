@@ -16,6 +16,7 @@ const Access = struct {
     deny_at: usize = std.math.maxInt(usize),
     mismatch: bool = false,
     missing_table: bool = false,
+    missing_schema: bool = false,
     const Context = struct { access: *Access, requested: p.Authorization.Guard };
     fn erased(context: *anyopaque) *Access {
         return @ptrCast(@alignCast(context));
@@ -37,9 +38,10 @@ const Access = struct {
     fn release(_: *anyopaque) void {}
     fn registered(context: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
         if (kind == .table and erased(context).missing_table) return null;
+        if (kind == .schema and id != 1 and erased(context).missing_schema) return null;
         const native: u64 = switch (kind) {
             .database => profile.database,
-            .schema => profile.initial_schema_authority,
+            .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
             .table => 100 + id,
         };
         return .{ .reference = a.reference(native), .owner = 0, .registrar = 1, .actions = a.actions(kind), .domain = profile.domain(kind), .binding = if (erased(context).mismatch) @splat(9) else try a.binding(scope, kind, id), .parent = switch (kind) {
@@ -744,4 +746,167 @@ test "conditional catalog cancellation and late denial retain bounded exact reco
     try catalog.recover();
     try t.expectEqual(@as(usize, 1), catalog.store.index.cache.len);
     try t.expectEqualDeep(closed, (try catalog.assertName(blocked, .inspect, access.policy())).outcome);
+}
+
+fn namespaceCreate(id: u64, operation: u64, name: []const u8) !c.DirectNamespace.Binding {
+    return .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .operation = operation, .namespace = id, .expected = null, .action = .{ .create = .{ .name = try .init(name), .owner = 0 } } };
+}
+fn namespaceChange(current: a.Schema, operation: u64, action: @FieldType(c.DirectNamespace.Binding, "action")) c.DirectNamespace.Binding {
+    return .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .operation = operation, .namespace = current.id, .expected = current, .action = action };
+}
+test "direct namespaces recover exact publication and reject identity reuse after rename retirement and cancellation" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{ .missing_schema = true };
+    const create = try namespaceCreate(2, 1000, "application");
+    var published: c.DirectNamespace.Operation = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const before = catalog.store.root;
+        const puts = objects.puts;
+        try t.expectEqual(.none, (try catalog.previewNamespace(create, access.policy())).reason);
+        try t.expect((try catalog.namespaceOperation(create, .inspect, access.policy())) == .not_observed);
+        try t.expectEqualDeep(before, catalog.store.root);
+        try t.expectEqual(puts, objects.puts);
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.namespaceOperation(create, .admit, access.policy()));
+        catalog.store.lose_reply = false;
+        try catalog.recover();
+        try t.expectEqual(.admitted, (try catalog.namespaceOperation(create, .inspect, access.policy())).operation.phase);
+        try t.expect(try catalog.inspectNamespace(2, access.policy()) == null);
+        const registration = (try catalog.namespaceRegistration(create, access.policy())).?;
+        try t.expectEqual(profile.schema_domain, registration.action.domain);
+        try t.expectEqualDeep(a.reference(profile.database), registration.action.schema.?);
+        try t.expectError(error.CatalogRegistrationRequired, catalog.namespaceOperation(create, .execute, access.policy()));
+        access.missing_schema = false;
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.namespaceOperation(create, .execute, access.policy()));
+        catalog.store.lose_reply = false;
+        published = (try catalog.namespaceOperation(create, .inspect, access.policy())).operation;
+        try t.expectEqual(.applied, published.phase);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    try t.expectEqualDeep(published, (try catalog.namespaceOperation(create, .execute, access.policy())).operation);
+    const rename = namespaceChange(published.resulting.?, 1001, .{ .rename = try .init("renamed") });
+    _ = try catalog.namespaceOperation(rename, .admit, access.policy());
+    const renamed = (try catalog.namespaceOperation(rename, .execute, access.policy())).operation.resulting.?;
+    try t.expectEqual(@as(u64, 2), renamed.revision);
+    try t.expectEqualDeep(published, (try catalog.namespaceOperation(create, .inspect, access.policy())).operation);
+    var changed = create;
+    changed.action.create.name = try .init("different");
+    try t.expectError(error.DataIdentityConflict, catalog.namespaceOperation(changed, .admit, access.policy()));
+    const stale = namespaceChange(published.resulting.?, 1002, .drop);
+    try t.expectEqual(.stale_definition, (try catalog.namespaceOperation(stale, .admit, access.policy())).operation.reason);
+    const drop = namespaceChange(renamed, 1003, .drop);
+    _ = try catalog.namespaceOperation(drop, .admit, access.policy());
+    const retired = (try catalog.namespaceOperation(drop, .execute, access.policy())).operation;
+    try t.expect(retired.resulting.?.retired);
+    try t.expect(try catalog.inspectNamespace(2, access.policy()) == null);
+    const recreate = try namespaceCreate(3, 1004, "renamed");
+    _ = try catalog.namespaceOperation(recreate, .admit, access.policy());
+    try t.expectEqual(.applied, (try catalog.namespaceOperation(recreate, .execute, access.policy())).operation.phase);
+    try t.expectEqualDeep(retired, (try catalog.namespaceOperation(drop, .execute, access.policy())).operation);
+    const reused = try namespaceCreate(2, 1005, "replacement");
+    try t.expectEqual(.object_conflict, (try catalog.namespaceOperation(reused, .admit, access.policy())).operation.reason);
+    const cancelled = try namespaceCreate(4, 1006, "cancelled");
+    _ = try catalog.namespaceOperation(cancelled, .admit, access.policy());
+    try t.expectEqual(.cancelled, (try catalog.namespaceOperation(cancelled, .cancel, access.policy())).operation.phase);
+    try t.expectEqual(.cancelled, (try catalog.namespaceOperation(cancelled, .admit, access.policy())).operation.phase);
+    try t.expectEqual(.object_conflict, (try catalog.namespaceOperation(try namespaceCreate(4, 1007, "other"), .admit, access.policy())).operation.reason);
+    try t.expectError(error.DataIdentityConflict, c.OperationBinding.claim(t.allocator, objects.objectStore(), (try creation(40, 1006, "conflict")).binding));
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.namespaceOperation(create, .inspect, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    try catalog.recover();
+    try t.expectEqualDeep(retired, (try catalog.namespaceOperation(drop, .inspect, access.policy())).operation);
+}
+
+test "namespace RESTRICT fences new Table DDL and preserves retained reads after logical retirement" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const initial = (try catalog.inspectNamespace(1, access.policy())).?;
+    const pending = try creation(7, 1, "events");
+    _ = try catalog.admit(pending, access.policy());
+    const first_drop = namespaceChange(initial, 1000, .drop);
+    _ = try catalog.namespaceOperation(first_drop, .admit, access.policy());
+    try t.expectEqual(.object_conflict, (try catalog.admit(try creation(8, 2, "blocked"), access.policy())).reason);
+    try t.expectEqual(.dependency, (try catalog.namespaceOperation(first_drop, .execute, access.policy())).operation.reason);
+    _ = try catalog.perform(pending.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    const interpretation = view.table.root.interpretation;
+    const position: p.DataLifecycle.Position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn };
+    const pin_owner: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 6000 };
+    const retained = try catalog.pinRowsDefined(interpretation, pin_owner, position, access.policy());
+    const live_drop = namespaceChange(initial, 1001, .drop);
+    _ = try catalog.namespaceOperation(live_drop, .admit, access.policy());
+    try t.expectEqual(.dependency, (try catalog.namespaceOperation(live_drop, .execute, access.policy())).operation.reason);
+    const drop_table = try edit(&view, 3, .drop);
+    _ = try catalog.admit(drop_table, access.policy());
+    _ = try catalog.perform(drop_table.binding, access.policy());
+    // The Table's committed DROP still has an unsettled catalog entry. That
+    // receipt is terminal evidence, not a live namespace dependency.
+    const empty_drop = namespaceChange(initial, 1002, .drop);
+    _ = try catalog.namespaceOperation(empty_drop, .admit, access.policy());
+    try t.expectEqual(.applied, (try catalog.namespaceOperation(empty_drop, .execute, access.policy())).operation.phase);
+    try catalog.recover();
+    var retained_definition = try catalog.snapshotDefinition(t.allocator, interpretation.object, retained, access.policy());
+    defer retained_definition.deinit();
+    try t.expectEqualDeep(interpretation, retained_definition.root.interpretation);
+    try t.expect((try catalog.status(drop_table.binding, access.policy())) == .committed);
+    _ = try catalog.currentReadAuthority(interpretation.object, access.policy());
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.snapshotDefinition(t.allocator, interpretation.object, retained, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    try catalog.releaseRows(interpretation.object, retained, access.policy());
+}
+
+test "namespace dependency progress is paged recoverable and independent of resident cache" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    for (10..35) |id| {
+        var name: [30]u8 = undefined;
+        const create = try creation(id, id, try std.fmt.bufPrint(&name, "table_{d}", .{id}));
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+    }
+    const create = try namespaceCreate(2, 1000, "empty");
+    _ = try catalog.namespaceOperation(create, .admit, access.policy());
+    const current = (try catalog.namespaceOperation(create, .execute, access.policy())).operation.resulting.?;
+    const drop = namespaceChange(current, 1001, .drop);
+    _ = try catalog.namespaceOperation(drop, .admit, access.policy());
+    var pages_scanned: usize = 0;
+    while (true) {
+        const result = (try catalog.namespaceOperation(drop, .execute, access.policy())).operation;
+        pages_scanned += 1;
+        try catalog.recover();
+        try t.expectEqualDeep(result, (try catalog.namespaceOperation(drop, .inspect, access.policy())).operation);
+        if (result.phase == .applied) break;
+        try t.expect(result.phase == .admitted and result.after != null);
+        try t.expect(pages_scanned < 10);
+    }
+    try t.expect(pages_scanned > 1);
 }

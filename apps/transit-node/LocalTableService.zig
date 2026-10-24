@@ -99,6 +99,12 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
         .read_authority => |object| return .{ .read_authority = try catalog.currentReadAuthority(object, policy) },
         .name_assertion => |value| return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) },
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
+        .namespace_preview => |binding| return .{ .namespace_preview = try catalog.previewNamespace(binding, policy) },
+        .namespace_operation => |value| {
+            if (value.command != .execute) return .{ .namespace_operation = try catalog.namespaceOperation(value.binding, value.command, policy) };
+            var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
+            return .{ .namespace_operation = (try runner.runNamespace(catalog, value.binding, policy, value.steps)).observation };
+        },
         .namespaces => |value| {
             var bytes: [8]u8 = undefined;
             const after = if (value.after) |id| blk: {

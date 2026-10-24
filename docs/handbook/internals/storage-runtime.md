@@ -50,6 +50,36 @@ reproduction commands. Those runs do not establish arbitrary power-loss safety,
 cloud storage placement or physical Table collection. Automatic point flushing,
 cache tiering and distributed OCC remain design work in the model below.
 
+### Namespace retirement and retained authority
+
+Namespace retirement must exclude live or admitted Table declarations without
+loading the catalog into memory. In the exclusive local-owner model,
+[`LocalTableHost`](../../../apps/transit-node/LocalTableHost.zig) serializes catalog
+mutations. Namespace admission records a durable fence against new Table DDL;
+[`DirectCatalog`](../../../packages/zig/transit-catalog/src/DirectCatalog.zig)
+then scans one object-directory page per explicit execution. Existing Table
+admissions either still block retirement or have an authoritative terminal
+Table outcome. A committed DROP with unsettled catalog bookkeeping is therefore
+distinct from an uncommitted declaration.
+
+The fence makes the saved scan cursor sound across requests and recovery: a new
+declaration cannot appear behind an already examined cursor. Each scan is
+bounded by eight object entries, although validating a Table's retained history
+has its own recovery cost. Scanning the shared object directory costs work
+proportional to total catalog objects; a namespace membership index could reduce
+that work but would add another index to maintain through Table acceptance and
+recovery. The implemented choice bounds resident directory state and preserves
+one Table acceptance authority. It does not establish distributed namespace
+locking or discover external consumers.
+
+Logical retirement retains the original native permission object. Otherwise
+retiring an empty namespace after its Tables were dropped would strand their
+still-pinned snapshots, operation receipts and result evidence. Names control
+new admissions; current native references control disclosure of retained data.
+The [namespace request contract](../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
+defines those separate lifetimes. Catalog, signed native and HTTP evidence is
+recorded in the [proof ledger](../../../tests/README.md#direct-namespace-lifecycle--2026-10-23).
+
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 
 This section is architectural design analysis anchored against the measured

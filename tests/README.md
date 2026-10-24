@@ -162,6 +162,47 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## Direct namespace lifecycle — 2026-10-23
+
+The current shared definition is
+`e8677230beea38e3f824c3413009a123a2386f7c6c7a1cfcaa7efe51e8486c78`;
+the preceding definition rejects. Namespace bindings, permanent identity
+claims, name reservations, paged DROP progress and resulting schema records
+publish through the direct catalog WAL. In the pinned Nix shell, protocol tests
+pass **51/51** and catalog tests pass **130/130** in ReleaseSafe. The added
+catalog schedules cover disk reopen, lost admission/publication replies, exact
+retry after rename/DROP/name reuse, cross-kind identity conflict, cancellation,
+current denial, pending/live Table RESTRICT, retained snapshots after namespace
+retirement and multi-page dependency progress with a one-page resident cache.
+
+`zig build test-local-catalog --summary all` passes **2/2** Debug tests. Its signed
+native namespace schedule checks real registration, database/schema ownership
+loss before execution, response withholding after accepted publication, native
+reopen, fresh caller credentials and exact original outcomes after retirement.
+This composes the real local service and native policy; it does not exercise an
+HTTP transport or concurrent browser callers.
+
+`just test::direct-table-service` passes **618** real typed HTTP calls. Its
+namespace additions compile CREATE/RENAME/DROP SQL through the direct typed
+compiler, provision actual native schema authority, create a Table in that
+namespace, reject DROP while it is live and preserve its retained snapshot after
+Table and namespace retirement. A proxy withholds usable publication evidence
+by damaging the response context; the caller recovers the exact saved namespace
+binding. Original CREATE/RENAME/DROP outcomes and the original empty Table cut
+survive OS-process restarts and namespace name replacement. The broader existing
+CRUD, history, delegation, quota and three-restart schedule also passes. This
+qualifies the typed SQL compiler and request path, not interactive console
+administrative submission or application setup migration.
+
+`just contract::check transit-board::contract`, diagnostic inventory/mappings and
+`just transit-docs::check` pass after regeneration, including nine documentation
+tests and the documentation build. These focused checks do not establish full
+repository qualification: the earlier `just check` reached unit tests and
+exposed stale mediated SDK switches and the unmigrated Work items Table source.
+That run was stopped after those failures; its remaining long-running unit
+suite and later checks are not counted as passed. The SDK switches are fixed
+in the separate evidence record below. Work items remains open.
+
 ## SDK bridge computation removal — 2026-10-23
 
 The mediated SDK bridge no longer projects the removed generic catalog

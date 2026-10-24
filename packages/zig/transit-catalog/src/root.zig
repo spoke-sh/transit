@@ -19,6 +19,7 @@ pub const DirectTablePreparedDml = @import("DirectTablePreparedDml.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
 pub const OperationBinding = @import("OperationBinding.zig");
 pub const NameAssertion = @import("NameAssertion.zig");
+pub const DirectNamespace = @import("DirectNamespace.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const SchemaCatalog = @import("SchemaCatalog.zig");
@@ -50,6 +51,7 @@ test {
     _ = DirectReadDelegation;
     _ = OperationBinding;
     _ = NameAssertion;
+    _ = DirectNamespace;
     _ = @import("direct_catalog_test.zig");
     _ = AuthorizationSql;
     _ = TableAuthority;

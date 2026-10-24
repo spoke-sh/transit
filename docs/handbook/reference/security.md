@@ -80,6 +80,15 @@ objects. CONNECT and USAGE precede each Table privilege check; role ownership
 governs ALTER and DROP. Metadata visibility follows the current object's grants
 or ownership. Names and backing-resource associations do not inherit privileges.
 
+Direct namespace CREATE requires database ownership and eligibility for its
+declared owner role; RENAME and DROP require ownership of the original native
+schema. Admission and native registration are separate from catalog publication.
+DROP removes live namespace visibility but preserves native permission references
+for retained Table reads, receipts and result evidence. Those references remain
+subject to current grants and resource lifetime. The
+[namespace lifecycle](../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
+defines bounded RESTRICT checks, cancellation and exact recovery.
+
 Typed direct Table mutations can retain an additional authorization condition
 from an application's original accepted input. The worker needs its own Table
 rights, and the original subject must still satisfy the retained condition at

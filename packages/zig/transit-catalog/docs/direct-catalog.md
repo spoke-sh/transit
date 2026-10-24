@@ -71,10 +71,26 @@ checked selection without changing a session.
 Compilation admits no Table work and publishes no policy. It allows 128 service
 or native read operations by default; `Limits.requests` changes this per-call
 budget without limiting durable namespace count. Namespace traversal retains at
-most one page and rejects a changed directory position. CREATE, RENAME and DROP
-SCHEMA are rejected by this direct compiler until its namespace owner exposes
-those lifecycle operations. The SQL console does not dispatch these
-administrative statements.
+most one page and rejects a changed directory position.
+`DirectAuthorizationSql.compileNamespace` lowers CREATE, ALTER ... RENAME and
+DROP SCHEMA to `DirectNamespace.Binding`, with an explicit operation identity
+and, for CREATE, a new namespace identity. It resolves and freezes the complete
+expected schema for changes and invokes read-only preview. Save the binding,
+then use `namespace_operation` to admit and explicitly execute it. The policy
+compiler remains separate because native grant publication and catalog namespace
+publication have different acceptance owners. The SQL console does not yet
+dispatch these administrative statements.
+
+The namespace owner reserves names at admission, provisions native schema
+authority through the existing registrar and publishes through the catalog WAL.
+DROP scans a bounded object page per execution and retains its cursor across
+recovery, while fencing new Table DDL in that namespace. Live Tables and pending
+Table declarations reject DROP; generic dependency evidence reveals no denied
+Table metadata. Cancelling retains the namespace identity claim and any native
+registration already completed. Logical retirement preserves the native
+permission references used by retained Table reads and receipts. See the
+[namespace contract](../../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
+for exact phases, authority and recovery semantics.
 
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.

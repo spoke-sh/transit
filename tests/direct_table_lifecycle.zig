@@ -8,7 +8,8 @@ const w = c.DirectTableProtocol;
 const f = c.fuze;
 const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
-pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, staged: c.DirectTableIntent.Reference, prepared: c.DirectTableBinding, codecs: CodecState };
+pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, staged: c.DirectTableIntent.Reference, prepared: c.DirectTableBinding, codecs: CodecState, namespaces: NamespaceState };
+const NamespaceState = struct { created: c.DirectNamespace.Operation, renamed: c.DirectNamespace.Operation, dropped: c.DirectNamespace.Operation, retained: w.Snapshot };
 const CodecState = struct { snapshots: [2]w.Snapshot, rejected: d.Binding };
 pub const OwnedState = struct {
     arena: std.heap.ArenaAllocator,
@@ -266,12 +267,72 @@ fn administration(client: c.DirectTableClient) !void {
     try t.expectEqualDeep(before.value.result.lookup.?.position, after.value.result.lookup.?.position);
 }
 
+fn namespaceApply(client: c.DirectTableClient, binding_value: c.DirectNamespace.Binding) !c.DirectNamespace.Operation {
+    (try client.call(.{ .namespace_operation = .{ .binding = binding_value, .command = .admit, .steps = 1 } })).deinit();
+    for (0..128) |_| {
+        const response = try client.call(.{ .namespace_operation = .{ .binding = binding_value, .command = .execute, .steps = 32 } });
+        defer response.deinit();
+        const operation = response.value.result.namespace_operation.operation;
+        if (operation.phase != .admitted) return operation;
+    }
+    return error.UnfinishedNamespaceOperation;
+}
+fn namespaces(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64) !NamespaceState {
+    const compiled = try c.DirectAuthorizationSql.compileNamespace(client, 1, "CREATE SCHEMA lifecycle_app", .{ .operation = 65000, .schema = 31 }, .{}, null);
+    const unseen = try client.call(.{ .namespace_operation = .{ .binding = compiled, .command = .inspect, .steps = 1 } });
+    defer unseen.deinit();
+    try t.expect(unseen.value.result.namespace_operation == .not_observed);
+    (try client.call(.{ .namespace_operation = .{ .binding = compiled, .command = .admit, .steps = 1 } })).deinit();
+    try t.expectError(error.InvalidTableResponse, client.call(.{ .namespace_operation = .{ .binding = compiled, .command = .execute, .steps = 32 } }));
+    const recovered = try client.call(.{ .namespace_operation = .{ .binding = compiled, .command = .inspect, .steps = 1 } });
+    defer recovered.deinit();
+    const created = recovered.value.result.namespace_operation.operation;
+    try t.expectEqual(.applied, created.phase);
+    const schema: f.TableSchema.Schema = .{ .object = 6000, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    var buffer: [f.TableSchema.max_bytes]u8 = undefined;
+    const created_table = try ddl(allocator, client, .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 65001 }, .target = .{ .scope = client.connection.scope, .branch = 1, .object = 6000 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) }, .namespace = 31, .name = "records", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(allocator, try schema.encode(&buffer)) } } });
+    const definition = try client.call(.{ .lookup = .{ .namespace = 31, .name = "records" } });
+    defer definition.deinit();
+    const retained = try pin(client, 65002, definition.value.result.lookup.?);
+    const blocked = try namespaceApply(client, try c.DirectAuthorizationSql.compileNamespace(client, 1, "DROP SCHEMA lifecycle_app", .{ .operation = 65003 }, .{}, null));
+    try t.expectEqual(.dependency, blocked.reason);
+    const renamed = try namespaceApply(client, try c.DirectAuthorizationSql.compileNamespace(client, 1, "ALTER SCHEMA lifecycle_app RENAME TO renamed_app", .{ .operation = 65004 }, .{}, null));
+    try t.expectEqual(.applied, renamed.phase);
+    // Renaming a namespace preserves the Table's stable namespace/native parent.
+    const after_rename = try client.call(.{ .lookup = .{ .namespace = 31, .name = "records" } });
+    defer after_rename.deinit();
+    try t.expectEqualDeep(created_table.resulting, after_rename.value.result.lookup.?.interpretation);
+    _ = try ddl(allocator, client, .{ .binding = binding(client, 65005, .drop, after_rename.value.result.lookup.?), .namespace = 31, .name = "records", .action = .drop });
+    const dropped = try namespaceApply(client, try c.DirectAuthorizationSql.compileNamespace(client, 1, "DROP SCHEMA renamed_app", .{ .operation = 65006 }, .{}, null));
+    try t.expectEqual(.applied, dropped.phase);
+    const replacement = try namespaceApply(client, try c.DirectAuthorizationSql.compileNamespace(client, 1, "CREATE SCHEMA renamed_app", .{ .operation = 65007, .schema = 32 }, .{}, null));
+    try t.expectEqual(@as(u64, 32), replacement.resulting.?.id);
+    return .{ .created = created, .renamed = renamed, .dropped = dropped, .retained = retained };
+}
+fn verifyNamespaces(allocator: std.mem.Allocator, client: c.DirectTableClient, state: NamespaceState, release: bool) !void {
+    for ([_]c.DirectNamespace.Operation{ state.created, state.renamed, state.dropped }) |operation| {
+        const response = try client.call(.{ .namespace_operation = .{ .binding = operation.binding, .command = .inspect, .steps = 1 } });
+        defer response.deinit();
+        try t.expectEqualDeep(operation, response.value.result.namespace_operation.operation);
+    }
+    const retired = try client.call(.{ .namespace = 31 });
+    defer retired.deinit();
+    try t.expect(retired.value.result.namespace == null);
+    var reader = try c.DirectTableReader.open(allocator, client, state.retained);
+    defer reader.deinit();
+    var page = (try reader.next(client, .{})).?;
+    defer page.deinit();
+    try t.expect(page.complete and page.count == 0);
+    if (release) try reader.release(client);
+}
+
 pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, client: c.DirectTableClient, role: u64, delegation: @import("direct_table_delegation.zig").State) !OwnedState {
     try administration(client);
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const alloc = arena.allocator();
     const codecs = try physicalColumns(alloc, client, role);
+    const namespace_state = try namespaces(alloc, client, role);
     const initial = try lookup(client, "events");
     defer initial.deinit();
     const prepared = try c.DirectTableBinding.init(client.connection, initial.value.result.lookup.?);
@@ -330,12 +391,13 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     create_binding.expected_data = null;
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
     const predicates = try predicateWork(alloc, client);
-    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .staged = predicates.staged, .prepared = prepared, .codecs = codecs };
+    const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .staged = predicates.staged, .prepared = prepared, .codecs = codecs, .namespaces = namespace_state };
     try verify(allocator, client, state, false);
     return .{ .arena = arena, .value = state };
 }
 pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: State, release: bool) !void {
     try verifyPhysical(allocator, client, state.codecs, release);
+    try verifyNamespaces(allocator, client, state.namespaces, release);
     // Current observation cannot masquerade as a retained read after DROP and
     // name reuse. The original durable snapshots below remain independently valid.
     try t.expectError(error.Conflict, client.call(.{ .observe = .{ .namespace = 1, .interpretation = state.renamed.resulting.interpretation, .rows = null } }));

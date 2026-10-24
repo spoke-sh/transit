@@ -53,7 +53,7 @@ def run(node, caller):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "assertion_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "execute": None, "requests": 0, "commands": []}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -73,6 +73,14 @@ def run(node, caller):
                     data = response.read()
                     if self.path == "/table/v1":
                         fault["requests"] += 1
+                        namespace = envelope["action"].get("namespace_operation")
+                        if namespace and namespace["binding"]["operation"] == 65000 and namespace["command"] == "execute" and not fault["namespace_changed"]:
+                            assert response.status == 200, data
+                            parsed = json.loads(data)
+                            assert parsed["result"]["namespace_operation"]["operation"]["phase"] == "applied"
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
+                            fault["namespace_changed"] = True
                         assertion = envelope["action"].get("name_assertion")
                         if assertion and assertion["binding"]["operation"] == 501 and assertion["command"] == "accept" and not fault["assertion_changed"]:
                             assert response.status == 200, data
@@ -147,7 +155,7 @@ def run(node, caller):
             authority = None
             authority = start()
             subprocess.run([caller, endpoint, "lifecycle", str(profile)], check=True, timeout=180)
-            assert fault["delegated_release"] and fault["history_release"]
+            assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             stop(authority)
             authority = None
             authority = start()
@@ -160,7 +168,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, retained logical history with accepted no-ops and original schemas through DROP/recreation, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL namespace lifecycle with lost-reply recovery and retained reads after namespace retirement, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, retained logical history with accepted no-ops and original schemas through DROP/recreation, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

@@ -41,6 +41,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .initialize, .admit_ddl, .check_set, .name_assertion => true,
+        .namespace_operation => |value| value.command != .inspect,
         .admit_saved => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => true,
             .insert, .update, .delete => false,

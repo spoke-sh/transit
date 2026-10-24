@@ -16,6 +16,22 @@ const Resolver = struct {
     default_namespace: u64,
     remaining: u32,
 
+    fn init(client: c.DirectTableClient, namespace_id: u64, limits: Limits) !Resolver {
+        try client.connection.validate();
+        try c.Model.nativeId(namespace_id);
+        if (limits.requests == 0) return error.QueryPageBudget;
+        const description = try client.call(.describe);
+        defer description.deinit();
+        return .{
+            .client = client,
+            .authority = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key },
+            .description = .{ .configuration = description.value.result.description, .subject = description.value.subject },
+            .policy_revision = description.value.policy_revision,
+            .default_namespace = namespace_id,
+            .remaining = limits.requests - 1,
+        };
+    }
+
     fn consume(self: *Resolver) !void {
         if (self.remaining == 0) return error.QueryPageBudget;
         self.remaining -= 1;
@@ -104,19 +120,41 @@ pub fn compile(client: c.DirectTableClient, namespace_id: u64, text: []const u8,
         .create_schema, .rename_schema, .drop_schema => return error.UnsupportedDirectSchemaAdministration,
         else => {},
     }
-    const description = try client.call(.describe);
-    defer description.deinit();
-    var resolver: Resolver = .{
-        .client = client,
-        .authority = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key },
-        .description = .{ .configuration = description.value.result.description, .subject = description.value.subject },
-        .policy_revision = description.value.policy_revision,
-        .default_namespace = namespace_id,
-        .remaining = limits.requests - 1,
-    };
+    var resolver = try Resolver.init(client, namespace_id, limits);
     const action = try c.AuthorizationSql.lower(parsed.statement, &resolver, .{});
     _ = try resolver.read(.identity);
     const plan: c.AuthorizationSql.Plan = .{ .definition = p.Growth.current_definition, .scope = client.connection.scope, .principal = resolver.description.subject.principal, .role = resolver.description.subject.role, .expected_revision = resolver.policy_revision, .action = action };
     try plan.validate();
     return plan;
+}
+
+/// Lower namespace SQL to the direct owner, with the complete original schema
+/// revision and stable operation identity. The returned binding is inert: save
+/// it before admission, then explicitly inspect/execute that same binding.
+/// This helper does not turn a native authorization plan into a namespace write.
+pub fn compileNamespace(client: c.DirectTableClient, namespace_id: u64, text: []const u8, identity: c.AuthorizationSql.Identity, limits: Limits, location: ?*c.fuze.Sql.Location) !c.DirectNamespace.Binding {
+    var parsed = try syntax.compile(client.allocator, text, location);
+    defer parsed.deinit();
+    switch (parsed.statement) {
+        .create_schema, .rename_schema, .drop_schema => {},
+        else => return error.UnsupportedDirectSchemaAdministration,
+    }
+    var resolver = try Resolver.init(client, namespace_id, limits);
+    const lowered = (try c.AuthorizationSql.lower(parsed.statement, &resolver, identity)).schema;
+    const expected = if (lowered.action == .create) null else value: {
+        const response = try resolver.call(.{ .namespace = lowered.schema });
+        defer response.deinit();
+        const found = response.value.result.namespace orelse return error.CatalogSchemaMissing;
+        if (found.revision != lowered.expected_revision) return error.CatalogDirectoryChanged;
+        break :value found;
+    };
+    const binding: c.DirectNamespace.Binding = .{ .definition = p.Growth.current_definition, .connection = client.connection, .operation = identity.operation, .namespace = lowered.schema, .expected = expected, .action = switch (lowered.action) {
+        .create => |value| .{ .create = .{ .name = value.name, .owner = value.owner } },
+        .rename => |value| .{ .rename = value },
+        .drop => .drop,
+    } };
+    try binding.validate();
+    const preview = try resolver.call(.{ .namespace_preview = binding });
+    defer preview.deinit();
+    return binding;
 }
