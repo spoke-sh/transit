@@ -1,5 +1,14 @@
 # Validation and evidence
 
+## Work items result position display — 2026-10-24
+
+The repository `just check` completed its unit, CLI and console-history checks,
+then rejected Work items' stale `cut.revision` access during strict TypeScript
+checking. The renderer now uses the shared `sourcePositionText` formatter for
+direct Table partition and accepted-position evidence. Its focused `vp check`
+and `vp exec tsc --noEmit` pass. The earlier full run is not a pass and began
+before the SQL namespace changes; it does not qualify that cutover.
+
 ## Installed Work items physical exhaustion — 2026-10-24
 
 In the pinned Nix shell, `just test::server-application-capacity` passes in

@@ -11,6 +11,7 @@ import {
   DraftSession,
   httpTransport,
   unifiedCellText,
+  sourcePositionText,
   verifiedPage,
   QueryError,
   diagnosticLines,
@@ -99,7 +100,7 @@ function show(page: ResultPage, selected: string, cursor: string | null = null) 
   element("next").hidden = page.evidence.next === null;
   const manifest = page.evidence.manifest;
   element("basis").textContent =
-    `Query ${selected} · resource ${manifest.basis.cut.resource} · revision ${manifest.basis.cut.revision} · ${columns[1]!.name} schema`;
+    `Query ${selected} · resource ${manifest.basis.cut.resource} · ${sourcePositionText(manifest)} · ${columns[1]!.name} schema`;
   element("coverage").textContent =
     `Complete ordered coverage verified: ${manifest.rows} rows. Showing page ${BigInt(page.evidence.ordinal) + 1n}; ${page.evidence.rows} visible rows.`;
 }
