@@ -1,5 +1,42 @@
 # Validation and evidence
 
+## Console completion and editing — 2026-10-24
+
+The [qualification record](verification/results/console-completion-2026-10-24.json)
+retains commands, log hashes and real-service observations for the accepted
+[interaction](../docs/design/transit-cli/D3.md). In the pinned Nix shells,
+`just check`, `just test::unit` and `just test::console-history` pass.
+The final implementation revision is `3b03aad7`; the subsequent test-only change
+adds clipped-menu paging and complete-empty-result checks, which also pass.
+
+Native units cover cursor-local statement boundaries (including a dot command's
+newline), raw-spelling ranking, quoted qualified names, complete/limited candidate
+coverage and bounded undo eviction. The real terminal executable's PTYs exercise
+Tab/Shift-Tab, acceptance without submission, clear/dismiss, general undo aliases,
+isolated history-search undo, duplicate/whitespace/case-insensitive search,
+vertical movement, literal bracketed paste, split escape sequences and resize.
+Controlled metadata peers prove responsive editing during delayed acquisition,
+the one-second request deadline, cancellation of late replies, current-basis
+acceptance, revocation cleanup, partial-single-result menus and empty results.
+Esc queued during statement execution does not clear a later pasted draft.
+These peers establish client behavior, not authoritative metadata acquisition.
+
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway
+-Doptimize=ReleaseSafe -- sessions-basic` passes against the actual native service,
+including suffix/alias/second-statement/DML scope, settings routing and quoted
+text status. A real console PTY over TLS accepts catalog and settings completion
+within the editor's one-second request budget. Five direct assistance samples
+take 201.600–268.233 ms locally; these are individual observations, not a latency
+guarantee. The session profile also passes independent authentication, concurrent
+sessions, revocation and restart recovery.
+
+The broader `just test::sql-sessions` attempt fails later at its concurrent
+SELECT assertion with `AuthorityUnavailable` / native `HttpCapacity`, after the
+new direct assistance assertions pass. That attempt does not establish full
+source-worker/session qualification. Neither PTYs nor the basic session profile
+establish the user's desktop Ctrl-Space delivery or an SSH/multiplexer path.
+Clean-checkout qualification is reported separately from these workspace runs.
+
 ## Console multiline editing — 2026-10-23
 
 `just test::console-history` passes in the pinned Nix shell. The real PTY

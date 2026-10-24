@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "implementation_revision": "3b03aad79b2350c11b48f051842872cf0dd08e64",
+  "additional_test_revision": "20d71cfa6190ee72c31dd1be459283e632d46683",
+  "toolchain": {
+    "zig": "0.17.0-dev.2267+48abf1a34",
+    "flake_lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+    "contract_definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+  },
+  "runs": [
+    {
+      "command": "just check",
+      "outcome": "passed",
+      "local_log": "/tmp/transit-console-review-check.log",
+      "log_sha256": "cb12c4a5c0152b2a43c2eef520f322ea97aba6bafc539556b34c625974f1d55b",
+      "scope": "Implementation review run; the later raw-spelling ranking change is covered by the subsequent unit run."
+    },
+    {
+      "command": "just test::unit && just test::console-history",
+      "outcome": "passed",
+      "local_log": "/tmp/transit-console-final-focused.log",
+      "log_sha256": "3ebfe69ee6c09faeb8fd0f0aa4b86704b5d10d414ac73237f65e037097cafa2f",
+      "scope": "Final implementation, including qualified raw-spelling ranking."
+    },
+    {
+      "command": "just test::console-history",
+      "outcome": "passed",
+      "local_log": "/tmp/transit-menu-qualification.log",
+      "log_sha256": "c49b67d730a33c6c9fd848dddc67f3bd602b4f6f37fc8d4ea708e1c60969ebdc",
+      "scope": "Adds clipped selected-item paging and complete-empty-result checks; committed as 20d71cfa."
+    },
+    {
+      "command": "nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-basic",
+      "outcome": "passed",
+      "local_log": "/tmp/transit-console-native-ui.log",
+      "log_sha256": "d37354d7e21ffd56df7f0055782fbdf6bc8d4646236286e113313d531111eabd",
+      "scope": "Committed implementation 3b03aad7; real console PTY completion over TLS included."
+    },
+    {
+      "command": "just test::sql-sessions",
+      "outcome": "failed",
+      "local_log": "/tmp/transit-console-native.log",
+      "log_sha256": "87542d9cea00c8587461b2b7b0f34504078f73f1e22dbfd6552c7784ca93c43c",
+      "scope": "New direct assistance checks passed; later concurrent SELECT returned AuthorityUnavailable with native HttpCapacity. Full source-worker/session qualification is not established."
+    }
+  ],
+  "observations": [
+    {
+      "profile": "native_sql_assistance",
+      "samples": [
+        {
+          "profile": "catalog_v1",
+          "milliseconds": 268.233
+        },
+        {
+          "profile": "catalog_v1",
+          "milliseconds": 245.377
+        },
+        {
+          "profile": "catalog_v1",
+          "milliseconds": 254.201
+        },
+        {
+          "profile": "catalog_v1",
+          "milliseconds": 259.388
+        },
+        {
+          "profile": "configuration_v1",
+          "milliseconds": 201.6
+        }
+      ]
+    },
+    {
+      "profile": "native_sql_readiness_recovery",
+      "unavailable_seconds": 3,
+      "login_seconds": 3.215,
+      "preserved_fence": true
+    },
+    {
+      "profile": "native_sql_session_measurement",
+      "revision": "3b03aad79b2350c11b48f051842872cf0dd08e64",
+      "tracked_changes": false,
+      "system": "Linux",
+      "machine": "x86_64",
+      "samples": [
+        {
+          "milliseconds": 1252.707,
+          "request_bytes": 418,
+          "response_bytes": 823,
+          "reused_tls": false,
+          "path": "new_tls",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 233,
+          "native_response_bytes": 254065
+        },
+        {
+          "milliseconds": 1231.4,
+          "request_bytes": 418,
+          "response_bytes": 824,
+          "reused_tls": true,
+          "path": "reused_tls",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 230,
+          "native_response_bytes": 244941
+        },
+        {
+          "milliseconds": 1297.606,
+          "request_bytes": 418,
+          "response_bytes": 829,
+          "reused_tls": false,
+          "path": "new_tls",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 234,
+          "native_response_bytes": 255131
+        },
+        {
+          "milliseconds": 1191.513,
+          "request_bytes": 418,
+          "response_bytes": 825,
+          "reused_tls": true,
+          "path": "reused_tls",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 224,
+          "native_response_bytes": 237816
+        },
+        {
+          "milliseconds": 1331.613,
+          "request_bytes": 418,
+          "response_bytes": 818,
+          "reused_tls": false,
+          "path": "new_tls",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 234,
+          "native_response_bytes": 254410
+        },
+        {
+          "milliseconds": 1251.846,
+          "request_bytes": 418,
+          "response_bytes": 817,
+          "reused_tls": true,
+          "path": "reused_tls",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 229,
+          "native_response_bytes": 244155
+        }
+      ],
+      "concurrent": [
+        {
+          "milliseconds": 1252.277,
+          "request_bytes": 418,
+          "response_bytes": 825,
+          "reused_tls": true,
+          "path": "two_sessions",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 367,
+          "native_response_bytes": 348209
+        },
+        {
+          "milliseconds": 1479.014,
+          "request_bytes": 413,
+          "response_bytes": 824,
+          "reused_tls": false,
+          "path": "two_sessions",
+          "rows": 1,
+          "complete": true,
+          "sql_requests": 1,
+          "native_requests": 415,
+          "native_response_bytes": 400998
+        }
+      ],
+      "concurrent_ms": 1523.178,
+      "service_memory": {
+        "VmHWM_kib": 118800,
+        "VmRSS_kib": 118800
+      },
+      "limits": "Three local samples per TLS path, no warmup or isolated load. First-batch SQL response includes authorization and snapshot acquisition; close is excluded from individual latency. Native counters include background recovery, and concurrent windows overlap. Bytes are HTTP bodies, not framing/TLS. RSS/HWM are one process observation, not aggregate deployment memory. No speedup or SLO claim."
+    },
+    {
+      "profile": "native_sql_sessions",
+      "remote_tls": true,
+      "independent_scram": true,
+      "concurrent_sessions": true,
+      "wide_logical_values": true,
+      "token_recovery_after_restart": true
+    }
+  ],
+  "limits": [
+    "Workspace runs reuse compiler and dependency caches; they do not establish clean-checkout completion.",
+    "Five local direct metadata samples and a passing PTY request deadline are not a latency SLO.",
+    "Manual desktop Ctrl-Space delivery and SSH/multiplexer paths were not observed.",
+    "Logs are local evidence identified by SHA-256; raw logs are not embedded in this record."
+  ]
+}
