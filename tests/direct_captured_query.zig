@@ -366,6 +366,9 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     try t.expect(page.basis.cut.position == .table);
     try t.expectEqualSlices(u8, &try recorded.fingerprint(), &page.basis.cut.position.table);
     try t.expectEqualDeep(page.basis, try opened.table_basis.?.record());
+    try t.expectEqualDeep(try q.TablePosition.captured(opened.table_basis.?), page.table_position.?);
+    try t.expectEqual(recorded.accepted.partition, page.table_position.?.partition.value);
+    try t.expectEqual(recorded.accepted.next_lsn, page.table_position.?.accepted.value);
     try t.expectEqual(@as(u64, 19), page.manifest.checkpoint.cursor.table_scanned);
     try t.expectEqual(@as(u64, 3), page.manifest.checkpoint.progress.pages);
     var executor = client;
@@ -407,7 +410,14 @@ fn cleanupAfterRotation(init: std.process.Init, client: c.DirectTableClient, adm
     var source = try q.TableSource.from(init.gpa, client.connection, definition);
     defer source.deinit();
     const description = try q.Bundle.fromSql(alloc, .{ .resource = client.connection.scope.resource, .source = .{ .table = source.source } }, "captured_renamed", "SELECT * FROM captured_renamed", budgets);
-    const bundle = try query_client.authorizeCapture(description, .{ .executor = 103, .operation = 614, .expected = definition.position });
+    const bundle = try query_client.authorizeCapture(description, .{ .executor = 103, .operation = 614, .expected = definition.position, .selection = .current });
+    // Selection is caller-authorized before the physical frontier changes.
+    // The later native acquisition must retain its actual frontier, not report
+    // the signed lower bound as though it were captured evidence.
+    const intervening = try client.call(.{ .pin = .{ .object = definition.interpretation.interpretation.object, .owner = .{ .scope = client.connection.scope, .principal = 101, .operation = 690 }, .expected = definition.position } });
+    defer intervening.deinit();
+    const closed_intervening = try client.call(.{ .release = .{ .object = definition.interpretation.interpretation.object, .handle = intervening.value.result.pin } });
+    defer closed_intervening.deinit();
     const reference = try bundle.reference(saved.connection.requests, 2);
     var pending: r.Job = undefined;
     for (0..10000) |_| {
@@ -431,6 +441,7 @@ fn cleanupAfterRotation(init: std.process.Init, client: c.DirectTableClient, adm
     } else return error.QueryCapturePending;
     var reader = try sourceReader(client, saved);
     const retained = try q.CapturedTablePin.source(alloc, &reader, .{ .job = pending.id, .source = 0 }, saved.connection.source);
+    try t.expect(retained.accepted.next_lsn > bundle.retention.?.binding.expected.next_lsn);
     _ = try query_client.submit(try query_client.prepare(.{ .cancel = 2 }));
     for (0..1000) |_| {
         try hosts.step(init.io, admin);

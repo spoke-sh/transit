@@ -16,12 +16,18 @@ source traversal and verified result publication.
    pin-owner claim. Commit these with the admitted job's acquisition eligibility.
    A second job cannot reuse that pin owner. Preparation performs no remote work.
 3. `acquire` reads only committed eligibility before calling the direct owner.
-   It retains the original signed grant, exact frontier and pin owner. It also
+   It retains the original signed grant, selection and pin owner. `exact`
+   selection requires the signed frontier; `current` selection permits the first
+   acquisition to freeze the current root at or above the signed frontier in
+   the same partition, under the exact interpretation. Both selections recover
+   that same root after a lost reply; neither can reopen a released pin. It also
    obtains the data owner's exact native database/schema/Table authority
    references. Its handle and authority
-   become a native metadata mutation; publish that handle with the job's source
+   become a native metadata mutation together with the actual accepted frontier;
+   publish that evidence with the job's source
    evidence before starting traversal. A lost reply or failed native commit is
-   recovered by repeating this exact acquisition.
+   recovered by repeating this exact acquisition. A signed lower bound is not
+   reported as a captured source position.
    Before publishing each subsequent native progress/result commit,
    `authorizeExecution` checks those references under the bundle's independently
    bound execution subject. The subject must retain the original caller, role

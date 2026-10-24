@@ -30,7 +30,7 @@ fn refresh(self: Self) root.Refresh {
     return .{ .principal = self.configuration.query_principal, .source = self.configuration.source };
 }
 fn reader(self: Self, turn: *Turn) root.RefreshReader {
-    return .{ .resources = self.resources, .ingress = turn.delivery.pid, .resource = turn.view.resource, .scratch = self.scratch };
+    return .{ .resources = self.resources, .ingress = turn.delivery.pid, .resource = turn.view.resource, .source = self.configuration.source, .scratch = self.scratch };
 }
 fn initialize(raw: ?*anyopaque, turn: *Turn) !void {
     const self: *Self = @ptrCast(@alignCast(raw.?));

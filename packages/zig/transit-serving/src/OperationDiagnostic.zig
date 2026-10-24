@@ -56,8 +56,8 @@ test "all serving phases preserve their exact outcome without authorizing a fres
         _ = try detail.encode(&buffer);
         const maximum = p.max_counter;
         const event: root.ReactiveWire.ServerMessage = .{ .event = .{
-            .cursor = .{ .position = .{ .scope = .{ .realm = maximum, .principal = maximum, .service = maximum, .ingress = maximum, .session = maximum, .generation = maximum, .subscription = maximum, .subscription_generation = maximum }, .watch_revision = maximum, .resource = maximum, .schema = @splat(255), .data_revision = maximum, .outcome_position = record.resolution_input }, .signature = @splat(255) },
-            .event = .{ .source_changed = true, .resource = maximum, .data_revision = maximum, .outcome = .{ .resource = maximum, .operation = maximum, .phase = phase, .resolution_input = record.resolution_input, .diagnostic = detail } },
+            .cursor = .{ .position = .{ .scope = .{ .realm = maximum, .principal = maximum, .service = maximum, .ingress = maximum, .session = maximum, .generation = maximum, .subscription = maximum, .subscription_generation = maximum }, .watch_revision = maximum, .resource = maximum, .schema = @splat(255), .data_revision = .{ .value = std.math.maxInt(u64) }, .outcome_position = record.resolution_input }, .signature = @splat(255) },
+            .event = .{ .source_changed = true, .resource = maximum, .data_revision = .{ .value = std.math.maxInt(u64) }, .outcome = .{ .resource = maximum, .operation = maximum, .phase = phase, .resolution_input = record.resolution_input, .diagnostic = detail } },
         } };
         var writer: std.Io.Writer = .fixed(&buffer);
         try std.json.Stringify.value(event, .{}, &writer);

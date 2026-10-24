@@ -26,7 +26,9 @@ function attachedSession() {
 const snapshot: Snapshot<string> = {
   value: "protected",
   basis: {
-    cut: { kind: "table", resource: 9, revision: 10, head: Array(32).fill(0) },
+    resource: 9,
+    partition: "1",
+    accepted: "10",
     contract: Array(32).fill(0),
     schema: Array(32).fill(0),
   },
@@ -144,7 +146,7 @@ test("a new query template cannot publish the previous paused candidate", async 
   };
   session.inspect = async () =>
     ({
-      observation: { data_revision: 10, basis: snapshot.basis, schema: { columns: [] } },
+      observation: { data_revision: "10", basis: snapshot.basis, schema: { columns: [] } },
     }) as never;
   session.refresh = async () => 1;
   const first = deferred<void>();
@@ -293,7 +295,7 @@ test("failed refresh pauses with the exact snapshot and makes no replacement que
   };
   session.inspect = async () =>
     ({
-      observation: { data_revision: 11, basis: snapshot.basis, schema: { columns: [] } },
+      observation: { data_revision: "11", basis: snapshot.basis, schema: { columns: [] } },
     }) as never;
   const selection = { session: { session: 5, generation: 6 }, generation: 7 };
   let controls = 0;
@@ -312,11 +314,19 @@ test("failed refresh pauses with the exact snapshot and makes no replacement que
       failure: { stopped: { reason: "resource_unavailable", input: 12 } },
     }) as never;
   let reads = 0;
-  const view = new LiveView(session, async (_signal, namespace) => {
-    ++reads;
-    expect(namespace).toBe("1");
-    return { ...snapshot, namespace };
-  });
+  const view = new LiveView(
+    session,
+    async (_signal, namespace) => {
+      ++reads;
+      expect(namespace).toBe("1");
+      return { ...snapshot, namespace };
+    },
+    async (_key, template, limit) => {
+      expect(template).toBe("1");
+      expect(limit).toBe(8);
+      return Array.from({ length: 8 }, (_, i) => String(i + 2));
+    },
+  );
   const failed = deferred<void>();
   view.subscribe(() => {
     if (view.getSnapshot().phase === "paused" && view.getSnapshot().refresh?.phase === "failed")
@@ -367,17 +377,17 @@ test("operation failure detail survives ordinary snapshot updates without stoppi
   };
   session.inspect = async () =>
     ({
-      observation: { data_revision: 10, basis: snapshot.basis, schema: { columns: [] } },
+      observation: { data_revision: "10", basis: snapshot.basis, schema: { columns: [] } },
     }) as never;
   const previous = session.follow;
   session.follow = async (consume, signal) => {
     consume({
       event: {
-        cursor: { position: { data_revision: 10 } } as never,
+        cursor: { position: { data_revision: "10" } } as never,
         event: {
           source_changed: true,
           resource: 9,
-          data_revision: 10,
+          data_revision: "10",
           outcome: {
             resource: 11,
             operation: 12,
@@ -418,7 +428,7 @@ test.each(["terminal", "http"])(
       session.scope = null;
     };
     session.inspect = async () =>
-      ({ observation: { data_revision: 10, basis: snapshot.basis } }) as never;
+      ({ observation: { data_revision: "10", basis: snapshot.basis } }) as never;
     const diagnostic = {
       ...structuredClone(diagnosticFixture),
       code: "serving.resource_unavailable",

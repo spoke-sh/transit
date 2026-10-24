@@ -9,6 +9,7 @@ const Self = @This();
 resources: root.station.client.ResourceReader,
 ingress: u64,
 resource: u64,
+source: u64,
 scratch: []u8,
 diagnostic: ?*root.ServingFailure.Context = null,
 pub fn withDiagnostic(self: Self, context: ?*root.ServingFailure.Context) Self {
@@ -51,29 +52,21 @@ fn authority(self: Self, principal: u64, proof: root.RefreshModel.Proof) !q.cata
 }
 pub fn authorize(self: Self, turn: *root.station.Turn, principal: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !void {
     const context = try self.authority(principal, proof);
-    const source_resource = (try self.resources.query(.{ .resource = source.resource })).body.resource;
     const request_resource = (try self.resources.query(.{ .resource = self.resource })).body.resource;
-    try self.checkResource(.source, source.target, source_resource);
     try self.checkResource(.requester, self.ingress, request_resource);
-    var raw: root.station.client.ResourceReader.Reader = .{ .client = self.resources, .view = .{ .resource = source.resource, .revision = source_resource.revision } };
-    var reader = context.wrap(&raw);
-    _ = root.TableWatch.authorize(&reader, principal, source) catch |err| {
+    var reader = try root.TableWatch.Reader.init(self.resources, context.subject, source);
+    const required = root.TableWatch.authorize(&reader, principal, source) catch |err| {
         self.rememberRead(.source, principal, source.resource, 0, err);
         return err;
     };
     // The same original subject and complete Table requirements also fence the
     // native turn publication; a successful earlier read is never a lease.
-    _ = try turn.requireAuthorization(reader.observed orelse return error.ServingDenied);
+    _ = try turn.requireAuthorization(try required.guard(context.subject));
 }
 pub fn observe(self: Self, principal: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !root.TableWatch.Observation {
-    var failure: ?root.station.client.ResourceReader.Failure = null;
-    var raw = self.resources.withFailure(&failure).open(source.resource) catch |err| {
-        self.rememberResourceRead(.source, 0, failure, err);
-        return err;
-    };
-    var reader = (try self.authority(principal, proof)).wrap(&raw);
+    var reader = try root.TableWatch.Reader.init(self.resources, (try self.authority(principal, proof)).subject, source);
     const result_value = root.TableWatch.observeDiagnostic(self.resources.wire.http.allocator, &reader, principal, source, self.diagnostic) catch |err| {
-        if (err == error.CatalogDenied) self.rememberRead(.source, principal, source.resource, 0, err) else self.rememberResourceRead(.source, 0, failure, err);
+        self.rememberRead(.source, principal, source.resource, 0, err);
         return err;
     };
     try reader.finish();
@@ -84,7 +77,47 @@ fn requireTemplate(self: Self, namespace: u64, phase: ?q.UnifiedRequest.Phase, m
     f.remember(self.diagnostic, .{ .reader_template = .{ .namespace = namespace, .present = phase != null, .phase = phase orelse .uploading, .manifest = phase != null and manifest } });
     return error.InvalidRefreshTemplate;
 }
-pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !q.Basis {
+/// Follow authorizes only the finite requests already prepared by this caller.
+/// Each has the original template's exact source, plan, limits and route, and a
+/// separate current-capture grant. No executor signs or renews caller authority.
+pub fn templates(self: Self, turn: *root.station.Turn, input: root.RefreshModel.Follow, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !void {
+    try root.RefreshModel.validateCaptures(input.captures, input.limit, input.template);
+    const context = try self.authority(proof.principal, proof);
+    const accepted = try context.client.authenticate(context.subject);
+    const original = (try q.UnifiedUpload.status(turn, input.template.value)) orelse return error.InvalidRefreshTemplate;
+    try self.requireTemplate(input.template.value, original.phase, original.manifest != null);
+    var fixed = std.heap.FixedBufferAllocator.init(self.scratch);
+    var buffer: [q.Bundle.max_bytes]u8 = undefined;
+    const template = try q.Bundle.decode(fixed.allocator(), try original.reference.read(self.resources, &buffer));
+    if (template.source.source != .table) return error.InvalidRefreshTemplate;
+    const purpose = try template.retentionPurpose(self.source, original.manifest.?.resource, self.ingress, self.resource);
+    const original_grant = template.retention orelse return error.InvalidRefreshTemplate;
+    const original_owner = original_grant.binding.owner;
+    const executor = original_grant.binding.executor;
+    var operations: [root.RefreshModel.max_starts]u64 = undefined;
+    for (input.captures[0..input.limit], 0..) |namespace, i| {
+        fixed.reset();
+        const pending = (try q.UnifiedUpload.status(turn, namespace.value)) orelse return error.InvalidRefreshTemplate;
+        if (pending.phase != .prepared or pending.correlation != 0) return error.InvalidRefreshTemplate;
+        const bundle = try q.Bundle.decode(fixed.allocator(), try pending.reference.read(self.resources, &buffer));
+        if (bundle.source.source != .table or !std.meta.eql(source, try root.ReactiveModel.Source.from(source.revision, bundle.source.source.table)) or
+            !std.mem.eql(u8, &purpose, &try bundle.retentionPurpose(self.source, original.manifest.?.resource, self.ingress, self.resource))) return error.InvalidRefreshTemplate;
+        const grant = bundle.retention orelse return error.InvalidRefreshTemplate;
+        if (grant.binding.selection != .current or grant.binding.retention != .snapshot or grant.binding.executor != executor or
+            !std.mem.eql(u8, &grant.binding.purpose, &purpose) or std.meta.eql(grant.binding.owner, original_owner)) return error.InvalidRefreshTemplate;
+        for (operations[0..i]) |operation| if (grant.binding.owner.operation == operation) return error.InvalidRefreshTemplate;
+        operations[i] = grant.binding.owner.operation;
+        const subject = (try bundle.subject(self.source, self.ingress, self.resource)) orelse return error.InvalidRefreshTemplate;
+        const caller = try context.client.authenticate(subject);
+        if (caller.principal != accepted.principal or caller.role != accepted.role or caller.credential_epoch != accepted.credential_epoch) return error.ServingDenied;
+        _ = try context.client.authenticate(.{ .signed = grant.proof });
+    }
+    // Recheck the accepted Follow subject after all prepared bytes have been
+    // buffered and verified. The enclosing native decision retains its guard.
+    try self.authorize(turn, proof.principal, source, proof);
+}
+pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !q.TablePosition {
+    try source.validate();
     if (turn.view.resource != self.resource) {
         f.remember(self.diagnostic, .{ .target = .{ .kind = .resource, .expected = self.resource, .actual = turn.view.resource } });
         return error.ServingDenied;
@@ -98,16 +131,20 @@ pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root
     const status = found.?;
     var fixed = std.heap.FixedBufferAllocator.init(self.scratch);
     var failure: ?root.station.client.ResourceReader.Failure = null;
-    const opened = q.UnifiedResult.open(status.manifest.?, .{ .resource = source.resource, .source = source.target, .requester = self.ingress, .correlation = status.correlation, .request = status.reference, .disclosure = .{ .accepted = proof } }, self.resources.withFailure(&failure), fixed.allocator()) catch |err| {
+    const opened = q.UnifiedResult.open(status.manifest.?, .{ .resource = status.manifest.?.resource, .source = self.source, .requester = self.ingress, .correlation = status.correlation, .request = status.reference, .disclosure = .{ .accepted = proof } }, self.resources.withFailure(&failure), fixed.allocator()) catch |err| {
         self.rememberResourceRead(.result, namespace, failure, err);
         return err;
     };
-    return try opened.manifest.checkpoint.basis(opened.bundle.source);
+    const basis = opened.table_basis orelse {
+        f.remember(self.diagnostic, .{ .source_kind = .{ .expected = .table, .actual = std.meta.activeTag(opened.bundle.source.source) } });
+        return error.InvalidRefreshTemplate;
+    };
+    return q.TablePosition.captured(basis);
 }
 
 test "refresh authority retains native admission and rejects a foreign principal or ingress" {
     const t = std.testing;
-    const reader: Self = .{ .resources = .{ .wire = undefined, .realm = 1, .principal = 90, .key = undefined }, .ingress = 7, .resource = 9, .scratch = &.{} };
+    const reader: Self = .{ .resources = .{ .wire = undefined, .realm = 1, .principal = 90, .key = undefined }, .ingress = 7, .resource = 9, .source = 8, .scratch = &.{} };
     const original: root.RefreshModel.Proof = .{ .pid = 7, .input = 19, .principal = 3 };
     try t.expectEqualDeep(p.Authorization.Subject{ .accepted = original }, (try reader.authority(3, original)).subject);
     try t.expectError(error.ServingDenied, reader.authority(4, original));
@@ -122,7 +159,7 @@ test "refresh authority retains native admission and rejects a foreign principal
 test "refresh reader retains writer, lifecycle and original read cause separately" {
     const t = std.testing;
     var context: f.Context = .{};
-    const reader: Self = .{ .resources = undefined, .ingress = 7, .resource = 9, .scratch = &.{}, .diagnostic = &context };
+    const reader: Self = .{ .resources = undefined, .ingress = 7, .resource = 9, .source = 8, .scratch = &.{}, .diagnostic = &context };
     var resource: p.Growth.Resource = .{ .id = 12, .writer = 8, .owner = null, .revision = 1, .deadline_ms = null };
     try t.expectError(error.ResourceUnavailable, reader.checkResource(.source, 7, resource));
     try t.expectEqual(.source, context.witness.reader_resource.role);
@@ -159,7 +196,7 @@ test "refresh reader retains writer, lifecycle and original read cause separatel
 test "refresh templates distinguish absence and every unfinished phase from a verified complete result" {
     const t = std.testing;
     var context: f.Context = .{};
-    const reader: Self = .{ .resources = undefined, .ingress = 7, .resource = 9, .scratch = &.{}, .diagnostic = &context };
+    const reader: Self = .{ .resources = undefined, .ingress = 7, .resource = 9, .source = 8, .scratch = &.{}, .diagnostic = &context };
     const namespace = std.math.maxInt(u64);
     try t.expectError(error.InvalidRefreshTemplate, reader.requireTemplate(namespace, null, false));
     try t.expect(!context.witness.reader_template.present);
@@ -180,7 +217,7 @@ test "refresh templates distinguish absence and every unfinished phase from a ve
 test "refresh result failure retains the actual nested resource and does not borrow stale rejection" {
     const t = std.testing;
     var context: f.Context = .{};
-    const reader: Self = .{ .resources = .{ .wire = undefined, .realm = 1, .principal = 3, .key = undefined }, .ingress = 7, .resource = 9, .scratch = &.{}, .diagnostic = &context };
+    const reader: Self = .{ .resources = .{ .wire = undefined, .realm = 1, .principal = 3, .key = undefined }, .ingress = 7, .resource = 9, .source = 8, .scratch = &.{}, .diagnostic = &context };
     reader.rememberResourceRead(.result, 99, .{ .rejected = .{ .resource = 15, .cause = .StateResourceExpired } }, error.ResourceUnavailable);
     try t.expectEqual(error.StateResourceExpired, context.cause.?);
     try t.expectEqual(@as(u64, 15), context.witness.reader_failure.resource);

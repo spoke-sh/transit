@@ -1177,7 +1177,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/direct_table_client.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") } },
     }) });
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_service.addFileArg(b.path("tests/direct_table_service.py"));

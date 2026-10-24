@@ -15,7 +15,14 @@ const source = {
       scope: { realm: 1, resource: 4, catalog: "1" },
       owner: 3,
       object: "1",
-      metadata: { id: "1", spec: { format: 0x54434d01, length: 200, digest: Array(32).fill(1) } },
+      branch: "1",
+      namespace: 1,
+      interpretation: {
+        revision: "1",
+        bytes: "200",
+        digest: Array(32).fill(1),
+        schema: Array(32).fill(2),
+      },
       row_type: {
         structure: [
           { name: "id", type: { int64: {} }, nullable: false, optional: false },
@@ -50,13 +57,20 @@ const page: ResultPage = {
     next: null,
     manifest: {
       job: 1,
-      source: { pid: 3, input: 9, index: 0 },
+      source: { table: { worker: 3 } },
       requester: 5,
       correlation: "10",
       policy_revision: "1",
       request: "00",
       basis: {
-        cut: { resource: 4, revision: 7, kind: "table", head: Array(32).fill(1) },
+        cut: { resource: 4, kind: "table", position: { table: Array(32).fill(1) } },
+        contract,
+        schema: compiled.schema,
+      },
+      table_position: {
+        resource: 4,
+        partition: "1",
+        accepted: "7",
         contract,
         schema: compiled.schema,
       },

@@ -95,15 +95,15 @@ the SSE field object; its `data` string contains the shared `ServerMessage`.
 Independent description validation explicitly checks that encoded JSON content.
 
 `ReactiveClient` supplies shared frozen caller preparation, committed-control
-observation and scoped read signing for M21 hosts. `ReactiveAdapter.inspect`
+observation and scoped read signing for private hosts. `ReactiveAdapter.inspect`
 projects only the existing Table watch metadata; it never reads application rows.
 The [private client contract](../../../contracts/REACTIVE_CLIENT_V1.md) describes
 credential scope, source evidence and generated browser validation. This consumer
 foundation alone does not qualify complete live query replacement or UI fairness.
 
-M21's opt-in `LiveService` composes the ingress with the v1 finite requester.
+The opt-in `LiveService` composes the ingress with the v1 finite requester.
 The [refresh guide](docs/refresh.md) owns its bounded round-robin scheduler,
-eight-intent limit per follow generation, current scoped proofs and plan copying.
+eight-intent limit per follow generation, current scoped proofs and prepared-query activation.
 Accepted work survives view closure; only new scheduling depends on a live lease.
 
 

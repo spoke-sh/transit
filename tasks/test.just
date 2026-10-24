@@ -30,6 +30,10 @@ direct-table-service:
 direct-captured-query:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe
 
+# Prepared direct Table refresh, native selection, node restart and fresh output.
+direct-follow-query:
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --follow-only
+
 # Primitive bytes/index proof; native authority and SQL integration are separate.
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe

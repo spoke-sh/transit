@@ -17,7 +17,27 @@ pub const Request = struct {
     sql: []const u8,
     parameters: ?[]const v.Scalar = null,
 };
-pub const Result = struct { bundle: []const u8, source: v.Source, plan: v.Plan, limits: v.Limits, contract: [32]u8, schema: [32]u8 };
+pub const Result = struct {
+    bundle: []const u8,
+    source: v.Source,
+    plan: v.Plan,
+    limits: v.Limits,
+    contract: [32]u8,
+    schema: [32]u8,
+    pub fn fromBundle(allocator: std.mem.Allocator, bundle: q.Bundle) !Result {
+        var bytes: [q.Bundle.max_bytes]u8 = undefined;
+        const encoded = try bundle.encode(&bytes);
+        var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
+        return .{
+            .bundle = try a.hex(allocator, encoded),
+            .source = try v.Source.fromNative(allocator, bundle.source),
+            .plan = try v.Plan.fromNative(allocator, bundle.plan),
+            .limits = try v.Limits.fromNative(allocator, bundle.limits),
+            .contract = try bundle.source.fingerprint(),
+            .schema = try (try bundle.source.schema(&columns)).fingerprint(),
+        };
+    }
+};
 
 /// All returned slices belong to the result allocator. Temporary source paths,
 /// values, templates and native plans are released before returning, including
@@ -68,18 +88,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: R
 
     const after = try client.describe(definition);
     if (!after.limits.permits(limits)) return error.QueryBudgetExceeded;
-    const bundle = description;
-    var bytes: [q.Bundle.max_bytes]u8 = undefined;
-    const encoded = try bundle.encode(&bytes);
-    var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
-    return .{
-        .bundle = try a.hex(allocator, encoded),
-        .source = try v.Source.fromNative(allocator, bundle.source),
-        .plan = try v.Plan.fromNative(allocator, bundle.plan),
-        .limits = try v.Limits.fromNative(allocator, bundle.limits),
-        .contract = try definition.fingerprint(),
-        .schema = try (try definition.schema(&columns)).fingerprint(),
-    };
+    return Result.fromBundle(allocator, description);
 }
 
 /// A wrong expected descriptor must not turn a valid number into quoted text.

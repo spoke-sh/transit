@@ -1,3 +1,4 @@
+import { sourcePositionText } from "@transit/query-client";
 import { logicalTypeText } from "@transit/query-client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -781,8 +782,8 @@ export function UnifiedWorkspace({
               <h3>Verified complete result · page {BigInt(page.evidence.ordinal) + 1n}</h3>
               <p>
                 Source {page.evidence.manifest.basis.cut.kind} · resource{" "}
-                {page.evidence.manifest.basis.cut.resource} · revision{" "}
-                {page.evidence.manifest.basis.cut.revision} · {page.evidence.manifest.rows} total
+                {page.evidence.manifest.basis.cut.resource} ·{" "}
+                {sourcePositionText(page.evidence.manifest)} · {page.evidence.manifest.rows} total
                 rows.
               </p>
               <p>

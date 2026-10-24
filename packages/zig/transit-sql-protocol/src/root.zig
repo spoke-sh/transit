@@ -95,7 +95,7 @@ pub const Operation = struct {
 };
 pub const Description = struct { statement: Id, schema: []const u8, parameters: []const []const u8, mutation: bool };
 pub const Basis = union(enum) {
-    source: struct { kind: fuze.Unified.SourceKind, resource: u64, revision: u64, head: [32]u8, contract: [32]u8, schema: [32]u8 },
+    source: struct { kind: fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
     table: struct { object: @import("transit_protocol").DataLifecycle.Object, interpretation: @import("transit_protocol").DataLifecycle.Definition, accepted: @import("transit_protocol").DataLifecycle.Position, changed_lsn: u64, pin: @import("transit_protocol").DataLifecycle.Content, commitment: [32]u8, schema: [32]u8 },
     independent_table_snapshots: []const fuze.Relational.Cut,
 };

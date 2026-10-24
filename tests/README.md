@@ -185,6 +185,56 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Prepared finite refresh and direct watch transitions — 2026-10-23
+
+In the pinned Nix shell, `zig build test -Doptimize=ReleaseSafe` in
+`packages/zig/transit-serving` passes all 51 tests. Direct catalog fixtures cover
+authorized read-only observations, logical change watermarks, exact retained-cut
+coverage and current interpretation rejection. Scheduler tests use real native
+upload/preparation records and direct observations, with execution/results and
+authority injected at the reader boundary. They cover fair selection, restart of
+requester state, independent manual admission, pause/closure, cancellation,
+retained failures and explicit admission of an already selected prepared request.
+These fixtures do not verify complete query execution or native authentication.
+
+`vp test run` in `packages/ts/transit-query-client` passes all 52 tests; `vp check`
+and `vp exec tsc --noEmit` pass. Sixteen refresh-caller cases cover bounded distinct
+identities, exact-token retry after a lost submission reply, pending acceptance,
+caller-scope changes, rejection and refusal to relabel an activated request as
+prepared. Export/restore cases recover lost and accepted-pending inputs without
+new grants, recheck saved readiness, reject a changed connection and bound malformed
+recovery input before any dispatch. `vp test run src/live-view.test.ts` in `apps/transit-board-web` passes
+all 16 tests. These browser state fixtures do not replace the native Follow or
+installed browser proof. Full repository and clean committed-HEAD checks remain
+outstanding for this change.
+
+Under current definition
+`02553baa7d791340e9ea3339002537bf15495c26bd2f2bd2e2fde5950589e53f`,
+`just contract::check` passes; the query and catalog package suites pass 142 and
+126 tests. `just test::diagnostic-outcomes` passes 3,410 projections after adding
+prepared status and direct-source failure mappings. `just check` reaches the unit
+suite but cannot pass while the named relational and work-item example fixtures
+still construct the removed actor Table query source. These require migration;
+the successful focused suites do not certify those callers.
+
+The direct Follow composition passes:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --follow-only
+```
+
+The equivalent task is `just test::direct-follow-query`. This real disk-backed
+native node uses separate Table, query-worker and requester resources, with a
+separate read-only inspection credential. It executes and verifies a completed
+template, prepares two independently signed current captures without remote pins,
+accepts Follow and a row update, then restarts the node after committed selection
+and before activation. Worker replacement resumes the same selected namespace;
+the verified sum changes from 10 to 20, the accepted Table position advances and
+acknowledgment covers the observed change. Pause leaves the second request prepared.
+Every control's exact signed duplicate returns its original receipt. This schedule
+does not yet inject lost pin/release replies into Follow, revoke the original
+caller during selection, rotate credentials, or exercise installed browser reload.
+
 ## Retained Table evidence and current disclosure rights — 2026-10-23
 
 The combined public run passes under definition

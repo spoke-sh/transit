@@ -20,6 +20,7 @@ pub const ReferenceTableQuery = @import("TableQuery.zig").Query(false);
 pub const ComputePool = @import("ComputePool.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const TableSource = @import("TableSource.zig");
+pub const TablePosition = @import("TablePosition.zig");
 pub const CapturedTablePin = @import("CapturedTablePin.zig");
 pub const RelationalRevision = @import("RelationalRevision.zig");
 pub const RelationalResult = @import("RelationalResult.zig");

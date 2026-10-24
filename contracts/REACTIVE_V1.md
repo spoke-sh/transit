@@ -27,8 +27,10 @@ with one subscription per session. These are active-work bounds. Closed session
 history grows through public point reads without a resident total-cardinality
 array. Reconnecting or switching transports does not multiply the durable quota.
 
-A published watch binding declares the target PID, realm/resource/catalog scope,
-stable Table object, and immutable metadata revision/length/digest. Publication is conditional and revisions
+A published watch binding declares the direct Table service audience,
+realm/resource/catalog/branch/namespace scope, stable Table object, and exact
+interpretation revision/digest. The audience is independent of the service
+binding’s effect or query worker. Publication is conditional and revisions
 are immutable. It grants no read rights. The gateway's inspect scope covers both ingress and source, with separate explicit
 resource grants. Its
 current source metadata, caller policy and accepted watch declaration must all
@@ -95,29 +97,31 @@ finite interval. Denial, expiry, reset and transport interruption differ.
 
 ## Table observation and progress
 
-The watermark is the **native entry revision** of the general Table head.
-Catalog resolution verifies its immutable metadata/schema commitment at the
-same resource cut. A head reservation, cancellation or no-op completion may
-advance the watermark without changing rows; it signals possible change.
-Query capture, result/status bookkeeping and unrelated Tables do not write
-this head. Neither the Table's logical revision nor another resource's native
-revision is a substitute for this watermark.
+The watermark is the direct Table partition's accepted logical-change position
+(`changed_lsn`). The observation also carries its partition and full accepted
+frontier, exact declaration contract and logical schema fingerprint. Admission,
+pin acquisition/closure and physical bookkeeping may advance the accepted
+frontier without advancing this logical watermark. Accepted no-op DML does not
+invalidate unchanged rows. Other Table partitions and native process/resource
+revisions are independent positions.
 
-The snapshot operation checks catalog configuration/owner, current caller
-database/schema/Table privileges, live object, exact metadata, schema, head and the first
-bounded row page at one resource revision. Conflicts retry the entire acquisition
-or return interruption/reset. Readers see only the published row/index root,
-including while a successor is staged. The later publication advances the head
-again; an earlier reservation notification cannot hide that publication.
-Dropping or altering the metadata requires explicit source publication and a new
-snapshot. Retained declarations never follow renamed or recreated objects.
+The snapshot operation uses `/table/v1` `observe` to read the exact interpretation
+and the first bounded row page from one published root. It creates no pin and
+carries no continuation. While a mutation is admitted, readers see its previous
+published rows; one committed Table acceptance publishes the new rows and logical
+watermark together. Exact interpretation changes, retirement or name reuse require
+an explicit new snapshot. The adapter checks the original caller's current
+CONNECT/USAGE/SELECT rights before the observation and after copying its response.
+The configured reader's privileges cannot supply missing viewer rights.
 
-A finite query's captured basis covers a watermark only for the identical source
-resource, declaration contract and schema, with
-`basis.cut.revision >= data_revision`. Its cut includes the exact Table head
-commitment. A result cursor/source pin is not a watch cursor. Finite query capture
-releases its source pin; watching requires current authorized reads. Merely
-reading an empty page does not advance the watermark.
+A verified finite result exposes a `table_position` independently of its retained
+cut commitment. It covers an observed watermark only for the same resource,
+partition, declaration contract and logical schema, when
+`table_position.accepted >= data_revision`. The result reader derives this position
+from verified retained source evidence. A standalone position or successful
+comparison proves neither query completion nor permission. Pin closure does not
+remove the result's recorded source evidence or extend source retention. Watching
+continues to require current authorized reads.
 
 The snapshot transport admits exactly two INT64 columns, the first a non-null
 single-column primary key and the second nullable or non-null. This is a
@@ -126,15 +130,27 @@ and storage type profiles. Incompatible shapes reject before row disclosure.
 Both column names retain their complete bounded UTF-8 bytes. Row keys/values
 encode as lossless decimal strings, with at most eight rows and a `more` flag.
 Use finite query result pages for larger snapshots and other logical schemas.
-Native identities remain safe JSON integers; catalog/object/metadata revision
-identities use unsigned decimal strings.
+Native identities remain safe JSON integers. Catalog/object/interpretation
+revisions and partition/data positions use canonical unsigned decimal strings,
+including the full u64 range.
 
-The Source binary fields are, in order: watch revision, target PID, resource,
-realm, catalog, object and metadata revision (seven little-endian u64s), metadata
-length (u32), digest (32 bytes), and publication (one byte). Its payload is 93
-bytes. The current metadata format is fixed by the shared v1 definition. It has
-no alternate legacy decoding path; the coordinated definition cutover rejects
-incompatible saved/native work.
+The Source binary fields are, in order: watch revision, Table audience, resource,
+realm and catalog (five little-endian u64s), branch (one byte, currently 1),
+namespace, object and interpretation revision (three little-endian u64s),
+interpretation digest (32 bytes) and publication (one byte). Its payload is
+98 bytes. The shared current-v1 definition rejects incompatible saved/native
+work; there is no alternate decoder. Cursor signatures additionally bind the
+shared 32-byte definition between their domain and encoded position.
+
+Finite Follow contains a session identity, expected generation, completed template
+namespace, eight prepared capture namespaces and a one-byte limit. The complete
+`SV1` Follow command is 103 bytes. Only the first `limit` captures may be nonzero;
+they must be distinct and cannot equal the template. The owner stores this bounded
+capture vector separately from the 255-byte view. Each selected request already
+contains an independently signed current-capture grant. Selection, activation,
+source admission and result completion have separate committed transitions.
+Neither observation nor preparation acquires a pin. A selected capture freezes
+one actual Table frontier and recovers it under the same operation identity.
 
 The first delivery classes are coalesced source invalidations and notifications
 of recoverable operation outcomes. An invalidation covers every relevant mutation
@@ -152,7 +168,7 @@ a read grant. Attachments may change while the same authorized subscription
 continues. Forged, foreign, future and incompatible cursors reject; lost coverage
 or changed schema/publication produces explicit reset-required.
 
-The Table head remains durable, including its retirement evidence. The first invalidation
+The accepted Table root and retirement evidence remain durable. The first invalidation
 profile coalesces directly from an authenticated older watermark to current
 progress; it does not scan an unbounded log or claim intermediate event retention.
 A restored gateway reconstructs session and source meaning through public reads.

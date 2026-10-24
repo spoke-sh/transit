@@ -45,10 +45,10 @@ export function LiveTable() {
       {view.snapshot && (
         <dl>
           <dt>Resource</dt>
-          <dd>{view.snapshot.basis.cut.resource}</dd>
-          <dt>Observed resource revision</dt>
-          <dd>{view.snapshot.basis.cut.revision}</dd>
-          <dt>Data progress revision</dt>
+          <dd>{view.snapshot.basis.resource}</dd>
+          <dt>Accepted Table position</dt>
+          <dd>{view.snapshot.basis.accepted}</dd>
+          <dt>Logical change position</dt>
           <dd>{view.snapshot.value.data_revision}</dd>
           <dt>Schema fingerprint</dt>
           <dd>

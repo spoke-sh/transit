@@ -135,7 +135,7 @@ def uploads():
     commands = [("initialize", b'UQI1'), ("begin", b'UQB1'+reference),
         ("part", b'UQP1'+namespace+struct.pack('<IB', 15, 1)+bytes(range(128)))]
     commands += [(label, tag+namespace) for label, tag in [
-        ('seal', b'UQS1'), ('submit', b'UQX1'), ('cancel', b'UQK1'),
+        ('seal', b'UQS1'), ('prepare', b'UQT1'), ('activate', b'UQA1'), ('submit', b'UQX1'), ('cancel', b'UQK1'),
         ('collect', b'UQG1'), ('retire', b'UQR1')]]
     commands.append(('retry_cleanup', b'UQL1'+namespace+b'\0'))
     status = b'UQU1' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0\0'

@@ -29,6 +29,7 @@ pub const Slot = struct {
 pub const Phase = enum(u8) { acquiring = 1, closing = 2, closed = 3 };
 pub const Retained = struct {
     handle: Handle,
+    accepted: p.DataLifecycle.Position,
     authority: c.DirectReadAuthority,
     declaration_bytes: u64,
     schema: [32]u8,
@@ -38,13 +39,14 @@ pub const Retained = struct {
         const result: c.DirectTableReader.Basis = .{
             .snapshot = try record.snapshot(self.handle),
             .interpretation = .{ .interpretation = record.grant.binding.interpretation, .content = .{ .bytes = self.declaration_bytes, .sha256 = record.grant.binding.interpretation.digest }, .schema_fingerprint = self.schema, .retired = false },
-            .accepted = record.grant.binding.expected,
+            .accepted = self.accepted,
             .changed_lsn = self.changed_lsn,
             .row_count = self.rows,
             .authority = self.authority,
         };
         try result.interpretation.validate();
         try result.authority.validate();
+        try record.grant.requireSource(result.interpretation.interpretation, result.accepted);
         if (result.changed_lsn > result.accepted.next_lsn) return error.InvalidQueryRecord;
         return result;
     }
@@ -173,7 +175,7 @@ fn evidence(turn: *Turn, record: Record) !?Retained {
 }
 fn readEvidence(reader: anytype, record: Record) !?Retained {
     const value = (try reader.read(record.slot.key(2))) orelse return null;
-    if (value.len != 156 or !std.mem.eql(u8, value.data[0..4], "QTH1")) return error.InvalidQueryRecord;
+    if (value.len != 172 or !std.mem.eql(u8, value.data[0..4], "QTH1")) return error.InvalidQueryRecord;
     if (!std.mem.eql(u8, value.data[4..36], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     const result: Retained = .{
         .handle = .{ .owner = record.grant.binding.owner, .content = .{ .bytes = std.mem.readInt(u64, value.data[36..44], .little), .sha256 = value.data[44..76].* } },
@@ -182,6 +184,7 @@ fn readEvidence(reader: anytype, record: Record) !?Retained {
         .schema = value.data[108..140].*,
         .changed_lsn = std.mem.readInt(u64, value.data[140..148], .little),
         .rows = std.mem.readInt(u64, value.data[148..156], .little),
+        .accepted = .{ .partition = std.mem.readInt(u64, value.data[156..164], .little), .next_lsn = std.mem.readInt(u64, value.data[164..172], .little) },
     };
     _ = try result.basis(record);
     return result;
@@ -202,7 +205,7 @@ pub fn observe(allocator: std.mem.Allocator, reader: anytype, slot: Slot, worker
 }
 fn saveHandle(turn: *Turn, record: Record, value: Retained) !void {
     _ = try value.basis(record);
-    var bytes: [156]u8 = undefined;
+    var bytes: [172]u8 = undefined;
     bytes[0..4].* = "QTH1".*;
     bytes[4..36].* = p.Growth.definition_bytes;
     std.mem.writeInt(u64, bytes[36..44], value.handle.content.bytes, .little);
@@ -214,6 +217,8 @@ fn saveHandle(turn: *Turn, record: Record, value: Retained) !void {
     bytes[108..140].* = value.schema;
     std.mem.writeInt(u64, bytes[140..148], value.changed_lsn, .little);
     std.mem.writeInt(u64, bytes[148..156], value.rows, .little);
+    std.mem.writeInt(u64, bytes[156..164], value.accepted.partition, .little);
+    std.mem.writeInt(u64, bytes[164..172], value.accepted.next_lsn, .little);
     const encoded = try p.Value.init(&bytes);
     if (try turn.read(record.slot.key(2))) |existing| {
         if (!existing.eql(encoded)) return error.SourceChanged;
@@ -266,13 +271,13 @@ const Remote = struct {
     }
     fn pin(self: Remote, grant: Grant) !Retained {
         const client = try self.delegated(grant);
-        const acquisition: c.DirectTableProtocol.Acquisition = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected };
+        const acquisition: c.DirectTableProtocol.Acquisition = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected, .selection = grant.binding.selection };
         const response = client.call(if (grant.binding.retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition }) catch |err| return readFailure(client, err);
         defer response.deinit();
         const found = client.call(.{ .snapshot = .{ .object = grant.binding.interpretation.object, .handle = response.value.result.pin } }) catch |err| return readFailure(client, err);
         defer found.deinit();
         const value = found.value.result.snapshot;
-        return .{ .handle = response.value.result.pin, .authority = value.authority, .declaration_bytes = value.interpretation.content.bytes, .schema = value.interpretation.schema_fingerprint, .changed_lsn = value.changed_lsn, .rows = value.row_count };
+        return .{ .handle = response.value.result.pin, .accepted = value.accepted, .authority = value.authority, .declaration_bytes = value.interpretation.content.bytes, .schema = value.interpretation.schema_fingerprint, .changed_lsn = value.changed_lsn, .rows = value.row_count };
     }
     fn close(self: Remote, grant: Grant, known: ?Handle) !void {
         const client = try self.delegated(grant);
@@ -407,7 +412,7 @@ test "captured Table pins require committed admission and closure across lost re
                 if (self.released) return error.TableSnapshotReleased;
                 if (self.retained == null) self.retained = .{ .owner = grant.binding.owner, .content = .{ .bytes = 80, .sha256 = @splat(3) } };
                 if (self.lose_reply) return error.ReadFailed;
-                return .{ .handle = self.retained.?, .authority = .{ .database = 11, .schema = 12, .table = 13 }, .declaration_bytes = 128, .schema = @splat(41), .changed_lsn = 4, .rows = 2 };
+                return .{ .handle = self.retained.?, .accepted = grant.binding.expected, .authority = .{ .database = 11, .schema = 12, .table = 13 }, .declaration_bytes = 128, .schema = @splat(41), .changed_lsn = 4, .rows = 2 };
             }
             fn close(self: *@This(), grant: Grant, known: ?Handle) !void {
                 self.calls += 1;

@@ -223,6 +223,85 @@ fn resolve(catalog: *D, access: *Access, name: []const u8) !?D.View {
     return catalog.resolve(t.allocator, 1, try a.Name.init(name), access.policy());
 }
 
+test "current Table capture freezes once across lost replies, mutation, restart and definition changes" {
+    const Fixture = struct {
+        fn insert(catalog: *D, access: *Access, operation: u64, key: i64) !void {
+            var view = (try resolve(catalog, access, "events")).?;
+            defer view.deinit();
+            const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = view.table.root.interpretation.object, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, .intent = @splat(3) };
+            const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = key } } }};
+            const request: s.TableDmlIntent.Request = .{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = .{ .origin = view.table.root.partition, .operation = operation, .ordinal = 0 }, .cells = &cells }, .expect = .absent } }}, .ingestion = .point };
+            _ = try catalog.admitRows(request, access.policy());
+            try t.expect((try catalog.performRows(binding, access.policy())) == .committed);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var interpretation: p.DataLifecycle.Definition = undefined;
+    var minimum: p.DataLifecycle.Position = undefined;
+    var retained: P.SnapshotHandle = undefined;
+    const capture: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const create = try creation(7, 1, "events");
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        _ = try catalog.settle(create.binding, access.policy());
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        interpretation = view.table.root.interpretation;
+        minimum = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn };
+        try Fixture.insert(&catalog, &access, 2, 42);
+        access.deny_at = access.calls + 1;
+        try t.expectError(error.CatalogDenied, catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+        access.deny_at = std.math.maxInt(usize);
+        try t.expect((try catalog.pinState(interpretation.object, capture, access.policy())).handle == null);
+        catalog.lose_table_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+        catalog.lose_table_reply = false;
+        retained = (try catalog.pinState(interpretation.object, capture, access.policy())).handle.?;
+        try Fixture.insert(&catalog, &access, 3, 43);
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try t.expectEqualDeep(retained, try catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+        var snapshot = try catalog.snapshotDefinition(t.allocator, interpretation.object, retained, access.policy());
+        defer snapshot.deinit();
+        try t.expectEqual(@as(u64, 1), snapshot.root.live_rows);
+        try t.expect(snapshot.root.next_lsn > minimum.next_lsn);
+        const before_retry = try wal.log().tail(minimum.partition);
+        try t.expectEqualDeep(retained, try catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+        try t.expectEqual(before_retry, try wal.log().tail(minimum.partition));
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        try t.expectEqual(@as(u64, 2), view.table.root.live_rows);
+        const changed = try edit(&view, 4, .{ .alter = .{ .add = .{ .name = "extra", .type = .int64 } } });
+        _ = try catalog.admit(changed, access.policy());
+        _ = try catalog.perform(changed.binding, access.policy());
+        _ = try catalog.settle(changed.binding, access.policy());
+        try t.expectEqualDeep(retained, try catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+        var other = capture;
+        other.operation += 1;
+        try t.expectError(error.TableDefinitionChanged, catalog.captureRowsDefined(interpretation, other, minimum, access.policy()));
+        try catalog.releaseRows(interpretation.object, retained, access.policy());
+        try t.expectError(error.TableSnapshotReleased, catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+        try catalog.recover();
+        try t.expectError(error.TableSnapshotReleased, catalog.captureRowsDefined(interpretation, capture, minimum, access.policy()));
+    }
+}
+
 test "direct catalog reservations publish names only through Table acceptance and survive restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

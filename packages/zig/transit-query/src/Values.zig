@@ -47,9 +47,10 @@ pub const Capture = struct {
     executor: u64,
     operation: []const u8,
     expected: struct { partition: []const u8, next_lsn: []const u8 },
+    selection: q.catalog.DirectTableProtocol.CaptureSelection = .exact,
     pub fn native(self: Capture) !q.Bundle.Capture {
         try q.UnifiedRecords.identity(self.executor);
-        const result: q.Bundle.Capture = .{ .executor = self.executor, .operation = try unsigned(self.operation), .expected = .{ .partition = try unsigned(self.expected.partition), .next_lsn = try unsigned(self.expected.next_lsn) } };
+        const result: q.Bundle.Capture = .{ .executor = self.executor, .operation = try unsigned(self.operation), .expected = .{ .partition = try unsigned(self.expected.partition), .next_lsn = try unsigned(self.expected.next_lsn) }, .selection = self.selection };
         if (result.operation == 0) return error.InvalidQueryAuthorization;
         try result.expected.validate();
         return result;
@@ -163,10 +164,7 @@ pub const Source = struct {
                 const scope = try v.scope.native();
                 const branch = try unsigned(v.branch);
                 const object = try unsigned(v.object);
-                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object,
-                    .interpretation = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest },
-                        .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false },
-                    .row_type = try v.row_type.cloneInto(alloc) } };
+                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc) } };
             },
             .document => |v| blk: {
                 if (v.projections.len == 0 or v.projections.len > m.max_columns) return error.InvalidProjection;
@@ -183,9 +181,7 @@ pub const Source = struct {
     pub fn fromNative(alloc: Allocator, value: q.SourceDefinition) !Source {
         return .{ .version = value.version, .resource = value.resource, .source = switch (value.source) {
             .kv => |v| .{ .kv = .{ .prefix = try a.hex(alloc, v.prefix.slice()), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object),
-                .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint },
-                .row_type = try v.row_type.cloneInto(alloc) } },
+            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object), .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint }, .row_type = try v.row_type.cloneInto(alloc) } },
             .document => |v| blk: {
                 const projections = try alloc.alloc(Projection, v.projections.len);
                 for (projections, v.projections) |*out, in| out.* = .{ .column = try DecoderColumn.fromNative(alloc, in.column), .path = try foreignPath(alloc, in.path), .relative = in.relative, .mode = in.mode, .text_bytes = in.text_bytes, .text_steps = in.text_steps };

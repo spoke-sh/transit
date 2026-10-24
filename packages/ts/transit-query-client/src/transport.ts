@@ -40,6 +40,7 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
       "suggest",
       "assist",
       "compile",
+      "refresh",
       "inspect",
       "next",
       "next_draft",

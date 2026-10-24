@@ -13,10 +13,10 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False):
-    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False):
+    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only or follow_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
         raise ValueError("focused runs do not run installed captured consumers")
-    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only)) > 1:
+    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only, follow_only)) > 1:
         raise ValueError("choose one focused schedule")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-capture-") as directory:
@@ -93,7 +93,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                         assert status == 200, data
                         status, data = 409, json.dumps({"err": "HistoryReclaimed"}).encode()
                         history_gap = True
-                    if self.path == "/table/v1" and envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "snapshot" and not relational_failures_only and not unified_boundaries_only:
+                    if self.path == "/table/v1" and envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "snapshot" and not relational_failures_only and not unified_boundaries_only and not follow_only:
                         action = next(iter(envelope["action"]))
                         fault = "cleanup_release" if action == "release" and envelope.get("closure") else action
                         if fault in faults and not faults[fault]:
@@ -151,6 +151,15 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if follow_only:
+                subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
+                subprocess.run([caller, endpoint, "follow-prepare", str(profile)], check=True, timeout=240)
+                stop(authority)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "follow-resume", str(profile)], check=True, timeout=240)
+                print("Direct Follow: prepared single-use captures, durable selection before node restart, native worker replacement, verified fresh result and bounded pause passed.", flush=True)
+                return
             if maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
             else:
@@ -229,6 +238,7 @@ if __name__ == "__main__":
     parser.add_argument("--exchanges-only", action="store_true")
     parser.add_argument("--unified-boundaries-only", action="store_true")
     parser.add_argument("--captured-only", action="store_true")
+    parser.add_argument("--follow-only", action="store_true")
     parser.add_argument("--python-native")
     parser.add_argument("--ruby-host")
     parser.add_argument("--java-packages")

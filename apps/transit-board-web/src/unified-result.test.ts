@@ -4,15 +4,22 @@ import { verifiedPage, type ResultPage, type ReadPage } from "./unified-result";
 
 const manifest: ResultPage["evidence"]["manifest"] = {
   job: 1,
-  source: { pid: 2, input: 3, index: 0 },
+  source: { table: { worker: 2 } },
   requester: 4,
   correlation: "5",
   policy_revision: "1",
   request: "00",
   basis: {
-    cut: { kind: "table", resource: 6, revision: 7, head: Array(32).fill(0) },
+    cut: { kind: "table", resource: 6, position: { table: Array(32).fill(1) } },
     contract: Array(32).fill(0),
     schema: Array(32).fill(0),
+  },
+  table_position: {
+    resource: 6,
+    partition: "1",
+    accepted: "7",
+    contract: Array(32).fill(1),
+    schema: Array(32).fill(2),
   },
   plan: Array(32).fill(0),
   pages: "3",

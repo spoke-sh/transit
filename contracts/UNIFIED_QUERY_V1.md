@@ -46,7 +46,10 @@ adapter definition, including decoder/projection versions and Document identity.
 A query has one source cut. There are no cross-resource snapshots or joins.
 Current grants, catalog inspect/read policies and Document floor/retirement
 remain live even when bytes come from a retained cut. A new Table admission
-requires an exact interpretation and signed expected frontier; admitted jobs retain the original schema/root
+requires an exact interpretation and signed capture selection. An `exact`
+selection requires the expected frontier; `current` freezes the first authorized
+root at or above that frontier in the same partition. Admitted jobs retain the
+original grant, selected frontier and schema/root
 through ALTER, DROP and name reuse. Current catalog revocation still prevents
 continuation and result disclosure, including empty/LIMIT 0 reads. Retention cannot turn a retired Document into a readable one.
 
@@ -257,7 +260,8 @@ individual grants. It does not admit KV/Document or another catalog/owner.
 
 The command envelope uses these distinct magic bytes: `UQI1` initialize,
 `UQB1` begin plus `SPF1`, `UQP1` part (u64 namespace, u32 chunk ordinal, one
-canonical boolean second-half byte, then 1–128 bytes), and `UQS1` seal / `UQX1`
+canonical boolean second-half byte, then 1–128 bytes), and `UQS1` seal /
+`UQT1` prepare / `UQA1` activate / `UQX1`
 submit / `UQK1` cancel / `UQG1` collect / `UQR1` retire, each followed by a u64
 namespace. All integers are little-endian. The part payload is at most 145 bytes;
 begin is 72 and namespace operations are 12, below the unchanged 243-byte limit.
@@ -267,9 +271,18 @@ present failure adds the 112-byte `UQF1` record below. Valid records are 88 byte
 without a manifest/failure, 200 with a failure or 160 with a manifest. A manifest
 and a failure are mutually exclusive. Denied/rejected status requires a failure;
 retirement preserves that failure. Old records without the presence byte reject. Phases
-1–8 mean uploading, sealed, admitted, complete, cancelled, denied, rejected and
-retired. Boolean flags are exactly zero or one. Full u64 namespaces never pass
+1–9 mean uploading, sealed, admitted, complete, cancelled, denied, rejected,
+retired and prepared. Boolean flags are exactly zero or one. Full u64 namespaces never pass
 through a floating-point number.
+
+Preparing a sealed request preserves its verified publication and releases the
+one active upload slot. It has no correlation, source pin or admitted call.
+Activation reclaims that slot and restores the sealed phase for the same bytes;
+a competing active query rejects activation. Submission occurs in a later turn.
+Prepared requests may be explicitly cancelled and collected under the existing
+bounded cleanup rules. Preparation and activation cannot reopen an admitted or
+terminal query. Finite refresh uses separately authorized prepared requests;
+there is no operation that clones a completed query's capture grant.
 
 The source validates current peer policy, request-resource access, bundle digest,
 source contract and supported plan before capture. It retains an exact source

@@ -39,7 +39,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8",
+        definition: "1d30f28e62da251490d698d6ccd67d4baeeb128fca3478f6518b6aa131f9bf20",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -132,7 +132,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8",
+          definition: "1d30f28e62da251490d698d6ccd67d4baeeb128fca3478f6518b6aa131f9bf20",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -371,20 +371,21 @@ test.each(["valid", "foreign_generation", "foreign_resource", "foreign_query", "
         generation: 7,
         source: {
           revision: 1,
-          target: 4,
+          audience: 4,
           resource: 9,
           realm: 1,
           catalog: "9",
           object: "100",
-          metadata_revision: "1",
-          metadata_length: 200,
-          metadata_digest: Array(32).fill(1),
+          branch: 1,
+          namespace: 1,
+          interpretation_revision: "1",
+          interpretation_digest: Array(32).fill(1),
           published: true,
         },
         template: "1",
         namespace: "18446744073709551615",
-        dirty: 10,
-        covered: 9,
+        dirty: "10",
+        covered: "9",
         starts: 1,
         limit: 2,
         next_start_ms: 0,
@@ -648,3 +649,27 @@ test.each(["valid", "malformed", "foreign_resource", "foreign_input", "wrong_pha
     });
   },
 );
+
+test("reactive Table counters preserve the full u64 range and reject overflow or disagreement", () => {
+  const cursor = structuredClone(reactiveFixture.cursor);
+  const event = {
+    resource: cursor.position.resource,
+    source_changed: true,
+    data_revision: "18446744073709551615",
+    outcome: null,
+  };
+  expect(message({ event: { cursor, event } })).toEqual({ event: { cursor, event } });
+  for (const data_revision of ["18446744073709551616", "01", "-1", 1]) {
+    expect(() =>
+      message({
+        event: {
+          cursor: { ...cursor, position: { ...cursor.position, data_revision } },
+          event: { ...event, data_revision },
+        },
+      }),
+    ).toThrow(ReactiveError);
+  }
+  expect(() => message({ event: { cursor, event: { ...event, data_revision: "1" } } })).toThrow(
+    ReactiveError,
+  );
+});

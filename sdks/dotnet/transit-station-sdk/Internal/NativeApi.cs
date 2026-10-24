@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Transit.Station.Sdk.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
-    internal const string Definition = "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8";
+    internal const string Definition = "02553baa7d791340e9ea3339002537bf15495c26bd2f2bd2e2fde5950589e53f";
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_diagnostic_validateDelegate([In] byte[] arg0, nuint arg1);

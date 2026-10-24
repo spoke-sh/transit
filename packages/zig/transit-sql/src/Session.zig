@@ -96,7 +96,10 @@ pub const Read = struct {
         };
     }
     fn sourceBasis(value: q.Basis) g.session_protocol.Basis {
-        return .{ .source = .{ .kind = value.cut.kind, .resource = value.cut.resource, .revision = value.cut.revision, .head = value.cut.head, .contract = value.contract, .schema = value.schema } };
+        return .{ .source = .{ .kind = value.cut.kind, .resource = value.cut.resource, .position = switch (value.cut.position) {
+            .native_revision => |revision| .{ .native_revision = revision },
+            .table => |commitment| .{ .table = commitment },
+        }, .contract = value.contract, .schema = value.schema } };
     }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
         if (maximum == 0 or maximum > g.ReadBatch.max_rows) return error.InvalidQueryBudget;

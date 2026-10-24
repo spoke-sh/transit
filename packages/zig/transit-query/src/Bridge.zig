@@ -12,6 +12,8 @@ pub const Command = union(enum) {
     begin: p.Value,
     part: struct { namespace: []const u8, ordinal: u32, second: bool, bytes: []const u8 },
     seal: []const u8,
+    prepare: []const u8,
+    activate: []const u8,
     submit: []const u8,
     cancel: []const u8,
     collect: []const u8,
@@ -40,9 +42,10 @@ pub const Action = union(enum) {
     /// Seal a newly constructed canonical bundle once. Saved/accepted bundles
     /// already carry their proof and must never be resigned during recovery.
     authorize: struct { bundle: []const u8, capture: ?c.Capture = null },
+    refresh: struct { template: []const u8, operation: []const u8 },
     cleanup: struct { namespace: []const u8, bundle: []const u8 },
     prepare: Command,
-    next: struct { namespace: []const u8, bundle: []const u8 },
+    next: struct { namespace: []const u8, bundle: []const u8, prepare_only: bool = false },
     submit: []const u8,
     observe: u64,
     status: []const u8,
@@ -122,6 +125,7 @@ pub const Manifest = struct {
     policy_revision: []const u8,
     request: p.Value,
     basis: q.Basis,
+    table_position: ?q.TablePosition,
     plan: [32]u8,
     pages: []const u8,
     scanned: []const u8,
@@ -133,9 +137,9 @@ pub const Manifest = struct {
     sum: ?[]const u8,
     finished: @FieldType(q.fuze.LogicalStream.Progress, "finished"),
     chain: [32]u8,
-    pub fn fromNative(alloc: Allocator, value: q.UnifiedRecords.Manifest, basis: q.Basis) !Manifest {
+    pub fn fromNative(alloc: Allocator, value: q.UnifiedRecords.Manifest, basis: q.Basis, table_position: ?q.TablePosition) !Manifest {
         const progress = value.checkpoint.progress;
-        return .{ .job = value.job.id, .source = value.job.source, .requester = value.job.destination, .correlation = try a.decimal(alloc, value.job.correlation), .policy_revision = try a.decimal(alloc, value.job.policy_revision), .request = try value.job.request.encode(), .basis = basis, .plan = progress.plan, .pages = try a.decimal(alloc, progress.pages), .scanned = try a.decimal(alloc, progress.counters.scanned), .selected = try a.decimal(alloc, progress.counters.selected), .value_count = try a.decimal(alloc, progress.counters.value_count), .segments = try a.decimal(alloc, progress.segments), .rows = try a.decimal(alloc, progress.rows), .bytes = try a.decimal(alloc, value.checkpoint.bytes), .sum = if (progress.counters.sum) |sum| try a.decimal(alloc, sum) else null, .finished = progress.finished, .chain = value.checkpoint.chain };
+        return .{ .job = value.job.id, .source = value.job.source, .requester = value.job.destination, .correlation = try a.decimal(alloc, value.job.correlation), .policy_revision = try a.decimal(alloc, value.job.policy_revision), .request = try value.job.request.encode(), .basis = basis, .table_position = table_position, .plan = progress.plan, .pages = try a.decimal(alloc, progress.pages), .scanned = try a.decimal(alloc, progress.counters.scanned), .selected = try a.decimal(alloc, progress.counters.selected), .value_count = try a.decimal(alloc, progress.counters.value_count), .segments = try a.decimal(alloc, progress.segments), .rows = try a.decimal(alloc, progress.rows), .bytes = try a.decimal(alloc, value.checkpoint.bytes), .sum = if (progress.counters.sum) |sum| try a.decimal(alloc, sum) else null, .finished = progress.finished, .chain = value.checkpoint.chain };
     }
 };
 pub const Page = struct {
@@ -197,6 +201,11 @@ pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Actio
             var bytes: [q.Bundle.max_bytes]u8 = undefined;
             return .{ .authorized = try a.hex(alloc, try bundle.encode(&bytes)) };
         },
+        .refresh => |request| {
+            const bundle = try client.authorizeRefresh(alloc, try c.unsigned(request.template), try c.unsigned(request.operation));
+            var bytes: [q.Bundle.max_bytes]u8 = undefined;
+            return .{ .authorized = try a.hex(alloc, try bundle.encode(&bytes)) };
+        },
         .cleanup => |request| {
             const bundle = try q.Bundle.decode(alloc, try c.unhex(alloc, request.bundle, q.Bundle.max_bytes));
             return .{ .prepared = try std.json.Stringify.valueAlloc(alloc, try client.prepareCleanup(try c.unsigned(request.namespace), bundle), .{}) };
@@ -208,7 +217,8 @@ pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Actio
         .prepare => |v| return .{ .prepared = try std.json.Stringify.valueAlloc(alloc, try client.prepare(try v.native(alloc)), .{}) },
         .next => |v| {
             const bundle = try q.Bundle.decode(alloc, try c.unhex(alloc, v.bundle, q.Bundle.max_bytes));
-            const next = try client.prepareNext(try c.unsigned(v.namespace), bundle);
+            const namespace = try c.unsigned(v.namespace);
+            const next = if (v.prepare_only) try client.prepareTemplateNext(namespace, bundle) else try client.prepareNext(namespace, bundle);
             return .{ .prepared = if (next) |value| try std.json.Stringify.valueAlloc(alloc, value, .{}) else null };
         },
         .submit => |v| return .{ .receipt = try client.submit(try prepared(alloc, v)) },
@@ -221,7 +231,7 @@ pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Actio
             var decoded: q.fuze.LogicalInspect.Batch = undefined;
             const result = try client.page(try c.unsigned(v.namespace), previous, alloc, workspace, output, &decoded);
             defer decoded.deinit();
-            return .{ .page = .{ .manifest = try Manifest.fromNative(alloc, result.manifest, result.basis), .columns = try c.foreignColumns(alloc, result.schema), .ordinal = try a.decimal(alloc, if (previous) |old| old.ordinal else 0), .rows = @intCast(decoded.rows.len), .ipc = try a.hex(alloc, result.arrow), .next = if (result.next) |value| try std.json.Stringify.valueAlloc(alloc, value, .{}) else null } };
+            return .{ .page = .{ .manifest = try Manifest.fromNative(alloc, result.manifest, result.basis, result.table_position), .columns = try c.foreignColumns(alloc, result.schema), .ordinal = try a.decimal(alloc, if (previous) |old| old.ordinal else 0), .rows = @intCast(decoded.rows.len), .ipc = try a.hex(alloc, result.arrow), .next = if (result.next) |value| try std.json.Stringify.valueAlloc(alloc, value, .{}) else null } };
         },
     }
 }

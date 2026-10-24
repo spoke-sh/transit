@@ -3116,7 +3116,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 18,
+        "CatalogDenied": 23,
         "CatalogIdentityConflict": 2,
         "CatalogNameHashCollision": 1,
         "CatalogNamespaceMissing": 3,
@@ -3138,13 +3138,14 @@
         "InvalidPartitionLease": 1,
         "InvalidStorageBudget": 1,
         "InvalidTableAccessRequest": 1,
+        "InvalidTableBasis": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 1,
         "Overflow": 1,
-        "TableDataChanged": 1,
-        "TableDefinitionChanged": 4,
+        "TableDataChanged": 2,
+        "TableDefinitionChanged": 8,
         "TableRetired": 1,
-        "TableSnapshotReleased": 1,
+        "TableSnapshotReleased": 2,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 1
       },
@@ -3181,9 +3182,11 @@
         "cancel()": "<inferred>",
         "cancelRows()": "<inferred>",
         "candidate()": "<inferred>",
+        "captureRowsDefined()": "<inferred>",
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
+        "currentReadAuthority()": "<inferred>",
         "entry()": "<inferred>",
         "guard()": "<inferred>",
         "history()": "<inferred>",
@@ -3194,6 +3197,7 @@
         "list()": "<inferred>",
         "listNamespaces()": "<inferred>",
         "loadRequest()": "<inferred>",
+        "observe()": "<inferred>",
         "open()": "<inferred>",
         "original()": "<inferred>",
         "pending()": "<inferred>",
@@ -3204,6 +3208,7 @@
         "pinRowsDefined()": "<inferred>",
         "pinState()": "<inferred>",
         "preview()": "<inferred>",
+        "readAccess()": "<inferred>",
         "readAuthority()": "<inferred>",
         "readRow()": "<inferred>",
         "record()": "<inferred>",
@@ -3229,7 +3234,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 306,
+        "try": 328,
         "catch": 4
       },
       "imports": [
@@ -3431,8 +3436,8 @@
     "packages/zig/transit-catalog/src/DirectReadDelegation.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidTableDelegation": 9,
-        "TableDelegationDenied": 11
+        "InvalidTableDelegation": 11,
+        "TableDelegationDenied": 12
       },
       "outcomes": {},
       "error_sets": {},
@@ -3457,7 +3462,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 75,
+        "try": 77,
         "catch": 0
       },
       "imports": [
@@ -3615,11 +3620,11 @@
         "InvalidCatalogCursor": 2,
         "InvalidCatalogStepBudget": 1,
         "InvalidDirectCatalogOperation": 1,
-        "InvalidTableBasis": 1,
+        "InvalidTableBasis": 2,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
         "InvalidTableCursor": 2,
-        "InvalidTableDelegation": 4,
+        "InvalidTableDelegation": 5,
         "InvalidTableKey": 1,
         "InvalidTableReadBudget": 4,
         "TableBatchTooLarge": 1,
@@ -3636,6 +3641,8 @@
           "check_set",
           "list",
           "lookup",
+          "observe",
+          "read_authority",
           "name_assertion",
           "preview",
           "stage",
@@ -3660,6 +3667,10 @@
           "inspect",
           "execute",
           "cancel"
+        ],
+        "CaptureSelection": [
+          "exact",
+          "current"
         ],
         "Change": [
           "add",
@@ -3689,6 +3700,8 @@
           "staged",
           "list",
           "lookup",
+          "observation",
+          "read_authority",
           "name_assertion",
           "preview",
           "ddl",
@@ -3738,7 +3751,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 98,
+        "try": 103,
         "catch": 2
       },
       "imports": [
@@ -3790,7 +3803,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 57
+        "InvalidTableResponse": 61
       },
       "outcomes": {},
       "error_sets": {},
@@ -3807,7 +3820,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 83,
+        "try": 94,
         "catch": 7
       },
       "imports": [
@@ -12868,7 +12881,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8\""
+          "@\"02553baa7d791340e9ea3339002537bf15495c26bd2f2bd2e2fde5950589e53f\""
         ],
         "Effect.phase": [
           "pending",
@@ -13762,6 +13775,7 @@
           "inspect",
           "compile",
           "authorize",
+          "refresh",
           "cleanup",
           "prepare",
           "next",
@@ -13775,6 +13789,8 @@
           "begin",
           "part",
           "seal",
+          "prepare",
+          "activate",
           "submit",
           "cancel",
           "collect",
@@ -13812,7 +13828,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
+        "try": 92,
         "catch": 2
       },
       "imports": [
@@ -13949,7 +13965,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 93,
+        "try": 94,
         "catch": 5
       },
       "imports": [
@@ -15940,6 +15956,7 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Result.fromBundle()": "<inferred>",
         "apply()": "<inferred>",
         "applyDiagnostic()": "<inferred>"
       },
@@ -16112,6 +16129,32 @@
       },
       "imports": [
         "TableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/TablePosition.zig": {
+      "errors": {
+        "InvalidNumber": 1,
+        "InvalidQuerySource": 1,
+        "SourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Counter.jsonParse()": "<inferred>",
+        "Counter.jsonSchema()": "std . Io . Writer . Error",
+        "Counter.jsonStringify()": "<inferred>",
+        "captured()": "<inferred>",
+        "current()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 4
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -16448,7 +16491,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 64,
+        "try": 66,
         "catch": 11
       },
       "imports": [
@@ -16548,13 +16591,13 @@
     "packages/zig/transit-query/src/UnifiedClient.zig": {
       "errors": {
         "Conflict": 1,
-        "IncompleteResult": 1,
+        "IncompleteResult": 2,
         "InvalidQueryIdentity": 1,
         "InvalidQueryRequest": 4,
         "InvalidQueryUpload": 1,
         "InvalidResourceRead": 2,
         "QueryBudgetExceeded": 3,
-        "QueryCaptureRequired": 3,
+        "QueryCaptureRequired": 5,
         "QueryDenied": 9,
         "QueryDraftClosed": 1,
         "QueryDraftConflict": 2,
@@ -16564,9 +16607,9 @@
         "QueryReadConflict": 2,
         "QueryRequesterFailed": 1,
         "QueryRequesterUnavailable": 1,
-        "QuerySourceUnavailable": 7,
-        "QueryUploadIdentityConflict": 2,
-        "QueryUploadNotFound": 1,
+        "QuerySourceUnavailable": 8,
+        "QueryUploadIdentityConflict": 3,
+        "QueryUploadNotFound": 2,
         "Rejected": 1
       },
       "outcomes": {
@@ -16581,6 +16624,7 @@
         "authorize()": "<inferred>",
         "authorizeBundle()": "<inferred>",
         "authorizeCapture()": "<inferred>",
+        "authorizeRefresh()": "<inferred>",
         "batchSupport()": "<inferred>",
         "bindSql()": "<inferred>",
         "checked()": "<inferred>",
@@ -16602,6 +16646,7 @@
         "prepareNextOnce()": "<inferred>",
         "prepareNextWithDraft()": "<inferred>",
         "prepareSql()": "<inferred>",
+        "prepareTemplateNext()": "<inferred>",
         "query()": "<inferred>",
         "requester()": "<inferred>",
         "sourceMetadata()": "<inferred>",
@@ -16612,7 +16657,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 69,
+        "try": 75,
         "catch": 4
       },
       "imports": [
@@ -16703,6 +16748,8 @@
           "begin",
           "part",
           "seal",
+          "prepare",
+          "activate",
           "submit",
           "cancel",
           "collect",
@@ -16720,7 +16767,8 @@
           "cancelled",
           "denied",
           "rejected",
-          "retired"
+          "retired",
+          "prepared"
         ]
       },
       "error_sets": {},
@@ -16734,7 +16782,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 74,
         "catch": 0
       },
       "imports": [
@@ -16769,7 +16817,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 44,
         "catch": 0
       },
       "imports": [
@@ -16832,13 +16880,12 @@
       "errors": {
         "InvalidPublicationPart": 1,
         "InvalidQueryUpload": 7,
-        "MissingPublicationChunk": 1,
         "PublicationPartConflict": 1,
-        "QueryBusy": 1,
+        "QueryBusy": 2,
         "QueryNamespaceInUse": 1,
         "QueryUploadActive": 2,
-        "QueryUploadClosed": 6,
-        "QueryUploadIdentityConflict": 5,
+        "QueryUploadClosed": 5,
+        "QueryUploadIdentityConflict": 2,
         "QueryUploadNotActive": 1,
         "QueryUploadNotFound": 1,
         "UnexpectedQueryReply": 3,
@@ -16848,13 +16895,14 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "activate()": "<inferred>",
         "active()": "<inferred>",
         "begin()": "<inferred>",
         "cancel()": "<inferred>",
         "checkActive()": "<inferred>",
         "collect()": "<inferred>",
-        "copyNext()": "<inferred>",
         "part()": "<inferred>",
+        "prepare()": "<inferred>",
         "reply()": "<inferred>",
         "required()": "<inferred>",
         "retire()": "<inferred>",
@@ -16867,7 +16915,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 68,
+        "try": 66,
         "catch": 1
       },
       "imports": [
@@ -16968,8 +17016,9 @@
     },
     "packages/zig/transit-query/src/Workspace.zig": {
       "errors": {
-        "QueryBudgetExceeded": 2,
-        "QueryIdentityMismatch": 3
+        "QueryBudgetExceeded": 3,
+        "QueryIdentityMismatch": 4,
+        "QuerySourceUnavailable": 1
       },
       "outcomes": {
         "Request": [
@@ -16980,6 +17029,7 @@
           "compile",
           "inspect",
           "next",
+          "refresh",
           "next_draft",
           "draft_open",
           "draft_close",
@@ -17022,7 +17072,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 54,
+        "try": 63,
         "catch": 7
       },
       "imports": [
@@ -17119,6 +17169,7 @@
         "SqlTemplate.zig",
         "TableAssistance.zig",
         "TableChangeReader.zig",
+        "TablePosition.zig",
         "TablePrepared.zig",
         "TableQuery.zig",
         "TableSegmentScan.zig",
@@ -17390,6 +17441,7 @@
         "InvalidReactiveProgress": 1,
         "InvalidReactiveScope": 1,
         "InvalidReactiveSource": 1,
+        "InvalidRefreshBudget": 1,
         "InvalidRefreshTemplate": 1,
         "InvalidResourceRead": 1,
         "InvalidSequence": 1,
@@ -17400,6 +17452,7 @@
         "InvalidServingRead": 1,
         "InvalidServingReceipt": 1,
         "InvalidServingRecord": 1,
+        "InvalidTableResponse": 1,
         "InvalidValue": 1,
         "MessageTooLarge": 1,
         "MissingField": 1,
@@ -17677,7 +17730,7 @@
         "ReactiveSessionNotFound": 2,
         "ReactiveSubscriptionConflict": 1,
         "Rejected": 2,
-        "ResourceUnavailable": 3,
+        "ResourceUnavailable": 2,
         "ServiceReadConflict": 5,
         "ServiceUnpublished": 6,
         "ServingDenied": 3
@@ -17699,7 +17752,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 46,
+        "try": 45,
         "catch": 3
       },
       "imports": [
@@ -17717,7 +17770,7 @@
         "RefreshGenerationConflict": 2,
         "RefreshNotFound": 2,
         "Rejected": 1,
-        "ResourceUnavailable": 2,
+        "ResourceUnavailable": 1,
         "ServiceReadConflict": 5,
         "ServingDenied": 7
       },
@@ -17776,7 +17829,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 49,
         "catch": 1
       },
       "imports": [
@@ -17835,7 +17888,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 31,
-        "catch": 3
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -17853,7 +17906,7 @@
         "ReactiveCapacity": 2,
         "ReactiveGenerationConflict": 2,
         "ReactiveLeaseConflict": 2,
-        "ReactiveResetRequired": 4,
+        "ReactiveResetRequired": 3,
         "ReactiveSessionClosed": 2,
         "ReactiveSessionExpired": 3,
         "ReactiveSessionNotFound": 2,
@@ -17884,7 +17937,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 66,
+        "try": 65,
         "catch": 0
       },
       "imports": [
@@ -17975,9 +18028,9 @@
       "errors": {
         "AccessDenied": 1,
         "CatalogDenied": 1,
-        "InvalidRefreshBudget": 2,
+        "InvalidRefreshBudget": 1,
         "InvalidRefreshTemplate": 4,
-        "InvalidServingRecord": 5,
+        "InvalidServingRecord": 6,
         "PublicationNotPublished": 1,
         "QueryDenied": 1,
         "QuerySourceUnavailable": 1,
@@ -18000,6 +18053,7 @@
       "error_returns": {
         "advance()": "<inferred>",
         "apply()": "<inferred>",
+        "captures()": "<inferred>",
         "current()": "<inferred>",
         "drive()": "<inferred>",
         "head()": "<inferred>",
@@ -18017,7 +18071,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 92,
+        "try": 101,
         "catch": 3
       },
       "imports": [
@@ -18087,7 +18141,8 @@
     },
     "packages/zig/transit-serving/src/RefreshModel.zig": {
       "errors": {
-        "InvalidNumber": 1
+        "InvalidRefreshBudget": 2,
+        "InvalidRefreshTemplate": 2
       },
       "outcomes": {
         "Command": [
@@ -18104,7 +18159,7 @@
         ],
         "Phase": [
           "idle",
-          "copying",
+          "preparing",
           "admitted",
           "ready",
           "paused",
@@ -18115,14 +18170,12 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Namespace.jsonParse()": "<inferred>",
-        "Namespace.jsonSchema()": "std . Io . Writer . Error",
-        "Namespace.jsonStringify()": "<inferred>"
+        "validateCaptures()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
-        "catch": 3
+        "try": 0,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -18131,8 +18184,7 @@
     },
     "packages/zig/transit-serving/src/RefreshReader.zig": {
       "errors": {
-        "CatalogDenied": 1,
-        "InvalidRefreshTemplate": 1,
+        "InvalidRefreshTemplate": 12,
         "ResourceUnavailable": 1,
         "ServingDenied": 4
       },
@@ -18144,12 +18196,13 @@
         "checkResource()": "<inferred>",
         "observe()": "<inferred>",
         "requireTemplate()": "<inferred>",
-        "result()": "<inferred>"
+        "result()": "<inferred>",
+        "templates()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 12,
-        "catch": 4
+        "try": 30,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -18405,7 +18458,8 @@
         ],
         "Witness.target.kind": [
           "source",
-          "resource"
+          "resource",
+          "partition"
         ]
       },
       "error_sets": {},
@@ -18419,7 +18473,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 134,
+        "try": 135,
         "catch": 0
       },
       "imports": [
@@ -18429,13 +18483,9 @@
     },
     "packages/zig/transit-serving/src/TableWatch.zig": {
       "errors": {
-        "CatalogDefinitionChanged": 1,
-        "CatalogSourceChanged": 1,
         "InvalidReactiveCursor": 2,
-        "InvalidReactiveProgress": 1,
-        "ReactiveResetRequired": 9,
-        "TableNotFound": 2,
-        "TableRetired": 1,
+        "InvalidTableResponse": 2,
+        "ReactiveResetRequired": 4,
         "UnsupportedReactiveSource": 2
       },
       "outcomes": {
@@ -18456,7 +18506,35 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 21,
-        "catch": 2
+        "catch": 1
+      },
+      "imports": [
+        "TableWatchReader.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-serving/src/TableWatchReader.zig": {
+      "errors": {
+        "CatalogDenied": 1,
+        "Conflict": 1,
+        "InvalidReactiveSource": 2,
+        "ReactiveResetRequired": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "observe()": "<inferred>",
+        "requireSource()": "<inferred>",
+        "requirements()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -18520,33 +18598,35 @@
     },
     "packages/zig/transit-serving/src/table_watch_test_support.zig": {
       "errors": {
-        "AccessDenied": 1,
-        "StaleStateResource": 1,
-        "UnfinishedTestDdl": 1,
-        "UnfinishedTestDml": 1
+        "CatalogDenied": 3,
+        "ReactiveResetRequired": 1,
+        "TableDefinitionChanged": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Reader.authorizationSubject()": "<inferred>",
-        "Reader.blockBatch()": "<inferred>",
+        "Access.acquire()": "<inferred>",
+        "Access.make()": "<inferred>",
+        "Access.registered()": "<inferred>",
         "Reader.check()": "<inferred>",
-        "Reader.entry()": "<inferred>",
+        "Reader.finish()": "<inferred>",
+        "Reader.observe()": "<inferred>",
         "Reader.open()": "<inferred>",
-        "Reader.page()": "<inferred>",
-        "Reader.read()": "<inferred>",
-        "Reader.readBlock()": "<inferred>",
-        "Reader.requireAuthorization()": "<inferred>",
+        "Reader.requirements()": "<inferred>",
+        "Store.init()": "<inferred>",
+        "Store.resolve()": "<inferred>",
+        "admit()": "<inferred>",
+        "alter()": "<inferred>",
         "create()": "<inferred>",
         "ddl()": "<inferred>",
         "declaration()": "<inferred>",
-        "delegate()": "<inferred>",
+        "metadata()": "<inferred>",
         "mutate()": "<inferred>",
-        "turn()": "<inferred>"
+        "prepare()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 45,
         "catch": 1
       },
       "imports": [
@@ -18785,6 +18865,10 @@
           "source",
           "table",
           "independent_table_snapshots"
+        ],
+        "Basis.source.position": [
+          "native_revision",
+          "table"
         ],
         "Completion": [
           "select",
@@ -25358,11 +25442,12 @@
         "TableHistoryRetentionRequired": 1,
         "TableKeyHashCollision": 3,
         "TableNotCreated": 2,
+        "TableNotFound": 1,
         "TableOperationTerminal": 1,
         "TableOperationsPending": 1,
         "TableReadBudgetTooSmall": 1,
         "TableRecoveryRequired": 1,
-        "TableRetired": 6,
+        "TableRetired": 7,
         "TableRowIdentityChanged": 2,
         "TableRowMissing": 2,
         "TableSchemaChanged": 2,
@@ -25416,6 +25501,7 @@
         "loadSegment()": "<inferred>",
         "observe()": "<inferred>",
         "observeEvidence()": "<inferred>",
+        "observeRows()": "<inferred>",
         "observed()": "<inferred>",
         "openHistoryPoint()": "<inferred>",
         "operationAt()": "<inferred>",
@@ -25446,6 +25532,7 @@
         "scan()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRetainedRoot()": "<inferred>",
+        "scanRootRows()": "<inferred>",
         "scanSnapshot()": "<inferred>",
         "scope()": "<inferred>",
         "segmentKey()": "<inferred>",
@@ -25456,7 +25543,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 387,
+        "try": 392,
         "catch": 4
       },
       "imports": [
