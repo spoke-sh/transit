@@ -57,6 +57,25 @@ provisioning/SQL/decoding errors, invalid post-revocation signing, mismatched
 executor/inspection identities and temporary upstream admission pressure; those
 attempts are not passed evidence. Final repository gates remain separate.
 
+## Snapshot pins against competing checkpoints — 2026-10-24
+
+`nix develop --command sh -c 'cd packages/zig/transit-storage && zig build
+test -Doptimize=ReleaseSafe -Dtest-filter="disk checkpoint races"'` passes the
+disk-backed checkpoint race test. Two independently recovered Table owners
+compete for the same WAL frontier. An accepted pin with a lost reply defeats a
+stale flush; recovering that flush preserves the original unflushed row. When
+the flush wins, staged snapshot bytes do not become an accepted pin and retry
+cannot substitute a newer cut. Release wins and checkpoint wins are both
+exercised; a lost release reply survives disk reopen without resurrecting either
+released owner or losing any of the four accepted rows.
+
+This proves conditional checkpoint publication and durable pin ownership. The
+local native owner still refuses physical history collection; this test does
+not qualify destructive GC, compaction or WAL trimming. The first test attempt
+left its injected lost-reply flag enabled for subsequent operations; the
+corrected schedule passes. A separate invocation using `--build-file` failed
+during build configuration and supplied no test evidence.
+
 ## Retained relational caller conformance — 2026-10-24
 
 `nix develop .#bindings -c zig build test-relational-callers

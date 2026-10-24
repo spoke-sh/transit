@@ -778,6 +778,98 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
     try t.expectEqual(@as(u64, 1), table.root.live_rows);
 }
 
+test "disk checkpoint races preserve original pins and cannot resurrect a released owner" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    const first_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 100 };
+    var second_owner = first_owner;
+    second_owner.operation = 101;
+    var first_pin: P.SnapshotHandle = undefined;
+    var second_pin: P.SnapshotHandle = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+        var maintenance = try owner(&wal, &objects);
+        defer maintenance.deinit();
+        const original: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+
+        // Acquisition wins, but the caller loses its acknowledgement. A stale
+        // checkpoint must not publish the root that predates this obligation.
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.pin(first_owner, original, access.guard()));
+        table.lose_reply = false;
+        first_pin = (try table.pinState(first_owner, access.guard())).handle.?;
+        try t.expectError(error.WalLsnConflict, maintenance.flush(access.guard()));
+        try maintenance.recover();
+        try t.expectEqual(@as(usize, 1), try maintenance.flush(access.guard()));
+        try table.recover();
+        try t.expectEqualDeep(first_pin, try table.pin(first_owner, original, access.guard()));
+        var bytes: [4096]u8 = undefined;
+        var retained = (try table.readSnapshot(t.allocator, first_pin, try key(1, &bytes), access.guard())).?;
+        defer retained.deinit();
+        try t.expect(retained == .wal);
+        try t.expectEqual(@as(i128, 1), retained.row().cells[0].value.atom.signed);
+
+        // Reverse the order. Staged snapshot bytes are not an accepted pin,
+        // and exact recovery cannot silently substitute the checkpoint's cut.
+        const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        _ = try table.apply(binding(&table, 2), &.{change(&two, 2)}, .point, access.guard());
+        const before_flush: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        try maintenance.recover();
+        try t.expectEqual(@as(usize, 1), try maintenance.flush(access.guard()));
+        try t.expectError(error.WalLsnConflict, table.pin(second_owner, before_flush, access.guard()));
+        try table.recover();
+        try t.expect((try table.pinState(second_owner, access.guard())).handle == null);
+        try t.expectError(error.TableDataChanged, table.pin(second_owner, before_flush, access.guard()));
+
+        // A stale checkpoint cannot resurrect a released pin either.
+        const three: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 3 } } };
+        _ = try table.apply(binding(&table, 3), &.{change(&three, 3)}, .point, access.guard());
+        try maintenance.recover();
+        try table.releaseSnapshot(first_pin, access.guard());
+        try t.expectError(error.WalLsnConflict, maintenance.flush(access.guard()));
+        try maintenance.recover();
+        _ = try maintenance.flush(access.guard());
+        try table.recover();
+        try t.expect((try table.pinState(first_owner, access.guard())).released);
+
+        // If the checkpoint wins, release remains recoverable under the same
+        // owner. Losing that release reply must not resurrect it on disk reopen.
+        second_pin = try table.pin(second_owner, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const four: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 4 } } };
+        _ = try table.apply(binding(&table, 4), &.{change(&four, 4)}, .point, access.guard());
+        try maintenance.recover();
+        _ = try maintenance.flush(access.guard());
+        try t.expectError(error.WalLsnConflict, table.releaseSnapshot(second_pin, access.guard()));
+        try table.recover();
+        try t.expect(!(try table.pinState(second_owner, access.guard())).released);
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.releaseSnapshot(second_pin, access.guard()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var recovered = try owner(&wal, &objects);
+    defer recovered.deinit();
+    const position = recovered.root.next_lsn;
+    for ([_]P.SnapshotHandle{ first_pin, second_pin }) |handle| {
+        try t.expect((try recovered.pinState(handle.owner, access.guard())).released);
+        try recovered.releaseSnapshot(handle, access.guard());
+        var bytes: [4096]u8 = undefined;
+        try t.expectError(error.TableSnapshotReleased, recovered.readSnapshot(t.allocator, handle, try key(1, &bytes), access.guard()));
+    }
+    try t.expectEqual(position, recovered.root.next_lsn);
+    try t.expectEqual(@as(u64, 4), recovered.root.live_rows);
+}
+
 test "Table acceptance has no fallible visibility allocation after its durable append" {
     try t.checkAllAllocationFailures(t.allocator, allocationCase, .{});
 }
