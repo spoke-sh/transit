@@ -1,5 +1,21 @@
 # Validation and evidence
 
+## Membership additions preserve inactive paths — 2026-10-24
+
+Installed Work items provisioning exposed `AuthorizationDependencies` while
+adding a new membership with INHERIT false and SET true. Administration treated
+every explicit false option as a removal and reconciled unrelated inactive
+delegation paths. It now runs removal closure only when a previously published,
+enabled option actually changes from true to false.
+
+In the pinned Nix shell, `zig build test -Doptimize=ReleaseSafe` in
+`packages/zig/transit-core` passes **123/123** tests. The new case disables an
+unrelated grantor, creates and repeats the SET-only membership, checks that it
+confers no inherited authority, then re-enables the grantor and observes its
+unchanged delegated grant. A separate repeated-membership reduction still
+rejects dependent ADMIN authority with RESTRICT and preserves publication.
+Installed application recovery and full repository checks remain separate gates.
+
 ## Work items over the direct data owner — 2026-10-24
 
 Work items now retains an explicit direct catalog binding and immutable dispatch

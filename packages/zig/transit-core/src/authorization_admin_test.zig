@@ -250,6 +250,31 @@ test "repeated grants reconcile one author's edge and target revocation preserve
     try t.expectEqual(@as(u64, 2), (try f.decision(reader, resource)).allowed);
 }
 
+test "new SET-only membership and unchanged options preserve unrelated inactive grants" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const issuer = try f.role("issuer");
+    const consumer = try f.role("consumer");
+    const member = try f.role("member");
+    const group = try f.role("group");
+    _ = try f.apply(root, .{ .grant = .{ .object = resource, .grantee = issuer, .privileges = 1, .grant_options = 1 } });
+    _ = try f.apply(.{ .principal = 10, .role = issuer }, .{ .grant = .{ .object = resource, .grantee = consumer, .privileges = 1 } });
+    _ = try f.apply(root, .{ .alter_role = .{ .id = issuer, .enabled = false } });
+    try t.expectEqual(0, (try f.decision(consumer, resource)).allowed);
+
+    const action: a.Action = .{ .membership = .{ .member = member, .role = group, .inherit = false, .set = true } };
+    const edge = try f.apply(root, action);
+    try t.expectEqual(edge, try f.apply(root, action));
+    var store = try Store.open(&f.pages, f.published);
+    var check = try core.authorization.Evaluator(Store).init(&store, store.revision, .{});
+    try t.expect(try check.canSet(member, group));
+    try t.expect(!try check.inherits(member, group));
+    try t.expectEqual(0, (try f.decision(consumer, resource)).allowed);
+    _ = try f.apply(root, .{ .alter_role = .{ .id = issuer, .enabled = true } });
+    try t.expectEqual(1, (try f.decision(consumer, resource)).allowed);
+}
+
 test "membership reconciliation preserves omitted options and target revocation checks dependencies" {
     var f: Fixture = .{};
     defer f.deinit();
@@ -263,6 +288,10 @@ test "membership reconciliation preserves omitted options and target revocation 
     const membership = (try store.membership(edge.?)).?;
     try t.expect(membership.admin and !membership.inherit and !membership.set);
     _ = try f.apply(.{ .principal = 10, .role = member }, .{ .membership = .{ .member = delegate, .role = group } });
+    const before = f.published;
+    var reduced = try f.begin(root, .{ .membership = .{ .member = member, .role = group, .admin = false } });
+    try t.expectError(error.AuthorizationDependencies, f.finish(&reduced));
+    try t.expect(std.meta.eql(before, f.published));
     var restricted = try f.begin(root, .{ .revoke_role = .{ .member = member, .role = group, .option = .admin } });
     try t.expectError(error.AuthorizationDependencies, f.finish(&restricted));
     _ = try f.apply(root, .{ .revoke_role = .{ .member = member, .role = group, .option = .admin, .behavior = .cascade } });

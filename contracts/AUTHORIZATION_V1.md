@@ -194,7 +194,10 @@ lifecycles; this grant document does not create or infer those operations.
 Repeated grants by the same effective grantor union the requested privilege and
 grant-option bits into an existing active edge. Repeated membership grants
 preserve omitted ADMIN/INHERIT/SET options; new edges default to false/true/true.
-Turning an option off checks dependent authority with RESTRICT semantics.
+Turning a previously published enabled option off checks dependent authority
+with RESTRICT semantics. Setting an option false on a new membership, or
+retaining an already false option, removes no authority and does not reconcile
+unrelated inactive grant paths.
 Repeated matching default grants union their bits. These bounded lookups inspect
 at most the configured evaluation record allowance and fail closed on exhaustion.
 `revoke_privileges`, `revoke_role` and `revoke_defaults` identify typed targets
