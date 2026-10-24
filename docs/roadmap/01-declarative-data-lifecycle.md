@@ -236,8 +236,12 @@ retired record tags and its removed caller action reject. The
 [named maintained revision proof](../../tests/README.md#named-maintained-revision-inspection-and-recovery--2026-10-23)
 now covers publication/activation separation, original acquisition and history
 progress across node restarts, and actual result/delta attribution after later
-definition publication. Lost native naming replies, their credential-rotation
-schedule and direct dependency registration remain open.
+definition publication. The [naming recovery proof](../../tests/README.md#named-publication-recovery-with-current-credentials--2026-10-24)
+now covers lost publication/policy replies, abrupt node replacement and worker
+key/generation rotation for both captured and maintained definitions. Current
+credentials recover the exact original receipt; retired signatures and altered
+requests reject. Direct dependency registration, migration of the older actor
+fixtures and broader activation/failure fault schedules remain open.
 
 Direct mutation bindings now retain an optional native authorization prerequisite
 for the original accepted application input, independently of the worker's

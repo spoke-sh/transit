@@ -73,13 +73,17 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
         faults = {"pin": False, "release": False, "cleanup_release": False}
         freshness_faults = {1062: 0, 1063: 0}
         history_gap = False
+        naming_faults = set()
+        naming_pending = {}
+        naming_recovered = set()
+        proxy_failures = []
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
 
             def do_POST(self):
-                nonlocal history_gap
+                nonlocal history_gap, authority
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 connection = HTTPConnection("127.0.0.1", port, timeout=70)
@@ -92,6 +96,51 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     response = connection.getresponse()
                     data = response.read()
                     status = response.status
+                    if self.path == "/v1/query" and status == 200 and (named_only or maintained_only):
+                        query = envelope["query"]
+                        kind = query["kind"]
+                        authorization = kind.get("authorization") if isinstance(kind, dict) else None
+                        original = authorization["kind"].get("receipt") if authorization and isinstance(authorization["kind"], dict) else None
+                        if original is not None:
+                            for sent, (identity, receipt, saved_path, saved_bytes) in list(naming_pending.items()):
+                                if json.loads(sent)["request"] != original:
+                                    continue
+                                assert query["principal"] == original["principal"]
+                                recovered = json.loads(data)["body"]["authorization"]["body"]["receipt"]
+                                assert recovered == json.loads(receipt), "Original naming receipt changed after replacement"
+                                assert saved_path.read_bytes() == saved_bytes, "Saved naming proposal changed during recovery"
+                                del naming_pending[sent]
+                                naming_recovered.add(identity)
+                    if self.path == "/v1/command" and status == 200 and (named_only or maintained_only):
+                        if body in naming_pending:
+                            raise AssertionError("Retired worker signature unexpectedly accepted after rotation")
+                        else:
+                            request = envelope["request"]
+                            command = request["command"]
+                            turn = command.get("turn", command.get("turn_with_versions", {}).get("turn"))
+                            if turn:
+                                values = [bytes.fromhex(entry["value"]) for entry in turn["mutations"] if entry and entry["value"]]
+                                for magic in (b"NRD1", b"NRP1"):
+                                    identity = (request["principal"], magic)
+                                    if identity in naming_faults or not any(value.startswith(magic) for value in values):
+                                        continue
+                                    saved_path = root / f"named-pending-{request['principal']}.json"
+                                    saved_bytes = saved_path.read_bytes()
+                                    saved = json.loads(saved_bytes)
+                                    assert saved["pending"]["signed"]["request"] == request
+                                    assert saved["pending"]["signed"]["signature"] == envelope["signature"]
+                                    assert saved_path.stat().st_mode & 0o777 == 0o600
+                                    naming_faults.add(identity)
+                                    naming_pending[body] = (identity, data, saved_path, saved_bytes)
+                                    # The authority accepted the proposal. Replace
+                                    # its OS process before exposing an unusable
+                                    # reply; the caller must retain its old bytes.
+                                    authority.kill()
+                                    authority.wait(timeout=15)
+                                    authority = None
+                                    authority = start()
+                                    data = b'{"position":0}'
+                                    break
                     if self.path == "/table/v1" and "observe" in envelope["action"]:
                         object_id = envelope["action"]["observe"]["interpretation"]["object"]["object"]
                         fault = freshness_faults.get(object_id, 2)
@@ -121,6 +170,9 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
+                except BaseException as error:
+                    proxy_failures.append(type(error).__name__)
+                    raise
                 finally:
                     connection.close()
 
@@ -168,7 +220,10 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
                 subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=600)
                 assert all(value == 2 for value in freshness_faults.values()), freshness_faults
-                print("Direct named queries: publication without execution, explicit authorization/activation, original attribution across worker replacement, verified independent Table cuts and current disclosure denial passed.", flush=True)
+                expected = {(principal, magic) for principal in (151, 152) for magic in (b"NRD1", b"NRP1")}
+                assert naming_faults == naming_recovered == expected and not naming_pending and not proxy_failures
+                assert not list(root.glob("named-pending-*.json"))
+                print("Direct named queries: saved publication/authorization proposals, lost accepted replies, abrupt node replacement, worker key/generation rotation, exact original receipts, publication without execution, explicit activation, original attribution, verified independent Table cuts and current disclosure denial passed.", flush=True)
                 return
             if follow_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
@@ -247,6 +302,10 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 authority = None
                 authority = start()
                 subprocess.run([caller, endpoint, "maintained-resume", str(profile)], check=True, timeout=600)
+                if maintained_only:
+                    expected = {(principal, magic) for principal in (107, 108) for magic in (b"NRD1", b"NRP1")}
+                    assert naming_faults == naming_recovered == expected and not naming_pending and not proxy_failures
+                    assert not list(root.glob("named-pending-*.json"))
                 print("Direct maintained query: original acquisition recovery, bounded physical history progress across node replacement, initial backfill, alias and independent Table cuts, accepted no-op revisions, paired deltas, original lease cleanup, post-closure disclosure, current revocation/restoration and retirement passed.", flush=True)
             if not maintained_only and not source_pages_only and not exchanges_only and not unified_boundaries_only and not captured_only:
                 for case in ("captured_work", "captured_spill", "captured_overflow", "maintained_overflow", "maintained_gap"):

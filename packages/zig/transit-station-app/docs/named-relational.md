@@ -69,6 +69,15 @@ rejects. Preserve the exact native request during unknown admission; a fresh cal
 identity is new work. Saved references require the exact shared contract definition,
 not just a v1 label. The original request must still be published when activated.
 
+Save a host's exact `Session.Pending` before dispatching a publication or policy
+commit. After worker key rotation, the old signature can no longer submit that
+command. Use `AuthorizationClient.read(.{ .receipt = original_request })` with
+the current credential to inspect its original acceptance. A present receipt
+resolves that exact native request; a missing receipt leaves the saved operation
+unresolved. Neither a current name lookup nor re-signing the proposal substitutes
+for this evidence. Worker replacement preserves the named reference, original
+query grants and separate activation requirement.
+
 Publication uses three mutations and authorization uses three. Existing activation
 uses at most four. Histories use point-addressed durable records; one operation
 does not load all names or revisions. Supply an explicitly bounded decode workspace;
