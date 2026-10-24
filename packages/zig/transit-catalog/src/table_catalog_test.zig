@@ -1612,15 +1612,9 @@ test "dependency graph and policy reference inspection enforce current rights an
     try t.expectError(error.CatalogDenied, owner.policyReferences(&turn, 18, 20));
 }
 
-test "computation catalog lifecycle tracks upstream source revision freshness and availability" {
-    var store: TestStore = .{};
-    defer store.deinit();
-    try ready(&store);
-    const creation = try createRequest(10, 1, "people");
-    _ = try ddl(&store, creation);
-
-    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
-    const comp_req: c.DeclarativeCatalog.Request = .{
+test "retired computation metadata and supplied completion reject as catalog work" {
+    const declaration = c.DeclarativeCatalog;
+    var request: declaration.Request = .{
         .scope = owner.configuration.scope,
         .principal = 17,
         .operation = 2,
@@ -1628,111 +1622,23 @@ test "computation catalog lifecycle tracks upstream source revision freshness an
         .object = 80,
         .expected_revision = 0,
         .name = try c.TableAuthority.Name.init("people_summary"),
-        .action = .{
-            .create = .{
-                .spec = .{ .computation = .{ .source_object = 10, .source_revision = 1, .output_object = 0 } },
-                .resource_id = 9800,
-            },
-        },
+        .action = .{ .create = .{ .spec = .document, .resource_id = 9800 } },
     };
-
-    // Phase 1: initializing -> pending
-    var turn = try store.capture(17);
-    const p1 = try decl.apply(&turn, comp_req);
-    try t.expectEqual(.provisioning, p1.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    try t.expectEqual(m.LifecycleState.pending, (try owner.inspectComputation(&turn, 17, 80)).?.state);
-
-    // Phase 2: live -> published (not yet evaluated)
-    const p2 = try decl.apply(&turn, comp_req);
-    try t.expectEqual(.applied, p2.state);
-    try store.commit(turn);
-
-    // Bind restricting query_source dependency from computation 80 to source table 10
-    turn = try store.capture(17);
-    try decl.bindComputationDependency(&turn, 80, true);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const comp_published = (try owner.inspectComputation(&turn, 17, 80)).?;
-    try t.expectEqual(m.LifecycleState.published, comp_published.state);
-    try t.expect(comp_published.source_available);
-    try t.expect(!comp_published.fresh);
-    try t.expectEqual(@as(u64, 1), comp_published.source_revision);
-    try t.expectEqual(@as(u64, 1), comp_published.current_source_revision);
-    try t.expectEqual(@as(u64, 80), (try owner.dependents(&turn, 17, 10, null)).entries[0].?.identity);
-    try t.expectEqual(@as(u64, 10), (try owner.dependencies(&turn, 17, 80, null)).entries[0].?.object);
-
-    // Complete computation evaluation against source_revision 1 -> complete & fresh
-    const eval1: c.DeclarativeCatalog.Request = .{
-        .scope = owner.configuration.scope,
-        .principal = 17,
-        .operation = 3,
-        .namespace = 1,
-        .object = 80,
-        .expected_revision = 1,
-        .name = comp_req.name,
-        .action = .{ .complete_computation = .{ .source_revision = 1 } },
-    };
-    const eval1_out = try decl.apply(&turn, eval1);
-    try t.expectEqual(.applied, eval1_out.state);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const comp_complete = (try owner.inspectComputation(&turn, 17, 80)).?;
-    try t.expectEqual(m.LifecycleState.complete, comp_complete.state);
-    try t.expect(comp_complete.fresh);
-    try t.expectEqual(m.LifecycleState.complete, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
-
-    // Evolve upstream table 10 to revision 2 -> computation becomes stale (pending, fresh = false)
-    const alter: c.TableDdlRequest = .{
-        .principal = 17,
-        .operation = 4,
-        .object = 10,
-        .expected_revision = 1,
-        .name = creation.name,
-        .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } },
-    };
-    _ = try ddl(&store, alter);
-
-    turn = try store.capture(17);
-    const comp_stale = (try owner.inspectComputation(&turn, 17, 80)).?;
-    try t.expectEqual(m.LifecycleState.pending, comp_stale.state);
-    try t.expect(!comp_stale.fresh);
-    try t.expectEqual(@as(u64, 1), comp_stale.source_revision);
-    try t.expectEqual(@as(u64, 2), comp_stale.current_source_revision);
-    try t.expectEqual(m.LifecycleState.pending, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
-
-    // Re-evaluate computation against source_revision 2 -> complete & fresh again
-    const eval2: c.DeclarativeCatalog.Request = .{
-        .scope = owner.configuration.scope,
-        .principal = 17,
-        .operation = 5,
-        .namespace = 1,
-        .object = 80,
-        .expected_revision = 2,
-        .name = comp_req.name,
-        .action = .{ .complete_computation = .{ .source_revision = 2 } },
-    };
-    _ = try decl.apply(&turn, eval2);
-    try store.commit(turn);
-
-    turn = try store.capture(17);
-    const comp_re_evaluated = (try owner.inspectComputation(&turn, 17, 80)).?;
-    try t.expectEqual(m.LifecycleState.complete, comp_re_evaluated.state);
-    try t.expect(comp_re_evaluated.fresh);
-
-    // Unbind dependency and drop upstream table 10 -> computation reports unavailable
-    try decl.bindComputationDependency(&turn, 80, false);
-    try store.commit(turn);
-    _ = try ddl(&store, .{ .principal = 17, .operation = 6, .object = 10, .expected_revision = 2, .name = creation.name, .action = .{ .drop = .{} } });
-
-    turn = try store.capture(17);
-    const comp_unavail = (try owner.inspectComputation(&turn, 17, 80)).?;
-    try t.expectEqual(m.LifecycleState.unavailable, comp_unavail.state);
-    try t.expect(!comp_unavail.source_available);
-    try t.expect(!comp_unavail.fresh);
-    try t.expectEqual(m.LifecycleState.unavailable, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+    var encoded = try c.Records.encode('L', request);
+    _ = try c.Records.decode(declaration.Request, 'L', encoded);
+    // The trailing create payload is kind:u8, resource:u64, if_not_exists:u8.
+    // The removed computation kind was 4. Changing the definition header must
+    // not make such an old body a valid Document or caller-certified result.
+    try t.expectEqual(@as(u8, 3), encoded.data[encoded.len - 10]);
+    encoded.data[encoded.len - 10] = 4;
+    try t.expectError(error.InvalidCatalogRecord, c.Records.decode(declaration.Request, 'L', encoded));
+    request.expected_revision = 1;
+    request.action = .{ .drop = .{} };
+    encoded = try c.Records.encode('L', request);
+    _ = try c.Records.decode(declaration.Request, 'L', encoded);
+    // A DROP ends in its tag and if_exists flag; supplied completion used tag 4.
+    try t.expectEqual(@as(u8, 3), encoded.data[encoded.len - 2]);
+    encoded.data[encoded.len - 2] = 4;
+    try t.expectError(error.InvalidCatalogRecord, c.Records.decode(declaration.Request, 'L', encoded));
+    try t.expectError(error.UnknownField, c.TableBridge.parse(t.allocator, "{\"computation\":\"80\"}"));
 }

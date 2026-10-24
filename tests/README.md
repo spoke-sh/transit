@@ -185,6 +185,32 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Query-owned computation evidence — 2026-10-23
+
+Under definition
+`554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa`,
+the catalog and application package suites pass 127 and 45 tests respectively:
+
+```sh
+cd packages/zig/transit-catalog && zig build test -Doptimize=ReleaseSafe --summary all
+cd packages/zig/transit-station-app && zig build test -Doptimize=ReleaseSafe --summary all
+```
+
+Run each command from the repository root in `nix develop`. The generic catalog
+computation record, caller-supplied completion operation and schema-only freshness
+inspection are removed. Canonical record tests reject their retired kind/action
+tags even under a current header, and the JSON caller rejects the removed
+inspection action. Captured and maintained query owners retain their actual
+execution/result evidence; named KV/Document metadata does not acquire stronger
+provisioning semantics from this removal.
+
+The shared current-v1 definition changes for the removed stored and caller
+contracts. Reflected contracts, language bindings, independent signing fixtures
+and diagnostic inventory/mapping checks pass. The prior definition remains an
+explicit rejection case. These checks do not complete direct dependencies, named
+resource provisioning, full repository qualification or the committed-HEAD clean
+gate.
+
 ## Result source freshness and named attribution — 2026-10-23
 
 Under definition

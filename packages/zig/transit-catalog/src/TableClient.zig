@@ -186,13 +186,6 @@ pub fn policyReferences(self: *Self, id: u64) !?m.PolicyReferences {
     try current.finish();
     return result;
 }
-pub fn inspectComputation(self: *Self, id: u64) !?m.ComputationEvidence {
-    if (id == 0) return error.InvalidCatalogIdentity;
-    var current = try self.source(&.{self.address('K', id, 0)});
-    const result = try (try self.catalog(&current)).inspectComputation(&current, self.connection.principal, id);
-    try current.finish();
-    return result;
-}
 /// Non-mutating validation of an intent against the current authorized cut.
 /// Never signs, submits or reserves an operation identity.
 pub fn preview(self: *Self, allocator: std.mem.Allocator, intent: *const Intent) !m.Preview {

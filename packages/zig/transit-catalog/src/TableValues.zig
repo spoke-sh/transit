@@ -518,42 +518,6 @@ pub const PolicyReferences = struct {
         };
     }
 };
-pub const ComputationEvidence = struct {
-    scope: Scope,
-    namespace: u64,
-    object: []const u8,
-    revision: []const u8,
-    name: []const u8,
-    state: m.LifecycleState,
-    source_object: []const u8,
-    source_revision: []const u8,
-    current_source_revision: ?[]const u8,
-    output_object: ?[]const u8,
-    fresh: bool,
-    source_available: bool,
-    resource_revision: u64,
-    admitted_input: ?u64,
-    completed_input: ?u64,
-    pub fn foreign(allocator: Allocator, value: m.ComputationEvidence) !ComputationEvidence {
-        return .{
-            .scope = try Scope.foreign(allocator, value.scope),
-            .namespace = value.namespace,
-            .object = try decimal(allocator, value.object),
-            .revision = try decimal(allocator, value.revision),
-            .name = try allocator.dupe(u8, value.name.slice()),
-            .state = value.state,
-            .source_object = try decimal(allocator, value.source_object),
-            .source_revision = try decimal(allocator, value.source_revision),
-            .current_source_revision = if (value.current_source_revision == 0) null else try decimal(allocator, value.current_source_revision),
-            .output_object = if (value.output_object == 0) null else try decimal(allocator, value.output_object),
-            .fresh = value.fresh,
-            .source_available = value.source_available,
-            .resource_revision = value.resource_revision,
-            .admitted_input = if (value.admitted_input == 0) null else value.admitted_input,
-            .completed_input = if (value.completed_input == 0) null else value.completed_input,
-        };
-    }
-};
 pub const Disposition = struct {
     input: u64,
     outcome: @FieldType(c.TableControl.Disposition, "outcome"),

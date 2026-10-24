@@ -459,10 +459,6 @@ pub fn policyReferences(self: Self, source: anytype, who: u64, id: u64) !?m.Poli
     }
     return null;
 }
-pub fn inspectComputation(self: Self, source: anytype, who: u64, id: u64) !?m.ComputationEvidence {
-    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
-    return decl.inspectComputation(source, who, id);
-}
 pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.LifecycleEvidence {
     _ = try self.authorizeDatabase(source, who);
     const current = (try self.object(source, id)) orelse {

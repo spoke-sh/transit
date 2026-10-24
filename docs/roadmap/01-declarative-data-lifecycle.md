@@ -219,8 +219,10 @@ later definition publication. The
 now binds named captured inspection to an actual retained result and compares
 captured/maintained cuts with logical source progress. It distinguishes no-ops,
 row changes, definition drift and observation errors without starting execution
-or certifying unread output. Named maintenance recovery, dependency registration
-and replacement of the generic catalog's unverified completion path remain open.
+or certifying unread output. The generic catalog's unverified completion path is
+removed through a [current-v1 cutover](../../tests/README.md#query-owned-computation-evidence--2026-10-23);
+retired record tags and its removed caller action reject. Named maintenance
+recovery and dependency registration remain open.
 
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource

@@ -2990,32 +2990,30 @@
     },
     "packages/zig/transit-catalog/src/DeclarativeCatalog.zig": {
       "errors": {
-        "CatalogCapacity": 6,
+        "CatalogCapacity": 4,
         "CatalogCleanupNotClosed": 1,
         "CatalogCursorChanged": 1,
         "CatalogDefinitionChanged": 1,
         "CatalogDefinitionMissing": 3,
-        "CatalogDenied": 8,
+        "CatalogDenied": 7,
         "CatalogIdentityConflict": 6,
         "CatalogOperationNotFound": 3,
         "CatalogOwnerChanged": 3,
         "CatalogRegistrationRequired": 1,
         "InvalidCatalogBinding": 3,
-        "InvalidCatalogCommand": 7,
-        "InvalidCatalogDefinition": 2,
+        "InvalidCatalogCommand": 4,
         "InvalidCatalogIdentity": 2,
         "InvalidCatalogName": 1,
-        "InvalidCatalogObject": 9,
+        "InvalidCatalogObject": 7,
         "InvalidCatalogReceipt": 5,
         "TableBusy": 2,
-        "TableNotFound": 3
+        "TableNotFound": 1
       },
       "outcomes": {
         "Action": [
           "create",
           "rename",
-          "drop",
-          "complete_computation"
+          "drop"
         ],
         "Outcome.state": [
           "provisioning",
@@ -3031,18 +3029,15 @@
         ],
         "Spec": [
           "kv",
-          "document",
-          "computation"
+          "document"
         ],
         "StateKind": [
           "kv",
-          "document",
-          "computation"
+          "document"
         ]
       },
       "error_sets": {},
       "error_returns": {
-        "ComputationSpec.validate()": "<inferred>",
         "Outcome.validate()": "<inferred>",
         "Record.validate()": "<inferred>",
         "Request.digest()": "<inferred>",
@@ -3052,13 +3047,11 @@
         "Spec.validate()": "<inferred>",
         "apply()": "<inferred>",
         "authorizeObject()": "<inferred>",
-        "bindComputationDependency()": "<inferred>",
         "bound()": "<inferred>",
         "boundMeta()": "<inferred>",
         "cancel()": "<inferred>",
         "cleanup()": "<inferred>",
         "closeOutcome()": "<inferred>",
-        "inspectComputation()": "<inferred>",
         "inspectLifecycle()": "<inferred>",
         "list()": "<inferred>",
         "lookup()": "<inferred>",
@@ -3072,8 +3065,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 139,
-        "catch": 10
+        "try": 130,
+        "catch": 7
       },
       "imports": [
         "root.zig",
@@ -4239,7 +4232,6 @@
           "dependents",
           "dependencies",
           "policy_references",
-          "computation",
           "list",
           "compile",
           "prepare",
@@ -4289,7 +4281,6 @@
           "lifecycle",
           "dependencies",
           "policy_references",
-          "computation",
           "preview",
           "page",
           "compiled",
@@ -4317,7 +4308,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 114,
+        "try": 111,
         "catch": 1
       },
       "imports": [
@@ -4410,7 +4401,6 @@
         "executeUploaded()": "<inferred>",
         "historical()": "<inferred>",
         "initialize()": "<inferred>",
-        "inspectComputation()": "<inferred>",
         "inspectLifecycle()": "<inferred>",
         "list()": "<inferred>",
         "lookup()": "<inferred>",
@@ -4492,8 +4482,7 @@
         "ObjectKind": [
           "table",
           "kv",
-          "document",
-          "computation"
+          "document"
         ],
         "Operation.blocker": [
           "none",
@@ -4568,7 +4557,7 @@
         "InvalidAuthorityResponse": 2,
         "InvalidAuthorizationPlan": 1,
         "InvalidCatalogCommand": 1,
-        "InvalidCatalogIdentity": 12,
+        "InvalidCatalogIdentity": 11,
         "InvalidCatalogPage": 1,
         "InvalidCatalogPrepared": 11,
         "MessageTooLarge": 1,
@@ -4652,7 +4641,6 @@
         "describeDatabase()": "<inferred>",
         "dispositionFrom()": "<inferred>",
         "inputDisposition()": "<inferred>",
-        "inspectComputation()": "<inferred>",
         "inspectHeader()": "<inferred>",
         "inspectIntent()": "<inferred>",
         "inspectLifecycle()": "<inferred>",
@@ -4699,7 +4687,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 273,
+        "try": 269,
         "catch": 7
       },
       "imports": [
@@ -5266,7 +5254,6 @@
         "AuthorizationPlan.foreign()": "<inferred>",
         "AuthorizationPlan.native()": "<inferred>",
         "Basis.check()": "<inferred>",
-        "ComputationEvidence.foreign()": "<inferred>",
         "Configuration.Limits.native()": "<inferred>",
         "Configuration.foreign()": "<inferred>",
         "Configuration.native()": "<inferred>",
@@ -5307,7 +5294,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 129,
+        "try": 121,
         "catch": 3
       },
       "imports": [
@@ -12881,7 +12868,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0\""
+          "@\"554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa\""
         ],
         "Effect.phase": [
           "pending",
@@ -16360,7 +16347,6 @@
           "dependents",
           "dependencies",
           "policy_references",
-          "computation",
           "compile",
           "prepare",
           "preview",
@@ -16391,7 +16377,6 @@
           "lifecycle",
           "dependencies",
           "policy_references",
-          "computation",
           "preview",
           "compiled",
           "next",
@@ -16414,7 +16399,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 95,
+        "try": 92,
         "catch": 1
       },
       "imports": [
