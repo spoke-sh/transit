@@ -34,6 +34,10 @@ direct-captured-query:
 direct-follow-query:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --follow-only
 
+# Separate named publication, caller grants and explicit direct Table activation.
+direct-named-query:
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --named-only
+
 # Primitive bytes/index proof; native authority and SQL integration are separate.
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe
