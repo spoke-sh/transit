@@ -22,7 +22,9 @@ scopes. Role memberships support ADMIN, INHERIT and SET independently; object
 grants support delegation options and RESTRICT/CASCADE. PUBLIC has no bootstrap
 access. Cross-realm federation is not implemented.
 
-Repeated grants preserve existing options and independent grantors. Ownership
+Repeated grants preserve omitted options and independent grantors. Turning off
+an enabled membership option checks dependencies; a new SET-only membership or
+an unchanged false option does not reconcile unrelated inactive grant paths. Ownership
 transfer checks SET eligibility from the login role separately from inherited
 owner authority. Exact logical role-name lookup is visible to authenticated
 callers in the realm; private native roles and full role enumeration remain

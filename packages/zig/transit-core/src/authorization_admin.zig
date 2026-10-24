@@ -170,16 +170,22 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             var check = try evaluator(store, limits);
             if (!try check.admin(actor.role, value.role)) return error.Forbidden;
             if (try check.wouldCycle(value.member, value.role)) return error.RoleMembershipCycle;
-            var edge = (try findMembership(store, value.member, value.role, actor.role, limits)) orelse a.Membership{ .id = try store.allocate(), .member = value.member, .role = value.role, .grantor = actor.role, .revision = id };
+            const existing = try findMembership(store, value.member, value.role, actor.role, limits);
+            var edge = existing orelse a.Membership{ .id = try store.allocate(), .member = value.member, .role = value.role, .grantor = actor.role, .revision = id };
+            const removes_option = if (existing) |before| before.enabled and
+                ((before.admin and value.admin == false) or
+                    (before.inherit and value.inherit == false) or
+                    (before.set and value.set == false)) else false;
             if (value.admin) |option| edge.admin = option;
             if (value.inherit) |option| edge.inherit = option;
             if (value.set) |option| edge.set = option;
             edge.revision = id;
             try store.putMembership(edge);
             change.outcome.created_id = edge.id;
-            // Removing an option via repeated GRANT has the same dependency
-            // requirements as REVOKE ... RESTRICT.
-            if (value.admin == false or value.inherit == false or value.set == false) change.phase = .memberships;
+            // Only removal of a published option can invalidate dependents.
+            // A new SET-only edge or an unchanged false option adds no such
+            // dependency work, even when other roles have inactive paths.
+            if (removes_option) change.phase = .memberships;
         },
         .revoke_membership => |value| {
             var edge = (try store.membership(value.id)) orelse return error.UnknownRoleMembership;
