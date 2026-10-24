@@ -9,6 +9,8 @@ import {
 import { QueryError, type Transport } from "./transport";
 const suggestion = (generation: number): Assisted["response"] => ({
   version: 1,
+  coverage: "complete",
+  status: "ready",
   generation,
   profile: "unified_v1",
   resource: 1,

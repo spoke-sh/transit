@@ -150,6 +150,33 @@ pub fn terminator(text: []const u8) !?u16 {
     while (try scan.next()) |token| if (token.kind == .symbol and text[token.start] == ';') return token.end;
     return null;
 }
+/// Cursor-local statement, retaining its suffix for binding. Dot commands end
+/// at a line boundary; SQL separators inside strings/comments remain inert.
+pub fn active(text: []const u8, cursor: u16, console: bool) !Range {
+    _ = try Scan.init(text);
+    if (cursor > text.len or !std.unicode.utf8ValidateSlice(text[0..cursor])) return error.InvalidSqlCursor;
+    var start: usize = 0;
+    while (true) {
+        while (start < cursor and std.mem.indexOfScalar(u8, " \t\r\n", text[start]) != null) start += 1;
+        const dot = console and start < text.len and text[start] == '.';
+        const end = if (dot) start + (std.mem.indexOfScalar(u8, text[start..], '\n') orelse (text.len - start)) else start + (try terminator(text[start..]) orelse (text.len - start));
+        if (cursor < end or end == text.len and (dot or end == start or text[end - 1] != ';')) return .{ .start = @intCast(start), .end = @intCast(end) };
+        if (end == text.len) return .{ .start = @intCast(end), .end = @intCast(end) };
+        start = end + @intFromBool(dot);
+    }
+}
+
+test "active statement respects cursor, suffix, comments and dot command lines" {
+    const t = std.testing;
+    const text = ".mode table\nSELECT ';';\n SELECT va FROM items; SELECT 2";
+    const range = try active(text, 33, true);
+    try t.expectEqualStrings("SELECT va FROM items;", text[range.start..range.end]);
+    const empty = try active("SELECT ';';", 11, true);
+    try t.expectEqual(empty.start, empty.end);
+    const dot = try active("  .help sql\nSELECT 1", 5, true);
+    try t.expectEqualStrings(".help sql", "  .help sql\nSELECT 1"[dot.start..dot.end]);
+}
+
 pub fn significant(text: []const u8) !bool {
     var scan = try Scan.init(text);
     while (try scan.next()) |token| if (token.kind != .space and token.kind != .comment) return true;

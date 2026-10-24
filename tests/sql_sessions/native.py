@@ -120,6 +120,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     token = list(os.urandom(16))
     created = first.execute('CREATE TABLE native_sessions (id INT64 PRIMARY KEY, value INT128)', token)['operation']
     first.terminal(created)
+    # The actual native route shares grammar, metadata and settings assistance.
+    for text, cursor, expected, profile in (
+        ('SELECT va FROM native_sessions', 9, '"value"', 'catalog_v1'),
+        ('SELECT n.va FROM native_sessions AS n', 11, '"value"', 'catalog_v1'),
+        ('.mode table\nSELECT 1; SELECT va FROM native_sessions', 31, '"value"', 'catalog_v1'),
+        ('UPDATE native_sessions SET va', 29, '"value"', 'catalog_v1'),
+        ('SET query.statement_t', 21, 'query.statement_timeout', 'configuration_v1'),
+    ):
+        result = first.call(dict(assist=dict(text=text, cursor=cursor)))['assistance']
+        assert result['profile'] == profile and result['status'] == 'ready', (text, result)
+        assert expected in [item['text'] for item in result['items']], (text, result)
+        assert result['coverage'] in ('complete', 'limited') and len(result['items']) <= 8
+    result = first.call(dict(assist=dict(text="SELECT 'private", cursor=15)))['assistance']
+    assert result['status'] == 'inside_text' and not result['items'], result
     # Failures are produced by the actual shared compiler, before token admission.
     for statement, code in (
         ('SELECT;', 'InvalidSqlSyntax'),

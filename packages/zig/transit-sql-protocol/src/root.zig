@@ -114,7 +114,7 @@ pub const Response = struct {
         operation: Operation,
         operations: struct { entries: []const Operation, next: ?u64 },
         completion: struct { kind: Completion, matched: u64 = 0, changed: u64 = 0 },
-        assistance: struct { profile: enum { unified_v1, catalog_v1, configuration_v1 }, resource: u64, contract: [32]u8, resource_revision: u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
+        assistance: struct { coverage: enum { complete, limited }, status: enum { ready, inside_text, unsupported }, profile: enum { unified_v1, catalog_v1, configuration_v1 }, resource: u64, contract: [32]u8, resource_revision: u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
         closed,
         err: Error,
     },

@@ -136,7 +136,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
             const result = try q.Assistance.complete(allocator, name, try definition.schema(&columns), value);
             errdefer result.deinit(allocator);
             const current = try client.describe(definition);
-            return .{ .assistance = .{ .generation = value.generation, .resource = definition.resource, .contract = try definition.fingerprint(), .resource_revision = current.resource_revision, .policy_revision = try a.decimal(allocator, current.policy_revision), .range = result.range, .items = result.items } };
+            return .{ .assistance = .{ .generation = value.generation, .coverage = result.coverage, .status = result.status, .resource = definition.resource, .contract = try definition.fingerprint(), .resource_revision = current.resource_revision, .policy_revision = try a.decimal(allocator, current.policy_revision), .range = result.range, .items = result.items } };
         },
         .suggest => |input| {
             _ = try client.describe(definition);

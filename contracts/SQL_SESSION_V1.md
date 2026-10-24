@@ -215,3 +215,19 @@ optional original operation observation and structured owner diagnostic. They do
 passwords, session secrets or private paths. A transport failure cannot establish
 whether a mutation was accepted. Clients recover by the original token on the
 same instance; arbitrary request retries are not a transport policy.
+
+## Assistance coverage
+
+`assist` is read-only grammar and currently authorized metadata acquisition.
+Its required `coverage` is `complete` or `limited`; `status` is `ready`,
+`inside_text` or `unsupported`. Empty limited results do not establish absence.
+Only a complete, ready one-item result establishes a unique matching candidate.
+At most eight ranked candidates and 128 catalog pages are retained/acquired per
+request. The range uses UTF-8 byte offsets in the original input; context is the
+active statement at the cursor, including its suffix. Completion never executes
+statements, samples row values or grants permission to execute a suggestion.
+Settings contexts use the authorized configuration owner. Transport failure is
+unavailable acquisition, never an empty complete result.
+
+The assistance coverage cutover replaces the shared native definition. Missing
+coverage/status and foreign definitions reject; there is no fallback decoder.

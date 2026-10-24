@@ -124,3 +124,8 @@ output names, Boolean programs and value-count progress. Publication identity
 includes domain, namespace and record ID. These unchanged contracts remain part
 of the current shared definition; an identifier does not bypass any of their
 individual validation, recovery or authorization checks.
+
+The current definition also requires typed assistance coverage and context status
+in SQL session replies and shared query assistance. Matching console, service and
+query-client builds are required. Missing fields or an earlier definition reject;
+a short candidate list alone never establishes complete matching coverage.
