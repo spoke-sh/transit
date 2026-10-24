@@ -13,9 +13,15 @@ failure into a real accepted request.
 The first filtered run omitted the new test import and establishes no test pass.
 The first public-proof build caught an incorrect staged-intent member access;
 it is corrected, the test import is present, and the explicit-count package rerun
-passes. Public dependency/resource fault reruns are pending at this commit.
-Contract, diagnostic inventory/mapping and documentation checks pass. The hook
-does not yet replace the general catalog ABI's dispatch/error boundary.
+passes. The corrected public rerun passes `just test::direct-dependencies`
+(**32 calls**) and `just test::direct-named-resources` (**107 calls**). Corrupted
+dependency replies preserve unknown outcomes and their original IDs. In each
+resource allocation, a native receipt proves allocation was accepted before the
+catalog response reports AccessDenied; the attempt remains unknown, preserving
+the saved operation for recovery after explicit grants. All original fault and
+restart assertions also pass. Contract, diagnostic inventory/mapping and
+documentation checks pass. The hook does not yet replace the general catalog
+ABI's dispatch/error boundary.
 
 ## Direct host named resource recovery — 2026-10-24
 
