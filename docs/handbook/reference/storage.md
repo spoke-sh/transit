@@ -7,6 +7,31 @@ logical process/resource identities, accepted transitions, retained boundaries
 and retirement. Physical streams, buckets and offsets are not an alternate
 authority for execution or permissions.
 
+## Direct Table data
+
+The local SQL service uses the node's signed direct Table interface. The catalog
+owns names and immutable definitions, while each Table has its own acceptance
+partition. A complete row operation or DDL intent has one original identity and
+an inspectable admitted, committed, rejected or cancelled outcome. Direct rows
+are not limited by native actor frame or turn-block sizes. The
+[direct interface](../../../contracts/DIRECT_TABLE_V1.md) owns request budgets,
+authorization and exact-retry semantics.
+
+Point writes can remain in retained WAL records. Bulk ingestion publishes
+immutable `.tseg` objects before accepting the new Table state. A query's durable
+pin protects its original interpretation and accepted frontier, including
+unflushed data; independently retained Tables do not form one atomic catalog
+snapshot. Read-only current observations create no pin and cannot support later
+resumable traversal. Current database/schema/Table rights apply to both paths.
+
+The installed owner does not automatically flush point writes or expose physical
+Table garbage collection. Absence of a new `.tseg` after a point write does not
+imply that the write is missing: inspect its exact operation outcome and Table
+data position. The [Table reference](tables.md) and
+[direct owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
+describe the caller operations; native resource storage below has a separate
+acceptance and maintenance boundary.
+
 ## Durable history and derived state
 
 The authority accepts conditional successors into its durable history. Recovery

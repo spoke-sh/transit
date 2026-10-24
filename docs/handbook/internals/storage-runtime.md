@@ -15,8 +15,7 @@ and operational behavior.
 The local server supplies conditional native durability through its exclusive
 [local backend](../../../packages/zig/transit-backend-local/README.md), a
 partition-zero WAL and immutable page/block objects. Ursula deployments retain
-their backend mapping. The local path preserves the existing native root model;
-it does not yet attach the Table segment engine to SQL. The
+their backend mapping. The local path preserves the existing native root model. The
 [native persistence proofs](../../../tests/README.md#native-authority-over-local-storage--2026-10-22)
 cover restart and lost replies, with the physical collection and power-loss
 limits stated there. Transit owns logical identities, accepted transitions, retained
@@ -28,6 +27,28 @@ Immutable catalog/resource roots permit bounded page reads at a stable basis.
 The current realm journal remains a serialization point. Separating durable
 cardinality from cache size therefore does not establish horizontal authority
 throughput. It answers a memory-growth question, not every scaling question.
+
+### Direct Table acceptance alongside native resources
+
+The local SQL service uses a separate direct Table owner. Its control catalog
+reserves names and records frozen DDL work; each Table's acceptance log determines
+whether the new definition or row state is visible. Immutable operation bindings
+prevent a retry from changing its target or intent. Native authorization supplies
+the current permission fence, while direct row bytes bypass actor turn limits.
+See the [direct contract](../../../contracts/DIRECT_TABLE_V1.md) and
+[catalog implementation](../../../packages/zig/transit-catalog/src/DirectCatalog.zig).
+
+This separation answers an acceptance and recovery question, not a claim of
+distributed write throughput. The installed local owner has exclusive storage
+ownership. Point writes may remain in retained WAL records, while bulk ingestion
+publishes `.tseg` data before its atomic acceptance. Durable pins preserve the
+original definition and unflushed frontier; separate Tables retain independent
+cuts. The [installed execution proof](../../../tests/README.md#installed-direct-execution-recovery--2026-10-23)
+and [direct CRUD/DDL proof](../../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+record exact-retry, restart, revocation and name-replacement schedules and their
+reproduction commands. Those runs do not establish arbitrary power-loss safety,
+cloud storage placement or physical Table collection. Automatic point flushing,
+cache tiering and distributed OCC remain design work in the model below.
 
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 
@@ -41,7 +62,7 @@ local development (`transit server`) and disaggregated cloud/Kubernetes topologi
 
 ### Diagnosis: quadruple B-tree indirection over an HTTP stream store
 
-In the implemented baseline, inserting a single Table row incurs `806 ms` from
+In the measured earlier baseline, inserting a single Table row incurred `806 ms` from
 the local console (`13,238 ms` over PostgreSQL wire), staging `29` immutable
 pages and issuing `1,072` HTTP requests to Ursula. Formalizing the storage stack
 explains why:

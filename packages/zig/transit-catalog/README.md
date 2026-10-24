@@ -39,8 +39,8 @@ direct data owners. It reserves the complete neutral binding across object and
 branch identities, without a global catalog-root update per data write. The
 service must authorize the original caller before claiming or reading it. This
 claim alone establishes no operation admission or result; those belong to the
-owning acceptance log. The existing installed actor caller does not use this
-primitive. Its exact layout belongs to the
+owning acceptance log. The installed direct Table owner uses this binding.
+Its exact layout belongs to the
 [data lifecycle contract](../../../contracts/DATA_LIFECYCLE_V1.md#frozen-intent-and-acceptance).
 
 `DirectCatalog` composes those claims with paged names, durable DDL admission,
@@ -54,8 +54,9 @@ node's configured `/table/v1` owner, which resumes native registration under the
 original caller's current rights. The default launcher and shared SQL runtime use
 this owner. `DirectAuthorizationSql` also resolves policy plans through this
 owner and publishes nothing during compilation; native authorization still owns
-their explicit publication. Direct namespace lifecycle, captured-source and SDK
-migration remain unfinished.
+their explicit publication. Captured and maintained query owners retain direct
+sources through original-caller grants. Direct namespace lifecycle, dependency
+RESTRICT and generic foreign-language Table CRUD adapters are not exposed.
 
 `NameAssertion` represents conditional DDL requiring no Table mutation.
 `DirectCatalog.assertName` checks an exact existing definition or absent name,

@@ -10,9 +10,10 @@ authorization, retention, capacity, and placement). Transit's runtime **activate
 that data through authorized publication, query execution and durable processes
 (`Station`); connectors coordinate recorded external effects. The installed
 local runtime persists native history in write-ahead logs and immutable state in
-local objects. Hybrid OLTP/OLAP segments and automatic incremental activation
-are the target Table storage and computation architecture; their component
-libraries do not yet replace the installed Table path.
+local objects. Its direct Table owner accepts data independently of actor turns,
+retains unflushed data for queries and publishes `.tseg` objects for bulk writes.
+Automatic point-write flushing, tiered caching and automatic incremental
+activation remain extensions to that installed path.
 
 Start with the data your application needs, what you want to compute from it,
 and the policies governing its use. The [data model](docs/handbook/reference/data-model.md)
