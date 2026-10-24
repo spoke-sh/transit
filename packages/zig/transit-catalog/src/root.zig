@@ -17,6 +17,7 @@ pub const DirectTableBinding = @import("DirectTableBinding.zig");
 pub const DirectTableIntent = @import("DirectTableIntent.zig");
 pub const DirectTableIntentStore = @import("DirectTableIntentStore.zig");
 pub const DirectTablePreparedDml = @import("DirectTablePreparedDml.zig");
+pub const DirectTablePreparedDdl = @import("DirectTablePreparedDdl.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
 pub const OperationBinding = @import("OperationBinding.zig");
 pub const NameAssertion = @import("NameAssertion.zig");

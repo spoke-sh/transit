@@ -86,6 +86,13 @@ Read-only exact-definition and action checks support prepared bindings without
 raw-storage inspection credentials. Parameterized DML templates produce complete
 saved direct intents with explicit admission and recovery.
 
+The [shared DDL preparation proof](../../tests/README.md#shared-direct-table-ddl-preparation--2026-10-24)
+now puts SQL and typed CREATE/ALTER/RENAME/DROP binding in one direct caller
+owner. Independent operation/object identities, saved work after template
+disposal, stale-definition rejection and original receipts after retirement pass
+through the public service. The remaining general Table SDK/ABI migration still
+needs to use this owner.
+
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step
 path. Its current session adapters use direct prepared reads and mutations.
