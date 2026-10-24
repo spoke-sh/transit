@@ -105,6 +105,7 @@
       "bindings::connector-preparation"
     ],
     "bindings-2": [
+      "bindings::go-sdk-test",
       "bindings::c-sdk-test",
       "bindings::java-sdk-test",
       "bindings::dotnet-sdk-test",

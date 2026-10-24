@@ -343,6 +343,11 @@
       },
       "proofs": [
         {
+          "task": "bindings::go-sdk-test",
+          "source": "tests/sdk_raw_client.py",
+          "anchor": "check('local-cancellation-disposal'"
+        },
+        {
           "task": "bindings::python-test",
           "source": "tests/sdk_raw_client.py",
           "anchor": "check('local-cancellation-disposal'"

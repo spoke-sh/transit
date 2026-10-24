@@ -6,7 +6,8 @@ packages. Host APIs own language types, codecs, scheduling and packaging; genera
 wire declarations remain separate from those APIs.
 
 Use the [SDK directory](../docs/handbook/reference/sdks.md) for the current Python,
-TypeScript, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir packages. The
+TypeScript, Rust, Go, Ruby, C, C++, Java, .NET, Erlang and Elixir packages. Go
+provides a raw client; the other non-Zig targets also provide Station adapters. The
 [installed examples](../examples/station-sdk/README.md) provide service and requester
 programs. All use native v1. The pre-1.0 [versioning policy](../docs/handbook/reference/versioning.md)
 requires matching current definitions and hard cutovers.
@@ -59,6 +60,9 @@ definition and build. Omitting the option uses this checkout's `zig-out/`.
 | `just bindings::python-test` | Strict Python APIs and clean installed wheel consumers |
 | `just bindings::node-sdk-test` | TypeScript checks and installed Node consumers |
 | `just bindings::rust-sdk-test` | Locked crates, ownership and installed Rust consumers |
+| `just bindings::go-build` | Go module and matching explicit native installation archives |
+| `just bindings::go-check` | Go formatting, vetting, race detection and strict cgo pointer checks |
+| `just bindings::go-sdk-test` | Installed Go raw-client and example recovery against a disk-backed authority |
 | `just bindings::ruby-sdk-test` | Gems, block/thread ownership and port consumers |
 | `just bindings::c-sdk-test` | Installed C11/C++17 APIs and example executables |
 | `just bindings::java-sdk-test` | JARs, typed futures and joined port consumers |
@@ -71,3 +75,26 @@ definition and build. Omitting the option uses this checkout's `zig-out/`.
 The [Nix tools](../nix/bindings-tools.nix) own language versions and dependencies.
 The [proof ledger](../tests/README.md) records executed combinations and limits;
 a task's presence does not establish that it passed for the current revision.
+
+## Go source builds
+
+Use the pinned Go toolchain from the bindings shell:
+
+```sh
+nix develop .#bindings
+just bindings::go-sdk-test
+```
+
+The task builds the Go module and explicit native installation archives under
+`.cache/bindings/go/`, checks formatting, runs `go vet` and race tests with
+`GOEXPERIMENT=cgocheck2`, and runs the real-authority recovery schedule from an
+installed consumer outside the checkout. It also builds and runs the actual
+[Go example](../examples/go-client/README.md). A foreign-definition build and a
+build with cgo disabled must reject native open. `GOTOOLCHAIN=local` prevents an
+implicit compiler download; the module has no external Go dependencies.
+
+For packaging alone, use `just bindings::go-build`. The underlying builder
+accepts `--native-prefix PATH` to use an explicitly selected Zig installation.
+The module's generated C header, function signatures and constants participate
+in `just bindings::generate` and `just bindings::check`. Follow the
+[Go installation guide](../sdks/go/README.md) to consume the extracted artifacts.

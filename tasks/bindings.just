@@ -23,7 +23,23 @@ native:
     zig build test-bindings
 
 # Qualify every implemented language; enter nix develop .#bindings first.
-test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test java-sdk-test dotnet-sdk-test beam-sdk-test sdk-interop
+test: native python-test node-sdk-test rust-sdk-test go-sdk-test ruby-sdk-test c-sdk-test java-sdk-test dotnet-sdk-test beam-sdk-test sdk-interop
+
+# Build the Go module and its matching explicit native installation.
+go-build: build
+    python3 -B bindings/build_go.py .cache/bindings/go
+
+# Run Go ownership, recovery and race checks against the actual native library.
+go-check: build
+    go version
+    test -z "$(gofmt -l sdks/go tests/go_client_sdk examples/go-client)"
+    cd sdks/go && GOTOOLCHAIN=local GOWORK=off go vet ./...
+    cd sdks/go && TRANSIT_GO_TEST_NATIVE_DIRECTORY="$PWD/../../zig-out/lib" GOTOOLCHAIN=local GOWORK=off GOEXPERIMENT=cgocheck2 go test -race ./...
+
+# Compile an installed external Go consumer and run the shared disk-backed proof.
+go-sdk-test: go-build go-check
+    zig build transit-node transit-admin
+    python3 -B tests/go_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/go
 
 # Requires the installed language artifacts from the corresponding *-build tasks.
 # C exercises C/C++; BEAM exercises Erlang/Elixir. Select with --family.
