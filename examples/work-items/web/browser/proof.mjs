@@ -3,7 +3,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 const expect = baseExpect.configure({ timeout: 60000 });
-const [origin, marker, spki] = process.argv.slice(2);
+const [origin, marker, spki, recoveryWait = "180000"] = process.argv.slice(2);
+const recoveryWaitMs = Number(recoveryWait);
+assert(
+  Number.isSafeInteger(recoveryWaitMs) && recoveryWaitMs >= 180000 && recoveryWaitMs <= 600000,
+);
 if (origin.startsWith("https:")) assert(spki && /^[A-Za-z0-9+/]{43}=$/.test(spki));
 const browser = await chromium.launch({
   headless: true,
@@ -62,7 +66,9 @@ await page.route("**/api/v1/query", async (route) => {
   await route.continue();
 });
 async function waitPhase(value) {
-  await expect.poll(() => readFileSync(marker, "utf8"), { timeout: 180000 }).toBe(value);
+  // Physical replacement is an external fixture step, separate from the
+  // unchanged query/read deadlines. Kubernetes also re-registers three owners.
+  await expect.poll(() => readFileSync(marker, "utf8"), { timeout: recoveryWaitMs }).toBe(value);
 }
 try {
   await page.goto(origin + "/items");

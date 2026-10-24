@@ -23,6 +23,12 @@ class Reference(serving.Reference):
     def __init__(self, work):
         serving.query.Reference.__init__(self, work, 'work-items')
 
+    def deploy(self):
+        # This fixture owns the native PVC below. Do not ask Helm to create an
+        # unused node claim: delayed binding waits for a pod that Helm never starts.
+        self.values['node']['persistence'] = dict(existingClaim='work-items-authority')
+        return super().deploy()
+
     def setup(self):
         if self.namespace_uid is not None: return
         super().setup()
