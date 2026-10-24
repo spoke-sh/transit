@@ -16,6 +16,7 @@ from console_edit import check as check_edit
 from console_help import check as check_help
 from console_outcomes import check as check_outcomes
 from console_multiline import check as check_multiline
+from console_editing import check as check_editing
 from sql_sessions.editor_peer import peer as session_peer
 
 
@@ -31,7 +32,7 @@ def command(terminal, text):
 
 def search(terminal, query, result):
     terminal.send('\x12' + query)
-    terminal.expect(' > ' + result)
+    terminal.expect('>\r\n' + result)
 
 
 def check(binary, signal_gate):
@@ -46,7 +47,7 @@ def check(binary, signal_gate):
         multiline = "SELECT /* 東京\nsecond line */;"
         try:
             terminal.send('\x12')
-            terminal.expect('search  > (type to search)')
+            terminal.expect('search  >\r\n(type to search)')
             terminal.send('absent')
             terminal.expect('(no match)')
             terminal.send('\x1b')
@@ -62,12 +63,12 @@ def check(binary, signal_gate):
             terminal.expect('transit> draft')
             search(terminal, 'history_', '.unknown_history_11')
             terminal.send('\x12')
-            terminal.expect(' > .unknown_history_10')
+            terminal.expect('>\r\n.unknown_history_10')
             terminal.send('absent')
             terminal.expect('(no match)')
             terminal.send('\x7f' * 6)
-            terminal.expect(' > .unknown_history_11')
-            terminal.send('\x1b')
+            terminal.expect('>\r\n.unknown_history_11')
+            terminal.send('\x07')
             terminal.expect('transit> draft')
             clear(terminal)
             search(terminal, 'history_00', '.unknown_history_00')
@@ -123,7 +124,7 @@ def check(binary, signal_gate):
             terminal.send('history')
             terminal.resize(80)
             terminal.screen = b''
-            terminal.expect('search history > .unknown_history_00')
+            terminal.expect('search history >\r\n.unknown_history_00')
             clear(terminal)
         finally:
             terminal.close()
@@ -182,6 +183,7 @@ def check(binary, signal_gate):
 
 if __name__ == '__main__':
     check_multiline(str(Path(sys.argv[1]).resolve()))
+    check_editing(str(Path(sys.argv[1]).resolve()))
     check(str(Path(sys.argv[1]).resolve()), Path(sys.argv[2]).resolve())
     check_edit(str(Path(sys.argv[1]).resolve()))
 

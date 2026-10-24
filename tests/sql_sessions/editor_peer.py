@@ -8,7 +8,7 @@ import threading
 
 
 @contextmanager
-def peer(*, structured=False, lease_ms=30000):
+def peer(*, structured=False, lease_ms=30000, assist=None, execute=None):
     definition = re.search(r'\b([a-f0-9]{64})\b', (Path(__file__).resolve().parents[2]/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     actions = []
     diagnostic = dict(version=1, definition=definition, code='sql.unknown_column', category='binding', stage='bind', outcome='not_submitted', evidence='local_before_dispatch', message='Unknown column in this scope', cause='UnknownColumn', identity=None,
@@ -30,17 +30,25 @@ def peer(*, structured=False, lease_ms=30000):
                 result = dict(opened=dict(session=[3]*32, account=[4]*32, database='transit', proof=''))
             elif action == 'close':
                 result = dict(closed={})
+            elif action == 'assist':
+                assert assist is not None, 'Unexpected metadata request'
+                result = assist(value)
             elif action == 'touch':
                 result = dict(completion=dict(kind="show", matched=0, changed=0))
             else:
                 assert action == 'execute', action
+                if execute is not None:
+                    execute(value)
                 result = dict(err=dict(code='InvalidSqlSyntax', sqlstate=list(b'42601'), message='Editor fixture rejects execution', retry='never', operation=None, diagnostic=diagnostic))
             payload = json.dumps(dict(version=1, definition=definition, instance=[2]*16, result=result)).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(payload)))
             self.end_headers()
-            self.wfile.write(payload)
+            try:
+                self.wfile.write(payload)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # A cancelled read is allowed to close its transport.
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

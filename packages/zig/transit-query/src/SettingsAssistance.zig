@@ -36,7 +36,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
     if (show) for ([_][]const u8{ "ALL", "DATABASES", "SCHEMAS", "TABLES" }) |word| try add(allocator, &items, &count, &limited, prefix, word, "Authorized settings or catalog listing");
     if (reset) try add(allocator, &items, &count, &limited, prefix, "ALL", "Restore captured session defaults");
     var generation: ?u64 = null;
-    var policy: u64 = 0;
+    var policy: ?u64 = null;
     var cursor: ?q.settings.Contract.Cursor = null;
     for (0..128) |_| {
         const response = try client.read(.{ .settings = .{ .cursor = cursor } });
@@ -44,7 +44,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
         const page = response.value.result.settings;
         if (generation) |prior| if (page.generation != prior) return error.ConfigurationSnapshotChanged;
         generation = page.generation;
-        if (generation != null and policy != 0 and policy != response.value.policy_revision) return error.ConfigurationSnapshotChanged;
+        if (policy != null and policy.? != response.value.policy_revision) return error.ConfigurationSnapshotChanged;
         policy = response.value.policy_revision;
         for (page.rows) |row| {
             if (!show and !row.session_mutable) continue;
@@ -54,7 +54,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
         if (cursor == null) break;
     }
     if (cursor != null) limited = true;
-    const revision = try std.fmt.allocPrint(allocator, "{d}", .{policy});
+    const revision = try std.fmt.allocPrint(allocator, "{d}", .{policy.?});
     errdefer allocator.free(revision);
     var end: usize = request.cursor;
     while (end < request.sql.len and (std.ascii.isAlphanumeric(request.sql[end]) or request.sql[end] == '_' or request.sql[end] == '.')) : (end += 1) {}

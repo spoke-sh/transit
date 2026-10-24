@@ -164,7 +164,7 @@ pub const Console = struct {
         try self.checked(reply);
         if (reply.result != .assistance) return error.InvalidSqlResponse;
         const value = reply.result.assistance;
-        if (value.items.len > q.Assistance.max_items) return error.InvalidSqlResponse;
+        if (value.items.len > q.Assistance.max_items or (value.status != .ready and value.items.len != 0)) return error.InvalidSqlResponse;
         if (value.range) |range| {
             if (range.start > range.end or range.end > request.sql.len or !std.unicode.utf8ValidateSlice(request.sql[0..range.start]) or !std.unicode.utf8ValidateSlice(request.sql[0..range.end])) return error.InvalidSqlResponse;
         } else if (value.items.len != 0) return error.InvalidSqlResponse;

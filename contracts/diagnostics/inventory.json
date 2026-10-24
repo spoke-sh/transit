@@ -155,6 +155,26 @@
         "transit_station_app"
       ]
     },
+    "apps/transit-cli/AssistanceRequest.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "anyerror",
+        "ready()": "<inferred>",
+        "start()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_query",
+        "transit_sql_client"
+      ]
+    },
     "apps/transit-cli/ConfigurationProbe.zig": {
       "errors": {
         "InvalidProbeArguments": 1
@@ -192,7 +212,7 @@
         "FileNotFound": 1,
         "InvalidEditCommand": 1,
         "InvalidSqlEndpoint": 2,
-        "InvalidSqlResponse": 7,
+        "InvalidSqlResponse": 11,
         "InvalidSqlSyntax": 1,
         "InvalidTimingCommand": 2,
         "ParameterCountMismatch": 1,
@@ -224,6 +244,7 @@
         "Console.call()": "<inferred>",
         "Console.checked()": "<inferred>",
         "Console.consume()": "<inferred>",
+        "Console.decodeAssistance()": "<inferred>",
         "Console.dispatch()": "<inferred>",
         "Console.execute()": "<inferred>",
         "Console.executeWithParameters()": "<inferred>",
@@ -485,6 +506,7 @@
         "decode()": "<inferred>",
         "end()": "<inferred>",
         "latestSql()": "<inferred>",
+        "newestOccurrence()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
         "previous()": "<inferred>",
@@ -492,7 +514,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 3
       },
       "imports": [
@@ -853,12 +875,15 @@
     },
     "apps/transit-cli/Terminal.zig": {
       "errors": {
-        "ConsoleInterrupted": 9,
+        "ConsoleInterrupted": 6,
         "ConsoleOutputTimeout": 1,
         "ConsoleQuit": 3,
         "IncompleteSqlStatement": 2,
         "InteractiveQueryCancelled": 1,
         "InvalidSqlEncoding": 6,
+        "InvalidSqlResponse": 1,
+        "SqlInstanceChanged": 1,
+        "SqlSessionExpired": 1,
         "StatementTooLarge": 3,
         "TerminalSetupFailed": 2,
         "WriteFailed": 1
@@ -867,12 +892,16 @@
       "error_sets": {},
       "error_returns": {
         "Editor.accept()": "<inferred>",
+        "Editor.acquire()": "<inferred>",
+        "Editor.apply()": "<inferred>",
         "Editor.beginSearch()": "<inferred>",
         "Editor.character()": "<inferred>",
         "Editor.clearDisplay()": "<inferred>",
+        "Editor.clipped()": "<inferred>",
         "Editor.complete()": "<inferred>",
         "Editor.draw()": "<inferred>",
         "Editor.drawDraft()": "<inferred>",
+        "Editor.drawMenu()": "<inferred>",
         "Editor.drawSearch()": "<inferred>",
         "Editor.echo()": "<inferred>",
         "Editor.editExternal()": "<inferred>",
@@ -881,25 +910,33 @@
         "Editor.insert()": "<inferred>",
         "Editor.key()": "<inferred>",
         "Editor.loop()": "<inferred>",
+        "Editor.pollByte()": "<inferred>",
+        "Editor.readByte()": "<inferred>",
         "Editor.recall()": "<inferred>",
         "Editor.searchHistory()": "<inferred>",
+        "Editor.searchNewer()": "<inferred>",
         "Editor.submit()": "<inferred>",
+        "Editor.tick()": "<inferred>",
+        "Editor.undoEdit()": "<inferred>",
+        "Editor.vertical()": "<inferred>",
         "displayCharacter()": "<inferred>",
         "printable()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 92,
-        "catch": 15
+        "try": 134,
+        "catch": 17
       },
       "imports": [
+        "AssistanceRequest.zig",
         "Console.zig",
         "ExternalEditor.zig",
         "History.zig",
         "Output.zig",
         "Signals.zig",
         "Style.zig",
+        "Undo.zig",
         "std",
         "transit_query"
       ]
@@ -928,6 +965,31 @@
       },
       "imports": [
         "Output.zig",
+        "std"
+      ]
+    },
+    "apps/transit-cli/Undo.zig": {
+      "errors": {},
+      "outcomes": {
+        "Domain": [
+          "draft",
+          "search"
+        ],
+        "Group": [
+          "atomic",
+          "typing",
+          "backspace",
+          "delete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
         "std"
       ]
     },
@@ -8269,7 +8331,7 @@
     "packages/zig/transit-fuze/src/SqlInput.zig": {
       "errors": {
         "CommentTooDeep": 1,
-        "InvalidSqlCursor": 1,
+        "InvalidSqlCursor": 2,
         "InvalidSqlEncoding": 1,
         "StatementTooLarge": 1
       },
@@ -8288,6 +8350,7 @@
       "error_returns": {
         "Scan.init()": "<inferred>",
         "Scan.next()": "<inferred>",
+        "active()": "<inferred>",
         "classifyTableWithAllocator()": "<inferred>",
         "expectRoles()": "<inferred>",
         "replacement()": "<inferred>",
@@ -8296,7 +8359,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 17,
         "catch": 3
       },
       "imports": [
@@ -11489,7 +11552,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a\""
+          "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
         ],
         "Effect.phase": [
           "pending",
@@ -12258,6 +12321,10 @@
         "OutOfMemory": 3
       },
       "outcomes": {
+        "Coverage": [
+          "complete",
+          "limited"
+        ],
         "Item.kind": [
           "keyword",
           "source",
@@ -12288,6 +12355,11 @@
           "unified_v1",
           "catalog_v1",
           "configuration_v1"
+        ],
+        "Status": [
+          "ready",
+          "inside_text",
+          "unsupported"
         ]
       },
       "error_sets": {},
@@ -12295,11 +12367,14 @@
         "Builder.add()": "<inferred>",
         "Builder.finish()": "<inferred>",
         "complete()": "<inferred>",
-        "meta()": "<inferred>"
+        "completeStatement()": "<inferred>",
+        "local()": "<inferred>",
+        "meta()": "<inferred>",
+        "offer()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 34,
         "catch": 2
       },
       "imports": [
@@ -13908,19 +13983,19 @@
     },
     "packages/zig/transit-query/src/SettingsAssistance.zig": {
       "errors": {
-        "ConfigurationReadBudgetExceeded": 1,
-        "ConfigurationSnapshotChanged": 1,
+        "ConfigurationSnapshotChanged": 2,
         "InvalidSqlCursor": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "add()": "<inferred>",
-        "complete()": "<inferred>"
+        "complete()": "<inferred>",
+        "completeStatement()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -14285,6 +14360,7 @@
         "Builder.add()": "<inferred>",
         "Builder.addQualified()": "<inferred>",
         "complete()": "<inferred>",
+        "completeStatement()": "<inferred>",
         "expectations()": "<inferred>",
         "fixture()": "<inferred>",
         "ignored()": "<inferred>",
@@ -14298,7 +14374,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 77,
+        "try": 79,
         "catch": 14
       },
       "imports": [
@@ -17043,10 +17119,19 @@
           "literal",
           "meta"
         ],
+        "Response.result.assistance.coverage": [
+          "complete",
+          "limited"
+        ],
         "Response.result.assistance.profile": [
           "unified_v1",
           "catalog_v1",
           "configuration_v1"
+        ],
+        "Response.result.assistance.status": [
+          "ready",
+          "inside_text",
+          "unsupported"
         ],
         "Response.result.context.<struct>.kind": [
           "kv",
@@ -17803,7 +17888,7 @@
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 1,
         "InvalidSqlAction": 2,
-        "InvalidSqlCursor": 3,
+        "InvalidSqlCursor": 2,
         "InvalidSqlOperationReference": 2,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
@@ -17851,10 +17936,11 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 117,
+        "try": 118,
         "catch": 6
       },
       "imports": [
+        "SessionSettings.zig",
         "root.zig",
         "std"
       ]
