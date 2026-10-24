@@ -96,6 +96,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
             return .initialized;
         },
         .describe => return .{ .description = self.configuration },
+        .read_authority => |object| return .{ .read_authority = try catalog.currentReadAuthority(object, policy) },
         .name_assertion => |value| return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) },
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
         .namespaces => |value| {

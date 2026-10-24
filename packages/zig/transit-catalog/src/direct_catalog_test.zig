@@ -111,6 +111,7 @@ test "direct preview checks current expectations and schema work without claims 
         try t.expectEqual(profile.database, observed.authority.database);
         try t.expectEqual(profile.initial_schema_authority, observed.authority.schema);
         try t.expectEqual(@as(u64, 107), observed.authority.table);
+        try t.expectEqualDeep(observed.authority, try catalog.currentReadAuthority(view.table.root.interpretation.object, access.policy()));
         var metadata_only = try catalog.observe(t.allocator, 1, view.table.root.interpretation, null, access.policy());
         defer metadata_only.deinit();
         try t.expect(metadata_only.page == null);

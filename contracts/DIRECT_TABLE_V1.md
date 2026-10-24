@@ -69,6 +69,14 @@ does not contain the complete Table; a later observation can see another root.
 Consumers needing resumable traversal must explicitly acquire a durable pin.
 Retained-read delegations and borrowed-read grants do not authorize `observe`.
 
+`read_authority` accepts a stable object identity and checks its current
+CONNECT/USAGE/SELECT requirements. It returns only the corresponding native
+authority references, including after Table DROP or name reuse. It returns no
+schema, rows, position or pin and grants no future permission. This lets an
+owner authorize disclosure of retained diagnostics without requiring the old
+name or interpretation to remain live. Its response is fenced after buffering;
+retained-read delegations and borrowed-read grants do not permit this action.
+
 ### Delegated retained reads
 
 `DirectReadDelegation.encode` retains the original grant in a canonical 310-byte

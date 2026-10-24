@@ -172,6 +172,9 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     const observed_action: w.Action = .{ .observe = .{ .namespace = 1, .interpretation = current.value.result.lookup.?.interpretation.interpretation, .rows = .{ .rows = 1 } } };
     const observed = try client.call(observed_action);
     defer observed.deinit();
+    const read_authority = try client.call(.{ .read_authority = saved.snapshot.object });
+    defer read_authority.deinit();
+    try t.expectEqualDeep(observed.value.result.observation.authority, read_authority.value.result.read_authority);
     try t.expectEqualDeep(current.value.result.lookup.?, observed.value.result.observation.definition);
     const observed_page = observed.value.result.observation.page.?;
     try t.expectEqual(@as(usize, 1), observed_page.rows.len);
@@ -231,6 +234,7 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     const native_table = (try admin.query(.{ .binding = .{ .domain = profile.catalog.authority.table_domain, .key = try c.TableAuthority.binding(profile.catalog.scope, .table, 7) } })).body.authorization.body.binding.?.reference.id;
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
     try t.expectError(error.AccessDenied, client.call(observed_action));
+    try t.expectError(error.AccessDenied, client.call(.{ .read_authority = saved.snapshot.object }));
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
     try t.expectError(error.AccessDenied, reader.check(client));
     try t.expectError(error.AccessDenied, Delegation.verify(client, profile.delegation.?));

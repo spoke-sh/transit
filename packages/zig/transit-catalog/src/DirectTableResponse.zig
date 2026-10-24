@@ -109,6 +109,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .list => .list,
         .lookup => .lookup,
         .observe => .observation,
+        .read_authority => .read_authority,
         .name_assertion => .name_assertion,
         .preview => .preview,
         .stage => .staged,
@@ -130,6 +131,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .read_authority => |value| try value.validate(),
         .name_assertion => |value| switch (value) {
             .not_observed => if (request.action.name_assertion.command != .inspect) return error.InvalidTableResponse,
             .outcome => |outcome| {

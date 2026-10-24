@@ -118,6 +118,12 @@ fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, wo
     try t.expectEqualSlices(u8, &progress.chain, &chain);
     const authority: Source = .{ .store = store, .other = requests };
     const identity: q.UnifiedResult.Expected = .{ .resource = store.resource, .source = store.pid, .requester = 9, .correlation = 77, .request = job.request, .disclosure = .{ .accepted = .{ .pid = 9, .input = 1, .principal = 17 } } };
+    {
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        const opened = try q.UnifiedResult.open(ref, identity, authority, arena.allocator());
+        try t.expect(opened.table_basis == null);
+    }
     var cursor: ?q.UnifiedResult.Cursor = null;
     var decoded: q.fuze.LogicalInspect.Batch = undefined;
     var output: [m.Arrow.segment_bytes]u8 = undefined;

@@ -338,6 +338,8 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
     // Current observation cannot masquerade as a retained read after DROP and
     // name reuse. The original durable snapshots below remain independently valid.
     try t.expectError(error.Conflict, client.call(.{ .observe = .{ .namespace = 1, .interpretation = state.renamed.resulting.interpretation, .rows = null } }));
+    const authority = try client.call(.{ .read_authority = state.original.object });
+    defer authority.deinit();
     try t.expectError(error.AccessDenied, state.prepared.require(client, .read));
     for (state.statements, state.intents) |result, encoded| {
         const bytes = try encoded.decode(allocator, c.DirectTableIntent.max_bytes);
@@ -362,6 +364,7 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
         try t.expect(batch.complete and batch.len == 1);
         try t.expectEqual(@as(usize, 64 * 1024), batch.rows[0].?.cells[0].value.atom.bytes.len);
         try t.expectEqualDeep(state.original, query.source().snapshot);
+        try t.expectEqualDeep(authority.value.result.read_authority, query.source().authority);
         query.close();
         try t.expectError(error.QueryClosed, query.nextBatch(8));
     }

@@ -234,6 +234,7 @@ pub const Action = union(enum) {
     lookup: struct { namespace: u64, name: []const u8 },
     /// One read-only current observation; rows are optional and never resumable.
     observe: struct { namespace: u64, interpretation: d.Definition, rows: ?P.ReadLimits },
+    read_authority: d.Object,
     name_assertion: struct { binding: c.NameAssertion.Binding, command: c.NameAssertion.Command },
     preview: Ddl,
     stage: struct { namespace: u64, intent: c.DirectTableIntent.Saved },
@@ -354,6 +355,7 @@ pub const Request = struct {
                 try connection.object(value.interpretation.object);
                 if (value.rows) |limits| try limits.validate();
             },
+            .read_authority => |value| try connection.object(value),
             inline .preview, .admit_ddl => |value| {
                 try connection.binding(value.binding);
                 if (!std.mem.eql(u8, @tagName(value.binding.action), @tagName(value.action))) return error.InvalidDirectCatalogOperation;
@@ -484,6 +486,7 @@ pub const Result = union(enum) {
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
     observation: Current,
+    read_authority: c.DirectReadAuthority,
     name_assertion: c.NameAssertion.Observation,
     preview: D.Preview,
     ddl: D.Observation,

@@ -351,6 +351,11 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     const recorded = try q.CapturedTablePin.source(alloc, &reader, .{ .job = state.job, .source = 0 }, state.connection.source);
     try t.expectEqualDeep(grant.binding.expected, recorded.accepted);
     try t.expectEqual(@as(u64, 19), recorded.row_count);
+    const completed = (try query_client.status(1)).?;
+    const expected: q.UnifiedResult.Expected = .{ .resource = state.connection.resource, .source = state.connection.source, .requester = state.connection.requester, .correlation = completed.correlation, .request = completed.reference };
+    const disclosed_expected = try expected.authorize(completed.manifest.?, null, query_client.authorizationClient());
+    const opened = try q.UnifiedResult.open(completed.manifest.?, disclosed_expected, query_client.resources(), alloc);
+    try t.expectEqualDeep(recorded, opened.table_basis.?.retained);
     const output = try alloc.alloc(u8, q.fuze.LogicalArrow.segment_bytes);
     var decoded: q.fuze.LogicalInspect.Batch = undefined;
     const page = try query_client.page(1, null, alloc, workspace, output, &decoded);
@@ -360,6 +365,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     try t.expectEqual(@as(u128, 19), decoded.rows[0].cells[0].value.atom.unsigned);
     try t.expect(page.basis.cut.position == .table);
     try t.expectEqualSlices(u8, &try recorded.fingerprint(), &page.basis.cut.position.table);
+    try t.expectEqualDeep(page.basis, try opened.table_basis.?.record());
     try t.expectEqual(@as(u64, 19), page.manifest.checkpoint.cursor.table_scanned);
     try t.expectEqual(@as(u64, 3), page.manifest.checkpoint.progress.pages);
     var executor = client;
@@ -371,6 +377,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(recorded.authority.table), .owner = 0 } });
     var denied: q.fuze.LogicalInspect.Batch = undefined;
     try t.expectError(error.AccessDenied, query_client.page(1, null, alloc, workspace, output, &denied));
+    try t.expectError(error.AccessDenied, q.UnifiedResult.open(completed.manifest.?, disclosed_expected, query_client.resources(), alloc));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(recorded.authority.table), .owner = original_role } });
 
     // A fresh result disclosure may use a rotated credential. It must not

@@ -256,6 +256,8 @@ test "borrowed Table reads bind independent signatures and deny lifecycle contro
         .{ .pin_status = .{ .object = snapshot.object, .owner = snapshot.handle.owner } },
         .describe,
     }) |action| try t.expectError(error.TableDelegationDenied, borrow.allow(action));
+    try t.expectError(error.TableDelegationDenied, borrow.allow(.{ .read_authority = snapshot.object }));
+    try t.expectError(error.TableDelegationDenied, original.allow(.{ .read_authority = snapshot.object }));
     try t.expectError(error.TableDelegationDenied, original.allow(.{ .observe = .{ .namespace = 1, .interpretation = original.binding.interpretation, .rows = .{} } }));
     var changed = borrow;
     changed.binding.target.snapshot.handle.content.sha256[0] ^= 1;
