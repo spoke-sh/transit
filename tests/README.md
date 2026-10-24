@@ -86,15 +86,34 @@ DROP RESTRICT before cleanup, exact retirement/removal and complete retained
 results after source DROP. Replaying the old registration cannot restore a
 removed edge or make its publication plan ready.
 
-Maintained recovery qualification is in progress through `zig build
-test-direct-captured-query -- --maintained-only`; its added cleanup schedule is
-not yet counted as passed.
+The maintained schedule passes `zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --maintained-only` under the same source definition.
+It recovers six registrations and six native publication/policy/retirement
+acceptances across abrupt node replacement and worker credential rotation;
+all four saved publication plans remain byte-identical. Both self-join and
+independent-Table shapes complete backfill and original physical history progress,
+verify no-op revisions and paired deltas, close their original history leases,
+enforce current disclosure denial/restoration, reject DROP before cleanup and
+retire both named definitions before explicit edge removal. The original retained
+revision remains readable after source DROP; explicit result retirement then
+requires reset. These are separate logical retirement and cleanup operations.
+
+The first Debug run completed preparation/key recovery but
+hit the 600-second deadline while the second query shape was still advancing in
+backfill. The dedicated two-shape backfill phase now has a 1200-second supervisor
+budget; the incomplete run is not counted as passing evidence. The second Debug
+run passed preparation and backfill, then exceeded the 900-second resume deadline
+after recovering the first retirement acceptance. It is also incomplete. The
+passing ReleaseSafe run retains the same budgets and assertions.
 
 Generated schema/ABI/signing fixtures and `just contract::check` pass.
 Diagnostic mappings and inventory pass with 594 production owners, 4864
 owner/error pairs and 5071 error-return boundaries. The complete handbook check
-passes formatting, types, nine content tests and production build. Full
-repository and clean-checkout qualification remain required before delivery.
+passes formatting, types, nine content tests and production build. The complete
+`just check` also passes at source `849901e64` in the pinned Nix shell, after
+installing locked frontend dependencies. This includes the native/package tests,
+generated contracts, CLI, Board and handbook checks. Clean-checkout qualification
+and a full check of the final integrated source remain required before delivery.
 These checks do not establish atomic catalog/native publication, automatic
 reconciliation, SQL view publication or service-managed query scheduling.
 
