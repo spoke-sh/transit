@@ -33,11 +33,26 @@ Temporary unavailable observations retry only the same read when its diagnostic
 permits that retry. The source executor authenticates without a selected owner
 role; the live requester uses a separate read-only inspection identity.
 
+`nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe
+-Dserving-tls=true -Dserving-capacity=true -Dserving-lifetimes=true
+-Dserving-growth=true` passes in **821.04 seconds**. Eight delayed authorized
+gateway reads occupy their configured work slots; excess work refuses and health
+responds in **0.003 seconds**. The fixture serializes upstream exchanges during
+that capacity schedule to keep native-node admission separate. Ordered
+cancellation, authenticated timeout, duplicate observations, late replies after
+physical recovery, finite process/wait/resource bounds and hard expiry pass.
+Another **128 retained operations** preserve old result reads with eight native
+resident pages. Authority, two workers and one gateway use **126,509,056 bytes**
+RSS under the fixture's 512 MiB ceiling. The local directory contains **172,875
+files / 93,832,328 bytes**. This is bounded-residency and recovery evidence; its
+elapsed time and file count do not establish efficient storage or a throughput
+target. Automatic flushing and compaction remain separate work.
+
 The Table mutation receipt precedes the separate native progress/reply commit.
 This does not establish a transaction across those owners. The native fixture
 uses local logs and objects; it does not qualify Ursula or cold storage.
-Capacity, lifetime, growth, reactive browser and physical placement reruns are
-still open for the changed example. Failed attempts exposed fixture
+Reactive browser and physical placement reruns are still open for the changed
+example. Failed attempts exposed fixture
 provisioning/SQL/decoding errors, invalid post-revocation signing, mismatched
 executor/inspection identities and temporary upstream admission pressure; those
 attempts are not passed evidence. Final repository gates remain separate.
