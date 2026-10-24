@@ -111,7 +111,6 @@ result are different facts; do not describe them all as "ready."
 | [docs/roadmap/](roadmap/README.md) | Delivery scope, sequencing, acceptance criteria and milestone completion status |
 | [docs/design/](design/README.md) | UI/UX proposals, visual studies and recorded review outcomes |
 | [docs/history/](history/README.md) | Earlier topic accounts, language sketches, workload assumptions and qualification reviews; preserved as source material |
-| [docs/decisions/](decisions/README.md) | Reserved decision guidance and template; no separate ADR process |
 | [AGENTS.md](../AGENTS.md) | Contributor/agent workflow and implementation rules; starts from the public handbook |
 
 Keep one current explanation of a behavior. Guides and reference teach users how

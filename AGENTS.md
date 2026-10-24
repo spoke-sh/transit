@@ -290,7 +290,7 @@ Keep component READMEs navigable; place substantial configuration, recovery, or
 integration guides in that component's `docs/` and link them from its README.
 Update the owning document with meaningful changes and distinguish implemented,
 proposed, and unverified behavior. Keep rationale with its topic. Do not add ADRs
-yet; preserve `docs/decisions/README.md` and `TEMPLATE.md` for future use.
+yet.
 
 Reserve `docs/design/` for UI/UX reviews. Document system architecture in its
 owning topic documents and scope, decisions and qualification in roadmap milestones.

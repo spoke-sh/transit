@@ -18,37 +18,6 @@ connects those declarations to their public interfaces and observable outcomes,
 and [Internals](docs/handbook/internals/README.md) formalizes the underlying
 system, storage, query, state, and execution models.
 
-## Work with data
-
-| Task | Start here |
-| --- | --- |
-| Understand the proposed human and agent collaboration experience | [Business stories: evidence, branch proposals and meaningful change](docs/handbook/reference/collaborative-decisions.md) |
-| Define, query and evolve a dataset | [Local quickstart](docs/handbook/guides/quickstart.md), [Tables](docs/handbook/reference/tables.md) |
-| Choose a data representation | [Tables, KV and Documents](docs/handbook/reference/data-model.md#choose-a-data-representation) |
-| Compute a result or follow changes | [Query lifetimes](docs/handbook/reference/data-model.md#choose-a-computation-lifetime), [reactive views](docs/handbook/reference/reactive.md) |
-| Govern access and lifetime | [Authorization](docs/handbook/reference/security.md), [retention and capacity](docs/handbook/reference/retention.md) |
-| Inspect definitions, results and progress | [Lifecycle evidence](docs/handbook/reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled), [Board](docs/handbook/guides/inspect-board.md) |
-| Add application-specific transformations or effects | [Build an application](docs/handbook/guides/applications.md), [connectors](docs/handbook/reference/connectors.md) |
-| Understand the storage, query and execution models | [System internals](docs/handbook/internals/README.md), [storage runtime](docs/handbook/internals/storage-runtime.md), [query engine](docs/handbook/internals/query-engine.md) |
-
-The Table lifecycle is available through configured SQL and typed catalog callers.
-KV and Documents use client/service APIs; their SQL declarations compile offline.
-Named captured and maintained relational computations use typed Zig owners with
-explicit activation and host scheduling. SQL views/subscriptions, direct data-plane
-storage decoupling, hybrid `.tseg` segments, physical codecs/collations, and a
-common declaration lifecycle across all objects are tracked in the roadmap. The
-[capability map](docs/handbook/reference/data-model.md#declarations-and-current-interfaces)
-keeps current and target boundaries explicit.
-
-The organizing question for development is:
-
-> Can someone describe the data, computation and policies they need, then inspect
-> whether Transit is fulfilling that declaration?
-
-The [roadmap](docs/roadmap/README.md) turns the remaining gaps into implementation
-work. [Choose an interface](docs/handbook/guides/choose-interface.md) for the
-operations, types and lifecycle you need today.
-
 ## Documentation
 
 Read the [published handbook](https://spoke-sh.github.io/transit/), starting with
@@ -92,7 +61,6 @@ and [SQL access guide](apps/transit-cli/docs/sql.md) when enabling them.
 
 ## Find your way
 
-- [Documentation](docs/README.md): scope, architecture, terminology, and design contracts.
 - [Component map](docs/handbook/reference/components.md): libraries, apps, and their READMEs.
 - [Examples](examples/README.md): complete applications and public SDK callers.
 - [Proof coverage](tests/README.md): checks, failure schedules, and qualification limits.
