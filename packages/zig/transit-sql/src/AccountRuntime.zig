@@ -68,7 +68,7 @@ pub fn waitProgress(self: *Self, milliseconds: u32) !void {
         else => return err,
     };
 }
-pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair, reader: p.Ed25519.KeyPair };
+pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair };
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
     return client.contended(err) or ((err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource);
 }

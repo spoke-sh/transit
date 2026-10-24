@@ -31,7 +31,7 @@ pub const Native = struct {
     tls: ?struct { certificate_file: []const u8, key_file: []const u8 } = null,
 };
 pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
-pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
+pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8 };
 pub const TlsMode = enum { disabled, optional, required };
 pub const Authentication = enum { password, trust, peer };
 pub const Source = struct {
@@ -131,7 +131,7 @@ pub fn validate(self: Self) !void {
             // Separate runtime lanes cannot share any sequenced principal.
             const a = value.ledger;
             const b = other.ledger;
-            for ([_]u64{ a.worker, a.ingress, a.control, a.coordinator, a.table_principal, a.reader }) |principal| for ([_]u64{ b.worker, b.ingress, b.control, b.coordinator, b.table_principal, b.reader }) |old| if (principal == old) return error.InvalidGatewayConfiguration;
+            for ([_]u64{ a.worker, a.ingress, a.control, a.coordinator, a.table_principal }) |principal| for ([_]u64{ b.worker, b.ingress, b.control, b.coordinator, b.table_principal }) |old| if (principal == old) return error.InvalidGatewayConfiguration;
         }
         for (value.databases, 0..) |database, j| {
             try validateName(database.name);
@@ -160,7 +160,7 @@ pub fn validate(self: Self) !void {
             for (self.accounts) |other| {
                 if (other.ledger.realm != source.connection.realm) continue;
                 const l = other.ledger;
-                for ([_]u64{ l.worker, l.ingress, l.control, l.coordinator, l.table_principal, l.reader }) |principal| if (principal == source.connection.principal) return error.InvalidGatewayConfiguration;
+                for ([_]u64{ l.worker, l.ingress, l.control, l.coordinator, l.table_principal }) |principal| if (principal == source.connection.principal) return error.InvalidGatewayConfiguration;
                 for (other.sources) |*candidate| if (candidate != &value.sources[j] and candidate.connection.principal == source.connection.principal) return error.InvalidGatewayConfiguration;
             }
         }
@@ -205,7 +205,7 @@ test "credentials bind an explicit revision and account independently of SQL nam
 test "SQL mappings reject shared native sequence owners and mismatched catalogs" {
     const t = std.testing;
     const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9 };
-    var accounts = [_]Account{.{ .name = "user", .verifier_file = "/private/verifier", .ledger = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 }, .generation = 1, .keys = .{ .worker = "/private/w", .ingress = "/private/i", .coordinator = "/private/c", .table = "/private/t", .reader = "/private/r" }, .databases = &.{.{ .name = "data", .binding = binding }} }};
+    var accounts = [_]Account{.{ .name = "user", .verifier_file = "/private/verifier", .ledger = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 }, .generation = 1, .keys = .{ .worker = "/private/w", .ingress = "/private/i", .coordinator = "/private/c", .table = "/private/t" }, .databases = &.{.{ .name = "data", .binding = binding }} }};
     var config: Self = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = "http://127.0.0.1:7700", .certificate_file = "/private/cert", .certificate_key_file = "/private/key", .activation_directory = "/private/activation", .spill_directory = "/private/spill", .postgres_port = 5432, .accounts = &accounts };
     try config.validate();
     try t.expectEqual(@as(usize, 0), try config.account("user"));

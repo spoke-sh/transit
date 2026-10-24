@@ -25,7 +25,6 @@ pub const Configuration = struct {
     control: u64,
     coordinator: u64,
     table_principal: u64,
-    reader: u64,
     account: [32]u8,
     bindings: []const Binding,
     intent_bytes: u32 = c.DirectTableIntent.max_bytes,
@@ -33,8 +32,8 @@ pub const Configuration = struct {
     byte_quota: u64,
     pending_quota: u32 = 16,
     pub fn validate(self: Configuration) !void {
-        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal, self.reader }) |id| if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
-        const identities = [_]u64{ self.worker, self.ingress, self.control, self.coordinator, self.table_principal, self.reader };
+        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal }) |id| if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
+        const identities = [_]u64{ self.worker, self.ingress, self.control, self.coordinator, self.table_principal };
         for (identities, 0..) |id, i| for (identities[0..i]) |other| if (id == other) return error.InvalidGatewayConfiguration;
         if (self.bindings.len == 0 or self.bindings.len > 8 or self.intent_bytes < c.DirectTableIntent.prefix_bytes or self.intent_bytes > c.DirectTableIntent.max_bytes or self.operation_quota == 0 or self.byte_quota < self.reservation() or self.pending_quota == 0 or self.pending_quota > 1024) return error.InvalidGatewayConfiguration;
         for (self.bindings, 0..) |binding, i| {
@@ -54,7 +53,7 @@ pub const Configuration = struct {
         hash.update(&p.Growth.definition_bytes);
         hash.update(&self.account);
         var number: [8]u8 = undefined;
-        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal, self.reader, @as(u64, self.intent_bytes), @as(u64, self.bindings.len) }) |id| {
+        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal, @as(u64, self.intent_bytes), @as(u64, self.bindings.len) }) |id| {
             std.mem.writeInt(u64, &number, id, .little);
             hash.update(&number);
         }

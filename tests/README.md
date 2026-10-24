@@ -13,6 +13,12 @@ history all pass. The independent control ledger records 153 turns and 156 sends
 All 30 shared SQL unit tests pass, including configuration checks for independent
 Table data identities and the required capture executor.
 
+After removing the obsolete private Table-reader principal, all 30 SQL units and
+`nix develop .#sql-wire --command just test::server-sql-local` pass. The installed
+CLI/node/gateway schedule qualifies the five-principal account, trust and password
+authentication, TLS enforcement, revocation across restart, and exact bootstrap
+credential publication after reply loss and manager SIGKILL.
+
 `nix develop --command just test::direct-table-service` also passes 1,253 public
 typed calls, including the updated SQL read-pin recovery schedule. A denied
 current credential resolver preserves both original acquisition records. Recovery

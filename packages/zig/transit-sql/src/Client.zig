@@ -108,7 +108,7 @@ pub fn progress(self: *Self, prepared: Prepared, receipt: p.Receipt) !Progress {
 test "ledger client persists exact current signed controls and validates identity without I/O" {
     const t = std.testing;
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(31));
-    const config: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{.{ .resource = 8, .catalog = 1, .owner = 9 }}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 };
+    const config: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{.{ .resource = 8, .catalog = 1, .owner = 9 }}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 };
     var client: Self = .{ .transport = undefined, .ledger = .{ .configuration = config }, .principal = 5, .key = key };
     const original: Prepared = .{ .version = 1, .definition = native.current_definition, .realm = config.realm, .resource = config.resource, .owner = config.owner, .configuration = try config.digest(), .signed = try native.sign(.{ .realm = 1, .principal = 5, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try (g.station.Frame{ .kind = .cast, .payload = try (g.Control.Command{ .reconcile = 7 }).encode() }).encode() } } }, key) };
     try client.validate(original);

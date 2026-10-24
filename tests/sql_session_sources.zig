@@ -12,8 +12,8 @@ const drive = @import("catalog_query_support.zig").drive;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
 
 pub fn provision(init: std.process.Init, wire: *s.client.Client, admin: *Admin, directory: []const u8, login_role: u64, selected_role: ?u64, kv_only: bool) !void {
-    // Source callers inspect the public requester head themselves. The Table
-    // SQL fixture normally delegates that inspection to its private reader.
+    // Source callers inspect the public requester head as well as their data.
+    // The ordinary Table-only account needs no query-progress permission.
     _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = login_role, .privileges = p.permission(.inspect) } });
     var sources: [3]g.Configuration.Source = undefined;
     inline for (.{ .{ unified.Kind.kv, @as(u64, 3000), @as(u8, 31) }, .{ unified.Kind.document, @as(u64, 3100), @as(u8, 41) } }, 0..) |entry, index| {
