@@ -57,6 +57,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     wire.observer = diagnostics;
     if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, 120000);
     var host = try s.GenServer.init(.{ .client = &wire, .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+    // Direct data calls can fail independently of Turn's native reader. Their
+    // unavailable outcomes must discard the private proposal, never persist a
+    // failed input. Domain rejections use the behavior's recorded dispositions.
+    host.failure_policy = .stop;
     const starting = std.Io.Clock.awake.now(init.io);
     while (true) {
         _ = host.session.receive() catch |err| {

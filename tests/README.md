@@ -1,5 +1,23 @@
 # Validation and evidence
 
+## Work items direct-admission reply loss — 2026-10-24
+
+Direct data calls fail outside the native turn reader. The Work items worker
+uses the stop-on-error handler policy so those failures discard private work
+instead of committing a failed input. Its outer loop retries temporary
+unavailability with the same durable dispatch; domain rejections retain their
+explicit application dispositions.
+
+In the pinned Nix shell, `just test::work-items` passes in **86.72 s**. The proxy
+replaces one successful direct INSERT admission reply with HTTP 503 and checks
+that no submitted native turn marks an input failed. The existing 19-row
+migration, two fresh-key worker replacements, disk restart, exact native retries,
+complete verification and old-epoch rejection also pass. The run observes 242
+turns, at most four metadata mutations and 244-byte metadata values, 81 pages,
+25 transport disconnects and exactly one lost direct-admission reply. This is a
+native application proof; installed application and placement schedules remain
+separate checks.
+
 ## Membership additions preserve inactive paths — 2026-10-24
 
 Installed Work items provisioning exposed `AuthorizationDependencies` while
