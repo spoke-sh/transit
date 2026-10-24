@@ -84,7 +84,6 @@ pub fn apply(arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.Ta
         .dependents => |value| .{ .dependents = value },
         .dependencies => |value| .{ .dependencies = value },
         .policy_references => |value| .{ .policy_references = value },
-        .computation => |value| .{ .computation = value },
         .list => |value| .{ .list = value },
         .compile => |value| .{ .compile = value },
         .prepare => |value| .{ .prepare = value },
@@ -114,7 +113,6 @@ pub fn apply(arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.Ta
         .lifecycle => |value| .{ .lifecycle = value },
         .dependencies => |value| .{ .dependencies = value },
         .policy_references => |value| .{ .policy_references = value },
-        .computation => |value| .{ .computation = value },
         .preview => |value| .{ .preview = value },
         .list => |value| .{ .page = value },
         .compiled => |value| {

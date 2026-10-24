@@ -162,6 +162,14 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## SDK bridge computation removal — 2026-10-23
+
+The mediated SDK bridge no longer projects the removed generic catalog
+`computation` action or result. The Station bindings package passes **22/22**
+Debug tests in the pinned Nix shell. The repository check exposed these stale
+switch arms and the still-unmigrated Work items caller; this focused check does
+not establish full repository qualification.
+
 ## Changed Table inspection diagnostics — 2026-10-23
 
 Board maps the native `TableDefinitionChanged` cause to
