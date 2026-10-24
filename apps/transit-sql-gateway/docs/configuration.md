@@ -28,7 +28,7 @@ and supplies `name`, `verifier_file`, `ledger`, `generation`, optional
 state `association` (default `state`), `enabled` (default true), `keys` and
 `databases`. Setting `enabled` false rejects account selection while keeping its
 retained ledger worker and coordinator available. Key references are
-`worker`, `ingress`, `coordinator`, `table` and `reader`; key files contain the native seed
+`worker`, `ingress`, `coordinator` and `table`; key files contain the native seed
 format. Protect configuration, keys, verifier and recovery files with deployment
 file permissions. The operator control key is separate from the running service.
 
@@ -47,10 +47,10 @@ rejects before requesting a password on plaintext. Disabled TLS with an enabled
 MySQL password account is invalid configuration. Native ledger recovery remains
 independent of all listener authentication and TLS material.
 
-`ledger` defines the realm, private resource, owner process, six distinct
+`ledger` defines the realm, private resource, owner process, five distinct
 principals, account fingerprint, admitted catalog bindings and
-durable quotas. The identities are worker, ingress, control, coordinator, Table caller and
-private reader. Give the worker execution and private resource write access;
+durable quotas. The identities are worker, ingress, control, coordinator and Table caller.
+Give the worker execution and private resource write access;
 give each control role its scoped send/read rights. Give the Table caller explicit database/schema/Table grants. Direct Table reads
 and operation evidence use that caller; they require no private catalog-storage
 read grant. Each operation checks the authenticated caller and selected role. Associations and local configuration grant no rights.
@@ -130,7 +130,7 @@ activation marker or repeatedly restarting the same generation.
 
 Use `transit-sql-gateway control /private/sql-control.json ACTION`. The private
 operator configuration contains `version`, `definition`, `native_url`, the same
-`ledger`, `control_key_file`, `table_key_file`, `reader_key_file`, `pending_file` and optional
+`ledger`, `control_key_file`, `table_key_file`, `pending_file` and optional
 `timeout_ms` (default 30000, maximum 270000). The Table key supplies the current subject for direct terminal disclosure.
 Inspection does not dispatch Table writes.
 Dedicate one pending file and exclusive operator owner to each control principal.

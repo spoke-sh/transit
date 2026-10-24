@@ -100,7 +100,7 @@ test "native behavior records attributed rejection without committing partial ap
     const Store = @import("store_test.zig");
     var store: Store = .{};
     defer store.deinit();
-    var behavior: Self = .{ .allocator = t.allocator, .ledger = .{ .configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{.{ .resource = 8, .catalog = 1, .owner = 9 }}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 } } };
+    var behavior: Self = .{ .allocator = t.allocator, .ledger = .{ .configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{.{ .resource = 8, .catalog = 1, .owner = 9 }}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 } } };
     var turn = try store.capture();
     const init_frame: s.Frame = .{ .kind = .cast, .payload = try (g.Control.Command{ .initialize = {} }).encode() };
     turn.delivery.input.value = try init_frame.encode();

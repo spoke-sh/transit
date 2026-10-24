@@ -42,7 +42,7 @@ fn appendRow(allocator: std.mem.Allocator, rows: *std.ArrayList([]const ?i128), 
 fn ledger(config: Config) !gateway.Ledger {
     if (config.definition != native.current_definition) return error.IncompatibleDefinition;
     // The caller retains config for the lifetime of the returned binding slice.
-    return .{ .configuration = .{ .realm = 46, .resource = config.writer.resource, .owner = config.writer.pid, .worker = 2000, .ingress = 2001, .control = 2002, .coordinator = 2003, .table_principal = config.table_principal, .reader = 2004, .account = @splat(77), .bindings = undefined, .intent_bytes = 65536, .operation_quota = 1000, .byte_quota = 128 * 1024 * 1024, .pending_quota = 32 } };
+    return .{ .configuration = .{ .realm = 46, .resource = config.writer.resource, .owner = config.writer.pid, .worker = 2000, .ingress = 2001, .control = 2002, .coordinator = 2003, .table_principal = config.table_principal, .account = @splat(77), .bindings = undefined, .intent_bytes = 65536, .operation_quota = 1000, .byte_quota = 128 * 1024 * 1024, .pending_quota = 32 } };
 }
 fn roleKey(principal: u64) !p.Ed25519.KeyPair {
     return switch (principal) {
@@ -50,7 +50,6 @@ fn roleKey(principal: u64) !p.Ed25519.KeyPair {
         2001 => support.key(22),
         2002 => support.key(23),
         2003 => support.key(24),
-        2004 => support.key(25),
         else => error.UnknownProofPrincipal,
     };
 }
@@ -205,7 +204,7 @@ pub fn main(init: std.process.Init) !void {
         return support.print(init, .{ .sources = true });
     }
     if (std.mem.eql(u8, mode, "app-config")) {
-        const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", try tableSeed(config) }, .{ "reader", @as(u8, 25) } };
+        const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", try tableSeed(config) } };
         var files: gateway.Configuration.KeyFiles = undefined;
         inline for (keys) |entry| {
             const name = "gateway-" ++ entry[0] ++ ".seed";
@@ -219,7 +218,7 @@ pub fn main(init: std.process.Init) !void {
         try configuration.validate();
         try support.save(init, directory, "sql-gateway.json", configuration);
         try support.saveBytes(init, directory, "gateway-control.seed", &std.fmt.bytesToHex(@as([32]u8, @splat(23)), .lower));
-        try support.save(init, directory, "sql-control.json", .{ .version = @as(u8, 1), .definition = native.current_definition, .native_url = args[1], .ledger = registry.configuration, .control_key_file = try support.path(init, directory, "gateway-control.seed"), .table_key_file = files.table, .reader_key_file = files.reader, .pending_file = try support.path(init, directory, "operator-pending.json"), .timeout_ms = @as(u32, 30000) });
+        try support.save(init, directory, "sql-control.json", .{ .version = @as(u8, 1), .definition = native.current_definition, .native_url = args[1], .ledger = registry.configuration, .control_key_file = try support.path(init, directory, "gateway-control.seed"), .table_key_file = files.table, .pending_file = try support.path(init, directory, "operator-pending.json"), .timeout_ms = @as(u32, 30000) });
         return support.print(init, .{ .configured = true });
     }
     if (std.mem.eql(u8, mode, "raw-denied")) {
@@ -230,7 +229,7 @@ pub fn main(init: std.process.Init) !void {
         return support.print(init, .{ .raw_denied = true });
     }
     if (std.mem.eql(u8, mode, "runtime")) {
-        const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try tableKey(config), .reader = try roleKey(2004) }, 5000);
+        const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try tableKey(config) }, 5000);
         defer runtime.deinit();
         var worker = try init.io.concurrent(runtimeWorker, .{runtime});
         defer worker.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {

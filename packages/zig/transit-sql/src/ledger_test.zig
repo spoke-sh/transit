@@ -4,7 +4,7 @@ const c = g.catalog;
 const Store = @import("store_test.zig");
 const t = std.testing;
 const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9, .namespace = 7, .role = 29 };
-const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 1024 * 1024, .pending_quota = 2 };
+const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 1024 * 1024, .pending_quota = 2 };
 fn reference(id: u64) g.IntentReference.Reference {
     const scope: c.protocol.DataLifecycle.Scope = .{ .realm = 1, .resource = binding.resource, .catalog = binding.catalog };
     return .{ .table = .{ .definition = c.protocol.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = binding.owner, .principal = configuration.table_principal, .role = binding.role }, .namespace = binding.namespace, .content = .{ .bytes = 512, .sha256 = @splat(17) }, .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = scope, .principal = configuration.table_principal, .operation = id }, .target = .{ .scope = scope, .branch = 1, .object = id }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(9) } } };
