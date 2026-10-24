@@ -520,6 +520,16 @@ use the existing dialect rules. INSERT derives row identities from the new
 operation; UPDATE/DELETE freeze the observed logical basis through its accepted
 frontier. Parameter binding never becomes a recovery operation.
 
+`DirectTableValues.Reference` and `PreparedBinding` are lossless host
+representations of those direct caller identities. The reflected `HostReference`
+and `HostPreparedBinding` schemas require their compatibility definition. Catalog,
+branch, object, operation, definition revision, partition, LSN and content-byte
+values use canonical unsigned decimal strings; native authorization identities
+remain bounded JSON integers. Digests use 64 lowercase hexadecimal characters.
+Conversion checks the original owning types and rejects changed interpretation
+commitments. It does not resolve names, acquire rights or admit work. These value
+contracts do not themselves expose a catalog ABI or migrate a language SDK.
+
 Saved intents start with `TDI1`, the 32-byte current definition, then canonical
 JSON of mandatory `definition`, `connection` and `work` fields in that order.
 `work` is exactly one of `ddl`, `rows` or `statement`, carrying the corresponding
