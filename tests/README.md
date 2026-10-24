@@ -81,6 +81,40 @@ accepting `ALL` after `SHOW` renders `SHOWALL`. These checks establish shared
 local editing and terminal behavior over a controlled metadata peer; they do not
 extend service authorization or query execution guarantees.
 
+## Go raw client
+
+`nix develop .#bindings --command just bindings::go-sdk-test` passes with Go
+1.26.7, the pinned Zig 0.17 compiler and the current shared ABI definition on
+Linux x86_64. The task runs `go vet`, `go test -race` and
+`GOEXPERIMENT=cgocheck2`, then installs the Go module and matching native archive
+outside the checkout. It deletes the consumer source and extracted SDK before
+running the installed binary against the real node and disk-backed Ursula.
+
+The shared raw-client schedule observes current capabilities, an accepted send
+whose response is lost, identical signed recovery without the seed, typed native
+operation classification, cancelled host waiting with continued native ownership,
+busy/closed rejection, responsive joined close and revoked historical retry.
+The last observed receipt and its frozen operation identity survive cancelled
+waiting and close. A separately compiled consumer with a foreign generated ABI
+definition rejects the actual native library; a build with cgo disabled rejects
+native open. The actual
+`examples/go-client` binary prepares the same canonical bytes and dispatches the
+saved operation without a seed after its own source/build module is removed.
+
+Focused units verify the native worker's actual stack against the generated
+8 MiB requirement, owned recovery buffers, malformed/missing/foreign saved
+definitions, native counter/payload bounds, realm validation and diagnostic
+formatting. Repeated real-authority client opens reuse one retained native image;
+replacing or removing an explicitly loaded library rejects subsequent opens.
+This evidence covers the raw Go client, not Station handlers, catalog/query APIs,
+the Station language ring, other operating systems or portable native artifacts.
+The task writes its local outcome/history to
+`.cache/bindings/go/raw-evidence.json`; fixture keys and data are synthetic.
+
+`just doctor`, `just bindings::check` and `just check` also pass in the bindings
+shell, including the SDK navigation, Go syntax support and production handbook
+build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
+
 ## Responsive console completion menus — 2026-10-24
 
 `just check` and `just test::console-history` pass for the responsive completion

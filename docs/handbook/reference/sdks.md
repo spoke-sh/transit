@@ -23,6 +23,7 @@ in Rust, and Document/effect workflows in Zig, with complete source and run comm
 | [Python](../../../sdks/python/README.md) | [transit-client](../../../sdks/python/transit-client/README.md) | [transit-station](../../../sdks/python/transit-station/README.md) |
 | [TypeScript / Node.js](../../../sdks/ts/README.md) | [transit-client](../../../sdks/ts/transit-client/README.md) | [transit-station](../../../sdks/ts/transit-station-sdk/README.md) |
 | [Rust](../../../sdks/rust/README.md) | [transit-client](../../../sdks/rust/transit-client/README.md) | [transit-station](../../../sdks/rust/transit-station-sdk/README.md) |
+| [Go](../../../sdks/go/README.md) | [client](../../../sdks/go/README.md) | Not exposed |
 | [Ruby](../../../sdks/ruby/README.md) | [transit-client](../../../sdks/ruby/transit-client/README.md) | [transit-station](../../../sdks/ruby/transit-station/README.md) |
 | [C](../../../sdks/c/README.md) | [transit-client](../../../sdks/c/transit-client/README.md) | [transit-station](../../../sdks/c/transit-station/README.md) |
 | [C++](../../../sdks/cpp/README.md) | [transit-client](../../../sdks/cpp/transit-client/README.md) | [transit-station](../../../sdks/cpp/transit-station-sdk/README.md) |
@@ -31,7 +32,9 @@ in Rust, and Document/effect workflows in Zig, with complete source and run comm
 | [Erlang](../../../sdks/beam/README.md) | [transit-client](../../../sdks/beam/transit-client/README.md) | [transit-station](../../../sdks/beam/transit-station-sdk/README.md) |
 | [Elixir](../../../sdks/beam/README.md) | [transit-client](../../../sdks/beam/transit-client-elixir/README.md) | [transit-station](../../../sdks/beam/transit-station-elixir/README.md) |
 
-The ten non-Zig language targets use the shared native boundary. Browser clients
+The eleven non-Zig language targets use the shared native boundary. Go exposes
+raw input submission, capability reads and exact mutation recovery. The ten
+Station SDKs provide the data/framework operations described below. Browser clients
 use separate generated, runtime-validated [query](../../../packages/ts/transit-query-client/README.md),
 [reactive](../../../packages/ts/transit-reactive-client/README.md) and
 [application](../../../packages/ts/transit-application/README.md) packages; the Node

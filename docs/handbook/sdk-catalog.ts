@@ -29,6 +29,7 @@ export const sdkSections: Section[] = [
       { source: "sdks/python/README.md", route: "sdks/python", label: "Python" },
       { source: "sdks/ts/README.md", route: "sdks/typescript", label: "TypeScript / Node.js" },
       { source: "sdks/rust/README.md", route: "sdks/rust", label: "Rust" },
+      { source: "sdks/go/README.md", route: "sdks/go", label: "Go" },
       { source: "sdks/ruby/README.md", route: "sdks/ruby", label: "Ruby" },
       { source: "sdks/c/README.md", route: "sdks/c", label: "C" },
       { source: "sdks/cpp/README.md", route: "sdks/cpp", label: "C++" },
