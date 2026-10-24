@@ -42,6 +42,14 @@ Its SHA-256 is
 `b8ab0e6bf526a8c545129759ef027057d79aceda7879ddb0595f4cab895c5f2c`;
 this plan is self-contained and does not require that local file.
 
+Coordinate the [transaction contract](05-transactions-and-atomic-composition.md)
+before freezing statement outcomes. A statement may complete within an open
+transaction while its changes and counts remain provisional until commit.
+Define transaction/basis attribution and cursor lifetime hooks here; milestone 5
+implements transaction sessions and proves their commit/rollback interactions.
+This does not make executable transactions a prerequisite for the autocommit
+result-reader delivery.
+
 ## Delivery sequence
 
 1. **Define shared statement outcomes before adapters.** Formalize command
@@ -83,8 +91,8 @@ this plan is self-contained and does not require that local file.
    exact wide integers/decimals and five-state cells. Display/memory limits cannot
    imply query completion or require unbounded accumulation for column widths.
    Migrate native SQL messages, PostgreSQL/MySQL adapters and existing consumers
-   affected by the contract; later [SDK coverage](09-service-and-sdk-coverage.md)
-   and [published resources](11-published-resources-and-investigations.md) reuse
+   affected by the contract; later [SDK coverage](11-service-and-sdk-coverage.md)
+   and [published resources](17-published-resources-and-investigations.md) reuse
    it. No console-only result protocol is introduced.
 6. **Apply the current-v1 cutover and publish the contract.** Replace the shared
    definition on incompatible changes, regenerate schemas/bindings/fixtures and
@@ -93,7 +101,7 @@ this plan is self-contained and does not require that local file.
    cross-call investigation retention, continuous queries and new foreign
    sources remain with their later owners.
 
-[Programming-model work](16-programming-model.md) composes this result reader
+[Client-foundation work](06-client-foundation-and-language-apis.md) composes this result reader
 and settlement contract into language-native direct clients and mixed Station
 applications. It does not define a second result lifecycle or defer this
 milestone's shared-client and existing-consumer obligations.

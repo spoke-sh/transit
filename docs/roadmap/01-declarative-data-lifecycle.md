@@ -1,12 +1,18 @@
-# 1. Declarative data lifecycle
+# 1. Data identities, declarations and commit contracts
 
 [Roadmap](README.md) · [Current data model](../handbook/reference/data-model.md) · [Tracker #108](https://github.com/spoke-sh/transit/issues/108) · **Status:** In Progress
 
-Let an application describe its data, schemas, computations and policies, apply
-a supported change, then inspect the accepted definition and operation outcome
-through consistent public operations. This unifies the catalog and operation
-surface across data kinds while separating direct data-plane lifecycle operations
-from the actor mailbox and native turn ceremony.
+Define how an application describes data, schemas, computations and policies,
+and how public operations bind that declaration to identities, dependencies,
+authority, accepted changes and observable outcomes. Establish neutral contracts
+before storage formats and runtime integration depend on them.
+
+The 2026-10-24 sequencing review separates this contract/metadata foundation from
+the installed lifecycle implementation in [milestone 3](03-live-storage-and-sql-cutover.md).
+The original direct Table, named KV/Document and computation-lifecycle acceptance
+obligations transfer explicitly to that owner; #108 continues tracking both
+the foundation and those outstanding outcomes. This milestone remains In Progress.
+Neither the split nor a contract fixture completes the original executable scope.
 
 ## Reopened assessment — 2026-10-22
 
@@ -36,11 +42,12 @@ transitions alone do not fulfill a data declaration.
 | Accurate current documentation and scoped proof claims | [#123](https://github.com/spoke-sh/transit/issues/123) |
 | Public caller, failure, growth and recovery qualification | [#124](https://github.com/spoke-sh/transit/issues/124) |
 
-These issues preserve the delivery sequence and completion criteria below.
-Resolve the operation/commit contract first, then complete the executable Table
-slice with [storage](02-storage-and-query-performance.md) and the
-[live cutover](03-live-storage-and-sql-cutover.md). Named resource and computation
-work must reuse their existing owners. Automatic scheduling remains later scope.
+The issues retain their original work and proof obligations. #125 and the
+neutral contract portions of #111/#119/#120 belong here; executable direct Table,
+named resource and computation integration belongs to
+[milestone 3](03-live-storage-and-sql-cutover.md#installed-lifecycle-integration).
+Native codec execution stays with [storage](02-storage-and-query-performance.md).
+Automatic scheduling remains later scope.
 The transcript review is complete and this planning revision is authorized.
 The [shared contract gates](README.md#firm-scope-and-contract-gates) identify
 engineering decisions that must precede dependent implementation.
@@ -53,9 +60,9 @@ to partition heads, and supported atomic domains/isolation. A catalog-wide root
 must not recreate a global realm CAS for every independent data/process write.
 Deliver the complete single-owner Table statement/batch slice first. Specify
 the catalog-scoped transaction extension now; its interactive sessions belong
-to [managed computations and SQL](06-sql-and-dataflows.md). Arbitrary distributed
-cross-owner transactions are not implied, and native turns retain their current
-one-KV-resource atomicity limit.
+to [transactions and atomic composition](05-transactions-and-atomic-composition.md).
+Arbitrary distributed cross-owner transactions are not implied, and native turns
+retain their current one-KV-resource atomicity limit.
 
 Snapshots must distinguish a consistent catalog cut from independently captured
 source versions and bind exact interpretation, manifests and committed WAL
@@ -68,7 +75,7 @@ Named KV/Document provisioning consumes the actual native persistence cutover in
 [#126](https://github.com/spoke-sh/transit/issues/126); a resource metadata record
 does not establish storage migration or usability. Computation evidence consumes
 the snapshot and logical-change contracts, while automatic activation remains
-milestone 6.
+milestone 8.
 
 ## Baseline, bottleneck diagnosis and scope
 
@@ -89,8 +96,8 @@ these tiny actor-turn bounds, higher-level table and publication owners
 staging state machines (`STC1`, `STW1`, `STG1`, `STX1`) just to move rows or
 evolve schemas.
 
-This milestone unifies the public declarative lifecycle and decouples **data-plane
-declaration and mutation operations** from the **actor turn ceremony**:
+The shared contract establishes these boundaries; milestone 3 delivers their
+executable lifecycle integration:
 
 - **Data-plane operations** validate against the catalog and `policy_epoch`,
   commit idempotent operation records and batch payloads directly through the
@@ -104,83 +111,64 @@ declaration and mutation operations** from the **actor turn ceremony**:
 
 ## Delivery sequence
 
-1. **Inventory the lifecycle contracts.** For Table, KV, Document and named
-   computation definitions, record identity (`CatalogId`, `DefinitionId`), naming,
-   logical types, physical encoding and collation descriptors, dependencies,
-   policy references, admission, publication, inspection, alteration and retirement.
-   Distinguish supported operations, offline compilation and missing execution.
-   Identify which fields and operations are shared across the catalog and which
-   remain kind-specific.
-2. **Define shared metadata, operation evidence and direct data-plane boundaries.**
-   Specify versioned neutral types for object/definition identity, expected
-   revision/manifest head, dependency bindings, idempotent operation identity,
-   accepted outcome and bounded observed progress. Separate direct data-plane
-   batch/DDL admission from the actor `open_view`/`commit_turn` wire limits so
-   table mutations and catalog transitions do not depend on `4 × 256B` metadata
-   keys or `16 × 64KiB` turn blocks. A query's source vector, a Table manifest
-   head and a Document revision remain distinct types. Define unavailable,
-   incomplete and denied observations; do not infer failure from a timeout or
-   fulfillment from worker liveness. Generate the schemas and shared fixtures
-   from the owning types.
-3. **Implement a complete Table slice.** Adapt the existing catalog lifecycle to
-   those shared types and direct data-plane operations. Validate and show a
-   proposed change without applying it; apply against its expected definition/head
-   and inspect the exact accepted result. Preserve original intent through lost
-   replies and name/schema replacement. Retire redundant multi-turn staging
-   ceremonies as direct batch/manifest commits land in
-   [Milestone 2](02-storage-and-query-performance.md). Use existing SQL and typed
-   callers to demonstrate the whole path before extending object kinds.
-4. **Add named KV and Document lifecycles.** Bind explicit encodings, initialization
-   rules and owned resources to stable catalog identities. Reuse current service
-   provisioning and publication, with durable bounded recovery between steps.
-   Do not promise atomicity across independent owners. Define failed/partial
-   provisioning, cleanup, rename, retirement and same-name replacement. Publish
-   typed operations first; expose SQL publication only for implemented grammar
-   and qualified execution paths.
-5. **Make dependencies and policy references inspectable.** Bind exact object and
-   definition identities, record required access and distinguish metadata visibility
-   from data access. Extend explicit dependency registration and `RESTRICT` behavior;
-   never infer all consumers from names or payloads. Reuse current authorization,
-   unlimited-retention defaults and owner-specific budgets. Explain a blocked
-   change without disclosing unauthorized dependency data.
-6. **Connect computation definitions and inspection.** Expose named query inputs,
-   requested lifetime and definition revisions through the same metadata model.
-   Link to existing activation and outcome evidence; distinguish a definition
-   from a running computation and a completed result from current freshness.
-   SQL/SDK adapters and Board projections consume these shared public operations.
-   Board changes follow its explicit capability and UI review boundaries.
-
-Each numbered slice needs an independently reviewable contract and usable caller
-path. Avoid waiting for every data kind to be implemented before proving the
-Table path. No parsing or metadata milestone counts as complete publication.
+1. **Inventory lifecycle contracts.** For Tables, KV, Documents and named
+   computations, define stable object/definition identities, names, logical
+   types, physical codecs and collations, dependencies, policy references,
+   admission, publication, inspection, alteration and retirement. Distinguish
+   supported operations, offline compilation and missing execution.
+2. **Define neutral operations and commit evidence.** Specify expected
+   definition/head, idempotent operation identity, frozen content, accepted
+   outcomes and bounded progress. Define direct point/batch/DDL admission apart
+   from actor-frame limits. Separate temporary session state from accepted work;
+   a timeout cannot establish rejection. Generate schemas and independent
+   positive/negative fixtures from owning types, following #112's v1 cutover.
+3. **Resolve atomic domains and consistent snapshot roots.** Close #125/#111's
+   identity hierarchy, publication linearization, isolation, rollback/uncertainty,
+   DDL visibility and read/predicate-conflict decisions before dependent formats.
+   Bind exact interpretation, manifests and committed WAL frontiers, including
+   unflushed state. Separate independent source vectors from atomic cuts and
+   descriptors from durable pins. Specify the multi-object extension delivered
+   by milestone 5 without widening native turns implicitly.
+4. **Define dependencies, provisioning and computation observations.** Preserve
+   current scoped authorization, explicit dependency registration/RESTRICT and
+   unlimited-retention defaults. Specify named KV/Document initialization,
+   partial provisioning and recovery; bind computation results to exact source
+   data and definition revisions. Define unavailable, incomplete, denied and
+   stale observations; reading definitions or inspection starts no work.
+5. **Land the foundation with explicit implementation owners.** Implement shared
+   types, metadata transitions and generated fixtures through their owning
+   packages. Assign storage/native persistence to milestone 2 and complete
+   installed lifecycle paths to milestone 3. Board projections use public owners
+   and their existing UI/capability review boundaries. Publish only actually
+   implemented semantics in current references; proposals stay in this plan.
 
 ## Completion evidence
 
-- An application can create a Table, inspect its definition, write/query rows,
-  alter the schema and recover the original accepted change after losing a reply
-  without routing bulk row data through multi-turn actor mailbox loops.
-- Named KV and Document objects expose explicit interpretation, initialization
-  state, current rights and lifecycle outcomes through the qualified typed path.
-- Repeating an inspection or loading a definition starts no work. Applying a
-  competing change rejects the stale expectation; recreating a name never
-  retargets an earlier operation or dependent definition.
-- Independent caller fixtures agree on definitions, outcomes and permission
-  failures. Test revocation, interrupted provisioning/publication, missing
-  dependencies and object/dependency counts beyond resident caches.
-- Snapshot/transaction fixtures distinguish consistent from independent cuts,
-  include accepted unflushed data, and establish the selected isolation profile
-  under concurrent data/schema changes without promising unsupported atomicity.
-- The handbook states each object's executable lifecycle and demonstrates how
-  to distinguish defined, published, pending, complete and unavailable evidence.
-  These are review questions; the implementation must define exact status types.
+- Neutral fixtures and owning types agree on object/definition identity,
+  expected heads, operation identity, permissions, outcome and snapshot evidence.
+- Specify permitted and forbidden histories, including read/predicate conflicts,
+  name/schema replacement, unflushed data and independent versus atomic cuts.
+  Record the selected domain and isolation decisions before persistent formats.
+- Verify existing metadata operations preserve dependency and access boundaries;
+  generated declarations and missing/foreign-definition rejection stay coherent.
+- #111/#119/#120/#125 have concrete contracts and the installed caller/recovery
+  obligations below are assigned to milestone 3. Do not mark this milestone
+  complete until its own contract/implementation evidence exists, or close #108
+  before its transferred executable outcomes are qualified.
+
+The original public-caller completion criteria are preserved under
+[installed lifecycle integration](03-live-storage-and-sql-cutover.md#installed-lifecycle-integration).
+A contract fixture is not that end-to-end evidence.
 
 ## Boundaries and follow-on work
 
-This milestone does not add automatic maintained-query scheduling, arbitrary
-cross-resource transactions, historical SQL, branches or a universal health
-boolean. [Storage hierarchy and `.tseg` segments](02-storage-and-query-performance.md)
-replace the underlying B-tree page store and single-sequencer bottleneck;
-[managed computations](06-sql-and-dataflows.md) add WAL-driven activation and
-service-owned maintenance; [historical catalogs](05-standards-and-catalogs.md)
+This milestone does not itself deliver the installed lifecycle, transaction
+sessions, automatic scheduling, historical SQL, branches or a universal health
+boolean. [Local storage and `.tseg` segments](02-storage-and-query-performance.md)
+replace the underlying B-tree page store;
+[provider/writer qualification](12-storage-providers-and-concurrency.md) delivers
+partitioned concurrency;
+[managed computations](08-sql-and-dataflows.md) add WAL-driven activation and
+service-owned maintenance; [historical catalogs](07-standards-and-catalogs.md)
 extend the same identities and interpretation model. The kernel stays generic.
 Definitions and reads never grant rights or dispatch external effects.

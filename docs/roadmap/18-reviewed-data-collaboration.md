@@ -1,4 +1,4 @@
-# 12. Versioned proposals and reviewed publication
+# 18. Versioned proposals and reviewed publication
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,9 +9,9 @@ sharing do not require merging.
 
 ## Prerequisites and scope
 
-Use [branch and merge primitives](08-branches-merges-and-restore.md),
-[actor/delegation policy](10-control-and-policy-plane.md) and
-[published resources/investigation bases](11-published-resources-and-investigations.md).
+Use [branch and merge primitives](10-branches-merges-and-restore.md),
+[actor/delegation policy](16-control-and-policy-plane.md) and
+[published resources/investigation bases](17-published-resources-and-investigations.md).
 Branching is the underlying data primitive. A higher-level project/application
 fork relationship, independent export and cross-realm collaboration require
 separate contracts and are excluded from this milestone.
@@ -40,7 +40,10 @@ separate contracts and are excluded from this milestone.
    Preserve original operation identity and exact outcomes across lost replies,
    withdrawal, duplicate submissions and replacement. A preview or approval is
    neither a reservation nor publication. Retain rejected and superseded
-   proposals without rewriting their evidence.
+   proposals without rewriting their evidence. Reuse the
+   [transaction decision/visibility contract](05-transactions-and-atomic-composition.md)
+   for the selected merge domain; review approval does not establish serializability
+   or a stronger cross-domain commit than the underlying operation supports.
 5. **Separate publication from downstream effects.** Specify recomputation,
    backfill and notification behavior after merge or restore. External actions
    require independent authorization and recorded intent. Branches default to

@@ -1,4 +1,4 @@
-# 18. Operations, backup, restore and upgrades
+# 14. Operations, backup, restore and upgrades
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,13 +9,13 @@ upgrade procedures before automatic clustered placement depends on them.
 
 ## Prerequisites and scope
 
-Follow [replication and durable failover](17-replication-and-failover.md) over the
+Follow [replication and durable failover](13-replication-and-failover.md) over the
 [installed storage/runtime](03-live-storage-and-sql-cutover.md). Consume complete
 catalog/native-owner recovery roots, retained history and current authority from
 [data lifecycle](01-declarative-data-lifecycle.md) and
 [storage](02-storage-and-query-performance.md). The first operational profile
 uses local or explicitly managed replicated placements; it does not depend on
-the later automatic scheduler. [Clustered execution](19-clustered-execution.md)
+the later automatic scheduler. [Clustered execution](15-clustered-execution.md)
 must subsequently prove these procedures across moving workers and partitions.
 
 The [deployment reference](../handbook/reference/deployment.md),
@@ -26,6 +26,14 @@ The [deployment reference](../handbook/reference/deployment.md),
 boundaries. Existing restart, maintenance and compatible worker replacement
 remain delivered behavior with their current limits. Replication is not a backup:
 it may faithfully copy an unwanted accepted change.
+
+Use the [transaction contract](05-transactions-and-atomic-composition.md) when
+selecting backup and point-in-time recovery cuts. Include participant state,
+durable decisions, receipts and outbox/capture evidence; a timestamp or a set of
+partition heads alone cannot prove transaction completeness. Define treatment of
+prepared/undecided work and retain the evidence needed to resolve original
+attempts. Restoring data never authorizes replay dispatch or resurrects historical
+outbox eligibility; activation and reconciliation remain separately governed.
 
 ## Delivery sequence
 
@@ -90,11 +98,11 @@ it may faithfully copy an unwanted accepted change.
 
 ## Boundaries with other milestones
 
-[Branches, merges and restore](08-branches-merges-and-restore.md) owns logical
+[Branches, merges and restore](10-branches-merges-and-restore.md) owns logical
 application-data restore as a new forward successor under current realm policy.
 This milestone owns backup media, installation disaster recovery, operational
 activation and runtime upgrades. Both preserve the ban on revived grants,
-retired processes and historical effects. [Release distribution](21-releases.md)
+retired processes and historical effects. [Release distribution](24-releases.md)
 packages the qualified artifacts and procedures; it does not invent their
 upgrade semantics. Broader distributed placement is qualified by its own owner.
 
@@ -106,7 +114,9 @@ source fixture and restore using only the declared backup/recovery material.
 Exercise full and incremental chains, an intermediate point-in-time cut and the
 selected cross-region copy profile; report unavailable intervals explicitly.
 Compare exact data, definitions and native outcomes with an independent oracle;
-exercise incomplete copies, corrupted/missing chain members, concurrent GC,
+exercise a backup/PITR cut during multi-object commit, undecided participants,
+lost commit replies, staged/committed/captured outbox work, incomplete copies,
+corrupted/missing chain members, concurrent GC,
 retention expiry, lost replies and interrupted restore/upgrade phases.
 
 Prove that a backup predating revocation/retirement/effect completion cannot

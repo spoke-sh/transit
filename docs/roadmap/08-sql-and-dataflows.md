@@ -1,4 +1,4 @@
-# 6. Managed computations and WAL-activated dataflows
+# 8. Managed computations and WAL-activated dataflows
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -30,7 +30,11 @@ Connections/sources/sinks remain separate declarations whose publication does
 not authorize external work.
 Consume [statement results](04-statement-results-and-consumption.md) for finite
 reads, explanation and command outcomes; continuous/maintained computation keeps
-its own activation, progress and revision lifecycle.
+its own activation, progress and revision lifecycle. Consume
+[transaction decisions](05-transactions-and-atomic-composition.md) for multi-object
+changes: computation activation and published successors must respect complete
+commits, even when participant records arrive separately. Do not publish a
+half-committed transaction as a completed result.
 
 1. **Bind computation declarations to catalog and storage watermarks:** define a
    computation declaration's bound inputs (`CatalogId`, `DefinitionId`), lifetime,
@@ -74,13 +78,13 @@ its own activation, progress and revision lifecycle.
   aggregations).
 - Provide logical/physical explanation and output-schema inspection without
   source disclosure, mutation or external work.
-- Implement typed `COPY`/import/export (writing `.tseg`, Parquet, Arrow IPC and
-  CSV/JSONL), `MERGE`/upsert (using `.tseg` primary-key B-tree indexes and `.tdel`
-  deletion vectors) and prepared-plan lifetime. Implement explicit transaction
-  sessions against #125's selected atomic domain, isolation and snapshot contract;
-  manifest CAS alone does not provide transaction semantics. This milestone owns
-  typed import/export operations; milestone 7 supplies the actual foreign-format
-  adapters, with capability reporting per qualified combination.
+- Implement general `MERGE`/upsert and prepared-plan lifetime through shared SQL
+  composition. The [transaction owner](05-transactions-and-atomic-composition.md)
+  owns session control, atomicity/isolation, DDL/constraint interactions and
+  transaction-bound plan invalidation; those features do not all become transaction
+  syntax merely because they can execute in a transaction. SQL `MERGE` is separate
+  from branch merge. [Foreign relations](09-multi-model-and-foreign-relations.md)
+  now owns typed `COPY`/import/export together with its actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
   including conditional alteration and retirement. SQL, SDK and Board use the
   same administrative operations.
@@ -93,13 +97,13 @@ its own activation, progress and revision lifecycle.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](14-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](20-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot
 establish that an agent ran or a business action completed.
 
-Historical operations consume [catalog contracts](05-standards-and-catalogs.md).
+Historical operations consume [catalog contracts](07-standards-and-catalogs.md).
 Branch merge and SQL `MERGE` remain distinct. Fuze owns relational and incremental
 vector computation; Station and application owners coordinate stateful workflows
 and external effects above a generic kernel.
@@ -108,7 +112,10 @@ Require independent finite/maintained equivalence at completed source bases,
 current grants, lost responses, interrupted publication, retained-history and
 snapshot-to-tail handoff, bounded NVMe spill and larger-than-RAM workloads. Test
 `A -> B -> A`, insert/delete within one flush, schema changes and compaction
-without a logical mutation for every admitted consumer profile. Qualify
+without a logical mutation for every admitted consumer profile. Include
+multi-object transactions with delayed participant records and aborted work;
+completed maintenance must consume the selected committed cut without omissions
+or partial publication. Qualify
 actual callers for each exposed slice.
 
 The acceptance journey declares a derived relation, observes its first complete

@@ -1,4 +1,4 @@
-# 16. Language-native programming model and mixed application composition
+# 22. Language-native programming model and mixed application composition
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,14 +10,21 @@ not require running a Station handler in the caller.
 
 ## Prerequisites and scope
 
-Follow [recorded outbound MCP and application guidance](15-recorded-mcp-integrations.md)
-in the delivery sequence. Build on the qualified
+Follow [recorded outbound MCP and application guidance](21-recorded-mcp-integrations.md)
+in the delivery sequence. The earlier
+[shared client foundation](06-client-foundation-and-language-apis.md) owns package
+extraction, shared client/host infrastructure, direct operation/recovery helpers
+and representative language APIs before SDK expansion. Consume that delivered
+foundation here and extend it to every claimed mixed/Station language profile;
+do not postpone those foundation obligations until this milestone.
+Build on the qualified
 [data lifecycle](01-declarative-data-lifecycle.md),
 [direct runtime cutover](03-live-storage-and-sql-cutover.md),
 [statement/result contract](04-statement-results-and-consumption.md),
-[service/SDK coverage](09-service-and-sdk-coverage.md) and the relevant
-[access](10-control-and-policy-plane.md),
-[published-resource](11-published-resources-and-investigations.md) and connector
+[transactions and outbox](05-transactions-and-atomic-composition.md),
+[service/SDK coverage](11-service-and-sdk-coverage.md) and the relevant
+[access](16-control-and-policy-plane.md),
+[published-resource](17-published-resources-and-investigations.md) and connector
 owners. API/contract review can start alongside those foundations. Earlier
 milestones retain their implementation and parity promises; this milestone owns
 coherent application composition and per-language usability, not deferred coverage.
@@ -62,7 +69,7 @@ their owning contracts before publishing runnable examples.
 
 | Mode | Package / entry point | Application experience | Durable owner |
 | --- | --- | --- | --- |
-| 1. Direct data & query | `transit-client` | A script, request handler or service declares schemas, reads/writes Tables, KV and Documents, streams SQL `ResultSet`s and observes accepted operations with zero Station imports | Existing Transit catalog, data, query and SQL service owners |
+| 1. Direct data & query | `transit-client` | A script, request handler or service declares schemas, reads/writes Tables, KV and Documents, composes supported transactions/outbox intents, streams SQL `ResultSet`s and observes accepted operations with zero Station imports | Existing Transit catalog, data, query and SQL service owners |
 | 2A. Mixed: standalone recorded effects | `transit-client` (`client.effects`) | Ordinary caller code invokes governed HTTP, gRPC or outbound MCP connectors with explicit operation identity, secret references, capture and network-free replay outside a handler turn | Connector intent, capture and reconciliation owners |
 | 2B. Mixed: data-activated stream consumers | `transit-client` (`client.subscribe`) | A lightweight function or worker subscribes to `TransitLog`, Table or Document change streams with durable checkpointing, explicit delivery profiles (`complete_changes`, `net_changes`, `recompute`) and snapshot-to-tail handoff | Storage changefeed and reactive subscription owners |
 | 2C. Mixed: caller-to-actor RPC | `transit-client` (`client.service`) | Ordinary caller code invokes a named or PID-addressed Station behavior using shared typed request/reply schemas and waits on its durable correlation outcome without hosting a local actor | Native mailbox admission, Station behavior owner and recorded reply evidence |
@@ -80,16 +87,17 @@ an activation or a transaction.
 
 | Capability | Foundation milestones | Completion required here |
 | --- | --- | --- |
-| Direct Table, KV, Document and Catalog operations | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 2](02-storage-and-query-performance.md), [Milestone 3](03-live-storage-and-sql-cutover.md) | Expose data/catalog/logical clients through the SDK client surface over shared implementation packages; provide bounded `apply` with explicit recovery policy plus low-level step control |
-| SQL execution, `StatementResult` and streaming `ResultSet` | [Milestone 4](04-statement-results-and-consumption.md), [Milestone 9](09-service-and-sdk-coverage.md) | Expose unified `client.sql` / `client.query` streaming iterators and command outcomes directly on `transit-client` in every target language |
-| Data-activated stream consumers (`client.subscribe`) | [Milestone 2](02-storage-and-query-performance.md), [Milestone 6](06-sql-and-dataflows.md), [Milestone 9](09-service-and-sdk-coverage.md), [Milestone 14](14-reactive-context-and-agent-activation.md) | Bind language-native iterators/callbacks to fenced durable consumer positions, explicit delivery profiles and snapshot-to-tail handoffs without requiring `GenServer` |
-| Standalone recorded effects (`client.effects`) | [Milestone 9](09-service-and-sdk-coverage.md), [Milestone 10](10-control-and-policy-plane.md), [Milestone 15](15-recorded-mcp-integrations.md) | Add caller admission and observation over durable HTTP/gRPC/MCP intent and capture owners, preserving unknown outcomes and connector-specific retry policy |
-| Typed caller-to-actor RPC (`client.service`) | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 9](09-service-and-sdk-coverage.md), [Milestone 11](11-published-resources-and-investigations.md) | Provide shared service definitions, durable request correlation and outcome settlement from `transit-client` without manual `256B` frame packing or caller-hosted actors |
+| Direct Table, KV, Document and Catalog operations | [Installed lifecycle](03-live-storage-and-sql-cutover.md), [client foundation](06-client-foundation-and-language-apis.md), [SDK coverage](11-service-and-sdk-coverage.md) | Preserve the delivered direct-client packages, bounded operation/recovery helpers and low-level control while composing all application modes |
+| Transactions and transactional outbox | [Transactions](05-transactions-and-atomic-composition.md), [client foundation](06-client-foundation-and-language-apis.md) | Qualify idiomatic transaction scopes, provisional results, savepoints, uncertain commit recovery and staged messages/effects across direct and mixed programs |
+| SQL execution, `StatementResult` and streaming `ResultSet` | [Milestone 4](04-statement-results-and-consumption.md), [Milestone 11](11-service-and-sdk-coverage.md) | Expose unified `client.sql` / `client.query` streaming iterators and command outcomes directly on `transit-client` in every target language |
+| Data-activated stream consumers (`client.subscribe`) | [Milestone 2](02-storage-and-query-performance.md), [Milestone 8](08-sql-and-dataflows.md), [Milestone 11](11-service-and-sdk-coverage.md), [Milestone 20](20-reactive-context-and-agent-activation.md) | Bind language-native iterators/callbacks to fenced durable consumer positions, explicit delivery profiles and snapshot-to-tail handoffs without requiring `GenServer` |
+| Standalone recorded effects (`client.effects`) | [Milestone 11](11-service-and-sdk-coverage.md), [Milestone 16](16-control-and-policy-plane.md), [Milestone 21](21-recorded-mcp-integrations.md) | Add caller admission and observation over durable HTTP/gRPC/MCP intent and capture owners, preserving unknown outcomes and connector-specific retry policy |
+| Typed caller-to-actor RPC (`client.service`) | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 11](11-service-and-sdk-coverage.md), [Milestone 17](17-published-resources-and-investigations.md) | Provide shared service definitions, durable request correlation and outcome settlement from `transit-client` without manual `256B` frame packing or caller-hosted actors |
 | Turn-scoped actor composition (`transit-station`) | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 3](03-live-storage-and-sql-cutover.md) | Align `Turn` views and proposals (`turn.kv`, `turn.tables`, `turn.documents`, `turn.effects`, `turn.call`) with `transit-client` domain types while enforcing the atomic commit boundary |
 
 ## Delivery sequence
 
-1. **Define the public application contract before reorganizing packages.** Map
+1. **Extend the foundation's application contract to complete mixed programs.** Map
    data/definition identities, typed values/codecs, connections and credentials,
    statement results, accepted-operation handles, service requests and execution
    scopes to their existing owners. Specify which APIs are pure preparation,
@@ -104,10 +112,12 @@ an activation or a transaction.
    expose infrastructure coordinates only when needed. Resolution must bind work
    to exact identities/definitions and current grants, not redirect accepted work
    after a rename or replacement.
-2. **Separate reusable data clients from optional Station behaviors.** Extract
-   reusable Table storage, publication and immutable-index primitives from
-   `packages/zig/transit-station` into shared implementation packages. Keep
-   turn/behavior adapters with Station; moving every `Table*` file wholesale
+2. **Extend the delivered package/client foundation to mixed capabilities.**
+   Require milestone 6's extraction of reusable Table storage, publication and
+   immutable-index primitives from `packages/zig/transit-station` into shared
+   implementation packages; verify that subscriptions, effects and service calls
+   preserve that dependency boundary. Keep turn/behavior adapters with Station;
+   moving every `Table*` file wholesale
    would not establish the intended dependency boundary. Catalog, query, SQL and
    serving data paths should depend on those shared owners, with Station
    dependencies limited to actual behavior integration. These packages remain
@@ -116,7 +126,7 @@ an activation or a transaction.
    qualified KV/Document, SQL/result, changefeed subscription, standalone recorded
    effect and service-invocation clients usable from `transit-client` without a
    Station runner, activation, caller PID or Station native artifact. Unify the
-   native host/ABI bridge so one application client context can compose catalog,
+   native host/ABI bridge from milestone 6 so one client context can compose catalog,
    query, data, subscription, effect and RPC facets over bounded shared resources
    instead of requiring mutually exclusive OS host modes. Define principal
    sequence coordination, handle ownership, fair scheduling, cancellation and
@@ -126,9 +136,9 @@ an activation or a transaction.
    implementations may still use Station internally; `transit-station` layers on
    `transit-client` for applications authoring stateful actor behaviors. Define
    concrete package manifests and dependency direction before moving code.
-3. **Provide ordinary operations with an explicit advanced recovery surface.**
-   Build submission, bounded settlement and result consumption on the owning
-   service/client contracts, including `transit-sql-client`. Applications should
+3. **Compose ordinary and advanced recovery across the new capabilities.**
+   Reuse milestone 6's submission, bounded settlement and result consumption over
+   the owning service/client contracts, including `transit-sql-client`. Applications should
    not each implement upload/sequence/poll loops to execute a normal statement.
    Keep prepare/save/dispatch and application-owned recovery stores available for
    callers needing explicit control; never hide local persistence or expand a
@@ -146,6 +156,15 @@ an activation or a transaction.
    interleaving policy, quotas and original identity; arbitrary host stack frames
    do not become durable continuations. Direct ingestion remains independent of
    actor frame limits when no custom behavior is invoked.
+   Add idiomatic transaction contexts/callbacks over milestone 5's supported
+   domain, isolation, read-your-writes and savepoint contract. Distinguish
+   provisional statement outcomes from committed results and original commit
+   recovery. A local timeout or context exit cannot manufacture rollback.
+   Stage messages/effects through the shared transactional outbox; durable commit
+   may permit dispatch despite a lost client reply. Never rerun arbitrary host
+   I/O on an automatic callback retry or await a staged effect as though it had
+   already executed inside the transaction. Direct transactions, native turns and
+   consumer checkpoints share a commit only where the owning contract permits.
 4. **Define typed caller-to-actor RPC.**
    Bind service requests, replies and codecs (`client.service`) to explicit
    application definitions and authorized service identities. Specify admission,
@@ -187,8 +206,8 @@ an activation or a transaction.
    Reuse pure domain functions, validation and transformations in both modes; pass
    scoped data or effect capabilities explicitly when a function performs work. A
    direct client write inside a handler is a separate committed operation; it cannot
-   silently join the input/state/output commit. Define allowed composition, explicit
-   rejection and orchestration paths before offering transaction-like conveniences.
+   silently join the input/state/output commit. Use milestone 5's allowed composition,
+   explicit rejection and orchestration paths before offering scoped conveniences.
    Preserve the one-mutated-KV-resource turn limit until its owner changes it. Host
    HTTP, tool calls and arbitrary awaits are not recorded effects or restartable
    continuations. A turn may atomically record an intent with its permitted state
@@ -276,8 +295,14 @@ Add a Station workflow to the direct example while retaining its existing datase
 and authorized callers; exercise conflicting direct and worker writes under the
 owning concurrency contract instead of inventing a combined transaction.
 
+Add a direct SQL/SDK multi-object transaction and outbox example to the shared
+domain. Exercise write skew, rollback after spill, uncertain commit and a committed
+outbox intent whose commit reply was lost. Compare equivalent SQL and language
+programs against the transaction oracle; a failed Station handler cannot roll back
+an independently committed transaction. Keep external outcome uncertainty visible.
+
 Measure application code needed for the normal and recovery paths, and review
 whether examples read naturally in each language. Syntax polish and copied API
-names are insufficient evidence. [SDK coverage](09-service-and-sdk-coverage.md)
+names are insufficient evidence. [SDK coverage](11-service-and-sdk-coverage.md)
 retains its operation/platform matrix; record actual mixed-mode evidence in the
 [proof ledger](../../tests/README.md) before claiming this programming model.

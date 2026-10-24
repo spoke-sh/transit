@@ -1,4 +1,4 @@
-# 19. Clustered execution and storage-disaggregated placement
+# 15. Clustered execution and storage-disaggregated placement
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -19,10 +19,18 @@ property, not a guarantee for local-only WAL or disk state. Expose deployment av
 declaration progress and freshness; rescheduling a healthy pod does not
 establish that a derived result is current.
 
+Extend the existing [transaction model](05-transactions-and-atomic-composition.md)
+and [provider/writer contracts](12-storage-providers-and-concurrency.md) to each
+advertised placement. Specify coordinator/participant movement, decision recovery,
+visibility and snapshot retention before advertising cross-host transactions.
+Moving computation does not widen the atomic domain automatically. Distributed
+queries consume the selected complete cut and preserve provisional/terminal
+result meaning; neither partition arrival order nor worker completion is commit.
+
 ## Delivery sequence
 
-Require [replication and durable failover](17-replication-and-failover.md) and
-[operations, backup, restore and upgrades](18-operations-and-recovery.md) for the
+Require [replication and durable failover](13-replication-and-failover.md) and
+[operations, backup, restore and upgrades](14-operations-and-recovery.md) for the
 selected storage/deployment profile. They establish recoverable durable state,
 promotion rules and operational procedures before this milestone automates
 worker placement. The [statement-result milestone](04-statement-results-and-consumption.md)
@@ -84,5 +92,8 @@ NVMe cache hit/warm rates and topology limits separately from correctness. Pod
 recovery does not prove host power-loss durability or live disaster recovery.
 Repeat qualified backup/restore and upgrade scenarios during lease transfer and
 worker churn, preserving their original operation identities and authority fences.
+Inject participant/coordinator movement before and after transaction decisions;
+prove no partial visibility or lost accepted decision. Recovery alone cannot
+authorize a new external attempt; preserve unresolved external outcomes.
 Measure checkpoint discovery/loading, replay and cache warming separately;
 recovery work is not universally proportional only to the number of WAL frames.

@@ -1,4 +1,4 @@
-# 5. Standards, collations and historical catalogs
+# 7. Standards, collations and historical catalogs
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -8,7 +8,10 @@ semantics using the [grammar inventory](../handbook/reference/sql/grammar-surfac
 [state model](../handbook/internals/state-model.md).
 
 Extend the [shared data lifecycle](01-declarative-data-lifecycle.md) and
-[manifest-backed storage hierarchy](02-storage-and-query-performance.md).
+[manifest-backed storage hierarchy](02-storage-and-query-performance.md), using
+the [transaction/snapshot contract](05-transactions-and-atomic-composition.md).
+Historical retention extends a qualified basis; it neither keeps a transaction
+session open nor makes unrelated source versions globally atomic.
 Historical inspection must answer which definition, physical encoding and
 collation interpreted the data, which immutable Manifest (`manifest/v{N}`) and
 `.tseg` segments formed the snapshot, what a derived result depended on and
