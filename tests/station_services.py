@@ -9,7 +9,7 @@ from station_ledger import AUDIT, audit_state, audit_total, provision
 
 
 def run(node, cli, worker, courier, controller):
-    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000) as s:
+    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True) as s:
         configs = {}
         resources = {}
         serial = 0

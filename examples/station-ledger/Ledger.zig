@@ -1,12 +1,13 @@
 //! Application computation over a typed Table. A paged pending queue preserves
-//! original input/call identity; the final Table head, audit and reply commit
-//! together. Immutable audit entries are application KV, not another Table head.
+//! original input/call identity. A committed dispatch precedes direct Table
+//! admission; its confirmed receipt precedes the atomic native audit and reply.
 const std = @import("std");
 const q = @import("transit_query");
 const s = q.station;
 const p = s.protocol;
 const f = q.fuze;
 const Authorization = @import("Authorization.zig");
+const Data = @import("Data.zig");
 pub const schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &.{
     .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
     .{ .id = 2, .name = "amount", .type = .int64 },
@@ -17,20 +18,45 @@ pub const create_continuation = p.Value.init("ledger.create") catch unreachable;
 const pending_prefix = "\x00ledger.pending/";
 const proof_prefix = "\x00ledger.subject/";
 pub const audit_prefix = "\x00ledger.audit/";
-pub fn catalog(realm: u64, resource: u64, owner: u64, profile: q.catalog.TableAuthority.Profile) q.catalog.TableCatalog {
-    return .{ .configuration = .{ .scope = .{ .realm = realm, .resource = resource, .catalog = 1 }, .owner = owner, .administrator = 0, .database_name = q.catalog.TableAuthority.Name.init("ledger") catch unreachable, .authority = profile, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 32768, .staging_records = 8 } } };
+pub fn schemaAt(binding: Data.Binding) f.TableSchema.Schema {
+    var value = schema;
+    value.object = binding.object;
+    return value;
 }
-pub fn create(allocator: std.mem.Allocator, turn: *s.Turn, continuing: bool, profile: q.catalog.TableAuthority.Profile, registration: *?p.Authorization.Action) !void {
-    var owner = catalog(turn.delivery.realm, turn.view.resource, turn.delivery.pid, profile);
-    owner.registration = registration;
-    const request = createRequest();
-    const outcome = if (continuing) try owner.continueDdl(allocator, turn, request) else try owner.step(allocator, turn, request);
-    if (outcome.terminal()) {
-        if (outcome.operation.state != .applied) return error.LedgerInitializationFailed;
-    } else try turn.cast(turn.delivery.pid, create_continuation);
-}
-fn createRequest() q.catalog.TableDdlRequest {
-    return .{ .principal = 0, .operation = 1, .object = 1, .expected_revision = 0, .name = name, .action = .{ .create = .{ .schema = schema } } };
+const creation_key = p.Value.init("\x00ledger.creation") catch unreachable;
+pub fn create(allocator: std.mem.Allocator, turn: *s.Turn, continuing: bool, authority: Authorization, binding: Data.Binding) !void {
+    if (continuing) {
+        if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.AccessDenied;
+    } else switch (turn.delivery.input.origin) {
+        .external => |origin| if (origin.principal != 0) return error.AccessDenied,
+        else => return error.AccessDenied,
+    }
+    var creator = authority.client;
+    creator.role = binding.owner_role;
+    const client = try binding.client(allocator, creator);
+    if (binding.executor != turn.delivery.principal) return error.InvalidLedgerDataBinding;
+    const saved = try turn.read(creation_key);
+    if (saved == null) {
+        if (continuing) return error.InvalidLedgerWork;
+        const initialized = try client.call(.initialize);
+        defer initialized.deinit();
+        const input = turn.delivery.input.position;
+        var required: p.Authorization.Guard = .{ .subject = try turn.authorizationSubject(0), .requirements = @splat(null) };
+        required.requirements[0] = .{ .object = .{ .kind = .realm, .id = 0 }, .privileges = p.permission(.admin) };
+        var intent = try Data.creation(allocator, client, binding, schemaAt(binding), input, required);
+        defer intent.deinit();
+        const reference = try Data.stage(client, &intent, binding.namespace);
+        try Data.prepare(allocator, turn, .{ .resource = turn.view.resource, .worker = turn.delivery.pid, .input = input, .purpose = .create, .reference = reference });
+        try turn.write(creation_key, p.Value.integer(@intCast(input)));
+    } else {
+        const input = std.math.cast(u64, try saved.?.asInteger()) orelse return error.InvalidLedgerWork;
+        switch (try Data.advance(allocator, turn, client, input, .create)) {
+            .pending => {},
+            .committed => return,
+            .rejected, .cancelled => return error.LedgerInitializationFailed,
+        }
+    }
+    try turn.cast(turn.delivery.pid, create_continuation);
 }
 fn keyFor(prefix: []const u8, input: u64) p.Value {
     var bytes: [32]u8 = undefined;
@@ -90,13 +116,18 @@ const Pending = struct {
 fn wake(turn: *s.Turn) !void {
     try turn.cast(turn.delivery.pid, continuation);
 }
-pub fn enqueue(turn: *s.Turn, frame: s.Frame, authority: Authorization) !void {
+pub fn enqueue(allocator: std.mem.Allocator, turn: *s.Turn, frame: s.Frame, authority: Authorization) !void {
     const pending: Pending = .{ .input = turn.delivery.input.position, .origin = if (frame.kind == .call) try s.Frame.source(turn.delivery.input) else 0, .correlation = if (frame.kind == .call) frame.correlation else 0, .delta = try frame.payload.asInteger() };
     const key = keyFor(pending_prefix, pending.input);
     if (try turn.read(key) != null) return error.LedgerWorkAlreadyExists;
     const proof = try authority.prepare(turn, &pending.context());
     try authority.bind(turn, proof, &pending.context());
-    _ = try catalog(turn.delivery.realm, turn.view.resource, turn.delivery.pid, authority.profile).authorize(turn, authority.client.principal, .inspect);
+    // Queue admission checks CONNECT; pending creation may still be running.
+    // The eventual mutation checks SELECT and its exact write privilege.
+    const client = try authority.data.client(allocator, authority.client);
+    const described = try client.call(.describe);
+    defer described.deinit();
+    _ = try turn.requireAuthorization(try q.catalog.TableAuthority.guard(try turn.authorizationSubject(authority.client.principal), described.value.result.description.authority, null, null, .database));
     try turn.write(key, try pending.encode());
     try turn.write(keyFor(proof_prefix, pending.input), try Authorization.encode(proof));
     try wake(turn);
@@ -110,47 +141,39 @@ fn first(turn: *s.Turn) !?Pending {
     if (!entry.key.eql(keyFor(pending_prefix, pending.input))) return error.InvalidLedgerWork;
     return pending;
 }
-pub fn drive(allocator: std.mem.Allocator, turn: *s.Turn, authority: Authorization) !void {
+pub fn drive(allocator: std.mem.Allocator, turn: *s.Turn, authority: Authorization, binding: Data.Binding) !void {
     if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.AccessDenied;
     var pending = (try first(turn)) orelse return;
     const proof = try Authorization.decode((try turn.read(keyFor(proof_prefix, pending.input))) orelse return error.InvalidLedgerWork);
     try authority.bind(turn, proof, &pending.context());
-    const owner = catalog(turn.delivery.realm, turn.view.resource, turn.delivery.pid, authority.profile);
-    var definition = (try owner.lookup(allocator, turn, authority.client.principal, name)) orelse return wake(turn);
-    defer definition.deinit();
-    _ = try owner.authorizeObject(turn, authority.client.principal, 1, .read);
+    const client = try binding.client(allocator, authority.client);
     if (pending.prepared == null) {
-        const head = try s.TableHead.load(turn, 1);
-        var stored = try head.readSchema(allocator, turn);
-        defer stored.deinit();
-        if (head.retired or head.pending != 0 or !std.mem.eql(u8, &try stored.schema.fingerprint(), &try schema.fingerprint())) return error.LedgerSchemaChanged;
-        var reader: s.TablePages.Reader(*s.Turn) = .{ .pages = .{ .resource = turn.view.resource, .object = 1 }, .source = turn };
-        const data: s.TableData = .{ .schema = schema, .index = head.index };
-        const id = try data.findKey(allocator, &reader, &.{.{ .value = .{ .atom = .{ .signed = 1 } } }});
-        var total: i64 = 0;
-        if (id) |identity| {
-            var row = (try data.get(allocator, &reader, identity)) orelse return error.InvalidTableIndex;
-            defer row.deinit();
-            const cell = row.row().cells[1];
-            if (cell != .value or cell.value != .atom or cell.value.atom != .signed) return error.InvalidLedgerValue;
-            total = std.math.cast(i64, cell.value.atom.signed) orelse return error.InvalidLedgerValue;
-        }
-        pending.prepared = .{ .identity = id orelse .{ .origin = authority.client.principal + 1, .operation = pending.input, .ordinal = 0 }, .total = try std.math.add(i64, total, pending.delta), .insert = id == null };
+        var metadata = Data.definition(client, binding, schemaAt(binding)) catch |err| return if (err == error.LedgerInitializationRequired) wake(turn) else err;
+        defer metadata.deinit();
+        const existing = try Data.get(allocator, client, metadata.value, schemaAt(binding));
+        pending.prepared = .{
+            .identity = if (existing) |row| row.identity else try q.catalog.DirectTableProtocol.Rows.insertIdentity(.{ .scope = binding.scope, .principal = client.connection.principal, .operation = pending.input }, 0),
+            .total = try std.math.add(i64, if (existing) |row| row.amount else 0, pending.delta),
+            .insert = existing == null,
+        };
+        const prepared = pending.prepared.?;
+        var required = try metadata.authority.guard(try turn.authorizationSubject(authority.client.principal));
+        required.requirements[2].?.privileges |= if (prepared.insert) q.catalog.TableAuthority.insert else q.catalog.TableAuthority.update;
+        var intent = try Data.mutation(allocator, client, metadata.value, schemaAt(binding), pending.input, .{ .identity = prepared.identity, .amount = prepared.total }, prepared.insert, required);
+        defer intent.deinit();
+        const reference = try Data.stage(client, &intent, binding.namespace);
+        try Data.prepare(allocator, turn, .{ .resource = turn.view.resource, .worker = turn.delivery.pid, .input = pending.input, .purpose = .delta, .reference = reference });
         try turn.write(keyFor(pending_prefix, pending.input), try pending.encode());
         return wake(turn);
     }
     const prepared = pending.prepared.?;
-    _ = try owner.authorizeObject(turn, authority.client.principal, 1, if (prepared.insert) .insert else .update);
-    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = prepared.total } } } };
-    const row: f.TableRow.Row = .{ .identity = prepared.identity, .cells = &cells };
-    var intent: [16]u8 = undefined;
-    std.mem.writeInt(u64, intent[0..8], pending.input, .little);
-    std.mem.writeInt(i64, intent[8..16], pending.delta, .little);
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(&intent, &digest, .{});
-    const status = try s.TableWrite.stepWithReserve(allocator, turn, .{ .resource = turn.view.resource, .principal = authority.client.principal, .operation = pending.input, .schema = schema, .change = if (prepared.insert) .{ .insert = row } else .{ .update = row }, .owner_binding = digest }, 2);
-    if (status.state == .building) return wake(turn);
-    if (status.state != .applied or status.matched != 1) return error.LedgerMutationRejected;
+    const record = (try Data.inspect(allocator, turn, turn.delivery.pid, pending.input)) orelse return error.InvalidLedgerWork;
+    _ = try turn.requireAuthorization(record.reference.binding.prerequisite.?);
+    switch (try Data.advance(allocator, turn, client, pending.input, .delta)) {
+        .pending => return wake(turn),
+        .committed => |evidence| if (evidence.outcome.matched != 1) return error.LedgerMutationRejected,
+        .rejected, .cancelled => return error.LedgerMutationRejected,
+    }
     var audit: [16]u8 = undefined;
     std.mem.writeInt(i64, audit[0..8], pending.delta, .little);
     std.mem.writeInt(i64, audit[8..16], prepared.total, .little);

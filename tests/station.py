@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import copy
 import hashlib
 from pathlib import Path
 import struct
@@ -23,7 +24,7 @@ def frame(payload, kind=1, correlation=0):
 def run(node, cli, worker, courier):
     # Capturing the current query format stages durable catalog pages. Use the
     # paged SDK fixture's request budget, independent of inspection deadlines.
-    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000) as s:
+    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True) as s:
         def value(resource, key):
             revision = s.native_query({'resource': resource})['body']['resource']['revision']
             entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]
@@ -91,8 +92,7 @@ def run(node, cli, worker, courier):
             raise AssertionError(("no delivered input", pid))
 
         control = {"mode": "drop", "bodies": [], "changed_basis": 0,
-                   "registration_reads_refused": 0, "registration_bodies": [],
-                   "registration_replies_lost": 0, "expired_view": 0}
+                   "initialization_refused": 0, "admission_lost": 0, "expired_view": 0}
         committed, release = threading.Event(), threading.Event()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -106,7 +106,7 @@ def run(node, cli, worker, courier):
                     item and bytes.fromhex(item['key']).startswith(AUDIT) for item in turn.get('mutations', []))
                 if is_turn:
                     writes = [item for item in turn['mutations'] if item]
-                    assert len(writes) == 4 and any(item['value'] is None for item in writes), writes
+                    assert len(writes) == 2 and any(item['value'] is None for item in writes), writes
                     assert any(item and bytes.fromhex(item['value'])[4] == 3 for item in turn['outputs']), 'Terminal publication lost its call reply'
                 query = envelope.get("query", {})
                 if query.get('kind', {}).get('entries', {}).get('view') and not control['expired_view']:
@@ -120,13 +120,10 @@ def run(node, cli, worker, courier):
                     self.end_headers()
                     self.wfile.write(expired)
                     return
-                registration_read = 'registration' in query.get('kind', {}).get('authorization', {}).get('kind', {})
-                registration_write = 'authorization' in command
-                if registration_write:
-                    control['registration_bodies'].append(body)
-                if (registration_read and not control['registration_reads_refused']) or (registration_write and len(control['registration_bodies']) == 1):
-                    if registration_read:
-                        control['registration_reads_refused'] += 1
+                initializing = self.path == '/table/v1' and 'initialize' in envelope.get('action', {})
+                admitting = self.path == '/table/v1' and 'admit_saved' in envelope.get('action', {})
+                if initializing and not control['initialization_refused']:
+                    control['initialization_refused'] += 1
                     refused = b'{"err":"HttpCapacity"}'
                     self.send_response(503)
                     self.send_header('Content-Type', 'application/json')
@@ -146,8 +143,8 @@ def run(node, cli, worker, courier):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if registration_write and response.status == 200 and not control['registration_replies_lost']:
-                        control['registration_replies_lost'] += 1
+                    if admitting and response.status == 200 and not control['admission_lost']:
+                        control['admission_lost'] += 1
                         self.close_connection = True
                         return
                     if is_turn and response.status == 200 and control["mode"] != "pass":
@@ -169,7 +166,18 @@ def run(node, cli, worker, courier):
         proxied = {**ledger_config, "url": f"http://127.0.0.1:{proxy.server_port}"}
         requester_config["url"] = proxied["url"]
         try:
-            s.command({'send': {'pid': ledger, 'value': frame(b'prepare-table')}})
+            original_create = s.command({'send': {'pid': ledger, 'value': frame(b'prepare-table')}})
+            for incompatible in ('missing-definition', 'foreign-definition', 'foreign-realm', 'different-executor', 'different-object'):
+                changed = copy.deepcopy(ledger_config)
+                binding = changed['authorization']['data']
+                if incompatible == 'missing-definition': binding.pop('definition')
+                elif incompatible == 'foreign-definition': binding['definition'] = 'b840e71bde2e36fc2c83d773e3bb13bbf9c44c15d3d46b955beed1f8fda84a00'
+                elif incompatible == 'foreign-realm': binding['scope']['realm'] += 1
+                elif incompatible == 'different-executor': binding['executor'] += 1
+                else: binding['object'] += 1
+                once(changed, success=False)
+                retained = s.native_query({'process': ledger})['body']['process']
+                assert retained['process']['failure'] is None and retained['input']['position'] == original_create
             once(proxied)
             s.command({"send": {"pid": requester, "value": frame(b"7")}})
             once(requester_config)
@@ -179,14 +187,12 @@ def run(node, cli, worker, courier):
             assert len(control['bodies']) == 2 and control['bodies'][0] == control['bodies'][1]
             assert total() == 7
             assert control['expired_view'] == 1
-            assert control['registration_reads_refused'] == 1
-            assert control['registration_replies_lost'] == 1
-            assert len(control['registration_bodies']) >= 2
-            assert control['registration_bodies'][0] == control['registration_bodies'][1]
-            print('Station recovery: expired view renews at a fresh sequence; refused registration reads/submissions and lost accepted reply retain the original binding.', flush=True)
+            assert control['initialization_refused'] == 1
+            assert control['admission_lost'] == 1
+            print('Station recovery: fresh view sequence, refused direct initialization, lost direct admission and exact audit/reply receipt recovery.', flush=True)
 
-            # The held turn publishes the typed Table head, exact outcome, audit
-            # and reply together; queue admission alone cannot satisfy this fault.
+            # The held native turn publishes audit/reply only after the original
+            # direct Table receipt. Queue admission cannot satisfy this fault.
             committed.clear()
             control['mode'] = 'hold'
             s.command({'send': {'pid': requester, 'value': frame(b'5')}})
@@ -229,6 +235,12 @@ def run(node, cli, worker, courier):
             def phase(namespace):
                 state = value(requester_resource, query_key('u', namespace))
                 return state[76] if state else None
+            def completed(namespace):
+                observed = phase(namespace)
+                if observed in (5, 6, 7):
+                    failure = value(requester_resource, query_key('u', namespace))[-112:]
+                    raise AssertionError(('Query terminated before completion', observed, value(requester_resource, b'answer'), struct.unpack_from('<HBB', failure, 4), failure[8:12].hex()))
+                return observed == 4
             drain_ledger()
             denied = upload_query()
             once(current)
@@ -243,10 +255,10 @@ def run(node, cli, worker, courier):
             current['generation'] = 6
             s.command({'own': {'pid': requester, 'worker': 2, 'expected_generation': 4}})
             requester_config['generation'] = 5
-            pump_until(lambda: phase(namespace) == 4, [current, requester_config])
+            pump_until(lambda: completed(namespace), [current, requester_config])
             assert value(requester_resource, b'last-query') == str(namespace).encode()
             result = query_result(value, requester, requester_resource, ledger, ledger_resource, namespace, [{'id': 1, 'amount': 10}])
-            assert value(ledger_resource, query_key('j', result))[125] == 3
+            assert value(ledger_resource, query_key('j', result))[117] == 3
             drain_ledger()
 
             # Revoke native SELECT after capture while retaining raw worker
@@ -258,7 +270,7 @@ def run(node, cli, worker, courier):
             authority = ledger_config['authorization']
             binding = list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(changes.definition)
                 + struct.pack('<QQQBQ', 72, ledger_resource, 1, 3, 1)).digest())
-            target = changes.read({'binding': dict(domain=authority['profile']['table_domain'], key=binding)})['body']['binding']['reference']
+            target = changes.read({'binding': dict(domain=s.station_catalog['authority']['table_domain'], key=binding)})['body']['binding']['reference']
             grants = changes.read({'grants': dict(object=target, grantee=authority['role'], cursor=None)})['body']['grants']
             select = [grant for grant in grants['records'] if grant and grant['privileges'] & 1]
             assert grants['next'] is None and len(select) == 1, grants
@@ -294,7 +306,7 @@ def run(node, cli, worker, courier):
             s.command({"terminate": ledger})
             assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
             assert control["changed_basis"] == 1, "No captured view crossed the policy change"
-            print("Station: typed Table/audit/reply publication, call/reply, exact retries, captured views across policy changes, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
+            print("Station: original direct Table receipts precede audit/reply; exact retries, captured views across policy changes, node/worker recovery, authorized Arrow replies, fencing and blocked-handler control passed.")
         finally:
             release.set()
             proxy.shutdown()

@@ -1,4 +1,4 @@
-"""Public signed inspection against disk Ursula; reusable Board service fixture."""
+"""Public signed inspection against disk Ursula or the native local owner."""
 import hashlib
 import json
 import os
@@ -29,8 +29,9 @@ def available_post(post, path, signed):
 
 class System:
     def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800,
-                 storage_config=None):
+                 storage_config=None, local=False):
         self.node, self.cli = node, cli
+        self.local = local
         self.store = Fixture(storage_config)
         self.children, self.logs = [], []
         self.sequence = 0
@@ -45,9 +46,13 @@ class System:
         self.port = free_port()
         self.url = f"http://127.0.0.1:{self.port}"
         self.config = self.root / "node.json"
-        self.config.write_text(json.dumps({"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
-                                         "ursula_url": self.store.url, "bucket": "inspection", "journal": "authority",
-                                         "port": self.port, "request_timeout_ms": self.request_timeout_ms}))
+        settings = {"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
+                    "port": self.port, "request_timeout_ms": self.request_timeout_ms}
+        if self.local:
+            settings['local_directory'] = str(self.root / 'native')
+        else:
+            settings.update(ursula_url=self.store.url, bucket='inspection', journal='authority')
+        self.config.write_text(json.dumps(settings))
         self.authority = self.start(self.node, self.config, "--bootstrap")
         wait_ready(self.store.http, self.authority, self.url + "/health")
         return self
