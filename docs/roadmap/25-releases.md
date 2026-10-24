@@ -1,4 +1,4 @@
-# 24. Release distribution
+# 25. Release distribution
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -22,7 +22,7 @@ recovery, compatibility and conversion semantics remain with that owner.
    ownership and failure/rollback policy.
 4. Package SDKs/libraries with generated resources and native dependency closure.
    Test consumers outside the checkout, including the qualified
-   [direct-client, Station and mixed programming models](22-programming-model.md).
+   [direct-client, Station and mixed programming models](23-programming-model.md).
    An ordinary data-client installation must not require the optional Station
    runner artifact; each release advertises its actual operation/language matrix.
 5. Publish matching handbook/specifications and test installed startup, SQL access,
@@ -30,6 +30,10 @@ recovery, compatibility and conversion semantics remain with that owner.
    application installation and compatible worker replacement. State the released
    object kinds and lifecycle capabilities explicitly; an installed server alone
    does not complete onboarding.
+   Include the qualified [Board workbench](19-board-reimplementation.md) and
+   its embedded assets: exercise catalog discovery, bounded preview, a saved
+   workbook and configured review capabilities from the installed package
+   without checkout assets, a frontend development server or CDN dependencies.
 6. Package the qualified MCP endpoint and App assets with their shared contracts,
    identity configuration and exact host/extension support matrix. Exercise one
    published business resource from an installed agent host without repository
@@ -43,7 +47,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](23-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](24-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.

@@ -20,6 +20,12 @@ before maintained activation or every foreign format is implemented. Current
 application bindings and named queries are foundations, not an implemented
 publication/disclosure contract for enriched resources.
 
+[Board reimplementation](19-board-reimplementation.md) consumes these resources
+and investigation bases for saved workbooks and shared evidence. This milestone
+qualifies their public operations independently of that frontend; a Board save
+or share control cannot supply missing persistence, disclosure or retention
+semantics.
+
 ## Delivery sequence
 
 1. **Define transport-independent published resources.** Record stable identity,

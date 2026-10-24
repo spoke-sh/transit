@@ -49,10 +49,13 @@ separate contracts and are excluded from this milestone.
    require independent authorization and recorded intent. Branches default to
    external effects disabled; captures are evidence, not permission to resend.
    Selecting historical application state never restores old security authority.
-6. **Provide shared comparison and review views.** Build bounded diff, evidence
-   and impact operations usable without a browser. UI reviews belong in the
-   registered Design sequence; Board inspection stays read-only and application
-   review actions use separate authorized capabilities.
+6. **Provide shared comparison and review operations.** Build bounded diff,
+   evidence and impact operations usable without a browser. Qualify the proposal,
+   approval and publication journeys through public callers here.
+   [Board reimplementation](19-board-reimplementation.md) owns the complete
+   browser comparison and review experience over these same operations. UI
+   reviews belong in the registered Design sequence; Board inspection stays
+   read-only and application review actions use separate authorized capabilities.
 
 ## Completion evidence
 

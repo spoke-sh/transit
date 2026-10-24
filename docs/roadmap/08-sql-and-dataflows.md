@@ -97,7 +97,7 @@ half-committed transaction as a completed result.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](20-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](21-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot

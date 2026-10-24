@@ -80,18 +80,22 @@ The raw slice does not complete this milestone or establish those profiles.
 
 Enterprise identity/delegation is owned by the
 [Control & Policy Plane milestone](16-control-and-policy-plane.md).
+The complete [Board reimplementation](19-board-reimplementation.md) owns the
+data-first interface and installed browser journeys. Existing Board adapter
+coverage and consumer migrations required by this milestone stay here; a later
+interface cutover does not defer parity or recovery obligations.
 The earlier [statement-result milestone](04-statement-results-and-consumption.md)
 owns shared command completion, bounded result readers and terminal evidence;
 this milestone extends qualified service/language coverage over that contract.
 The [published-resource milestone](17-published-resources-and-investigations.md)
-owns publication/disclosure and retained investigations; [MCP and Apps](19-mcp-service-and-apps.md)
+owns publication/disclosure and retained investigations; [MCP and Apps](20-mcp-service-and-apps.md)
 adapt them to selected hosts. This milestone's existing native adapter work may
 proceed independently; it must not imply those new access or collaboration
 profiles are already supported. Extend parity only after each owner qualifies it.
 
 [Client foundation](06-client-foundation-and-language-apis.md) owns reusable
 packages, shared runtime infrastructure and the initial idiomatic data APIs.
-[Programming model and mixed composition](22-programming-model.md) owns the
+[Programming model and mixed composition](23-programming-model.md) owns the
 complete direct/Station/mixed application experience after the capability owners
 land. This milestone's operation/platform promises and delivered slices remain
 here; their package/API foundation is a prerequisite, not deferred cleanup. A larger adapter matrix alone does not establish that ordinary data
