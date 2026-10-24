@@ -56,6 +56,7 @@ pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
 pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = DirectTableClient;
     _ = DirectTableValues;
     _ = DirectTableBridge;
     _ = DirectCatalogInspection;

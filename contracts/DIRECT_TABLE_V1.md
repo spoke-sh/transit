@@ -646,6 +646,13 @@ outcomes include the exact resulting interpretation, position and decimal counts
 Transport or output-allocation failure can follow acceptance. Persist the saved
 work and reference before dispatch; this bridge never recompiles or retries work
 implicitly. Forgetting and session destruction release only local memory.
+An optional `DirectTableClient.Attempt` records entry to a validated mutation's
+transport after credential inspection and signing. It retains that evidence
+across nested reads. Its failed-attempt projection is
+`catalog.direct_outcome_unknown`, with the original operation identity when one
+exists; service denial or conflict does not prove that the owner rejected the
+operation before acceptance. A caller must reset the record for each invocation
+and separately handle read/preparation failures when no mutation was attempted.
 This shared caller implementation is not yet connected to the general catalog
 ABI or language SDK entry points.
 

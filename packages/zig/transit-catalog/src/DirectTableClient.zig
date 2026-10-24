@@ -20,6 +20,74 @@ delegation: ?c.DirectReadDelegation = null,
 closure: ?c.DirectReadDelegation.Closure = null,
 /// Saved read-only permission for a distinct executor and one exact cut.
 borrow: ?c.DirectReadDelegation.Borrow = null,
+/// Per-invocation evidence for an embedding caller. Clear it explicitly before
+/// starting a new host action; nested reads must not erase a mutation attempt.
+attempt: ?*Attempt = null,
+
+pub const Attempt = struct {
+    mutation: ?Mutation = null,
+    pub const Mutation = struct { action: std.meta.Tag(w.Action), identity: ?p.DataLifecycle.Operation };
+    fn begin(self: *Attempt, request: w.Request) void {
+        if (!request.transport().mutation) return;
+        self.mutation = .{ .action = std.meta.activeTag(request.action), .identity = switch (request.action) {
+            .stage => |value| value.intent.work.binding().identity,
+            .admit_saved => |value| value.binding.identity,
+            inline .admit_ddl, .admit_rows, .admit_statement, .operation => |value| value.binding.identity,
+            inline .name_assertion, .namespace_operation, .dependency_operation, .resource_operation => |value| value.binding.identity(),
+            inline .pin, .retain_history => |value| value.owner,
+            .release => |value| value.handle.owner,
+            else => null,
+        } };
+    }
+    /// A service denial, conflict, malformed response or output allocation
+    /// failure can follow acceptance. Only a validated owner outcome settles
+    /// domain work; an error code cannot turn this attempt into rejection.
+    pub fn failure(self: Attempt, cause: anyerror, native: ?p.ErrorCode) !?p.Diagnostic {
+        const mutation = self.mutation orelse return null;
+        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
+        result.cause = try p.Diagnostic.Code.init(@errorName(cause));
+        if (mutation.identity) |identity| result.identity = .{ .domain = .catalog, .id = .init(identity.operation), .realm = .init(identity.scope.realm), .resource = .init(identity.scope.resource) };
+        try result.text(.operation, .caller, @tagName(mutation.action));
+        if (native) |value| try result.text(.native_cause, .authority, @tagName(value));
+        try result.action(.inspect_status);
+        if (cause == error.AccessDenied or cause == error.CatalogDenied) try result.action(.inspect_scope);
+        try result.validate();
+        return result;
+    }
+};
+
+test "direct caller attempt evidence survives reads and service rejection" {
+    const t = std.testing;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
+    defer fixture.deinit();
+    var attempt: Attempt = .{};
+    try t.expect(try attempt.failure(error.ConnectionRefused, null) == null);
+    attempt.begin(fixture.value.request);
+    var read = fixture.value.request;
+    read.action.dependency_operation.command = .inspect;
+    attempt.begin(read);
+    for ([_]anyerror{ error.AccessDenied, error.Conflict, error.InvalidTableResponse, error.AuthorityTimeout, error.OutOfMemory }) |cause| {
+        const diagnostic = (try attempt.failure(cause, null)).?;
+        try t.expectEqual(.unknown, diagnostic.outcome);
+        try t.expectEqual(.saved_intent, diagnostic.evidence);
+        try t.expectEqual(std.math.maxInt(u64), try diagnostic.identity.?.id.value());
+        try t.expectEqual(.inspect_status, diagnostic.actions[0].?.kind);
+        for (diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind == .inspect_status or action.kind == .inspect_scope);
+    }
+    attempt = .{};
+    attempt.begin(read);
+    try t.expect(try attempt.failure(error.AccessDenied, null) == null);
+    var wire_client = wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer wire_client.deinit();
+    wire_client.timeout_ms = 100;
+    const caller: Self = .{ .allocator = t.allocator, .authority = &wire_client, .service = &wire_client, .connection = fixture.value.request.connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(1)), .attempt = &attempt };
+    if (caller.call(fixture.value.request.action)) |response| {
+        response.deinit();
+        return error.UnexpectedConnection;
+    } else |_| {}
+    // Credential inspection failed before entering the direct mutation route.
+    try t.expect(attempt.mutation == null);
+}
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
 /// Current rights and exact interpretation only. This prepares no mutation or
@@ -62,6 +130,10 @@ pub fn call(self: Self, action: w.Action) !std.json.Parsed(w.Response) {
     var nonce: [16]u8 = undefined;
     try self.authority.http.io.randomSecure(&nonce);
     const request = try temporary.signed(action, nonce);
+    // Local signing and request validation have succeeded. Entering the
+    // mutating transport is conservative evidence of possible acceptance,
+    // including failure before a response can prove what actually happened.
+    if (self.attempt) |attempt| attempt.begin(request);
     const response = try self.service.callOwned(w.Response, "/table/v1", request, .{ .request_bytes = w.max_request_bytes, .response_bytes = w.max_response_bytes });
     errdefer response.deinit();
     try validateResponse(arena.allocator(), request, response.value);

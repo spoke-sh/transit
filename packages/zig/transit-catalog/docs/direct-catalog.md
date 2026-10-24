@@ -28,6 +28,15 @@ definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route.
 
+An embedding caller can attach a fresh `DirectTableClient.Attempt` to record
+whether a validated mutation entered the direct transport. Credential/signing
+failure leaves it empty. Later reads do not clear it. On a failed host action,
+`Attempt.failure` returns an unknown-outcome diagnostic with the original
+operation identity, including when the service returns AccessDenied or Conflict:
+either can follow accepted work and a failed final disclosure check. Preserve
+the saved binding and inspect its owner. Reset this per-invocation evidence
+explicitly; it is neither an operation receipt nor a durable recovery journal.
+
 `DirectTableValues` converts exact prepared bindings and saved-intent references
 to host values without rounding full-width storage identities. Those identities
 use decimal strings and commitments use lowercase hex. Conversion performs no
