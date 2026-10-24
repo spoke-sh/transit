@@ -157,8 +157,8 @@ test("compiled Table metadata is complete and scope-bound independently of displ
     { ...table, object: "18446744073709551616" },
     { ...table, scope: { ...table.scope, resource: 18 } },
     { ...table, scope: { ...table.scope, catalog: "01" } },
-    { ...table, metadata: { ...table.metadata, id: "0" } },
-    { ...table, metadata: { ...table.metadata, spec: { ...table.metadata.spec, format: 1 } } },
+    { ...table, interpretation: { ...table.interpretation, revision: "0" } },
+    { ...table, interpretation: { ...table.interpretation, bytes: "0" } },
     { ...table, row_type: { int64: {} } },
     { id: 1, names: ["id", "value"], value_type: "int64" },
   ])

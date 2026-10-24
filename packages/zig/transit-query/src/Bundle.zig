@@ -152,7 +152,7 @@ pub fn retentionPurpose(self: Self, worker: u64, resource: u64, requester: u64, 
     hash.update(try description.encode(&bytes));
     return hash.finalResult();
 }
-pub const Capture = struct { executor: u64, operation: u64, expected: q.protocol.DataLifecycle.Position };
+pub const Capture = struct { executor: u64, operation: u64, expected: q.protocol.DataLifecycle.Position, selection: q.catalog.DirectTableProtocol.CaptureSelection = .exact };
 pub fn authorizeCapture(self: Self, client: q.wire.AuthorizationClient, tables: q.catalog.DirectTableClient, worker: u64, resource: u64, requester: u64, requests: u64, capture: Capture) !Self {
     if (self.source.source != .table or self.authorization != null or self.retention != null) return error.QueryAlreadyAuthorized;
     if (client.principal != tables.connection.principal or client.role != tables.connection.role or client.realm != tables.connection.scope.realm) return error.QueryDenied;
@@ -164,6 +164,7 @@ pub fn authorizeCapture(self: Self, client: q.wire.AuthorizationClient, tables: 
         .executor = capture.executor,
         .interpretation = self.source.source.table.interpretation.interpretation,
         .expected = capture.expected,
+        .selection = capture.selection,
         .owner = .{ .scope = tables.connection.scope, .principal = tables.connection.principal, .operation = capture.operation },
         .retention = .snapshot,
         .purpose = try self.retentionPurpose(worker, resource, requester, requests),

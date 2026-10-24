@@ -8,6 +8,14 @@ import {
 } from "./index";
 
 export type Basis = Inspection["observation"]["basis"];
+const max = (a: bigint, b: bigint) => (a > b ? a : b);
+const sameSource = (a: Basis, b: Basis) =>
+  a.resource === b.resource &&
+  a.partition === b.partition &&
+  a.contract.length === b.contract.length &&
+  a.contract.every((v, i) => v === b.contract[i]) &&
+  a.schema.length === b.schema.length &&
+  a.schema.every((v, i) => v === b.schema[i]);
 export type ViewPhase =
   | "paused"
   | "loading"
@@ -52,8 +60,9 @@ export class LiveView<T> {
   private abort: AbortController | null = null;
   private task: Promise<void> | null = null;
   private closing: Promise<void> | null = null;
-  private dirty = 0;
-  private sentDirty = 0;
+  private dirty = 0n;
+  private sentDirty = 0n;
+  private observedBasis: Basis | null = null;
   private epoch = 0;
   private intent = 0;
   private starting = false;
@@ -61,9 +70,17 @@ export class LiveView<T> {
   private attached = false;
   private needsObservation = false;
   private template: string | null = null;
+  private captureKey = "";
+  private captures: string[] | null = null;
   constructor(
     readonly session: Session,
     private readonly read: ViewReader<T>,
+    private readonly prepareCaptures?: (
+      key: string,
+      template: string,
+      limit: number,
+      signal: AbortSignal,
+    ) => Promise<string[]>,
   ) {}
   get stopping() {
     return this.closing !== null;
@@ -79,7 +96,19 @@ export class LiveView<T> {
       this.listeners.delete(listener);
     };
   };
+  private observe(basis: Basis, changed: string) {
+    const previous = this.observedBasis ?? this.state.snapshot?.basis;
+    if (previous && !sameSource(previous, basis)) throw new ReactiveError(409, "reset_required");
+    this.observedBasis = basis;
+    this.dirty = max(this.dirty, BigInt(changed));
+  }
   private publish(update: Partial<ViewState<T>>) {
+    if (
+      update.snapshot &&
+      this.observedBasis &&
+      !sameSource(update.snapshot.basis, this.observedBasis)
+    )
+      throw new ReactiveError(409, "reset_required");
     this.state = { ...this.state, ...update };
     for (const listener of this.listeners) listener();
   }
@@ -134,7 +163,10 @@ export class LiveView<T> {
       this.abort = abort;
       const epoch = ++this.epoch;
       this.template = template;
-      this.dirty = this.sentDirty = 0;
+      this.captureKey = crypto.randomUUID();
+      this.captures = null;
+      this.dirty = this.sentDirty = 0n;
+      this.observedBasis = null;
       this.publish({
         phase: "loading",
         detail: "Acquiring an authorized snapshot…",
@@ -163,6 +195,11 @@ export class LiveView<T> {
     while (!signal.aborted) {
       try {
         if (this.session.pending) await this.session.recover(signal);
+        if (this.template && !this.captures) {
+          if (!this.prepareCaptures)
+            throw new ReactiveError(409, "refresh_preparation_unavailable");
+          this.captures = await this.prepareCaptures(this.captureKey, this.template, limit, signal);
+        }
         await this.session.open(signal);
         if (signal.aborted) return;
         if (this.template && !this.session.selection) {
@@ -173,6 +210,7 @@ export class LiveView<T> {
                 session: { session: scope.session, generation: scope.generation },
                 expected: 0,
                 template: this.template,
+                captures: this.captures!,
                 limit,
               },
             },
@@ -223,12 +261,12 @@ export class LiveView<T> {
             }
             if (this.needsObservation) {
               const observation = await this.session.inspect(signal);
-              this.dirty = Math.max(this.dirty, observation.observation.data_revision);
+              this.observe(observation.observation.basis, observation.observation.data_revision);
               this.needsObservation = false;
               this.connected = true;
             }
             if (this.template) await this.queryTick(epoch, signal);
-            else if (this.dirty > (this.state.snapshot?.basis.cut.revision ?? 0)) {
+            else if (this.dirty > BigInt(this.state.snapshot?.basis.accepted ?? "0")) {
               this.publish({
                 phase: "refreshing",
                 detail: "Reading the newest available snapshot…",
@@ -237,7 +275,7 @@ export class LiveView<T> {
               if (!signal.aborted && epoch === this.epoch) this.publish({ snapshot });
             }
             if (this.connected && !signal.aborted && this.state.phase !== "paused") {
-              const covered = (this.state.snapshot?.basis.cut.revision ?? 0) >= this.dirty;
+              const covered = BigInt(this.state.snapshot?.basis.accepted ?? "0") >= this.dirty;
               this.publish({
                 phase: covered ? "current" : "refreshing",
                 detail: covered
@@ -328,7 +366,7 @@ export class LiveView<T> {
       this.needsObservation = true;
     }
     if ("event" in message) {
-      this.dirty = Math.max(this.dirty, message.event.cursor.position.data_revision);
+      this.dirty = max(this.dirty, BigInt(message.event.cursor.position.data_revision));
       this.connected = true;
       const outcome = message.event.event.outcome;
       if (outcome)

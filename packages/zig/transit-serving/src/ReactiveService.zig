@@ -52,7 +52,7 @@ fn live(turn: *Turn, value: r.Session, context: ?*f.Context) !void {
         return error.ReactiveResetRequired;
     }
     const binding = try root.Service.binding(turn);
-    if (binding == null or !binding.?.published or binding.?.target != watch.?.target) {
+    if (binding == null or !binding.?.published) {
         f.remember(context, f.bindingWitness(binding, 0, 0));
         return error.ServiceUnpublished;
     }
@@ -114,7 +114,7 @@ pub fn applyDiagnostic(configuration: m.Configuration, turn: *Turn, principal: u
                 return error.ServiceRevisionConflict;
             }
             const binding = (try root.Service.binding(turn)) orelse return error.ServiceUnpublished;
-            if (request.source.published and (!binding.published or binding.target != request.source.target)) return error.InvalidReactiveSource;
+            if (request.source.published and !binding.published) return error.InvalidReactiveSource;
             const encoded = try c.encode('W', request.source);
             try turn.write(m.key('W', 0, 0), encoded);
             try turn.write(m.key('V', request.source.revision, 0), encoded);
@@ -145,12 +145,6 @@ pub fn applyDiagnostic(configuration: m.Configuration, turn: *Turn, principal: u
                 f.remember(context, f.sourceWitness(observed, request.source_revision));
                 return error.ReactiveResetRequired;
             }
-            const watch = observed.?;
-            const binding = (try root.Service.binding(turn)).?;
-            if (binding.target != watch.target) {
-                f.remember(context, f.sourceWitness(watch, request.source_revision));
-                return error.ReactiveResetRequired;
-            }
             var slots = try active(turn);
             var caller: usize = 0;
             var free: ?usize = null;
@@ -166,7 +160,7 @@ pub fn applyDiagnostic(configuration: m.Configuration, turn: *Turn, principal: u
                 return error.ReactiveCapacity;
             }
             slots.slots[free.?] = .{ .principal = principal, .session = request.session };
-            try save(turn, .{ .principal = principal, .session = request.session, .generation = turn.delivery.input.position, .source_revision = watch.revision, .open_digest = digest, .lease_before_ms = request.lease_before_ms });
+            try save(turn, .{ .principal = principal, .session = request.session, .generation = turn.delivery.input.position, .source_revision = observed.?.revision, .open_digest = digest, .lease_before_ms = request.lease_before_ms });
             try turn.write(m.key('L', 0, 0), try c.encode('L', slots));
         },
         .attach => |request| {

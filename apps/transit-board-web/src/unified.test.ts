@@ -13,16 +13,17 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
       evidence: {
         manifest: {
           job: 1,
-          source: { pid: 8, input: 9, index: 0 },
+          source: { native: { pid: 8, input: 9, index: 0 } },
           requester: 1,
           correlation: "18446744073709551615",
           policy_revision: "1",
           request: "00",
           basis: {
-            cut: { kind: "document", resource: 7, revision: 42, head: Array(32).fill(0) },
+            cut: { kind: "document", resource: 7, position: { native_revision: 42 } },
             contract: Array(32).fill(0),
             schema: Array(32).fill(1),
           },
+          table_position: null,
           plan: Array(32).fill(2),
           pages: "1",
           scanned: "1",

@@ -102,6 +102,7 @@ pub const Cursor = struct {
 pub const Page = struct {
     manifest: r.Manifest,
     basis: q.Basis,
+    table_position: ?q.TablePosition,
     next: ?Cursor,
     arrow: []const u8,
     schema: t.Type,
@@ -139,7 +140,7 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     // Recheck current policy, Document lifecycle, request and result disposition
     // after all reads/decoding, before the caller may disclose this page.
     _ = try live(reference, expected, cursor, opened, source);
-    return .{ .manifest = manifest, .basis = try manifest.checkpoint.basis(opened.bundle.source), .next = if (complete) null else next, .arrow = bytes, .schema = try schema.cloneInto(allocator), .plan = opened.bundle.plan };
+    return .{ .manifest = manifest, .basis = try manifest.checkpoint.basis(opened.bundle.source), .table_position = if (opened.table_basis) |basis| try q.TablePosition.captured(basis) else null, .next = if (complete) null else next, .arrow = bytes, .schema = try schema.cloneInto(allocator), .plan = opened.bundle.plan };
 }
 
 fn completeCoverage(cursor: Cursor, rows: u64, bytes: u64, chain: [32]u8) !void {

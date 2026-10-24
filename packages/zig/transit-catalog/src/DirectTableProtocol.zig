@@ -217,7 +217,11 @@ pub const Statement = struct {
 };
 
 pub const Snapshot = struct { object: d.Object, handle: P.SnapshotHandle };
-pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position };
+/// Exact selection requires the supplied frontier. Current selection freezes
+/// the first authorized frontier at or above it, under an exact interpretation.
+/// Repeating either selection recovers the same retained cut for this owner.
+pub const CaptureSelection = enum(u8) { exact = 1, current = 2 };
+pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position, selection: CaptureSelection = .exact };
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
 pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot };
@@ -369,6 +373,8 @@ pub const Request = struct {
                 try connection.object(value.object);
                 try connection.owner(value.owner);
                 try value.expected.validate();
+                if (value.expected.next_lsn == 0) return error.InvalidTableBasis;
+                if (value.selection == .current and (self.action == .retain_history or self.delegation == null)) return error.InvalidTableDelegation;
             },
             .pin_status => |value| {
                 try connection.object(value.object);

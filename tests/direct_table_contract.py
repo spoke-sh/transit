@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8"
+definition = "02553baa7d791340e9ea3339002537bf15495c26bd2f2bd2e2fde5950589e53f"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -49,13 +49,14 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "definition": definition, "connection": request_input["connection"], "executor": 9,
         "interpretation": {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}, "revision": 2, "digest": [3] * 32},
         "expected": {"partition": 9, "next_lsn": 10},
+        "selection": "exact",
         "owner": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
         "retention": "snapshot", "purpose": [11] * 32,
     }
     delegation_context = hashlib.sha256(b"transit.table.read-delegation.v1\0" + canonical(read_binding)).digest()
     delegated_claim = {**claim, "context": list(delegation_context)}
     delegated_proof = {"claim": delegated_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(delegated_claim)).digest())}
-    delegated_input = {**request_input, "action": {"pin": {"object": read_binding["interpretation"]["object"], "owner": read_binding["owner"], "expected": read_binding["expected"]}}, "delegation": {"binding": read_binding, "proof": delegated_proof}}
+    delegated_input = {**request_input, "action": {"pin": {"object": read_binding["interpretation"]["object"], "owner": read_binding["owner"], "expected": read_binding["expected"], "selection": "exact"}}, "delegation": {"binding": read_binding, "proof": delegated_proof}}
     executor_context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(delegated_input)).digest()
     executor_claim = {**claim, "principal": 9, "context": list(executor_context)}
     executor = Key(Path(directory), "public-executor-key", 31)
@@ -66,10 +67,10 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         b"TRG1" + bytes.fromhex(definition)
         + struct.pack("<QQQQQQBQ", 42, 3, 2**64 - 1, 1, 5, 4, 0, 0)
         + struct.pack("<QQQ", 9, 7, 2) + bytes([3] * 32)
-        + struct.pack("<QQQB", 9, 10, 2**64 - 1, 0) + bytes([11] * 32)
+        + struct.pack("<QQQBB", 9, 10, 2**64 - 1, 0, 1) + bytes([11] * 32)
         + struct.pack("<Q", 1) + delegation_context + bytes(delegated_proof["signature"])
     )
-    assert len(retained_grant) == 310
+    assert len(retained_grant) == 311
     delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public,
                          "retained_grant": base64.b64encode(retained_grant).decode()}
     borrow_binding = {"executor": 10, "target": {"snapshot": {"object": read_binding["interpretation"]["object"], "handle": {"owner": read_binding["owner"], "content": {"bytes": 128, "sha256": [12] * 32}}}}, "purpose": [13] * 32}

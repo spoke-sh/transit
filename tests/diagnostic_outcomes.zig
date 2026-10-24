@@ -168,7 +168,7 @@ fn closures(out: *std.Io.Writer) !void {
     }
 }
 fn refresh(out: *std.Io.Writer) !void {
-    var view: s.RefreshModel.View = .{ .principal = 9, .session = .{ .session = 19, .generation = 1 }, .generation = 2, .source = .{ .revision = 1, .target = 2, .resource = 7, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 1 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 187, .metadata_digest = @splat(1) }, .template = .{ .value = 20 }, .namespace = .{ .value = 21 }, .dirty = 11, .covered = 10, .limit = 8, .starts = 8 };
+    var view: s.RefreshModel.View = .{ .principal = 9, .session = .{ .session = 19, .generation = 1 }, .generation = 2, .source = .{ .revision = 1, .audience = 2, .resource = 7, .realm = 1, .catalog = .{ .value = 9 }, .branch = 1, .namespace = 1, .object = .{ .value = 1 }, .interpretation_revision = .{ .value = 1 }, .interpretation_digest = @splat(1) }, .template = .{ .value = 20 }, .namespace = .{ .value = 21 }, .dirty = .{ .value = 11 }, .covered = .{ .value = 10 }, .limit = 8, .starts = 8 };
     inline for (comptime std.meta.tags(s.RefreshFailure.Reason)) |reason| {
         view.failure = s.RefreshFailure.record(12, reason, .{});
         try emit(out, "refresh.stop", @tagName(reason), (try s.RefreshFailure.project(1, 7, view)).?);

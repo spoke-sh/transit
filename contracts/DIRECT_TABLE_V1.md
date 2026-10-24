@@ -79,14 +79,15 @@ retained-read delegations and borrowed-read grants do not permit this action.
 
 ### Delegated retained reads
 
-`DirectReadDelegation.encode` retains the original grant in a canonical 310-byte
+`DirectReadDelegation.encode` retains the original grant in a canonical 311-byte
 `TRG1` record. It contains the four-byte magic, mandatory 32-byte current
 definition, connection scope (realm/resource/catalog), branch, audience,
 principal, role-present byte and role value, executor, object ID, definition
-revision and 32-byte digest, partition and accepted frontier, pin operation, retention byte,
+revision and 32-byte digest, partition and accepted frontier, pin operation, retention byte, selection byte,
 32-byte purpose, credential epoch, 32-byte claim context and 64-byte signature,
 in that order. All integers are unsigned 64-bit little-endian except the
-one-byte role flag and retention tag (`snapshot = 0`, `history = 1`).
+one-byte role flag, retention tag (`snapshot = 0`, `history = 1`) and selection
+tag (`exact = 1`, `current = 2`).
 An absent role has flag/value zero. Object and pin scope,
 pin principal and repeated claim fields must match the connection; decoding
 reconstructs only these constrained duplicates. Missing, foreign, truncated,
@@ -97,8 +98,8 @@ current caller/executor credentials on every request.
 
 `DirectReadDelegation` contains a `binding` and original-caller `proof`. The binding
 fields, in canonical order, are the current `definition`, original `connection`,
-`executor` principal, exact `interpretation`, `expected` Table frontier, pin
-`owner` operation, mandatory `retention` kind and nonzero 32-byte `purpose` commitment. Its signing context is
+`executor` principal, exact `interpretation`, `expected` Table frontier,
+`selection`, pin `owner` operation, mandatory `retention` kind and nonzero 32-byte `purpose` commitment. Its signing context is
 SHA-256 of `transit.table.read-delegation.v1`, a zero byte and canonical JSON of
 that binding. The purpose identifies application-owned immutable work; it does
 not establish honest computation or enforce a SQL predicate. This grants read
@@ -122,11 +123,13 @@ permits `history_start`, `history`, `history_source` and `history_scan` at or
 after the original frontier. Its ordinary snapshot reads still address only
 the original cut. A snapshot grant cannot follow future history or upgrade an
 existing pin. Both the immutable lease kind and original cut must match the grant. It permits no name
-discovery, mutations, policy changes or further delegation. The first pin also
-checks the exact definition and frontier. A stale acquisition rejects; it never
-chooses newer data. An existing pin can be recovered after the current Table
-evolves, provided its retained definition/frontier still match and current rights
-allow disclosure. Release is terminal and requires current rights. Lost replies
+discovery, mutations, policy changes or further delegation. The `exact` selection requires the supplied frontier. The `current` selection
+is available only for delegated snapshot acquisition: the supplied frontier is
+a lower bound in the same partition, and the first acquisition freezes the
+current root under the exact signed interpretation. A stale interpretation
+rejects. Neither selection may change its pin owner or selection on retry. An
+existing pin recovers its original cut after mutation, restart or definition
+changes; it never selects another root. Current rights still gate disclosure. Release is terminal and requires current rights. Lost replies
 use the same acquisition and the existing `pin_status` recovery rules below.
 
 `DirectReadDelegation.prepare` signs this binding as the original caller without
@@ -138,7 +141,7 @@ replaced shared definition rejects previous envelopes without a fallback.
 
 An explicit `DirectReadDelegation.Closure` authorizes cleanup after the original
 credential changes. Its context is SHA-256 of `transit.table.pin-closure.v1`, a
-zero byte and the exact 310-byte original `TRG1` grant, including its original
+zero byte and the exact 311-byte original `TRG1` grant, including its original
 signature. It carries a current credential epoch and a 64-byte signature; the
 remaining claim fields come from that original grant. Its compact encoding is
 little-endian uint64 epoch followed by the signature (72 bytes). The transport
@@ -156,7 +159,7 @@ cut. Its `binding` contains, in order, an executor principal, a target
 It also carries the original caller's 64-byte signature. The claim retains the
 original grant's identity, role, audience and credential epoch; its context is
 SHA-256 of `transit.table.borrowed-read.v1`, a zero byte, the exact original
-310-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
+311-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
 proof after the caller's epoch changes rejects instead of renewing accepted work.
 
 The request carries both the original delegation and `borrow`. The transport

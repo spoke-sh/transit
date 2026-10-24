@@ -12,7 +12,7 @@ pub const Outcome = struct { resource: u64, operation: u64, phase: root.Model.Ph
 pub const Event = struct {
     source_changed: bool,
     resource: u64,
-    data_revision: u64,
+    data_revision: root.query.TablePosition.Counter,
     outcome: ?Outcome = null,
 };
 pub const Response = struct {
@@ -44,15 +44,12 @@ fn context(self: Self, signed: r.SignedRead, public_key: [32]u8) !Context {
         const watch = source orelse return error.ReactiveResetRequired;
         if (!watch.published or watch.revision != value.source_revision) return error.ReactiveResetRequired;
         const binding = (try root.Service.binding(&scoped.data)) orelse return error.ServiceUnpublished;
-        if (!binding.published or binding.target != watch.target) return error.ServiceUnpublished;
+        if (!binding.published) return error.ServiceUnpublished;
     }
     return .{ .session = value, .source = source, .policy_revision = scoped.policy.revision };
 }
-fn sourceReader(self: Self, source: r.Source) !root.station.client.ResourceReader.Reader {
-    const response = try self.base.resources.query(.{ .resource = source.resource });
-    const metadata = response.body.resource;
-    if (metadata.id != source.resource or metadata.writer != source.target or metadata.phase != .active) return error.ResourceUnavailable;
-    return .{ .client = self.base.resources, .view = .{ .resource = source.resource, .revision = metadata.revision } };
+fn sourceReader(self: Self, source: r.Source, subject: p.Authorization.Subject) !root.TableWatch.Reader {
+    return root.TableWatch.Reader.init(self.base.resources, subject, source);
 }
 const Acquisition = struct { response: Response, observation: ?root.TableWatch.Observation = null };
 pub fn read(self: Self, signed: r.SignedRead, public_key: [32]u8) !Response {
@@ -75,9 +72,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
     var acquired: ?root.TableWatch.Observation = null;
     if (signed.read.kind != .session) {
         const source = before.source.?;
-        const authority = self.base.authority(.{ .signed = signed.proof });
-        var raw = try self.sourceReader(source);
-        var reader = authority.wrap(&raw);
+        var reader = try self.sourceReader(source, .{ .signed = signed.proof });
         const observation = if (signed.read.kind == .snapshot) blk: {
             result.snapshot = try root.TableWatch.snapshot(self.base.resources.wire.http.allocator, &reader, signed.read.scope.principal, source);
             break :blk result.snapshot.?.observation;
@@ -96,7 +91,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
         if (signed.read.cursor) |cursor| {
             try cursor.verify(self.base.resources.key.public_key.toBytes());
             try root.TableWatch.validateResume(cursor.position, signed.read.scope, source, observation, position.outcome_position);
-            changed = cursor.position.data_revision < position.data_revision;
+            changed = cursor.position.data_revision.value < position.data_revision.value;
             outcome_changed = cursor.position.outcome_position < position.outcome_position;
         }
         if (signed.read.kind == .events and (changed or outcome_changed)) result.event = .{ .source_changed = changed, .resource = source.resource, .data_revision = position.data_revision, .outcome = if (outcome_changed) outcome else null };
@@ -104,12 +99,11 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
         // Current source authority/lifecycle/schema after copying bounded bytes.
         // Newer data is safely reported by the next poll; a changed declaration
         // cannot disclose a page from the previous schema.
-        var latest_raw = try self.sourceReader(source);
-        var latest = authority.wrap(&latest_raw);
+        var latest = try self.sourceReader(source, .{ .signed = signed.proof });
         const current = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &latest, signed.read.scope.principal, source);
         try reader.finish();
         try latest.finish();
-        if (current.data_revision < observation.data_revision) return error.ReactiveResetRequired;
+        if (current.data_revision.value < observation.data_revision.value) return error.ReactiveResetRequired;
     }
     const after = try self.context(signed, public_key);
     if (!std.meta.eql(before, after)) return error.ServiceReadConflict;
@@ -157,8 +151,7 @@ pub fn check(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
 fn checkOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
     const current = try self.context(signed, public_key);
     if (signed.read.kind == .session) return error.InvalidReactiveScope;
-    var raw = try self.sourceReader(current.source.?);
-    var data = self.base.authority(.{ .signed = signed.proof }).wrap(&raw);
+    var data = try self.sourceReader(current.source.?, .{ .signed = signed.proof });
     _ = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &data, signed.read.scope.principal, current.source.?);
     try data.finish();
 }
@@ -169,9 +162,8 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     const binding = base.binding orelse return error.ServiceUnpublished;
     var scoped = try self.base.readerFor(signed.read.principal, &.{root.Model.key('W', 0, 0)});
     const source = (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished;
-    if (!source.published or !binding.published or source.target != binding.target) return error.ServiceUnpublished;
-    var raw = try self.sourceReader(source);
-    var data = self.base.authority(.{ .signed = signed.proof }).wrap(&raw);
+    if (!source.published or !binding.published) return error.ServiceUnpublished;
+    var data = try self.sourceReader(source, .{ .signed = signed.proof });
     _ = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &data, signed.read.principal, source);
     const result: root.Api.Discovery = .{ .service = self.base.service, .ingress = self.base.ingress, .resource = self.base.resource, .binding_revision = binding.revision, .watch_revision = source.revision, .openapi_sha256 = try root.Api.digest(.openapi, allocator), .asyncapi_sha256 = try root.Api.digest(.asyncapi, allocator) };
     const latest = try self.base.read(signed, public_key);

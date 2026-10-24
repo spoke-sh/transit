@@ -4,22 +4,32 @@
 and the v1 query requester in one Station owner/resource. Install its handler and
 input guard together, initialize privately, and provision caller, worker and
 resource grants before exposing ingress. Standalone `Service` rejects refreshes.
+The private reader must authenticate proofs for the requester, query worker and
+direct Table audience. A credential restricted to one PID cannot inspect the
+other audiences, even with additional resource grants. Configure an independent
+inspection identity with the required native inspection and Table read privileges;
+these checks remain separate from the original caller's privileges.
 PID-scoped reads also require optional cross-resource associations installed
 before activation; these confer no resource grant or lifetime ownership.
 The source is a published catalog Table with two INT64 columns and a primary
 key on the first. The scheduler checks caller database/schema/Table read privileges as
-well as native and service authority. It uses the native Table-head entry
-revision as its watermark, including possible-change reservations before row
-publication.
+well as native and service authority. Its read-only direct observation uses the logical `changed_lsn` watermark.
+Admission alone and no-op writes leave it unchanged; rows and their changed
+watermark publish together. The accepted partition position remains separate.
 
 `follow` selects a completed, retained query and an open caller session. The
 owner verifies its actual manifest/current policy and matches the captured
 resource, Table contract and schema to the watch. It retains the submitted bundle
-identity, never SQL draft text or a requested `AS OF` cut. Conditional previous
+identity. The caller also supplies one to eight distinct prepared query
+namespaces. Each holds the same source, plan, budgets and route, with its own
+caller-signed current-capture grant. Follow authenticates these against its
+original accepted caller, role and credential epoch; it cannot renew signatures
+or reuse the completed template’s pin. Conditional previous
 generation fences replacement; committed input position identifies the new view.
 
-Each view has one latest dirty data revision and one covered capture revision.
-Invalidation rereads the published marker; callers cannot supply watermarks.
+Each view has one latest dirty logical-change position and one covered accepted
+capture position in the same source partition. Invalidation rereads the direct
+observation; callers cannot supply watermarks.
 Scheduling scans at most four live session slots in round-robin order. Only the
 configured query principal participates: its two sessions share one finite-query
 admission. Explicit manual work holds admission until completion without busy
@@ -28,24 +38,25 @@ unbounded stream of manual admissions has no automatic-service guarantee.
 
 Each explicit follow generation permits one to eight refresh intents, with
 1000 ms between its starts, measured by the authenticated observer clock.
-A start reserves a new namespace from the committed input's high-bit domain;
-existing identities cannot be overwritten. `UnifiedUpload` copies one 256-byte
-template chunk per turn, seals and submits. Selection, copying, admission,
-completion and acknowledgment have separate turns within the four-write limit.
+A start selects the next prepared identity. It first reclaims the requester’s
+one active slot, then submits those exact immutable bytes in a separate turn.
+The first direct acquisition freezes one current cut; an uncertain retry
+recovers that cut. Selection, activation, admission, completion and acknowledgment
+have separate turns within the four-write limit.
 Namespaces are decimal JSON strings preserving all 64 bits.
 An occupied automatic namespace fails only that view and advances selection;
 it cannot stop ingress progress. Rejected query commands use the query client's
 disposition records, including when rejection occurs during initialization.
 
-Budget charges selection before copying, including failed copies, not successful
-results. Two views may select sixteen intents for their explicit generations.
+Budget charges selection before activation, including failed selections, rather
+than counting only successful results. Two views may select sixteen intents for their explicit generations.
 New follow generations deliberately grant new budgets. Accepted queries retain
 their original lifetime policy; neither budget exhaustion nor display replacement
 authorizes deletion. Closed view histories are durable point records, not resident
-arrays. Copy cancellation uses bounded upload cleanup, retaining terminal status.
+arrays. Prepared-query cancellation uses bounded upload cleanup and retains terminal status.
 
 Selected work survives pause, socket closure and lease expiry. Those events stop
-new selections without retracting committed intents. Before copy/admission the
+new selections without retracting committed intents. Before activation/admission the
 owner rechecks service policy and the original subject’s current source privileges.
 Follow retains its original native admission reference. Native authority owns the
 immutable principal, selected role and credential epoch for that input. Each
@@ -68,14 +79,10 @@ frozen sends/committed dispositions. Only pause uses reserved control capacity.
 Status remains readable after session closure under current caller/resource
 authority without renewing the view or exposing rows.
 
-Component tests use actual uploads/captures/manifests and reconstruct requester
-state at each committed copy step. They cover fairness, capture-time mutation,
-quiescence, manual admission, generation fencing, pause, denial, outage and expiry.
-Native TLS/worker recovery uses `just test::reactive-refresh`. The separate
-[consumer proof ledger](../../../../tests/README.md#m21-qualification) records
-actual browser rendering, physical node/store recovery and measured
-Compose/reference freshness and cost. Finite correctness does not imply an
-interactive refresh latency target.
+The [proof ledger](../../../../tests/README.md) distinguishes executed direct
+observation, prepared-request and capture-recovery checks from Follow composition
+and browser replacement. Historical actor-backed refresh results do not establish
+the direct Table execution path.
 
 Session open/attach/renew controls do not create query demand or unconditional
 refresh wakeups. Query inputs and follow controls schedule separate refresh turns;
@@ -83,8 +90,8 @@ clock inputs can release recorded spacing after a scheduler exists. Thus an idle
 metadata-only view does not pay for query wakeup/delivery cycles.
 
 Each view retains its first scheduling stop as a finite reason, original committed
-input and bounded witness. The record fits 250 bytes including the maximum watch
-key and witness. Closing or expiring a session records its stop in the same turn,
+input and bounded witness. The record fits 255 bytes including the complete direct source
+identity and maximum witness. Closing or expiring a session records its stop in the same turn,
 before removing the active slot; it does not cancel selected work. Cancelled or
 retired query uploads stop progress before separate bounded cleanup. Only actual
 permission denial receives the denied phase; resource unavailability and query

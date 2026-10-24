@@ -228,7 +228,7 @@ const reactive = root.ReactiveModel;
 const Reactive = root.ReactiveService;
 fn reactiveSetup(store: *Store, owner: *Service) !void {
     try store.setup(owner);
-    var publication = try store.command(owner, 33, .{ .reactive = .{ .publish = .{ .expected = 0, .source = .{ .revision = 1, .target = 88, .resource = 8, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 200, .metadata_digest = @splat(5) } } } });
+    var publication = try store.command(owner, 33, .{ .reactive = .{ .publish = .{ .expected = 0, .source = .{ .revision = 1, .audience = 88, .resource = 8, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .interpretation_revision = .{ .value = 1 }, .branch = 1, .namespace = 1, .interpretation_digest = @splat(5) } } } });
     try store.commit(&publication);
     var clock = try store.command(owner, 34, .{ .reactive = .{ .observe_clock = 1000 } });
     try store.commit(&clock);

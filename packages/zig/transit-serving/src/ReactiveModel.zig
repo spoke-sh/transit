@@ -12,36 +12,38 @@ pub const max_message_bytes = 8192;
 pub const max_fragments = 32;
 pub const subprotocol = "transit.reactive.v1";
 
-/// Compact immutable catalog commitment. The current metadata format is part
-/// of the shared v1 definition; no legacy watch decoder is selected by shape.
+/// Compact exact direct Table declaration. Branch one is the supported service
+/// profile; its explicit byte preserves the bounded native control record.
+/// The Table audience is independent of the service's effect/query worker.
 pub const Source = struct {
     revision: u64,
-    target: u64,
+    audience: u64,
     resource: u64,
     realm: u64,
     catalog: root.RefreshModel.Namespace,
+    branch: u8,
+    namespace: u64,
     object: root.RefreshModel.Namespace,
-    metadata_revision: root.RefreshModel.Namespace,
-    metadata_length: u32,
-    metadata_digest: [32]u8,
+    interpretation_revision: root.RefreshModel.Namespace,
+    interpretation_digest: [32]u8,
     published: bool = true,
-    pub fn scope(self: Source) root.query.catalog.TableCatalogRecords.Scope {
+    pub fn scope(self: Source) p.DataLifecycle.Scope {
         return .{ .realm = self.realm, .resource = self.resource, .catalog = self.catalog.value };
     }
-    pub fn metadata(self: Source) root.station.TablePages.Reference {
-        return .{ .id = self.metadata_revision.value, .spec = .{ .format = root.query.catalog.TableMetadata.format, .length = self.metadata_length, .digest = self.metadata_digest } };
+    pub fn interpretation(self: Source) p.DataLifecycle.Definition {
+        return .{ .object = .{ .scope = self.scope(), .branch = self.branch, .object = self.object.value }, .revision = self.interpretation_revision.value, .digest = self.interpretation_digest };
     }
     pub fn from(revision: u64, source: root.query.TableSource) !Source {
         try source.validate();
-        const result: Source = .{ .revision = revision, .target = source.owner, .resource = source.scope.resource, .realm = source.scope.realm, .catalog = .{ .value = source.scope.catalog }, .object = .{ .value = source.object }, .metadata_revision = .{ .value = source.metadata.id }, .metadata_length = source.metadata.spec.length, .metadata_digest = source.metadata.spec.digest };
+        if (source.branch != 1) return error.InvalidReactiveSource;
+        const result: Source = .{ .revision = revision, .audience = source.owner, .resource = source.scope.resource, .realm = source.scope.realm, .catalog = .{ .value = source.scope.catalog }, .branch = 1, .namespace = source.namespace, .object = .{ .value = source.object }, .interpretation_revision = .{ .value = source.interpretation.interpretation.revision }, .interpretation_digest = source.interpretation.interpretation.digest };
         try result.validate();
         return result;
     }
     pub fn validate(self: Source) !void {
-        inline for (.{ "revision", "target", "resource", "realm" }) |name| try m.identity(@field(self, name));
-        self.scope().validate() catch return error.InvalidReactiveSource;
-        root.query.catalog.TableCatalogRecords.metadataReference(self.metadata()) catch return error.InvalidReactiveSource;
-        if (self.object.value == 0 or std.mem.allEqual(u8, &self.metadata_digest, 0)) return error.InvalidReactiveSource;
+        inline for (.{ "revision", "audience", "resource", "realm", "namespace" }) |name| try m.identity(@field(self, name));
+        self.interpretation().validate() catch return error.InvalidReactiveSource;
+        if (self.branch != 1 or std.mem.allEqual(u8, &self.interpretation_digest, 0)) return error.InvalidReactiveSource;
     }
 };
 pub const SessionIdentity = struct { session: u64, generation: u64 };
@@ -98,11 +100,11 @@ pub const Position = struct {
     watch_revision: u64,
     resource: u64,
     schema: [32]u8,
-    data_revision: u64,
+    data_revision: root.query.TablePosition.Counter,
     outcome_position: u64 = 0,
     pub fn validate(self: Position) !void {
         try self.scope.validate();
-        if (self.version != version or self.scope.subscription == 0 or self.data_revision > p.max_counter or
+        if (self.version != version or self.scope.subscription == 0 or
             self.outcome_position > p.max_counter or std.mem.allEqual(u8, &self.schema, 0)) return error.InvalidReactiveCursor;
         try m.identity(self.watch_revision);
         try m.identity(self.resource);
@@ -111,6 +113,7 @@ pub const Position = struct {
         try self.validate();
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.reactive.cursor.v1\x00");
+        hash.update(&p.Growth.definition_bytes);
         hash.update((try c.encode('E', self)).slice());
         return hash.finalResult();
     }
@@ -223,11 +226,11 @@ test "reactive records fit one bounded value and signatures bind scope and progr
     const t = std.testing;
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(17));
     const scope: Scope = .{ .realm = 49, .principal = p.max_counter, .service = 1, .ingress = 9, .session = 7, .generation = 10, .subscription = 3, .subscription_generation = 12 };
-    const cursor = try Cursor.sign(.{ .scope = scope, .watch_revision = 2, .resource = 11, .schema = @splat(3), .data_revision = p.max_counter }, key);
+    const cursor = try Cursor.sign(.{ .scope = scope, .watch_revision = 2, .resource = 11, .schema = @splat(3), .data_revision = .{ .value = std.math.maxInt(u64) } }, key);
     try cursor.verify(key.public_key.toBytes());
     try t.expect(std.meta.eql(cursor, try Cursor.decode(try cursor.encode())));
     var forged = cursor;
-    forged.position.data_revision -= 1;
+    forged.position.data_revision.value -= 1;
     try t.expectError(error.SignatureVerificationFailed, forged.verify(key.public_key.toBytes()));
     const request = try SignedRead.sign(.{ .scope = scope, .kind = .events, .attachment = 3, .nonce = @splat(8), .cursor = cursor }, key, 1, null);
     try request.verify(key.public_key.toBytes());

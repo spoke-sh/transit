@@ -12,6 +12,7 @@ const Lifecycle = @import("direct_table_lifecycle.zig");
 const Conditions = @import("direct_sql_conditions.zig");
 const SqlPins = @import("direct_sql_read_recovery.zig");
 const Captured = @import("direct_captured_query.zig");
+const Follow = @import("direct_follow_query.zig");
 const Maintained = @import("direct_maintained_query.zig");
 const RelationalFailures = @import("direct_relational_failures.zig");
 const Predicates = @import("direct_table_predicates.zig");
@@ -19,7 +20,7 @@ const Delegation = @import("direct_table_delegation.zig");
 const History = @import("direct_table_history.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, maintained: ?[2]Maintained.State = null };
+const Profile = struct { definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -317,6 +318,11 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "delegated-closed")) {
             try Delegation.closed(client, profile.delegation.?);
             try History.closed(client, profile.history.?);
+        } else if (std.mem.eql(u8, args[2], "follow-prepare")) {
+            profile.follow = try Follow.prepare(init, client, &admin, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "follow-resume")) {
+            try Follow.recover(init, client, &admin, profile.follow.?);
         } else if (std.mem.eql(u8, args[2], "capture-prepare")) {
             profile.captured = try Captured.prepare(init, client, &admin, profile.role);
             try save(init, args[3], profile);

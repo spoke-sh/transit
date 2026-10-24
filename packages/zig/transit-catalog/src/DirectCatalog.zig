@@ -846,6 +846,31 @@ pub fn pinRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operat
     return self.pinRowsChecked(interpretation.object, owner, expected, interpretation, .snapshot, policy);
 }
 
+/// First acquisition selects the current frontier once. A lost reply or owner
+/// restart recovers the retained original frontier, including after ALTER/DROP.
+/// The native caller and executor checks remain the service's responsibility.
+pub fn captureRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operation, minimum: d.Position, policy: Policy) !P.SnapshotHandle {
+    try interpretation.validate();
+    try minimum.validate();
+    if (minimum.next_lsn == 0) return error.InvalidTableBasis;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), interpretation.object, owner, policy, false);
+    defer access.view.deinit();
+    const state = try access.view.table.pinState(owner, access.current);
+    var selected = state.position;
+    if (state.handle) |handle| {
+        if (state.released) return error.TableSnapshotReleased;
+        var retained = try access.view.table.inspectSnapshot(arena.allocator(), handle, access.current);
+        defer retained.deinit();
+        if (!std.meta.eql(interpretation, retained.root.interpretation)) return error.TableDefinitionChanged;
+        selected = .{ .partition = retained.root.partition, .next_lsn = retained.root.next_lsn };
+    } else if (!std.meta.eql(interpretation, access.view.table.root.interpretation)) return error.TableDefinitionChanged;
+    if (selected.partition != minimum.partition or selected.next_lsn < minimum.next_lsn) return error.TableDataChanged;
+    access.view.table.lose_reply = self.lose_table_reply;
+    return access.view.table.pin(owner, selected, access.current);
+}
+
 pub fn retainHistory(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, interpretation: ?d.Definition, policy: Policy) !P.SnapshotHandle {
     if (interpretation) |required| {
         try required.validate();

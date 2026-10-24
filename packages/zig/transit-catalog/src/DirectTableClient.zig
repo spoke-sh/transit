@@ -80,6 +80,7 @@ pub fn closeOriginalHistory(self: Self, object: p.DataLifecycle.Object, owner: p
     return self.closeOriginal(object, owner, expected, known, .history);
 }
 fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle, retention: c.storage.TablePartition.Retention) !void {
+    const selection = if (self.delegation) |grant| grant.binding.selection else .exact;
     try self.connection.object(object);
     try self.connection.owner(owner);
     try expected.validate();
@@ -102,12 +103,13 @@ fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecy
         // monotone frontier. Otherwise create its tombstone by pinning and
         // releasing that exact frontier, so an in-flight retry cannot reopen it.
         if (handle == null) {
-            if (state.retired or state.position.next_lsn > expected.next_lsn) return;
-            if (state.position.next_lsn != expected.next_lsn) return error.InvalidTableResponse;
+            if (state.retired) return;
+            if (selection == .exact and state.position.next_lsn > expected.next_lsn) return;
+            if (state.position.next_lsn < expected.next_lsn) return error.InvalidTableResponse;
         }
         // An unknown handle must be recovered through the original acquisition
         // to verify its retained frontier. A matching owner alone is not enough.
-        const acquisition: w.Acquisition = .{ .object = object, .owner = owner, .expected = expected };
+        const acquisition: w.Acquisition = .{ .object = object, .owner = owner, .expected = expected, .selection = selection };
         const pinned = try self.call(if (retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition });
         defer pinned.deinit();
         if (handle) |observed| if (!std.meta.eql(observed, pinned.value.result.pin)) return error.InvalidTableResponse;

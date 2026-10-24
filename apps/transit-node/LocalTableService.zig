@@ -195,7 +195,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 .execute => try catalog.performRows(value.binding, policy),
             } },
         },
-        .pin => |value| return .{ .pin = if (delegation) |grant| try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRows(value.object, value.owner, value.expected, policy) },
+        .pin => |value| return .{ .pin = if (delegation) |grant| (if (value.selection == .current) try catalog.captureRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy)) else try catalog.pinRows(value.object, value.owner, value.expected, policy) },
         .retain_history => |value| return .{ .pin = try catalog.retainHistory(value.object, value.owner, value.expected, if (delegation) |grant| grant.binding.interpretation else null, policy) },
         .history_start => |value| return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.handle, null) },
         .history_source => |value| return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.point.lease, value.point) },

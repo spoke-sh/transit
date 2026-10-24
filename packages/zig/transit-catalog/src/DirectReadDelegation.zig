@@ -14,6 +14,7 @@ pub const Binding = struct {
     executor: u64,
     interpretation: d.Definition,
     expected: d.Position,
+    selection: w.CaptureSelection = .exact,
     owner: d.Operation,
     /// A history grant follows this object from the original cut until closure.
     /// A snapshot grant authorizes only the exact originally captured cut.
@@ -30,6 +31,7 @@ pub const Binding = struct {
         try self.connection.object(self.interpretation.object);
         try self.connection.owner(self.owner);
         if (self.executor > p.max_counter or self.expected.next_lsn == 0 or std.mem.allEqual(u8, &self.purpose, 0)) return error.InvalidTableDelegation;
+        if (self.selection == .current and self.retention != .snapshot) return error.InvalidTableDelegation;
     }
     pub fn context(self: Binding, allocator: std.mem.Allocator) ![32]u8 {
         try self.validate();
@@ -99,7 +101,7 @@ pub const Closure = struct {
 
 /// Bounded canonical storage for the original grant. Repeated claim fields are
 /// constrained by validate; decoding never supplies a missing definition/epoch.
-pub const encoded_bytes = 310;
+pub const encoded_bytes = 311;
 pub fn encode(self: Self, allocator: std.mem.Allocator) ![encoded_bytes]u8 {
     try self.validate(allocator);
     var bytes: [encoded_bytes]u8 = undefined;
@@ -121,6 +123,7 @@ pub fn encode(self: Self, allocator: std.mem.Allocator) ![encoded_bytes]u8 {
     try writer.writeInt(u64, self.binding.expected.next_lsn, .little);
     try writer.writeInt(u64, self.binding.owner.operation, .little);
     try writer.writeByte(@backingInt(self.binding.retention));
+    try writer.writeByte(@backingInt(self.binding.selection));
     try writer.writeAll(&self.binding.purpose);
     try writer.writeInt(u64, self.proof.claim.credential_epoch, .little);
     try writer.writeAll(&self.proof.claim.context);
@@ -153,9 +156,10 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     const expected: d.Position = .{ .partition = try reader.takeInt(u64, .little), .next_lsn = try reader.takeInt(u64, .little) };
     const operation = try reader.takeInt(u64, .little);
     const retention = std.enums.fromInt(c.storage.TablePartition.Retention, try reader.takeByte()) orelse return error.InvalidTableDelegation;
+    const selection = std.enums.fromInt(w.CaptureSelection, try reader.takeByte()) orelse return error.InvalidTableDelegation;
     const purpose = (try reader.takeArray(32)).*;
     const result: Self = .{
-        .binding = .{ .definition = p.Growth.current_definition, .connection = connection, .executor = executor, .interpretation = interpretation, .expected = expected, .owner = .{ .scope = connection.scope, .principal = connection.principal, .operation = operation }, .retention = retention, .purpose = purpose },
+        .binding = .{ .definition = p.Growth.current_definition, .connection = connection, .executor = executor, .interpretation = interpretation, .expected = expected, .selection = selection, .owner = .{ .scope = connection.scope, .principal = connection.principal, .operation = operation }, .retention = retention, .purpose = purpose },
         .proof = .{
             .claim = .{ .definition = p.Growth.current_definition, .realm = connection.scope.realm, .principal = connection.principal, .role = connection.role, .audience = connection.audience, .credential_epoch = try reader.takeInt(u64, .little), .context = (try reader.takeArray(32)).* },
             .signature = (try reader.takeArray(64)).*,
@@ -189,7 +193,8 @@ pub fn requirePin(self: Self, object: d.Object, owner: d.Operation) !void {
 }
 
 pub fn requireSource(self: Self, interpretation: d.Definition, position: d.Position) !void {
-    if (!std.meta.eql(interpretation, self.binding.interpretation) or !std.meta.eql(position, self.binding.expected)) return error.TableDelegationDenied;
+    if (!std.meta.eql(interpretation, self.binding.interpretation) or position.partition != self.binding.expected.partition or
+        (if (self.binding.selection == .exact) position.next_lsn != self.binding.expected.next_lsn else position.next_lsn < self.binding.expected.next_lsn)) return error.TableDelegationDenied;
 }
 pub fn requireHistory(self: Self, interpretation: d.Definition, position: d.Position) !void {
     if (self.binding.retention != .history or !std.meta.eql(interpretation.object, self.binding.interpretation.object) or
@@ -203,6 +208,7 @@ pub fn allow(self: Self, action: w.Action) !void {
     switch (action) {
         inline .pin, .retain_history => |value, tag| {
             if ((tag == .retain_history) != (self.binding.retention == .history)) return error.TableDelegationDenied;
+            if (value.selection != self.binding.selection) return error.TableDelegationDenied;
             try self.requirePin(value.object, value.owner);
             if (!std.meta.eql(value.expected, self.binding.expected)) return error.TableDelegationDenied;
         },
@@ -287,11 +293,12 @@ test "direct read delegation binds one caller role, executor, definition, pin an
     var other = binding.owner;
     other.operation += 1;
     try t.expectError(error.TableDelegationDenied, original.requirePin(binding.interpretation.object, other));
-    inline for (.{ "executor", "interpretation", "expected", "owner", "retention", "purpose", "connection" }) |field| {
+    inline for (.{ "executor", "interpretation", "expected", "selection", "owner", "retention", "purpose", "connection" }) |field| {
         var changed = original;
         if (comptime std.mem.eql(u8, field, "executor")) changed.binding.executor += 1;
         if (comptime std.mem.eql(u8, field, "interpretation")) changed.binding.interpretation.revision += 1;
         if (comptime std.mem.eql(u8, field, "expected")) changed.binding.expected.next_lsn += 1;
+        if (comptime std.mem.eql(u8, field, "selection")) changed.binding.selection = .current;
         if (comptime std.mem.eql(u8, field, "owner")) changed.binding.owner.operation += 1;
         if (comptime std.mem.eql(u8, field, "retention")) changed.binding.retention = .history;
         if (comptime std.mem.eql(u8, field, "purpose")) changed.binding.purpose[0] ^= 1;

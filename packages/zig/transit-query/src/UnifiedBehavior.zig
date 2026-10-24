@@ -103,6 +103,8 @@ pub const Requester = struct {
             .begin => |ref| try upload.begin(turn, ref),
             .part => |part| try upload.part(turn, part),
             .seal => |namespace| try upload.seal(turn, namespace),
+            .prepare => |namespace| try upload.prepare(turn, namespace),
+            .activate => |namespace| try upload.activate(turn, namespace),
             .submit => |namespace| {
                 _ = try upload.submitWithObserver(turn, namespace, self.source, self.principal);
             },

@@ -119,9 +119,59 @@ function integer(value: string) {
   const number = BigInt(value);
   if (number < -9223372036854775808n || number > 9223372036854775807n) invalid();
 }
+function counter(value: string, positive = false): bigint {
+  if (!/^(0|[1-9][0-9]{0,19})$/.test(value)) invalid();
+  const result = BigInt(value);
+  if (result > 18446744073709551615n || (positive && result === 0n)) invalid();
+  return result;
+}
+function source(value: NonNullable<WireResponse["source"]>) {
+  counter(value.catalog, true);
+  counter(value.object, true);
+  counter(value.interpretation_revision, true);
+  if (value.branch !== 1 || value.interpretation_digest.every((b) => b === 0)) invalid();
+}
+function observation(value: NonNullable<WireResponse["snapshot"]>["observation"]) {
+  const basis = value.basis;
+  counter(basis.partition, true);
+  const accepted = counter(basis.accepted, true);
+  if (
+    basis.resource === 0 ||
+    counter(value.data_revision) > accepted ||
+    basis.contract.every((b) => b === 0) ||
+    basis.schema.every((b) => b === 0)
+  )
+    invalid();
+}
+function progress(result: Pick<WireResponse, "cursor" | "event" | "snapshot">) {
+  if (result.cursor) counter(result.cursor.position.data_revision);
+  if (result.event) {
+    counter(result.event.data_revision);
+    if (
+      result.cursor &&
+      (result.event.data_revision !== result.cursor.position.data_revision ||
+        result.event.resource !== result.cursor.position.resource)
+    )
+      invalid();
+  }
+  if (result.snapshot) {
+    const current = result.snapshot.observation;
+    observation(current);
+    const basis = current.basis;
+    if (
+      result.cursor &&
+      (basis.resource !== result.cursor.position.resource ||
+        current.data_revision !== result.cursor.position.data_revision ||
+        basis.schema.some((b, i) => b !== result.cursor!.position.schema[i]))
+    )
+      invalid();
+  }
+}
 export function response(value: unknown): ReactiveResponse {
   if (!validate.ReactiveResponse(primaryResponse(value))) invalid();
   const result = value as ReactiveResponse;
+  if (result.source) source(result.source);
+  progress(result);
   for (const row of result.snapshot?.rows ?? []) {
     if (!row) continue;
     integer(row.key);
@@ -145,6 +195,7 @@ export function message(value: unknown): ServerMessage {
   }
   if (!validate.ServerMessage(primary)) invalid();
   const result = value as ServerMessage;
+  if ("event" in result) progress(result.event);
   if ("observation" in result) return { observation: response(result.observation) };
   if ("event" in result && result.event.event.outcome)
     return {
@@ -316,7 +367,25 @@ export class Transport {
             refresh_status: { ...primary.refresh_status, diagnostic: null, query_diagnostic: null },
           };
         if (!validate.HostResponse(primary)) invalid();
-        return value as HostResponse;
+        const result = value as HostResponse;
+        if ("inspection" in result) {
+          progress({
+            cursor: result.inspection.response.cursor,
+            snapshot: { observation: result.inspection.observation },
+          });
+          return {
+            inspection: { ...result.inspection, response: response(result.inspection.response) },
+          };
+        }
+        if ("refresh_status" in result && result.refresh_status.view) {
+          const view = result.refresh_status.view;
+          source(view.source);
+          counter(view.template, true);
+          counter(view.namespace, true);
+          counter(view.dirty);
+          counter(view.covered);
+        }
+        return result;
       } catch (error) {
         if (
           "submit" in request &&

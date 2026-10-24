@@ -5866,6 +5866,20 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "QueryCaptureRequired": {
+          "code": "query.capture_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "QueryTableSnapshotRequired": {
+          "code": "query.table_snapshot_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
         }
       }
     },
@@ -8164,6 +8178,22 @@
             "inspect_status"
           ],
           "transport_status": 400
+        },
+        "QueryCaptureRequired": {
+          "code": "query.capture_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "QueryTableSnapshotRequired": {
+          "code": "query.table_snapshot_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9601,6 +9631,22 @@
           "category": "binding",
           "actions": [
             "inspect_status"
+          ],
+          "transport_status": 3
+        },
+        "QueryCaptureRequired": {
+          "code": "query.capture_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 3
+        },
+        "QueryTableSnapshotRequired": {
+          "code": "query.table_snapshot_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
           ],
           "transport_status": 3
         }
@@ -12938,6 +12984,44 @@
               "provided"
             ]
           ]
+        },
+        "QueryCaptureRequired": {
+          "code": "query.capture_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "QueryTableSnapshotRequired": {
+          "code": "query.table_snapshot_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
         }
       }
     },
@@ -16176,6 +16260,42 @@
               ]
             }
           }
+        },
+        "InvalidTableResponse": {
+          "code": "serving.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "scenarios": {
+            "input": {
+              "transport_status": 502
+            },
+            "read": {
+              "transport_status": 502,
+              "actions": [
+                "contact_operator"
+              ]
+            }
+          }
+        },
+        "InvalidRefreshBudget": {
+          "code": "reactive.invalid_refresh_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_scope"
+          ],
+          "scenarios": {
+            "input": {
+              "transport_status": 400
+            },
+            "read": {
+              "transport_status": 400,
+              "actions": [
+                "inspect_scope"
+              ]
+            }
+          }
         }
       }
     },
@@ -18067,6 +18187,9 @@
           ],
           "stage": "execute",
           "outcome": "rejected"
+        },
+        "prepared": {
+          "absent": true
         }
       }
     },

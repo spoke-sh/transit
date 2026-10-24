@@ -6,7 +6,7 @@
     },
     {
       "kind": "begin",
-      "wire_hex": "5551423153504631080000000000000002000000ffffffffffffffff010000000000000055514231fa000000f32fe2ae728acd0e8e909bbcaabc1a0305e23df0d70839e2a86b10f9fe65ba69"
+      "wire_hex": "5551423153504631080000000000000002000000ffffffffffffffff010000000000000055514231fa00000051817078393e788a12298878feb0af88a1d0f3a58f60b3c4b6f7b25ab3a8d601"
     },
     {
       "kind": "part",
@@ -15,6 +15,14 @@
     {
       "kind": "seal",
       "wire_hex": "55515331ffffffffffffffff"
+    },
+    {
+      "kind": "prepare",
+      "wire_hex": "55515431ffffffffffffffff"
+    },
+    {
+      "kind": "activate",
+      "wire_hex": "55514131ffffffffffffffff"
     },
     {
       "kind": "submit",
@@ -37,5 +45,5 @@
       "wire_hex": "55514c31ffffffffffffffff00"
     }
   ],
-  "status_hex": "5551553153504631080000000000000002000000ffffffffffffffff010000000000000055514231fa000000f32fe2ae728acd0e8e909bbcaabc1a0305e23df0d70839e2a86b10f9fe65ba69010000000000000000000000"
+  "status_hex": "5551553153504631080000000000000002000000ffffffffffffffff010000000000000055514231fa00000051817078393e788a12298878feb0af88a1d0f3a58f60b3c4b6f7b25ab3a8d601010000000000000000000000"
 }

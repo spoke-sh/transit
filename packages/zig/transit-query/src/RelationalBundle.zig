@@ -168,6 +168,7 @@ pub fn authorizeCapture(self: Self, allocator: std.mem.Allocator, client: q.wire
             .executor = capture.executor,
             .interpretation = source.interpretation.interpretation,
             .expected = capture.expected,
+            .selection = capture.selection,
             .owner = .{ .scope = table.connection.scope, .principal = table.connection.principal, .operation = capture.operation },
             .retention = if (self.plan.lifetime == .maintained) .history else .snapshot,
             .purpose = purpose,

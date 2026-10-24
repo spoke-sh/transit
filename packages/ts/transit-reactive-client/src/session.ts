@@ -411,7 +411,7 @@ export class Session {
               throw new ReactiveError(409, "reset_required");
             if (
               previous &&
-              (next.position.data_revision < previous.data_revision ||
+              (BigInt(next.position.data_revision) < BigInt(previous.data_revision) ||
                 (next.position.outcome_position ?? 0) < (previous.outcome_position ?? 0))
             )
               invalid();

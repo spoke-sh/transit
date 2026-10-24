@@ -30,7 +30,7 @@ pub const Request = union(enum) {
     describe,
     clock,
     inspect: r.Read,
-    covered: struct { observation: root.TableWatch.Observation, captured: root.query.Basis },
+    covered: struct { observation: root.TableWatch.Observation, captured: root.query.TablePosition },
     prepare: Command,
     submit: r.SignedSend,
     observe: r.SignedSend,
@@ -139,9 +139,7 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
         }
         if (result.query_diagnostic == null and view.failure == .stopped and view.failure.stopped.reason == .query_rejected) if (result.diagnostic) |*diagnostic| try diagnostic.absent(.native_cause, .owner, .unavailable);
     }
-    var raw = try adapter.resources.open(view.source.resource);
-    if ((try adapter.resources.query(.{ .resource = view.source.resource })).body.resource.writer != view.source.target) return error.ResourceUnavailable;
-    var catalog_policy = adapter.authority(.{ .signed = proof }).wrap(&raw);
+    var catalog_policy = try root.TableWatch.Reader.init(adapter.resources, .{ .signed = proof }, view.source);
     _ = try root.TableWatch.authorize(&catalog_policy, self.connection.principal, view.source);
     // These copied records are not disclosed until caller identity and current
     // service policy have been checked again. Mutable ingress writes cannot

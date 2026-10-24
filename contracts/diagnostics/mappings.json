@@ -3560,6 +3560,7 @@
         "packages/zig/transit-serving/src/ReactiveClient.zig",
         "packages/zig/transit-serving/src/RefreshReader.zig",
         "packages/zig/transit-serving/src/TableWatch.zig",
+        "packages/zig/transit-serving/src/TableWatchReader.zig",
         "packages/zig/transit-serving/src/Model.zig",
         "packages/zig/transit-serving/src/ReactiveModel.zig",
         "packages/zig/transit-serving/src/RefreshModel.zig",
@@ -3955,46 +3956,17 @@
         "InvalidAuthorizationCredential": {
           "code": "serving.invalid_subject",
           "category": "syntax"
+        },
+        "InvalidTableResponse": {
+          "code": "serving.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidRefreshBudget": {
+          "code": "reactive.invalid_refresh_budget",
+          "category": "limit"
         }
       },
-      "exceptions": [
-        {
-          "source": "packages/zig/transit-serving/src/TableWatch.zig",
-          "cause": "CatalogDefinitionChanged",
-          "disposition": "control_flow",
-          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
-          "tests": [
-            {
-              "source": "packages/zig/transit-serving/src/watch_test.zig",
-              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
-            }
-          ]
-        },
-        {
-          "source": "packages/zig/transit-serving/src/TableWatch.zig",
-          "cause": "CatalogSourceChanged",
-          "disposition": "control_flow",
-          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
-          "tests": [
-            {
-              "source": "packages/zig/transit-serving/src/watch_test.zig",
-              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
-            }
-          ]
-        },
-        {
-          "source": "packages/zig/transit-serving/src/TableWatch.zig",
-          "cause": "TableRetired",
-          "disposition": "control_flow",
-          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
-          "tests": [
-            {
-              "source": "packages/zig/transit-serving/src/watch_test.zig",
-              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
-            }
-          ]
-        }
-      ],
+      "exceptions": [],
       "tests": [
         {
           "source": "packages/zig/transit-serving/src/ServingDiagnostic.zig",

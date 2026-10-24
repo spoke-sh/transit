@@ -179,6 +179,26 @@ diagnostics after DROP/name reuse. The scoped
 [result-evidence proof](../../tests/README.md#retained-table-evidence-and-current-disclosure-rights--2026-10-23)
 checks current denial and existing capture recovery. These primitives do not yet
 complete named computation freshness or reactive consumer migration.
+The reactive migration also needs a new finite capture for each explicit Follow
+refresh. Copying a completed Table bundle preserves its exact retention grant,
+original cut and pin owner; it cannot authorize a later cut or another pin.
+Do not close the freshness gate by changing watermark representations alone.
+The replacement must bind each selected capture to the original accepted caller,
+exact template/interpretation, distinct durable operation identity, current rights
+and recovery evidence. The selected approach gives each bounded refresh its own
+caller-signed, single-use current-capture grant and prepared immutable query.
+The scheduler must admit those prepared identities, rather than renew signatures
+or reuse completed query grants. The direct capture primitive freezes once and
+retains its selected frontier. Requester preparation, scheduler selection/activation
+and the browser's exact-token recovery now have
+[scoped transition tests](../../tests/README.md#prepared-finite-refresh-and-direct-watch-transitions--2026-10-23).
+The shared current-v1 definition also changes for these stored semantics. Native
+Follow now passes the real native selection/restart/worker-replacement and
+verified fresh-output path in that evidence record. Broader Follow fault schedules
+and installed caller migration remain under qualification; source observations
+and injected scheduler results alone do not close those execution gates. The refresh preparation owner now exports and validates exact saved recovery;
+Board still needs the corresponding save/restore integration.
+
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
