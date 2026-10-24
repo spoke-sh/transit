@@ -284,9 +284,11 @@ reply publication. Its real native caller schedule passes lost replies,
 node/worker replacement, captured-query authorization, incompatible bindings,
 supervision and expiry. Its local launcher also passes three-worker upgrades,
 credential rotation, Board inspection, courier loss and stop/start recovery.
-Compose passes the same persistent workflow. Reference qualification remains
-separate; this does not make Table
-changes atomic with application progress.
+Compose and the Kubernetes/Substrate reference pass the same persistent workflow;
+the reference also replaces a real ledger pod and preserves its logical identity.
+The full repository check passes after the coordinated fixture regeneration.
+These checks do not make Table changes atomic with application progress or
+complete the remaining shared lifecycle gates.
 
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;

@@ -45,11 +45,15 @@ executor startup-rejection checks. The subsequent native suite passes those
 additional checks too. `just launchers::compose::test-station` passes the same
 registry, direct mutation, captured query, same-PID replacement, three-worker
 upgrade, Board inspection and retained stop/start workflow in real containers.
-Reference execution and the repository-wide check remain separate qualification
-gates. The first broad
-checks found stale independently signed/hashed fixtures after the definition
-change; those failures are not passes, and the fixtures are regenerated through
-their owners.
+`just launchers::reference::test-station` subsequently passes the same workflow
+in an owned Kind/Substrate cluster, including forced ledger pod deletion, fresh
+worker activation, three-worker upgrades and retained stop/start. The full
+`just check` run passes after the independently signed/hashed fixtures are
+regenerated through their owners. Earlier fixture failures remain failures.
+The check starts at the Station migration commit; the subsequent reference
+bootstrap corrections also pass chart checks, 15 ownership/recovery checks and
+documentation links. These results do not qualify the unfinished shared
+dependency and named-resource work or replace final committed-HEAD validation.
 
 ## Retained native storage in the Helm chart — 2026-10-24
 
@@ -74,8 +78,13 @@ The subsequent run fails the **60-second initial ledger completion deadline**.
 Node evidence includes storage writes canceled at the two-second request budget
 while the disk-backed unit suite runs concurrently. A later inspection observes
 the expected total of 12, which does not turn the deadline failure into a pass.
-The failed installation is stopped with data and logs retained. Full reference
-recovery, upgrades and stop/start remain unverified pending a separate run.
+The failed installation is stopped with data and logs retained. After the large
+disk-backed unit suite completes, a fresh reference installation passes the
+original unchanged deadlines, direct ledger/query workflow, forced pod loss,
+three-worker upgrades, Board provenance and persistent stop/start. Its fixture
+stops and resets its own installation. A node pod reports three restarts during
+the final start; the schedule proves eventual ready state and retained results,
+not a restart-free startup. No provider-isolation or power-loss claim is added.
 
 ## Named publication recovery with current credentials — 2026-10-24
 
