@@ -185,6 +185,22 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Named definition fixtures with direct Table grants — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+`zig build test -Doptimize=ReleaseSafe --summary all` in
+`packages/zig/transit-station-app` passes all 45 tests. Named definition tests use
+offline direct Table interpretations and signed snapshot/history grants with a
+computation resource independent of the Table catalog. A bounded HTTP peer
+injects executor identity and read-only source-authority responses; it accepts no
+pin acquisition or mutation. Publication/authorization retries, quota rollback,
+captured/maintained activation, old policy denial and 67 retained revisions pass.
+These are transition and transport composition checks, not native authority or
+Table durability evidence. Independent named-record fixtures and diagnostic
+mapping/inventory checks also pass. Work-item and older installed relational
+fixtures still require migration; the full repository check remains outstanding.
+
 ## Explicit Workspace capture and separate caller recovery — 2026-10-23
 
 Under definition
