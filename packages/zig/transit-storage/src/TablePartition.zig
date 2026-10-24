@@ -135,6 +135,33 @@ pub const SnapshotPage = struct {
         self.* = undefined;
     }
 };
+/// One bounded observation of the current root. There is no continuation or
+/// retention owner: `more` requires a separately acquired durable snapshot if
+/// the caller needs complete traversal. Returned cells own their memory.
+pub const CurrentPage = struct {
+    interpretation: Declaration.Stored,
+    accepted: d.Position,
+    changed_lsn: u64,
+    total_rows: u64,
+    rows: [pages.page_entries]?OwnedRow = @splat(null),
+    count: u8 = 0,
+    encoded_bytes: u32 = 0,
+    more: bool = false,
+    pub fn deinit(self: *CurrentPage) void {
+        for (&self.rows) |*slot| if (slot.*) |*value| value.deinit();
+        self.* = undefined;
+    }
+};
+const RowPage = struct {
+    rows: [pages.page_entries]?OwnedRow = @splat(null),
+    count: u8 = 0,
+    encoded_bytes: u32 = 0,
+    next: ?[f.TableRow.Identity.encoded_bytes]u8 = null,
+    fn deinit(self: *RowPage) void {
+        for (&self.rows) |*slot| if (slot.*) |*value| value.deinit();
+        self.* = undefined;
+    }
+};
 pub const OwnedRow = union(enum) {
     wal: f.TableRow.Owned,
     segment: f.TSeg.OwnedRow,
@@ -1496,14 +1523,49 @@ fn scanRetainedRoot(self: *Self, allocator: std.mem.Allocator, basis: Root, sche
         if (try self.tree().get(basis.identities, key) == null) return error.InvalidTableSnapshotCursor;
         break :blk key;
     } else null;
-    const batch = try self.tree().scan(basis.identities, cursor);
-    var result: SnapshotPage = .{
+    const page = try self.scanRootRows(allocator, basis, schema, cursor, limits, guard);
+    return .{
         .source = handle,
         .interpretation = basis.declared(),
         .accepted = .{ .partition = basis.partition, .next_lsn = basis.next_lsn },
         .changed_lsn = basis.changed_lsn,
         .total_rows = basis.live_rows,
+        .rows = page.rows,
+        .count = page.count,
+        .encoded_bytes = page.encoded_bytes,
+        .next = if (page.next) |next| .{ .source = cursor_source, .after = next } else null,
     };
+}
+
+/// The owner must serialize calls, as for all partition methods. This copies
+/// one current root under current read authority without appending a record,
+/// acquiring a pin or promising that a later request observes the same root.
+pub fn observeRows(self: *Self, allocator: std.mem.Allocator, limits: ReadLimits, guard: Guard) !CurrentPage {
+    try self.ready();
+    try limits.validate();
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        if (self.root.retired) return error.TableRetired;
+        if (self.root.next_lsn == 0) return error.TableNotFound;
+    }
+    const basis = self.root;
+    const page = try self.scanRootRows(allocator, basis, self.declaration.schema.schema, null, limits, guard);
+    return .{
+        .interpretation = basis.declared(),
+        .accepted = .{ .partition = basis.partition, .next_lsn = basis.next_lsn },
+        .changed_lsn = basis.changed_lsn,
+        .total_rows = basis.live_rows,
+        .rows = page.rows,
+        .count = page.count,
+        .encoded_bytes = page.encoded_bytes,
+        .more = page.next != null,
+    };
+}
+
+fn scanRootRows(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, cursor: ?pages.Key, limits: ReadLimits, guard: Guard) !RowPage {
+    const batch = try self.tree().scan(basis.identities, cursor);
+    var result: RowPage = .{};
     errdefer result.deinit();
     const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
     defer allocator.free(scratch);
@@ -1511,7 +1573,7 @@ fn scanRetainedRoot(self: *Self, allocator: std.mem.Allocator, basis: Root, sche
     for (batch.entries) |slot| {
         const entry = slot orelse break;
         if (result.count == limits.rows) {
-            result.next = .{ .source = cursor_source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
+            result.next = previous.?.data[0..f.TableRow.Identity.encoded_bytes].*;
             break;
         }
         if (entry.key.len != f.TableRow.Identity.encoded_bytes or entry.value.len != 32) return error.InvalidTableRowReference;
@@ -1524,7 +1586,7 @@ fn scanRetainedRoot(self: *Self, allocator: std.mem.Allocator, basis: Root, sche
         const encoded = try row.row().encode(schema, scratch);
         if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
             if (result.count == 0) return error.TableReadBudgetTooSmall;
-            result.next = .{ .source = cursor_source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
+            result.next = previous.?.data[0..f.TableRow.Identity.encoded_bytes].*;
             break;
         }
         result.rows[result.count] = row;
@@ -1535,7 +1597,7 @@ fn scanRetainedRoot(self: *Self, allocator: std.mem.Allocator, basis: Root, sche
     }
     if (result.next == null) if (batch.next) |key| {
         if (key.len != f.TableRow.Identity.encoded_bytes) return error.InvalidTableRowReference;
-        result.next = .{ .source = cursor_source, .after = key.data[0..f.TableRow.Identity.encoded_bytes].* };
+        result.next = key.data[0..f.TableRow.Identity.encoded_bytes].*;
     };
     // Authorization may change while rows are decoded or copied. Recheck after
     // buffering, including empty output and end-of-source metadata.

@@ -102,9 +102,27 @@ test "direct preview checks current expectations and schema work without claims 
     try t.expect(try catalog.inspectNamespace(2, access.policy()) == null);
     const requested: D.AccessRequest = .{ .namespace = 1, .target = view.table.root.interpretation, .access = .read };
     try catalog.checkAccess(requested, access.policy());
+    {
+        var observed = try catalog.observe(t.allocator, 1, view.table.root.interpretation, .{}, access.policy());
+        defer observed.deinit();
+        try t.expectEqualDeep(view.table.root, observed.view.table.root);
+        try t.expectEqual(@as(u8, 0), observed.page.?.count);
+        try t.expect(!observed.page.?.more);
+        try t.expectEqual(profile.database, observed.authority.database);
+        try t.expectEqual(profile.initial_schema_authority, observed.authority.schema);
+        try t.expectEqual(@as(u64, 107), observed.authority.table);
+        var metadata_only = try catalog.observe(t.allocator, 1, view.table.root.interpretation, null, access.policy());
+        defer metadata_only.deinit();
+        try t.expect(metadata_only.page == null);
+        try t.expectEqualDeep(observed.view.table.root, metadata_only.view.table.root);
+    }
     var stale_access = requested;
     stale_access.target.?.revision += 1;
     try t.expectError(error.TableDefinitionChanged, catalog.checkAccess(stale_access, access.policy()));
+    try t.expectError(error.TableDefinitionChanged, catalog.observe(t.allocator, 1, stale_access.target.?, null, access.policy()));
+    access.deny_at = access.calls + 5;
+    try t.expectError(error.CatalogDenied, catalog.observe(t.allocator, 1, view.table.root.interpretation, .{}, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
     access.deny_at = access.calls + 3;
     try t.expectError(error.CatalogDenied, catalog.checkAccess(requested, access.policy()));
     access.deny_at = std.math.maxInt(usize);

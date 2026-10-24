@@ -250,11 +250,13 @@ test "borrowed Table reads bind independent signatures and deny lifecycle contro
     try t.expectEqual(@as(u64, 9), original.binding.executor);
     const snapshot = borrow.binding.target.snapshot;
     for ([_]w.Action{
+        .{ .observe = .{ .namespace = 1, .interpretation = original.binding.interpretation, .rows = null } },
         .{ .pin = .{ .object = snapshot.object, .owner = snapshot.handle.owner, .expected = original.binding.expected } },
         .{ .release = snapshot },
         .{ .pin_status = .{ .object = snapshot.object, .owner = snapshot.handle.owner } },
         .describe,
     }) |action| try t.expectError(error.TableDelegationDenied, borrow.allow(action));
+    try t.expectError(error.TableDelegationDenied, original.allow(.{ .observe = .{ .namespace = 1, .interpretation = original.binding.interpretation, .rows = .{} } }));
     var changed = borrow;
     changed.binding.target.snapshot.handle.content.sha256[0] ^= 1;
     try t.expectError(error.TableDelegationDenied, changed.allow(request.action));
@@ -273,4 +275,54 @@ test "borrowed Table reads bind independent signatures and deny lifecycle contro
     invalid = request;
     invalid.delegation = null;
     try t.expectError(error.InvalidTableDelegation, invalid.validate(t.allocator));
+}
+
+test "current observations reject wrong definitions invented coverage and altered row pages" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns };
+    const properties: c.DirectCatalog.Properties = .{ .namespace = 1, .authorization = 13, .name = try .init("events") };
+    var property_bytes: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
+    var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .revision = 1, .schema = schema, .properties = try properties.encode(&property_bytes) });
+    defer declaration.deinit();
+    const stored = try declaration.stored();
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .observe = .{ .namespace = 1, .interpretation = stored.interpretation, .rows = .{ .rows = 2 } } } };
+    const context = try w.Request.context(input, alloc);
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
+    const scratch = try alloc.alloc(u8, c.fuze.TableRow.max_bytes);
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 2, .operation = 3, .ordinal = 0 }, .cells = &cells };
+    const bytes = try row.encode(schema, scratch);
+    const row_binary = try w.Binary.encode(alloc, bytes);
+    const row_len: u32 = @intCast(bytes.len);
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .observation = .{
+        .definition = .{ .interpretation = stored, .namespace = 1, .authorization = 13, .name = properties.name, .position = .{ .partition = 2, .next_lsn = 8 }, .changed_lsn = 7, .row_count = 3, .schema = try w.Binary.encode(alloc, try schema.encode(scratch)) },
+        .authority = .{ .database = 11, .schema = 12, .table = 13 },
+        .page = .{ .rows = &.{row_binary}, .encoded_bytes = row_len, .more = true },
+    } } };
+    try c.DirectTableClient.validateResponse(alloc, request, response);
+    try t.expect(!request.transport().mutation and request.transport().control == null);
+    inline for (0..8) |case| {
+        var changed = response;
+        const found = &changed.result.observation;
+        switch (case) {
+            0 => found.definition.interpretation.interpretation.revision += 1,
+            1 => found.definition.changed_lsn = 9,
+            2 => found.authority.table = 14,
+            3 => found.page = null,
+            4 => found.page.?.more = false,
+            5 => found.page.?.encoded_bytes += 1,
+            6 => found.definition.row_count = 1,
+            7 => {
+                found.page.?.rows = &.{ row_binary, row_binary };
+                found.page.?.encoded_bytes = 2 * row_len;
+            },
+            else => unreachable,
+        }
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    }
 }

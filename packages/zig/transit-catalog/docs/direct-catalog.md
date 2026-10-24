@@ -21,6 +21,15 @@ definition/schema identity, counts, cursor progress and binary page budgets.
 It does not retry a mutation, renew a pin or settle work implicitly. This client
 uses the configured local node route.
 
+The `observe` action reads an exact current interpretation and optionally its
+first bounded row page. It returns definition, data position, row count and
+checked native authority references together. It requires current SELECT even
+without rows. `DirectCatalog.observe` and `TablePartition.observeRows` write no
+operation or pin; returned rows own their memory. A partial page has `more`,
+without a continuation. Use a durable pin for a traversal spanning requests.
+The [current-observation contract](../../../../contracts/DIRECT_TABLE_V1.md#current-observations)
+defines budgets, rejection and disclosure checks.
+
 `closeOriginalPin` explicitly reconciles an original acquisition or release with
 an uncertain reply. Persist the decision to close before calling it, and retain
 that record until success. It uses at most three exchanges: status, exact original

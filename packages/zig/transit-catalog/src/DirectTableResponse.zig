@@ -108,6 +108,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
+        .observe => .observation,
         .name_assertion => .name_assertion,
         .preview => .preview,
         .stage => .staged,
@@ -202,6 +203,41 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try frontier(value.position, value.changed_lsn);
             if (value.interpretation.retired or value.namespace != request.action.lookup.namespace or !std.mem.eql(u8, value.name.slice(), request.action.lookup.name)) return error.InvalidTableResponse;
             try metadata(allocator, value);
+        },
+        .observation => |value| {
+            const input = request.action.observe;
+            const found = value.definition;
+            try definition(request.connection, found.interpretation);
+            try found.name.validate();
+            try frontier(found.position, found.changed_lsn);
+            try value.authority.validate();
+            if (found.interpretation.retired or found.namespace != input.namespace or
+                !std.meta.eql(found.interpretation.interpretation, input.interpretation) or
+                found.authorization != value.authority.table or (input.rows == null) != (value.page == null)) return error.InvalidTableResponse;
+            try metadata(allocator, found);
+            if (value.page) |page| {
+                const limits = input.rows.?;
+                if (page.rows.len > limits.rows or page.encoded_bytes > limits.encoded_bytes or page.rows.len > found.row_count or
+                    (page.more and (page.rows.len == 0 or page.rows.len >= found.row_count)) or
+                    (!page.more and page.rows.len != found.row_count)) return error.InvalidTableResponse;
+                const encoded_schema = try found.schema.decode(allocator, c.fuze.TableSchema.max_bytes);
+                defer allocator.free(encoded_schema);
+                var declared = try c.fuze.TableSchema.decode(allocator, encoded_schema);
+                defer declared.deinit();
+                var bytes: u64 = 0;
+                var previous: ?[c.fuze.TableRow.Identity.encoded_bytes]u8 = null;
+                for (page.rows) |row| {
+                    const encoded = try row.decode(allocator, c.fuze.TableRow.max_bytes);
+                    defer allocator.free(encoded);
+                    var decoded = try c.fuze.TableRow.decode(allocator, declared.schema, encoded);
+                    defer decoded.deinit();
+                    const identity = try decoded.identity.encode();
+                    if (previous) |before| if (std.mem.order(u8, &before, &identity) != .lt) return error.InvalidTableResponse;
+                    previous = identity;
+                    bytes += encoded.len;
+                }
+                if (bytes != page.encoded_bytes) return error.InvalidTableResponse;
+            }
         },
         .list => |value| {
             try value.directory_position.validate();

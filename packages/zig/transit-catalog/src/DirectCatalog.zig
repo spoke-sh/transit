@@ -37,6 +37,16 @@ pub const View = struct {
         self.* = undefined;
     }
 };
+pub const Current = struct {
+    view: View,
+    authority: c.DirectReadAuthority,
+    page: ?P.CurrentPage,
+    pub fn deinit(self: *Current) void {
+        if (self.page) |*page| page.deinit();
+        self.view.deinit();
+        self.* = undefined;
+    }
+};
 pub const Observation = union(enum) {
     not_observed,
     admitted: r.Operation,
@@ -187,6 +197,34 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
         if (!std.meta.eql(expected, view.?.table.root.interpretation)) return error.TableDefinitionChanged;
         try check(required);
     } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
+}
+
+/// Observe one exact current definition and optionally its first bounded row
+/// page. This is read-only and carries no durable retention or continuation.
+/// The service serializes the target Table while this observation is copied.
+pub fn observe(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, expected: d.Definition, limits: ?P.ReadLimits, policy: Policy) !Current {
+    try self.requireInitialized();
+    try (AccessRequest{ .namespace = namespace_id, .target = expected, .access = .read }).validate(self.config().scope, self.config().branch);
+    if (limits) |value| try value.validate();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const namespace_value = try self.schema(namespace_id);
+    try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
+    const target = try self.entry(expected.object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    var view = try self.open(allocator, target, false);
+    errdefer view.deinit();
+    if (view.properties.namespace != namespace_id) return error.CatalogDenied;
+    const current = try self.guard(arena.allocator(), policy, namespace_value, view.properties.target(expected.object.object), .read);
+    try check(current);
+    if (view.table.root.retired or view.table.root.next_lsn == 0) return error.TableDefinitionChanged;
+    if (!std.meta.eql(expected, view.table.root.interpretation)) return error.TableDefinitionChanged;
+    var page: ?P.CurrentPage = if (limits) |value| try view.table.observeRows(allocator, value, current) else null;
+    errdefer if (page) |*value| value.deinit();
+    const authority: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace_value.authorization, .table = view.properties.authorization };
+    try authority.validate();
+    try check(current);
+    return .{ .view = view, .authority = authority, .page = page };
 }
 
 /// Current action rights for frozen operation work, including a retired target.

@@ -157,3 +157,54 @@ test "Table snapshot pages enforce byte budgets and recheck rights after bufferi
     forged.source = empty.content;
     try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshot(t.allocator, handle, forged, .{}, access.guard()));
 }
+
+test "current Table observations are bounded owned read-only pages with final authorization" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1, .create), &.{}, .point, access.guard());
+    const empty_root = table.root;
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.observeRows(t.allocator, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    var empty = try table.observeRows(t.allocator, .{}, access.guard());
+    defer empty.deinit();
+    try t.expectEqual(@as(u8, 0), empty.count);
+    try t.expect(!empty.more);
+    try t.expectEqualDeep(empty_root, table.root);
+    var cells: [9][2]f.Types.Values.Cell = undefined;
+    var changes: [9]P.Change = undefined;
+    for (&cells, &changes, 0..) |*values, *change, i| {
+        values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(i) } } }, .{ .value = .{ .atom = .{ .bytes = "observed bytes" } } } };
+        change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = @intCast(i) }, .cells = values }, .expect = .absent } };
+    }
+    _ = try table.apply(binding(&table, 2, .insert), changes[0..5], .bulk, access.guard());
+    _ = try table.apply(binding(&table, 3, .insert), changes[5..], .point, access.guard());
+    const before = table.root;
+    const puts = objects.puts;
+    var observed = try table.observeRows(t.allocator, .{ .rows = 3 }, access.guard());
+    defer observed.deinit();
+    try t.expectEqual(@as(u8, 3), observed.count);
+    try t.expectEqual(@as(u64, 9), observed.total_rows);
+    try t.expect(observed.more);
+    try t.expectEqualDeep(before.declared(), observed.interpretation);
+    try t.expectEqual(before.next_lsn, observed.accepted.next_lsn);
+    try t.expectEqual(before.changed_lsn, observed.changed_lsn);
+    try t.expectError(error.TableReadBudgetTooSmall, table.observeRows(t.allocator, .{ .encoded_bytes = 1 }, access.guard()));
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.observeRows(t.allocator, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expectEqualDeep(before, table.root);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(before.partition));
+    _ = try table.changeDefinition(binding(&table, 4, .drop), .{ .drop = "" }, access.guard());
+    try t.expectError(error.TableRetired, table.observeRows(t.allocator, .{}, access.guard()));
+    for (observed.rows[0..observed.count], 0..) |row, i| {
+        try t.expectEqual(i, row.?.row().identity.ordinal);
+        try t.expectEqualStrings("observed bytes", row.?.row().cells[1].value.atom.bytes);
+    }
+}
