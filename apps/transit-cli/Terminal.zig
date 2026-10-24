@@ -456,22 +456,17 @@ const Editor = struct {
         const range = prior.range orelse return;
         if (self.needsRefresh()) return;
         const selected = self.selection() orelse return;
-        if (range.start > range.end or range.end > self.length or !std.unicode.utf8ValidateSlice(self.text()[0..range.start]) or !std.unicode.utf8ValidateSlice(self.text()[0..range.end]) or !std.unicode.utf8ValidateSlice(selected.text)) return error.InvalidSqlResponse;
-        const length = self.length - (range.end - range.start) + selected.text.len;
-        if (length > max_bytes) return error.StatementTooLarge;
-        if (self.cursor == range.end and std.mem.eql(u8, self.bytes[range.start..range.end], selected.text)) {
+        var buffer: [max_bytes]u8 = undefined;
+        defer std.crypto.secureZero(u8, &buffer);
+        const edited = try q.Assistance.edit(self.text(), range, selected.text, &buffer);
+        if (self.cursor == edited.cursor and std.mem.eql(u8, self.text(), edited.text)) {
             self.dismiss();
             return;
         }
         self.checkpoint(.atomic);
-        var original: [max_bytes]u8 = undefined;
-        defer std.crypto.secureZero(u8, &original);
-        @memcpy(original[0..self.length], self.text());
-        const suffix = original[range.end..self.length];
-        @memcpy(self.bytes[range.start..][0..selected.text.len], selected.text);
-        @memcpy(self.bytes[range.start + selected.text.len ..][0..suffix.len], suffix);
-        self.length = length;
-        self.cursor = range.start + selected.text.len;
+        @memcpy(self.bytes[0..edited.text.len], edited.text);
+        self.length = edited.text.len;
+        self.cursor = edited.cursor;
         self.dismiss();
         self.changed();
     }

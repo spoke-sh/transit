@@ -418,6 +418,13 @@ through filtering and replacement of the list.
 It joins cancelled I/O before reusing the session client. Acceptance re-acquires
 current evidence and compares generation, cursor/range, profile, source, contract,
 resource revision and policy revision before one atomic text replacement.
+The shared completion edit helper separates adjacent word, quoted-identifier,
+number and string tokens at replacement boundaries. It preserves existing
+whitespace and punctuation, including qualifier dots and closing parentheses.
+Accepting `ALL` after `SHOW` therefore produces `SHOW ALL`; completing a partial
+word adds no unconditional trailing space. The edit includes any required
+separators in the 4 KiB statement limit and one undo group. Its cursor follows
+the candidate, before any separator inserted ahead of retained suffix text.
 Validation keeps the menu visible. Tab/Enter during refresh does not queue an
 insertion. Changed metadata refreshes suggestions without replaying acceptance. Static dot
 vocabulary completes locally. PgUp/PgDn exposes clipped selected-item details.

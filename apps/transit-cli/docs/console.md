@@ -278,6 +278,14 @@ candidate's full spelling and details when clipped. A limited result says so;
 a single candidate inserts automatically only with complete matching coverage.
 No automatic semicolon or generated statement is added.
 
+Acceptance inserts a missing separator between adjacent words, identifiers or
+literal values: selecting `ALL` after `SHOW` produces `SHOW ALL`. Completing
+`SH` to `SHOW` adds no trailing space. Existing spaces, tabs, newlines, quoting
+and punctuation remain intact, including qualified names such as `i."id"`.
+The cursor follows the candidate, before any separator added ahead of a suffix.
+The candidate and its separators form one undoable edit and share the 4 KiB
+statement limit.
+
 Opening completion starts acquisition immediately and shows real suggestions
 as soon as they arrive, with no loading placeholder or opening delay. Local
 dot-command suggestions update immediately. Metadata acquisition has one active

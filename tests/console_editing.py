@@ -140,6 +140,7 @@ def check(binary):
             terminal.close()
     delayed(binary)
     responsive(binary)
+    spacing(binary)
     session_loss(binary)
     execution_escape(binary)
     print('Console editing: general undo, clear/dismiss, search isolation/deduplication, vertical movement, literal paste, escape decoding and local completion passed.')
@@ -377,6 +378,59 @@ def responsive(binary):
             release.set()
             terminal.close()
     print('Console completion: immediate filtering, quiet acquisition/validation, stable selection, latest-draft coalescing and empty-preview coverage passed.')
+
+
+def spacing(binary):
+    state = {}
+    def assist(value):
+        assert value['text'] == state['text'] and value['cursor'] == state['cursor'], value
+        return dict(assistance=dict(coverage='limited', status='ready', profile='configuration_v1' if value['text'].startswith(('SHOW', 'SET', 'RESET')) else 'catalog_v1', resource=4,
+                                    contract=[7]*32, resource_revision=1, policy_revision='1',
+                                    range=dict(start=state['start'], end=state['end'], quoted=state['text'][state['start']:state['start']+1] == '"'),
+                                    items=[dict(text=state['candidate'], kind='column' if state['candidate'].startswith('"') else 'keyword', detail='Completion fixture')]))
+    def draft(terminal, text, cursor):
+        lines = text.replace('\t', '\\t').split('\n')
+        rows = [('transit> ' if index == 0 else '    ...> ') + line for index, line in enumerate(lines)]
+        before = text[:cursor].replace('\t', '\\t').split('\n')
+        expect_draft(terminal, [row.rstrip() for row in rows], (len(before)-1, 9+len(before[-1])))
+    with tempfile.TemporaryDirectory(prefix='transit-spacing-') as directory, peer(assist=assist) as (endpoint, actions):
+        root = Path(directory)
+        config = root / 'connection.json'
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+        terminal = Terminal(binary, config, home=root)
+        terminal.display = Screen()
+        terminal.display.feed(terminal.screen)
+        try:
+            for text, cursor, start, end, candidate, expected in (
+                ('SHOW', 4, 4, 4, 'ALL', 'SHOW ALL|'),
+                ('SHOW ', 5, 5, 5, 'ALL', 'SHOW ALL|'),
+                ('SHOW\t', 5, 5, 5, 'ALL', 'SHOW\tALL|'),
+                ('SHOW\n', 5, 5, 5, 'ALL', 'SHOW\nALL|'),
+                ('SHOW;', 4, 4, 4, 'ALL', 'SHOW ALL|;'),
+                ('SH', 2, 0, 2, 'SHOW', 'SHOW|'),
+                ('SHOW AL;', 7, 5, 7, 'ALL', 'SHOW ALL|;'),
+                ('RESET', 5, 5, 5, 'ALL', 'RESET ALL|'),
+                ('SET', 3, 3, 3, 'query.statement_timeout', 'SET query.statement_timeout|'),
+                ('SELECT i.', 9, 9, 9, '"id"', 'SELECT i."id"|'),
+                ('SELECT na,other FROM items', 9, 7, 9, '"name"', 'SELECT "name"|,other FROM items'),
+                ('SELECT "na"FROM items', 11, 7, 11, '"name"', 'SELECT "name"| FROM items'),
+            ):
+                state.update(text=text, cursor=cursor, start=start, end=end, candidate=candidate)
+                terminal.send('\x1b[200~' + text + '\x1b[201~')
+                draft(terminal, text, len(text))
+                terminal.send('\x01' + '\x1b[C' * cursor + '\t')
+                terminal.expect('> ' + candidate)
+                terminal.send('\t')
+                draft(terminal, expected.replace('|', ''), expected.index('|'))
+                terminal.send('\x1a')
+                draft(terminal, text, cursor)  # separator and candidate undo together
+                terminal.send('\x1b')
+                draft(terminal, '', 0)
+            assert len([a for a, _ in actions if a == 'assist']) == 24, actions
+            assert not [a for a, _ in actions if a == 'execute'], actions
+        finally:
+            terminal.close()
+    print('Console completion spacing: missing separators, existing whitespace, punctuation, quoted names, cursor placement and atomic undo passed.')
 
 
 def session_loss(binary):

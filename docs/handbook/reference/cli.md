@@ -186,8 +186,10 @@ selected suggestions or history matches. The menu keeps its selection while
 idle. Typing within the same token filters it immediately, with fresh suggestions
 arriving in the background. Opening starts immediately; acquisition and validation
 show no loading placeholders. Catalog suggestions recheck metadata and
-authorization before insertion. Acceptance never executes
-a statement.
+authorization before insertion. Acceptance adds missing token separators, so
+`SHOW` plus `ALL` becomes `SHOW ALL`, while preserving existing whitespace and
+punctuation. The completion and any added separator undo together. Acceptance
+never executes a statement.
 Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
 the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,
 completion and clearing. Up/Down moves between multiline rows before browsing
