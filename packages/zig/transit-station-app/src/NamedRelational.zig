@@ -214,6 +214,36 @@ const ResultMetadata = struct {
         return if (response.points[0]) |entry| entry.value else null;
     }
 };
+/// Resolve the original named definition of this retained maintained revision.
+/// A later definition or successor revision cannot relabel its attribution.
+/// Inspection does not consume rows/deltas, complete delivery or wake execution.
+pub fn maintainedDefinition(self: Self, revision: *q.RelationalRevision) !r.Definition {
+    try self.configuration.validate();
+    try revision.check();
+    const scope = self.configuration.scope;
+    if (scope.realm != revision.source.client.realm or scope.owner != revision.stored.request_version.pid or scope.resource != revision.source.view.resource) return error.NamedQueryChanged;
+    var metadata: RevisionMetadata = .{ .revision = revision, .view = revision.source.view };
+    const reference = try self.attribution(&metadata, revision.stored.peer, revision.stored.policy_revision);
+    const found = try self.definition(&metadata, reference);
+    if (found.lifetime != .maintained or !std.meta.eql(found.request, revision.stored.request) or
+        !std.mem.eql(u8, &found.fingerprint, &try revision.bundle.fingerprint())) return error.NamedQueryChanged;
+    try revision.check();
+    return found;
+}
+const RevisionMetadata = struct {
+    revision: *q.RelationalRevision,
+    view: @FieldType(s.client.SnapshotReader, "view"),
+    pub fn read(self: *RevisionMetadata, key: p.Value) !?p.Value {
+        if (self.revision.options.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+        if (self.revision.requests >= self.revision.options.requests) return error.QueryPageBudget;
+        self.revision.requests += 1;
+        var request: p.Growth.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.revision.source.snapshot.id } };
+        request.points[0] = key;
+        const response = try self.revision.source.batch(request);
+        try p.Growth.SnapshotRead.validateResult(response, request);
+        return if (response.points[0]) |entry| entry.value else null;
+    }
+};
 pub fn activate(self: Self, turn: *s.Turn, activation: r.Activation, clients: []const q.catalog.DirectTableClient, workspace: []u8) !Started {
     const before = turn.decision;
     errdefer turn.decision = before;

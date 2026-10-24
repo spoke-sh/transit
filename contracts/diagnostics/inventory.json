@@ -15481,6 +15481,7 @@
         "Reader.read()": "<inferred>",
         "add()": "<inferred>",
         "authorize()": "<inferred>",
+        "check()": "<inferred>",
         "checkpoint()": "<inferred>",
         "close()": "<inferred>",
         "freshness()": "<inferred>",
@@ -15493,7 +15494,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 70,
+        "try": 71,
         "catch": 3
       },
       "imports": [
@@ -20777,10 +20778,11 @@
     },
     "packages/zig/transit-station-app/src/NamedRelational.zig": {
       "errors": {
+        "Cancelled": 1,
         "ExpectedCall": 1,
         "InvalidNamedQuery": 14,
         "InvalidQueryBundle": 2,
-        "NamedQueryChanged": 4,
+        "NamedQueryChanged": 6,
         "NamedQueryConfigurationChanged": 1,
         "NamedQueryConflict": 6,
         "NamedQueryDenied": 3,
@@ -20790,7 +20792,7 @@
         "PublicationReferenceChanged": 1,
         "QueryAfterMutation": 1,
         "QueryDenied": 2,
-        "QueryPageBudget": 1,
+        "QueryPageBudget": 2,
         "RelationalSourceChanged": 1,
         "UnexpectedQueryPublisher": 1
       },
@@ -20803,6 +20805,7 @@
       "error_sets": {},
       "error_returns": {
         "ResultMetadata.read()": "<inferred>",
+        "RevisionMetadata.read()": "<inferred>",
         "activate()": "<inferred>",
         "administrator()": "<inferred>",
         "attribution()": "<inferred>",
@@ -20815,6 +20818,7 @@
         "fresh()": "<inferred>",
         "initialize()": "<inferred>",
         "lookup()": "<inferred>",
+        "maintainedDefinition()": "<inferred>",
         "publish()": "<inferred>",
         "requestBytes()": "<inferred>",
         "reserve()": "<inferred>",
@@ -20822,7 +20826,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 96,
+        "try": 104,
         "catch": 4
       },
       "imports": [
