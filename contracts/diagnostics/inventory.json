@@ -3760,6 +3760,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTablePreparedDdl.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "InvalidDataIdentity": 1,
+        "InvalidDataOperation": 1,
+        "InvalidTableIntent": 1,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 2
+      },
+      "outcomes": {
+        "Write": [
+          "table",
+          "name_assertion"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "assertion()": "<inferred>",
+        "bind()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>",
+        "wireCell()": "<inferred>",
+        "wireChange()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 28,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTablePreparedDml.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
@@ -5562,6 +5596,7 @@
         "DirectTableDispatch.zig",
         "DirectTableIntent.zig",
         "DirectTableIntentStore.zig",
+        "DirectTablePreparedDdl.zig",
         "DirectTablePreparedDml.zig",
         "DirectTableProtocol.zig",
         "DirectTableReader.zig",
@@ -20370,14 +20405,12 @@
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
         "CatalogIdentityConflict": 3,
-        "ExpectedGatewayWrite": 2,
+        "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
         "InvalidCatalogIdentity": 1,
-        "TableDefinitionChanged": 1,
-        "TableNotFound": 1,
-        "UnsupportedGatewayStatement": 4,
-        "WireParameterCountMismatch": 2
+        "UnsupportedGatewayStatement": 3,
+        "WireParameterCountMismatch": 3
       },
       "outcomes": {
         "Kind": [
@@ -20401,7 +20434,6 @@
         "plan": [
           "select",
           "dml",
-          "create",
           "ddl",
           "relational",
           "namespace_change"
@@ -20411,7 +20443,6 @@
       "error_returns": {
         "Write.stage()": "<inferred>",
         "Write.workBytes()": "<inferred>",
-        "assertion()": "<inferred>",
         "bindWrite()": "<inferred>",
         "checkValues()": "<inferred>",
         "openRelational()": "<inferred>",
@@ -20419,13 +20450,11 @@
         "prepare()": "<inferred>",
         "prepareDiagnostic()": "<inferred>",
         "prepareInner()": "<inferred>",
-        "validate()": "<inferred>",
-        "wireCell()": "<inferred>",
-        "wireChange()": "<inferred>"
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 30,
         "catch": 1
       },
       "imports": [

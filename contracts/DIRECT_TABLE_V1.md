@@ -502,6 +502,15 @@ reject validation, and DROP/name reuse cannot retarget it. Every use still needs
 current action rights. This binding is neither a data snapshot nor a prepared
 SQL execution artifact.
 
+`DirectTablePreparedDdl` shares CREATE, ALTER, RENAME and DROP preparation
+between typed callers and SQL. Binding checks current action rights and the
+original exact definition, then produces independent `DirectTableIntent` bytes
+or a conditional name assertion. CREATE takes separate explicit operation and
+new-object identities. A prepared template can be released after binding; the
+saved work owns its schema/default bytes. Loading that work neither resolves a
+name again nor admits it. Conditional no-ops retain the complete proposed SQL
+text and dialect commitment, including clauses that are not installed.
+
 `DirectTablePreparedDml` prepares INSERT, UPDATE and DELETE through Fuze's shared
 typed template compiler. It checks the exact definition and requested mutation
 right before and after compilation. Binding rechecks that identity, validates

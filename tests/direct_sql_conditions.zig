@@ -88,4 +88,37 @@ pub fn recover(allocator: std.mem.Allocator, client: c.DirectTableClient, state:
     try t.expectEqual(.unchanged, (try accept(client, now_present)).state);
     try mutate(client, try bind(allocator, client, "DROP TABLE IF EXISTS conditional_created", 508));
     try verify(client, state.*);
+    try sharedPreparation(allocator, client);
+}
+
+fn sharedPreparation(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
+    var prepared = try c.DirectTablePreparedDdl.prepare(allocator, client, 1, "CREATE TABLE direct_prepared (id BIGINT PRIMARY KEY)", .transit, null);
+    var created = try prepared.bind(allocator, client, 509, 1509);
+    prepared.deinit();
+    defer created.deinit();
+    try t.expectEqual(@as(u64, 509), created.table.binding().identity.operation);
+    try t.expectEqual(@as(u64, 1509), created.table.binding().target.object);
+    var restored = try c.DirectTableIntent.restore(allocator, created.table.bytes);
+    defer restored.deinit();
+    const reference: Ref = .{ .table = try restored.stage(client, 1) };
+    try t.expect((try observe(client, reference)).ddl == .not_observed);
+    try mutate(client, reference);
+    const accepted = try observe(client, reference);
+
+    var stale = try c.DirectTablePreparedDdl.prepare(allocator, client, 1, "DROP TABLE direct_prepared", .transit, null);
+    defer stale.deinit();
+    try mutate(client, try bind(allocator, client, "ALTER TABLE direct_prepared ADD COLUMN note TEXT DEFAULT 'saved'", 510));
+    try t.expectError(error.Conflict, stale.bind(allocator, client, 511, null));
+    const after = try client.call(.{ .lookup = .{ .namespace = 1, .name = "direct_prepared" } });
+    defer after.deinit();
+    const metadata = after.value.result.lookup.?;
+    try t.expectEqual(@as(u64, 1509), metadata.interpretation.interpretation.object.object);
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var schema = try c.fuze.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), c.fuze.TableSchema.max_bytes));
+    defer schema.deinit();
+    try t.expectEqualStrings("saved", schema.schema.columns[1].default.?.value.atom.bytes);
+    try mutate(client, try bind(allocator, client, "ALTER TABLE direct_prepared RENAME TO direct_prepared_renamed", 511));
+    try mutate(client, try bind(allocator, client, "DROP TABLE direct_prepared_renamed", 512));
+    try t.expectEqualDeep(accepted, try observe(client, reference));
 }

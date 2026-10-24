@@ -1,5 +1,30 @@
 # Validation and evidence
 
+## Shared direct Table DDL preparation — 2026-10-24
+
+Under current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`,
+SQL and typed callers use `DirectTablePreparedDdl` for CREATE, ALTER, RENAME,
+DROP and conditional name assertions. This is a shared compiler refactor; it
+does not change stored intent or receipt formats.
+
+`just test::direct-table-service` passes **1121 typed HTTP calls** using the
+pinned ReleaseSafe profile. The added schedule binds CREATE operation 509 to
+object 1509, releases its preparation template, restores the complete saved
+intent, and checks that staging has not admitted it. After acceptance it adds a
+typed default, rejects an older prepared DROP, renames and drops the Table, then
+recovers the unchanged original CREATE receipt. Existing CRUD/DDL, conditional
+name evidence, SQL, retained reads, history, revocation and three node-restart
+checks also pass. The first expanded run stopped because its stale-binding
+assertion expected `TableDefinitionChanged`; this action's HTTP client reports
+`Conflict`. The corrected assertion retains rejection and the complete rerun
+passes.
+
+The SQL package suite, diagnostic mappings/inventory, Zig formatting and
+documentation links pass. This supplies shared preparation for caller migration;
+it does not qualify the remaining actor Table SDK/ABI paths. Final integrated
+repository and clean-checkout checks remain delivery gates.
+
 ## Obsolete named metadata owner removal — 2026-10-24
 
 The supplied-resource-ID `DeclarativeCatalog` implementation is removed. Its

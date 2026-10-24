@@ -300,6 +300,16 @@ USAGE rights and rechecking every returned schema together before disclosure.
 
 ## Bounds and remaining integration
 
+`DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
+its exact current metadata under the caller's rights. `bind` takes a separate
+operation ID and, for CREATE, an explicit new object ID. It returns complete
+`DirectTableIntent` bytes or a `NameAssertion.Binding` for conditional name-only
+work. The latter preserves the exact SQL text/dialect commitment, including
+proposed clauses that an unchanged CREATE does not install. Preparation and
+binding admit nothing. Save the returned work before admission; recover from
+those bytes rather than rebinding a later name. SQL statement preparation uses
+this same catalog owner. Namespace declarations use `DirectAuthorizationSql`.
+
 `DirectTablePreparedDml.prepare` and `bind` use current public metadata and
 action rights. Binding returns a `DirectTableIntent` that independently owns
 the typed payload, original connection and exact operation expectations.
