@@ -204,5 +204,36 @@
     "Five local direct metadata samples and a passing PTY request deadline are not a latency SLO.",
     "Manual desktop Ctrl-Space delivery and SSH/multiplexer paths were not observed.",
     "Logs are local evidence identified by SHA-256; raw logs are not embedded in this record."
+  ],
+  "followup": {
+    "scope": "Session loss or changed server identity purges drafts even for an older response, without a second metadata request. Ordinary service unavailability preserves the draft. All delayed-response PTY regressions pass.",
+    "source_sha256": {
+      "apps/transit-cli/Console.zig": "b0210a7d7ca8716f5cc67493d2d22848d2128e1912f9b80d3bba1732d0ce3418",
+      "apps/transit-cli/Terminal.zig": "3908eb716eca3b76e7cc60a2cef99df26b969d0848f1bd2d10040e8186ec0da3",
+      "tests/console_editing.py": "c46e56311cba066649a09139c15ce5dde4952e1e8457b4a6885e4b10a9817eae",
+      "tests/sql_sessions/editor_peer.py": "3c272b09c22c1bf8b6caf005b2d1fc8d4c670a47e2ee8be0d45020c9c0dd4cef"
+    },
+    "command": "nix develop --command just test::console-history",
+    "outcome": "passed",
+    "local_log": "/tmp/transit-console-unavailable.log",
+    "log_sha256": "01f4f2ec5996606d6354595cd8b1b023dc6d38aed7da17a30715498f92f7389e"
+  },
+  "clean_attempts_before_followup": [
+    {
+      "command": "nix develop --command just ci-clean",
+      "revision": "d8b36637",
+      "outcome": "interrupted",
+      "reason": "Stopped during check-core to include the session-loss followup in the final clean-checkout run; does not establish suite completion.",
+      "local_log": "/tmp/transit-console-ci-clean.log",
+      "log_sha256": "6c60e399e637e885b58e7f2f536170f7c8907619b164e451f12ace37f566322f"
+    },
+    {
+      "command": "nix develop --command just ci-clean",
+      "revision": "7a8f82e9",
+      "outcome": "interrupted",
+      "reason": "Stopped during check-core to include ordinary service-unavailability classification in the final committed run; does not establish suite completion.",
+      "local_log": "/tmp/transit-console-ci-clean-final.log",
+      "log_sha256": "9816be7e73330e33d034de4aff5531c81b53ea7035de4797083b545d7d125f74"
+    }
   ]
 }

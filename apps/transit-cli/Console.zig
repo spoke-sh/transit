@@ -161,7 +161,13 @@ pub const Console = struct {
         return self.decodeAssistance(allocator, reply.value, request);
     }
     pub fn decodeAssistance(self: *Console, allocator: std.mem.Allocator, reply: api.Response, request: q.Assistance.Request) !q.Assistance.Response {
-        try self.checked(reply);
+        self.checked(reply) catch |err| {
+            if (reply.result == .err and std.mem.eql(u8, reply.result.err.code, "SqlSessionExpired")) {
+                self.session_lost = true;
+                return error.SqlSessionExpired;
+            }
+            return err;
+        };
         if (reply.result != .assistance) return error.InvalidSqlResponse;
         const value = reply.result.assistance;
         if (value.items.len > q.Assistance.max_items or (value.status != .ready and value.items.len != 0)) return error.InvalidSqlResponse;
@@ -516,5 +522,5 @@ pub const Console = struct {
     }
 };
 pub fn denied(err: anyerror) bool {
-    return err == error.AccessDenied or err == error.AuthenticationFailed or err == error.SqlServiceError;
+    return err == error.AccessDenied or err == error.AuthenticationFailed;
 }

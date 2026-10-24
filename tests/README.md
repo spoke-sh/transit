@@ -6,8 +6,12 @@ The [qualification record](verification/results/console-completion-2026-10-24.js
 retains commands, log hashes and real-service observations for the accepted
 [interaction](../docs/design/transit-cli/D3.md). In the pinned Nix shells,
 `just check`, `just test::unit` and `just test::console-history` pass.
-The final implementation revision is `3b03aad7`; the subsequent test-only change
-adds clipped-menu paging and complete-empty-result checks, which also pass.
+The primary implementation was qualified at revision `3b03aad7`; subsequent
+checks add clipped-menu paging and complete-empty-result coverage. A final
+session-loss fix and passing PTY rerun prove that expiry or a changed server
+identity clears drafts and undo even when its reply belongs to an older draft,
+without acquiring another response first. A temporary metadata-service failure
+instead preserves the draft and permits retry.
 
 Native units cover cursor-local statement boundaries (including a dot command's
 newline), raw-spelling ranking, quoted qualified names, complete/limited candidate

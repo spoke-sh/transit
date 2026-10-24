@@ -115,6 +115,7 @@ def check(binary):
         finally:
             terminal.close()
     delayed(binary)
+    session_loss(binary)
     execution_escape(binary)
     print('Console editing: general undo, clear/dismiss, search isolation/deduplication, vertical movement, literal paste, escape decoding and local completion passed.')
 
@@ -130,6 +131,8 @@ def delayed(binary):
             release.wait(3)
         if state['denied']:
             return dict(err=dict(code='AccessDenied', sqlstate=list(b'42501'), message='Denied', retry='never', operation=None, diagnostic=None))
+        if state.get('unavailable'):
+            return dict(err=dict(code='AuthorityUnavailable', sqlstate=list(b'53000'), message='Unavailable', retry='never', operation=None, diagnostic=None))
         text, cursor = value['text'], value['cursor']
         start = text.rfind(' ', 0, cursor) + 1
         return dict(assistance=dict(coverage=state['coverage'], status='ready', profile='catalog_v1', resource=4,
@@ -210,6 +213,12 @@ def delayed(binary):
             expect_draft(terminal, ['transit> SE'], (0, 11))
             state['empty'] = False
             state['coverage'] = 'limited'
+            state['unavailable'] = True
+            terminal.send('\t')
+            terminal.expect('Completion unavailable; Tab retries')
+            terminal.send('\x07')
+            expect_draft(terminal, ['transit> SE'], (0, 11))
+            state['unavailable'] = False
             terminal.send('\t')
             terminal.expect('> SELECT')
             state['denied'] = True
@@ -221,6 +230,38 @@ def delayed(binary):
         finally:
             release.set()
             terminal.close()
+
+
+def session_loss(binary):
+    for changed_instance in (False, True):
+        began, release = threading.Event(), threading.Event()
+        def assist(_):
+            began.set()
+            release.wait(3)
+            return dict(err=dict(code='SqlSessionExpired', sqlstate=list(b'08003'), message='Expired', retry='never', operation=None, diagnostic=None))
+        def instance(action):
+            return [9 if changed_instance and action == 'assist' else 2] * 16
+        with tempfile.TemporaryDirectory(prefix='transit-completion-session-') as directory, peer(assist=assist, instance=instance) as (endpoint, actions):
+            root = Path(directory)
+            config = root / 'connection.json'
+            config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+            terminal = Terminal(binary, config, home=root)
+            terminal.display = Screen()
+            terminal.display.feed(terminal.screen)
+            try:
+                terminal.send('SE\t')
+                assert began.wait(3)
+                terminal.send('L')  # response now belongs to an older draft
+                terminal.expect('transit> SEL', timeout=.6)
+                release.set()
+                expect_draft(terminal, ['transit>'], (0, 9))
+                terminal.send('\x1a')
+                expect_draft(terminal, ['transit>'], (0, 9))
+                assert len([a for a, _ in actions if a == 'assist']) == 1, actions
+                assert not [a for a, _ in actions if a == 'execute'], actions
+            finally:
+                release.set()
+                terminal.close()
 
 
 def execution_escape(binary):

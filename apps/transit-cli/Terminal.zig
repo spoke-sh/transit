@@ -327,7 +327,7 @@ const Editor = struct {
     }
     fn assistanceFailure(self: *Editor, err: anyerror) void {
         self.auto_unique = false;
-        if (self.console.access_lost or Console.denied(err) or err == error.SqlInstanceChanged or err == error.SqlSessionExpired) {
+        if (self.protectedFailure(err)) {
             self.console.access_lost = false;
             self.erasePrivate();
         } else {
@@ -335,18 +335,21 @@ const Editor = struct {
             self.unavailable = true;
         }
     }
+    fn protectedFailure(self: *Editor, err: anyerror) bool {
+        return self.console.access_lost or Console.denied(err) or err == error.SqlInstanceChanged or err == error.SqlSessionExpired;
+    }
     fn tick(self: *Editor) !bool {
         if (!self.completing) return false;
         if (self.acquisition.future != null) {
             const reply = self.acquisition.ready() catch |err| {
-                if (self.acquisition.generation == self.generation) self.assistanceFailure(err);
+                if (self.protectedFailure(err) or self.acquisition.generation == self.generation) self.assistanceFailure(err);
                 return true;
             } orelse return self.now() - self.started_at >= 150;
             defer reply.deinit();
             // Do not disclose or insert a response while a newer key is queued.
             if (reply.value.result == .err) {
                 _ = self.console.decodeAssistance(self.arena.allocator(), reply.value, self.request()) catch |err| {
-                    if (self.console.access_lost or self.acquisition.generation == self.generation) self.assistanceFailure(err);
+                    if (self.protectedFailure(err) or self.acquisition.generation == self.generation) self.assistanceFailure(err);
                     return true;
                 };
             }

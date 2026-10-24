@@ -8,7 +8,7 @@ import threading
 
 
 @contextmanager
-def peer(*, structured=False, lease_ms=30000, assist=None, execute=None):
+def peer(*, structured=False, lease_ms=30000, assist=None, execute=None, instance=None):
     definition = re.search(r'\b([a-f0-9]{64})\b', (Path(__file__).resolve().parents[2]/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     actions = []
     diagnostic = dict(version=1, definition=definition, code='sql.unknown_column', category='binding', stage='bind', outcome='not_submitted', evidence='local_before_dispatch', message='Unknown column in this scope', cause='UnknownColumn', identity=None,
@@ -40,7 +40,7 @@ def peer(*, structured=False, lease_ms=30000, assist=None, execute=None):
                 if execute is not None:
                     execute(value)
                 result = dict(err=dict(code='InvalidSqlSyntax', sqlstate=list(b'42601'), message='Editor fixture rejects execution', retry='never', operation=None, diagnostic=diagnostic))
-            payload = json.dumps(dict(version=1, definition=definition, instance=[2]*16, result=result)).encode()
+            payload = json.dumps(dict(version=1, definition=definition, instance=instance(action) if instance else [2]*16, result=result)).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(payload)))

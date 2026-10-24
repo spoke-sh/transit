@@ -220,8 +220,8 @@
         "SqlOperationPartial": 1,
         "SqlOperationRejected": 1,
         "SqlOutcomeUnknown": 3,
-        "SqlServiceError": 2,
-        "SqlSessionExpired": 1,
+        "SqlServiceError": 1,
+        "SqlSessionExpired": 2,
         "StatementTooLarge": 1,
         "UnknownConsoleCommand": 1,
         "UnknownHelpTopic": 1,
@@ -264,8 +264,8 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 88,
-        "catch": 16
+        "try": 87,
+        "catch": 17
       },
       "imports": [
         "ConsoleHelp.zig",
@@ -923,7 +923,7 @@
         "printable()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
         "try": 134,
         "catch": 17
