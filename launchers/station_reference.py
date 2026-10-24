@@ -61,7 +61,7 @@ class StationReference(Reference):
         values = self.values() if (self.path / "chart-values.json").exists() else {
             "running": True, "node": {"enabled": False, "nameOverride": "transit"},
             "initialize": {"enabled": False, "nameOverride": "initialize"},
-            "ursula": {"nameOverride": "ursula", "image": infrastructure.PINS["ursula"]},
+            "ursula": {"enabled": False, "nameOverride": "ursula", "image": infrastructure.PINS["ursula"]},
             "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
             "maintenance": {"enabled": False, "nameOverride": "maintenance", "existingSecret": "maintenance-credentials"},
             "controller": {"enabled": False}, "runtimeControllers": [], "stationControllers": []}
@@ -79,7 +79,15 @@ class StationReference(Reference):
         self.forwards()
         wait_for(i.url + "/health")
         i.provision()
-        self.credentials(("board", "maintenance", "delivery"))
+        self.credentials(("board", "delivery"))
+        self.kube("apply", "-f", "-", input=json.dumps({"apiVersion": "v1", "kind": "Secret",
+            "metadata": {"name": "station-node-credentials"}, "stringData": {
+                "registrar": (self.path / 'table/seed.key').read_text().strip(),
+                "maintenance": (self.path / 'maintenance/seed.key').read_text().strip()}}))
+        values['node']['existingSecret'] = 'station-node-credentials'
+        self.service_values(values, selection, images)
+        self.deploy(values)
+        wait_for(i.url + '/health')
         for role, record in i.records().items():
             if role == 'coordinator':
                 i.command("provider-worker-" + role, {"grant": {"subject": record["principal"],
@@ -106,7 +114,7 @@ class StationReference(Reference):
             self.secret(role + "-credentials", self.path / role / "seed.key")
             config = json.loads((self.path / role / "config.json").read_text())
             values["stationControllers"].append({"nameOverride": role, "existingSecret": role + "-credentials", "config": config})
-        for role in ("board", "maintenance", "delivery"): values[role]["enabled"] = True
+        for role in ("board", "delivery"): values[role]["enabled"] = True
         self.service_values(values, selection, images)
         self.deploy(values)
         for role in i.workloads:

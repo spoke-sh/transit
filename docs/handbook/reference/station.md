@@ -30,6 +30,14 @@ Handlers use native v1 bounded pages and retained call/query records independent
 of resident worker memory. Configure per-operation and active-work budgets;
 retained collections do not become resident queues.
 
+The ledger example uses the direct Table service for its data and a separate
+associated resource for application progress. It commits an immutable operation
+reference before dispatch, recovers that operation's Table receipt, then commits
+its audit entry and reply together. Table acceptance and the native reply are
+separate transactions. The example's saved binding identifies the catalog,
+branch and Table; replacing a worker cannot redirect accepted work to a different
+object. See [Tables](tables.md) for direct operation and retained-read semantics.
+
 ## Names and registries
 
 A registry namespace is an application naming scope, not a security realm.

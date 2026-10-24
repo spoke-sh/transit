@@ -1,5 +1,52 @@
 # Validation and evidence
 
+## Station ledger over the direct Table owner — 2026-10-24
+
+The shared current-v1 definition is
+`40ebbb4d9c928daa573cfaf38cafe3361c7fb972bfcd314d64f9dc665e75e547`.
+In the pinned Nix shell, `zig build test-station` passes the ledger, service and
+lifetime schedules against the native local owner. The ledger saves its exact
+catalog/branch/object binding and rejects missing or previous definitions and
+replacement-object configurations before consuming the original input.
+
+Creation and row changes use immutable direct intents. A native dispatch record
+precedes direct admission; the original Table receipt precedes a separate native
+audit/reply commit. The schedule refuses initialization once, loses an accepted
+direct admission reply, expires a native view and loses or holds native terminal
+receipts. Exact retries, changed policy bases, abrupt node/worker replacement,
+stale-generation rejection and the final 7 + 5 - 2 = 10 result pass. Native audit
+publication uses two writes and does not carry Table rows or publish a Table head.
+
+The requester saves its caller-signed capture grant and original cut before
+upload. Independent Arrow decoding, replacement of both query hosts, explicit
+query-policy denial and native SELECT revocation before publication pass. The
+executor uses its login identity; the saved requester grant supplies the data
+role. Registry/rebind routing, late-result timeout closure, scoped supervision
+and blocked-handler control remain in the passing suite. Opted-in expiry uses
+maintenance inside the owning node, permanently reclaims native progress and
+rejects a later worker. This does not establish physical Table reclamation.
+
+Earlier runs failed on missing domain lifetime bindings, ordinary privileges
+mistakenly inferred from ownership, a root-input SEND requirement, an executor
+carrying the requester's selected role and external maintenance opening an
+exclusively owned local directory. The final schedule corrects those compositions
+without relaxing the owning checks.
+
+`just launchers::local::test-station` also passes with ReleaseSafe installed
+artifacts: registry/call/Arrow exchanges, same-PID recovery, credential rotation,
+all three worker upgrades, Board provenance and persistent stop/start. Its
+courier fault refuses 293 reads, replaces the courier in **30.385 seconds** and
+completes the query within the separate recovery window (**15.937 seconds**).
+These are observed test times, not latency guarantees. The initial launcher
+attempt failed because its temporary bootstrap listener satisfied the manager's
+health probe before provisioning completed. Bootstrap now completes before the
+manager starts. The successful installed run precedes the additional realm and
+executor startup-rejection checks. Compose/reference execution and the
+repository-wide check remain separate qualification gates. The first broad
+checks found stale independently signed/hashed fixtures after the definition
+change; those failures are not passes, and the fixtures are regenerated through
+their owners.
+
 ## Retained native storage in the Helm chart — 2026-10-24
 
 In the pinned Nix shell, `python3 -B tests/deployments.py` passes chart lint and

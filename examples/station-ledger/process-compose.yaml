@@ -22,25 +22,13 @@ processes:
     command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} log-retention 2>&1'
     log_location: '{{.STATE_DIR}}/log-retention.log'
 
-  ursula:
-    <<: *managed
-    command: 'exec ursula server --config {{.STATE_DIR_Q}}/ursula.toml 2>&1'
-    log_location: '{{.STATE_DIR}}/ursula.log'
-    depends_on:
-      log-retention: {condition: process_started}
-    readiness_probe:
-      http_get: {host: 127.0.0.1, port: '{{.URSULA_PORT}}', scheme: http, path: /__ursula/ready}
-      period_seconds: 1
-      timeout_seconds: 1
-      failure_threshold: 30
-
   node:
     <<: *managed
     command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} node 2>&1'
     log_location: '{{.STATE_DIR}}/node.log'
     environment: ['LOG_LEVEL={{.NODE_LOG_LEVEL}}', 'LOG_FORMAT={{.NODE_LOG_FORMAT}}']
     depends_on:
-      ursula: {condition: process_healthy}
+      log-retention: {condition: process_started}
     readiness_probe:
       http_get: {host: 127.0.0.1, port: '{{.TRANSIT_PORT}}', scheme: http, path: /health}
       period_seconds: 1
@@ -91,14 +79,6 @@ processes:
     command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} station-lifecycle 2>&1'
     log_location: '{{.STATE_DIR}}/station-lifecycle.log'
     environment: ['LOG_LEVEL={{.STATION_LIFECYCLE_LOG_LEVEL}}', 'LOG_FORMAT={{.STATION_LIFECYCLE_LOG_FORMAT}}']
-    depends_on:
-      provision: {condition: process_completed_successfully}
-
-  maintenance:
-    <<: *managed
-    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} maintenance 2>&1'
-    log_location: '{{.STATE_DIR}}/maintenance.log'
-    environment: ['LOG_LEVEL={{.MAINTENANCE_LOG_LEVEL}}', 'LOG_FORMAT={{.MAINTENANCE_LOG_FORMAT}}']
     depends_on:
       provision: {condition: process_completed_successfully}
 

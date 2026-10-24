@@ -76,8 +76,9 @@ class Compose:
         self.installation.configure_board()
         self.config()
         write(self.path / "session.json", {"id": secrets.token_hex(16)})
-        self.docker("up", "-d", "ursula", timeout=300)
-        self.ready("ursula", f'http://127.0.0.1:{self.installation.load()["base_port"]}/__ursula/ready')
+        if 'ursula' in self.installation.service_names:
+            self.docker("up", "-d", "ursula", timeout=300)
+            self.ready("ursula", f'http://127.0.0.1:{self.installation.load()["base_port"]}/__ursula/ready')
         self.installation.initialize()
         self.docker("up", "-d", "node")
         self.ready("node", self.installation.url + "/health")

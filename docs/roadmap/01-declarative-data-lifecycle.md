@@ -277,6 +277,16 @@ separate workers. Installed application provisioning and Reference placement
 remain under qualification. This does not make native progress and direct Table acceptance
 atomic or retire the remaining actor-Table consumers.
 
+The [Station ledger migration](../../tests/README.md#station-ledger-over-the-direct-table-owner--2026-10-24)
+now freezes direct creation/mutation intents and commits native dispatch
+eligibility before admission. Original Table receipts precede separate audit and
+reply publication. Its real native caller schedule passes lost replies,
+node/worker replacement, captured-query authorization, incompatible bindings,
+supervision and expiry. Its local launcher also passes three-worker upgrades,
+credential rotation, Board inspection, courier loss and stop/start recovery.
+Compose/reference qualification remains separate; this does not make Table
+changes atomic with application progress.
+
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
 it does not supply the shared dependency registry.

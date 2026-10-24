@@ -1,5 +1,6 @@
 """Independent inspection of the example's audit and typed query publications."""
 import hashlib
+import json
 import struct
 import sys
 from pathlib import Path
@@ -25,7 +26,19 @@ def provision(system, configurations):
     workers = {config['role']: dict(principal=config['principal'], pid=config['pid'], resource=resource,
         public_key=system.invoke('public-key', config['seed_file'])) for resource, config in configurations}
     changes = Changes(system.root / 'authorization', command, system.native_query)
-    authority = station(changes, 72, workers)
+    seed, public = system.key('table-registrar')
+    declared = station(changes, 72, workers, dict(principal=1000, public_key=public))
+    authority = declared['authorization']
+    system.station_catalog = declared['catalog']
+    settings = json.loads(system.config.read_text())
+    assert 'local_directory' in settings
+    settings['table'] = dict(catalog=declared['catalog'], registrar=dict(principal=1000, seed_file=str(seed)))
+    system.authority.terminate()
+    system.authority.wait(timeout=15)
+    system.config.write_text(json.dumps(settings))
+    system.authority = system.start(system.node, system.config)
+    from storage import wait_ready
+    wait_ready(system.store.http, system.authority, system.url + '/health')
     for _, config in configurations:
         config['authorization'] = authority
     if 'requester' in workers:
@@ -95,12 +108,12 @@ def query_result(value, requester, requester_resource, owner, resource, namespac
     job_length, checkpoint_length = struct.unpack_from('<HH', manifest, 4)
     assert len(manifest) == 8 + job_length + checkpoint_length
     job, checkpoint = manifest[8:8+job_length], manifest[8+job_length:]
-    assert job[:4] == b'UQJ1' and job[125] == 3 and job[53:125] == request
+    assert job[:4] == b'UQJ1' and job[36] == 2 and job[117] == 3 and job[45:117] == request
     job_id, destination, correlation = struct.unpack_from('<QQQ', job, 4)
     assert destination == requester and correlation == struct.unpack_from('<Q', status, 77)[0]
     assert checkpoint[:5] == b'UQC1\2' and struct.unpack_from('<Q', checkpoint, 5)[0] == resource
-    assert checkpoint[53:57] == b'FQS1' and checkpoint[178] != 0
-    segments, rows = struct.unpack_from('<QQ', checkpoint, 153)
+    assert checkpoint[45:49] == b'FQS1' and checkpoint[170] == 1 and checkpoint[171] == 1
+    segments, rows = struct.unpack_from('<QQ', checkpoint, 145)
     assert rows == len(expected) and segments > 0
     chain = hashlib.sha256(b'transit.query.result.v1\0').digest()
     actual, size = [], 0
