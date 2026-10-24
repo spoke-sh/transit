@@ -251,7 +251,7 @@ Bracketed paste preserves newlines, normalizes CRLF and never submits.
 | Key | Draft | Suggestions | History search |
 | --- | --- | --- | --- |
 | Tab | Request completion; insert a proven unique match | Accept selection | Accept match for editing |
-| Enter | Submit or insert newline | Accept selection; dismiss if still loading | Accept match for editing |
+| Enter | Submit or insert newline | Accept current selection; wait during refresh, or dismiss if no list is visible | Accept match for editing |
 | Up/Down | Move rows, then browse history | Select previous/next item | Select older/newer match |
 | Shift-Tab | Open suggestions without insertion | Select previous item | No action |
 | Ctrl-R | Begin an empty search | Begin an empty search | Find older match |
@@ -270,18 +270,24 @@ Completion uses production grammar and currently authorized metadata for the
 statement around the cursor, including suffix sources and aliases. Static dot
 commands, `.help`, `.mode` and `.timer` complete locally; `.schema` uses the
 service. A list has at most eight candidates, displayed below the unchanged
-prompt. The menu and selection stay stable while idle; editing the draft or
-moving the cursor refreshes suggestions. PgUp/PgDn pages through the selected
+prompt. The menu and selection stay stable while idle. Editing within the same
+token filters the visible list immediately while fresh suggestions arrive in
+the background; a selected candidate stays selected if it still matches.
+Moving to another context hides unrelated candidates. PgUp/PgDn pages through the selected
 candidate's full spelling and details when clipped. A limited result says so;
 a single candidate inserts automatically only with complete matching coverage.
 No automatic semicolon or generated statement is added.
 
-Metadata acquisition has one active request and one latest draft, a 75 ms
-refinement delay and a one-second timeout (or the smaller connection timeout).
+Opening completion starts acquisition immediately and shows real suggestions
+as soon as they arrive, with no loading placeholder or opening delay. Local
+dot-command suggestions update immediately. Metadata acquisition has one active
+request and one latest draft; background refresh waits for 75 ms of idle editing
+and times out after one second (or the smaller connection timeout).
 Typing, clearing and dismissing remain available during acquisition. Acceptance
 rechecks the current source, profile, revisions and authorization through the
-service. A changed basis refreshes the list without accepting a replacement.
-Loading, unsupported context, literal/comment context, no matches and unavailable
+service while keeping the list visible. Tab/Enter during a refresh does not queue
+an insertion. A changed basis refreshes the list without accepting a replacement.
+Unsupported context, literal/comment context, no matches and unavailable
 service have separate messages. Completion never samples row values or executes
 SQL. Enter/Tab acceptance consumes that key; execution requires another Enter.
 

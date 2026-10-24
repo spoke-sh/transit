@@ -1,5 +1,28 @@
 # Validation and evidence
 
+## Responsive console completion menus — 2026-10-24
+
+`just check` and `just test::console-history` pass for the responsive completion
+implementation at `1dd2250c`. Real PTYs hold metadata replies to prove that the
+first request starts immediately without a placeholder, same-token edits filter
+the disclosed list before a response arrives, and acceptance validation leaves
+the list visible. Selection survives narrowing, backspacing and reordered fresh
+results. Several edits during one request acquire only the latest subsequent
+draft; Tab/Enter during refresh neither queues insertion nor executes SQL.
+
+An empty preview waits for current evidence: a later response can reveal a
+candidate absent from the old limited shortlist. Context changes hide unrelated
+candidates. Static dot-command filtering is synchronous and preserves selection.
+Expiry or an instance change from an obsolete acceptance request clears the
+retained preview, draft and undo. Existing denial, timeout, idle stability,
+history and cancellation schedules also pass.
+
+Shared assistance units cover suffix preservation, active-statement boundaries,
+strings/comments, quoted case sensitivity, escaped quotes, UTF-8, disambiguated
+columns and dotted settings. These are editor and shared lexical checks; they
+do not add service authority guarantees or establish a production latency target.
+The accepted interaction is recorded in [D4](../docs/design/transit-cli/D4.md).
+
 ## Stable console completion menus — 2026-10-24
 
 `just check` passes with the idle-refresh timer removed. Real PTYs keep local

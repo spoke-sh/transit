@@ -26,7 +26,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
     try parser.advance();
     const start = parser.lexer.start;
     const prefix = text[start..];
-    for (prefix) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '.') return null;
+    const range = replacement(request.sql, @intCast(start), request.cursor) orelse return null;
     if (!show and (std.ascii.startsWithIgnoreCase(prefix, "ROLE") or std.ascii.startsWithIgnoreCase(prefix, "LOCAL"))) return null;
     // Enumerate only public rows under the caller's current inspection grant.
     var items: [A.max_items]A.Item = undefined;
@@ -57,9 +57,15 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
     if (cursor != null) limited = true;
     const revision = try std.fmt.allocPrint(allocator, "{d}", .{policy.?});
     errdefer allocator.free(revision);
-    var end: usize = request.cursor;
-    while (end < request.sql.len and (std.ascii.isAlphanumeric(request.sql[end]) or request.sql[end] == '_' or request.sql[end] == '.')) : (end += 1) {}
-    return .{ .generation = request.generation, .coverage = if (limited) .limited else .complete, .status = .ready, .profile = .configuration_v1, .resource = client.binding.object.id, .contract = q.settings.Contract.Binding.identity(client.binding.installation), .resource_revision = generation.?, .policy_revision = revision, .range = .{ .start = @intCast(start), .end = @intCast(end), .quoted = false }, .items = try allocator.dupe(A.Item, items[0..count]) };
+    return .{ .generation = request.generation, .coverage = if (limited) .limited else .complete, .status = .ready, .profile = .configuration_v1, .resource = client.binding.object.id, .contract = q.settings.Contract.Binding.identity(client.binding.installation), .resource_revision = generation.?, .policy_revision = revision, .range = range, .items = try allocator.dupe(A.Item, items[0..count]) };
+}
+/// Settings names include dots in one replacement, unlike SQL qualifiers.
+pub fn replacement(text: []const u8, start: u16, cursor: u16) ?q.fuze.SqlInput.Range {
+    if (start > cursor or cursor > text.len) return null;
+    for (text[start..cursor]) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '.') return null;
+    var end: usize = cursor;
+    while (end < text.len and (std.ascii.isAlphanumeric(text[end]) or text[end] == '_' or text[end] == '.')) : (end += 1) {}
+    return .{ .start = start, .end = @intCast(end) };
 }
 fn add(allocator: std.mem.Allocator, items: *[A.max_items]A.Item, exact: *[A.max_items]bool, count: *usize, limited: *bool, prefix: []const u8, name: []const u8, detail: []const u8) !void {
     if (!std.ascii.startsWithIgnoreCase(name, prefix)) return;
