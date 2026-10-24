@@ -41,8 +41,12 @@ These are observed test times, not latency guarantees. The initial launcher
 attempt failed because its temporary bootstrap listener satisfied the manager's
 health probe before provisioning completed. Bootstrap now completes before the
 manager starts. The successful installed run precedes the additional realm and
-executor startup-rejection checks. Compose/reference execution and the
-repository-wide check remain separate qualification gates. The first broad
+executor startup-rejection checks. The subsequent native suite passes those
+additional checks too. `just launchers::compose::test-station` passes the same
+registry, direct mutation, captured query, same-PID replacement, three-worker
+upgrade, Board inspection and retained stop/start workflow in real containers.
+Reference execution and the repository-wide check remain separate qualification
+gates. The first broad
 checks found stale independently signed/hashed fixtures after the definition
 change; those failures are not passes, and the fixtures are regenerated through
 their owners.
