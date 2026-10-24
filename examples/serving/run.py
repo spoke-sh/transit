@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
 from serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
 from serving_tls import TLSProxy
-from serving_table import bootstrap as bootstrap_counter, provision_catalog
+from serving_table import authorize, bootstrap as bootstrap_counter, provision_catalog
 from placement import Compose, DirectReference
 
 
@@ -78,6 +78,12 @@ def run(profile, reactive=False, views=False):
 
         def query(kind):
             return request(url, '/v1/query', native_query(keys[0], 0, kind))['body']
+
+        def query_as(principal, kind):
+            return request(url, '/v1/query', native_query(keys[principal], principal, kind))
+
+        for key in keys.values():
+            key.authority_query = lambda message: request(url, '/v1/query', message)
 
         def grant(principal, permissions, pid=None, public=None):
             send({'grant': dict(subject=principal, public_key=public or keys[principal].public, permissions=permissions, pid=pid)})
@@ -233,7 +239,13 @@ def run(profile, reactive=False, views=False):
                 resource_grant(application_resource, 77, 3)
                 resource_grant(ingress_resource, 78, 3)
             grant(34, 20); grant(80, 148)
-            for principal in (65536, 65537): grant(principal, 20, ingress)
+            for principal in (65536, 65537):
+                if views and principal == 65536:
+                    grant(principal, 16)
+                    role = query_as(principal, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']['login_role']
+                    authorize(send, query_as, {'grant': dict(object=dict(kind='process', id=ingress), grantee=role, privileges=4, grant_options=0)})
+                else:
+                    grant(principal, 20, ingress)
             grant(79, 16, None if reactive else ingress); resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
             if views:
@@ -243,8 +255,7 @@ def run(profile, reactive=False, views=False):
                 for target in (ingress_resource, application_resource): resource_grant(target, 177, 3)
                 resource_grant(application_resource, 77, 3)
                 resource_grant(ingress_resource, 78, 3)
-            catalog_authority = provision_catalog(REALM, application_resource, application, keys[33], send,
-                lambda principal, kind: request(url, '/v1/query', native_query(keys[principal], principal, kind)),
+            catalog_authority = provision_catalog(REALM, application_resource, application, keys[33], send, query_as,
                 readers=((65536, 65537, 77, 79, 177) if views else (65536, 65537, 79)) if reactive else ())
             placement.stop_for_recovery('node', authority)
             registrar = work / 'operator/registrar.seed'

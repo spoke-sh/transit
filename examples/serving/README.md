@@ -69,7 +69,8 @@ the nested `service` configuration. The worker also requires an
 that read-only identity to the worker's current public key, with unrestricted
 inspection scope, read grants on both resources and Table SELECT. This reader
 can authenticate each source/requester audience; the execution credential keeps
-its PID scope. Replacement rebinds both identities to the fresh worker key.
+its PID scope. Replacement rotates both identities to the fresh worker key
+while preserving their existing roles and grants.
 It composes sessions and the v1 requester
 in one resource. Application `queries: true` enables existing v1 capture and
 initializer-only `UQA1` query policy publication. Native database CONNECT,
@@ -77,7 +78,8 @@ schema USAGE and Table SELECT grants authorize each query or watch caller; the
 gateway identity does not substitute for those rights. The application retains
 ownership of its schema and counter writes. Cross-resource read grants must be
 provisioned for both workers. A query caller using the direct infrastructure
-profile also requires explicit raw-resource rights; mediated watch/refresh reads
+profile also requires explicit raw-resource rights and inspection of both native
+owners. Its send grant names only the requester. Mediated watch/refresh reads
 use the private service reader and the caller's independent Table authority.
 PID-scoped workers also need
 optional foreign-resource associations established

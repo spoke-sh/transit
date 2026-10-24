@@ -58,8 +58,9 @@ The serving counter now uses an installer-published direct Table and retains an
 exact intent before dispatch. Its separate data receipt and native progress/reply
 commit have [component, HTTP and TLS refresh recovery evidence](../../tests/README.md#direct-serving-counter-acceptance--2026-10-24).
 The refresh proof uses separately prepared direct captures, retains the original
-request through worker replacement and enforces current Table SELECT. Browser,
-capacity and placement qualification remains open; this does not close the
+request through worker replacement and enforces current Table SELECT. TLS,
+capacity, lifetime and retained growth qualification also pass. Browser and
+placement qualification remains open; this does not close the
 coordinated consumer cutover gate.
 
 The feature branch supplies the neutral data operation/snapshot contract, local

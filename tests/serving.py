@@ -18,7 +18,7 @@ import urllib.request
 from types import SimpleNamespace
 
 from storage import free_port, wait_ready
-from serving_table import bootstrap as bootstrap_counter, provision_catalog
+from serving_table import authorize, bootstrap as bootstrap_counter, provision_catalog
 
 REALM = 49
 TLS = {}
@@ -76,7 +76,7 @@ def policy(principal, revision=1, commands=True, reads=True, limit=1):
 
 def subject_proof(key, principal, ingress, context, credential_epoch=None, role=None, realm=REALM):
     if credential_epoch is None:
-        observation = post(key.authority_port, '/v1/query', native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
+        observation = key.authority_query(native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
         credential_epoch = observation['body']['authorization']['body']['identity']['credential_epoch']
     claim = dict(definition='a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
     return dict(claim=claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest()))
@@ -106,17 +106,19 @@ def post(port, path, value, host=None, status=200, headers=None):
             connection.close()
         decoded = json.loads(body)
         # Cold recovery can temporarily exhaust authority request admission.
-        # Retry only the same serialized signed command, never a new sequence.
+        # Retry the same signed command or current-credential read, never a new sequence.
         # Explicit rejection/fault assertions (status=None/503) remain visible.
         serving_capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
                        for fact in (decoded.get('diagnostic') or {}).get('facts', []))
-        native_capacity = path == '/v1/command' and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
+        credential_read = (path == '/v1/query' and set(value['query']['kind']) == {'authorization'}
+                           and value['query']['kind']['authorization']['kind'] == {'identity': {}})
+        native_capacity = (path == '/v1/command' or credential_read) and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
         if (native_capacity or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
             retries += 1
             time.sleep(.05)
             continue
         if retries:
-            print(f'Serving exact submission: {retries} temporary authority-capacity responses before status {actual}', flush=True)
+            print(f'Serving exact request: {retries} temporary authority-capacity responses before status {actual}', flush=True)
         if status is None:
             return actual, decoded
         assert actual == status, (path, actual, body, status)
@@ -136,7 +138,7 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
         keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (177, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
         port = free_port()
-        for key in keys.values(): key.authority_port = port
+        for key in keys.values(): key.authority_query = lambda message: post(port, '/v1/query', message)
         url = f'http://127.0.0.1:{port}'
         configuration = store.root / 'node.json'
         configuration.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), local_directory=str(store.root / 'native'), port=port, resident_pages=8, request_timeout_ms=10000)))
@@ -300,7 +302,15 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
                     send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
                     send({'own': dict(pid=pid, expected_generation=2, worker=worker)})
             grant(34, 20)
-            for principal in (65536, 65537): grant(principal, 20, ingress)
+            for principal in (65536, 65537):
+                if reactive_views and principal == 65536:
+                    # The query caller verifies proofs from both native owners;
+                    # its send permission still names only the requester.
+                    grant(principal, 16)
+                    role = query(principal, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']['login_role']
+                    authorize(send, query, {'grant': dict(object=dict(kind='process', id=ingress), grantee=role, privileges=4, grant_options=0)})
+                else:
+                    grant(principal, 20, ingress)
             grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
