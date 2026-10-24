@@ -1,4 +1,4 @@
-# 23. Qualification and complete benchmarks
+# 24. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -33,7 +33,7 @@ remains a gate for every preceding milestone.
   complete/incomplete result delivery, failover, verified backups, restore
   activation and upgrades during real caller workloads and placement changes.
   Their focused acceptance gates remain required before this combined exercise.
-- Qualify [direct-client, Station and mixed applications](22-programming-model.md)
+- Qualify [direct-client, Station and mixed applications](23-programming-model.md)
   through real installed language packages, including cross-language typed service
   calls, original-operation recovery, explicit commit scopes and bounded host
   scheduling. Compare the same data/outcomes across modes; shared native code
@@ -43,6 +43,13 @@ remains a gate for every preceding milestone.
   basis, isolated branch proposals, denied merges and reviewed publication.
   Include identity-provider outages, stale membership, offboarding, agent attempts
   to approve their own work, destination movement and lost acceptance replies.
+- Compose the installed [Board workbench](19-board-reimplementation.md) with
+  those shared callers at the same revision. Compare catalog/preview/workbook,
+  lineage and change-review evidence with independent public-operation results;
+  include current authorization, uncertain transaction/publication recovery,
+  retained bases and the supported private inspection profile. Repeat bounded
+  browser work, accessibility and packaged-asset checks. Board's focused
+  acceptance closes in its own milestone rather than waiting for this exercise.
 - Verify MCP host/version/extension combinations independently, including useful
   text-only results, Apps, subscriptions and tasks. Compare every representation
   with the same typed result and source basis. Measure result correctness,
@@ -143,4 +150,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](24-releases.md).
+and immutable release links remain part of [release distribution](25-releases.md).

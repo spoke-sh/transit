@@ -1,4 +1,4 @@
-# 19. MCP service and interactive Apps
+# 20. MCP service and interactive Apps
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -16,6 +16,12 @@ and [reviewed collaboration](18-reviewed-data-collaboration.md) for each exposed
 operation. A read-only protocol spike can precede collaboration implementation;
 it does not qualify branch or approval capabilities. Shared adapter parity follows
 [service and SDK coverage](11-service-and-sdk-coverage.md).
+
+This follows [Board reimplementation](19-board-reimplementation.md) in the
+delivery order so the human workbench exercises the shared workflows first.
+MCP calls their service owners directly; it does not require a running Board,
+depend on its frontend or inherit its configured upstream identity. Reusing a
+qualified presentation component does not transfer authority between adapters.
 
 ## Delivery sequence
 

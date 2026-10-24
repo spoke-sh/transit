@@ -22,7 +22,7 @@ gives this work a product target: improve what humans and agents can observe
 before acting and what they can learn from the consequences afterward. Track
 observation coverage, latency and cost while preserving meaning, source versions,
 current authorization and uncertainty. The
-[qualification plan](23-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[qualification plan](24-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
@@ -47,12 +47,13 @@ measurements, and they do not assume that modeling or reasoning is solved.
 | 16 | [Enterprise identity and the Control & Policy Plane](16-control-and-policy-plane.md) | Planned | Trusted enterprise identity, membership freshness, bounded delegation and shared branch/publication policy |
 | 17 | [Published business resources and consistent investigations](17-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
 | 18 | [Versioned proposals and reviewed publication](18-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
-| 19 | [MCP service and interactive Apps](19-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional Apps over shared published capabilities |
-| 20 | [Reactive context, subscriptions and agent activation](20-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions/tasks |
-| 21 | [Recorded outbound MCP and application guidance](21-recorded-mcp-integrations.md) | Planned | Governed outbound MCP, captured observations, network-free replay and reviewed application guidance |
-| 22 | [Language-native programming model and mixed application composition](22-programming-model.md) | Planned | Complete language-native direct, Station and mixed composition over the earlier client/transaction foundation |
-| 23 | [Qualification and complete benchmarks](23-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
-| 24 | [Release distribution](24-releases.md) | Planned | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 19 | [Board reimplementation and data-first workbench](19-board-reimplementation.md) | Planned | Installed catalog, previews, workbooks, lineage and governed change workflows over shared contracts, with bounded accessible UI and preserved operational inspection |
+| 20 | [MCP service and interactive Apps](20-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional Apps over shared published capabilities |
+| 21 | [Reactive context, subscriptions and agent activation](21-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions/tasks |
+| 22 | [Recorded outbound MCP and application guidance](22-recorded-mcp-integrations.md) | Planned | Governed outbound MCP, captured observations, network-free replay and reviewed application guidance |
+| 23 | [Language-native programming model and mixed application composition](23-programming-model.md) | Planned | Complete language-native direct, Station and mixed composition over the earlier client/transaction foundation |
+| 24 | [Qualification and complete benchmarks](24-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
+| 25 | [Release distribution](25-releases.md) | Planned | Versioned verified artifacts, matching documentation and runnable installed onboarding |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
@@ -60,15 +61,41 @@ milestone trackers above.
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
 
+## Board reimplementation review — 2026-10-24
+
+The review at `f699e6ad` adds
+[Board reimplementation](19-board-reimplementation.md) as milestone 19, after
+reviewed publication and before MCP/Apps. [Board data D2](../design/board-data/D2.md)
+defines a focused data-first direction, but its prototype and screenshots do not
+deliver the installed interface. The new milestone owns that cutover, including
+public API projections, the frontend, accessibility, preserved operational
+inspection and real browser/recovery evidence.
+
+The full experience consumes published investigations and exact proposal/review
+contracts from milestones 17–18. Building the human workbench before agent-host
+adapters is a delivery priority, not a dependency of MCP on Board. Basic catalog,
+preview and shell work can land against earlier qualified owners. Existing Board
+migrations, service parity and inspection obligations stay with those owners;
+the new milestone must not become a reason to postpone them.
+
+Milestone 18 retains bounded comparison, approval and publication operations
+usable without a browser; milestone 19 owns their complete Board presentation.
+Later reactive context and mixed-language composition are not prerequisites for
+the Board cutover. The sequence now has 25 milestones: the former 19–24 move to
+20–25, with every existing status and acceptance obligation preserved. This adds
+delivery ownership without declaring the D2 workflows implemented or all design
+details accepted.
+
 ## Transaction model and linear execution review — 2026-10-24
 
 The review at `7f9343cc` adds [transactions](05-transactions-and-atomic-composition.md)
 immediately after statement results, separates the
 [client foundation](06-client-foundation-and-language-apis.md) from later
-[complete mixed composition](22-programming-model.md), and gives
+[complete mixed composition](23-programming-model.md), and gives
 [provider/concurrent-writer qualification](12-storage-providers-and-concurrency.md)
-an explicit delivery owner. The resulting sequence has 24 milestones. All four
-existing In Progress statuses and all delivered evidence are preserved; moving
+an explicit delivery owner. That review produced 24 milestones; the Board review
+above adds the 25th. All four existing In Progress statuses and all delivered
+evidence are preserved; moving
 unfinished work establishes no completion or new supported behavior.
 
 Transaction design covers all experiences together: autocommit/batches, SQL and
@@ -86,7 +113,7 @@ execution, zero-I/O savepoint or remote exactly-once promise is implied.
 | 2–3: local foundation interleaved with provider/writer expansion | 2 retains local correctness, codecs and bounded storage; 3 qualifies installed local lifecycles; 12 receives #117/#121 and corresponding runtime/#124 provider and concurrent-writer proofs |
 | 6: transaction sessions inside managed dataflows | 5 owns transactions; 8 retains general SQL composition, MERGE/upsert, prepared plans and managed dataflows, consuming the transaction contract |
 | 6–7: typed import/export separate from actual formats | 9 owns typed COPY/import/export and foreign adapters together, using the direct-ingestion and transaction owners |
-| 16: all programming-model work after MCP | 6 delivers package/runtime/API foundations before SDK expansion at 11; 22 retains every mixed capability and full per-language Station/composition qualification after outbound MCP at 21 |
+| 16: all programming-model work after MCP | 6 delivers package/runtime/API foundations before SDK expansion at 11; 23 retains every mixed capability and full per-language Station/composition qualification after outbound MCP at 22 |
 | 17–19: replication, operations and clustered execution after MCP | 13–15 preserve their order and scope after provider qualification and branches, before enterprise/collaboration adapters |
 
 Placing infrastructure before enterprise/MCP work is a delivery priority, not a
@@ -106,7 +133,7 @@ and the execution plan are authoritative for current delivery order.
 
 ## Programming model review — 2026-10-24
 
-[Language-native programming and mixed composition](22-programming-model.md)
+[Language-native programming and mixed composition](23-programming-model.md)
 follows recorded outbound MCP and application guidance. Direct data applications,
 Station behaviors and applications combining both need a coherent public model:
 shared types, operation identities, results and recovery with explicit execution
@@ -134,7 +161,7 @@ cross-resource transaction is implied.
 
 At that review the new milestone was Planned at 16, moving replication through
 release from 16–20 to 17–21. Those are historical positions; the transaction
-review above supersedes them while retaining their scope and statuses.
+and Board reviews above supersede them while retaining their scope and statuses.
 
 ## Result sets, replication and operations — 2026-10-24
 
@@ -177,7 +204,7 @@ The 2026-10-23 revision preserved the then-numbered milestones 1–8 and inserte
 six collaboration milestones before clustered placement, qualification and
 release. The 2026-10-24 revision above inserts result sets and separates
 replication/operations; the current table includes the subsequent transaction
-review as well.
+and Board reviews as well.
 Delivered work and evidence retain their status. These revisions record direction
 and acceptance gates, not executed runtime evidence.
 
@@ -193,14 +220,15 @@ proposal/approval experience. A protocol spike does not qualify those additions.
 | Statement outcomes and result consumption | 4 | One typed result lifecycle, bounded readers and verified completion; statement completion is distinct from transaction commit |
 | Transactions, snapshots and outbox | 1 contract gates; 5 implementation | Qualified atomic domains/isolation, original decision recovery and atomic local intent publication; external outcomes remain separate |
 | Client packages and language APIs | 6, then coverage at 11 | Reusable shared implementation, bounded runtime ownership and idiomatic direct/recovery APIs before adapter expansion |
-| Complete application composition | 22 | Direct, Station and all mixed capabilities preserve transaction, turn, checkpoint and effect boundaries across languages |
+| Complete application composition | 23 | Direct, Station and all mixed capabilities preserve transaction, turn, checkpoint and effect boundaries across languages |
 | Provider, replication and operational contracts | 12–15 | Enforceable durability/fencing, complete decisions/objects, recoverable backups/upgrades and qualified moving placements |
 | Identity, membership, delegation and access decisions | 16 | Trusted actor/subject bindings, current authority and explicit approval powers through every adapter |
 | Published resources and retained investigations | 17 | Deliberate exposure, approved disclosure and retained source bases independent of connections/open transactions |
 | Branch histories and reviewed proposals | 10, 18 | Frozen base/source/target and candidate; no copied grants/effect rights or protected-destination bypass |
-| MCP and presentation bindings | 19 | Generated descriptors/views over shared owners; exact host/revision matrix and useful fallback |
-| Meaningful activation and durable interests | 8, 20 | Complete source commits, completed results and business conditions remain distinct |
-| External capabilities and application guidance | 21 | Authorized recorded attempts, capture, uncertainty and network-free replay; instructions confer no authority |
+| Board presentation and workflow integration | 19 | Installed catalog/workbook/lineage/change interfaces over public owners; bounded disclosure, read-only inspection and exact recovery |
+| MCP and presentation bindings | 20 | Generated descriptors/views over shared owners; exact host/revision matrix and useful fallback |
+| Meaningful activation and durable interests | 8, 21 | Complete source commits, completed results and business conditions remain distinct |
+| External capabilities and application guidance | 22 | Authorized recorded attempts, capture, uncertainty and network-free replay; instructions confer no authority |
 
 The Control & Policy Plane owns identity bindings, catalog definitions, access and
 publication policy. Data owners enforce reads and conditional writes; process
@@ -305,9 +333,11 @@ evidence rather than assuming every preceding number is a technical dependency.
 | Extend data interpretation and computation | 7–10 | Exact historical bindings, complete-commit dataflows, foreign COPY/projections, multi-commit branches and conditional forward publication, each with public caller/failure evidence |
 | Expand qualified interfaces | 11 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
 | Qualify distributed infrastructure | 12–15 | Real providers and writer fencing/OCC, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
-| Deliver governed collaboration | 16–21 | Enterprise identity, published resources/investigations, exact reviewed publication, MCP/Apps, reactive context and recorded outbound MCP, all using shared owners |
-| Prove complete application composition | 22 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
-| Qualify and distribute one revision | 23–24 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
+| Establish governed collaboration contracts | 16–18 | Enterprise identity, published resources/investigations and exact reviewed publication through independently usable public owners |
+| Reimplement the Board workbench | 19 | Deliver the installed data-first interface, bounded profiles/workbooks/lineage and separately authorized change review; preserve operational inspection and prove real browser/recovery journeys |
+| Extend agent-host interfaces and activation | 20–22 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
+| Prove complete application composition | 23 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
+| Qualify and distribute one revision | 24–25 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
 
 Track first-three-milestone acceptance and explicitly transferred scope through
 #108/#109/#110 and the component issues. Update tracker ownership and links with
@@ -356,7 +386,7 @@ owns traceable installed acceptance. No planning edit changes their runtime stat
    `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](23-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](24-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -384,7 +414,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `24-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `25-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 

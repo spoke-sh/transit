@@ -20,7 +20,7 @@ milestone to acquire sound ownership. The
 the current boundaries.
 
 This milestone extracts the foundation from
-[language-native programming and mixed composition](22-programming-model.md).
+[language-native programming and mixed composition](23-programming-model.md).
 That later milestone retains the recorded source assessment, all three mixed
 capabilities (recorded effects, durable consumers and typed Station calls),
 Station behavior ergonomics and the complete installed cross-language journeys
@@ -74,7 +74,7 @@ competing interface first. None of the split marks existing work complete.
    first, including concurrent facets through the shared host. Existing consumers
    in every affected language migrate coherently; the representative set does
    not excuse a broken existing binding. Broader new operation/platform coverage
-   remains milestone 11; full mixed and Station ergonomics remain milestone 22.
+   remains milestone 11; full mixed and Station ergonomics remain milestone 23.
    Apply the current-v1 cutover policy to incompatible ABI/stored semantics,
    regenerate fixtures, reject incompatible saved artifacts, and publish current
    behavior in caller/component/SDK owners as each slice lands.
