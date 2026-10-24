@@ -19,6 +19,10 @@ pub fn main(init: std.process.Init) !void {
         try out.objectField("Host" ++ name);
         try c.protocol.Schema.writeRecursiveAt(@field(c.DirectTableValues, name), &out, .{ .safe_integers = true, .text_max_length = 256, .sequence_max_length = 128, .output = true }, "/$defs/Host" ++ name);
     }
+    inline for (.{ "Action", "Result", "Saved" }) |name| {
+        try out.objectField("Host" ++ name);
+        try c.protocol.Schema.writeRecursiveAt(@field(c.DirectTableBridge, name), &out, .{ .safe_integers = true, .text_max_length = 256, .sequence_max_length = 128, .output = comptime std.mem.eql(u8, name, "Result") }, "/$defs/Host" ++ name);
+    }
     try out.endObject();
     try out.endObject();
     try writer.interface.writeByte('\n');

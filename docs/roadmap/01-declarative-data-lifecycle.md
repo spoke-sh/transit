@@ -94,7 +94,11 @@ through the public service. The remaining general Table SDK/ABI migration still
 needs to use this owner.
 Its [lossless caller reference contract](../../tests/README.md#lossless-direct-caller-references--2026-10-24)
 now defines exact prepared bindings and saved-work references with independent
-full-width identity fixtures. Dispatch and language adapters remain unfinished.
+full-width identity fixtures. The [shared direct caller session](../../tests/README.md#shared-direct-caller-session--2026-10-24)
+also passes public lookup, SQL compilation, saved-work restoration and explicit
+staging/admission/recovery, including receipt inspection after DROP and local
+forgetting. Typed declaration/batch preparation, preview and language/ABI adapters
+remain unfinished.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step

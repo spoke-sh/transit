@@ -242,6 +242,12 @@ host_binding["intent"] = intent_digest.hex()
 host_reference["content"] = {"bytes": str(len(saved_bytes)), "sha256": hashlib.sha256(saved_bytes).hexdigest()}
 host_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostReference"})
 host_validator.validate(host_reference)
+host_action_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostAction"})
+host_action_validator.validate({"admit": {"table": host_reference}})
+host_saved = {"table": {"definition": definition, "namespace": 1, "bytes": saved_bytes.hex()}}
+host_action_validator.validate({"load": host_saved})
+host_action_validator.validate({"operation": {"reference": {"table": host_reference}, "command": "inspect", "steps": 1}})
+jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostResult"}).validate({"staged": {"table": host_reference}})
 for field in ("definition", "connection", "binding", "content"):
     invalid = copy.deepcopy(host_reference)
     del invalid[field]

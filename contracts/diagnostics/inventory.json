@@ -3640,6 +3640,77 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTableBridge.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 4,
+        "IncompatibleDefinition": 2,
+        "InvalidCatalogAssertion": 1,
+        "InvalidTableIntent": 2,
+        "TableIntentNotLoaded": 1
+      },
+      "outcomes": {
+        "Action": [
+          "lookup",
+          "compile",
+          "load",
+          "forget",
+          "stage",
+          "admit",
+          "operation"
+        ],
+        "Action.operation.command": [
+          "inspect",
+          "execute",
+          "cancel"
+        ],
+        "Recovery": [
+          "table",
+          "name_assertion"
+        ],
+        "Result": [
+          "metadata",
+          "compiled",
+          "loaded",
+          "forgotten",
+          "staged",
+          "observation"
+        ],
+        "Saved": [
+          "table",
+          "name_assertion"
+        ],
+        "Summary.binding": [
+          "table",
+          "name_assertion"
+        ],
+        "observe().command": [
+          "admit",
+          "inspect",
+          "execute",
+          "cancel"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Entry.check()": "<inferred>",
+        "Entry.saved()": "<inferred>",
+        "Entry.summary()": "<inferred>",
+        "Session.apply()": "<inferred>",
+        "Session.get()": "<inferred>",
+        "Session.install()": "<inferred>",
+        "observe()": "<inferred>",
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 40,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {
         "InvalidTableDelegation": 3,
@@ -4066,21 +4137,53 @@
     },
     "packages/zig/transit-catalog/src/DirectTableValues.zig": {
       "errors": {
-        "IncompatibleDefinition": 2
+        "IncompatibleDefinition": 2,
+        "InvalidTableResponse": 2
       },
-      "outcomes": {},
+      "outcomes": {
+        "AssertionState": [
+          "not_observed",
+          "outcome"
+        ],
+        "DdlState": [
+          "not_observed",
+          "admitted",
+          "rejected",
+          "cancelled",
+          "committed"
+        ],
+        "Observation": [
+          "ddl",
+          "rows",
+          "name_assertion"
+        ],
+        "RowState": [
+          "not_observed",
+          "admitted",
+          "rejected",
+          "cancelled",
+          "committed"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
+        "AssertionOutcome.foreign()": "<inferred>",
         "Binding.foreign()": "<inferred>",
         "Binding.native()": "<inferred>",
         "Connection.foreign()": "<inferred>",
         "Connection.native()": "<inferred>",
         "Content.foreign()": "<inferred>",
         "Content.native()": "<inferred>",
+        "DdlOperation.foreign()": "<inferred>",
+        "Evidence.foreign()": "<inferred>",
         "Interpretation.foreign()": "<inferred>",
         "Interpretation.native()": "<inferred>",
+        "Metadata.foreign()": "<inferred>",
+        "NameAssertion.foreign()": "<inferred>",
+        "NameAssertion.native()": "<inferred>",
         "Object.foreign()": "<inferred>",
         "Object.native()": "<inferred>",
+        "Observation.foreign()": "<inferred>",
         "Operation.foreign()": "<inferred>",
         "Operation.native()": "<inferred>",
         "Position.foreign()": "<inferred>",
@@ -4089,12 +4192,13 @@
         "PreparedBinding.native()": "<inferred>",
         "Reference.foreign()": "<inferred>",
         "Reference.native()": "<inferred>",
+        "RowOperation.foreign()": "<inferred>",
         "Stored.foreign()": "<inferred>",
         "Stored.native()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 76,
+        "try": 119,
         "catch": 0
       },
       "imports": [
@@ -5601,7 +5705,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -5630,6 +5734,7 @@
         "DirectResource.zig",
         "DirectResourceClient.zig",
         "DirectTableBinding.zig",
+        "DirectTableBridge.zig",
         "DirectTableClient.zig",
         "DirectTableDispatch.zig",
         "DirectTableIntent.zig",
