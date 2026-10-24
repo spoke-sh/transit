@@ -48,8 +48,15 @@ records their declared scope and does not establish new diagnostic projections.
 This proof does not integrate named consumers with exact dependency registration,
 retire the remaining actor catalog implementation, expose executable KV/Document
 console SQL, establish automatic reconciliation, qualify arbitrary application
-writers or prove distributed transactions. Full repository and clean-checkout
-qualification of this cutover are still required before delivery.
+writers or prove distributed transactions.
+
+The full `just check` run at `7378460bd` passed core, contract, native/package,
+CLI and Board stages, then failed the handbook ownership test because this
+Internals account included a repository command. The command now belongs to the
+proof ledger. With only documentation wording changed, the complete
+`just transit-docs::check` rerun passes formatting, types, all nine content tests
+and the production build. This records the initial failure and corrected stage
+separately; clean-checkout qualification is still required before delivery.
 
 ## Direct definition dependencies and restricted retirement — 2026-10-24
 
