@@ -25,7 +25,7 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory:
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests < 2 or options.spill_work == 0) return error.InvalidQueryBudget;
     if (snapshots.len != prepared.plan.sources.len) return error.InvalidRelationalSources;
-    try prepared.validate(client);
+    try prepared.validateBindings(client);
     for (snapshots, prepared.bindings[0..snapshots.len]) |snapshot, binding| if (!std.meta.eql(snapshot.object, binding.interpretation.interpretation.object)) return error.RelationalSourceChanged;
     const self = try allocator.create(Self);
     errdefer allocator.destroy(self);
