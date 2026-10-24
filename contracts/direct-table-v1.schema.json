@@ -271,6 +271,18 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
+                "read_authority"
+              ],
+              "properties": {
+                "read_authority": {
+                  "$ref": "#/$defs/Request/$defs/T14"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
                 "name_assertion"
               ],
               "properties": {
@@ -3742,6 +3754,18 @@
               "properties": {
                 "observation": {
                   "$ref": "#/$defs/Response/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "read_authority"
+              ],
+              "properties": {
+                "read_authority": {
+                  "$ref": "#/$defs/Response/$defs/T41"
                 }
               }
             },

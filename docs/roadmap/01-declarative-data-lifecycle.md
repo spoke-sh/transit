@@ -173,6 +173,12 @@ creating a retention pin or publishing storage state. Its component and HTTP
 checks cover byte limits, exact interpretation, restart, revocation and rejection
 after DROP/name reuse. Reactive watch and freshness consumers still require
 migration to this operation.
+Verified finite results also expose their exact original direct Table basis after
+pin closure, and a read-only source-authority operation protects retained
+diagnostics after DROP/name reuse. The scoped
+[result-evidence proof](../../tests/README.md#retained-table-evidence-and-current-disclosure-rights--2026-10-23)
+checks current denial and existing capture recovery. These primitives do not yet
+complete named computation freshness or reactive consumer migration.
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

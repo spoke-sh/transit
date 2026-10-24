@@ -816,12 +816,16 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
 
 const SnapshotAccess = struct { view: View, current: P.Guard };
 fn snapshotAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, owner: d.Operation, policy: Policy, control: bool) !SnapshotAccess {
+    try owner.validate();
+    if (!std.meta.eql(owner.scope, object.scope) or owner.principal != policy.subject.principal()) return error.CatalogDenied;
+    return self.readAccess(allocator, object, policy, control);
+}
+fn readAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, policy: Policy, control: bool) !SnapshotAccess {
     try self.requireInitialized();
     try object.validate();
-    try owner.validate();
-    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch or
-        !std.meta.eql(owner.scope, object.scope) or owner.principal != policy.subject.principal()) return error.CatalogDenied;
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
     const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
     var view = try self.open(self.allocator, target, control);
     errdefer view.deinit();
     const current = try self.guard(allocator, policy, try self.schema(view.properties.namespace), view.properties.target(object.object), .read);
@@ -918,6 +922,21 @@ pub fn readAuthority(self: *Self, object: d.Object, owner: d.Operation, policy: 
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, control);
+    defer access.view.deinit();
+    const namespace = try self.schema(access.view.properties.namespace);
+    const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
+    try result.validate();
+    try check(access.current);
+    return result;
+}
+
+/// Current rights for retained evidence are independent of live definition and
+/// pin state. This reads the stable object, including after DROP/name reuse; it
+/// creates no acquisition and returns no rows or replacement definition.
+pub fn currentReadAuthority(self: *Self, object: d.Object, policy: Policy) !c.DirectReadAuthority {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.readAccess(arena.allocator(), object, policy, false);
     defer access.view.deinit();
     const namespace = try self.schema(access.view.properties.namespace);
     const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };

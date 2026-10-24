@@ -30,6 +30,12 @@ without a continuation. Use a durable pin for a traversal spanning requests.
 The [current-observation contract](../../../../contracts/DIRECT_TABLE_V1.md#current-observations)
 defines budgets, rejection and disclosure checks.
 
+`read_authority` checks current source rights by stable object identity and
+returns their native references. `DirectCatalog.currentReadAuthority` also works
+after DROP/name reuse, so retained diagnostics can enforce current rights without
+reading a replacement definition or acquiring a pin. Returned references grant
+no authority; a mediating service must separately check its original caller.
+
 `closeOriginalPin` explicitly reconciles an original acquisition or release with
 an uncertain reply. Persist the decision to close before calling it, and retain
 that record until success. It uses at most three exchanges: status, exact original

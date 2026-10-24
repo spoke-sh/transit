@@ -338,6 +338,11 @@ source bundles, including a 512-byte predicate and their Publication commitments
 policy, Document lifecycle, publication publisher and complete manifest. Pages
 validate nested Arrow and ordered row/byte/digest coverage, rechecking current
 access before return. `Cursor` is owned continuation state, never a bearer token.
+For a direct Table, `Open.table_basis` exposes the exact original interpretation,
+accepted position and retained source commitment verified against that manifest.
+Other source kinds return null. This evidence remains available after pin closure
+but grants no permission; opening it repeats current disclosure checks. It does
+not claim that the current Table has the same data.
 For Tables, `Expected.disclosure` is mandatory. `Expected.authorize` obtains a
 fresh proof bound to the complete result reference, expected route and cursor;
 `UnifiedClient.page` supplies it. `RelationalResult.open` takes an explicit

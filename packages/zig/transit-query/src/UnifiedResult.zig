@@ -26,6 +26,9 @@ pub const Expected = struct {
 pub const Open = struct {
     manifest: r.Manifest,
     bundle: q.Bundle,
+    /// Exact retained Table evidence verified against the completed manifest.
+    /// It grants no permission and does not keep a released pin live.
+    table_basis: ?q.TableSource.Basis,
     pub fn outputSchema(self: Open, columns: *[q.SourceDefinition.max_columns]t.Field) !t.Type {
         return self.bundle.plan.outputSchema(columns);
     }
@@ -36,7 +39,7 @@ fn checkReference(reference: Ref, expected: Expected) !void {
     try q.Bundle.checkReference(expected.request);
     if (reference.domain != .query_result or reference.resource != expected.resource or reference.record != r.manifest_record or reference.spec.format != r.manifest_format or reference.spec.length == 0 or reference.spec.length > r.Manifest.max_bytes) return error.InvalidQueryManifest;
 }
-fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, source: anytype) !void {
+fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, source: anytype) !?q.TableSource.Basis {
     try checkReference(reference, expected);
     const job = opened.manifest.job;
     if (job.source.worker() != expected.source or job.destination != expected.requester or job.correlation != expected.correlation or !std.meta.eql(job.request, expected.request) or job.namespace() != reference.namespace) return error.QueryIdentityMismatch;
@@ -59,6 +62,8 @@ fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, sourc
             opened.manifest.checkpoint.cut.position != .table or
             !std.mem.eql(u8, &opened.manifest.checkpoint.cut.position.table, &try retained.fingerprint())) return error.SourceChanged;
         try q.QueryAuthorization.checkAuthority(retained.authority, &reader, current, current.principal());
+        const basis = try opened.manifest.checkpoint.basis(opened.bundle.source);
+        return .{ .declaration = basis.contract, .schema = basis.schema, .retained = retained };
     } else {
         // A read-only composition may expose its current reader separately
         // from Table subject mediation. Document still checks the concrete
@@ -66,6 +71,7 @@ fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, sourc
         const current = if (comptime @hasDecl(@TypeOf(reader), "currentReader")) reader.currentReader() else &reader;
         try q.UnifiedSource.checkCurrent(opened.bundle.source, current, try grant.principal(opened.bundle.source));
     }
+    return null;
 }
 /// Borrowed definition/plan data belongs to allocator. The finite manifest is
 /// owned by value. No source pin or current policy is cached by this handle.
@@ -79,8 +85,8 @@ fn openAt(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype, 
     if (!std.meta.eql(manifest.job.request, expected.request)) return error.QueryIdentityMismatch;
     const request_bytes = try allocator.alloc(u8, manifest.job.request.spec.length);
     const bundle = try q.Bundle.decode(allocator, try manifest.job.request.read(source, request_bytes));
-    const opened: Open = .{ .manifest = manifest, .bundle = bundle };
-    try live(reference, expected, cursor, opened, source);
+    var opened: Open = .{ .manifest = manifest, .bundle = bundle, .table_basis = null };
+    opened.table_basis = try live(reference, expected, cursor, opened, source);
     _ = try manifest.checkpoint.bound(bundle);
     const progress = manifest.checkpoint.progress;
     if (progress.pages > bundle.limits.pages or progress.segments > bundle.limits.segments or manifest.checkpoint.bytes > bundle.limits.result_bytes or (progress.finished == .source_end and !manifest.checkpoint.cursor.done)) return error.InvalidQueryManifest;
@@ -132,7 +138,7 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     if (complete) try completeCoverage(next, manifest.checkpoint.progress.rows, manifest.checkpoint.bytes, manifest.checkpoint.chain);
     // Recheck current policy, Document lifecycle, request and result disposition
     // after all reads/decoding, before the caller may disclose this page.
-    try live(reference, expected, cursor, opened, source);
+    _ = try live(reference, expected, cursor, opened, source);
     return .{ .manifest = manifest, .basis = try manifest.checkpoint.basis(opened.bundle.source), .next = if (complete) null else next, .arrow = bytes, .schema = try schema.cloneInto(allocator), .plan = opened.bundle.plan };
 }
 

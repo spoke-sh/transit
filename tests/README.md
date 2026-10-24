@@ -185,6 +185,34 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Retained Table evidence and current disclosure rights — 2026-10-23
+
+The combined public run passes under definition
+`38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`:
+
+```sh
+nix develop --command zig build test-direct-table-service test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --captured-only
+```
+
+The Table schedule passes 530 typed exchanges. `read_authority` returns the same
+native source requirements as an authorized observation, denies a revoked caller,
+and remains available for the original object after DROP/name reuse. It agrees
+with that object's retained snapshot authority, without acquiring another pin.
+
+The focused single-source capture schedule retains node restart, uncertain
+acquisition/release and credential-changing cleanup. `UnifiedResult.open` returns
+the exact recorded Table basis after its source pin is closed; its commitment
+matches the verified result page. Current revocation denies both metadata open
+and page disclosure. The schedule does not run relational, maintained, exchange
+or installed SDK consumers unless separately selected. The default full schedule
+retains those cases.
+
+The query package passes all 143 tests, including native KV/Document results
+whose `table_basis` is null. The focused catalog selection passes 33/33 tests;
+retained and borrowed grants cannot use the new authority-discovery action.
+Direct contract regeneration and validation pass. Reactive consumer migration
+and full repository qualification remain unfinished.
+
 ## Read-only current Table observations — 2026-10-23
 
 `nix develop --command zig build test-direct-table-service
