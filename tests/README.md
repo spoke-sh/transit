@@ -120,9 +120,12 @@ alone did not authenticate its separately supplied logical descriptor. New-work
 metadata now compares that descriptor with the authorized stored schema;
 retained execution still uses its original pin and interpretation.
 
-The reference placement run passes its initial TLS snapshot, physical recovery,
-original ticket/admission retry and ADBC Python checks, then fails the ADBC C
-consumer's existing 180-second deadline. That command is not passed evidence.
+`nix develop .#flight --command just test::flight-placement reference` also
+passes the complete TLS PyArrow/ADBC Python/C schedule after the courier change,
+including physical gateway, query worker, node and store recovery and the exact
+original ticket/admission retry. The placement portion completes in 991.94
+seconds and reports zero cold Table objects. This complete rerun supersedes the
+earlier ADBC C deadline failure; it does not establish a latency target.
 These scoped runs do not close the remaining actor-Table consumer
 removal, coordinated artifact cutover or final repository/clean-build gates.
 
