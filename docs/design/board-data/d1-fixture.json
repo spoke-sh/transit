@@ -1,0 +1,415 @@
+{
+  "synthetic": true,
+  "status": "Synthetic design fixture for board-data D1. Illustrates catalog metadata, orthogonal (tau, epsilon, kappa) column descriptors, 5-state cell distributions, console-aligned SQL assistance, data-gravity activation edges, and branch/DDL previews. Does not claim runtime execution or expanded SQL profile support.",
+  "realm": {
+    "name": "Storefront",
+    "database": "transit",
+    "activeBranch": {
+      "name": "main",
+      "manifestVersion": 42,
+      "logWatermarkLsn": 18410,
+      "policyEpoch": 19
+    },
+    "scenarioBranch": {
+      "name": "branch/reallocate-inventory",
+      "baseManifestVersion": 42,
+      "headDeltaCommits": 3,
+      "policy": "Branching permitted; direct merge to main requires human principal approval (policy_epoch 19)"
+    }
+  },
+  "catalogObjects": [
+    {
+      "catalogId": 101,
+      "name": "orders",
+      "kind": "table",
+      "definitionId": "v12",
+      "revision": 42,
+      "lifecycle": "published",
+      "rowCount": 1420,
+      "segmentBytes": 188416,
+      "columns": [
+        {
+          "name": "order_id",
+          "logicalType": "INT64",
+          "physicalCodec": "RLE",
+          "collation": null,
+          "nullable": false,
+          "role": "PK"
+        },
+        {
+          "name": "customer_id",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "column"
+        },
+        {
+          "name": "warehouse_id",
+          "logicalType": "INT64",
+          "physicalCodec": "DICT",
+          "collation": null,
+          "nullable": false,
+          "role": "FK -> inventory.warehouse_id"
+        },
+        {
+          "name": "promised_day",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "column"
+        },
+        {
+          "name": "amount_cents",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "column"
+        },
+        {
+          "name": "region",
+          "logicalType": "VARCHAR(32)",
+          "physicalCodec": "FSST",
+          "collation": "ASCII_CI",
+          "nullable": false,
+          "role": "column"
+        }
+      ]
+    },
+    {
+      "catalogId": 102,
+      "name": "shipments",
+      "kind": "table",
+      "definitionId": "v9",
+      "revision": 38,
+      "latestUpstreamRevisionInGravityStudy": 39,
+      "lifecycle": "published",
+      "rowCount": 1180,
+      "segmentBytes": 155648,
+      "columns": [
+        {
+          "name": "shipment_id",
+          "logicalType": "INT64",
+          "physicalCodec": "RLE",
+          "collation": null,
+          "nullable": false,
+          "role": "PK"
+        },
+        {
+          "name": "order_id",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "FK -> orders.order_id"
+        },
+        {
+          "name": "carrier_code",
+          "logicalType": "VARCHAR(24)",
+          "physicalCodec": "DICT",
+          "collation": "UTF8_BINARY",
+          "nullable": false,
+          "role": "column"
+        },
+        {
+          "name": "eta_day",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": true,
+          "role": "column"
+        },
+        {
+          "name": "delay_hours",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "column"
+        }
+      ]
+    },
+    {
+      "catalogId": 103,
+      "name": "inventory",
+      "kind": "table",
+      "definitionId": "v7",
+      "revision": 42,
+      "lifecycle": "published",
+      "rowCount": 320,
+      "segmentBytes": 49152,
+      "columns": [
+        {
+          "name": "warehouse_id",
+          "logicalType": "INT64",
+          "physicalCodec": "DICT",
+          "collation": null,
+          "nullable": false,
+          "role": "PK"
+        },
+        {
+          "name": "on_hand_qty",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "column"
+        },
+        {
+          "name": "reserved_qty",
+          "logicalType": "INT64",
+          "physicalCodec": "BITPACK",
+          "collation": null,
+          "nullable": false,
+          "role": "column"
+        }
+      ]
+    },
+    {
+      "catalogId": 104,
+      "name": "supplier_ledger",
+      "kind": "foreign_table",
+      "format": "mainframe_copybook_fb",
+      "definitionId": "v4",
+      "revision": 42,
+      "lifecycle": "published",
+      "rowCount": 640,
+      "segmentBytes": 98304,
+      "columns": [
+        {
+          "name": "warehouse_id",
+          "logicalType": "INT64",
+          "physicalCodec": "ZONED",
+          "collation": null,
+          "nullable": false,
+          "role": "join_candidate -> inventory.warehouse_id"
+        },
+        {
+          "name": "committed_qty",
+          "logicalType": "INT64",
+          "physicalCodec": "COMP-3",
+          "collation": null,
+          "nullable": true,
+          "role": "column"
+        },
+        {
+          "name": "depot_code",
+          "logicalType": "VARCHAR(16)",
+          "physicalCodec": "EBCDIC",
+          "collation": "EBCDIC_CP037",
+          "nullable": false,
+          "role": "column"
+        }
+      ]
+    },
+    {
+      "catalogId": 201,
+      "name": "delivery_notes",
+      "kind": "document",
+      "definitionId": "v5",
+      "revision": 84,
+      "lifecycle": "published",
+      "segmentBytes": 65536,
+      "projectedFields": [
+        "order_id",
+        "status_note",
+        "escalation_tags[]"
+      ]
+    },
+    {
+      "catalogId": 301,
+      "name": "carrier_quotes",
+      "kind": "kv",
+      "definitionId": "v3",
+      "revision": 19,
+      "lifecycle": "published",
+      "liveKeys": 512,
+      "segmentBytes": 38912,
+      "keyEncoding": "route_key (UTF-8)",
+      "valueDecoder": "quote_envelope_v1"
+    },
+    {
+      "catalogId": 401,
+      "name": "at_risk_deliveries",
+      "kind": "maintained_computation",
+      "definitionId": "v6",
+      "lifecycle": "complete",
+      "freshInFigure1": true,
+      "freshInFigure5": false,
+      "sourceBasisVector": {
+        "orders": 42,
+        "shipments": 38
+      },
+      "currentUpstreamVectorInFigure5": {
+        "orders": 42,
+        "shipments": 39
+      }
+    }
+  ],
+  "erdRelationships": [
+    {
+      "id": "rel-orders-shipments",
+      "kind": "equijoin_fk",
+      "from": "orders.order_id",
+      "to": "shipments.order_id",
+      "cardinality": "1:N",
+      "logicalType": "INT64",
+      "admissibleInRelationalProfile": true,
+      "synthesizedSql": "SELECT o.order_id, o.warehouse_id, s.delay_hours FROM orders o INNER JOIN shipments s ON o.order_id = s.order_id WHERE s.delay_hours > 24;"
+    },
+    {
+      "id": "rel-inventory-orders",
+      "kind": "equijoin_fk",
+      "from": "inventory.warehouse_id",
+      "to": "orders.warehouse_id",
+      "cardinality": "1:N",
+      "logicalType": "INT64",
+      "admissibleInRelationalProfile": true
+    },
+    {
+      "id": "rel-inventory-supplier",
+      "kind": "equijoin_candidate",
+      "from": "inventory.warehouse_id",
+      "to": "supplier_ledger.warehouse_id",
+      "cardinality": "1:N",
+      "logicalType": "INT64",
+      "codecNote": "Logical INT64 join across DICT and ZONED physical codecs"
+    }
+  ],
+  "workbookCells": [
+    {
+      "cellId": "cell-1-join",
+      "figure": 1,
+      "sql": "SELECT o.order_id, o.warehouse_id, s.delay_hours FROM orders o INNER JOIN shipments s ON o.order_id = s.order_id WHERE s.delay_hours > 24;",
+      "status": "complete_coverage",
+      "timing": {
+        "runMs": 14,
+        "readyMs": 28,
+        "sourceCut": "orders@v42, shipments@v38"
+      },
+      "rows": [
+        { "order_id": "1004", "warehouse_id": "12", "delay_hours": "36" },
+        { "order_id": "1019", "warehouse_id": "12", "delay_hours": "48" },
+        { "order_id": "1042", "warehouse_id": "18", "delay_hours": "29" }
+      ],
+      "profiles": {
+        "order_id": { "type": "INT64", "distinct": 3, "nulls": 0, "min": "1004", "max": "1042" },
+        "warehouse_id": { "type": "INT64", "distinct": 2, "nulls": 0, "shares": { "12": "67%", "18": "33%" } },
+        "delay_hours": { "type": "INT64", "distinct": 3, "nulls": 0, "min": "29", "max": "48" }
+      }
+    },
+    {
+      "cellId": "cell-2-assistance",
+      "figure": 4,
+      "draftSql": "SELECT o.order_id, s.|\nFROM orders o\nINNER JOIN shipments s ON o.order_id = s.order_id;",
+      "assistanceProfile": "catalog_v1",
+      "editorState": {
+        "interaction": "completion",
+        "clientOwnership": "idle",
+        "completionEvidence": "current_remote_metadata",
+        "basis": "orders@v42, shipments@v38"
+      },
+      "candidates": [
+        { "insert": "s.\"delay_hours\"", "type": "INT64", "role": "column", "source": "shipments" },
+        { "insert": "s.\"eta_day\"", "type": "INT64", "role": "column", "source": "shipments" },
+        { "insert": "s.\"order_id\"", "type": "INT64", "role": "FK", "source": "shipments" },
+        { "insert": "s.\"shipment_id\"", "type": "INT64", "role": "PK", "source": "shipments" }
+      ]
+    },
+    {
+      "cellId": "cell-3-history-dml",
+      "figure": 4,
+      "historySearchFilter": "UPDATE inventory SET reserved_qty =",
+      "editorInvariant": "Esc or Ctrl+G restores saved draft and cursor; Enter/Tab accepts match as one undoable edit.",
+      "lastCommandCompletion": {
+        "kind": "command_completion",
+        "outcome": "applied",
+        "matched": 1,
+        "changed": 1,
+        "operationId": "op-9042",
+        "newCatalogRevision": 43
+      }
+    }
+  ],
+  "fiveStateInspection": {
+    "figure": 3,
+    "dataset": "supplier_ledger",
+    "snapshotRevision": 42,
+    "cellStateTotals": {
+      "value": 1915,
+      "null": 2,
+      "missing": 1,
+      "type_error": 2,
+      "conflict": 1
+    },
+    "sampleRows": [
+      { "warehouse_id": "12", "committed_qty": "450", "depot_code": "'ORD-NORTH'", "status_note": "'On schedule'" },
+      { "warehouse_id": "14", "committed_qty": { "state": "type_error", "detail": "Invalid COMP-3 nibble @ 0x1A" }, "depot_code": "'DFW-CENTRAL'", "status_note": "'Carrier delay'" },
+      { "warehouse_id": "18", "committed_qty": "290", "depot_code": "'ATL-EAST'", "status_note": { "state": "conflict", "revisions": ["r81", "r82"] } },
+      { "warehouse_id": "21", "committed_qty": "610", "depot_code": "'SEA-WEST'", "status_note": { "state": "missing" } },
+      { "warehouse_id": "24", "committed_qty": { "state": "null" }, "depot_code": "'BOS-NORTH'", "status_note": "'Verified'" },
+      { "warehouse_id": "29", "committed_qty": "840", "depot_code": "'LAX-SOUTH'", "status_note": "'On schedule'" }
+    ]
+  },
+  "dataGravityLineage": {
+    "figure": 5,
+    "inbound": {
+      "connection": { "name": "carrier_api", "family": "http", "revision": 7 },
+      "source": { "name": "carrier_webhook", "lastCaptureId": 419, "status": "complete" },
+      "targetTable": "shipments"
+    },
+    "deltaActivation": {
+      "log": "TransitLog (TWAL1)",
+      "lsn": 18410,
+      "dependents": [
+        {
+          "kind": "maintained_computation",
+          "name": "at_risk_deliveries",
+          "catalogId": 401,
+          "lifecycle": "pending",
+          "fresh": false,
+          "reason": "shipments advanced from v38 to v39 (+4 rows)"
+        },
+        {
+          "kind": "station_process",
+          "name": "allocation_coordinator",
+          "pid": 41,
+          "generation": 3,
+          "inbox": 1,
+          "outbox": 0,
+          "outboundSink": {
+            "name": "dispatch_reallocation",
+            "connection": "warehouse_grpc",
+            "attemptId": 814,
+            "disposition": "intent_recorded_outcome_verified"
+          }
+        }
+      ]
+    }
+  },
+  "branchAndDdlPreview": {
+    "figure": 6,
+    "previewDdlStatements": [
+      {
+        "sql": "ALTER TABLE orders ADD COLUMN priority_tier INT64 DEFAULT 0;",
+        "outcome": "admissible",
+        "workKind": "validate_rows",
+        "rowsToValidate": 1420,
+        "targetDefinitionId": "v13"
+      },
+      {
+        "sql": "DROP TABLE inventory RESTRICT;",
+        "outcome": "rejected",
+        "reason": "Blocked by 2 registered RESTRICT dependents",
+        "blockingDependents": ["warehouse_coverage", "query Q4"]
+      }
+    ],
+    "branchComparison": {
+      "computation": "at_risk_deliveries",
+      "baseBranch": { "name": "main", "version": "v42", "atRiskOrders": 14, "maxDelayHours": 48, "exposureUsd": 42800 },
+      "candidateBranch": { "name": "branch/reallocate-inventory", "version": "v42+3", "atRiskOrders": 5, "maxDelayHours": 18, "exposureUsd": 11200 }
+    }
+  }
+}
