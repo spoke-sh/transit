@@ -6,15 +6,26 @@ The console uses fresh interactive snapshots by default; explicitly durable
 queries retain frozen request and result recovery. The [v1 contract](../../../contracts/UNIFIED_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
-`TableChangeReader.open` captures a catalog Table snapshot. Consume
-`snapshotNext` through null, then save `checkpoint` with the complete snapshot.
-`openTail` takes that position and a fresh nonce; `next` yields paired row
-changes and complete transaction boundaries, including no-op progress. Save the
-next position only with the complete transaction's application. A caught-up
-event covers this lease; close it and open another tail to observe later work.
-The reader owns its lease and schemas; callers deinitialize returned row/change
-values, close explicitly and finally deinitialize the reader. Request budgets,
-cancellation and current native/catalog rights apply to every disclosure.
+`TableChangeReader.open` reads an explicitly retained direct Table history lease.
+Save the acquisition intent before dispatch and retain its original handle across
+backfill and disconnection. Supply a fixed exclusive upper log position and
+request budget. Consume `snapshotNext` through null, then save `checkpoint` with
+the complete snapshot. `openTail` takes that position and a selected upper bound;
+it does not reacquire retention or resolve a name. `next` yields paired row changes
+and complete transaction boundaries, including accepted no-ops and definition
+changes. The boundary includes the original acceptance receipt and both source
+bases. Save its next position only with the complete transaction's application.
+Physical maintenance advances a separate cursor and cannot fabricate a logical
+transaction. A caught-up event covers only the supplied upper bound.
+
+Each diff step owns at most two rows and uses at most two maximum-row buffers
+for exact canonical comparison. Values retain their original schema, including
+schema evolution; unchanged canonical rows do not become updates merely because
+the Table was renamed. Callers deinitialize returned rows/changes. Local `close`
+and `deinit` do not release durable retention. Explicitly close the original
+history acquisition when it is no longer required, preserving uncertain closure
+for retry. Request/row-byte budgets, cancellation and current native/catalog
+rights apply to every disclosure, including empty output and checkpoints.
 See [Table change capture](../../../docs/handbook/reference/tables.md#snapshot-and-change-capture).
 
 `UnifiedClient` owns signed description, finite upload, frozen submission,

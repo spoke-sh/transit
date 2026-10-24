@@ -170,6 +170,14 @@ can be empty and still advance their cursor. `history_source` and `history_scan`
 read an exact retained acceptance under its original schema. All operations need
 current CONNECT, USAGE and SELECT and a live lease, including empty output.
 
+The typed `TableChangeReader` uses that same retained lease for snapshot backfill
+and subsequent tails. Its saved position binds the original connection, object,
+lease and exact history record. Reopening repeats a partially delivered
+transaction; save a successor only with the complete transaction's application.
+Each tail has an explicit fixed upper position. Closing the local reader does
+not release durable retention or authorize acquiring a replacement historical
+cut. The caller explicitly retires the original acquisition when finished.
+
 Maintained-query execution uses these leases for bounded initial backfill and
 successive logical changes. Inserts have an after row, deletes have a before
 row, and updates pair both values under a stable row identity. Native computation

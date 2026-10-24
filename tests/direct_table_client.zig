@@ -307,6 +307,8 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     defer cleanup.deinit();
     const cleanup_record = try cleanup.acquire(client, try c.DirectTableBinding.init(client.connection, current.value.result.lookup.?), current.value.result.lookup.?.position);
     const native_table = (try admin.query(.{ .binding = .{ .domain = profile.catalog.authority.table_domain, .key = try c.TableAuthority.binding(profile.catalog.scope, .table, 7) } })).body.authorization.body.binding.?.reference.id;
+    var history_reader = try History.tail(client, profile.history.?, profile.history.?.no_op.?.position);
+    defer history_reader.deinit();
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
     try t.expectError(error.AccessDenied, client.call(observed_action));
     try t.expectError(error.AccessDenied, client.call(suffix_request));
@@ -315,6 +317,8 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectError(error.AccessDenied, client.call(.{ .read_authority = saved.snapshot.object }));
     try t.expectError(error.AccessDenied, client.call(.{ .scan = .{ .snapshot = saved.snapshot, .after = null, .limits = .{} } }));
     try t.expectError(error.AccessDenied, reader.check(client));
+    try t.expectError(error.AccessDenied, history_reader.next());
+    try t.expectEqualDeep(profile.history.?.checkpoint.?, history_reader.position);
     try t.expectError(error.AccessDenied, Delegation.verify(client, profile.delegation.?));
     try Delegation.deniedClosure(client, profile.delegation.?);
     try t.expectError(error.AccessDenied, reader.next(client, .{}));
@@ -326,6 +330,7 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectError(error.AccessDenied, cleanup.close(client, cleanup_record));
     try t.expectError(error.AccessDenied, cleanup.tick(client.authority, client.key, client.connection.principal));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = profile.role } });
+    try t.expectEqualDeep(profile.history.?.checkpoint.?, try history_reader.checkpoint());
     (try client.call(observed_action)).deinit();
     (try client.call(suffix_request)).deinit();
     for (0..3) |_| _ = try cleanup.tick(client.authority, client.key, client.connection.principal);
@@ -387,6 +392,10 @@ pub fn main(init: std.process.Init) !void {
             profile.lifecycle = lifecycle.value;
             try Delegation.verify(client, profile.delegation.?);
             try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "history-position")) {
+            var reader = try History.tail(client, profile.history.?, profile.history.?.checkpoint.?.source.point.position);
+            defer reader.deinit();
+            _ = try reader.checkpoint();
         } else if (std.mem.eql(u8, args[2], "lifecycle")) {
             try Delegation.verify(client, profile.delegation.?);
             try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true);
