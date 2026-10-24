@@ -75,7 +75,6 @@ pub fn validateResponse(allocator: std.mem.Allocator, connection: Table.Connecti
         .lifecycle => .lifecycle,
         .dependents, .dependencies => .dependencies,
         .policy_references => .policy_references,
-        .computation => .computation,
         .preview => .preview,
         .compile, .prepare => .compiled,
         .next => .next,
