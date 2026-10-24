@@ -3,6 +3,7 @@ import struct
 import json
 import threading
 import time
+from unified_abi import authorize_capture
 
 
 def check(native, port, callers, root, invoke, restart, fault, kind):
@@ -14,7 +15,7 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
     struct.pack_into('<QQQ', bundle, 40, 1000, 100, 1)
     # This is new work: seal the changed budget before fingerprint/upload.
     # Never mutate or re-sign the accepted bundle used by earlier schedules.
-    bundle = bytes.fromhex(native.call({'authorize': bundle.hex()})['authorized'])
+    bundle = bytes.fromhex(authorize_capture(native, root, namespace, bundle.hex()))
     lost = dict(attempt=None, receipt=None, retries=0)
     lock = threading.Lock()
 
@@ -32,8 +33,15 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
                 for mutation in turn.get('mutations', []):
                     if not mutation or mutation['value'] is None: continue
                     value = bytes.fromhex(mutation['value'])
-                    if value[:4] == b'UQJ1' and value[125] == 6:
-                        assert len(value) == 255 and value[142:147] == b'\1UQF1'
+                    if value[:4] != b'UQJ1': continue
+                    # Four route identities, retention tag/worker, optional
+                    # native version index, then the 72-byte SPF1 reference.
+                    assert value[36] in (1, 2)
+                    phase_offset = 45 + (1 if value[36] == 1 else 0) + 72
+                    failure_offset = phase_offset + 17
+                    if value[phase_offset] == 6:
+                        assert len(value) == failure_offset + 1 + 112
+                        assert value[failure_offset:failure_offset+5] == b'\1UQF1'
                         lost.update(attempt=body, receipt=data)
                         return b'{"position":0}'
         return data
@@ -98,7 +106,7 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
             # Alter source data through its real owner while workers are stopped.
             # The diagnostic must come from this exact failed captured page.
             restart(label='runtime-invalid', before_workers=lambda: invoke('invalidate-kv', direct=True))
-            scope = json.loads((root / 'shell.json').read_text())['workspace']
+            scope = {key: value for key, value in json.loads((root / 'shell.json').read_text())['workspace'].items() if key != 'executor'}
             compiled = native.call({'compile': {'scope': scope, 'sql': "SELECT * FROM items WHERE key IS NULL AND value='';", 'parameters': None}})['compiled']
             namespace = '55002'
             lost.update(attempt=None, receipt=None, retries=0)
@@ -133,7 +141,7 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
         # Prepare the final submission before a real source policy change.
         # Submit those exact saved bytes afterwards, bypassing no owner check.
         namespace = '55003'
-        requested = (root / 'bundle.bin').read_bytes()
+        requested = bytes.fromhex(authorize_capture(native, root, namespace))
         for _ in range(140):
             prepared = native.call({'next': dict(namespace=namespace, bundle=requested.hex())})['prepared']
             assert prepared is not None

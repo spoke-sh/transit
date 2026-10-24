@@ -1,5 +1,36 @@
 # Validation and evidence
 
+## Unified direct Table recovery and closure — 2026-10-24
+
+`nix develop .#serving --command just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-source=table` passes in 53.99 seconds. Its catalog uses the local direct
+owner, independently of native source/requester progress. Native ABI and port
+callers agree on SQL inspection and pure parameter compilation. Explicit capture
+authorization is saved separately from that unsigned description. The schedule
+recovers the original signed upload and six complete Arrow segments containing
+41 exact UTF-8 rows (15,120 bytes) after source/requester/node replacement. Current
+revocation suppresses reads; restoring access preserves the original result.
+Every acquired Table pin is released, and reopening it returns the public
+`QueryExpired` rejection. Eight resident native pages are configured.
+
+Adding `-Dunified-counts=true -Dunified-lifecycle=true` passes in 137.03 seconds.
+It recovers a partial COUNT accumulator after replacement, refuses partial
+results, preserves exact lost-reply retries and recorded budget/policy failure
+diagnostics, and checks cancellation, current source/request authorization,
+cleanup and released-pin refusal. New finite queries use distinct explicit pin
+operations; retries retain their already authorized bundles. The independent
+fault decoder follows the current `UQJ1` retention tags and `UQC1` typed source
+positions. Read/candidate-preparation retries are bounded to explicit capacity
+or stale-cut refusals; signed submissions never enter that retry helper.
+
+These Table schedules deliberately leave point rows unflushed and verify that
+no `.tseg` exists. They qualify WAL-only recovery, not automatic flushing or
+physical garbage collection. Their unused Ursula/MinIO fixture does not establish
+cold Table persistence. The shared-fixture KV regression also passes in 38.94
+seconds over disk Ursula, with 41 rows and six segments. Optional Table Board,
+installed-SDK and finite-expiry schedules, and the remaining older catalog/SQL
+fixtures, are not qualified by these commands.
+
 ## Direct Follow browser lifecycle — 2026-10-24
 
 `nix develop .#serving --command just test::reactive-views-lifecycle` passes the

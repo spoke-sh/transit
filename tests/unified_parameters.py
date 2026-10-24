@@ -45,11 +45,12 @@ def compile_requests(owners, scope, kind, root, fault, *, capability_owners=()):
         request['sql'] += ' AND NOT (value >= $2 OR value IS NULL)'
         request['parameters'].append({'utf8': f"東京🙂/{'x'*padding}/{last}"})
     requests.append({'compile': request})
-    original = (root / 'bundle.bin').read_bytes()
+    original = (root / 'bundle-description.bin').read_bytes()
     for owner in owners:
         compiled = owner.call({'compile': request})['compiled']
         assert bytes.fromhex(compiled['bundle']) == original
-    (root / 'bundle.bin').write_bytes(bytes.fromhex(compiled['bundle']))
+    # Compilation stays unsigned. Upload uses the separately saved, explicit
+    # capture authorization in bundle.bin, including its original pin identity.
     (root / 'parameter-compilation.json').write_text(json.dumps(request))
     wrong_types = ({'signed': '-9223372036854775808'}, {'unsigned': '18446744073709551615'},
                    {'float_bits': '0000000000000080'}, {'boolean': False}, {'binary': '00ff80'})

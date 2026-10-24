@@ -1,6 +1,6 @@
 """Current public grants and explicit cancellation at real capture boundaries."""
 import time
-from unified_abi import Failure
+from unified_abi import Failure, authorize_capture
 
 
 def check(client, root, invoke, fault, kind):
@@ -16,8 +16,9 @@ def check(client, root, invoke, fault, kind):
             time.sleep(.02)
 
     def upload(namespace):
+        accepted = authorize_capture(client, root, namespace)
         for _ in range(132):
-            prepared = client.call({'next': dict(namespace=namespace, bundle=bundle)})['prepared']
+            prepared = client.call({'next': dict(namespace=namespace, bundle=accepted)})['prepared']
             if prepared is None: return
             observe(prepared)
         raise AssertionError('finite upload budget exceeded')

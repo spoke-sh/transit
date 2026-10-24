@@ -26,7 +26,7 @@ pub fn grantDefaults(comptime c: type, admin: anytype, authority: c.TableAuthori
     _ = try admin.authorization(.{ .grant = .{ .object = a.reference(authority.initial_schema_authority), .grantee = grantee, .privileges = a.usage } });
     _ = try admin.authorization(.{ .default_grant = .{ .creator = creator, .schema = a.reference(authority.initial_schema_authority), .domain = authority.table_domain, .grantee = grantee, .privileges = privileges } });
 }
-pub fn tablePrivileges(comptime c: type, admin: anytype, configuration: c.TableCatalogRecords.Configuration, object: u64, grantee: u64, privileges: u64, allow: bool) !void {
+pub fn tablePrivileges(comptime c: type, admin: anytype, configuration: anytype, object: u64, grantee: u64, privileges: u64, allow: bool) !void {
     const binding = try c.TableAuthority.binding(configuration.scope, .table, object);
     const target = (try admin.query(.{ .authorization = .{ .kind = .{ .binding = .{ .domain = configuration.authority.table_domain, .key = binding } } } })).body.authorization.body.binding orelse return error.MissingProofTable;
     _ = try admin.authorization(if (allow) .{ .grant = .{ .object = target.reference, .grantee = grantee, .privileges = privileges } } else .{ .revoke_privileges = .{ .object = target.reference, .grantee = grantee, .privileges = privileges, .behavior = .cascade } });
