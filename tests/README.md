@@ -185,6 +185,38 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Named maintained revision inspection and recovery — 2026-10-23
+
+Under definition
+`554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa`,
+this native local-persistence schedule passes:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --maintained-only
+```
+
+Self-join and independent-Table maintenance now publish an immutable named
+definition and explicitly authorize/activate it. Repeated publication and metadata
+reads leave policy, execution and history leases absent until their separate
+operations. A node restart recovers the original acquisition, followed by another
+restart inside bounded physical history traversal. Initial output, complete
+successors/deltas, no-op revisions, lease cleanup, current revocation/restoration
+and retirement pass through those named activations.
+
+`NamedRelational.maintainedDefinition` resolves actual result and delta readers
+through their original retained native snapshot. It preserves attribution after
+a later named definition and after node restart, rejects a foreign computation
+scope, consumes no output and cannot establish a consumer checkpoint. Exhausted
+readers reject inspection. Source freshness remains bound to the inspected
+revision; inspecting definitions/freshness leaves the maintenance head unchanged.
+The existing result reader performs complete coverage and current-rights checks.
+
+Diagnostic inventory/mapping checks and `just transit-docs::check` pass, including
+nine documentation tests and the production documentation build. This schedule
+does not inject lost native naming replies or credential rotation at those replies;
+the older naming fixture still needs migration. Direct dependency registration,
+full repository checks and the committed-HEAD clean gate remain outstanding.
+
 ## Query-owned computation evidence — 2026-10-23
 
 Under definition

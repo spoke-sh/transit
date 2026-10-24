@@ -8,7 +8,11 @@ const s = q.station;
 const w = c.DirectTableProtocol;
 const r = q.RelationalMaintenanceRecords;
 const support = @import("direct_captured_query.zig");
-pub const State = struct { worker: support.Provision, principal: u64, seed: u8, bundle: w.Binary, identity: r.Identity, job: u64, independent: bool };
+const app = @import("transit_station_app");
+pub const State = struct { worker: support.Provision, principal: u64, seed: u8, bundle: w.Binary, identity: r.Identity, job: u64, independent: bool, named: ?app.NamedRelationalRecords.Reference = null };
+fn naming(state: State) app.NamedRelational {
+    return .{ .configuration = .{ .scope = .{ .realm = 42, .resource = state.worker.resource, .owner = state.worker.pid, .namespace = 55 }, .administrator = 101, .records = 4096, .bytes = 32 * 1024 * 1024 } };
+}
 pub fn executor(client: c.DirectTableClient, state: State) !c.DirectTableClient {
     var result = client;
     result.connection.principal = state.principal;
@@ -73,9 +77,55 @@ pub fn prepareWithExchange(init: std.process.Init, client: c.DirectTableClient, 
     var state: State = .{ .worker = worker, .principal = principal, .seed = seed, .bundle = try .encode(alloc, body), .identity = undefined, .job = 0, .independent = independent };
     const client_set = [_]c.DirectTableClient{ try executor(client, state), try executor(client, state) };
     var behavior: support.RelationalHost = .{ .exchanged = exchanged, .bundle = bundle, .bytes = body, .reference = try bundle.reference(worker.resource, 1), .clients = &client_set, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024) };
+    if (!exchanged) behavior.named = naming(state);
     var running = try host(client, state);
+    if (behavior.named != null) try support.send(client, worker.pid, try .init("prime"));
     try support.send(client, worker.pid, try .init("configure"));
     try support.send(client, worker.pid, try .init("upload"));
+    if (behavior.named) |named| {
+        for (0..1000) |_| {
+            try step(init, &running, &behavior, admin);
+            var reader = try source(client, state);
+            const descriptor = behavior.reference.publication().inspect(&reader, behavior.reference.record) catch |err| {
+                if (err == error.PublicationNotFound or err == error.PublicationUninitialized or err == error.RecordNotFound) continue;
+                return err;
+            };
+            if (descriptor.state == .published) break;
+        } else return error.NamedUploadPending;
+        const name = try app.NamedRelationalRecords.Name.init("totals");
+        const control = try (app.NamedRelationalRecords.Control{ .publish = .{ .name = name, .object = 1001, .expected = 0, .peer = worker.pid, .request = behavior.reference } }).encode();
+        try support.send(client, worker.pid, control);
+        for (0..1000) |_| {
+            try step(init, &running, &behavior, admin);
+            var reader = try source(client, state);
+            state.named = try named.lookup(&reader, name);
+            if (state.named != null) break;
+        } else return error.NamedPublicationPending;
+        var reader = try source(client, state);
+        const definition = try named.definition(&reader, state.named.?);
+        try t.expectEqual(.maintained, definition.lifetime);
+        try t.expectEqualDeep(definition, try named.definition(&reader, state.named.?));
+        try t.expect(try q.RelationalCapture.policy(&reader, worker.pid) == null);
+        try t.expect(try reader.read(support.RelationalHost.correlation_key) == null);
+        for (bundle.retention, 0..) |grant, i| {
+            if (try bundle.sourceOrdinal(i) != i) continue;
+            const status = try client.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
+            defer status.deinit();
+            try t.expect(status.value.result.pin_state.handle == null);
+        }
+        try support.send(client, worker.pid, control);
+        try support.send(client, worker.pid, try (app.NamedRelationalRecords.Control{ .authorize = .{ .reference = state.named.?, .expected = 0, .principal = 101, .allow = true } }).encode());
+        for (0..1000) |_| {
+            try step(init, &running, &behavior, admin);
+            reader = try source(client, state);
+            if (try q.RelationalCapture.policy(&reader, worker.pid)) |policy| {
+                try t.expectEqual(@as(u64, 1), policy.revision);
+                break;
+            }
+        } else return error.NamedAuthorizationPending;
+        try t.expect(try reader.read(support.RelationalHost.correlation_key) == null);
+        try support.send(client, worker.pid, try (app.NamedRelationalRecords.Activation{ .reference = state.named.?, .policy_revision = 1 }).encode());
+    }
     for (0..2000) |_| {
         try step(init, &running, &behavior, admin);
         var reader = try source(client, state);
@@ -125,8 +175,18 @@ pub fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, state
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
     var reader = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(100 + revision)));
     defer reader.close() catch {};
+    if (state.named) |reference| {
+        const named = naming(state);
+        try t.expectEqualDeep(reference, try (try named.maintainedDefinition(&reader)).reference());
+        try t.expectEqual(@as(u64, 0), reader.ordinal);
+        try t.expectError(error.IncompleteResult, reader.checkpoint());
+        var foreign = named;
+        foreign.configuration.scope.resource += 1;
+        try t.expectError(error.NamedQueryChanged, foreign.maintainedDefinition(&reader));
+    }
     try t.expectEqual(expected, (try reader.next()).?.row.cells[0].value.atom.unsigned);
     try t.expect(try reader.next() == null);
+    if (state.named != null) try t.expectError(error.QueryClosed, naming(state).maintainedDefinition(&reader));
     return reader.checkpoint();
 }
 fn freshness(client: c.DirectTableClient, bundle: q.RelationalBundle, state: State, revision: u64, expected: bool) !void {
@@ -137,6 +197,7 @@ fn freshness(client: c.DirectTableClient, bundle: q.RelationalBundle, state: Sta
     defer reader.close() catch {};
     const result = try reader.freshness(&.{ client, client });
     try t.expectEqual(expected, result.fresh());
+    if (state.named) |reference| try t.expectEqualDeep(reference, try (try naming(state).maintainedDefinition(&reader)).reference());
     // Inspecting source progress cannot verify unread output or wake maintenance.
     try t.expectError(error.IncompleteResult, reader.checkpoint());
     try t.expectEqualDeep(before, try observed(client, state));
@@ -149,6 +210,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     const bundle = owned.bundle;
     const client_set = [_]c.DirectTableClient{ try executor(client, state), try executor(client, state) };
     var behavior: support.RelationalHost = .{ .bundle = bundle, .bytes = bytes, .reference = try bundle.reference(state.worker.resource, 1), .clients = &client_set, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024) };
+    if (state.named != null) behavior.named = naming(state);
     var running = try host(client, state);
     if (backfill) {
         var changed = false;
@@ -170,6 +232,20 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
         } else return error.MaintainedQueryPending;
         try t.expect(changed);
         _ = try readResult(client, bundle, state, 1, 2);
+        if (state.named) |reference| {
+            // Publish a new name revision after execution and node restart.
+            // The old query keeps its original policy and immutable attribution.
+            const before_publication = try observed(client, state);
+            try support.send(client, state.worker.pid, try (app.NamedRelationalRecords.Control{ .publish = .{ .name = reference.identity.name, .object = reference.identity.object, .expected = 1, .peer = state.worker.pid, .request = behavior.reference } }).encode());
+            for (0..1000) |_| {
+                try step(init, &running, &behavior, admin);
+                var reader = try source(client, state);
+                const current = (try naming(state).lookup(&reader, reference.identity.name)).?;
+                if (current.identity.revision == 2) break;
+            } else return error.NamedPublicationPending;
+            try t.expectEqualDeep(before_publication, try observed(client, state));
+            _ = try readResult(client, bundle, state, 1, 2);
+        }
         try freshness(client, bundle, state, 1, false);
         try support.send(client, state.worker.pid, try .init("wake"));
         for (0..100) |_| {
@@ -212,6 +288,10 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
         const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
         var delta = try q.RelationalRevision.openNext(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, previous, disclosure, @splat(@intCast(110 + revision)), 4000, null);
         defer delta.close() catch {};
+        if (state.named) |reference| {
+            try t.expectEqualDeep(reference, try (try naming(state).maintainedDefinition(&delta)).reference());
+            try t.expectError(error.IncompleteResult, delta.checkpoint());
+        }
         if (expected != previous_count) {
             const event = (try delta.next()).?.delta;
             try t.expectEqual(previous_count, event.before.?.row.cells[0].value.atom.unsigned);

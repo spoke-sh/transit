@@ -274,13 +274,19 @@ pub fn next(self: *Self) !?Event {
     self.last = identity;
     return event;
 }
+/// Recheck this retained revision's current disclosure rights without reading
+/// output or advancing a consumer checkpoint. Composed inspection shares the
+/// same request budget and must check again before disclosing its result.
+pub fn check(self: *Self) !void {
+    if (self.failed or self.complete or self.closed or self.source.closed) return error.QueryClosed;
+    try self.authorize(false);
+}
 /// Observe freshness for this exact complete revision without waking maintenance.
 /// Output/delta coverage remains incomplete until next() reaches its checked end.
 pub fn freshness(self: *Self, clients: []const q.catalog.DirectTableClient) !q.RelationalFreshness {
-    if (self.failed or self.complete or self.closed) return error.QueryClosed;
-    try self.authorize(false);
+    try self.check();
     const result = try q.RelationalFreshness.maintained(self.bundle, self.manifest.vector, clients, self.disclosure);
-    try self.authorize(false);
+    try self.check();
     return result;
 }
 pub fn checkpoint(self: *const Self) !Position {
