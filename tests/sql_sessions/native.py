@@ -121,6 +121,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     created = first.execute('CREATE TABLE native_sessions (id INT64 PRIMARY KEY, value INT128)', token)['operation']
     first.terminal(created)
     # The actual native route shares grammar, metadata and settings assistance.
+    assistance_samples = []
     for text, cursor, expected, profile in (
         ('SELECT va FROM native_sessions', 9, '"value"', 'catalog_v1'),
         ('SELECT n.va FROM native_sessions AS n', 11, '"value"', 'catalog_v1'),
@@ -129,6 +130,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         ('SET query.statement_t', 21, 'query.statement_timeout', 'configuration_v1'),
     ):
         result = first.call(dict(assist=dict(text=text, cursor=cursor)))['assistance']
+        assistance_samples.append(dict(profile=profile, milliseconds=first.sample['milliseconds']))
         assert result['profile'] == profile and result['status'] == 'ready', (text, result)
         assert expected in [item['text'] for item in result['items']], (text, result)
         assert result['coverage'] in ('complete', 'limited') and len(result['items']) <= 8
@@ -144,6 +146,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         rejected = first.call(dict(execute=dict(sql=statement, token=list(os.urandom(16)))), error=code)['err']
         assert rejected['diagnostic']['outcome'] == 'not_submitted', rejected
         assert rejected['sqlstate'] in (list(b'42601'), list(b'22023')), rejected
+    print(json.dumps(dict(profile="native_sql_assistance", samples=assistance_samples)), flush=True)
     # Original token returns its original operation without recompiling CREATE.
     assert second.execute('CREATE TABLE native_sessions (id INT64 PRIMARY KEY, value INT128)', token)['operation']['identity'] == created['identity']
     second.call(dict(execute=dict(sql='CREATE TABLE changed (id INT64)', token=token)), error='SqlTokenConflict')
@@ -317,6 +320,19 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     config.write_text(f'version: 1\nendpoint: https://localhost:{port}\naccount: proof\ndatabase: data\nauthentication: scram\nca_file: {certificate}\npassword_file: {password}\nformat: json\n')
     from sql_sessions.security import console as console_security
     console_security(console, consumer, config, password, port, client_environment)
+    # Exercise the real terminal deadline and acceptance refresh over this TLS
+    # session, not just a direct protocol call with a longer request budget.
+    from console_terminal import Terminal
+    terminal = Terminal(console, config, home=home, cwd=consumer, env={'PATH': '/unavailable'})
+    try:
+        terminal.send('SELECT va FROM native_sessions\x01' + '\x1b[C' * 9 + '\t')
+        terminal.expect('transit> SELECT "value" FROM native_sessions', timeout=10)
+        terminal.send('\x1b')
+        terminal.expect('transit> ')
+        terminal.send('SET query.statement_t\t')
+        terminal.expect('transit> SET query.statement_timeout', timeout=10)
+    finally:
+        terminal.close()
     def console_read(_):
         result = subprocess.run([console, 'console', '--config', str(config), '-c', 'SELECT id FROM native_sessions'], cwd=consumer, env=client_environment, capture_output=True, text=True, timeout=60)
         assert result.returncode == 0, result.stderr

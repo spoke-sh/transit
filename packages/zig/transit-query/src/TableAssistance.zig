@@ -13,6 +13,7 @@ const Builder = struct {
     prefix: []const u8,
     quoted: bool,
     items: [a.max_items]a.Item = undefined,
+    exact: [a.max_items]bool = undefined,
     count: usize = 0,
     limited: bool = false,
     fn add(self: *Builder, raw: []const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
@@ -37,7 +38,7 @@ const Builder = struct {
             }
             try quotedName(&writer, raw);
         } else try writer.writeAll(raw);
-        try a.offer(self.allocator, &self.items, &self.count, &self.limited, self.prefix, writer.buffered(), kind, detail);
+        try a.offer(self.allocator, &self.items, &self.exact, &self.count, &self.limited, self.prefix, raw, writer.buffered(), kind, detail);
     }
     fn clear(self: *Builder) void {
         for (self.items[0..self.count]) |item| self.allocator.free(item.text);
@@ -251,7 +252,8 @@ fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, reque
     errdefer allocator.free(response.policy_revision);
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
-    const schema_command = request.mode == .console and request.cursor >= 8 and std.mem.startsWith(u8, request.sql, ".schema ");
+    const command_end = std.mem.indexOfAny(u8, request.sql, " \t\r\n") orelse request.sql.len;
+    const schema_command = request.mode == .console and request.cursor > command_end and std.mem.eql(u8, request.sql[0..command_end], ".schema");
     if (request.mode == .console and std.mem.startsWith(u8, request.sql, ".") and !schema_command) {
         const result = try a.meta(allocator, request);
         response.range = result.range;
@@ -312,6 +314,11 @@ fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, reque
                 if (cursor == null) break;
             }
             if (cursor != null) builder.limited = true;
+        }
+        if (name != null and definition == null and editor.name_role != .source) {
+            builder.clear();
+            builder.count = 0;
+            response.status = .unsupported;
         }
         response.coverage = if (builder.limited) .limited else .complete;
         if (editor.name_role == null and editor.value_type == null and editor.words[0] == null and editor.symbols[0] == null) response.status = .unsupported;
@@ -424,4 +431,14 @@ test "relational completion qualifies aliases and limits columns to the admitted
     try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE l.key = ", &.{"0"}, &.{ "TRUE", "FALSE", "''", "NULL" });
     try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE key ", &.{}, &.{ "IS", "=", "<>" });
     try std.testing.checkAllAllocationFailures(std.testing.allocator, relationalFixture, .{ "SELECT l.va", &.{"\"value\""}, &.{"\"label\""} });
+}
+
+test "qualified identifier ranking uses the typed column spelling before quoting" {
+    const t = std.testing;
+    var builder: Builder = .{ .allocator = t.allocator, .prefix = "v", .quoted = false };
+    defer builder.clear();
+    try builder.addQualified("Value", "a", .column, "int64");
+    try builder.addQualified("value", "z", .column, "int64");
+    try t.expectEqualStrings("\"z\".\"value\"", builder.items[0].text);
+    try t.expectEqualStrings("\"a\".\"Value\"", builder.items[1].text);
 }

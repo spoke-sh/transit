@@ -30,11 +30,12 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
     if (!show and (std.ascii.startsWithIgnoreCase(prefix, "ROLE") or std.ascii.startsWithIgnoreCase(prefix, "LOCAL"))) return null;
     // Enumerate only public rows under the caller's current inspection grant.
     var items: [A.max_items]A.Item = undefined;
+    var exact: [A.max_items]bool = undefined;
     var count: usize = 0;
     var limited = false;
     errdefer for (items[0..count]) |item| allocator.free(item.text);
-    if (show) for ([_][]const u8{ "ALL", "DATABASES", "SCHEMAS", "TABLES" }) |word| try add(allocator, &items, &count, &limited, prefix, word, "Authorized settings or catalog listing");
-    if (reset) try add(allocator, &items, &count, &limited, prefix, "ALL", "Restore captured session defaults");
+    if (show) for ([_][]const u8{ "ALL", "DATABASES", "SCHEMAS", "TABLES" }) |word| try add(allocator, &items, &exact, &count, &limited, prefix, word, "Authorized settings or catalog listing");
+    if (reset) try add(allocator, &items, &exact, &count, &limited, prefix, "ALL", "Restore captured session defaults");
     var generation: ?u64 = null;
     var policy: ?u64 = null;
     var cursor: ?q.settings.Contract.Cursor = null;
@@ -48,7 +49,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
         policy = response.value.policy_revision;
         for (page.rows) |row| {
             if (!show and !row.session_mutable) continue;
-            try add(allocator, &items, &count, &limited, prefix, row.name, "Registered setting; authorization is checked at execution");
+            try add(allocator, &items, &exact, &count, &limited, prefix, row.name, "Registered setting; authorization is checked at execution");
         }
         cursor = page.next;
         if (cursor == null) break;
@@ -60,7 +61,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
     while (end < request.sql.len and (std.ascii.isAlphanumeric(request.sql[end]) or request.sql[end] == '_' or request.sql[end] == '.')) : (end += 1) {}
     return .{ .generation = request.generation, .coverage = if (limited) .limited else .complete, .status = .ready, .profile = .configuration_v1, .resource = client.binding.object.id, .contract = q.settings.Contract.Binding.identity(client.binding.installation), .resource_revision = generation.?, .policy_revision = revision, .range = .{ .start = @intCast(start), .end = @intCast(end), .quoted = false }, .items = try allocator.dupe(A.Item, items[0..count]) };
 }
-fn add(allocator: std.mem.Allocator, items: *[A.max_items]A.Item, count: *usize, limited: *bool, prefix: []const u8, name: []const u8, detail: []const u8) !void {
+fn add(allocator: std.mem.Allocator, items: *[A.max_items]A.Item, exact: *[A.max_items]bool, count: *usize, limited: *bool, prefix: []const u8, name: []const u8, detail: []const u8) !void {
     if (!std.ascii.startsWithIgnoreCase(name, prefix)) return;
-    try A.offer(allocator, items, count, limited, prefix, name, .keyword, detail);
+    try A.offer(allocator, items, exact, count, limited, prefix, name, name, .keyword, detail);
 }

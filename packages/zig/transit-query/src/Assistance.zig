@@ -35,11 +35,28 @@ pub const Response = struct {
 };
 /// Shared console vocabulary; dispatchers must reject unimplemented operations.
 pub const Meta = enum { connect, edit, execute, help, info, mode, quit, schema, show, sources, tables, timer };
+pub fn metaSummary(command: Meta) []const u8 {
+    return switch (command) {
+        .connect => "Open a connection using a configuration file",
+        .edit => "Edit the latest SQL statement in $EDITOR",
+        .execute => "Run a JSON query file with typed parameters",
+        .help => "Show command or topic help",
+        .info => "Show account, database and source context",
+        .mode => "Set the query result format",
+        .quit => "Exit the console",
+        .schema => "Show table columns, or list available tables",
+        .show => "Show console settings and their sources",
+        .sources => "Show session context; alias for .info",
+        .tables => "List available tables",
+        .timer => "Enable or disable query timing",
+    };
+}
 const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,
     quoted: bool,
     items: [max_items]Item = undefined,
+    exact: [max_items]bool = undefined,
     length: usize = 0,
     limited: bool = false,
     fn clear(self: *Builder) void {
@@ -63,7 +80,12 @@ const Builder = struct {
             }
             try writer.writeByte('"');
         } else try writer.writeAll(raw);
-        try offer(self.allocator, &self.items, &self.length, &self.limited, self.prefix, writer.buffered(), kind, detail);
+        try offer(self.allocator, &self.items, &self.exact, &self.length, &self.limited, self.prefix, raw, writer.buffered(), kind, detail);
+    }
+    fn unsupported(self: *Builder, range: ?input.Range) !Completion {
+        var result = try self.finish(range);
+        result.status = .unsupported;
+        return result;
     }
     fn finish(self: *Builder, range: ?input.Range) !Completion {
         return .{ .range = range, .coverage = if (self.limited) .limited else .complete, .status = if (range == null) .inside_text else .ready, .items = try self.allocator.dupe(Item, self.items[0..self.length]) };
@@ -117,8 +139,8 @@ fn completeStatement(allocator: std.mem.Allocator, name: []const u8, schema: q.f
         result.status = .unsupported;
         return result;
     }
-    if (hints.name_role != .source) if (target) |actual| if (!std.mem.eql(u8, actual, name)) return builder.finish(range);
-    if (hints.qualifier) |actual| if (!std.mem.eql(u8, actual.slice(), qualifier)) return builder.finish(range);
+    if (hints.name_role != .source) if (target) |actual| if (!std.mem.eql(u8, actual, name)) return builder.unsupported(range);
+    if (hints.qualifier) |actual| if (!std.mem.eql(u8, actual.slice(), qualifier)) return builder.unsupported(range);
     const has_sum = for (schema.structure) |column| {
         if (column.type == .int64) break true;
     } else false;
@@ -184,11 +206,12 @@ pub fn local(allocator: std.mem.Allocator, request: Request) !?Completion {
 
 /// Retain a bounded, deterministic shortlist while continuing to establish
 /// coverage. Exact-case prefix matches precede folded matches of the same role.
-pub fn offer(allocator: std.mem.Allocator, items: *[max_items]Item, count: *usize, limited: *bool, prefix: []const u8, text: []const u8, kind: @FieldType(Item, "kind"), detail: []const u8) !void {
+pub fn offer(allocator: std.mem.Allocator, items: *[max_items]Item, exact: *[max_items]bool, count: *usize, limited: *bool, prefix: []const u8, raw: []const u8, text: []const u8, kind: @FieldType(Item, "kind"), detail: []const u8) !void {
     for (items[0..count.*]) |item| if (std.mem.eql(u8, item.text, text)) return;
     const candidate: Item = .{ .text = text, .kind = kind, .detail = detail };
+    const matches_exact = std.mem.startsWith(u8, raw, prefix);
     var position: usize = 0;
-    while (position < count.* and !before(prefix, candidate, items[position])) position += 1;
+    while (position < count.* and !before(matches_exact, candidate, exact[position], items[position])) position += 1;
     if (count.* == max_items) {
         limited.* = true;
         if (position == max_items) return;
@@ -196,13 +219,11 @@ pub fn offer(allocator: std.mem.Allocator, items: *[max_items]Item, count: *usiz
     const owned = try allocator.dupe(u8, text);
     if (count.* == max_items) allocator.free(items[max_items - 1].text) else count.* += 1;
     std.mem.copyBackwards(Item, items[position + 1 .. count.*], items[position .. count.* - 1]);
+    std.mem.copyBackwards(bool, exact[position + 1 .. count.*], exact[position .. count.* - 1]);
+    exact[position] = matches_exact;
     items[position] = .{ .text = owned, .kind = kind, .detail = detail };
 }
-fn before(prefix: []const u8, lhs: Item, rhs: Item) bool {
-    const left = std.mem.trimStart(u8, lhs.text, "\"");
-    const right = std.mem.trimStart(u8, rhs.text, "\"");
-    const le = std.mem.startsWith(u8, left, prefix);
-    const re = std.mem.startsWith(u8, right, prefix);
+fn before(le: bool, lhs: Item, re: bool, rhs: Item) bool {
     if (le != re) return le;
     const lr = rank(lhs.kind);
     const rr = rank(rhs.kind);
@@ -225,7 +246,7 @@ pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     var builder: Builder = .{ .allocator = allocator, .prefix = request.sql[0..request.cursor], .quoted = false };
     errdefer builder.clear();
     if (request.cursor <= end) {
-        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add("." ++ command, .meta, "Local console command");
+        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add("." ++ command, .meta, metaSummary(@field(Meta, command)));
         return builder.finish(.{ .start = 0, .end = @intCast(end) });
     }
     var start = end;
@@ -237,7 +258,7 @@ pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     } else if (std.mem.eql(u8, request.sql[1..end], "schema")) {
         try builder.add("writer", .meta, "Inspect the configured authorized Table writer");
     } else if (std.mem.eql(u8, request.sql[1..end], "help")) {
-        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add(command, .meta, "Console command help");
+        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add(command, .meta, metaSummary(@field(Meta, command)));
         for ([_][]const u8{ "--all", "sql", "settings", "shortcuts", "INSERT", "UPDATE", "DELETE", "CREATE TABLE", "ALTER TABLE", "DROP TABLE" }) |topic| try builder.add(topic, .meta, "Local help topic");
     } else if (std.mem.eql(u8, request.sql[1..end], "timer")) {
         try builder.add("on", .meta, "Enable query timing");

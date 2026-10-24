@@ -12366,6 +12366,7 @@
       "error_returns": {
         "Builder.add()": "<inferred>",
         "Builder.finish()": "<inferred>",
+        "Builder.unsupported()": "<inferred>",
         "complete()": "<inferred>",
         "completeStatement()": "<inferred>",
         "local()": "<inferred>",
@@ -12374,7 +12375,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 35,
         "catch": 2
       },
       "imports": [

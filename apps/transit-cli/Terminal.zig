@@ -420,6 +420,10 @@ const Editor = struct {
         if (range.start > range.end or range.end > self.length or !std.unicode.utf8ValidateSlice(self.text()[0..range.start]) or !std.unicode.utf8ValidateSlice(self.text()[0..range.end]) or !std.unicode.utf8ValidateSlice(selected.text)) return error.InvalidSqlResponse;
         const length = self.length - (range.end - range.start) + selected.text.len;
         if (length > max_bytes) return error.StatementTooLarge;
+        if (self.cursor == range.end and std.mem.eql(u8, self.bytes[range.start..range.end], selected.text)) {
+            self.dismiss();
+            return;
+        }
         self.checkpoint(.atomic);
         var original: [max_bytes]u8 = undefined;
         defer std.crypto.secureZero(u8, &original);
