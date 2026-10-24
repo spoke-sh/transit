@@ -55,7 +55,7 @@ plane-separation analysis.
 
 | Representation | Meaning | Definition and access |
 | --- | --- | --- |
-| [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured catalog owns names (`CatalogId`), immutable schemas (`DefinitionId`), row publication and schema evolution; use SQL or typed catalog callers |
+| [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured direct catalog owns names and immutable definitions; each Table has its own acceptance partition. Use SQL or typed direct callers. |
 | [Key-value resource](state.md) | Keys and values whose encoding is selected by the application | Native client/resource operations; a query additionally needs an explicit decoder and projection |
 | [Document](documents.md) | Structured maps, lists and collaborative text with accepted revisions and explicit conflicts | Document services and callers own initialization, edits and reads; queries select an accepted projection |
 
@@ -70,8 +70,8 @@ define these distinctions, and the
 explains how logical types, physical codecs (such as `FSST`, `COMP-3` and
 `EBCDIC`) and collations (`COLLATE`) remain orthogonal.
 
-A data object's identity (`CatalogId`), its human name, its immutable definition
-(`DefinitionId`) and the worker currently handling its writes are separate.
+A data object's scoped identity, its human name, its immutable definition
+revision/digest and the process performing a computation are separate.
 Table and column identities survive renaming; dropping and recreating a name
 produces a different object. A saved operation or retained reader keeps its
 original binding. Define application data at the granularity it needs; a row
@@ -89,9 +89,11 @@ that an operation produced. Keeping these distinct makes questions such as
 
 Dependencies connect that meaning: a query binds source identities and schemas;
 a prepared mutation binds its original Table and metadata; a maintained result
-records its source revision vector. They also constrain safe change. Table DROP
-RESTRICT checks explicitly registered dependencies, while applications must
-register the relevant records. It does not discover every external reader.
+records its source revision vector. The direct Table path preserves accepted
+read cuts across rename and DROP. A shared dependency registry and direct DROP
+RESTRICT are not implemented; the retained cuts do not imply those protections.
+The separate catalog metadata helpers inspect explicitly registered dependencies
+and do not discover every external reader.
 
 A complete declaration should make its data kind, interpretation, dependencies,
 permissions and requested execution lifetime clear. How it becomes usable is
@@ -148,11 +150,11 @@ operation or query identity, and the meaning of its outcome.
 | Question | Current evidence or interface | How to interpret it |
 | --- | --- | --- |
 | Is my Table, KV, Document or computation published with the intended shape? | [Console `SHOW TABLES` and `DESCRIBE`](sql/show.md), catalog lookup, or `inspectLifecycle` (`defined`, `published`, `pending`, `complete`, `unavailable`) | Table evidence describes its catalog operation. Named KV/Document records describe metadata publication; they do not verify resource existence, initialization or usability. Computation metadata does not verify a completed execution or result. |
-| Will my DDL or mutation intent succeed before I submit it? | Catalog `previewDdl` / `TableClient.preview` (`admissible`, `unchanged`, `rejected`) | Validates authorization, name/object conflicts, expected revisions, schema evolution work (`metadata`, `validate_rows`, `rewrite_rows`) and blocking `RESTRICT` dependencies without mutating state |
-| Did my write or schema change apply? | Idempotent `TableClient.apply`, [console statement result](../../../apps/transit-cli/docs/console.md), or catalog operation outcome | Admission, processing and the terminal applied/rejected/cancelled outcome are separate; `apply` drives native actor sends, inline or multi-part uploads and continuations. It does not bypass the actor data path. |
+| Will my DDL intent pass admission checks? | Direct catalog `preview` | Checks current rights, exact expectations, name/object conflicts and schema work without admission or mutation. Row constraints and final publication still require execution; preview is not a reservation or a dependency-RESTRICT check. |
+| Did my write or schema change apply? | Direct operation `inspect`, [console statement result](../../../apps/transit-cli/docs/console.md), or `DirectTableIntent.operation` | Admission, execution and committed/rejected/cancelled outcomes are distinct. The original saved identity survives lost replies. Point and bulk data use the direct owner independently of actor turns. |
 | What does this object depend on, what depends on it, and which policies govern it? | Catalog `dependents`, `dependencies` and `policyReferences` | `dependents` and `dependencies` expose the object-level dependency graph filtered by caller inspection rights; `policyReferences` reports authorization domains, capacity limits and retention while redacting internal authorization object IDs when the caller lacks `SELECT` (`read`) privilege |
 | Which data did this query read? | The query's [bound schema and source snapshots](queries.md#relational-boundary); complete result coverage | Independently captured resources need not represent one global or causal snapshot |
-| Is a declared computation or maintained result up to date? | Catalog `inspectComputation` and the [typed owner's completed source vector](queries.md#relational-boundary) | Catalog `fresh` compares supplied completion metadata with the source's catalog revision. Row changes can leave that revision unchanged, so this flag does not establish data freshness. Use the execution owner's actual result and source vector; a common verified catalog/result binding is not implemented. |
+| Is a completed computation up to date? | Typed result reader `freshness` and its [actual source vector](queries.md#relational-boundary) | Compares retained cuts with current logical row-change positions. Definition drift, stale data and observation errors remain distinct; independent Tables have independent observations. Named captured-result inspection binds to its original definition. The separate generic catalog `inspectComputation` marker does not verify execution or data freshness. |
 | Can this caller still inspect or use the result? | [Current authorization](security.md) at metadata and result disclosure | A retained result or permission checked at admission does not authorize later disclosure |
 
 These observations are available through their owning interfaces; a single
@@ -189,9 +191,9 @@ interfaces provide different portions of that experience:
 
 | Declaration | Available today | Remaining public lifecycle |
 | --- | --- | --- |
-| [Tables and schemas](tables.md) | Table CREATE/ALTER/DROP, non-mutating `preview`, idempotent `apply`, column physical encoding ($\epsilon$) and collation ($\kappa$) descriptors, and DML through configured actor-backed catalog callers; schema administration through explicit typed plans | Direct data operations and end-to-end codec/collation execution; broader constraints and transaction sessions retain their documented SQL limits |
+| [Tables and schemas](tables.md) | Direct CREATE/ALTER/RENAME/DROP, read-only preview, frozen DML intents, atomic point/bulk acceptance, retained reads and supported physical codecs through configured SQL and typed callers | Direct namespace lifecycle and dependency RESTRICT; automatic point flushing and tiering; non-binary SQL collation and broader transaction sessions |
 | [KV](state.md) and [Documents](documents.md) | Client/service provisioning and access; offline SQL definition compilation (`Declaration.compile`); separate `DeclarativeCatalog` metadata creation, rename, `RESTRICT` drop and inspection | Connecting named publication to verified provisioning/initialization and recovery; executable console SQL publication |
-| [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, catalog `ComputationSpec` metadata, separate authorization and explicit activation through typed Zig owners | Binding catalog completion/freshness to actual result/source evidence; SQL view/subscription adapters and automatic service-managed scheduling |
+| [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, separate authorization and explicit activation through typed Zig owners; original captured-result attribution and actual source-vector freshness | Replacing the generic catalog's unverified completion marker; a shared dependency/inspection surface; SQL view/subscription adapters and automatic service-managed scheduling |
 | [Connections, connector sources and sinks](connectors.md) | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |
 | [Permissions](security.md) and [retention](retention.md) | Native authorization, selected SQL administration plans, `policyReferences` inspection with read-privilege redaction, and explicit supported retention policies | One declaration/reconciliation surface covering all data kinds and computations |
 
