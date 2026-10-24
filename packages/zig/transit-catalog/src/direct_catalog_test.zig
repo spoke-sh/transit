@@ -328,6 +328,14 @@ test "direct dependency lost replies retain exact DROP protection across restart
     defer catalog.deinit();
     const accepted = (try catalog.dependencyOperation(binding, .inspect, access.policy())).outcome;
     try t.expect(accepted.phase == .applied and accepted.changed);
+    const membership_root = catalog.store.root;
+    const membership = try catalog.dependencyState(binding.edge, access.policy());
+    try t.expect(membership.present);
+    try t.expectEqualDeep(binding.edge, membership.edge);
+    try t.expectEqualDeep(membership_root, catalog.store.root);
+    access.denied_resource = binding.edge.dependent.interpretation.object.scope.resource;
+    try t.expectError(error.CatalogDenied, catalog.dependencyState(binding.edge, access.policy()));
+    access.denied_resource = null;
     try t.expectEqualDeep(accepted, (try catalog.dependencyOperation(binding, .accept, access.policy())).outcome);
     var changed = binding;
     changed.edge.dependent.interpretation.revision += 1;
@@ -359,6 +367,8 @@ test "direct dependency lost replies retain exact DROP protection across restart
     try t.expect((try catalog.dependencyOperation(removal, .inspect, access.policy())).outcome.changed);
     try t.expectEqualDeep(accepted, (try catalog.dependencyOperation(binding, .accept, access.policy())).outcome);
     try t.expect((try catalog.dependencyPage(.{ .dependents = binding.edge.source.object }, null, .dependent, access.policy())).entries[0] == null);
+    const removed = try catalog.dependencyState(binding.edge, access.policy());
+    try t.expect(!removed.present and removed.position.next_lsn > membership.position.next_lsn);
     var renamed = (try resolve(&catalog, &access, "renamed")).?;
     defer renamed.deinit();
     const drop = try edit(&renamed, 7, .drop);

@@ -602,7 +602,7 @@ pub const RelationalHost = struct {
         }
         if (self.named) |named| {
             const payload = frame.payload.slice();
-            if (std.mem.startsWith(u8, payload, "NRI1") or std.mem.startsWith(u8, payload, "NRU1") or std.mem.startsWith(u8, payload, "NRG1")) return named.control(turn, self.workspace);
+            if (std.mem.startsWith(u8, payload, "NRI1") or std.mem.startsWith(u8, payload, "NRU1") or std.mem.startsWith(u8, payload, "NRG1") or std.mem.startsWith(u8, payload, "NRT1")) return named.control(turn, self.workspace);
             if (std.mem.startsWith(u8, payload, "NRA1")) {
                 if (!external) return error.AccessDenied;
                 _ = try app.NamedRelationalRecords.Activation.decode(frame.payload);
@@ -668,6 +668,105 @@ pub fn namedRelational(init: std.process.Init, client: c.DirectTableClient, admi
     try relationalCase(init, client, admin, false, true);
     try relationalCase(init, client, admin, true, true);
 }
+pub fn prepareNamed(init: std.process.Init, client: c.DirectTableClient, naming: app.NamedRelational, draft: app.NamedRelationalRecords.Draft, bundle: q.RelationalBundle) !std.json.Parsed(app.NamedRelationalPublication) {
+    const Publication = app.NamedRelationalPublication;
+    const alloc = init.arena.allocator();
+    var registrations: [q.fuze.Relational.max_sources]Publication.Registration = undefined;
+    var count: usize = 0;
+    for (bundle.sources, 0..) |_, index| {
+        if (try bundle.sourceOrdinal(index) != index) continue;
+        registrations[count] = .{ .connection = client.connection, .operation = 4000000 + naming.configuration.scope.resource * 100 + draft.expected * 10 + count };
+        count += 1;
+    }
+    var prepared = try Publication.prepare(alloc, naming.configuration.scope, draft, bundle, registrations[0..count]);
+    defer prepared.deinit();
+    const saved = try Publication.save(alloc, prepared.value);
+    const args = try init.minimal.args.toSlice(alloc);
+    const path = try std.fmt.allocPrint(alloc, "{s}/named-publication-{d}-{d}.json", .{ std.fs.path.dirname(args[3]) orelse ".", naming.configuration.scope.resource, draft.expected + 1 });
+    {
+        var atomic = try std.Io.Dir.cwd().createFileAtomic(init.io, path, .{ .replace = true, .permissions = .fromMode(0o600) });
+        defer atomic.deinit(init.io);
+        var buffer: [4096]u8 = undefined;
+        var writer = atomic.file.writerStreaming(init.io, &buffer);
+        try writer.interface.writeAll(saved);
+        try writer.interface.flush();
+        try atomic.file.sync(init.io);
+        try atomic.replace(init.io);
+    }
+    try t.expectError(error.NamedQueryDependencyMissing, prepared.value.publication(alloc, &.{client}));
+    for (0..q.fuze.Relational.max_sources + 1) |_| {
+        const disk = try std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(Publication.max_saved_bytes));
+        try t.expectEqualStrings(saved, disk);
+        var restored = try Publication.load(alloc, disk);
+        errdefer restored.deinit();
+        restored.value.register(alloc, &.{client}) catch |err| {
+            if (err != error.InvalidTableResponse) return err;
+            restored.deinit();
+            continue;
+        };
+        _ = try restored.value.publication(alloc, &.{client});
+        return restored;
+    }
+    return error.NamedDependencyRecoveryPending;
+}
+pub fn retireNamed(init: std.process.Init, client: c.DirectTableClient, admin: anytype, host: *s.GenServer, behavior: *RelationalHost) !void {
+    const naming = behavior.named.?;
+    const Publication = app.NamedRelationalPublication;
+    const alloc = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(alloc);
+    const directory = std.fs.path.dirname(args[3]) orelse ".";
+    const resources: s.client.ResourceReader = .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key };
+    for (1..3) |revision| {
+        const path = try std.fmt.allocPrint(alloc, "{s}/named-publication-{d}-{d}.json", .{ directory, naming.configuration.scope.resource, revision });
+        const saved = try std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(Publication.max_saved_bytes));
+        var plan = try Publication.load(alloc, saved);
+        defer plan.deinit();
+        const reference = try plan.value.proposal.reference(naming.configuration.scope);
+        try send(client, naming.configuration.scope.owner, try (app.NamedRelationalRecords.Control{ .retire = reference }).encode());
+        for (0..1000) |_| {
+            try relationalStep(init, client, admin, host, behavior);
+            var reader = try resources.open(naming.configuration.scope.resource);
+            if (try naming.retired(&reader, reference)) break;
+        } else return error.NamedRetirementPending;
+        var operations: [q.fuze.Relational.max_sources]u64 = undefined;
+        var count: usize = 0;
+        for (plan.value.bindings) |slot| if (slot) |binding| {
+            operations[count] = binding.operation + 5000000;
+            count += 1;
+        };
+        const removals = try plan.value.removals(alloc, operations[0..count]);
+        const cleanup_path = try std.fmt.allocPrint(alloc, "{s}/named-removal-{d}-{d}.json", .{ directory, naming.configuration.scope.resource, revision });
+        const cleanup = try p.Json.valueAlloc(alloc, removals);
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = cleanup_path, .data = cleanup });
+        const restored = try p.Json.parseFromSlice(@TypeOf(removals), alloc, try std.Io.Dir.cwd().readFileAlloc(init.io, cleanup_path, alloc, .limited(16384)));
+        defer restored.deinit();
+        for (restored.value) |slot| if (slot) |binding| {
+            const result = try client.call(.{ .dependency_operation = .{ .binding = binding, .command = .accept } });
+            defer result.deinit();
+            try t.expect(result.value.result.dependency_operation.outcome.changed);
+            const recovered = try client.call(.{ .dependency_operation = .{ .binding = binding, .command = .inspect } });
+            defer recovered.deinit();
+            try t.expectEqualDeep(result.value.result.dependency_operation, recovered.value.result.dependency_operation);
+        };
+        // An original registration receipt cannot republish a removed edge.
+        try plan.value.register(alloc, &.{client});
+        try t.expectError(error.NamedQueryDependencyMissing, plan.value.publication(alloc, &.{client}));
+        try t.expectEqualStrings(saved, try std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(Publication.max_saved_bytes)));
+    }
+}
+pub fn namedDrop(client: c.DirectTableClient, name: []const u8, operation: u64, blocked: bool) !void {
+    const lookup = try client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
+    defer lookup.deinit();
+    const source = lookup.value.result.lookup.?;
+    var drop: w.Ddl = .{ .binding = .{ .definition = g.current_definition, .identity = .{ .scope = client.connection.scope, .principal = 101, .operation = operation }, .target = source.interpretation.interpretation.object, .action = .drop, .expected_definition = source.interpretation.interpretation, .expected_data = source.position, .intent = @splat(0) }, .namespace = 1, .name = name, .action = .drop };
+    drop.binding.intent = try drop.digest(client.allocator);
+    const admitted = try client.call(.{ .admit_ddl = drop });
+    defer admitted.deinit();
+    if (blocked) return t.expectEqual(.dependency, admitted.value.result.ddl.rejected.reason);
+    const committed = try client.call(.{ .operation = .{ .binding = drop.binding, .command = .execute, .steps = 8 } });
+    defer committed.deinit();
+    try t.expect(committed.value.result.ddl == .committed);
+}
 fn relationalStep(init: std.process.Init, client: c.DirectTableClient, admin: anytype, host: *s.GenServer, behavior: *RelationalHost) !void {
     if (try namedStep(init, host, behavior, admin) == .blocked) return host.handler_error orelse error.Blocked;
     const delivery = try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try key(17));
@@ -688,6 +787,7 @@ pub fn namedStep(init: std.process.Init, host: *s.GenServer, behavior: *Relation
         for (turn.mutations) |slot| if (slot) |mutation| if (mutation.value) |value| {
             if (std.mem.startsWith(u8, value.slice(), "NRD1")) seed = 201;
             if (std.mem.startsWith(u8, value.slice(), "NRP1")) seed = 202;
+            if (std.mem.startsWith(u8, value.slice(), "NRT1")) seed = 203;
         };
     };
     const alloc = init.arena.allocator();
@@ -817,8 +917,9 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
         const name = try app.NamedRelationalRecords.Name.init("totals");
         try t.expect(try naming.lookup(&reader, name) == null);
         try t.expect(try q.RelationalCapture.policy(&reader, worker.pid) == null);
-        const proposal: app.NamedRelational.Proposal = .{ .name = name, .object = 1001, .expected = 0, .peer = worker.pid, .request = behavior.reference };
-        const control = try (app.NamedRelationalRecords.Control{ .publish = proposal }).encode();
+        var publication = try prepareNamed(init, client, naming, .{ .name = name, .object = 1001, .expected = 0, .peer = worker.pid, .request = behavior.reference }, bundle);
+        defer publication.deinit();
+        const control = try (try publication.value.publication(alloc, &.{client})).encode();
         try send(client, worker.pid, control);
         for (0..1000) |_| {
             try relationalStep(init, client, admin, &host, &behavior);
@@ -826,6 +927,7 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
             named_reference = try naming.lookup(&reader, name);
             if (named_reference != null) break;
         } else return error.NamedPublicationPending;
+        try t.expectEqualDeep(try publication.value.proposal.reference(naming.configuration.scope), named_reference.?);
         try t.expect(try q.RelationalCapture.policy(&reader, worker.pid) == null);
         try t.expect(try reader.read(RelationalHost.correlation_key) == null);
         // Repeated definition reads do not activate or acquire source pins.
@@ -887,7 +989,9 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
         try t.expectEqualDeep(behavior.reference, (try naming.definition(&reader, named_reference.?)).request);
         // A later named revision cannot relabel an already completed result or
         // silently replace its execution policy and original source grants.
-        try send(client, worker.pid, try (app.NamedRelationalRecords.Control{ .publish = .{ .name = named_reference.?.identity.name, .object = named_reference.?.identity.object, .expected = 1, .peer = worker.pid, .request = behavior.reference } }).encode());
+        var publication = try prepareNamed(init, client, naming, .{ .name = named_reference.?.identity.name, .object = named_reference.?.identity.object, .expected = 1, .peer = worker.pid, .request = behavior.reference }, bundle);
+        defer publication.deinit();
+        try send(client, worker.pid, try (try publication.value.publication(alloc, &.{client})).encode());
         for (0..1000) |_| {
             try relationalStep(init, client, admin, &host, &behavior);
             reader = try resources.open(worker.resource);
@@ -927,6 +1031,21 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     try t.expectEqual(@as(u128, 1), (try restored.next()).?.cells[0].value.atom.unsigned);
     try t.expect(try restored.next() == null);
     try t.expectError(error.AccessDenied, behavior.clients[0].call(.{ .lookup = .{ .namespace = 1, .name = right_name } }));
+    if (named) {
+        const current_name = if (independent) "freshness_independent" else "freshness_alias";
+        const operation: u64 = 6000000 + worker.resource * 10;
+        try namedDrop(client, current_name, operation, true);
+        try retireNamed(init, client, admin, &host, &behavior);
+        var current = try resources.open(worker.resource);
+        try t.expectEqual(null, try behavior.named.?.lookup(&current, named_reference.?.identity.name));
+        try t.expectEqualDeep(named_reference.?, try behavior.named.?.attribution(&current, worker.pid, 1));
+        try namedDrop(client, current_name, operation + 1, false);
+        var historical = try q.RelationalResult.open(resources, bundle, options, disclosure, @splat(70));
+        defer historical.close() catch {};
+        try t.expectEqualDeep(named_reference.?, try (try behavior.named.?.capturedDefinition(&historical)).reference());
+        try t.expectEqual(@as(u128, 1), (try historical.next()).?.cells[0].value.atom.unsigned);
+        try t.expect(try historical.next() == null);
+    }
 }
 
 fn freshnessProof(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, independent: bool, name: []const u8, result: *q.RelationalResult) !void {

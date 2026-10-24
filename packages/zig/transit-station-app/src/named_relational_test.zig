@@ -81,10 +81,15 @@ test "publication and conditional authorization retain original names without st
     defer t.allocator.free(workspace);
     const bundle = try DirectFixture.bundle(arena.allocator(), .captured);
     const request = try upload(&store, bundle);
-    const proposal: root.NamedRelational.Proposal = .{ .name = try r.Name.init("totals"), .object = 1001, .expected = 0, .peer = 3, .request = request };
+    const draft: r.Draft = .{ .name = try r.Name.init("totals"), .object = 1001, .expected = 0, .peer = 3, .request = request };
+    const proposal = try r.Proposal.prepare(owner.configuration.scope, draft, bundle);
     // Allocation and quota failure discard pins and every partial write.
     input = try turn(&store);
     try t.expectError(error.OutOfMemory, owner.publish(&input, proposal, &.{}));
+    try empty(input);
+    var wrong_digest = proposal;
+    wrong_digest.expected_digest[0] ^= 1;
+    try t.expectError(error.NamedQueryChanged, owner.publish(&input, wrong_digest, workspace));
     try empty(input);
     var tight = owner;
     tight.configuration.scope.namespace = 56;
@@ -93,7 +98,7 @@ test "publication and conditional authorization retain original names without st
     try tight.initialize(&input);
     try store.commit(input);
     input = try turn(&store);
-    try t.expectError(error.NamedQueryQuota, tight.publish(&input, proposal, workspace));
+    try t.expectError(error.NamedQueryQuota, tight.publish(&input, try r.Proposal.prepare(tight.configuration.scope, draft, bundle), workspace));
     try empty(input);
     try t.expectEqualDeep(r.Budget{ .records = 2, .bytes = 144 }, try tight.budget(&input));
     input = try turn(&store);
@@ -109,6 +114,8 @@ test "publication and conditional authorization retain original names without st
     input = try turn(&store);
     const original_budget = try owner.budget(&input);
     try t.expectEqualDeep(first, try owner.publish(&input, proposal, workspace));
+    try empty(input);
+    try t.expectError(error.NamedQueryConflict, owner.publish(&input, wrong_digest, workspace));
     try empty(input);
     try t.expectEqual(original_pins, store.versions.count());
     // No policy was installed by publication: activation still fails closed.
@@ -129,9 +136,7 @@ test "publication and conditional authorization retain original names without st
     // remains attached to the original immutable revision.
     const next_bundle = try DirectFixture.bundle(arena.allocator(), .maintained);
     const next_request = try upload(&store, next_bundle);
-    var replacement = proposal;
-    replacement.expected = 1;
-    replacement.request = next_request;
+    const replacement = try r.Proposal.prepare(owner.configuration.scope, .{ .name = proposal.name, .object = proposal.object, .expected = 1, .peer = proposal.peer, .request = next_request }, next_bundle);
     input = try turn(&store);
     const second = try owner.publish(&input, replacement, workspace);
     try store.commit(input);
@@ -170,9 +175,8 @@ test "publication and conditional authorization retain original names without st
     try t.expect((try owner.budget(&input)).bytes > original_budget.bytes);
     // Histories grow beyond native read/cache pages without an in-memory list.
     // Every revision remains addressable and only three mutations publish it.
-    var next_proposal = replacement;
     for (2..67) |expected| {
-        next_proposal.expected = expected;
+        const next_proposal = try r.Proposal.prepare(owner.configuration.scope, .{ .name = proposal.name, .object = proposal.object, .expected = expected, .peer = proposal.peer, .request = next_request }, next_bundle);
         input = try turn(&store);
         const revision = try owner.publish(&input, next_proposal, workspace);
         try t.expectEqual(expected + 1, revision.identity.revision);
@@ -190,27 +194,106 @@ test "publication and conditional authorization retain original names without st
     try t.expectEqualDeep(permitted, try owner.authorize(&input, first, 0, 17, true));
     try empty(input);
     try t.expectEqual(@as(u64, 2), (try q.RelationalCapture.policy(&input, 3)).?.revision);
+    // Retirement closes one exact definition without erasing its attribution,
+    // changing accepted execution or reinstalling an older policy on retry.
+    const last = (try owner.lookup(&input, proposal.name)).?;
+    try owner.retire(&input, last);
+    try store.commit(input);
+    input = try turn(&store);
+    const retired_budget = try owner.budget(&input);
+    try owner.retire(&input, last);
+    try empty(input);
+    try t.expectEqualDeep(retired_budget, try owner.budget(&input));
+    try t.expectEqual(null, try owner.lookup(&input, proposal.name));
+    try t.expect(try owner.retired(&input, last));
+    const last_proposal = try r.Proposal.prepare(owner.configuration.scope, .{ .name = proposal.name, .object = proposal.object, .expected = 66, .peer = proposal.peer, .request = next_request }, next_bundle);
+    try t.expectEqualDeep(last, try owner.publish(&input, last_proposal, workspace));
+    try empty(input);
+    try owner.retire(&input, second);
+    try store.commit(input);
+    input = try turn(&store);
+    try t.expectEqualDeep(next, try owner.authorize(&input, second, 1, 17, true));
+    try empty(input);
+    try t.expectError(error.NamedQueryRetired, owner.authorize(&input, second, 2, 17, true));
+    try empty(input);
+    input.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
+    input.delivery.input.value = try (s.Frame{ .kind = .call, .correlation = 702, .payload = try next.encode() }).encode();
+    try t.expectError(error.NamedQueryRetired, owner.activate(&input, next, &clients, workspace));
+    try empty(input);
+    input = try turn(&store);
+    const reused = try r.Proposal.prepare(owner.configuration.scope, .{ .name = proposal.name, .object = 1002, .expected = 0, .peer = proposal.peer, .request = next_request }, next_bundle);
+    const fresh_name = try owner.publish(&input, reused, workspace);
+    try store.commit(input);
+    input = try turn(&store);
+    try t.expectEqualDeep(fresh_name, (try owner.lookup(&input, proposal.name)).?);
+    try t.expect(try owner.retired(&input, last));
+    try t.expectEqualDeep(first, try owner.attribution(&input, 3, 1));
     store.denied = true;
     input = try turn(&store);
     try t.expectError(error.AccessDenied, owner.lookup(&input, proposal.name));
     try task.await(io);
 }
 
+test "named publication preparation freezes exact dependencies and survives save/load without native allocation" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const bundle = try DirectFixture.bundle(arena.allocator(), .captured);
+    const request = try bundle.reference(7, 33);
+    const Publication = root.NamedRelationalPublication;
+    var registrations: [q.fuze.Relational.max_sources]Publication.Registration = undefined;
+    var count: usize = 0;
+    for (bundle.sources, 0..) |_, index| {
+        if (try bundle.sourceOrdinal(index) != index) continue;
+        registrations[count] = .{ .connection = DirectFixture.connection, .operation = 100 + count };
+        count += 1;
+    }
+    var plan = try Publication.prepare(t.allocator, owner.configuration.scope, .{ .name = try .init("prepared"), .object = 999, .expected = 0, .peer = 3, .request = request }, bundle, registrations[0..count]);
+    defer plan.deinit();
+    const reference = try plan.value.proposal.reference(owner.configuration.scope);
+    const definition: r.Definition = .{ .identity = reference.identity, .peer = 3, .request = request, .version = .{ .pid = 3, .input = 1, .index = 0 }, .fingerprint = try bundle.fingerprint(), .lifetime = .captured };
+    try t.expectEqualDeep(reference, try definition.reference());
+    var another_locator = definition;
+    another_locator.version.input += 1;
+    try t.expectEqualDeep(reference, try another_locator.reference());
+    const saved = try Publication.save(t.allocator, plan.value);
+    defer t.allocator.free(saved);
+    var restored = try Publication.load(t.allocator, saved);
+    defer restored.deinit();
+    const saved_again = try Publication.save(t.allocator, restored.value);
+    defer t.allocator.free(saved_again);
+    try t.expectEqualStrings(saved, saved_again);
+    var altered = restored.value;
+    altered.bindings[0].?.edge.source.revision += 1;
+    try t.expectError(error.NamedQueryChanged, altered.validate(t.allocator));
+    altered = restored.value;
+    altered.bindings[0] = null;
+    try t.expectError(error.InvalidNamedQuery, altered.validate(t.allocator));
+    altered = restored.value;
+    altered.proposal.expected_digest[0] ^= 1;
+    try t.expectError(error.NamedQueryChanged, altered.validate(t.allocator));
+    const removals = try restored.value.removals(t.allocator, (&[_]u64{ 200, 201 })[0..count]);
+    try t.expectEqual(.remove, removals[0].?.action);
+    try t.expectEqualDeep(restored.value.bindings[0].?.edge, removals[0].?.edge);
+    try t.expectError(error.DataIdentityConflict, restored.value.removals(t.allocator, (&[_]u64{ 100, 101 })[0..count]));
+}
+
 test "independent named relational records preserve uint64 identities and reject malformed saved work" {
-    const Fixture = struct { definition: root.protocol.Growth.Definition, record: root.protocol.Value, reference: root.protocol.Value, digest: root.protocol.Value, archive: root.protocol.Value, activation: root.protocol.Value, configuration: root.protocol.Value, budget: root.protocol.Value, initialize: root.protocol.Value, publish: root.protocol.Value, authorize: root.protocol.Value, name_key: root.protocol.Value, definition_key: root.protocol.Value, authorization_key: root.protocol.Value };
+    const Fixture = struct { definition: root.protocol.Growth.Definition, logical: root.protocol.Value, retire: root.protocol.Value, retirement_key: root.protocol.Value, record: root.protocol.Value, reference: root.protocol.Value, digest: root.protocol.Value, archive: root.protocol.Value, activation: root.protocol.Value, configuration: root.protocol.Value, budget: root.protocol.Value, initialize: root.protocol.Value, publish: root.protocol.Value, authorize: root.protocol.Value, name_key: root.protocol.Value, definition_key: root.protocol.Value, authorization_key: root.protocol.Value };
     const fixture = try root.protocol.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/named-relational-v1.json"));
     defer fixture.deinit();
     const value = fixture.value;
     const definition = try r.decodeRecord(r.Definition, "NRD1", value.record);
     try definition.validate();
     const reference = try definition.reference();
+    try t.expectEqualDeep(reference, try (try r.decodeRecord(r.Logical, "NRL1", value.logical)).reference());
+    try t.expect(value.retirement_key.eql(r.key('t', reference.identity.scope.namespace, reference.identity.object, reference.identity.revision)));
     try t.expectEqual(@as(u64, std.math.maxInt(u64) - 1), reference.identity.object);
     try t.expect(value.reference.eql(try reference.encode()));
     try t.expectEqualSlices(u8, value.digest.slice(), &reference.digest);
     try t.expect(value.name_key.eql(try r.nameKey(reference.identity.scope.namespace, reference.identity.name)));
     try t.expect(value.definition_key.eql(r.definitionKey(reference.identity)));
     try t.expect(value.authorization_key.eql(r.authorizationKey(3, 19)));
-    inline for (.{ .{ "NRD1", "record", r.Definition }, .{ "NRP1", "archive", r.Authorization }, .{ "NRC1", "configuration", r.Configuration }, .{ "NRB1", "budget", r.Budget } }) |item| {
+    inline for (.{ .{ "NRL1", "logical", r.Logical }, .{ "NRD1", "record", r.Definition }, .{ "NRP1", "archive", r.Authorization }, .{ "NRC1", "configuration", r.Configuration }, .{ "NRB1", "budget", r.Budget } }) |item| {
         const bytes = @field(value, item[1]);
         const decoded = try r.decodeRecord(item[2], item[0], bytes);
         try t.expect(bytes.eql(try r.encodeRecord(item[0], decoded)));
@@ -226,7 +309,7 @@ test "independent named relational records preserve uint64 identities and reject
     try t.expectEqualDeep(reference, activation.reference);
     try t.expectEqual(@as(u64, 19), activation.policy_revision);
     try t.expect(value.activation.eql(try activation.encode()));
-    for ([_]root.protocol.Value{ value.initialize, value.publish, value.authorize }) |bytes| {
+    for ([_]root.protocol.Value{ value.initialize, value.publish, value.authorize, value.retire }) |bytes| {
         try t.expect(bytes.eql(try (try r.Control.decode(bytes)).encode()));
         _ = try (s.Frame{ .kind = .cast, .payload = bytes }).encode();
     }

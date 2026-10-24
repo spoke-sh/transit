@@ -1432,6 +1432,20 @@ fn dependencyEdge(self: *Self, edge: Dependency.Edge) !?pages.Value {
     return found;
 }
 
+pub fn dependencyState(self: *Self, edge: Dependency.Edge, policy: Policy) !Dependency.State {
+    try self.requireInitialized();
+    try edge.validate();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const source = try self.dependencySource(edge.source.object, policy, 0);
+    const required = try source.requirements.merge(try self.dependentRequirements(policy, edge.dependent.interpretation.object, false));
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, null);
+    try check(current);
+    const result: Dependency.State = .{ .edge = edge, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .present = try self.dependencyEdge(edge) != null };
+    try check(current);
+    return result;
+}
+
 /// One bounded catalog acceptance updates both directions and its exact receipt.
 /// Register requires current source actions and dependent metadata write access.
 /// Remove/cancel can close an explicitly known edge after source rights change;

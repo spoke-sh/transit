@@ -76,6 +76,8 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
         naming_faults = set()
         naming_pending = {}
         naming_recovered = set()
+        named_dependency_faults = set()
+        named_publications = {}
         proxy_failures = []
 
         class Proxy(BaseHTTPRequestHandler):
@@ -120,7 +122,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                             turn = command.get("turn", command.get("turn_with_versions", {}).get("turn"))
                             if turn:
                                 values = [bytes.fromhex(entry["value"]) for entry in turn["mutations"] if entry and entry["value"]]
-                                for magic in (b"NRD1", b"NRP1"):
+                                for magic in (b"NRD1", b"NRP1", b"NRT1"):
                                     identity = (request["principal"], magic)
                                     if identity in naming_faults or not any(value.startswith(magic) for value in values):
                                         continue
@@ -141,6 +143,29 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                                     authority = start()
                                     data = b'{"position":0}'
                                     break
+                    if self.path == "/table/v1" and status == 200 and (named_only or maintained_only):
+                        dependency = envelope["action"].get("dependency_operation")
+                        if dependency and dependency["command"] == "accept" and dependency["binding"]["action"] == "register":
+                            binding = dependency["binding"]
+                            dependent = binding["edge"]["dependent"]["interpretation"]
+                            resource = dependent["object"]["scope"]["resource"]
+                            revision = dependent["revision"]
+                            identity = (resource, revision, binding["edge"]["source"]["object"]["object"])
+                            if identity not in named_dependency_faults:
+                                saved_path = root / f"named-publication-{resource}-{revision}.json"
+                                saved = saved_path.read_bytes()
+                                assert binding in json.loads(saved)["bindings"]
+                                assert saved_path.stat().st_mode & 0o777 == 0o600
+                                assert json.loads(data)["result"]["dependency_operation"]["outcome"]["phase"] == "applied"
+                                named_dependency_faults.add(identity)
+                                named_publications[saved_path] = saved
+                                authority.kill()
+                                authority.wait(timeout=15)
+                                authority = None
+                                authority = start()
+                                response = json.loads(data)
+                                response["context"][0] ^= 1
+                                data = json.dumps(response).encode()
                     if self.path == "/table/v1" and "observe" in envelope["action"]:
                         object_id = envelope["action"]["observe"]["interpretation"]["object"]["object"]
                         fault = freshness_faults.get(object_id, 2)
@@ -218,12 +243,16 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
             if named_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
-                subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=600)
+                # Twelve accepted-reply faults each replace the disk-backed node;
+                # both query shapes also verify retirement and source DROP.
+                subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=1200)
                 assert all(value == 2 for value in freshness_faults.values()), freshness_faults
-                expected = {(principal, magic) for principal in (151, 152) for magic in (b"NRD1", b"NRP1")}
+                expected = {(principal, magic) for principal in (151, 152) for magic in (b"NRD1", b"NRP1", b"NRT1")}
                 assert naming_faults == naming_recovered == expected and not naming_pending and not proxy_failures
                 assert not list(root.glob("named-pending-*.json"))
-                print("Direct named queries: saved publication/authorization proposals, lost accepted replies, abrupt node replacement, worker key/generation rotation, exact original receipts, publication without execution, explicit activation, original attribution, verified independent Table cuts and current disclosure denial passed.", flush=True)
+                assert len(named_dependency_faults) == 6 and len(named_publications) == 4
+                assert all(path.read_bytes() == saved for path, saved in named_publications.items())
+                print("Direct named queries: six exact dependency registrations recovered after withheld replies and node replacement, saved publication/authorization/retirement proposals, lost accepted replies, worker key/generation rotation, original receipts and logical references, publication without execution, explicit activation, original attribution, verified independent Table cuts, current disclosure denial, DROP RESTRICT and explicit retirement/removal with retained results passed.", flush=True)
                 return
             if follow_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
@@ -293,7 +322,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                 print("Direct retained source pages: wide/nested values, original interpretation, signed predicate boundaries, point-hit/absence, unsafe pushdown rejection and current permission passed.", flush=True)
             elif not relational_failures_only and not unified_boundaries_only and not captured_only:
-                subprocess.run([caller, endpoint, "maintained-prepare", str(profile)], check=True, timeout=240)
+                subprocess.run([caller, endpoint, "maintained-prepare", str(profile)], check=True, timeout=600 if maintained_only else 240)
                 stop(authority)
                 authority = None
                 authority = start()
@@ -301,11 +330,13 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 stop(authority)
                 authority = None
                 authority = start()
-                subprocess.run([caller, endpoint, "maintained-resume", str(profile)], check=True, timeout=600)
+                subprocess.run([caller, endpoint, "maintained-resume", str(profile)], check=True, timeout=900 if maintained_only else 600)
                 if maintained_only:
-                    expected = {(principal, magic) for principal in (107, 108) for magic in (b"NRD1", b"NRP1")}
+                    expected = {(principal, magic) for principal in (107, 108) for magic in (b"NRD1", b"NRP1", b"NRT1")}
                     assert naming_faults == naming_recovered == expected and not naming_pending and not proxy_failures
                     assert not list(root.glob("named-pending-*.json"))
+                    assert len(named_dependency_faults) == 6 and len(named_publications) == 4
+                    assert all(path.read_bytes() == saved for path, saved in named_publications.items())
                 print("Direct maintained query: original acquisition recovery, bounded physical history progress across node replacement, initial backfill, alias and independent Table cuts, accepted no-op revisions, paired deltas, original lease cleanup, post-closure disclosure, current revocation/restoration and retirement passed.", flush=True)
             if not maintained_only and not source_pages_only and not exchanges_only and not unified_boundaries_only and not captured_only:
                 for case in ("captured_work", "captured_spill", "captured_overflow", "maintained_overflow", "maintained_gap"):

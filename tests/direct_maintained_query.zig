@@ -93,7 +93,9 @@ pub fn prepareWithExchange(init: std.process.Init, client: c.DirectTableClient, 
             if (descriptor.state == .published) break;
         } else return error.NamedUploadPending;
         const name = try app.NamedRelationalRecords.Name.init("totals");
-        const control = try (app.NamedRelationalRecords.Control{ .publish = .{ .name = name, .object = 1001, .expected = 0, .peer = worker.pid, .request = behavior.reference } }).encode();
+        var publication = try support.prepareNamed(init, client, named, .{ .name = name, .object = 1001, .expected = 0, .peer = worker.pid, .request = behavior.reference }, bundle);
+        defer publication.deinit();
+        const control = try (try publication.value.publication(alloc, &.{client})).encode();
         try support.send(client, worker.pid, control);
         for (0..1000) |_| {
             try step(init, &running, &behavior, admin);
@@ -238,7 +240,9 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
             // Publish a new name revision after execution and node restart.
             // The old query keeps its original policy and immutable attribution.
             const before_publication = try observed(client, state);
-            try support.send(client, state.worker.pid, try (app.NamedRelationalRecords.Control{ .publish = .{ .name = reference.identity.name, .object = reference.identity.object, .expected = 1, .peer = state.worker.pid, .request = behavior.reference } }).encode());
+            var publication = try support.prepareNamed(init, client, naming(state), .{ .name = reference.identity.name, .object = reference.identity.object, .expected = 1, .peer = state.worker.pid, .request = behavior.reference }, bundle);
+            defer publication.deinit();
+            try support.send(client, state.worker.pid, try (try publication.value.publication(init.arena.allocator(), &.{client})).encode());
             for (0..1000) |_| {
                 try step(init, &running, &behavior, admin);
                 var reader = try source(client, state);
@@ -338,6 +342,17 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     try t.expectError(error.CatalogDenied, readResult(client, bundle, state, 3, 1));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(retained.authority.table), .owner = role } });
     _ = try readResult(client, bundle, state, 3, 1);
+    if (state.named) |reference| {
+        const left = if (state.independent) "maintained_left" else "maintained_alias";
+        const operation = 7000000 + state.worker.resource * 10;
+        try support.namedDrop(client, left, operation, true);
+        try support.retireNamed(init, client, admin, &running, &behavior);
+        var metadata = try source(client, state);
+        try t.expect(try naming(state).lookup(&metadata, reference.identity.name) == null);
+        try t.expectEqualDeep(reference, try naming(state).attribution(&metadata, state.worker.pid, 1));
+        try support.namedDrop(client, left, operation + 1, false);
+        _ = try readResult(client, bundle, state, 3, 1);
+    }
     try support.send(client, state.worker.pid, try .init("retire"));
     for (0..100) |_| {
         try step(init, &running, &behavior, admin);

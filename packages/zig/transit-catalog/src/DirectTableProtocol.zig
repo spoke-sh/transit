@@ -242,6 +242,7 @@ pub const Action = union(enum) {
     namespace_preview: c.DirectNamespace.Binding,
     namespace_operation: struct { binding: c.DirectNamespace.Binding, command: c.DirectNamespace.Command, steps: u16 },
     dependency_operation: struct { binding: c.DirectDependency.Binding, command: c.DirectDependency.Command },
+    dependency_state: c.DirectDependency.Edge,
     dependencies: struct { selection: c.DirectDependency.Selection, cursor: ?c.DirectDependency.Cursor, authority: c.DirectDependency.Authority },
     resource_preview: c.DirectResource.Binding,
     resource_operation: struct { binding: c.DirectResource.Binding, command: c.DirectResource.Command, steps: u16, signed_allocation: ?c.DirectResource.SignedAllocation },
@@ -356,6 +357,10 @@ pub const Request = struct {
             .dependency_operation => |value| {
                 try value.binding.validate();
                 if (!std.meta.eql(value.binding.connection, connection)) return error.CatalogIdentityConflict;
+            },
+            .dependency_state => |edge| {
+                try edge.validate();
+                try connection.object(edge.source.object);
             },
             .dependencies => |value| {
                 switch (value.selection) {
@@ -580,6 +585,7 @@ pub const Result = union(enum) {
     namespace_preview: c.DirectNamespace.Preview,
     namespace_operation: c.DirectNamespace.Observation,
     dependency_operation: c.DirectDependency.Observation,
+    dependency_state: c.DirectDependency.State,
     dependencies: c.DirectDependency.Page,
     resource_preview: c.DirectResource.Preview,
     resource_operation: c.DirectResource.Observation,

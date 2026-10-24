@@ -115,6 +115,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .namespace_preview => .namespace_preview,
         .namespace_operation => .namespace_operation,
         .dependency_operation => .dependency_operation,
+        .dependency_state => .dependency_state,
         .dependencies => .dependencies,
         .resource_preview => .resource_preview,
         .resource_operation => .resource_operation,
@@ -194,6 +195,11 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 try outcome.validate();
                 try request.action.dependency_operation.binding.requireSame(outcome.binding);
             },
+        },
+        .dependency_state => |state| {
+            try state.edge.validate();
+            try state.position.validate();
+            if (state.position.next_lsn == 0 or !std.meta.eql(state.edge, request.action.dependency_state)) return error.InvalidTableResponse;
         },
         .dependencies => |page| {
             const input = request.action.dependencies;

@@ -633,6 +633,34 @@ the archive or an earlier root. The archive supplies attribution, while the
 current policy supplies authority. Confusing those two would let an old allowed
 record bypass revocation.
 
+Dependency preparation raises a second question: how can the caller register an
+exact definition before its native publisher chooses a retained read version?
+The logical reference hashes the namespace/object/revision, immutable publication,
+full bundle fingerprint, original peer and lifetime. The retained native version
+is a physical locator in the stored definition, outside that logical digest. The
+publisher verifies the actual bundle against the prepared digest; native history
+authenticates the locator. Hashing the later locator would prevent preparing an
+exact graph edge before publication without a separate reservation protocol.
+
+The saved publication plan binds each distinct source to that logical reference.
+Its source catalog accepts registration under the caller's source SELECT and
+computation metadata WRITE rights. A point inspection verifies current membership
+before the caller dispatches the separate native publication. Checking only the
+registration receipt would be unsound after explicit removal: receipts remain
+immutable while graph membership changes. Catalog and native acceptances are not
+one transaction, so authorized removal can race publication. The application must
+preserve protection across uncertain native acceptance and resolve or fence
+pending work before abandoning its registrations. This workflow does not supply
+automatic reconciliation or prevent an authorized administrator from removing an
+edge.
+
+Exact definition retirement records a permanent marker. New authorization and
+activation reject it; the immutable definition, attribution and existing query
+work remain. A retired head frees only the name for a fresh object. Graph removal
+is separately authorized, and data retention remains with accepted query pins and
+history leases. Thus freeing a name cannot relabel an old result, and replaying an
+old publication or registration receipt cannot revive the name or edge.
+
 This design uses another retained record and explicit authorization step instead
 of enlarging the query root or introducing a separate execution engine. It
 preserves the existing one-resource atomic boundary and current-policy revision
@@ -640,7 +668,9 @@ checks. Logical namespace quotas include immutable records and declared bundle
 bytes; they do not measure the complete physical retained resource cuts. History
 has no implicit expiry. The [naming contract](../../../contracts/NAMED_RELATIONAL_V1.md)
 and [implementation](../../../packages/zig/transit-station-app/src/NamedRelational.zig)
-specify this additive profile. Independent record bytes, conditional-retry tests
+specify the current definition and its coordinated stored-format cutover. The
+[saved publication owner](../../../packages/zig/transit-station-app/src/NamedRelationalPublication.zig)
+implements the explicit cross-owner workflow. Independent record bytes, conditional-retry tests
 and disk recovery are reproducible through the [proof ledger](../../../tests/README.md#named-relational-definitions).
 This mechanism does not establish SQL view syntax, network subscription delivery
 or effect dispatch.

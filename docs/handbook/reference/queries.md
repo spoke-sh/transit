@@ -314,6 +314,22 @@ notifications remain distinct from complete transaction capture.
 | Flight and other language SDK adapters | Relational execution is unsupported |
 
 Named definitions use the [application-owned interface](applications.md#contracts-and-commands).
+Its typed `NamedRelationalPublication` plan saves the complete immutable bundle,
+predicted logical reference and one dependency registration per distinct Table.
+Explicit registration requires the caller's current source SELECT and computation
+metadata WRITE rights. Publication checks current graph membership before
+returning the native command; it starts no query. A lost reply keeps the original
+plan and operation identities. Registration and native publication have separate
+acceptances and require explicit recovery.
+
+Retiring an exact definition prevents new authorization and activation. Retiring
+the current name permits reuse with a fresh object identity. Existing accepted
+work, result access policy and original attribution remain with their query owner.
+Retirement leaves dependency edges intact until separately authorized removal;
+an old registration receipt does not restore a removed edge. Resolve uncertain
+publication before cleanup. The [naming contract](../../../contracts/NAMED_RELATIONAL_V1.md)
+defines these controls and their bounds.
+
 Saved typed requests and cursors require the exact current contract definition;
 none of these callers substitutes a fresh query for missing accepted work.
 
