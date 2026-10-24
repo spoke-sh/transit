@@ -57,6 +57,7 @@ try {
   await peer.goto(config.counter);
   await follow(peer);
   await stage("sessions-before");
+  const offlineBasis = await counter.locator("#basis").textContent();
 
   // Chromium's actual network failure closes this tab's fetch stream. The
   // other tab shares the same origin/principal but retains its own live view.
@@ -72,6 +73,7 @@ try {
   await stage("mutate");
   await expect(peer.locator("#rows tr").first()).toHaveText("12");
   await expect(counter.locator("#rows tr").first()).toHaveText("11");
+  await expect(counter.locator("#basis")).toHaveText(offlineBasis);
   await network.send("Network.emulateNetworkConditions", {
     offline: false,
     latency: 0,
@@ -102,17 +104,18 @@ try {
   );
   await follow(counter);
   await expect(counter.locator("#rows tr").first()).toHaveText("12");
-  const retainedBasis = await counter.locator("#basis").textContent();
+  // This fixture explicitly binds all direct catalog authority domains to the
+  // retired resource. Its disappearance denies the current guard; it is not
+  // merely a lost transport like the disconnected tab above.
   await stage("retire");
-  await expect(counter.locator("#status")).toHaveAttribute("data-phase", "disconnected");
-  await expect(counter.locator("#status")).toContainText("serving.resource_unavailable");
-  await expect(counter.locator("#status")).toContainText("not evidence of session expiry");
-  await expect(counter.locator("#rows tr").first()).toHaveText("12");
-  await expect(counter.locator("#basis")).toHaveText(retainedBasis);
+  await expect(counter.locator("#status")).toHaveAttribute("data-phase", "denied");
+  await expect(counter.locator("#status")).toContainText("serving.access_denied");
+  await expect(counter.locator("#rows tr")).toHaveCount(0);
+  await expect(counter.locator("#basis")).toHaveText("No authorized snapshot.");
   assert.deepEqual(errors, []);
   assert.deepEqual(await context.cookies(), []);
   console.log(
-    "Live-view lifecycle: shared-principal tabs, actual stream loss/resume without session replacement, pagehide/expiry, visible watch-generation reset, explicit resnapshot and original source-unavailability detail with retained exact basis after retirement passed.",
+    "Live-view lifecycle: shared-principal tabs, actual stream loss with retained basis, resume without session replacement, pagehide/expiry, visible watch-generation reset, explicit resnapshot and cleared protected state after catalog lifetime retirement passed.",
   );
 } catch (error) {
   console.error("Recent control outcomes:", operations);

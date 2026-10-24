@@ -1,5 +1,25 @@
 # Validation and evidence
 
+## Direct Follow browser lifecycle — 2026-10-24
+
+`nix develop .#serving --command just test::reactive-views-lifecycle` passes the
+embedded Board/Chromium multi-tab schedule against direct Table storage. It
+checks independent sessions for one principal, actual stream loss with the
+original snapshot basis retained, reconnect without session replacement,
+pagehide and abandoned-session expiry, watch-generation reset, explicit
+resnapshot, and protected-state removal after the catalog lifetime resource is
+retired. The native/browser portion completes in 71.29 seconds; dependency
+installation and build time are additional.
+
+The schedule exposed a recorded renewal rejection being treated as a temporary
+disconnect. LiveView now stops in `reset_required`, retaining the original
+diagnostic and snapshot until explicit resnapshot; current denial or expiry
+still takes precedence and clears protected state. All 18 focused LiveView unit
+tests pass, including a single-renewal regression and denial precedence for both
+lease conflicts and watch resets. Board and reactive-client formatting/lint and
+Board strict TypeScript checks pass. This does not qualify the remaining
+Compose/reference Follow placement or credential-rotation schedules.
+
 ## Courier discovery through the pending index — 2026-10-24
 
 `nix develop .#serving --command just test::public-query` passes with the courier
