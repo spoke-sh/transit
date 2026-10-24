@@ -270,7 +270,8 @@ Completion uses production grammar and currently authorized metadata for the
 statement around the cursor, including suffix sources and aliases. Static dot
 commands, `.help`, `.mode` and `.timer` complete locally; `.schema` uses the
 service. A list has at most eight candidates, displayed below the unchanged
-prompt. Type while it is open to refine it. PgUp/PgDn pages through the selected
+prompt. The menu and selection stay stable while idle; editing the draft or
+moving the cursor refreshes suggestions. PgUp/PgDn pages through the selected
 candidate's full spelling and details when clipped. A limited result says so;
 a single candidate inserts automatically only with complete matching coverage.
 No automatic semicolon or generated statement is added.

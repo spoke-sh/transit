@@ -84,7 +84,6 @@ const Editor = struct {
     started_at: i64 = 0,
     selected: usize = 0,
     detail_page: usize = 0,
-    expires: i64 = 0,
     pasting: bool = false,
     columns: usize = 80,
     rows: usize = 24,
@@ -318,7 +317,6 @@ const Editor = struct {
         if (try q.Assistance.local(self.arena.allocator(), self.request())) |value| {
             self.local_completion = true;
             self.assistance = .{ .generation = self.generation, .coverage = value.coverage, .status = value.status, .resource = 0, .contract = @splat(0), .resource_revision = 0, .policy_revision = "", .range = value.range, .items = value.items };
-            self.expires = self.now() + 5000;
             if (self.auto_unique and value.coverage == .complete and value.items.len == 1) try self.apply();
             return;
         }
@@ -384,17 +382,11 @@ const Editor = struct {
             self.arena = fresh;
             fresh = .init(self.console.init.gpa);
             self.assistance = current;
-            self.expires = self.now() + 5000;
             if (self.auto_unique and current.status == .ready and current.coverage == .complete and current.items.len == 1) {
                 self.auto_unique = false;
                 try self.accept();
             }
             return true;
-        }
-        if (self.assistance != null and self.now() >= self.expires) {
-            self.invalidate();
-            self.auto_unique = false;
-            self.refresh_at = self.now();
         }
         if (self.assistance == null and !self.unavailable and self.now() >= self.refresh_at) {
             try self.acquire();

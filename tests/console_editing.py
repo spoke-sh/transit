@@ -12,6 +12,16 @@ from console_terminal import Terminal, ANSI
 from sql_sessions.editor_peer import peer
 
 
+def idle_menu(terminal, selected):
+    # Keep consuming the real display past the former five-second refresh.
+    until = time.monotonic() + 6
+    while time.monotonic() < until:
+        assert terminal.process.poll() is None, 'terminal exited while idle'
+        if select.select([terminal.master], [], [], .1)[0]:
+            terminal.record_display(os.read(terminal.master, 65536))
+    assert selected in terminal.display.text(), terminal.display.text()
+
+
 def check(binary):
     with tempfile.TemporaryDirectory(prefix='transit-editing-') as directory, peer() as (endpoint, actions):
         root = Path(directory)
@@ -105,13 +115,16 @@ def check(binary):
             terminal.send('.timer o\t')
             terminal.expect('> off')
             assert 'transit> .timer o' in ANSI.sub(b'', terminal.screen).decode()
-            terminal.send('\x1b[B\t')
+            terminal.send('\x1b[B')
+            terminal.expect('> on')
+            idle_menu(terminal, '> on')
+            terminal.send('\t')
             draft(['.timer on'])
             terminal.send('\x1a')
             draft(['.timer o'])
             terminal.send('\x07')
             draft(['.timer o'])
-            assert all(action in ('hello', 'open') for action, _ in actions), actions
+            assert all(action in ('hello', 'open', 'touch') for action, _ in actions), actions
         finally:
             terminal.close()
     delayed(binary)
@@ -138,7 +151,7 @@ def delayed(binary):
         return dict(assistance=dict(coverage=state['coverage'], status='ready', profile='catalog_v1', resource=4,
                                     contract=[7]*32, resource_revision=state['revision'], policy_revision='1',
                                     range=dict(start=start, end=len(text), quoted=False),
-                                    items=[] if state.get('empty') else [dict(text=state.get('candidate', 'SELECT'), kind='keyword', detail='SQL grammar')]))
+                                    items=[] if state.get('empty') else [dict(text=text, kind='keyword', detail='SQL grammar') for text in state.get('candidates', [state.get('candidate', 'SELECT')])]))
     with tempfile.TemporaryDirectory(prefix='transit-completion-') as directory, peer(assist=assist) as (endpoint, actions):
         root = Path(directory)
         config = root / 'connection.json'
@@ -153,9 +166,21 @@ def delayed(binary):
             terminal.send('\x1a')
             expect_draft(terminal, ['transit> SE'], (0, 11))
             state['coverage'] = 'limited'
+            state['candidates'] = ['SELECT', 'SET']
             terminal.send('\t')
             terminal.expect('> SELECT')
             terminal.expect('Limited list')
+            terminal.send('\x1b[B')
+            terminal.expect('> SET')
+            calls = state['calls']
+            idle_menu(terminal, '> SET')
+            assert state['calls'] == calls, 'idle menu reacquired metadata'
+            terminal.send('\t')
+            expect_draft(terminal, ['transit> SET'], (0, 12))
+            assert state['calls'] == calls + 1, 'acceptance must revalidate metadata'
+            terminal.send('\x1a')
+            expect_draft(terminal, ['transit> SE'], (0, 11))
+            state.pop('candidates')
             terminal.send('\x07')
             expect_draft(terminal, ['transit> SE'], (0, 11))
             state['delay'] = True

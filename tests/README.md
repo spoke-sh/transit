@@ -1,5 +1,16 @@
 # Validation and evidence
 
+## Stable console completion menus — 2026-10-24
+
+`just check` passes with the idle-refresh timer removed. Real PTYs keep local
+dot-command and catalog menus open for six seconds and retain their selected
+second item. The catalog peer observes no additional assistance request during
+that idle interval, then exactly one fresh request when Tab accepts the item.
+Existing metadata-change, denial, session-loss and editing schedules also pass.
+The new local-menu regression fails before the fix: the selected `on` entry
+returns to `off` when the five-second timer expires. These are editor/client
+checks; they do not establish new service or authorization behavior.
+
 ## Console completion and editing — 2026-10-24
 
 The [qualification record](verification/results/console-completion-2026-10-24.json)
