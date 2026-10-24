@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'transit/station'
 require 'timeout'
-require_relative 'schema_values'
+require_relative 'ruby_schema_values'
 M = Transit::Station::Catalog
 L = Transit::Station::Logical
 I = Transit.const_get(:Internal)
@@ -21,7 +21,7 @@ def clone_json(value) = JSON.parse(JSON.generate(value))
 scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: 46, resource: 7), catalog: (1 << 64)-1)
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: true) }
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: 1 << 64) }
-rejects(ArgumentError) { M::Connection.new(owner: Transit::ProcessRef.new(realm: 47, pid: 1), scope: scope) }
+rejects(ArgumentError) { M::Connection.new(scope: scope, audience: 1, branch: 0) }
 authority_values = {database_domain: 10, schema_domain: 11, table_domain: 12, database: 20, initial_schema: 1, initial_schema_authority: 21}
 authority = M::AuthorityProfile.new(**authority_values)
 rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(table_domain: 10)) }
@@ -31,9 +31,6 @@ subject = M::Subject.new(principal: 17, login_role: 17, role: 17, credential_epo
 context.clear
 check(subject.context == 'a' * 32 && subject.context.frozen?)
 rejects(ArgumentError) { M::Subject.new(**subject.to_h.merge(credential_epoch: 0)) }
-text = +'opaque recovery bytes'
-prepared = M::Prepared.new(data: text); text.clear
-check(prepared.data == 'opaque recovery bytes' && prepared.data.frozen?)
 text = +'id'; columns = [M::Column.new(id: 1, name: text, type: L::Scalar.new(kind: :int128))]
 schema = M::Schema.new(object: (1 << 64)-1, revision: 1, next_column: 2, columns: columns)
 text.clear; columns.clear
@@ -54,10 +51,6 @@ check(added['encoding'] == 'ebcdic' && added['collation'] == 'ebcdic_cp037')
   bad['columns'][0][field] = 'invented'
   rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
 end
-bytes = +'saved'; saved = M::SavedIntent.new(definition: M::DEFINITION, bytes: bytes); bytes.clear
-check(saved.bytes == 'saved' && saved.bytes.frozen?)
-rejects(ArgumentError) { M::SavedIntent.new(definition: '0' * 64, bytes: 'saved') }
-rejects(ArgumentError) { M::SavedIntent.new(definition: nil, bytes: 'saved') }
 raw = +'\x00\xff'; value = atom(:binary, raw); raw.clear
 check(!value.value.value.empty? && value.value.value.frozen?)
 values = [atom(:signed, -(1 << 127)), atom(:unsigned, (1 << 128)-1), atom(:decimal, 123456789012345678901234567890),
@@ -112,197 +105,176 @@ types.each { |v| check(L.type_from_wire(L.type_wire(v)) == v) }
 rejects(ArgumentError) { L.type_wire(L::Structure.new(fields: [L::Field.new(name: 'x' * 2100, type: types.first)] * 2)) }
 rejects(ArgumentError) { L.type_wire(L::Structure.new(fields: [L::Field.new(name: 'n', type: types.first)] * 256)) }
 
+connection = M::Connection.new(scope: scope, audience: 3)
+v = M.const_get(:Values)
+object = {'scope'=>scope.wire, 'branch'=>'1', 'object'=>((1<<64)-1).to_s}
+interpretation = {'object'=>object, 'revision'=>'1', 'digest'=>'ab'*32}
+stored = {'interpretation'=>interpretation, 'content'=>{'bytes'=>'300','sha256'=>'ab'*32}, 'schema_fingerprint'=>'cd'*32, 'retired'=>false}
+basis_wire = {'definition'=>M::DEFINITION,'connection'=>connection.wire(17),'namespace'=>1,'name'=>'items','interpretation'=>stored}
+basis = M::Basis.restore(JSON.generate(basis_wire))
+check(basis.object == (1<<64)-1 && basis.name == 'items' && basis.connection == connection)
+rejects(ArgumentError) { M::Basis.restore(JSON.generate(basis_wire)[0...-1] + ',"name":"other"}') }
+rejects(FrozenError) { basis.instance_variable_set(:@data, 'changed') }
+check(!basis.inspect.include?('items'))
+bound = {'definition'=>M::DEFINITION,'identity'=>{'scope'=>scope.wire,'principal'=>17,'operation'=>'10'}, 'target'=>object,
+  'action'=>'insert','expected_definition'=>interpretation,'expected_data'=>nil,'intent'=>'aa'*32,'prerequisite'=>nil}
+saved_wire = {'table'=>{'definition'=>M::DEFINITION,'namespace'=>1,'bytes'=>'opaque saved bytes'.unpack1('H*')}}
+saved = M::SavedIntent.restore(JSON.generate(saved_wire))
+summary = {'id'=>{'definition'=>M::DEFINITION,'digest'=>'11'*32},'namespace'=>1,'binding'=>{'table'=>bound}}
+compiled_wire = {'summary'=>summary,'saved'=>saved_wire}
+reference_wire = {'table'=>{'definition'=>M::DEFINITION,'connection'=>connection.wire(17),'namespace'=>1,'binding'=>bound,'content'=>{'bytes'=>'200','sha256'=>'22'*32}}}
+reference = M::Reference.restore(JSON.generate(reference_wire))
+[[M::SavedIntent,saved_wire],[M::Reference,reference_wire],[M::Basis,basis_wire]].each do |klass, raw|
+  [nil, '0'*64].each do |definition|
+    bad = clone_json(raw); target = bad['table'] || bad
+    definition.nil? ? target.delete('definition') : target['definition'] = definition
+    rejects(ArgumentError, Transit::IncompatibleNative) { klass.restore(JSON.generate(bad)) }
+  end
+end
 class Reply
   attr_accessor :response, :entered, :release
   attr_reader :closed, :action
   def catalog(action)
     @action = action
-    if entered
-      entered << true
-      release.pop
-    end
+    if entered then entered << true; release.pop; end
     raise response if response.is_a?(Exception)
     response
   end
   def evidence = nil
   def close = @closed = true
 end
-def owner(reply)
+def owner(reply, connection)
   client = M::Client.allocate
   client.instance_variable_set(:@worker, I::Worker.new { reply })
+  client.instance_variable_set(:@connection, connection)
+  client.instance_variable_set(:@principal, 17)
   client
 end
-reply = Reply.new; client = owner(reply)
-client.instance_variable_set(:@connection, M::Connection.new(owner: Transit::ProcessRef.new(realm: 46, pid: 3), scope: scope))
-client.instance_variable_set(:@principal, 17)
-reference = M::Reference.new(definition: M::DEFINITION, digest: 'x' * 32)
+reply = Reply.new; client = owner(reply, connection)
 begin
-  [NoMemoryError.new('injected result allocation'), nil, {}, {'receipt'=>{'position'=>0}}, {'receipt'=>{'position'=>'1'}}, {'receipt'=>{'position'=>1.5}},
-   {'receipt'=>{'position'=>1},'extra'=>true}, {'receipt'=>{'position'=>1,'extra'=>true}}].each do |value|
+  reply.response = {'compiled'=>clone_json(compiled_wire)}
+  operation = M::Mutate.new(basis: basis, mutation: M::Insert.new(rows: [[M::Assignment.new(column: 1, value: atom(:binary, 'x' * 300000))]]), ingestion: :bulk)
+  compiled = client.prepare('items', M::Identity.new(operation: 10), operation)
+  check(compiled.intent.identity.operation == 10 && compiled.saved == saved && JSON.generate(reply.action).bytesize > I::LIMITS.fetch('host_line_bytes'))
+  reply.response = {'staged'=>clone_json(reference_wire)}
+  check(client.stage(compiled.intent) == reference)
+  reply.response = {'loaded'=>clone_json(summary)}
+  check(client.load(saved) == compiled.intent)
+  [nil, {}, {'staged'=>{}}, Transit::UnknownOutcome.new('lost', status: 6), NoMemoryError.new('injected')].each do |value|
     reply.response = value
-    error = rejects(M::Uncertain) { client.submit(prepared) }
-    check(error.prepared.equal?(prepared))
+    error = rejects(M::Uncertain) { client.stage(compiled.intent) }
+    check(error.original.equal?(compiled.saved) && error.status == 6)
   end
-  reply.response = {'receipt'=>{'position'=>1}}
-  check(client.submit(prepared) == 1)
-  reply.response = Transit::AccessDenied.new('Denied', status: 4, code: 'AccessDenied')
-  check(rejects(Transit::AccessDenied) { client.submit(prepared) }.equal?(reply.response))
-  outcome = {'kind'=>'insert','operation'=>((1 << 64)-1).to_s,'object'=>((1 << 64)-1).to_s,'actual_object'=>((1 << 64)-1).to_s,
-    'phase'=>'applied','terminal'=>true,'counts'=>{'matched'=>'1','changed'=>'1'},'admitted_input'=>7,'completed_input'=>8,
-    'diagnostic'=>JSON.parse(File.read('../diagnostic.json'))}
-  reply.response = {'state'=>{'outcome'=>clone_json(outcome),'upload'=>nil}}
-  retained = client.status(reference)
-  check(retained.outcome.object == (1 << 64)-1 && retained.outcome.counts == M::Counts.new(matched: 1, changed: 1))
-  reply.response['state']['outcome']['diagnostic']['message'].clear
-  check(!retained.outcome.diagnostic['message'].empty?)
-  [{ 'counts'=>nil }, { 'terminal'=>false }, { 'phase'=>'unknown' }, { 'operation'=>'01' }, {'object'=>(1 << 64)-1}, {'diagnostic'=>nil}].each do |defect|
-    reply.response = {'state'=>{'outcome'=>outcome.merge(defect),'upload'=>nil}}
-    rejects(Transit::IncompatibleNative) { client.status(reference) }
-  end
-  description = {'configuration'=>{'scope'=>scope.wire,'owner'=>3,'administrator'=>0,
-    'authority'=>authority.wire,'database_name'=>'ledger',
-    'table_limits'=>{'record_bytes'=>4096,'staging_bytes'=>'32768','staging_records'=>8}},
-    'subject'=>subject.to_h.transform_keys(&:to_s).merge('context'=>subject.context.bytes),
-    'authorization_revision'=>2,'resource_revision'=>3}
-  reply.response = {'description'=>description}
+  reply.response = Transit::AccessDenied.new('Denied', status: 4)
+  check(rejects(Transit::AccessDenied) { client.execute(reference) }.equal?(reply.response))
+  outcome = {'rows'=>{'committed'=>{'binding'=>bound, 'resulting'=>stored,
+    'outcome'=>{'position'=>{'partition'=>'18446744073709551615','next_lsn'=>'18446744073709551615'},'matched'=>'9','affected'=>'9','live_rows'=>'9'}}}}
+  reply.response = {'observation'=>clone_json(outcome)}
+  observed = client.inspect(reference)
+  check(observed.state == :committed && observed.commit.matched == 9 && observed.commit.position.next_lsn == (1<<64)-1)
+  reply.response['observation']['rows']['committed']['binding']['identity']['operation'] = '11'
+  rejects(Transit::IncompatibleNative) { client.inspect(reference) }
+  check(rejects(M::Uncertain) { client.execute(reference) }.original.equal?(reference))
+  bad = clone_json(outcome); bad['rows']['committed']['outcome']['affected'] = '10'
+  reply.response = {'observation'=>bad}; rejects(Transit::IncompatibleNative) { client.inspect(reference) }
+  description = {'configuration'=>{'scope'=>scope.wire,'branch'=>'1','partition'=>'18446744073709551615','audience'=>3,
+    'authority'=>authority.wire,'database_name'=>'ledger','initial_schema_name'=>'public'},
+    'subject'=>subject.to_h.transform_keys(&:to_s).merge('context'=>subject.context.bytes), 'policy_revision'=>2}
+  reply.response = {'catalog'=>{'description'=>description}}
   current = client.describe
-  check(current.subject == subject && current.configuration.authority == authority && current.authorization_revision == 2)
+  check(current.subject == subject && current.configuration.authority == authority && current.policy_revision == 2)
   {'principal'=>18,'audience'=>4,'credential_epoch'=>0}.each do |field, value|
     bad = clone_json(description); bad['subject'][field] = value
-    reply.response = {'description'=>bad}
+    reply.response = {'catalog'=>{'description'=>bad}}
     rejects(Transit::IncompatibleNative) { client.describe }
   end
-  selected = M::Connection.new(owner: client.connection.owner, scope: scope, role: 20)
-  client.instance_variable_set(:@connection, selected)
-  reply.response = {'description'=>description}
-  rejects(Transit::IncompatibleNative) { client.describe }
-  client.instance_variable_set(:@connection, M::Connection.new(owner: selected.owner, scope: scope))
-  metadata = {'namespace'=>1,'scope'=>scope.wire,'object'=>((1 << 64)-1).to_s,'revision'=>((1 << 64)-1).to_s,'name'=>'items',
-    'schema_fingerprint'=>'ab' * 32,'principal'=>17,'operation'=>((1 << 64)-1).to_s,'admitted_input'=>2,'commitment'=>{'format'=>0x54434d01,'length'=>200,'digest'=>[1]*32}}
-  head = {'revision'=>'1','rows'=>'0','pending'=>'0'}
-  entry = {'metadata'=>metadata,'head'=>head}
-  token = {'definition'=>M::DEFINITION,'scope'=>scope.wire,'resource_revision'=>3,'after_object'=>((1 << 64)-1).to_s}
-  page = {'resource_revision'=>3,'entries'=>[entry] + [nil] * 7,'next'=>token}
-  reply.response = {'page'=>clone_json(page)}
-  retained = client.list
-  check(retained.entries.first.metadata.object == (1 << 64)-1 && retained.entries.first.metadata.revision == (1 << 64)-1)
-  reply.response['page']['entries'][0]['metadata']['name'].clear
-  check(retained.entries.first.metadata.name == 'items' && retained.entries.frozen?)
-  check(retained.entries.first.metadata.commitment == M::MetadataCommitment.new(bytes: 200, digest: "\x01".b*32))
-  entries = retained.entries.dup
-  public_page = M::Page.new(resource_revision: 3, entries: entries, next: retained.next); entries.clear
-  check(public_page.entries == retained.entries)
-  definition = {'authorization'=>30,'metadata'=>metadata,'head'=>head,'schema'=>schema.wire}
-  reply.response = {'definition'=>clone_json(definition)}
-  resolved = client.lookup('items')
-  check(resolved.metadata == retained.entries.first.metadata && resolved.schema == schema)
-  reply.response['definition']['schema']['columns'][0]['name'].clear
-  check(resolved.schema.columns.first.name == 'id')
-  reply.response = {'historical'=>{'metadata'=>clone_json(metadata),'schema'=>schema.wire}}
-  historical = client.definition((1 << 64)-1, (1 << 64)-1)
-  check(historical.metadata == resolved.metadata && historical.schema == schema && !historical.respond_to?(:head))
-  rejects(Transit::IncompatibleNative) { client.definition(1, 1) }
-  %i[hole order scope namespace cut next_object missing_definition foreign_definition numeric_object unknown_head missing_commitment foreign_commitment long_commitment bad_digest].each do |defect|
+  position = {'partition'=>'18446744073709551615','next_lsn'=>'4'}
+  entry = {'interpretation'=>interpretation,'namespace'=>1,'name'=>'items','position'=>position,'changed_lsn'=>'3'}
+  token = {'definition'=>M::DEFINITION,'connection'=>connection.wire(17),'selection'=>{'tables'=>1},'position'=>position,'after'=>object['object']}
+  page = {'position'=>position,'entries'=>[entry]+[nil]*7,'next'=>token,'consistency'=>'independent'}
+  reply.response = {'catalog'=>{'tables'=>clone_json(page)}}
+  retained = client.tables
+  check(retained.entries.first.interpretation.object.object == (1<<64)-1 && retained.next.after == (1<<64)-1)
+  reply.response['catalog']['tables']['entries'][0]['name'].clear
+  check(retained.entries.first.name == 'items' && retained.entries.frozen?)
+  %i[hole order scope namespace cut next_object missing_definition foreign_definition numeric_object].each do |defect|
     bad = clone_json(page)
     case defect
-    when :hole then bad['entries'][1], bad['entries'][0] = bad['entries'][0], nil
+    when :hole then bad['entries'][1],bad['entries'][0] = bad['entries'][0],nil
     when :order then bad['entries'][1] = clone_json(entry)
-    when :scope then bad['entries'][0]['metadata']['scope']['catalog'] = '1'
-    when :namespace then bad['entries'][0]['metadata']['namespace'] = 2
-    when :cut then bad['next']['resource_revision'] += 1
-    when :next_object then bad['next']['after_object'] = '1'
+    when :scope then bad['entries'][0]['interpretation']['object']['scope']['catalog'] = '1'
+    when :namespace then bad['entries'][0]['namespace'] = 2
+    when :cut then bad['next']['position'] = {'partition'=>'1','next_lsn'=>'5'}
+    when :next_object then bad['next']['after'] = '1'
     when :missing_definition then bad['next'].delete('definition')
-    when :foreign_definition then bad['next']['definition'] = '0' * 64
-    when :numeric_object then bad['entries'][0]['metadata']['object'] = (1 << 64)-1
-    when :unknown_head then bad['entries'][0]['head']['other'] = true
-    when :missing_commitment then bad['entries'][0]['metadata'].delete('commitment')
-    when :foreign_commitment then bad['entries'][0]['metadata']['commitment']['format'] = 0
-    when :long_commitment then bad['entries'][0]['metadata']['commitment']['length'] = 445
-    when :bad_digest then bad['entries'][0]['metadata']['commitment']['digest'][0] = 256
+    when :foreign_definition then bad['next']['definition'] = '0'*64
+    when :numeric_object then bad['entries'][0]['interpretation']['object']['object'] = (1<<64)-1
     end
-    reply.response = {'page'=>bad}
-    rejects(Transit::IncompatibleNative) { client.list }
+    reply.response = {'catalog'=>{'tables'=>bad}}
+    rejects(Transit::IncompatibleNative) { client.tables }
   end
-  reply.response = {'page'=>clone_json(page)}
-  rejects(Transit::IncompatibleNative) { client.list(retained.next) }
-  reply.response = {'page'=>{'resource_revision'=>4,'entries'=>[nil]*8,'next'=>nil}}
-  rejects(Transit::IncompatibleNative) { client.list(retained.next) }
-  reply.response['page']['resource_revision'] = 3
-  check(client.list(retained.next).entries.empty?)
-  reply.response = {'definition'=>nil}; check(client.lookup('absent').nil?)
-  reply.response = {'historical'=>nil}; check(client.definition(1,1).nil?)
-  reply.response = {'prepared'=>'signed'}
-  check(client.prepare_control(reference, :collect_upload).data == 'signed')
-  check(reply.action['prepare_control']['control'] == 'collect_upload')
-  summary = {'reference'=>reference.wire,'scope'=>scope.wire,'owner'=>3,'principal'=>17,'operation'=>'10','namespace'=>'100','object'=>'1','kind'=>'insert'}
-  compiled_reply = {'intent'=>summary,'saved'=>{'definition'=>M::DEFINITION,'bytes'=>'7361766564'}}
-  operation = M::Mutate.new(basis: M::Basis.new(object: 1, revision: 1, schema_fingerprint: 'a' * 32),
-    mutation: M::Insert.new(rows: [[M::Assignment.new(column: 1, value: atom(:binary, 'x' * 300000))]]))
-  identity = M::Identity.new(operation: 10, namespace: 100)
-  reply.response = {'compiled'=>clone_json(compiled_reply)}
-  compiled = client.prepare('items', identity, operation)
-  check(compiled.intent.identity == identity && JSON.generate(reply.action).bytesize > I::LIMITS.fetch('host_line_bytes'))
-  {'owner'=>4,'principal'=>18,'operation'=>'11','namespace'=>'101','object'=>'2','kind'=>'update'}.each do |field, value|
-    bad = clone_json(compiled_reply); bad['intent'][field] = value
-    reply.response = {'compiled'=>bad}
-    rejects(Transit::IncompatibleNative) { client.prepare('items', identity, operation) }
-  end
-  reply.response = {'loaded'=>summary}
-  check(client.load(compiled.saved) == compiled.intent)
-  check(reply.action == {'load'=>compiled.saved.wire})
+  reply.response = {'catalog'=>{'tables'=>clone_json(page)}}
+  rejects(Transit::IncompatibleNative) { client.tables(cursor: retained.next) }
+  metadata = {'binding'=>basis_wire,'authorization'=>30,'position'=>position,'changed_lsn'=>'3','row_count'=>'9','schema'=>schema.wire}
+  reply.response = {'metadata'=>clone_json(metadata)}
+  found = client.lookup('items'); check(found.basis == basis && found.row_count == 9 && found.schema == schema)
+  reply.response = {'metadata'=>nil}; check(client.lookup('absent').nil?)
+  acquisition = client.prepare_snapshot(basis, found.position, (1<<64)-1)
+  check(acquisition.owner.operation == (1<<64)-1)
+  snapshot_wire = {'owner'=>acquisition.owner.wire,'content'=>{'bytes'=>'500','sha256'=>'44'*32}}
+  reply.response = {'retention'=>{'acquired'=>clone_json(snapshot_wire)}}
+  snapshot = client.acquire_snapshot(acquisition)
+  check(snapshot.owner == acquisition.owner && snapshot.content.bytes == 500)
+  reply.response = {'retention'=>{'released'=>clone_json(snapshot_wire)}}
+  check(client.release_snapshot(snapshot) == snapshot)
+  reply.response['retention']['released']['content']['sha256'] = '55'*32
+  check(rejects(M::Uncertain) { client.release_snapshot(snapshot) }.original.equal?(snapshot))
+  reply.response = {'retention'=>{'metadata'=>{'snapshot'=>snapshot_wire,'interpretation'=>stored,'accepted'=>position,
+    'changed_lsn'=>'3','row_count'=>'9','schema'=>schema.wire,'authority'=>{'database'=>31,'schema'=>32,'table'=>33}}}}
+  check(client.snapshot_metadata(snapshot).accepted == found.position)
 ensure
   client.close
 end
 check(reply.closed)
 rejects(Transit::Closed) { client.capabilities }
-# A real owned child exercises generated response validation and transport loss.
+
+# The real port validates generated response shapes and treats loss after a
+# mutating dispatch as uncertainty, including replies that claim success.
 require 'tmpdir'
-Dir.mktmpdir('transit-catalog-replies-') do |directory|
+Dir.mktmpdir('transit-direct-catalog-replies-') do |directory|
   station_module = $LOADED_FEATURES.find { |file| file.end_with?('/transit/station.rb') }
-  raise 'Station module was not loaded' unless station_module
   schemas = I::SCHEMAS.merge(JSON.parse(File.binread(File.join(File.dirname(station_module), 'station/schemas.json'))))
-  # Catalog-only framing accepts bounded large requests and fragmented replies.
   host = File.join(directory, 'large-host')
-  response = JSON.generate({'status'=>0,'value'=>{'compiled'=>compiled_reply.merge('saved'=>{'definition'=>M::DEFINITION,'bytes'=>'ab' * 300000})}}) + "\n"
+  large = clone_json(compiled_wire); large['saved']['table']['bytes'] = 'ab' * 300000
+  response = JSON.generate({'status'=>0,'value'=>{'compiled'=>large}}) + "\n"
   File.binwrite(File.join(directory, 'large-reply'), response)
-  program = "#!/usr/bin/env ruby\nrequire 'json'\n$stdout.sync = true\nrequest = JSON.parse($stdin.gets)\nexit 3 unless request.fetch('catalog').fetch('load').fetch('bytes').bytesize == 600000\nFile.open(#{File.join(directory, 'large-reply').inspect}, 'rb') { |f| while part = f.read(97); $stdout.write(part); end }\n$stdin.each_line {}\n"
-  File.write(host, program); File.chmod(0o700, host)
-  action = {'catalog'=>{'load'=>{'definition'=>M::DEFINITION,'bytes'=>'ab' * 300000}}}
+  File.write(host, "#!/usr/bin/env ruby\nrequire 'json'\n$stdout.sync = true\nrequest = JSON.parse($stdin.gets)\nexit 3 unless request.fetch('catalog').fetch('load').fetch('table').fetch('bytes').bytesize == 600000\nFile.open(#{File.join(directory, 'large-reply').inspect}, 'rb') { |f| while part = f.read(97); $stdout.write(part); end }\n$stdin.each_line {}\n")
+  File.chmod(0o700, host)
+  action = {'catalog'=>{'load'=>large['saved']}}
   port = I::Port.new(host, {}, schemas, 'HostRequest', line_bound: M::LIMITS.fetch('catalog_line_bytes'))
   begin
-    result = port.request(action, phase: :catalog, response: 'CatalogResult')
-    check(result['compiled']['saved']['bytes'].bytesize == 600000)
+    check(port.request(action, phase: :catalog, response: 'CatalogResult')['compiled']['saved']['table']['bytes'].bytesize == 600000)
   ensure
     port.close
   end
-  port = I::Port.new(host, {}, schemas, 'HostRequest')
-  begin
-    rejects(ArgumentError) { port.request(action, phase: :catalog, response: 'CatalogResult') }
-  ensure
-    port.close
-  end
-  [nil, {'status'=>0,'value'=>{'receipt'=>{'position'=>'1'}}},
-   {'status'=>0,'value'=>{'receipt'=>{'position'=>1},'extra'=>true}}].each_with_index do |response, index|
+  [nil, {'status'=>0,'value'=>{'observation'=>{}}}].each_with_index do |response, index|
     host = File.join(directory, "host-#{index}")
     program = "#!/usr/bin/env ruby\nrequire 'json'\n$stdout.sync = true\n$stdin.gets\n"
     program += response.nil? ? "exit 0\n" : "puts #{JSON.generate(response).inspect}\n$stdin.each_line {}\n"
     File.write(host, program); File.chmod(0o700, host)
     bridge = Transit::Station.const_get(:Bridge).allocate
     bridge.instance_variable_set(:@port, I::Port.new(host, {}, schemas, 'HostRequest'))
-    client = owner(bridge)
+    client = owner(bridge, connection)
     begin
-      error = rejects(M::Uncertain) { client.submit(prepared) }
-      raise 'Port failure changed recovery value' unless error.prepared.equal?(prepared)
+      check(rejects(M::Uncertain) { client.execute(reference) }.original.equal?(reference))
     ensure
       client.close
     end
   end
 end
-
-# A cancelled waiting thread must not release the worker's active operation.
 reply = Reply.new; reply.entered = Queue.new; reply.release = Queue.new
-reply.response = {'receipt'=>{'position'=>2}}; client = owner(reply)
-pending = Thread.new { client.submit(prepared) }
+reply.response = {'observation'=>clone_json(outcome)}; client = owner(reply, connection)
+pending = Thread.new { client.execute(reference) }
 begin
   Timeout.timeout(5) { reply.entered.pop }
   pending.kill; pending.join
@@ -310,13 +282,13 @@ begin
   closing = Thread.new { client.close }
   deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
   Thread.pass until closing.status == 'sleep' || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-  raise 'Close released active work' unless closing.alive? && !reply.closed
+  check(closing.alive? && !reply.closed)
   reply.release << true
   Timeout.timeout(5) { closing.value }
-  raise 'Close did not join cleanup' unless reply.closed
+  check(reply.closed)
 ensure
   reply.release << true
   pending.kill; pending.join
   client.close
 end
-puts 'Ruby general Tables: owned nested types, exact widths/budgets, strict metadata, catalog-only large frames, uncertain receipts and joined cancellation passed.'
+puts 'Ruby direct catalog: owned nested values, wide bindings, exact metadata and snapshots, uncertain replies, large framing and joined cancellation passed.'

@@ -27,16 +27,15 @@ descriptor binding, binary metadata and observed status zero.
 M17 adds [immutable Document changes and asynchronous authorized reads](docs/DOCUMENTS.md)
 with scoped publication and explicit Unicode scalar identities.
 
-M18 adds [typed unified queries](docs/UNIFIED_QUERY.md) with immutable nested
+The SDK provides [typed unified queries](docs/UNIFIED_QUERY.md) with immutable nested
 Arrow values, bounded futures and explicit signed retry tokens.
 
 The [catalog guide](docs/CATALOG.md) covers general schemas, typed DML, ALTER/DROP,
-historical definitions and exact saved-intent recovery through the joined worker.
+current inspection, explicit retention and exact saved-intent recovery through the joined worker.
 The [logical value guide](docs/LOGICAL.md) describes owned recursive descriptors,
 exact values and bounded neutral codecs.
 The [handler Table guide](docs/TABLES.md) covers discovered schemas, stable row
 identities, retained reads and explicit saved mutation steps.
-
 
 Handler query failures use a typed callback with the authenticated origin,
 correlation, result identity and reason. See

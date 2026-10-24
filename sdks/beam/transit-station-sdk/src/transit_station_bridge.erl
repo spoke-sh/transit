@@ -34,7 +34,7 @@ catalog(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host
     {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),
     Service=case TableServiceUrl of undefined->null; _->{ok,_}=transit_client:config(TableServiceUrl,native_v1,#{}),transit_sdk_value:text(TableServiceUrl,2048) end,
     create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
-        <<"catalog_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout,<<"table_service_url">>=>Service}},Override).
+        <<"catalog_client">>=>#{<<"definition">>=>maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)),<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout,<<"service_url">>=>Service}},Override).
 create(Config, Override) ->
     case application:load(transit_client) of ok -> ok; {error, {already_loaded, transit_client}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package) end,
     case application:get_key(transit_client, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,

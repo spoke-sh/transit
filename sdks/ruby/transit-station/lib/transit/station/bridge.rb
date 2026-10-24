@@ -68,7 +68,10 @@ module Transit
         port.request({ 'unified_query' => action }, phase: :unified_query, mutation: action.key?('submit'), response: 'UnifiedQueryResult')
       end
       def catalog(action)
-        port.request({ 'catalog' => action }, phase: :catalog, mutation: action.key?('submit'), response: 'CatalogResult')
+        mutation = action.key?('stage') || action.key?('admit') ||
+          (action.key?('operation') && action.fetch('operation').fetch('command') != 'inspect') ||
+          (action.key?('retention') && (action['retention'].key?('acquire') || action['retention'].key?('release')))
+        port.request({ 'catalog' => action }, phase: :catalog, mutation: mutation, response: 'CatalogResult')
       end
       def document_read(action)
         raise UnsupportedCapability, 'Native Document reads unavailable' unless caps['document_reads']

@@ -26,22 +26,69 @@ function decimal(value: string, signed = false, nonzero = false): boolean {
 function reference(value: RelationalReference): boolean {
   return hex(value.id, 16) && !/^0+$/.test(value.id) && hex(value.plan, 32) && hex(value.basis, 32);
 }
+type Binding = Description["sources"][number]["binding"];
+function sameScope(a: Binding["connection"]["scope"], b: Binding["connection"]["scope"]): boolean {
+  return a.realm === b.realm && a.resource === b.resource && a.catalog === b.catalog;
+}
+function sameObject(
+  a: Binding["interpretation"]["interpretation"]["object"],
+  b: Binding["interpretation"]["interpretation"]["object"],
+): boolean {
+  return sameScope(a.scope, b.scope) && a.branch === b.branch && a.object === b.object;
+}
+function sameConnection(a: Binding["connection"], b: Binding["connection"]): boolean {
+  return (
+    sameScope(a.scope, b.scope) &&
+    a.branch === b.branch &&
+    a.audience === b.audience &&
+    a.principal === b.principal &&
+    a.role === b.role
+  );
+}
+function sameBinding(a: Binding, b: Binding): boolean {
+  return (
+    a.definition === b.definition &&
+    sameConnection(a.connection, b.connection) &&
+    a.namespace === b.namespace &&
+    a.name === b.name &&
+    sameObject(a.interpretation.interpretation.object, b.interpretation.interpretation.object) &&
+    a.interpretation.interpretation.revision === b.interpretation.interpretation.revision &&
+    a.interpretation.interpretation.digest === b.interpretation.interpretation.digest &&
+    a.interpretation.content.bytes === b.interpretation.content.bytes &&
+    a.interpretation.content.sha256 === b.interpretation.content.sha256 &&
+    a.interpretation.schema_fingerprint === b.interpretation.schema_fingerprint &&
+    a.interpretation.retired === b.interpretation.retired
+  );
+}
 function description(value: Description): boolean {
   return (
     !value.executed &&
     hex(value.plan, 32) &&
     value.sources.length >= 1 &&
     value.sources.length <= 2 &&
-    value.sources.every(
-      (s) =>
-        s.realm > 0 &&
-        s.resource > 0 &&
-        s.owner > 0 &&
-        decimal(s.catalog, false, true) &&
-        decimal(s.object, false, true) &&
-        hex(s.schema, 32) &&
-        s.realm === value.sources[0]!.realm,
-    ) &&
+    value.sources.every((source) => {
+      const b = source.binding,
+        object = b.interpretation.interpretation.object;
+      return (
+        b.definition === value.definition &&
+        sameScope(b.connection.scope, object.scope) &&
+        b.connection.branch === object.branch &&
+        b.connection.audience > 0 &&
+        b.connection.principal > 0 &&
+        b.namespace > 0 &&
+        decimal(object.scope.catalog, false, true) &&
+        decimal(object.branch, false, true) &&
+        decimal(object.object, false, true) &&
+        decimal(b.interpretation.interpretation.revision, false, true) &&
+        decimal(b.interpretation.content.bytes, false, true) &&
+        hex(b.interpretation.interpretation.digest, 32) &&
+        b.interpretation.interpretation.digest === b.interpretation.content.sha256 &&
+        hex(b.interpretation.schema_fingerprint, 32) &&
+        decimal(source.position.partition, false, true) &&
+        decimal(source.position.next_lsn, false, true) &&
+        sameConnection(b.connection, value.sources[0]!.binding.connection)
+      );
+    }) &&
     value.columns.length >= 1 &&
     value.columns.every((c) => !c.optional && ("int64" in c.type || "uint64" in c.type))
   );
@@ -50,30 +97,36 @@ export function validateRelational(value: unknown): value is RelationalResponse 
   if (!responseSchema(value)) return false;
   const response = value as RelationalResponse;
   if ("description" in response) {
-    const { capabilities, routes } = response.description;
+    const { capabilities, routes, recovery, active } = response.description;
     return (
       capabilities.interactive &&
       capabilities.page_rows === 1 &&
       capabilities.active_queries === 1 &&
-      capabilities.consistency === "per_resource_snapshot_vector" &&
+      capabilities.consistency === "independent_table_snapshots" &&
       routes.length >= 1 &&
       routes.length <= 2 &&
+      (recovery === null ||
+        (hex(recovery.id, 16) && !/^0+$/.test(recovery.id) && recovery.remaining_pins <= 2)) &&
+      (active === null || (recovery !== null && recovery.id === active.opened.reference.id)) &&
       (response.description.active === null ||
         (decimal(response.description.active.ordinal) &&
           validateRelational({ query: { opened: response.description.active.opened } }))) &&
       routes.every(
         (r) =>
           decimal(r.connection.scope.catalog, false, true) &&
-          decimal(r.policy_revision, false, true) &&
+          r.description.policy_revision > 0 &&
+          sameScope(r.connection.scope, r.description.configuration.scope) &&
+          r.connection.branch === r.description.configuration.branch &&
+          r.connection.audience === r.description.configuration.audience &&
           r.connection.scope.realm > 0 &&
           r.connection.scope.resource > 0 &&
-          r.connection.owner > 0 &&
+          r.connection.audience > 0 &&
           r.connection.principal > 0 &&
-          r.connection.principal === routes[0]!.connection.principal &&
-          r.connection.scope.realm === routes[0]!.connection.scope.realm,
+          sameConnection(r.connection, routes[0]!.connection),
       )
     );
   }
+  if ("recovered" in response) return true;
   const result = response.query;
   if ("explained" in result) return description(result.explained);
   if ("opened" in result) {
@@ -86,8 +139,13 @@ export function validateRelational(value: unknown): value is RelationalResponse 
       value.cuts.length === value.description.sources.length &&
       value.cuts.every(
         (cut, i) =>
-          cut.resource === value.description.sources[i]!.resource &&
-          cut.schema === value.description.sources[i]!.schema &&
+          sameObject(
+            cut.object,
+            value.description.sources[i]!.binding.interpretation.interpretation.object,
+          ) &&
+          cut.position.partition === value.description.sources[i]!.position.partition &&
+          cut.position.next_lsn === value.description.sources[i]!.position.next_lsn &&
+          cut.schema === value.description.sources[i]!.binding.interpretation.schema_fingerprint &&
           hex(cut.commitment, 32),
       )
     );
@@ -148,6 +206,8 @@ export async function relationalQuery(
   }
   if ("describe" in owned) {
     if (!("description" in response)) throw new BoardError(0, "InvalidResponse");
+  } else if ("recover" in owned) {
+    if (!("recovered" in response)) throw new BoardError(0, "InvalidResponse");
   } else {
     if (!("query" in response)) throw new BoardError(0, "InvalidResponse");
     const action = owned.query,
@@ -156,7 +216,15 @@ export async function relationalQuery(
       if (
         !("opened" in result) ||
         result.opened.reference.id !== action.open.id ||
-        result.opened.description.sources.length !== action.open.statement.routes.length
+        result.opened.description.sources.length !== action.open.statement.routes.length ||
+        result.opened.description.sources.some(
+          (source, index) =>
+            !action.open.sources[index] ||
+            source.alias !== action.open.sources[index]!.alias ||
+            !sameBinding(source.binding, action.open.sources[index]!.binding) ||
+            source.position.partition !== action.open.sources[index]!.position.partition ||
+            source.position.next_lsn !== action.open.sources[index]!.position.next_lsn,
+        )
       )
         throw new BoardError(0, "InvalidResponse");
     } else if ("page" in action) {

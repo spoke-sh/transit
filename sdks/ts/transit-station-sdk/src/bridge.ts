@@ -344,7 +344,8 @@ export class QueryBridge {
           !("relational" in value) ||
           !("capabilities" in value.relational) ||
           !value.relational.capabilities.interactive ||
-          value.relational.capabilities.page_rows !== 1
+          value.relational.capabilities.page_rows !== 1 ||
+          value.relational.capabilities.consistency !== "independent_table_snapshots"
         )
           throw new UnsupportedCapability(
             "Native caller lacks interactive relational capabilities",
@@ -386,19 +387,21 @@ export class CatalogBridge {
     const port = await openPort({ url, seed_file: seedFile, catalog_client: config }, nativeHost);
     try {
       const bridge = new CatalogBridge(port);
-      const result = await bridge.call({ capabilities: {} });
-      if (!("capabilities" in result))
+      const result = await bridge.call({ catalog: { capabilities: {} } });
+      if (!("catalog" in result) || !("capabilities" in result.catalog))
         throw new IncompatibleNative("Expected catalog capabilities");
-      const caps = result.capabilities;
+      const caps = result.catalog.capabilities;
       if (
         caps.version !== 1 ||
         caps.definition !== contract.definition ||
         caps.max_columns !== 128 ||
         caps.max_rows !== 1024 ||
-        caps.max_prepared_bytes !== 8192 ||
+        caps.max_intent_bytes !== contract.limits.catalog_intent_bytes ||
+        caps.max_action_bytes !== contract.limits.catalog_action_bytes ||
+        caps.metadata_page_entries !== 8 ||
         caps.resident_intents !== 1
       )
-        throw new UnsupportedCapability("Native catalog client lacks the general Table profile");
+        throw new UnsupportedCapability("Native catalog client lacks the direct lifecycle profile");
       return bridge;
     } catch (error) {
       await port.close();
@@ -410,7 +413,7 @@ export class CatalogBridge {
       { catalog: action },
       {
         phase: "catalog",
-        mutation: "submit" in action,
+        mutation: catalogMutation(action),
         validator: validation.CatalogResult,
       },
     )) as CatalogResult;
@@ -418,6 +421,27 @@ export class CatalogBridge {
   close(): Promise<void> {
     return this.#port.close();
   }
+}
+
+// A lost host response cannot reveal whether its direct mutation was attempted.
+// A returned native diagnostic can establish that a particular attempt never
+// dispatched; Port preserves that status instead of replacing it with this flag.
+function catalogMutation(action: CatalogAction): boolean {
+  if ("stage" in action || "admit" in action) return true;
+  if ("operation" in action) return action.operation.command !== "inspect";
+  if ("retention" in action) return "acquire" in action.retention || "release" in action.retention;
+  if ("dependencies" in action)
+    return (
+      "operation" in action.dependencies && action.dependencies.operation.command !== "inspect"
+    );
+  if ("resources" in action)
+    return "operation" in action.resources && action.resources.operation.command !== "inspect";
+  if ("administration" in action)
+    return (
+      "namespace_operation" in action.administration &&
+      action.administration.namespace_operation.command !== "inspect"
+    );
+  return false;
 }
 
 type Tags<T> = T extends unknown ? keyof T : never;

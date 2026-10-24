@@ -16,7 +16,7 @@ const Config = struct {
     principal: u64,
     profile: enum { native_v1 } = .native_v1,
     query: ?growing.UnifiedQueryConfig = null,
-    relational: ?struct { seed_file: []const u8, query: query_api.RelationalBridge.Config } = null,
+    relational: ?struct { seed_file: []const u8, query: query_api.RelationalBridge.Config, recovery_directory: []const u8 } = null,
     reactive: ?struct { principal: u64, seed_file: []const u8, gateway: hosting.Gateway } = null,
     application: ?application.Host.Config = null,
     interface: ?application.Native.Scope = null,
@@ -205,7 +205,7 @@ const Server = struct {
             runtime.wire.parent_context = null;
         }
         var diagnostic: ?client.protocol.Diagnostic = null;
-        const result = runtime.caller.applyStructured(arena.allocator(), parsed.value, &diagnostic) catch |err| return self.queryFailureDiagnostic(req, &runtime.wire, err, diagnostic);
+        const result = runtime.workspace.applyStructured(arena.allocator(), parsed.value, &diagnostic) catch |err| return self.queryFailureDiagnostic(req, &runtime.wire, err, diagnostic);
         return self.json(req, .ok, result);
     }
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
@@ -291,7 +291,7 @@ const Server = struct {
             if (origin == null) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (relational_route) query_api.RelationalCaller.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (relational_route) query_api.RelationalWorkspace.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);
@@ -647,19 +647,23 @@ const RelationalRuntime = struct {
     allocator: std.mem.Allocator,
     wire: client.Client,
     caller: *query_api.RelationalCaller,
+    workspace: *query_api.RelationalWorkspace,
     fn create(allocator: std.mem.Allocator, io: std.Io, config: Config) !*RelationalRuntime {
         const selected = config.relational orelse return error.InvalidQueryConfiguration;
         const self = try allocator.create(RelationalRuntime);
         errdefer allocator.destroy(self);
-        self.* = .{ .allocator = allocator, .wire = client.Client.init(allocator, io, config.upstream), .caller = undefined };
+        self.* = .{ .allocator = allocator, .wire = client.Client.init(allocator, io, config.upstream), .caller = undefined, .workspace = undefined };
         errdefer self.wire.deinit();
         self.wire.timeout_ms = config.upstream_timeout_ms;
         var key = try client.readKey(allocator, io, selected.seed_file);
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         self.caller = try query_api.RelationalCaller.create(allocator, io, &self.wire, key, selected.query);
+        errdefer self.caller.destroy();
+        self.workspace = try query_api.RelationalWorkspace.create(allocator, io, self.caller, selected.recovery_directory);
         return self;
     }
     fn destroy(self: *RelationalRuntime) void {
+        self.workspace.destroy();
         self.caller.destroy();
         self.wire.deinit();
         self.allocator.destroy(self);

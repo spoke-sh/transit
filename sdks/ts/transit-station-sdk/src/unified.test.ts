@@ -127,6 +127,13 @@ test("Table result cuts remain distinct from native resource versions", async ()
           contract: Array(32).fill(2),
           schema: Array(32).fill(3),
         },
+        table_position: {
+          resource: 7,
+          partition: "18446744073709551615",
+          accepted: "18446744073709551615",
+          contract: Array(32).fill(2),
+          schema: Array(32).fill(3),
+        },
         plan: Array(32).fill(4),
         pages: "3",
         scanned: "19",
@@ -150,7 +157,13 @@ test("Table result cuts remain distinct from native resource versions", async ()
     const page = await client.page(1n);
     assert.deepEqual(page.manifest.source, owner);
     assert.deepEqual(page.manifest.resource, resource);
+    assert.equal(page.manifest.tablePosition?.accepted, (1n << 64n) - 1n);
     assert.deepEqual(page.manifest.cut, { kind: "table", commitment: new Uint8Array(32).fill(1) });
+  });
+  const substituted = structuredClone(response);
+  substituted.page.manifest.table_position.schema.fill(7);
+  await withHost(substituted, async (client) => {
+    await assert.rejects(client.page(1n), IncompatibleNative);
   });
   const crossed = structuredClone(response);
   Object.assign(crossed.page.manifest.basis.cut, { position: { native_revision: 1 } });

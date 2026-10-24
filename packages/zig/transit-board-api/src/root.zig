@@ -128,10 +128,10 @@ pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryE
 
 pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
 pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;
-pub const RelationalRequest = @import("transit_query").RelationalCaller.Request;
-pub const RelationalResponse = @import("transit_query").RelationalCaller.Response;
-pub const relational_schema_options = @import("transit_query").RelationalCaller.schema_options;
-pub const relational_request_schema_options = @import("transit_query").RelationalCaller.request_schema_options;
+pub const RelationalRequest = @import("transit_query").RelationalWorkspace.Request;
+pub const RelationalResponse = @import("transit_query").RelationalWorkspace.Response;
+pub const relational_schema_options = @import("transit_query").RelationalWorkspace.schema_options;
+pub const relational_request_schema_options = @import("transit_query").RelationalWorkspace.request_schema_options;
 pub const unified_query_schema_options = @import("transit_query").Workspace.schema_options;
 pub const unified_query_request_schema_options = @import("transit_query").Workspace.request_schema_options;
 pub const AtlasResponse = struct {

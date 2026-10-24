@@ -30,16 +30,14 @@ M17 adds [Document changes, scoped jobs and owned accepted reads](docs/documents
 M18 adds [typed unified state queries](docs/unified-query.md), with owned nested
 Arrow values, current source checks and explicit signed retry tokens.
 
-[General Table callers](docs/catalog.md) provide typed schemas, finite mutations,
-ALTER/DROP, accepted schema history and exact saved-intent recovery through the
-shared owner.
+[Direct Table callers](docs/catalog.md) provide typed declarations and mutations,
+current inspection, explicit retained metadata and original-operation recovery.
 
 [Logical values](docs/logical.md) provide owned recursive descriptors, exact wide
 numbers, distinct cell states and bounded neutral codecs.
 
 [Typed handler Tables](docs/tables.md) share general catalog schemas, stable row
 identities, retained reads and explicit saved mutation steps across Erlang and Elixir.
-
 
 Handler query failures use a typed callback with the authenticated origin,
 correlation, result identity and reason. See

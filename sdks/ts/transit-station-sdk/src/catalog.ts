@@ -1,93 +1,80 @@
-import {
-  AdmissionReceipt,
-  Credential,
-  ProcessRef,
-  ResourceRef,
-  IncompatibleNative,
-  UnknownOutcome,
-} from "@transit/client";
+import { Credential, ResourceRef, IncompatibleNative, UnknownOutcome } from "@transit/client";
+import { isDeepStrictEqual } from "node:util";
 import type { ClientConfig } from "@transit/client";
-import { configuration, integer, text } from "@transit/client/internal";
+import { configuration, integer, text, validators } from "@transit/client/internal";
 import { CatalogBridge } from "./bridge.ts";
-import { hex, unhex } from "./framing.ts";
-import { wide, nativeWide } from "./values.ts";
+import { wide, nativeWide as decodeNativeWide } from "./values.ts";
 import { encodeType, decodeType, encodeCell, decodeCell, encodeAtom } from "./logical-values.ts";
 import type { Descriptor, Cell, Atom } from "./logical-values.ts";
-import type { CatalogAction, CatalogResult } from "./wire.ts";
+import type { CatalogAction, CatalogResult, CatalogConfig } from "./wire.ts";
 import contract from "./contract.json" with { type: "json" };
+import catalogSchemas from "./schemas.json" with { type: "json" };
 
 type Action<K extends PropertyKey> = Extract<CatalogAction, Record<K, unknown>>[K];
 type Result<K extends PropertyKey> = Extract<CatalogResult, Record<K, unknown>>[K];
 type NativeSchema = Extract<Action<"prepare">["action"], { create: unknown }>["create"]["schema"];
-type NativeMetadata = NonNullable<Result<"definition">>["metadata"];
-type NativeOutcome = NonNullable<Result<"state">["outcome"]>;
-type NativeScope = NativeMetadata["scope"];
+type NativeMetadata = NonNullable<Result<"metadata">>;
+type NativeBasis = NativeMetadata["binding"];
+type NativeStored = NativeBasis["interpretation"];
+type NativeInterpretation = NativeStored["interpretation"];
+type NativePosition = NativeMetadata["position"];
+type NativeScope = CatalogConfig["connection"]["scope"];
+type CatalogRead = Result<"catalog">;
+type CatalogReadResult<K extends PropertyKey> = Extract<CatalogRead, Record<K, unknown>>[K];
+type NativeObservation = Result<"observation">;
+type NativeEvidence = Extract<
+  Extract<NativeObservation, { rows: unknown }>["rows"],
+  { committed: unknown }
+>["committed"];
 const currentDefinition = contract.definition as NativeSchema["definition"];
+const validateAction = validators(catalogSchemas).CatalogAction!;
 type Tags<T> = T extends unknown ? keyof T : never;
 function field<K extends Tags<CatalogResult>>(value: CatalogResult, key: K): Result<K> {
   if (!(key in value)) throw new IncompatibleNative("Unexpected catalog result");
   return (value as Extract<CatalogResult, Record<K, unknown>>)[key];
 }
 function positive(value: bigint): bigint {
-  const result = wide(value);
-  if (result === 0n) throw new TypeError("Catalog identity must be positive");
-  return result;
+  if (wide(value) === 0n) throw new TypeError("Catalog identity must be positive");
+  return value;
 }
-function decoded<T>(decode: () => T): T {
+function nativeWide(value: string): bigint {
   try {
-    return decode();
+    return decodeNativeWide(value);
   } catch {
-    throw new IncompatibleNative("Invalid native catalog value");
+    throw new IncompatibleNative("Invalid native full-width catalog integer");
   }
 }
 function name(value: string): string {
   text(value, 255);
   if (!value.length || value.includes("\0") || Buffer.from(value).toString("utf8") !== value)
-    throw new TypeError("Expected a UTF-8 Table or column name");
+    throw new TypeError("Expected a UTF-8 catalog name");
   return value;
 }
-function definition(value: string): string {
-  if (value !== contract.definition)
+function definition(value: string): void {
+  if (value !== currentDefinition)
     throw new IncompatibleNative("Foreign or missing catalog definition");
-  return value;
 }
 function digest(value: string): string {
-  if (!/^[0-9a-f]{64}$/.test(value)) throw new TypeError("Expected a complete catalog digest");
+  if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value))
+    throw new IncompatibleNative("Expected a complete catalog digest");
   return value;
 }
-function sameScope(a: Scope, b: Scope): boolean {
-  return (
-    a.catalog === b.catalog &&
-    a.resource.realm === b.resource.realm &&
-    a.resource.resource === b.resource.resource
-  );
+function parseSaved(input: string): unknown {
+  text(input, contract.limits.catalog_action_bytes);
+  return JSON.parse(input) as unknown;
+}
+function checked<T>(value: unknown, action: (value: T) => CatalogAction): T {
+  if (!validateAction(action(value as T)))
+    throw new IncompatibleNative("Invalid saved catalog value");
+  return structuredClone(value) as T;
 }
 export class Scope {
-  readonly catalog: bigint;
   readonly resource: ResourceRef;
+  readonly catalog: bigint;
   constructor(resource: ResourceRef, catalog: bigint) {
-    this.resource = resource;
     if (!(resource instanceof ResourceRef)) throw new TypeError("Expected resource reference");
+    this.resource = resource;
     this.catalog = positive(catalog);
-    Object.freeze(this);
-  }
-}
-export class Connection {
-  readonly owner: ProcessRef;
-  readonly scope: Scope;
-  readonly role: number | undefined;
-  readonly namespace: number;
-  constructor(owner: ProcessRef, scope: Scope, role?: number, namespace = 1) {
-    this.owner = owner;
-    this.scope = scope;
-    this.role = role === undefined ? undefined : integer(role, "selected role", 0);
-    this.namespace = integer(namespace, "schema namespace");
-    if (
-      !(owner instanceof ProcessRef) ||
-      !(scope instanceof Scope) ||
-      owner.realm !== scope.resource.realm
-    )
-      throw new TypeError("Catalog connection requires one realm");
     Object.freeze(this);
   }
 }
@@ -102,115 +89,133 @@ function scope(value: Scope): NativeScope {
 function fromScope(value: NativeScope): Scope {
   return new Scope(new ResourceRef(value.realm, value.resource), nativeWide(value.catalog));
 }
+/** Explicit direct service audience and branch; credentials supply the principal. */
+export class Connection {
+  readonly scope: Scope;
+  readonly audience: number;
+  readonly branch: bigint;
+  readonly role: number | undefined;
+  constructor(scope: Scope, audience: number, branch = 1n, role?: number) {
+    if (!(scope instanceof Scope)) throw new TypeError("Expected catalog scope");
+    this.scope = scope;
+    this.audience = integer(audience, "service audience");
+    this.branch = positive(branch);
+    this.role = role === undefined ? undefined : integer(role, "selected role", 0);
+    Object.freeze(this);
+  }
+}
+export class Identity {
+  readonly operation: bigint;
+  readonly namespace: number;
+  constructor(operation: bigint, namespace = 1) {
+    this.operation = positive(operation);
+    this.namespace = integer(namespace, "namespace");
+    Object.freeze(this);
+  }
+}
+export interface Position {
+  readonly partition: bigint;
+  readonly nextLsn: bigint;
+}
+export interface ObjectIdentity {
+  readonly scope: Scope;
+  readonly branch: bigint;
+  readonly objectId: bigint;
+}
+export interface Interpretation {
+  readonly object: ObjectIdentity;
+  readonly revision: bigint;
+  readonly digest: string;
+}
+export interface StoredDefinition {
+  readonly interpretation: Interpretation;
+  readonly contentBytes: bigint;
+  readonly contentDigest: string;
+  readonly schemaFingerprint: string;
+  readonly retired: boolean;
+}
+function position(value: NativePosition): Position {
+  return Object.freeze({
+    partition: nativeWide(value.partition),
+    nextLsn: nativeWide(value.next_lsn),
+  });
+}
+function interpretation(value: NativeInterpretation): Interpretation {
+  return Object.freeze({
+    object: Object.freeze({
+      scope: fromScope(value.object.scope),
+      branch: nativeWide(value.object.branch),
+      objectId: nativeWide(value.object.object),
+    }),
+    revision: nativeWide(value.revision),
+    digest: digest(value.digest),
+  });
+}
+function stored(value: NativeStored): StoredDefinition {
+  return Object.freeze({
+    interpretation: interpretation(value.interpretation),
+    contentBytes: nativeWide(value.content.bytes),
+    contentDigest: digest(value.content.sha256),
+    schemaFingerprint: digest(value.schema_fingerprint),
+    retired: value.retired,
+  });
+}
+const bases = new WeakMap<Basis, NativeBasis>();
+/** Complete prepared identity, including its original name and connection. */
+export class Basis {
+  readonly namespace: number;
+  readonly name: string;
+  readonly definition: StoredDefinition;
+  private constructor(value: NativeBasis) {
+    this.namespace = value.namespace;
+    this.name = value.name;
+    this.definition = stored(value.interpretation);
+    bases.set(this, structuredClone(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): Basis {
+    const value = checked<NativeBasis>(parseSaved(input), (basis) => ({
+      prepare: {
+        definition: currentDefinition,
+        namespace: basis?.namespace,
+        operation: "1",
+        name: basis?.name,
+        action: { drop: { basis, if_exists: false } },
+      },
+    }));
+    return new Basis(value);
+  }
+  save(): string {
+    return JSON.stringify(basis(this));
+  }
+}
+function basis(value: Basis): NativeBasis {
+  const found = bases.get(value);
+  if (!found) throw new TypeError("Expected a complete prepared Table basis");
+  return structuredClone(found);
+}
+export interface Metadata {
+  readonly basis: Basis;
+  readonly schema: Schema;
+  readonly authorization: number;
+  readonly position: Position;
+  readonly changedLsn: bigint;
+  readonly rowCount: bigint;
+}
+function metadata(value: NativeMetadata): Metadata {
+  return Object.freeze({
+    basis: Basis.restore(JSON.stringify(value.binding)),
+    schema: schemaValue(value.schema),
+    authorization: value.authorization,
+    position: position(value.position),
+    changedLsn: nativeWide(value.changed_lsn),
+    rowCount: nativeWide(value.row_count),
+  });
+}
 export interface TableLimits {
   readonly recordBytes: number;
   readonly stagingBytes: bigint;
   readonly stagingRecords: number;
-}
-export class Configuration {
-  readonly administrator: number;
-  readonly tableLimits: TableLimits;
-  readonly scope: Scope;
-  readonly owner: ProcessRef;
-  readonly authority: AuthorityProfile;
-  readonly databaseName: string;
-  constructor(
-    scope: Scope,
-    owner: ProcessRef,
-    administrator: number,
-    limits: TableLimits,
-    authority: AuthorityProfile,
-    databaseName: string,
-  ) {
-    this.scope = scope;
-    this.owner = owner;
-    new Connection(owner, scope);
-    this.administrator = integer(administrator, "administrator", 0);
-    if (!(authority instanceof AuthorityProfile))
-      throw new TypeError("Expected native authorization bindings");
-    this.authority = authority;
-    this.databaseName = name(databaseName);
-    text(databaseName, 63);
-    this.tableLimits = Object.freeze({
-      recordBytes: integer(limits.recordBytes, "record bytes", 1, 0xffffffff),
-      stagingBytes: positive(limits.stagingBytes),
-      stagingRecords: integer(limits.stagingRecords, "staging records", 1, 0xffffffff),
-    });
-    if (this.tableLimits.stagingBytes < BigInt(this.tableLimits.recordBytes))
-      throw new TypeError("Staging quota cannot be smaller than one record");
-    Object.freeze(this);
-  }
-}
-/** Stable bindings allocated by the native authority, never inferred from names. */
-export class AuthorityProfile {
-  readonly databaseDomain: number;
-  readonly schemaDomain: number;
-  readonly tableDomain: number;
-  readonly database: number;
-  readonly initialSchema: number;
-  readonly initialSchemaAuthority: number;
-  constructor(
-    databaseDomain: number,
-    schemaDomain: number,
-    tableDomain: number,
-    database: number,
-    initialSchema: number,
-    initialSchemaAuthority: number,
-  ) {
-    this.databaseDomain = integer(databaseDomain, "database domain");
-    this.schemaDomain = integer(schemaDomain, "schema domain");
-    this.tableDomain = integer(tableDomain, "Table domain");
-    this.database = integer(database, "database object");
-    this.initialSchema = integer(initialSchema, "initial schema");
-    this.initialSchemaAuthority = integer(initialSchemaAuthority, "initial schema authority");
-    if (
-      new Set([databaseDomain, schemaDomain, tableDomain]).size !== 3 ||
-      database === initialSchemaAuthority
-    )
-      throw new TypeError("Distinct native authorization bindings are required");
-    Object.freeze(this);
-  }
-}
-function authority(value: AuthorityProfile): Action<"prepare_initialize">["authority"] {
-  if (!(value instanceof AuthorityProfile))
-    throw new TypeError("Expected native authorization bindings");
-  return {
-    database_domain: value.databaseDomain,
-    schema_domain: value.schemaDomain,
-    table_domain: value.tableDomain,
-    database: value.database,
-    initial_schema: value.initialSchema,
-    initial_schema_authority: value.initialSchemaAuthority,
-  };
-}
-/** Observed authenticated identity; this value itself grants no authority. */
-export class Subject {
-  readonly principal: number;
-  readonly loginRole: number;
-  readonly role: number;
-  readonly credentialEpoch: number;
-  readonly audience: number;
-  readonly #context: string;
-  constructor(
-    principal: number,
-    loginRole: number,
-    role: number,
-    credentialEpoch: number,
-    audience: number,
-    context: Uint8Array,
-  ) {
-    this.principal = integer(principal, "principal", 0);
-    this.loginRole = integer(loginRole, "login role", 0);
-    this.role = integer(role, "selected role", 0);
-    this.credentialEpoch = integer(credentialEpoch, "credential epoch");
-    this.audience = integer(audience, "audience");
-    this.#context = hex(context, 32);
-    if (this.#context.length !== 64) throw new TypeError("Expected subject context digest");
-    Object.freeze(this);
-  }
-  get context(): Uint8Array {
-    return unhex(this.#context, 32);
-  }
 }
 export type Encoding = NativeSchema["columns"][number]["encoding"];
 export type Collation = NativeSchema["columns"][number]["collation"];
@@ -320,353 +325,7 @@ export function schemaValue(value: NativeSchema): Schema {
     value.primary_key.map((value) => nativeWide(value)),
   );
 }
-export class Identity {
-  readonly operation: bigint;
-  readonly namespace: bigint;
-  constructor(operation: bigint, namespace: bigint) {
-    this.operation = positive(operation);
-    this.namespace = positive(namespace);
-    Object.freeze(this);
-  }
-}
-function identity(value: Identity): Action<"compile">["identity"] {
-  if (!(value instanceof Identity)) throw new TypeError("Expected Table operation identity");
-  return { operation: value.operation.toString(), namespace: value.namespace.toString() };
-}
-export class Basis {
-  readonly objectId: bigint;
-  readonly revision: bigint;
-  readonly schemaFingerprint: string;
-  constructor(objectId: bigint, revision: bigint, schemaFingerprint: string) {
-    this.objectId = positive(objectId);
-    this.revision = positive(revision);
-    this.schemaFingerprint = digest(schemaFingerprint);
-    Object.freeze(this);
-  }
-}
-function basis(value: Basis) {
-  if (!(value instanceof Basis)) throw new TypeError("Expected frozen Table basis");
-  return {
-    object: value.objectId.toString(),
-    revision: value.revision.toString(),
-    schema_fingerprint: value.schemaFingerprint,
-  };
-}
-/** Immutable catalog record commitment supplied by the shared implementation. */
-export class MetadataCommitment {
-  readonly bytes: number;
-  readonly digest: string;
-  constructor(bytes: number, hash: string) {
-    this.bytes = integer(bytes, "metadata bytes", 1, 444);
-    this.digest = digest(hash);
-    Object.freeze(this);
-  }
-}
-export class Metadata {
-  readonly namespace: number;
-  readonly commitment: MetadataCommitment;
-  readonly scope: Scope;
-  readonly objectId: bigint;
-  readonly revision: bigint;
-  readonly name: string;
-  readonly schemaFingerprint: string;
-  readonly principal: number;
-  readonly operation: bigint;
-  readonly admittedInput: number;
-  constructor(value: {
-    namespace: number;
-    commitment: MetadataCommitment;
-    scope: Scope;
-    objectId: bigint;
-    revision: bigint;
-    name: string;
-    schemaFingerprint: string;
-    principal: number;
-    operation: bigint;
-    admittedInput: number;
-  }) {
-    if (!(value.scope instanceof Scope)) throw new TypeError("Expected catalog scope");
-    if (!(value.commitment instanceof MetadataCommitment))
-      throw new TypeError("Expected metadata commitment");
-    this.namespace = integer(value.namespace, "schema namespace");
-    this.commitment = value.commitment;
-    this.scope = value.scope;
-    this.objectId = positive(value.objectId);
-    this.revision = positive(value.revision);
-    this.name = name(value.name);
-    this.schemaFingerprint = digest(value.schemaFingerprint);
-    this.principal = integer(value.principal, "principal", 0);
-    this.operation = positive(value.operation);
-    this.admittedInput = integer(value.admittedInput, "admitted input");
-    Object.freeze(this);
-  }
-  get basis(): Basis {
-    return new Basis(this.objectId, this.revision, this.schemaFingerprint);
-  }
-}
-function fromMetadata(value: NativeMetadata): Metadata {
-  if (value.commitment.format !== 0x54434d01 || value.commitment.digest.length !== 32)
-    throw new TypeError("Invalid metadata commitment");
-  return new Metadata({
-    namespace: value.namespace,
-    commitment: new MetadataCommitment(
-      value.commitment.length,
-      hex(new Uint8Array(value.commitment.digest), 32),
-    ),
-    scope: fromScope(value.scope),
-    objectId: nativeWide(value.object),
-    revision: nativeWide(value.revision),
-    name: value.name,
-    schemaFingerprint: value.schema_fingerprint,
-    principal: value.principal,
-    operation: nativeWide(value.operation),
-    admittedInput: value.admitted_input,
-  });
-}
-export interface Head {
-  readonly revision: bigint;
-  readonly rows: bigint;
-  readonly pending: bigint;
-}
-function fromHead(value: NonNullable<Result<"definition">>["head"]): Head {
-  return Object.freeze({
-    revision: positive(nativeWide(value.revision)),
-    rows: nativeWide(value.rows),
-    pending: nativeWide(value.pending),
-  });
-}
-export interface Entry {
-  readonly metadata: Metadata;
-  readonly head: Head;
-}
-export interface Definition extends Entry {
-  readonly authorization: number;
-  readonly schema: Schema;
-}
-export interface HistoricalDefinition {
-  readonly metadata: Metadata;
-  readonly schema: Schema;
-}
-export class Cursor {
-  readonly definition: string;
-  readonly afterObject: bigint;
-  readonly resourceRevision: number;
-  readonly scope: Scope;
-  constructor(
-    currentDefinition: string,
-    scope: Scope,
-    resourceRevision: number,
-    afterObject: bigint,
-  ) {
-    this.scope = scope;
-    this.definition = definition(currentDefinition);
-    if (!(scope instanceof Scope)) throw new TypeError("Expected catalog scope");
-    this.resourceRevision = integer(resourceRevision, "resource revision", 0);
-    this.afterObject = positive(afterObject);
-    Object.freeze(this);
-  }
-}
-function cursor(value: Cursor): NonNullable<Action<"list">> {
-  if (!(value instanceof Cursor)) throw new TypeError("Expected catalog cursor");
-  return {
-    definition: currentDefinition,
-    scope: scope(value.scope),
-    resource_revision: value.resourceRevision,
-    after_object: value.afterObject.toString(),
-  };
-}
-export class Page {
-  readonly resourceRevision: number;
-  readonly entries: readonly Entry[];
-  readonly next: Cursor | undefined;
-  constructor(resourceRevision: number, entries: readonly Entry[], next?: Cursor) {
-    this.next = next;
-    this.resourceRevision = integer(resourceRevision, "resource revision", 0);
-    if (entries.length > 8) throw new TypeError("Expected at most eight entries");
-    let previous: Metadata | undefined;
-    for (const entry of entries) {
-      if (
-        !(entry.metadata instanceof Metadata) ||
-        (previous &&
-          (!sameScope(previous.scope, entry.metadata.scope) ||
-            previous.objectId >= entry.metadata.objectId))
-      )
-        throw new TypeError("Expected ordered metadata in one scope");
-      previous = entry.metadata;
-    }
-    if (
-      next &&
-      (!(next instanceof Cursor) ||
-        next.resourceRevision !== this.resourceRevision ||
-        (previous &&
-          (!sameScope(next.scope, previous.scope) || next.afterObject < previous.objectId)))
-    )
-      throw new TypeError("Continuation does not match the page");
-    this.entries = Object.freeze(
-      entries.map((entry) =>
-        Object.freeze({ metadata: entry.metadata, head: Object.freeze({ ...entry.head }) }),
-      ),
-    );
-    Object.freeze(this);
-  }
-}
-export class Reference {
-  readonly definition: string;
-  readonly digest: string;
-  constructor(currentDefinition: string, hash: string) {
-    this.definition = definition(currentDefinition);
-    this.digest = digest(hash);
-    Object.freeze(this);
-  }
-}
-function reference(value: Reference): Action<"status"> {
-  if (!(value instanceof Reference)) throw new TypeError("Expected exact intent reference");
-  return { definition: currentDefinition, digest: value.digest };
-}
-export class SavedIntent {
-  readonly definition: string;
-  readonly #bytes: string;
-  constructor(currentDefinition: string, bytes: Uint8Array) {
-    this.definition = definition(currentDefinition);
-    this.#bytes = hex(bytes, contract.limits.catalog_intent_bytes);
-    if (!this.#bytes.length) throw new TypeError("Empty Table intent");
-    Object.freeze(this);
-  }
-  get bytes(): Uint8Array {
-    return unhex(this.#bytes, contract.limits.catalog_intent_bytes);
-  }
-}
-export interface Intent {
-  readonly reference: Reference;
-  readonly scope: Scope;
-  readonly owner: ProcessRef;
-  readonly principal: number;
-  readonly identity: Identity;
-  readonly objectId: bigint;
-  readonly kind: "create" | "alter" | "rename" | "drop" | "insert" | "update" | "delete";
-}
-function fromIntent(value: Result<"loaded">): Intent {
-  return Object.freeze({
-    reference: new Reference(value.reference.definition, value.reference.digest),
-    scope: fromScope(value.scope),
-    owner: new ProcessRef(value.scope.realm, value.owner),
-    principal: integer(value.principal, "principal", 0),
-    identity: new Identity(nativeWide(value.operation), nativeWide(value.namespace)),
-    objectId: nativeWide(value.object),
-    kind: value.kind,
-  });
-}
-export interface Compiled {
-  readonly intent: Intent;
-  readonly saved: SavedIntent;
-}
-export class Prepared {
-  readonly #data: string;
-  constructor(data: string) {
-    this.#data = text(data, contract.limits.catalog_prepared_bytes);
-    if (!data.length || Buffer.from(data).toString("utf8") !== data)
-      throw new TypeError("Invalid saved catalog command text");
-    Object.freeze(this);
-  }
-  get data(): string {
-    return this.#data;
-  }
-}
-function prepared(value: Prepared): string {
-  if (!(value instanceof Prepared)) throw new TypeError("Expected saved catalog command");
-  return value.data;
-}
-export class Uncertain extends UnknownOutcome {
-  readonly prepared: Prepared;
-  constructor(prepared: Prepared, cause: UnknownOutcome) {
-    super("Catalog admission is uncertain; retain the identical prepared command", {
-      status: 6,
-      ...(cause.code === undefined ? {} : { code: cause.code }),
-      ...(cause.diagnostic === undefined ? {} : { diagnostic: cause.diagnostic }),
-      diagnosticInvalid: cause.diagnosticInvalid,
-      phase: "submit-catalog",
-    });
-    this.prepared = prepared;
-  }
-}
-export type Diagnostic = import("./unified.ts").Diagnostic;
-export interface Outcome {
-  readonly kind: Intent["kind"];
-  readonly operation: bigint;
-  readonly objectId: bigint;
-  readonly actualObject?: bigint;
-  readonly phase:
-    | "preparing"
-    | "delegated"
-    | "building"
-    | "applied"
-    | "unchanged"
-    | "rejected"
-    | "cancelled";
-  readonly terminal: boolean;
-  readonly counts?: { readonly matched: bigint; readonly changed: bigint };
-  readonly admittedInput: number;
-  readonly completedInput?: number;
-  readonly diagnostic: Diagnostic;
-}
-function fromOutcome(value: NativeOutcome): Outcome {
-  const terminal = ["applied", "unchanged", "rejected", "cancelled"].includes(value.phase);
-  const hasCounts =
-    value.phase === "applied" && ["insert", "update", "delete"].includes(value.kind);
-  if (
-    terminal !== value.terminal ||
-    hasCounts !== (value.counts !== null) ||
-    (value.counts !== null && nativeWide(value.counts.changed) > nativeWide(value.counts.matched))
-  )
-    throw new TypeError("Inconsistent Table outcome");
-  return Object.freeze({
-    kind: value.kind,
-    operation: positive(nativeWide(value.operation)),
-    objectId: nativeWide(value.object),
-    ...(value.actual_object === null ? {} : { actualObject: nativeWide(value.actual_object) }),
-    phase: value.phase,
-    terminal,
-    ...(value.counts === null
-      ? {}
-      : {
-          counts: Object.freeze({
-            matched: nativeWide(value.counts.matched),
-            changed: nativeWide(value.counts.changed),
-          }),
-        }),
-    admittedInput: integer(value.admitted_input, "admitted input"),
-    ...(value.completed_input === null
-      ? {}
-      : { completedInput: integer(value.completed_input, "completed input") }),
-    diagnostic: value.diagnostic,
-  });
-}
-export interface Upload {
-  readonly phase: "uploading" | "sealed" | "ready" | "cancelled";
-  readonly received: number;
-  readonly total: number;
-}
-export interface State {
-  readonly outcome?: Outcome;
-  readonly upload?: Upload;
-}
-export interface Disposition {
-  readonly input: number;
-  readonly outcome: NonNullable<Result<"disposition">>["outcome"];
-  readonly diagnostic: Diagnostic;
-}
-export type Next =
-  | { readonly kind: "send"; readonly prepared: Prepared }
-  | { readonly kind: "running" | "upload_cancelled" }
-  | { readonly kind: "terminal"; readonly outcome: Outcome };
-export type Progress =
-  | { readonly kind: "pending" }
-  | {
-      readonly kind: "processed";
-      readonly disposition?: Disposition;
-      readonly outcome?: Outcome;
-      readonly upload?: Upload;
-    };
+
 export interface Assignment {
   readonly column: bigint;
   readonly value: Cell | "default";
@@ -711,7 +370,12 @@ export type Operation =
   | { readonly kind: "alter"; readonly basis: Basis; readonly change: Change }
   | { readonly kind: "rename"; readonly basis: Basis; readonly name: string }
   | { readonly kind: "drop"; readonly basis?: Basis; readonly ifExists?: boolean }
-  | { readonly kind: "mutate"; readonly basis: Basis; readonly mutation: Mutation };
+  | {
+      readonly kind: "mutate";
+      readonly basis: Basis;
+      readonly mutation: Mutation;
+      readonly ingestion?: "point" | "bulk";
+    };
 function operation(value: Operation): Action<"prepare">["action"] {
   switch (value.kind) {
     case "create":
@@ -787,447 +451,13 @@ function operation(value: Operation): Action<"prepare">["action"] {
       return { alter: { basis: basis(value.basis), change } };
     }
     case "mutate":
-      return { mutate: { basis: basis(value.basis), mutation: mutationWire(value.mutation) } };
-  }
-}
-export interface Capabilities {
-  readonly version: number;
-  readonly definition: string;
-  readonly maxColumns: number;
-  readonly maxRows: number;
-  readonly maxSqlBytes: number;
-  readonly maxIntentBytes: number;
-  readonly maxActionBytes: number;
-  readonly maxPreparedBytes: number;
-  readonly residentIntents: number;
-}
-export interface Description {
-  readonly configuration: Configuration;
-  readonly subject: Subject;
-  readonly authorizationRevision: number;
-  readonly resourceRevision: number;
-}
-export type Control = "cancel_operation" | "cleanup_operation" | "cancel_upload" | "collect_upload";
-export interface Dependency {
-  readonly scope: Scope;
-  readonly objectId: bigint;
-  readonly identity: bigint;
-  readonly owner: ProcessRef;
-  readonly kind: "query_source" | "writer" | "watch" | "maintained_relation" | "history";
-}
-export interface CatalogClientConfig extends ClientConfig {
-  readonly tableServiceUrl?: string;
-}
-/** One owned native port. Persist immutable intent and every exact signed step separately. */
-export class Client {
-  readonly #bridge: CatalogBridge;
-  readonly #principal: number;
-  readonly connection: Connection;
-  private constructor(connection: Connection, principal: number, bridge: CatalogBridge) {
-    this.connection = connection;
-    this.#principal = principal;
-    this.#bridge = bridge;
-    Object.freeze(this);
-  }
-  static async open(
-    input: CatalogClientConfig,
-    credential: Credential,
-    connection: Connection,
-  ): Promise<Client> {
-    const config = configuration(input);
-    const serviceUrl =
-      input.tableServiceUrl === undefined
-        ? null
-        : text(configuration({ ...input, url: input.tableServiceUrl }).url, 2048);
-    if (
-      !(credential instanceof Credential) ||
-      !(connection instanceof Connection) ||
-      credential.realm !== connection.scope.resource.realm
-    )
-      throw new TypeError("Catalog credential must match the connection realm");
-    return new Client(
-      connection,
-      credential.principal,
-      await CatalogBridge.open(
-        text(config.url, 2048),
-        credential.seedFile,
-        {
-          connection: {
-            scope: scope(connection.scope),
-            owner: connection.owner.pid,
-            principal: credential.principal,
-            role: connection.role ?? null,
-            namespace: connection.namespace,
-          },
-          timeout_ms: config.timeoutMs,
-          table_service_url: serviceUrl,
+      return {
+        mutate: {
+          basis: basis(value.basis),
+          mutation: mutationWire(value.mutation),
+          ingestion: value.ingestion ?? "point",
         },
-        config.nativeHost,
-      ),
-    );
-  }
-  async capabilities(): Promise<Capabilities> {
-    const v = field(await this.#bridge.call({ capabilities: {} }), "capabilities");
-    return Object.freeze({
-      version: v.version,
-      definition: v.definition,
-      maxColumns: v.max_columns,
-      maxRows: v.max_rows,
-      maxSqlBytes: v.max_sql_bytes,
-      maxIntentBytes: v.max_intent_bytes,
-      maxActionBytes: v.max_action_bytes,
-      maxPreparedBytes: v.max_prepared_bytes,
-      residentIntents: v.resident_intents,
-    });
-  }
-  async describe(): Promise<Description> {
-    const v = field(await this.#bridge.call({ describe: {} }), "description");
-    return decoded(() => {
-      const conf = v.configuration,
-        subject = v.subject;
-      if (
-        !sameScope(fromScope(conf.scope), this.connection.scope) ||
-        conf.owner !== this.connection.owner.pid ||
-        subject.principal !== this.#principal ||
-        subject.audience !== this.connection.owner.pid ||
-        (this.connection.role !== undefined && subject.role !== this.connection.role)
-      )
-        throw new TypeError("Foreign catalog description");
-      return Object.freeze({
-        configuration: new Configuration(
-          fromScope(conf.scope),
-          new ProcessRef(conf.scope.realm, conf.owner),
-          conf.administrator,
-          {
-            recordBytes: conf.table_limits.record_bytes,
-            stagingBytes: nativeWide(conf.table_limits.staging_bytes),
-            stagingRecords: conf.table_limits.staging_records,
-          },
-          new AuthorityProfile(
-            conf.authority.database_domain,
-            conf.authority.schema_domain,
-            conf.authority.table_domain,
-            conf.authority.database,
-            conf.authority.initial_schema,
-            conf.authority.initial_schema_authority,
-          ),
-          conf.database_name,
-        ),
-        subject: new Subject(
-          subject.principal,
-          subject.login_role,
-          subject.role,
-          subject.credential_epoch,
-          subject.audience,
-          new Uint8Array(subject.context),
-        ),
-        authorizationRevision: integer(v.authorization_revision, "authorization revision", 0),
-        resourceRevision: integer(v.resource_revision, "resource revision", 0),
-      });
-    });
-  }
-  async lookup(requestedName: string): Promise<Definition | undefined> {
-    const v = field(await this.#bridge.call({ lookup: name(requestedName) }), "definition");
-    if (v === null) return undefined;
-    return decoded(() => {
-      const metadata = fromMetadata(v.metadata),
-        schema = schemaValue(v.schema);
-      if (
-        !sameScope(metadata.scope, this.connection.scope) ||
-        metadata.namespace !== this.connection.namespace ||
-        metadata.name !== requestedName ||
-        metadata.objectId !== schema.objectId
-      )
-        throw new TypeError("Definition does not match its request");
-      return Object.freeze({
-        authorization: integer(v.authorization, "Table authorization"),
-        metadata,
-        schema,
-        head: fromHead(v.head),
-      });
-    });
-  }
-  async definition(objectId: bigint, revision: bigint): Promise<HistoricalDefinition | undefined> {
-    const value = field(
-      await this.#bridge.call({
-        definition: {
-          object: positive(objectId).toString(),
-          revision: positive(revision).toString(),
-        },
-      }),
-      "historical",
-    );
-    if (value === null) return undefined;
-    return decoded(() => {
-      const metadata = fromMetadata(value.metadata),
-        schema = schemaValue(value.schema);
-      if (
-        !sameScope(metadata.scope, this.connection.scope) ||
-        metadata.objectId !== objectId ||
-        metadata.revision !== revision ||
-        schema.objectId !== objectId
-      )
-        throw new TypeError("Historical definition does not match its request");
-      return Object.freeze({ metadata, schema });
-    });
-  }
-  async list(previous?: Cursor): Promise<Page> {
-    if (previous && !sameScope(previous.scope, this.connection.scope))
-      throw new TypeError("Foreign catalog cursor");
-    const v = field(
-      await this.#bridge.call({ list: previous === undefined ? null : cursor(previous) }),
-      "page",
-    );
-    return decoded(() => {
-      const entries: Entry[] = [];
-      let ended = false;
-      for (const slot of v.entries) {
-        if (slot === null) ended = true;
-        else {
-          const metadata = fromMetadata(slot.metadata);
-          if (
-            ended ||
-            !sameScope(metadata.scope, this.connection.scope) ||
-            metadata.namespace !== this.connection.namespace
-          )
-            throw new TypeError("Page has a hole or foreign scope");
-          entries.push({ metadata, head: fromHead(slot.head) });
-        }
-      }
-      const next =
-        v.next === null
-          ? undefined
-          : new Cursor(
-              v.next.definition,
-              fromScope(v.next.scope),
-              v.next.resource_revision,
-              nativeWide(v.next.after_object),
-            );
-      if (next && !sameScope(next.scope, this.connection.scope))
-        throw new TypeError("Foreign continuation scope");
-      const page = new Page(v.resource_revision, entries, next);
-      if (
-        previous &&
-        (page.resourceRevision !== previous.resourceRevision ||
-          (entries[0] && entries[0].metadata.objectId <= previous.afterObject) ||
-          (next && next.afterObject <= previous.afterObject))
-      )
-        throw new TypeError("Response does not continue the requested page");
-      return page;
-    });
-  }
-  #compiled(value: Result<"compiled">): Compiled {
-    return decoded(() =>
-      Object.freeze({
-        intent: this.#intent(value.intent),
-        saved: new SavedIntent(
-          value.saved.definition,
-          unhex(value.saved.bytes, contract.limits.catalog_intent_bytes),
-        ),
-      }),
-    );
-  }
-  #intent(value: Result<"loaded">): Intent {
-    const result = fromIntent(value);
-    if (
-      !sameScope(result.scope, this.connection.scope) ||
-      result.owner.pid !== this.connection.owner.pid ||
-      result.principal !== this.#principal
-    )
-      throw new TypeError("Foreign intent connection");
-    return result;
-  }
-  async compileSql(sql: string, ids: Identity, createObject?: bigint): Promise<Compiled> {
-    const result = this.#compiled(
-      field(
-        await this.#bridge.call({
-          compile: {
-            sql: text(sql, 4096),
-            identity: identity(ids),
-            create_object: createObject === undefined ? null : positive(createObject).toString(),
-          },
-        }),
-        "compiled",
-      ),
-    );
-    if (
-      result.intent.identity.operation !== ids.operation ||
-      result.intent.identity.namespace !== ids.namespace ||
-      (createObject !== undefined &&
-        (result.intent.objectId !== createObject || result.intent.kind !== "create"))
-    )
-      throw new IncompatibleNative("Compiled intent does not match its request");
-    return result;
-  }
-  async prepare(tableName: string, ids: Identity, action: Operation): Promise<Compiled> {
-    const kind = action.kind === "mutate" ? action.mutation.kind : action.kind;
-    const objectId =
-      action.kind === "create" ? action.schema.objectId : (action.basis?.objectId ?? 0n);
-    const result = this.#compiled(
-      field(
-        await this.#bridge.call({
-          prepare: {
-            definition: currentDefinition,
-            identity: identity(ids),
-            name: name(tableName),
-            action: operation(action),
-          },
-        }),
-        "compiled",
-      ),
-    );
-    if (
-      result.intent.identity.operation !== ids.operation ||
-      result.intent.identity.namespace !== ids.namespace ||
-      result.intent.kind !== kind ||
-      result.intent.objectId !== objectId
-    )
-      throw new IncompatibleNative("Prepared intent does not match its request");
-    return result;
-  }
-  async load(saved: SavedIntent): Promise<Intent> {
-    if (!(saved instanceof SavedIntent)) throw new TypeError("Expected saved Table intent");
-    const value = field(
-      await this.#bridge.call({
-        load: {
-          definition: currentDefinition,
-          bytes: hex(saved.bytes, contract.limits.catalog_intent_bytes),
-        },
-      }),
-      "loaded",
-    );
-    return decoded(() => this.#intent(value));
-  }
-  async forget(intent: Reference): Promise<void> {
-    field(await this.#bridge.call({ forget: reference(intent) }), "forgotten");
-  }
-  async next(intent: Reference): Promise<Next> {
-    const v = field(await this.#bridge.call({ next: reference(intent) }), "next");
-    return decoded(() =>
-      "send" in v
-        ? { kind: "send", prepared: new Prepared(v.send) }
-        : "terminal" in v
-          ? { kind: "terminal", outcome: fromOutcome(v.terminal) }
-          : "running" in v
-            ? { kind: "running" }
-            : { kind: "upload_cancelled" },
-    );
-  }
-  async status(intent: Reference): Promise<State> {
-    const v = field(await this.#bridge.call({ status: reference(intent) }), "state");
-    return decoded(() => ({
-      ...(v.outcome === null ? {} : { outcome: fromOutcome(v.outcome) }),
-      ...(v.upload === null ? {} : { upload: Object.freeze(v.upload) }),
-    }));
-  }
-  async prepareResume(intent: Reference): Promise<Prepared> {
-    return new Prepared(
-      field(await this.#bridge.call({ prepare_resume: reference(intent) }), "prepared"),
-    );
-  }
-  async prepareControl(intent: Reference, control: Control): Promise<Prepared> {
-    return new Prepared(
-      field(
-        await this.#bridge.call({ prepare_control: { intent: reference(intent), control } }),
-        "prepared",
-      ),
-    );
-  }
-  async prepareInitialize(value: Configuration): Promise<Prepared> {
-    if (!(value instanceof Configuration)) throw new TypeError("Expected catalog configuration");
-    return new Prepared(
-      field(
-        await this.#bridge.call({
-          prepare_initialize: {
-            scope: scope(value.scope),
-            owner: value.owner.pid,
-            administrator: value.administrator,
-            authority: authority(value.authority),
-            database_name: value.databaseName,
-            table_limits: {
-              record_bytes: value.tableLimits.recordBytes,
-              staging_bytes: value.tableLimits.stagingBytes.toString(),
-              staging_records: value.tableLimits.stagingRecords,
-            },
-          },
-        }),
-        "prepared",
-      ),
-    );
-  }
-  async prepareDependency(value: Dependency, present: boolean): Promise<Prepared> {
-    if (!(value.owner instanceof ProcessRef) || value.owner.realm !== value.scope.resource.realm)
-      throw new TypeError("Dependency owner must share its catalog realm");
-    return new Prepared(
-      field(
-        await this.#bridge.call({
-          prepare_dependency: {
-            scope: scope(value.scope),
-            object: positive(value.objectId).toString(),
-            identity: positive(value.identity).toString(),
-            owner: value.owner.pid,
-            kind: value.kind,
-            present,
-          },
-        }),
-        "prepared",
-      ),
-    );
-  }
-  async submit(value: Prepared): Promise<AdmissionReceipt> {
-    const bytes = prepared(value);
-    try {
-      const v = await this.#bridge.call({ submit: bytes });
-      if (!("receipt" in v) || v.receipt.position < 1)
-        throw new UnknownOutcome("Missing catalog admission receipt");
-      return new AdmissionReceipt(v.receipt.position);
-    } catch (error) {
-      if (error instanceof UnknownOutcome) throw new Uncertain(value, error);
-      throw error;
-    }
-  }
-  async observe(value: Prepared, position: number, wait = false): Promise<"pending" | "processed"> {
-    const input = { prepared: prepared(value), input: integer(position, "input") };
-    return field(
-      await this.#bridge.call(wait ? { wait_observe: input } : { observe: input }),
-      "observation",
-    );
-  }
-  async inputDisposition(value: Prepared, position: number): Promise<Disposition | undefined> {
-    return (
-      field(
-        await this.#bridge.call({
-          input_disposition: { prepared: prepared(value), input: integer(position, "input") },
-        }),
-        "disposition",
-      ) ?? undefined
-    );
-  }
-  async progress(
-    intent: Reference,
-    value: Prepared,
-    position: number,
-    wait = false,
-  ): Promise<Progress> {
-    const input = {
-      intent: reference(intent),
-      prepared: prepared(value),
-      input: integer(position, "input"),
-    };
-    const v = field(
-      await this.#bridge.call(wait ? { wait_progress: input } : { progress: input }),
-      "progress",
-    );
-    if ("pending" in v) return { kind: "pending" };
-    return decoded(() => ({
-      kind: "processed",
-      ...(v.processed.disposition === null ? {} : { disposition: v.processed.disposition }),
-      ...(v.processed.outcome === null ? {} : { outcome: fromOutcome(v.processed.outcome) }),
-      ...(v.processed.upload === null ? {} : { upload: Object.freeze(v.processed.upload) }),
-    }));
-  }
-  close(): Promise<void> {
-    return this.#bridge.close();
+      };
   }
 }
 
@@ -1294,4 +524,921 @@ export function mutationWire(item: Mutation, bytes = contract.limits.catalog_act
           ),
         );
   return { action, predicate };
+}
+
+const savedValues = new WeakMap<SavedIntent, string>();
+/** Persist before staging. Restoration does not resolve names or submit work. */
+export class SavedIntent {
+  private constructor(value: Action<"load">) {
+    savedValues.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): SavedIntent {
+    return new SavedIntent(checked<Action<"load">>(parseSaved(input), (load) => ({ load })));
+  }
+  save(): string {
+    return savedValue(this);
+  }
+}
+function savedValue(value: SavedIntent): string {
+  const found = savedValues.get(value);
+  if (found === undefined) throw new TypeError("Expected saved immutable catalog work");
+  return found;
+}
+const references = new WeakMap<Reference, string>();
+/** Complete durable recovery binding. A local loaded-work digest is not this reference. */
+export class Reference {
+  readonly kind: "table" | "name_assertion";
+  readonly operation: bigint;
+  readonly namespace: number;
+  private constructor(value: Action<"admit">) {
+    this.kind = "table" in value ? "table" : "name_assertion";
+    this.operation = nativeWide(
+      "table" in value ? value.table.binding.identity.operation : value.name_assertion.operation,
+    );
+    this.namespace = "table" in value ? value.table.namespace : value.name_assertion.namespace;
+    references.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): Reference {
+    return new Reference(checked<Action<"admit">>(parseSaved(input), (admit) => ({ admit })));
+  }
+  save(): string {
+    return referenceValue(this);
+  }
+}
+function referenceValue(value: Reference): string {
+  const found = references.get(value);
+  if (found === undefined) throw new TypeError("Expected original recovery reference");
+  return found;
+}
+function reference(value: Reference): Action<"admit"> {
+  return JSON.parse(referenceValue(value)) as Action<"admit">;
+}
+export interface Intent {
+  readonly digest: string;
+  readonly namespace: number;
+  readonly operation: bigint;
+  readonly kind: "table" | "name_assertion";
+  readonly saved: SavedIntent;
+}
+const intents = new WeakMap<Intent, Result<"loaded">>();
+function localIntent(value: Result<"loaded">, saved: SavedIntent): Intent {
+  definition(value.id.definition);
+  const result: Intent = Object.freeze({
+    digest: digest(value.id.digest),
+    namespace: value.namespace,
+    operation: nativeWide(
+      "table" in value.binding
+        ? value.binding.table.identity.operation
+        : value.binding.name_assertion.operation,
+    ),
+    kind: "table" in value.binding ? "table" : "name_assertion",
+    saved,
+  });
+  intents.set(result, structuredClone(value));
+  return result;
+}
+function localId(value: Intent): Action<"forget"> {
+  const found = intents.get(value);
+  if (!found) throw new TypeError("Expected work loaded by a catalog caller");
+  return structuredClone(found.id);
+}
+export interface Compiled {
+  readonly intent: Intent;
+  readonly saved: SavedIntent;
+}
+function compiled(value: Result<"compiled">): Compiled {
+  const saved = SavedIntent.restore(JSON.stringify(value.saved));
+  return Object.freeze({ intent: localIntent(value.summary, saved), saved });
+}
+export interface Commit {
+  readonly definition: StoredDefinition;
+  readonly position: Position;
+  readonly matched: bigint;
+  readonly affected: bigint;
+  readonly liveRows: bigint;
+}
+function commit(value: NativeEvidence): Commit {
+  return Object.freeze({
+    definition: stored(value.resulting),
+    position: position(value.outcome.position),
+    matched: nativeWide(value.outcome.matched),
+    affected: nativeWide(value.outcome.affected),
+    liveRows: nativeWide(value.outcome.live_rows),
+  });
+}
+type NativeRowState = Extract<NativeObservation, { rows: unknown }>["rows"];
+type NativeDdlState = Extract<NativeObservation, { ddl: unknown }>["ddl"];
+type RowProgress = Extract<NativeRowState, { admitted: unknown }>["admitted"];
+type DdlProgress = Extract<NativeDdlState, { admitted: unknown }>["admitted"];
+type AssertionOutcome = Extract<
+  Extract<NativeObservation, { name_assertion: unknown }>["name_assertion"],
+  { outcome: unknown }
+>["outcome"];
+export type Observation =
+  | {
+      readonly kind: "table" | "name_assertion";
+      readonly state: "not_observed";
+      readonly reference: Reference;
+    }
+  | {
+      readonly kind: "table";
+      readonly state: "committed";
+      readonly reference: Reference;
+      readonly commit: Commit;
+    }
+  | {
+      readonly kind: "table";
+      readonly state: "admitted" | "rejected" | "cancelled";
+      readonly reference: Reference;
+      readonly phase: RowProgress["phase"] | DdlProgress["phase"];
+      readonly reason: RowProgress["reason"] | DdlProgress["reason"];
+    }
+  | {
+      readonly kind: "name_assertion";
+      readonly state: AssertionOutcome["state"];
+      readonly reference: Reference;
+      readonly reason: AssertionOutcome["reason"];
+      readonly position: Position;
+    };
+function observation(value: NativeObservation, original: Reference): Observation {
+  const selected = reference(original);
+  if (
+    "table" in selected &&
+    ["insert", "update", "delete"].includes(selected.table.binding.action) !== "rows" in value
+  )
+    throw new IncompatibleNative("Observation changed the Table operation kind");
+  const actual =
+    "name_assertion" in value ? value.name_assertion : "rows" in value ? value.rows : value.ddl;
+  if (!("not_observed" in actual)) {
+    const record = Object.values(actual)[0] as { binding: unknown };
+    const expected = "table" in selected ? selected.table.binding : selected.name_assertion;
+    if (!isDeepStrictEqual(record.binding, expected))
+      throw new IncompatibleNative("Observation changed the original operation binding");
+  }
+  if ("name_assertion" in value !== (original.kind === "name_assertion"))
+    throw new IncompatibleNative("Observation changed the operation kind");
+  if ("name_assertion" in value) {
+    if ("not_observed" in value.name_assertion)
+      return Object.freeze({ kind: "name_assertion", state: "not_observed", reference: original });
+    const found = value.name_assertion.outcome;
+    return Object.freeze({
+      kind: "name_assertion",
+      state: found.state,
+      reference: original,
+      reason: found.reason,
+      position: position(found.position),
+    });
+  }
+  const found = "rows" in value ? value.rows : value.ddl;
+  if ("not_observed" in found)
+    return Object.freeze({ kind: "table", state: "not_observed", reference: original });
+  if ("committed" in found)
+    return Object.freeze({
+      kind: "table",
+      state: "committed",
+      reference: original,
+      commit: commit(found.committed),
+    });
+  if ("admitted" in found)
+    return Object.freeze({
+      kind: "table",
+      state: "admitted",
+      reference: original,
+      phase: found.admitted.phase,
+      reason: found.admitted.reason,
+    });
+  if ("rejected" in found)
+    return Object.freeze({
+      kind: "table",
+      state: "rejected",
+      reference: original,
+      phase: found.rejected.phase,
+      reason: found.rejected.reason,
+    });
+  return Object.freeze({
+    kind: "table",
+    state: "cancelled",
+    reference: original,
+    phase: found.cancelled.phase,
+    reason: found.cancelled.reason,
+  });
+}
+type NativePreview = Result<"preview">;
+type PreviewCurrent = NonNullable<Extract<NativePreview, { ddl: unknown }>["ddl"]["current"]>;
+export interface CurrentBasis {
+  readonly definition: StoredDefinition;
+  readonly position: Position;
+  readonly changedLsn: bigint;
+  readonly rowCount: bigint;
+}
+function currentBasis(value: PreviewCurrent): CurrentBasis {
+  return Object.freeze({
+    definition: stored(value.interpretation),
+    position: position(value.position),
+    changedLsn: nativeWide(value.changed_lsn),
+    rowCount: nativeWide(value.row_count),
+  });
+}
+export type Preview =
+  | {
+      readonly kind: "ddl";
+      readonly intent: Intent;
+      readonly directoryPosition: Position;
+      readonly current?: CurrentBasis;
+      readonly reason: Extract<NativePreview, { ddl: unknown }>["ddl"]["reason"];
+      readonly work?: "metadata" | "validate_rows" | "rewrite_rows";
+      readonly rebuildKey: boolean;
+      readonly schemaFingerprint?: string;
+    }
+  | {
+      readonly kind: "rows";
+      readonly intent: Intent;
+      readonly directoryPosition: Position;
+      readonly current: CurrentBasis;
+      readonly reason: Extract<NativePreview, { rows: unknown }>["rows"]["reason"];
+    }
+  | {
+      readonly kind: "name_assertion";
+      readonly intent: Intent;
+      readonly position: Position;
+      readonly current?: Interpretation;
+      readonly matches: boolean;
+    };
+function preview(value: NativePreview, intent: Intent): Preview {
+  const selected = intents.get(intent);
+  if (!selected) throw new TypeError("Expected loaded catalog work");
+  const expected =
+    "table" in selected.binding ? selected.binding.table : selected.binding.name_assertion;
+  const actual =
+    "ddl" in value
+      ? value.ddl.binding
+      : "rows" in value
+        ? value.rows.binding
+        : value.name_assertion.binding;
+  if (
+    !isDeepStrictEqual(actual, expected) ||
+    "name_assertion" in value !== (intent.kind === "name_assertion")
+  )
+    throw new IncompatibleNative("Preview changed the original operation binding");
+  if ("ddl" in value)
+    return Object.freeze({
+      kind: "ddl",
+      intent,
+      directoryPosition: position(value.ddl.directory_position),
+      ...(value.ddl.current === null ? {} : { current: currentBasis(value.ddl.current) }),
+      reason: value.ddl.reason,
+      ...(value.ddl.work === null ? {} : { work: value.ddl.work }),
+      rebuildKey: value.ddl.rebuild_key,
+      ...(value.ddl.schema_fingerprint === null
+        ? {}
+        : { schemaFingerprint: digest(value.ddl.schema_fingerprint) }),
+    });
+  if ("rows" in value)
+    return Object.freeze({
+      kind: "rows",
+      intent,
+      directoryPosition: position(value.rows.directory_position),
+      current: currentBasis(value.rows.current),
+      reason: value.rows.reason,
+    });
+  return Object.freeze({
+    kind: "name_assertion",
+    intent,
+    position: position(value.name_assertion.position),
+    matches: value.name_assertion.matches,
+    ...(value.name_assertion.current === null
+      ? {}
+      : { current: interpretation(value.name_assertion.current) }),
+  });
+}
+type RetentionAction = Action<"retention">;
+type RetentionResult = Result<"retention">;
+type RetentionInput<K extends PropertyKey> = Extract<RetentionAction, Record<K, unknown>>[K];
+type RetentionOutput<K extends PropertyKey> = Extract<RetentionResult, Record<K, unknown>>[K];
+const snapshotOwners = new WeakMap<SnapshotOwner, string>();
+const acquisitions = new WeakMap<SnapshotAcquisition, string>();
+const snapshots = new WeakMap<Snapshot, string>();
+export class SnapshotOwner {
+  readonly operation: bigint;
+  private constructor(value: RetentionInput<"status">) {
+    this.operation = nativeWide(value.operation);
+    snapshotOwners.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): SnapshotOwner {
+    return new SnapshotOwner(
+      checked<RetentionInput<"status">>(parseSaved(input), (status) => ({ retention: { status } })),
+    );
+  }
+  save(): string {
+    const value = snapshotOwners.get(this);
+    if (value === undefined) throw new TypeError("Expected original snapshot owner");
+    return value;
+  }
+}
+/** Persist before acquireSnapshot; the expected frontier is exact. */
+export class SnapshotAcquisition {
+  readonly owner: SnapshotOwner;
+  readonly expected: Position;
+  private constructor(value: RetentionInput<"acquire">) {
+    this.owner = SnapshotOwner.restore(JSON.stringify(value.owner));
+    this.expected = position(value.expected);
+    acquisitions.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): SnapshotAcquisition {
+    return new SnapshotAcquisition(
+      checked<RetentionInput<"acquire">>(parseSaved(input), (acquire) => ({
+        retention: { acquire },
+      })),
+    );
+  }
+  save(): string {
+    const value = acquisitions.get(this);
+    if (value === undefined) throw new TypeError("Expected saved snapshot acquisition");
+    return value;
+  }
+}
+/** A durable retention reference. Local disposal does not release its owner. */
+export class Snapshot {
+  readonly owner: SnapshotOwner;
+  readonly contentBytes: bigint;
+  readonly contentDigest: string;
+  private constructor(value: RetentionInput<"metadata">) {
+    this.owner = SnapshotOwner.restore(JSON.stringify(value.owner));
+    this.contentBytes = nativeWide(value.content.bytes);
+    this.contentDigest = digest(value.content.sha256);
+    snapshots.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): Snapshot {
+    return new Snapshot(
+      checked<RetentionInput<"metadata">>(parseSaved(input), (metadata) => ({
+        retention: { metadata },
+      })),
+    );
+  }
+  save(): string {
+    const value = snapshots.get(this);
+    if (value === undefined) throw new TypeError("Expected retained snapshot reference");
+    return value;
+  }
+}
+export interface ReadAuthority {
+  readonly database: number;
+  readonly schema: number;
+  readonly table: number;
+}
+export interface SnapshotStatus {
+  readonly owner: SnapshotOwner;
+  readonly currentInterpretation: Interpretation;
+  readonly currentPosition: Position;
+  readonly retired: boolean;
+  readonly snapshot?: Snapshot;
+  readonly released: boolean;
+  readonly authority: ReadAuthority;
+}
+export interface SnapshotMetadata {
+  readonly snapshot: Snapshot;
+  readonly definition: StoredDefinition;
+  readonly accepted: Position;
+  readonly changedLsn: bigint;
+  readonly rowCount: bigint;
+  readonly schema: Schema;
+  readonly authority: ReadAuthority;
+}
+function retentionField<K extends Tags<RetentionResult>>(
+  value: CatalogResult,
+  key: K,
+): RetentionOutput<K> {
+  const result = field(value, "retention");
+  if (!(key in result)) throw new IncompatibleNative("Unexpected snapshot retention result");
+  return (result as Extract<RetentionResult, Record<K, unknown>>)[key];
+}
+export type Recovery = SavedIntent | Reference | SnapshotAcquisition | Snapshot;
+export class Uncertain extends UnknownOutcome {
+  readonly recovery: Recovery;
+  constructor(recovery: Recovery, cause: UnknownOutcome) {
+    super("Catalog outcome is uncertain; preserve the original saved work and recovery binding", {
+      status: 6,
+      ...(cause.code === undefined ? {} : { code: cause.code }),
+      ...(cause.diagnostic === undefined ? {} : { diagnostic: cause.diagnostic }),
+      diagnosticInvalid: cause.diagnosticInvalid,
+      phase: cause.phase,
+    });
+    this.recovery = recovery;
+  }
+}
+export interface CatalogClientConfig extends ClientConfig {
+  readonly serviceUrl?: string;
+}
+export interface CompileOptions {
+  readonly createObject?: bigint;
+  readonly dialect?: "transit" | "mysql";
+  readonly ingestion?: "point" | "bulk";
+}
+export interface Capabilities {
+  readonly version: number;
+  readonly definition: string;
+  readonly maxColumns: number;
+  readonly maxRows: number;
+  readonly maxSqlBytes: number;
+  readonly maxIntentBytes: number;
+  readonly maxActionBytes: number;
+  readonly metadataPageEntries: number;
+  readonly residentIntents: number;
+}
+export interface AuthorityProfile {
+  readonly databaseDomain: number;
+  readonly schemaDomain: number;
+  readonly tableDomain: number;
+  readonly database: number;
+  readonly initialSchema: number;
+  readonly initialSchemaAuthority: number;
+}
+export interface Configuration {
+  readonly scope: Scope;
+  readonly branch: bigint;
+  readonly partition: bigint;
+  readonly audience: number;
+  readonly authority: AuthorityProfile;
+  readonly databaseName: string;
+  readonly initialSchemaName: string;
+}
+/** Observed authenticated identity; this value grants no authority. */
+export interface Subject {
+  readonly principal: number;
+  readonly loginRole: number;
+  readonly role: number;
+  readonly credentialEpoch: number;
+  readonly audience: number;
+  readonly context: string;
+}
+export interface Description {
+  readonly configuration: Configuration;
+  readonly subject: Subject;
+  readonly policyRevision: number;
+}
+export interface Namespace {
+  readonly scope: Scope;
+  readonly id: number;
+  readonly authorization: number;
+  readonly name: string;
+  readonly revision: number;
+  readonly retired: boolean;
+}
+function namespace(value: NonNullable<CatalogReadResult<"namespace">>): Namespace {
+  return Object.freeze({
+    scope: fromScope(value.scope),
+    id: value.id,
+    authorization: value.authorization,
+    name: value.name,
+    revision: value.revision,
+    retired: value.retired,
+  });
+}
+export interface Entry {
+  readonly interpretation: Interpretation;
+  readonly namespace: number;
+  readonly name: string;
+  readonly position: Position;
+  readonly changedLsn: bigint;
+}
+type NativeCursor = NonNullable<CatalogReadResult<"namespaces">["next"]>;
+const cursors = new WeakMap<Cursor, string>();
+/** Save only with the original selection; a prefix is not a complete directory. */
+export class Cursor {
+  private constructor(value: NativeCursor) {
+    cursors.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): Cursor {
+    return new Cursor(
+      checked<NativeCursor>(parseSaved(input), (namespaces) => ({ catalog: { namespaces } })),
+    );
+  }
+  save(): string {
+    const value = cursors.get(this);
+    if (value === undefined) throw new TypeError("Expected catalog cursor");
+    return value;
+  }
+}
+function cursor(value?: Cursor): NativeCursor | null {
+  return value === undefined ? null : (JSON.parse(value.save()) as NativeCursor);
+}
+export interface Page<T> {
+  readonly entries: readonly T[];
+  readonly next?: Cursor;
+  readonly position: Position;
+}
+export interface TablePage extends Page<Entry> {
+  readonly consistency: "independent";
+}
+function catalogField<K extends Tags<CatalogRead>>(
+  value: CatalogResult,
+  key: K,
+): CatalogReadResult<K> {
+  const read = field(value, "catalog");
+  if (!(key in read)) throw new IncompatibleNative("Unexpected catalog inspection result");
+  return (read as Extract<CatalogRead, Record<K, unknown>>)[key];
+}
+/** One direct caller. Every method is one explicit host action, without retry or settlement. */
+export class Client {
+  readonly #bridge: CatalogBridge;
+  readonly #principal: number;
+  readonly connection: Connection;
+  private constructor(connection: Connection, principal: number, bridge: CatalogBridge) {
+    this.connection = connection;
+    this.#bridge = bridge;
+    this.#principal = principal;
+    Object.freeze(this);
+  }
+  static async open(
+    input: CatalogClientConfig,
+    credential: Credential,
+    connection: Connection,
+  ): Promise<Client> {
+    const config = configuration(input);
+    if (
+      !(credential instanceof Credential) ||
+      !(connection instanceof Connection) ||
+      credential.realm !== connection.scope.resource.realm
+    )
+      throw new TypeError("Catalog credential must match the connection realm");
+    const serviceUrl =
+      input.serviceUrl === undefined
+        ? null
+        : text(configuration({ ...input, url: input.serviceUrl }).url, 2048);
+    return new Client(
+      connection,
+      credential.principal,
+      await CatalogBridge.open(
+        text(config.url, 2048),
+        credential.seedFile,
+        {
+          definition: currentDefinition,
+          connection: {
+            scope: scope(connection.scope),
+            branch: connection.branch.toString(),
+            audience: connection.audience,
+            principal: credential.principal,
+            role: connection.role ?? null,
+          },
+          timeout_ms: config.timeoutMs,
+          service_url: serviceUrl,
+        },
+        config.nativeHost,
+      ),
+    );
+  }
+  async capabilities(): Promise<Capabilities> {
+    const result = field(await this.#bridge.call({ catalog: { capabilities: {} } }), "catalog");
+    if (!("capabilities" in result)) throw new IncompatibleNative("Expected catalog capabilities");
+    const v = result.capabilities;
+    return Object.freeze({
+      version: v.version,
+      definition: v.definition,
+      maxColumns: v.max_columns,
+      maxRows: v.max_rows,
+      maxSqlBytes: v.max_sql_bytes,
+      maxIntentBytes: v.max_intent_bytes,
+      maxActionBytes: v.max_action_bytes,
+      metadataPageEntries: v.metadata_page_entries,
+      residentIntents: v.resident_intents,
+    });
+  }
+  async describe(): Promise<Description> {
+    const value = catalogField(
+      await this.#bridge.call({ catalog: { describe: {} } }),
+      "description",
+    );
+    const config = value.configuration;
+    const authority = config.authority;
+    const subject = value.subject;
+    return Object.freeze({
+      configuration: Object.freeze({
+        scope: fromScope(config.scope),
+        branch: nativeWide(config.branch),
+        partition: nativeWide(config.partition),
+        audience: config.audience,
+        databaseName: config.database_name,
+        initialSchemaName: config.initial_schema_name,
+        authority: Object.freeze({
+          databaseDomain: authority.database_domain,
+          schemaDomain: authority.schema_domain,
+          tableDomain: authority.table_domain,
+          database: authority.database,
+          initialSchema: authority.initial_schema,
+          initialSchemaAuthority: authority.initial_schema_authority,
+        }),
+      }),
+      subject: Object.freeze({
+        principal: subject.principal,
+        loginRole: subject.login_role,
+        role: subject.role,
+        credentialEpoch: subject.credential_epoch,
+        audience: subject.audience,
+        context: Buffer.from(subject.context).toString("hex"),
+      }),
+      policyRevision: value.policy_revision,
+    });
+  }
+  async namespace(id: number): Promise<Namespace | undefined> {
+    const value = catalogField(
+      await this.#bridge.call({ catalog: { namespace: integer(id, "namespace") } }),
+      "namespace",
+    );
+    return value === null ? undefined : namespace(value);
+  }
+  async namespaces(previous?: Cursor): Promise<Page<Namespace>> {
+    const value = catalogField(
+      await this.#bridge.call({ catalog: { namespaces: cursor(previous) } }),
+      "namespaces",
+    );
+    return Object.freeze({
+      entries: Object.freeze(value.entries.filter((item) => item !== null).map(namespace)),
+      position: position(value.position),
+      ...(value.next === null ? {} : { next: Cursor.restore(JSON.stringify(value.next)) }),
+    });
+  }
+  async tables(namespaceId: number, previous?: Cursor): Promise<TablePage> {
+    const value = catalogField(
+      await this.#bridge.call({
+        catalog: {
+          tables: {
+            namespace: integer(namespaceId, "namespace"),
+            cursor: cursor(previous),
+          },
+        },
+      }),
+      "tables",
+    );
+    return Object.freeze({
+      entries: Object.freeze(
+        value.entries
+          .filter((item) => item !== null)
+          .map((item) =>
+            Object.freeze({
+              interpretation: interpretation(item.interpretation),
+              namespace: item.namespace,
+              name: item.name,
+              position: position(item.position),
+              changedLsn: nativeWide(item.changed_lsn),
+            }),
+          ),
+      ),
+      position: position(value.position),
+      consistency: value.consistency,
+      ...(value.next === null ? {} : { next: Cursor.restore(JSON.stringify(value.next)) }),
+    });
+  }
+  async lookup(tableName: string, namespace = 1): Promise<Metadata | undefined> {
+    const found = field(
+      await this.#bridge.call({
+        lookup: { namespace: integer(namespace, "namespace"), name: name(tableName) },
+      }),
+      "metadata",
+    );
+    if (found !== null) {
+      const binding = found.binding;
+      const expected = {
+        scope: scope(this.connection.scope),
+        branch: this.connection.branch.toString(),
+        audience: this.connection.audience,
+        principal: this.#principal,
+        role: this.connection.role ?? null,
+      };
+      if (
+        !isDeepStrictEqual(binding.connection, expected) ||
+        binding.namespace !== namespace ||
+        binding.name !== tableName ||
+        found.schema.object !== binding.interpretation.interpretation.object.object
+      )
+        throw new IncompatibleNative(
+          "Metadata changed the requested connection, name or stable Table identity",
+        );
+    }
+    return found === null ? undefined : metadata(found);
+  }
+  async compileSql(sql: string, ids: Identity, options: CompileOptions = {}): Promise<Compiled> {
+    if (!(ids instanceof Identity)) throw new TypeError("Expected operation identity");
+    return this.compilation(
+      field(
+        await this.#bridge.call({
+          compile: {
+            namespace: ids.namespace,
+            operation: ids.operation.toString(),
+            create_object:
+              options.createObject === undefined ? null : positive(options.createObject).toString(),
+            sql: text(sql, 4096),
+            dialect: options.dialect ?? "transit",
+            ingestion: options.ingestion ?? "point",
+          },
+        }),
+        "compiled",
+      ),
+      ids,
+    );
+  }
+  async prepare(tableName: string, ids: Identity, action: Operation): Promise<Compiled> {
+    if (!(ids instanceof Identity)) throw new TypeError("Expected operation identity");
+    return this.compilation(
+      field(
+        await this.#bridge.call({
+          prepare: {
+            definition: currentDefinition,
+            namespace: ids.namespace,
+            operation: ids.operation.toString(),
+            name: name(tableName),
+            action: operation(action),
+          },
+        }),
+        "compiled",
+      ),
+      ids,
+    );
+  }
+  async load(saved: SavedIntent): Promise<Intent> {
+    const load = JSON.parse(savedValue(saved)) as Action<"load">;
+    return localIntent(field(await this.#bridge.call({ load }), "loaded"), saved);
+  }
+  async forget(intent: Intent): Promise<void> {
+    field(await this.#bridge.call({ forget: localId(intent) }), "forgotten");
+  }
+  async preview(intent: Intent): Promise<Preview> {
+    return preview(field(await this.#bridge.call({ preview: localId(intent) }), "preview"), intent);
+  }
+  async stage(intent: Intent): Promise<Reference> {
+    return this.mutation({ stage: localId(intent) }, intent.saved, (result) => {
+      const staged = field(result, "staged");
+      const expected = intents.get(intent)!.binding;
+      if (
+        "table" in staged
+          ? !("table" in expected) || !isDeepStrictEqual(staged.table.binding, expected.table)
+          : !("name_assertion" in expected) ||
+            !isDeepStrictEqual(staged.name_assertion, expected.name_assertion)
+      )
+        throw new IncompatibleNative("Staging changed the original operation binding");
+      return Reference.restore(JSON.stringify(staged));
+    });
+  }
+  async admit(original: Reference): Promise<Observation> {
+    return this.mutation({ admit: reference(original) }, original, (result) =>
+      observation(field(result, "observation"), original),
+    );
+  }
+  async inspect(original: Reference): Promise<Observation> {
+    return observation(
+      field(
+        await this.#bridge.call({
+          operation: { reference: reference(original), command: "inspect", steps: 1 },
+        }),
+        "observation",
+      ),
+      original,
+    );
+  }
+  async execute(original: Reference, steps: number): Promise<Observation> {
+    return this.mutation(
+      {
+        operation: {
+          reference: reference(original),
+          command: "execute",
+          steps: integer(steps, "step budget", 1, 65535),
+        },
+      },
+      original,
+      (result) => observation(field(result, "observation"), original),
+    );
+  }
+  async cancel(original: Reference): Promise<Observation> {
+    return this.mutation(
+      { operation: { reference: reference(original), command: "cancel", steps: 1 } },
+      original,
+      (result) => observation(field(result, "observation"), original),
+    );
+  }
+  prepareSnapshot(
+    current: Pick<Metadata, "basis" | "position">,
+    operation: bigint,
+  ): SnapshotAcquisition {
+    const selected = basis(current.basis);
+    return SnapshotAcquisition.restore(
+      JSON.stringify({
+        owner: {
+          definition: currentDefinition,
+          connection: selected.connection,
+          object: selected.interpretation.interpretation.object,
+          operation: positive(operation).toString(),
+        },
+        expected: {
+          partition: current.position.partition.toString(),
+          next_lsn: current.position.nextLsn.toString(),
+        },
+      }),
+    );
+  }
+  async acquireSnapshot(acquisition: SnapshotAcquisition): Promise<Snapshot> {
+    const acquire = JSON.parse(acquisition.save()) as RetentionInput<"acquire">;
+    return this.mutation({ retention: { acquire } }, acquisition, (result) => {
+      const value = retentionField(result, "acquired");
+      if (!isDeepStrictEqual(value.owner, acquire.owner))
+        throw new IncompatibleNative("Acquisition changed the original snapshot owner");
+      return Snapshot.restore(JSON.stringify(value));
+    });
+  }
+  async snapshotStatus(original: SnapshotOwner): Promise<SnapshotStatus> {
+    const status = JSON.parse(original.save()) as RetentionInput<"status">;
+    const value = retentionField(await this.#bridge.call({ retention: { status } }), "status");
+    if (
+      !isDeepStrictEqual(value.owner, status) ||
+      (value.snapshot !== null && !isDeepStrictEqual(value.snapshot.owner, status))
+    )
+      throw new IncompatibleNative("Status changed the original snapshot owner");
+    return Object.freeze({
+      owner: original,
+      currentInterpretation: interpretation(value.current_interpretation),
+      currentPosition: position(value.current_position),
+      retired: value.retired,
+      released: value.released,
+      ...(value.snapshot === null
+        ? {}
+        : { snapshot: Snapshot.restore(JSON.stringify(value.snapshot)) }),
+      authority: Object.freeze({ ...value.authority }),
+    });
+  }
+  async snapshotMetadata(original: Snapshot): Promise<SnapshotMetadata> {
+    const metadata = JSON.parse(original.save()) as RetentionInput<"metadata">;
+    const value = retentionField(await this.#bridge.call({ retention: { metadata } }), "metadata");
+    if (
+      !isDeepStrictEqual(value.snapshot, metadata) ||
+      !isDeepStrictEqual(value.interpretation.interpretation.object, metadata.owner.object) ||
+      value.schema.object !== metadata.owner.object.object
+    )
+      throw new IncompatibleNative("Metadata changed the retained snapshot");
+    return Object.freeze({
+      snapshot: original,
+      definition: stored(value.interpretation),
+      accepted: position(value.accepted),
+      changedLsn: nativeWide(value.changed_lsn),
+      rowCount: nativeWide(value.row_count),
+      schema: schemaValue(value.schema),
+      authority: Object.freeze({ ...value.authority }),
+    });
+  }
+  async releaseSnapshot(original: Snapshot): Promise<void> {
+    const release = JSON.parse(original.save()) as RetentionInput<"release">;
+    return this.mutation({ retention: { release } }, original, (result) => {
+      if (!isDeepStrictEqual(retentionField(result, "released"), release))
+        throw new IncompatibleNative("Release changed the retained snapshot");
+    });
+  }
+  private compilation(value: Result<"compiled">, ids: Identity): Compiled {
+    const binding = value.summary.binding;
+    const selected =
+      "table" in binding
+        ? binding.table.identity
+        : {
+            scope: binding.name_assertion.connection.scope,
+            principal: binding.name_assertion.connection.principal,
+            operation: binding.name_assertion.operation,
+          };
+    if (
+      value.summary.namespace !== ids.namespace ||
+      selected.operation !== ids.operation.toString() ||
+      selected.principal !== this.#principal ||
+      !isDeepStrictEqual(selected.scope, scope(this.connection.scope))
+    )
+      throw new IncompatibleNative("Compilation changed the selected operation identity");
+    return compiled(value);
+  }
+  private async mutation<T>(
+    action: CatalogAction,
+    recovery: Recovery,
+    project: (result: CatalogResult) => T,
+  ): Promise<T> {
+    let result: CatalogResult;
+    try {
+      result = await this.#bridge.call(action);
+    } catch (error) {
+      if (error instanceof UnknownOutcome) throw new Uncertain(recovery, error);
+      throw error;
+    }
+    try {
+      return project(result);
+    } catch {
+      throw new Uncertain(
+        recovery,
+        new UnknownOutcome("The catalog response did not preserve its original request evidence", {
+          status: 6,
+          phase: "catalog",
+        }),
+      );
+    }
+  }
+  close(): Promise<void> {
+    return this.#bridge.close();
+  }
 }

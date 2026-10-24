@@ -30,6 +30,7 @@ pub const Action = union(enum) {
     administration: c.DirectCatalogAdministration.Action,
     dependencies: c.DirectCatalogDependencies.Action,
     resources: c.DirectCatalogResources.Action,
+    retention: c.DirectCatalogRetention.Action,
     lookup: struct { namespace: u64, name: []const u8 },
     compile: struct {
         pub const json_schema_text_bounds = .{ .sql = 4096 };
@@ -53,6 +54,7 @@ pub const Result = union(enum) {
     administration: c.DirectCatalogAdministration.Result,
     dependencies: c.DirectCatalogDependencies.Result,
     resources: c.DirectCatalogResources.Result,
+    retention: c.DirectCatalogRetention.Result,
     metadata: ?h.Metadata,
     compiled: Compiled,
     loaded: Summary,
@@ -148,6 +150,7 @@ pub const Session = struct {
             .administration => |input| return .{ .administration = try c.DirectCatalogAdministration.apply(allocator, client, input, location) },
             .dependencies => |input| return .{ .dependencies = try c.DirectCatalogDependencies.apply(allocator, client, input) },
             .resources => |input| return .{ .resources = try c.DirectCatalogResources.apply(allocator, client, input) },
+            .retention => |input| return .{ .retention = try c.DirectCatalogRetention.apply(allocator, client, input) },
             .lookup => |input| {
                 const response = try client.call(.{ .lookup = .{ .namespace = input.namespace, .name = input.name } });
                 defer response.deinit();

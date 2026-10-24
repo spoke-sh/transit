@@ -6,9 +6,16 @@ import select
 import subprocess
 from unified_abi import Failure
 
+CONTRACT = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-bindings/abi-v1.json').read_text())
+
+
+def options(connection, service_url=None):
+    return dict(definition=CONTRACT['definition'], connection=connection,
+                timeout_ms=10000, service_url=service_url)
+
 
 class Native:
-    def __init__(self, library, url, connection):
+    def __init__(self, library, url, connection, *, seed_byte=10, service_url=None):
         self.api = api = c.CDLL(str(Path(library).resolve()))
         api.station_catalog_create.argtypes = [c.c_uint32,c.c_char_p,c.c_size_t,c.c_void_p,c.c_char_p,c.c_size_t,c.POINTER(c.c_void_p)]
         api.station_catalog_create.restype = c.c_uint32
@@ -24,8 +31,8 @@ class Native:
         api.station_buffer_destroy.restype = None
         self.pointer = c.c_void_p()
         endpoint = url.encode()
-        config = json.dumps(dict(connection=connection,timeout_ms=10000)).encode()
-        seed = c.create_string_buffer(bytes([10])*32,32)
+        config = json.dumps(options(connection, service_url)).encode()
+        seed = c.create_string_buffer(bytes([seed_byte])*32,32)
         status = api.station_catalog_create(1,endpoint,len(endpoint),seed,config,len(config),c.byref(self.pointer))
         assert status == 0
 
@@ -47,9 +54,9 @@ class Native:
 
 
 class Port:
-    def __init__(self, host, root, url, connection):
+    def __init__(self, host, root, url, connection, *, service_url=None):
         config = root/'catalog-client-port.json'
-        config.write_text(json.dumps(dict(url=url,seed_file=str(root/'caller.seed'),catalog_helpersent=dict(connection=connection,timeout_ms=10000))))
+        config.write_text(json.dumps(dict(url=url,seed_file=str(root/'caller.seed'),catalog_client=options(connection, service_url))))
         self.child = subprocess.Popen([host,str(config)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,bufsize=0)
 
     def call(self, action):
@@ -58,7 +65,7 @@ class Port:
     def exchange(self, request):
         self.child.stdin.write(json.dumps(request).encode()+b'\n')
         assert select.select([self.child.stdout],[],[],20)[0], 'Catalog port timed out'
-        line = self.child.stdout.readline(540672)
+        line = self.child.stdout.readline(CONTRACT['limits']['catalog_line_bytes'] + 1)
         assert line.endswith(b'\n'), 'Incomplete catalog response'
         result = json.loads(line)
         if result['status']: raise Failure(result['status'],result['value'])
@@ -89,21 +96,19 @@ class Port:
 
 
 def check_profiles(host, root, url, connection):
-    catalog = dict(connection=connection, timeout_ms=10000)
-    mutation = dict(connection=dict(realm=46, principal=1234, writer=connection['owner'],
-                                   resource=connection['scope']['resource'], table=9))
+    catalog = options(connection)
     query = dict(connection=dict(realm=46,principal=1234,source=1,resource=1,requester=2,requests=2))
-    server = dict(profile='native_v1', realm=46, principal=1234, pid=connection['owner'],
+    server = dict(profile='native_v1', realm=46, principal=1234, pid=3,
                   generation=1, association='data', failure_policy='stop')
-    for name, extra in [('local', dict(local_codec=True)), ('mutation', dict(mutation_client=mutation)),
+    for name, extra in [('local', dict(local_codec=True)),
                         ('query', dict(query_client=query)), ('server', dict(growing_server=server))]:
-        config = dict(url=url, seed_file=str(root/'caller.seed'), catalog_helpersent=catalog, **extra)
+        config = dict(url=url, seed_file=str(root/'caller.seed'), catalog_client=catalog, **extra)
         path = root/f'catalog-conflict-{name}.json'
         path.write_text(json.dumps(config))
         child = subprocess.run([host,str(path)],capture_output=True,text=True,timeout=15)
         assert child.returncode != 0 and 'ConflictingHostProfiles' in child.stderr, (name,child.stderr)
     path = root/'catalog-read-query-profile.json'
     path.write_text(json.dumps(dict(url=url,seed_file=str(root/'caller.seed'),query_client=query)))
-    result = subprocess.run([host,str(path)],input='{"catalog":{"capabilities":{}}}\n{"shutdown":{}}\n',capture_output=True,text=True,timeout=15)
+    result = subprocess.run([host,str(path)],input='{"catalog":{"catalog":{"capabilities":{}}}}\n{"shutdown":{}}\n',capture_output=True,text=True,timeout=15)
     assert result.returncode == 0, result.stderr
     assert [json.loads(line) for line in result.stdout.splitlines()] == [dict(status=13,value=None),dict(status=0,value=dict(closed=True))]

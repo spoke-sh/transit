@@ -876,7 +876,8 @@
         "packages/zig/transit-query/src/TableScan.zig",
         "packages/zig/transit-query/src/RelationalBridge.zig",
         "packages/zig/transit-query/src/RelationalCaller.zig",
-        "packages/zig/transit-query/src/ComputePool.zig"
+        "packages/zig/transit-query/src/ComputePool.zig",
+        "packages/zig/transit-query/src/RelationalWorkspace.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -908,7 +909,7 @@
       "durable_evidence": "Read attempt evidence is distinct from saved domain outcomes; the selected namespace is caller context, not proof of existence or permission",
       "context": "Selected namespace and draft generation; original cause, specific result/upload/requester failure; raw EndOfStream lacks origin attribution and says so",
       "disclosure": "No extra metadata lookup, payload, credential or unrelated row disclosure; only existing original caller/owner evidence",
-      "recovery": "Exact namespace inspection, current scope or read retry according to cause; unknown submission reconciles only exact signed transport identity",
+      "recovery": "Exact namespace inspection, current scope or read retry according to cause; unknown submission reconciles only exact signed transport identity; interrupted service queries preserve their exact journaled pin owners and source cuts for explicit closure, without resuming execution",
       "propagation": "Unlisted dynamic/I/O errors remain internal or unknown after dispatch. Error names shared with source execution use the caller classifier first, including ambiguous EndOfStream. This is not a transitive whole-program proof. The selected typed-value, draft, source/bundle, template and compilation owners also participate; imported frame and decimal failures have explicit caller mappings.",
       "codes": {
         "InvalidBatchBudget": {
@@ -1610,6 +1611,22 @@
         "QueryCaptureRequired": {
           "code": "query.capture_required",
           "category": "binding"
+        },
+        "InvalidRelationalRecovery": {
+          "code": "query.relational_recovery_invalid",
+          "category": "integrity"
+        },
+        "RelationalRecoveryRequired": {
+          "code": "query.relational_recovery_required",
+          "category": "lifecycle"
+        },
+        "RelationalRecoverySyncFailed": {
+          "code": "query.relational_recovery_sync",
+          "category": "unavailable"
+        },
+        "RelationalWorkspaceInUse": {
+          "code": "query.relational_workspace_in_use",
+          "category": "conflict"
         }
       },
       "exceptions": [
@@ -1654,6 +1671,32 @@
               "name": "relational neutral options and references reject lossy and foreign input before I/O"
             }
           ]
+        },
+        {
+          "source": "packages/zig/transit-query/src/RelationalWorkspace.zig",
+          "cause": "FileNotFound",
+          "disposition": "control_flow",
+          "reason": "Only absence of the journal file returns an empty workspace. Other read failures propagate; an existing incompatible or corrupt journal never becomes absence.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/RelationalWorkspace.zig",
+              "name": "relational workspace fences concurrent hosts and preserves interrupted original ownership"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-query/src/RelationalWorkspace.zig",
+          "cause": "InvalidRelationalSources",
+          "disposition": "mapped_boundary",
+          "reason": "Route count and source selection use the shared relational binding diagnostic before acquiring new pins.",
+          "projection": "packages/zig/transit-fuze/src/SqlCodes.zig",
+          "code": "sql.invalid_relational_sources",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/RelationalWorkspace.zig",
+              "name": "relational workspace fences concurrent hosts and preserves interrupted original ownership"
+            }
+          ]
         }
       ],
       "tests": [
@@ -1668,6 +1711,10 @@
         {
           "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
           "name": "direct Table preparation failures do not settle a dispatched query"
+        },
+        {
+          "source": "packages/zig/transit-query/src/RelationalWorkspace.zig",
+          "name": "relational workspace fences concurrent hosts and preserves interrupted original ownership"
         }
       ]
     },
@@ -3349,6 +3396,22 @@
         "QueryCaptureRequired": {
           "code": "query.capture_required",
           "category": "binding"
+        },
+        "InvalidRelationalRecovery": {
+          "code": "query.relational_recovery_invalid",
+          "category": "integrity"
+        },
+        "RelationalRecoveryRequired": {
+          "code": "query.relational_recovery_required",
+          "category": "lifecycle"
+        },
+        "RelationalRecoverySyncFailed": {
+          "code": "query.relational_recovery_sync",
+          "category": "unavailable"
+        },
+        "RelationalWorkspaceInUse": {
+          "code": "query.relational_workspace_in_use",
+          "category": "conflict"
         }
       },
       "exceptions": [],
@@ -4674,7 +4737,8 @@
         "packages/zig/transit-catalog/src/DirectTablePreparedDml.zig",
         "packages/zig/transit-catalog/src/DirectTableTyped.zig",
         "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig",
-        "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig"
+        "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogRetention.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",

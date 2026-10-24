@@ -54,8 +54,12 @@ remain text with exact numeric lexemes; they do not become JavaScript numbers.
 The separately configured `POST /api/v1/relational` route exposes the shared
 interactive Table query owner. Its typed request wraps capabilities, metadata-only
 explanation, open, one-row page and close. A `describe` request reads configured
-catalog routes and the same host's active query reference/current ordinal under
-current source rights. Inspection does not advance execution or rerun lost work.
+catalog routes, the same host's active query reference/current ordinal and
+pending recovery under current source rights. Open saves complete source
+bindings and accepted positions; a private service journal preserves original
+pin requests before dispatch. `recover` explicitly closes the matching original
+query's pins after interruption. Inspection advances no execution and reruns
+no lost work.
 
 The Operations screen's [relational worksheet](../../../apps/transit-board/docs/relational.md)
 distinguishes draft, proposed plan, captured source vector and incomplete/complete
@@ -63,7 +67,9 @@ output. Run is explicit; editing creates no query. The route admits 16 KiB JSON
 requests and returns at most one 128-column row, with a 256 KiB browser response
 limit. It uses a separate configured principal and one active session shared by
 this instance's viewers. A browser reload can inspect that session; a Board
-restart loses it. Current rights apply to repeated pages and terminal coverage.
+restart loses its executor and exposes the original retention for explicit
+cleanup. New work waits for that cleanup. Current rights apply to repeated pages
+and terminal coverage.
 
 ## Query diagnostics
 

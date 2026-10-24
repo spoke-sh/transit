@@ -1,10 +1,12 @@
 /** Explicit interactive Table relations. The shared Zig owner executes and verifies pages. */
+import { isDeepStrictEqual } from "node:util";
 import { randomBytes } from "node:crypto";
 import { Credential, IncompatibleNative, ResourceRef } from "@transit/client";
 import type { ClientConfig } from "@transit/client";
 import { configuration, integer, text } from "@transit/client/internal";
 import { QueryBridge } from "./bridge.ts";
-import { Connection } from "./catalog.ts";
+import { Basis, Connection, Scope, Snapshot } from "./catalog.ts";
+import type { ObjectIdentity, Position } from "./catalog.ts";
 import { RowIdentity } from "./table.ts";
 import { unhex } from "./framing.ts";
 import { nativeWide, wide } from "./values.ts";
@@ -35,7 +37,7 @@ export function freshId(): string {
   return bytes.toString("hex");
 }
 export interface Options {
-  readonly consistency: "per_resource_snapshot_vector";
+  readonly consistency: "independent_table_snapshots";
   readonly residentBytes: bigint;
   readonly spillBytes: bigint;
   readonly resultBytes: bigint;
@@ -47,6 +49,7 @@ export interface Options {
   readonly spillDirectory: string;
 }
 export interface Statement {
+  readonly namespace?: number;
   readonly sql: string;
   /** One configured catalog index per FROM/JOIN target, in SQL order. */
   readonly routes: readonly number[];
@@ -54,7 +57,11 @@ export interface Statement {
 function statement(value: Statement): Extract<Action, { explain: unknown }>["explain"] {
   if (!value.routes.length || value.routes.length > 2)
     throw new TypeError("Select one or two explicit catalog routes");
-  return { sql: text(value.sql, 4096), routes: value.routes.map((v) => integer(v, "route", 0, 1)) };
+  return {
+    namespace: integer(value.namespace ?? 1, "namespace"),
+    sql: text(value.sql, 4096),
+    routes: value.routes.map((v) => integer(v, "route", 0, 1)),
+  };
 }
 /** This reference belongs to one live host. Saving it does not make the query durable. */
 export class Reference {
@@ -102,11 +109,18 @@ export interface Column {
 }
 export interface Source {
   readonly alias: string;
-  readonly resource: ResourceRef;
-  readonly catalog: bigint;
-  readonly owner: number;
-  readonly objectId: bigint;
-  readonly schema: string;
+  readonly basis: Basis;
+  readonly position: Position;
+}
+export interface RetainedSource {
+  readonly basis: Basis;
+  readonly snapshot: Snapshot;
+}
+function position(value: NativeDescription["sources"][number]["position"]): Position {
+  return Object.freeze({
+    partition: nativeWide(value.partition),
+    nextLsn: nativeWide(value.next_lsn),
+  });
 }
 export interface Description {
   readonly plan: string;
@@ -125,11 +139,8 @@ function description(value: NativeDescription): Description {
       value.sources.map((source) =>
         Object.freeze({
           alias: source.alias,
-          resource: new ResourceRef(source.realm, source.resource),
-          catalog: nativeWide(source.catalog),
-          owner: source.owner,
-          objectId: nativeWide(source.object),
-          schema: exactHex(source.schema, 32),
+          basis: Basis.restore(JSON.stringify(source.binding)),
+          position: position(source.position),
         }),
       ),
     ),
@@ -152,8 +163,8 @@ function description(value: NativeDescription): Description {
   });
 }
 export interface Cut {
-  readonly resource: number;
-  readonly revision: number;
+  readonly object: ObjectIdentity;
+  readonly position: Position;
   readonly commitment: string;
   readonly schema: string;
 }
@@ -220,13 +231,21 @@ export interface Page {
   readonly row: Row | undefined;
   readonly completeCoverage: boolean;
 }
+export interface RelationalClientConfig extends ClientConfig {
+  readonly serviceUrl?: string;
+}
 export class Client {
   readonly #bridge: QueryBridge;
-  private constructor(bridge: QueryBridge) {
+  readonly #connections: readonly NativeDescription["sources"][number]["binding"]["connection"][];
+  private constructor(
+    bridge: QueryBridge,
+    connections: readonly NativeDescription["sources"][number]["binding"]["connection"][],
+  ) {
     this.#bridge = bridge;
+    this.#connections = connections;
   }
   static async open(
-    input: ClientConfig,
+    input: RelationalClientConfig,
     credential: Credential,
     catalogs: readonly Connection[],
     options: Options,
@@ -234,10 +253,13 @@ export class Client {
     const config = configuration(input);
     if (!(credential instanceof Credential) || !catalogs.length || catalogs.length > 2)
       throw new TypeError("Supply one credential and one or two catalog connections");
-    if (options.consistency !== "per_resource_snapshot_vector")
-      throw new TypeError("Select per_resource_snapshot_vector explicitly");
+    if (options.consistency !== "independent_table_snapshots")
+      throw new TypeError("Select independent_table_snapshots explicitly");
     const routes = catalogs.map((connection) => {
-      if (!(connection instanceof Connection) || connection.owner.realm !== credential.realm)
+      if (
+        !(connection instanceof Connection) ||
+        connection.scope.resource.realm !== credential.realm
+      )
         throw new TypeError("All catalogs must use the caller realm");
       return {
         scope: {
@@ -245,7 +267,9 @@ export class Client {
           resource: connection.scope.resource.resource,
           catalog: connection.scope.catalog.toString(),
         },
-        owner: connection.owner.pid,
+        branch: connection.branch.toString(),
+        audience: connection.audience,
+        role: connection.role ?? null,
         principal: credential.principal,
       };
     });
@@ -255,6 +279,11 @@ export class Client {
       {
         timeout_ms: config.timeoutMs,
         relational: {
+          definition,
+          service_url:
+            input.serviceUrl === undefined
+              ? null
+              : configuration({ ...input, url: input.serviceUrl }).url,
           catalogs: routes,
           spill_directory: text(options.spillDirectory, 4096),
           options: {
@@ -272,31 +301,75 @@ export class Client {
       },
       config.nativeHost,
     );
-    return new Client(bridge);
+    return new Client(bridge, routes);
   }
   async explain(input: Statement): Promise<Description> {
     const result = await this.#call({ explain: statement(input) });
     if (!("explained" in result)) throw new IncompatibleNative("Expected relational explanation");
-    return description(result.explained);
+    return this.#description(result.explained, input);
   }
-  async openQuery(id: string, input: Statement): Promise<Opened> {
+  async openQuery(
+    id: string,
+    input: Statement,
+    sources: readonly RetainedSource[],
+  ): Promise<Opened> {
     exactHex(id, 16);
     if (/^0+$/.test(id)) throw new TypeError("Query ID must be nonzero");
-    const result = await this.#call({ open: { id, statement: statement(input) } });
+    if (sources.length !== input.routes.length || sources.length < 1 || sources.length > 2)
+      throw new TypeError("Supply one original binding and explicit snapshot per source");
+    const bindings = sources.map((source) => {
+      if (!(source.basis instanceof Basis) || !(source.snapshot instanceof Snapshot))
+        throw new TypeError("Supply saved Table bindings and snapshots");
+      return JSON.parse(source.basis.save()) as Extract<
+        Action,
+        { open: unknown }
+      >["open"]["bindings"][number];
+    });
+    const snapshots = sources.map(
+      (source) =>
+        JSON.parse(source.snapshot.save()) as Extract<
+          Action,
+          { open: unknown }
+        >["open"]["snapshots"][number],
+    );
+    const result = await this.#call({
+      open: { id, statement: statement(input), bindings, snapshots },
+    });
     if (!("opened" in result) || result.opened.complete_coverage)
       throw new IncompatibleNative("Expected an incomplete captured interactive basis");
     const value = result.opened;
     const ref = reference(value.reference);
-    const plan = description(value.description);
+    const plan = this.#description(value.description, input);
+    for (let i = 0; i < sources.length; i++) {
+      if (!isDeepStrictEqual(JSON.parse(plan.sources[i]!.basis.save()), bindings[i]))
+        throw new IncompatibleNative("Relational open changed its original binding");
+    }
     if (ref.id !== id || ref.plan !== plan.plan || value.cuts.length !== plan.sources.length)
       throw new IncompatibleNative("Relational open changed its requested identity");
     const cuts = value.cuts.map((cut, index) => {
       const source = plan.sources[index]!;
-      if (cut.resource !== source.resource.resource || cut.schema !== source.schema)
-        throw new IncompatibleNative("Relational cut differs from its source");
+      const original = source.basis.definition.interpretation.object;
+      if (
+        cut.object.scope.realm !== original.scope.resource.realm ||
+        cut.object.scope.resource !== original.scope.resource.resource ||
+        nativeWide(cut.object.scope.catalog) !== original.scope.catalog ||
+        nativeWide(cut.object.branch) !== original.branch ||
+        nativeWide(cut.object.object) !== original.objectId ||
+        cut.schema !== source.basis.definition.schemaFingerprint ||
+        nativeWide(cut.position.partition) !== source.position.partition ||
+        nativeWide(cut.position.next_lsn) !== source.position.nextLsn
+      )
+        throw new IncompatibleNative("Relational cut differs from its original source");
       return Object.freeze({
-        resource: cut.resource,
-        revision: cut.revision,
+        object: Object.freeze({
+          scope: new Scope(
+            new ResourceRef(cut.object.scope.realm, cut.object.scope.resource),
+            nativeWide(cut.object.scope.catalog),
+          ),
+          branch: nativeWide(cut.object.branch),
+          objectId: nativeWide(cut.object.object),
+        }),
+        position: position(cut.position),
         commitment: exactHex(cut.commitment, 32),
         schema: exactHex(cut.schema, 32),
       });
@@ -331,6 +404,23 @@ export class Client {
   async closeQuery(ref: Reference): Promise<void> {
     if (!("closed" in (await this.#call({ close: wireReference(ref) }))))
       throw new IncompatibleNative("Expected relational close acknowledgement");
+  }
+  #description(value: NativeDescription, input: Statement): Description {
+    if (value.sources.length !== input.routes.length)
+      throw new IncompatibleNative("Relational source count changed");
+    for (let i = 0; i < value.sources.length; i++) {
+      const binding = value.sources[i]!.binding;
+      const connection = this.#connections[input.routes[i]!];
+      if (
+        !connection ||
+        !isDeepStrictEqual(binding.connection, connection) ||
+        binding.namespace !== (input.namespace ?? 1)
+      )
+        throw new IncompatibleNative(
+          "Relational source changed its configured connection or namespace",
+        );
+    }
+    return description(value);
   }
   async #call(action: Action): Promise<Result> {
     const result = await this.#bridge.call({ relational: action });

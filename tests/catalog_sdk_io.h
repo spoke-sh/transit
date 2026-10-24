@@ -36,26 +36,11 @@ static inline void persist(const char *root, const char *name, transit_sdk_bytes
     assert(!fsync(fd) && !close(fd) && !rename(temporary, path));
     fd = open(root, O_RDONLY | O_DIRECTORY); assert(fd >= 0); assert(!fsync(fd) && !close(fd));
 }
-static inline void persist_saved(const char *root, const transit_station_catalog_saved_intent *saved) {
-    const char *definition = NULL; transit_sdk_bytes bytes; checked(transit_station_catalog_saved_get(saved, &definition, &bytes));
-    /* Both mandatory fields are durable before any signed step is submitted. */
-    persist(root, "intent.bin", bytes);
-    transit_sdk_bytes tag = {(const uint8_t *)definition, strlen(definition)}; persist(root, "intent.definition", tag);
+static inline transit_sdk_bytes read_saved(const char *root, const char *name) {
+    char path[4096]; assert(snprintf(path, sizeof(path), "%s/%s", root, name) < (int)sizeof(path));
+    FILE *file = fopen(path, "rb"); assert(file && !fseek(file, 0, SEEK_END)); long size = ftell(file); assert(size > 0 && size <= TRANSIT_SDK_STATION_CATALOG_ACTION_BYTES && !fseek(file, 0, SEEK_SET));
+    uint8_t *data = (uint8_t *)malloc((size_t)size); assert(data && fread(data, 1, (size_t)size, file) == (size_t)size && !fclose(file));
+    transit_sdk_bytes out = {data, (size_t)size}; return out;
 }
-static inline void persist_receipt(const char *root, uint64_t position) {
-    char value[32]; int size = snprintf(value, sizeof(value), "%llu", (unsigned long long)position); assert(size > 0 && size < (int)sizeof(value));
-    transit_sdk_bytes bytes = {(const uint8_t *)value, (size_t)size}; persist(root, "receipt", bytes);
-}
-static inline transit_station_catalog_identity identity(uint64_t base, uint64_t offset) {
-    transit_station_catalog_identity out = {base + offset, base + offset + 100000}; return out;
-}
-static inline transit_station_catalog_basis basis(const transit_station_catalog_metadata *v) {
-    transit_station_catalog_basis out; memset(&out, 0, sizeof(out)); out.object = v->object; out.revision = v->revision; memcpy(out.schema_fingerprint, v->schema_fingerprint, 32); return out;
-}
-static inline int outcome_equal(const transit_station_catalog_outcome *a, const transit_station_catalog_outcome *b) {
-    return a->kind == b->kind && a->operation == b->operation && a->object == b->object && a->has_actual_object == b->has_actual_object && a->actual_object == b->actual_object &&
-        a->phase == b->phase && a->terminal == b->terminal && a->has_counts == b->has_counts && a->counts.matched == b->counts.matched && a->counts.changed == b->counts.changed &&
-        a->admitted_input == b->admitted_input && a->has_completed_input == b->has_completed_input && a->completed_input == b->completed_input &&
-        a->diagnostic.size == b->diagnostic.size && !memcmp(a->diagnostic.json, b->diagnostic.json, a->diagnostic.size);
-}
+static inline void uncertain(transit_sdk_error e) { assert(e.kind == TRANSIT_SDK_UNKNOWN_OUTCOME && e.has_native_status && e.native_status == 6); }
 #endif

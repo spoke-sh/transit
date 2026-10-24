@@ -1,16 +1,15 @@
 #include "catalog_internal.hpp"
 
 namespace transit::sdk::catalog_detail {
-namespace {
 Json tag(const char *name, Json value) { return Json::object({{name, std::move(value)}}); }
-Json wide(uint64_t value, bool zero = false) { require(value || zero, "catalog-identity"); return Json::string(std::to_string(value)); }
-Json small(uint64_t value, bool zero = false) { counter(value, zero); return Json::integer(value); }
-Json digest(const uint8_t (&value)[32]) { return Json::string(hex(Bytes(value, value + 32))); }
+Json wide(uint64_t value, bool zero) { require(value || zero, "catalog-identity"); return Json::string(std::to_string(value)); }
+Json small(uint64_t value, bool zero) { counter(value, zero); return Json::integer(value); }
+namespace {
 template<class T> void array(const T *data, size_t size, size_t maximum) { require(size <= maximum && (data || !size), "catalog-array"); }
 std::string choice(uint32_t value, std::initializer_list<const char *> names) {
     require(value < names.size(), "catalog-tag"); return *(names.begin() + value);
 }
-Json basis_wire(const Basis &v) { return Json::object({{"object", wide(v.object)}, {"revision", wide(v.revision)}, {"schema_fingerprint", digest(v.schema_fingerprint)}}); }
+Json basis_wire(const Basis *v) { require(v, "catalog-basis"); return v->wire; }
 Json characters(uint32_t value) { return value ? Json::integer(value) : Json{}; }
 Json descriptor(const transit_logical_type_view *value) { require(value, "catalog-type"); return logical_detail::type_json(*value); }
 Json cell(const transit_logical_cell_view *value) { return value ? logical_detail::cell_json(*value) : Json{}; }
@@ -112,36 +111,15 @@ std::string name(const char *value) {
 }
 void current(const char *value) { require(text(value, 64) == STATION_ABI_DEFINITION, "catalog-definition"); }
 std::string kind_name(transit_station_catalog_kind value) { return choice(value, {"create", "alter", "rename", "drop", "insert", "update", "delete"}); }
-std::string control_name(transit_station_catalog_control value) { return choice(value, {"cancel_operation", "cleanup_operation", "cancel_upload", "collect_upload"}); }
 Json scope_wire(Scope v) { return Json::object({{"realm", small(v.resource.realm)}, {"resource", small(v.resource.resource)}, {"catalog", wide(v.catalog)}}); }
 Json connection_wire(Connection c, uint64_t principal) {
-    process(c.owner); require(c.owner.realm == c.scope.resource.realm, "catalog-realm");
-    return Json::object({{"scope", scope_wire(c.scope)}, {"owner", small(c.owner.pid)}, {"principal", small(principal, true)}, {"role", c.has_role ? small(c.role, true) : Json{}}, {"namespace", small(c.namespace_id)}});
+    return Json::object({{"scope", scope_wire(c.scope)}, {"audience", small(c.audience)}, {"branch", wide(c.branch)}, {"principal", small(principal, true)}, {"role", c.has_role ? small(c.role, true) : Json{}}});
 }
-Json configuration_wire(const Configuration &v) {
-    process(v.owner); require(v.owner.realm == v.scope.resource.realm && v.table_limits.record_bytes && v.table_limits.staging_records && v.table_limits.staging_bytes >= v.table_limits.record_bytes, "catalog-configuration");
-    const auto &a = v.authority;
-    require(a.database_domain != a.schema_domain && a.database_domain != a.table_domain && a.schema_domain != a.table_domain && a.database != a.initial_schema_authority, "catalog-authority");
-    const auto database = text(v.database_name, 63); require(!database.empty(), "catalog-database-name"); logical_detail::utf8(database);
-    const auto authority = Json::object({{"database_domain", small(a.database_domain)}, {"schema_domain", small(a.schema_domain)}, {"table_domain", small(a.table_domain)}, {"database", small(a.database)}, {"initial_schema_authority", small(a.initial_schema_authority)}, {"initial_schema", small(a.initial_schema)}});
-    return Json::object({{"authority", authority}, {"database_name", Json::string(database)}, {"scope", scope_wire(v.scope)}, {"owner", small(v.owner.pid)}, {"administrator", small(v.administrator, true)}, {"table_limits", Json::object({{"record_bytes", Json::integer(v.table_limits.record_bytes)}, {"staging_bytes", wide(v.table_limits.staging_bytes)}, {"staging_records", Json::integer(v.table_limits.staging_records)}})}});
-}
-Json dependency_wire(const transit_station_catalog_dependency &v, bool present) {
-    process(v.owner); require(v.owner.realm == v.scope.resource.realm, "catalog-realm");
-    return Json::object({{"scope", scope_wire(v.scope)}, {"object", wide(v.object)}, {"identity", wide(v.identity)}, {"owner", small(v.owner.pid)}, {"kind", Json::string(choice(v.kind, {"query_source", "writer", "watch", "maintained_relation", "history"}))}, {"present", Json::boolean(present)}});
-}
-Json cursor_wire(const Cursor &v) {
-    current(v.definition); return Json::object({{"definition", Json::string(v.definition)}, {"scope", scope_wire(v.scope)}, {"resource_revision", small(v.resource_revision, true)}, {"after_object", wide(v.after_object)}});
-}
-Json reference_wire(const Reference &v) { current(v.definition); return Json::object({{"definition", Json::string(v.definition)}, {"digest", digest(v.digest)}}); }
-Json identity_wire(Identity v) { return Json::object({{"operation", wide(v.operation)}, {"namespace", wide(v.namespace_id)}}); }
-Json saved_wire(const Saved &v) {
-    current(v.definition.c_str()); require(!v.bytes.empty() && v.bytes.size() <= max_intent, "catalog-intent"); return Json::object({{"definition", Json::string(v.definition)}, {"bytes", Json::string(hex(v.bytes))}});
-}
-Json prepared_wire(const Prepared &v) { require(!v.bytes.empty() && v.bytes.size() <= max_prepared, "catalog-prepared"); return Json::string(std::string(v.bytes.begin(), v.bytes.end())); }
+Json position_wire(Position p) { return Json::object({{"partition", wide(p.partition)}, {"next_lsn", wide(p.next_lsn, true)}}); }
+Json object_wire(Object o) { return Json::object({{"scope", scope_wire(o.scope)}, {"branch", wide(o.branch)}, {"object", wide(o.object)}}); }
 std::string request_wire(const Request &v) {
     Writer w; w.text("{\"prepare\":{\"definition\":"); w.value(Json::string(STATION_ABI_DEFINITION)); w.text(",\"name\":"); w.value(Json::string(name(v.name)));
-    w.text(",\"identity\":"); w.value(identity_wire(v.identity)); w.text(",\"action\":"); const auto &a = v.action;
+    w.text(",\"namespace\":"); w.value(small(v.identity.namespace_id)); w.text(",\"operation\":"); w.value(wide(v.identity.operation)); w.text(",\"action\":"); const auto &a = v.action;
     switch (a.kind) {
         case TRANSIT_CATALOG_CREATE:
             require(a.as.create.schema, "catalog-schema"); w.text("{\"create\":{\"schema\":"); w.text(schema_wire(*a.as.create.schema));
@@ -149,10 +127,10 @@ std::string request_wire(const Request &v) {
         case TRANSIT_CATALOG_ALTER:
             w.text("{\"alter\":{\"basis\":"); w.value(basis_wire(a.as.alter.basis)); w.text(",\"change\":"); change(w, a.as.alter.change); w.text("}}"); break;
         case TRANSIT_CATALOG_RENAME: w.value(tag("rename", Json::object({{"basis", basis_wire(a.as.rename.basis)}, {"name", Json::string(name(a.as.rename.name))}}))); break;
-        case TRANSIT_CATALOG_DROP: w.value(tag("drop", Json::object({{"basis", a.as.drop.basis ? basis_wire(*a.as.drop.basis) : Json{}}, {"if_exists", Json::boolean(a.as.drop.if_exists)}}))); break;
+        case TRANSIT_CATALOG_DROP: w.value(tag("drop", Json::object({{"basis", a.as.drop.basis ? basis_wire(a.as.drop.basis) : Json{}}, {"if_exists", Json::boolean(a.as.drop.if_exists)}}))); break;
         case TRANSIT_CATALOG_INSERT: case TRANSIT_CATALOG_UPDATE: case TRANSIT_CATALOG_DELETE:
             w.text("{\"mutate\":{\"basis\":"); w.value(basis_wire(a.kind == TRANSIT_CATALOG_INSERT ? a.as.insert.basis : a.kind == TRANSIT_CATALOG_UPDATE ? a.as.update.basis : a.as.remove.basis));
-            w.text(",\"mutation\":"); mutation(w, a); w.text("}}"); break;
+            w.text(",\"mutation\":"); mutation(w, a); w.text(",\"ingestion\":"); w.value(Json::string(choice(a.ingestion, {"point", "bulk"}))); w.text("}}"); break;
         default: fail(TRANSIT_SDK_INVALID_ARGUMENT, "catalog-action");
     }
     w.text("}}"); return w.finish();

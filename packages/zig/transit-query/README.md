@@ -177,8 +177,10 @@ and repeatable one-row interactive pages through the Station query ABI/port.
 See [interactive relational callers](docs/relational-callers.md) for full-width
 values, source evidence, retry, close and host-loss semantics.
 `RelationalCaller` owns the configured clients and session for the ABI and
-Board. Its authorized workspace description reports the active reference and
-ordinal without rerunning or advancing a query.
+Board. Its authorized description reports the active reference and ordinal
+without rerunning or advancing a query. `RelationalWorkspace` journals Board's
+original retention requests and exposes explicit cleanup after service loss;
+it never resumes the lost executor or selects replacement source cuts.
 
 `RelationalCapture` admits a frozen `RelationalBundle` through an authenticated
 Station call, retains every source cut and advances one bounded execution step
@@ -397,7 +399,6 @@ Test builds expose `testing.Store`, the existing private-turn reference model,
 for dependent-package composition tests. It tracks entry revisions and retained
 cuts so serving can exercise actual finite capture alongside watch acquisition.
 This is test-only simulated storage, not a durability or authorization proof.
-
 
 A requester-scoped principal needs an explicit optional association and an
 independent current read grant for the source resource. That resource access

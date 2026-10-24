@@ -26,7 +26,7 @@ pub fn main(init: std.process.Init) !void {
     try s.protocol.Schema.field(&out, "version", abi.version);
     try s.protocol.Schema.field(&out, "definition", s.protocol.Growth.current_definition);
     try s.protocol.Schema.field(&out, "minimum_stack_bytes", abi.minimum_stack_bytes);
-    try s.protocol.Schema.field(&out, "limits", .{ .handler_action_bytes = s.protocol.max_body, .handler_table_result_bytes = (abi.growing.Capabilities{}).table_result_bytes, .catalog_line_bytes = abi.host.catalog_line_bytes, .catalog_action_bytes = abi.catalog_client.bridge.max_input_bytes, .catalog_intent_bytes = (abi.catalog_client.bridge.Capabilities{}).max_intent_bytes, .catalog_prepared_bytes = (abi.catalog_client.bridge.Capabilities{}).max_prepared_bytes });
+    try s.protocol.Schema.field(&out, "limits", .{ .handler_action_bytes = s.protocol.max_body, .handler_table_result_bytes = (abi.growing.Capabilities{}).table_result_bytes, .catalog_line_bytes = abi.host.catalog_line_bytes, .catalog_action_bytes = abi.catalog_client.bridge.max_input_bytes, .catalog_intent_bytes = abi.catalog_client.max_intent_bytes });
     try out.objectField("statuses");
     try out.beginObject();
     inline for (@typeInfo(abi.Status).@"enum".field_names, @typeInfo(abi.Status).@"enum".field_values) |name, value| try s.protocol.Schema.field(&out, name, value);

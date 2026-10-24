@@ -148,10 +148,13 @@ obligations. SDK exception adoption is documented by each caller interface.
 ## Relational catalog callers
 
 The same query ABI/port accepts a `relational` action with its separately
-configured catalog routes. A relational-only configuration omits the legacy
-`connection` and supplies `relational.catalogs`, explicit budgets and a private
+configured direct catalog routes. A relational-only configuration omits
+`connection` and supplies the current `relational.definition`, direct
+`relational.catalogs`, explicit budgets and a private
 spill directory. It opens no behavior activation. Explanation, exact active-open
-retry, one-row pages and explicit close share the Zig relational owner. Current
+retry, one-row pages and explicit close share the Zig relational owner. Open
+requires complete saved source bindings and explicit retained snapshots. Local
+close never releases their durable pins; catalog retention owns that operation. Current
 source rights apply to repeated pages and completion. Interactive handle loss
 cannot become durable recovery. See the [relational caller guide](../../transit-query/docs/relational-callers.md)
 for exact actions, representations, bounds and supported lifetimes.

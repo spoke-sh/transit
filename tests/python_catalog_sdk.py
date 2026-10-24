@@ -1,127 +1,183 @@
-"""Installed synchronous/asynchronous general Table lifecycle and saved recovery."""
+"""Installed sync/async direct lifecycle, retained SQL and exact fault recovery."""
 import asyncio
 import inspect
 import json
 import os
 from pathlib import Path
 import sys
-import time
-from transit_client import ProcessRef, ResourceRef
+from transit_client import ResourceRef
 from transit_client.errors import TransitError
-from transit_station import catalog as m, logical as l
+from transit_station import catalog as m, logical as l, relational as r
 
 
-async def resolve(value):
-    return await value if inspect.isawaitable(value) else value
+async def resolve(value): return await value if inspect.isawaitable(value) else value
 
 
-def persist(path, data):
-    with path.open('wb') as file:
+def persist(path, text):
+    with path.open('w') as file:
         os.chmod(path, 0o600)
-        file.write(data)
+        file.write(text)
         file.flush()
         os.fsync(file.fileno())
 
 
-async def scenario(client, connect, path, index, principal):
-    base = 1100 + index * 100
-    original_object = 12001 + index * 10
-    name = f'sdk_people_{index}'
-    identity = lambda offset: m.Identity(base + offset, base + offset + 100000)
-    async def finish(compiled):
-        # Saved compatibility is required on restore, alongside immutable bytes.
-        persist(path / 'intent.json', json.dumps(dict(definition=compiled.saved.definition, data=compiled.saved.data.hex())).encode())
-        reference = compiled.intent.reference
-        deadline = time.monotonic() + 120
-        while time.monotonic() < deadline:
-            step = await resolve(client.next(reference))
-            if step.kind == m.NextKind.TERMINAL: return step.outcome
-            if step.kind == m.NextKind.RUNNING: continue
-            assert step.kind == m.NextKind.SEND
-            persist(path / 'step.json', step.prepared.data)
-            position = await resolve(client.submit(step.prepared))
-            persist(path / 'receipt.json', json.dumps(dict(position=position)).encode())
-            while time.monotonic() < deadline:
-                progress = await resolve(client.progress(reference, step.prepared, position, wait=True))
-                if progress.observation == m.Observation.PENDING: continue
-                assert progress.disposition is None, progress
-                if progress.outcome is not None and progress.outcome.terminal: return progress.outcome
-                break
-        raise AssertionError('Installed Table operation exceeded its budget')
-
-    description = await resolve(client.describe())
-    assert description.configuration.scope == client.connection.scope
-    assert description.subject.principal == principal
-    assert description.subject.credential_epoch > 0
-    compiled = await resolve(client.compile_sql(f'CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))', identity(0), original_object))
-    created = await finish(compiled)
-    assert created.phase == m.Phase.APPLIED, created
-    original = await resolve(client.lookup(name))
-    assert len(original.schema.columns) == 3 and isinstance(original.schema.columns[1].type, l.StructureType)
-    atom = lambda kind, value: l.Present(l.Atom(kind, value))
-    payload = l.Present(l.SequenceValue('structure', (atom('binary', bytes([0, 128, 255])), atom('utf8', '東京'))))
-    amount = atom('decimal', 123456789012345678901234567890)
-    insert = await resolve(client.prepare(name, identity(1), m.Mutate(original.metadata.basis, m.Insert(((m.Assignment(3, amount), m.Assignment(1, atom('signed', 1)), m.Assignment(2, payload)),)))))
-    applied = await finish(insert)
-    assert applied.counts == m.Counts(1, 1), applied
-    saved = insert.saved
-    predicate = (m.Comparison(1, m.CompareOperator.EQ, l.Atom('signed', 1)),)
-    unchanged = await finish(await resolve(client.prepare(name, identity(2), m.Mutate(original.metadata.basis, m.Update((m.Assignment(3, amount),), predicate)))))
-    assert unchanged.counts == m.Counts(1, 0), unchanged
-    altered = await finish(await resolve(client.prepare(name, identity(3), m.Alter(original.metadata.basis, m.AddColumn('enabled', l.ScalarType('boolean'), nullable=False, default=atom('boolean', True))))))
-    assert altered.phase == m.Phase.APPLIED
-    try: await resolve(client.prepare(name, identity(4), m.Drop(original.metadata.basis)))
-    except TransitError: pass
-    else: raise AssertionError('Stale metadata retargeted Table work')
-    current = await resolve(client.lookup(name))
-    deleted = await finish(await resolve(client.prepare(name, identity(5), m.Mutate(current.metadata.basis, m.Delete(predicate)))))
-    assert deleted.counts == m.Counts(1, 1), deleted
-    assert (await finish(await resolve(client.prepare(name, identity(6), m.Drop(current.metadata.basis))))).phase == m.Phase.APPLIED
-    assert (await finish(await resolve(client.compile_sql(f'CREATE TABLE {name} (replacement TEXT)', identity(7), original_object + 1)))).phase == m.Phase.APPLIED
-    await resolve(client.close())
-    client = connect()
-    try:
-        loaded = await resolve(client.load(m.SavedIntent(saved.definition, saved.data)))
-        assert loaded.object_id == original_object
-        assert (await resolve(client.status(loaded.reference))).outcome == applied
-        assert (await resolve(client.lookup(name))).metadata.object_id == original_object + 1
-        historical = await resolve(client.definition(original_object, original.metadata.revision))
-        assert historical.metadata == original.metadata and historical.schema == original.schema
-        assert not hasattr(historical, 'head')
-        assert await resolve(client.definition(original_object, 999)) is None
-        assert (await resolve(client.list())).entries
-    finally:
-        await resolve(client.close())
-    return dict(profile='installed-python-general-table', original_object=str(original_object), replacement_object=str(original_object + 1), counts=dict(matched=str(applied.counts.matched), changed=str(applied.counts.changed)))
-
-
-async def run(mode, path):
-    # Run against installed wheels, never a source-tree import override.
+async def run(mode, config_file):
     assert 'site-packages' in str(Path(m.__file__).resolve()), m.__file__
-    path = Path(path)
+    assert 'site-packages' in str(Path(r.__file__).resolve()), r.__file__
+    path = Path(config_file)
     config = json.loads(path.read_text()); c = config['connection']; s = c['scope']
-    connection = m.Connection(ProcessRef(s['realm'], c['owner']), m.Scope(ResourceRef(s['realm'], s['resource']), int(s['catalog'])), role=c.get('role'), namespace=c.get('namespace', 1))
-    cls = m.Client if mode == 'sync' else m.AsyncClient
-    connect = lambda: cls(config['url'], c['principal'], Path(config['seed_file']), connection, timeout_ms=30000 if config.get('table_service_url') else 10000, table_service_url=config.get('table_service_url'))
-    client = connect()
+    connection = m.Connection(m.Scope(ResourceRef(s['realm'], s['resource']), int(s['catalog'])), c['audience'], int(c['branch']), c['role'])
+    cls, query_cls = (m.Client, r.Client) if mode == 'sync' else (m.AsyncClient, r.AsyncClient)
+    client = cls(config['url'], c['principal'], Path(config['seed_file']), connection, service_url=config['service_url'], timeout_ms=10000)
+    root = path.parent / mode
+    root.mkdir(exist_ok=True)
+    offset = 0 if mode == 'sync' else 10
+    name = 'python_' + mode
+    object_id = (1 << 64)-2-offset
+    query = query_cls(config['url'], c['principal'], Path(config['seed_file']), (connection,),
+                      r.Options('independent_table_snapshots', 16777216, 16777216, 8388608, 1000, 100000, 2, 100000, 100000, root),
+                      service_url=config['service_url'], timeout_ms=10000)
+    opened = None
+    sources = None
+    statement = r.Statement(f'SELECT id FROM {name}', (0,))
+    identity = f'{offset+1:032x}'
+    write = lambda value: print(json.dumps(dict(status=0, value=value)), flush=True)
+    async def compiled(sql, op, object_id=None):
+        return await resolve(client.compile_sql(sql, m.Identity(offset+op), object_id))
+    async def complete(work):
+        persist(root / 'work.json', work.saved.save())
+        original = await resolve(client.stage(work.intent))
+        persist(root / 'work-reference.json', original.save())
+        observed = await resolve(client.admit(original))
+        for _ in range(16):
+            if observed.state != 'admitted': break
+            observed = await resolve(client.execute(original, 32))
+        assert observed.state == 'committed', observed
+        return observed
+    async def uncertain(invoke, original):
+        try: await resolve(invoke())
+        except m.Uncertain as error:
+            assert error.original.save() == original.save()
+            assert error.recovery == original.save().encode()
+            assert error.status == 6 and error.diagnostic['outcome'] == 'unknown'
+            assert not error.diagnostic_invalid
+        else: raise AssertionError('Accepted lost reply was reported as certain')
+    def saved_snapshot(): return m.Snapshot.restore((root / 'snapshot.json').read_text())
+    async def open_retained():
+        nonlocal opened, sources
+        snapshot = saved_snapshot()
+        basis = m.Basis.restore((root / 'basis.json').read_text())
+        sources = (r.RetainedSource(basis, snapshot),)
+        opened = await resolve(query.open_query(identity, statement, sources))
+        repeated = await resolve(query.open_query(identity, statement, sources))
+        assert opened == repeated and opened.description.sources[0].basis._wire() == basis._wire()
+        assert not opened.complete_coverage
+        return opened
     try:
         print(json.dumps(dict(ready=True)), flush=True)
-        while line := sys.stdin.readline():
+        for line in sys.stdin:
             action = json.loads(line)
             if 'close' in action: break
-            if 'denied' in action:
-                fresh = connect()
-                try:
-                    try: await resolve(fresh.describe())
-                    except TransitError as error: assert error.status == 4, error
-                    else: raise AssertionError('Revoked CONNECT disclosed catalog')
-                finally: await resolve(fresh.close())
-                print(json.dumps(dict(status=0, value=dict(denied=True))), flush=True)
-                continue
-            assert 'scenario' in action
-            result = await scenario(client, connect, path.parent, action['scenario']['index'], c['principal'])
-            print(json.dumps(dict(status=0, value=result)), flush=True)
+            command = next(iter(action))
+            if command == 'prepare':
+                assert (await resolve(client.describe())).subject.principal == c['principal']
+                await complete(await compiled(f'CREATE TABLE {name} (id BIGINT PRIMARY KEY, payload BINARY)', 1, object_id))
+                current = await resolve(client.lookup(name))
+                assert current.row_count == 0 and current.basis.object_id == object_id
+                rows = tuple((m.Assignment(1, l.Present(l.Atom('signed', i))),
+                              m.Assignment(2, l.Present(l.Atom('binary', bytes([i])*32768)))) for i in range(9))
+                work = await resolve(client.prepare(name, m.Identity(offset+2), m.Mutate(current.basis, m.Insert(rows), ingestion='bulk')))
+                assert (await resolve(client.preview(work.intent))).current.row_count == 0
+                persist(root / 'intent.json', work.saved.save())
+                loaded = await resolve(client.load(m.SavedIntent.restore((root / 'intent.json').read_text())))
+                original = await resolve(client.stage(loaded))
+                persist(root / 'original.json', original.save())
+                assert (await resolve(client.admit(original))).state == 'admitted'
+                await uncertain(lambda: client.execute(original, 32), original)
+                write(dict(uncertain=True, operation=str(original.operation)))
+            elif command == 'recover':
+                original = m.Reference.restore((root / 'original.json').read_text())
+                observed = await resolve(client.inspect(original))
+                assert observed.state == 'committed' and observed.commit.matched == observed.commit.affected == observed.commit.live_rows == 9
+                assert await resolve(client.execute(original, 32)) == observed
+                current = await resolve(client.lookup(name))
+                acquisition = client.prepare_snapshot(current.basis, current.position, 90000+offset)
+                persist(root / 'basis.json', current.basis.save())
+                persist(root / 'acquisition.json', acquisition.save())
+                await uncertain(lambda: client.acquire_snapshot(acquisition), acquisition)
+                write(dict(retention_uncertain=True))
+            elif command == 'retained':
+                acquisition = m.SnapshotAcquisition.restore((root / 'acquisition.json').read_text())
+                status = await resolve(client.snapshot_status(acquisition.owner))
+                assert not status.released and status.snapshot
+                snapshot = status.snapshot
+                persist(root / 'snapshot.json', snapshot.save())
+                metadata = await resolve(client.snapshot_metadata(snapshot))
+                assert metadata.accepted == acquisition.expected and metadata.row_count == 9
+                explained = await resolve(query.explain(statement))
+                assert explained.sources[0].basis._wire() == m.Basis.restore((root / 'basis.json').read_text())._wire()
+                await open_retained()
+                assert opened.cuts[0].position == acquisition.expected
+                first = await resolve(query.page(opened.reference, 0))
+                assert first.row.cells == (0,) and not first.complete_coverage
+                assert await resolve(query.page(opened.reference, 0)) == first
+                write(dict(opened=True))
+            elif command == 'denied':
+                for invoke in (lambda: query.page(opened.reference, int(action[command]['ordinal'])),
+                               lambda: query.open_query(identity, statement, sources)):
+                    try: await resolve(invoke())
+                    except TransitError as error:
+                        assert error.status == 4 and error.diagnostic['category'] == 'access', error
+                    else: raise AssertionError('Revoked caller disclosed buffered output')
+                write(dict(denied=True))
+            elif command == 'rows':
+                for ordinal in range(9):
+                    page = await resolve(query.page(opened.reference, ordinal))
+                    assert page.row.cells == (ordinal,) and not page.complete_coverage
+                    assert await resolve(query.page(opened.reference, ordinal)) == page
+                page = await resolve(query.page(opened.reference, 9))
+                assert page.complete_coverage and page.row is None
+                assert await resolve(query.page(opened.reference, 9)) == page
+                write(dict(rows=9, complete=True))
+            elif command == 'retire':
+                assert (await resolve(query.page(opened.reference, 9))).complete_coverage
+                await resolve(query.close_query(opened.reference))
+                unchanged = await complete(await compiled(f'UPDATE {name} SET id = 0 WHERE id = 0', 3))
+                assert unchanged.commit.matched == 1 and unchanged.commit.affected == 0
+                deleted = await complete(await compiled(f'DELETE FROM {name} WHERE id = 8', 4))
+                assert deleted.commit.matched == deleted.commit.affected == 1
+                await complete(await compiled(f'ALTER TABLE {name} ADD COLUMN extra BIGINT', 5))
+                await complete(await compiled(f'ALTER TABLE {name} RENAME TO {name}_old', 6))
+                await complete(await compiled(f'DROP TABLE {name}_old', 7))
+                await complete(await compiled(f'CREATE TABLE {name} (replacement BIGINT)', 8, object_id-1))
+                assert (await resolve(client.lookup(name))).basis.object_id == object_id-1
+                snapshot = saved_snapshot()
+                assert (await resolve(client.snapshot_metadata(snapshot))).row_count == 9
+                identity = f'{offset+2:032x}'
+                await open_retained()
+                write(dict(original=True))
+            elif command == 'release':
+                await resolve(query.close_query(opened.reference))
+                await resolve(query.close_query(opened.reference))
+                snapshot = saved_snapshot()
+                assert not (await resolve(client.snapshot_status(snapshot.owner))).released
+                await uncertain(lambda: client.release_snapshot(snapshot), snapshot)
+                write(dict(release_uncertain=True))
+            elif command == 'verify':
+                snapshot = saved_snapshot()
+                assert (await resolve(client.snapshot_status(snapshot.owner))).released
+                await resolve(client.release_snapshot(snapshot))
+                original = m.Reference.restore((root / 'original.json').read_text())
+                assert (await resolve(client.inspect(original))).commit.affected == 9
+                loaded = await resolve(client.load(m.SavedIntent.restore((root / 'intent.json').read_text())))
+                assert loaded.operation == original.operation
+                assert (await resolve(client.lookup(name))).basis.object_id == object_id-1
+                listing = await resolve(client.tables())
+                assert listing.consistency == 'independent'
+                write(dict(recovered=True))
+            else: raise AssertionError(f'Unknown proof phase: {command}')
     finally:
+        await resolve(query.close())
         await resolve(client.close())
     print(json.dumps(dict(closed=True)), flush=True)
 

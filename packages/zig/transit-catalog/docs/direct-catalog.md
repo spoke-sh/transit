@@ -52,8 +52,26 @@ use decimal strings and commitments use lowercase hex. Conversion performs no
 I/O and validates the corresponding direct owner type. Allocate foreign values
 in a request arena; returned strings and partial allocations belong to it.
 The [host value contract](../../../../contracts/DIRECT_TABLE_V1.md) and generated
-schemas define these representations. General Table SDK/ABI dispatch still
-requires migration to the direct caller.
+schemas define these representations. The general catalog ABI and native port
+dispatch these shared actions directly. Language wrappers use the same generated
+contract; each installed language still requires its consumer qualification.
+
+`DirectCatalogRetention` exposes explicit exact snapshot acquisition, owner
+status, retained metadata and release. Save the acquisition's mandatory
+definition, complete connection, stable object, operation and expected position
+before dispatch. A lost acquisition reply is resolved through its original owner,
+not a new pin. Status labels the Table's **current** interpretation and position
+separately from the recovered snapshot. Reading that snapshot returns its original
+accepted position, stored interpretation and schema under current rights,
+including after Table retirement and name reuse. This proves accepted historical
+metadata through retained evidence; an arbitrary staged declaration is not an
+accepted historical definition.
+
+Release names the original snapshot owner and immutable content. Uncertain
+release retains that same reference for inspection or exact retry. Destroying a
+local handle releases no durable pin. These operations neither opt into expiry
+nor claim physical reclamation. Each action makes one bounded public request and
+does not replace the session's loaded Table work.
 
 `DirectTableBridge.Session` uses those values for SQL compilation and explicit
 saved-work recovery. Serialize access to the handle and persist the returned

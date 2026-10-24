@@ -139,7 +139,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 55,
+        "try": 56,
         "catch": 46
       },
       "imports": [
@@ -2125,13 +2125,14 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "catalogInputFailure()": "<inferred>",
         "main()": "<inferred>",
         "process()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 34,
+        "try": 35,
         "catch": 3
       },
       "imports": [
@@ -3510,6 +3511,45 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectCatalogRetention.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidTableResponse": 2
+      },
+      "outcomes": {
+        "Action": [
+          "acquire",
+          "status",
+          "metadata",
+          "release"
+        ],
+        "Result": [
+          "acquired",
+          "status",
+          "metadata",
+          "released"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Owner.check()": "<inferred>",
+        "Owner.copy()": "<inferred>",
+        "Owner.identity()": "<inferred>",
+        "Snapshot.foreign()": "<inferred>",
+        "Snapshot.native()": "<inferred>",
+        "apply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 43,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
         "CatalogHistoryMissing": 7,
@@ -3915,6 +3955,7 @@
           "administration",
           "dependencies",
           "resources",
+          "retention",
           "lookup",
           "compile",
           "load",
@@ -3939,6 +3980,7 @@
           "administration",
           "dependencies",
           "resources",
+          "retention",
           "metadata",
           "compiled",
           "loaded",
@@ -3975,7 +4017,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 49,
         "catch": 1
       },
       "imports": [
@@ -4025,7 +4067,7 @@
       "open_error_set_uses": 3,
       "propagation": {
         "try": 10,
-        "catch": 8
+        "catch": 9
       },
       "imports": [
         "CallerCodes.zig",
@@ -6073,6 +6115,7 @@
         "DirectCatalogDependencies.zig",
         "DirectCatalogInspection.zig",
         "DirectCatalogResources.zig",
+        "DirectCatalogRetention.zig",
         "DirectDependency.zig",
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",
@@ -13626,7 +13669,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029\""
+          "@\"a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347\""
         ],
         "Effect.phase": [
           "pending",
@@ -14293,6 +14336,7 @@
         "InvalidQueryUpload": 1,
         "InvalidRelationalExchange": 1,
         "InvalidRelationalHistory": 1,
+        "InvalidRelationalRecovery": 1,
         "InvalidRelationalRouting": 1,
         "InvalidRelationalSourceOrder": 1,
         "InvalidRelationalSpill": 1,
@@ -14335,12 +14379,15 @@
         "RelationalExchangeClosed": 1,
         "RelationalExchangeConflict": 1,
         "RelationalExchangePending": 1,
+        "RelationalRecoveryRequired": 1,
+        "RelationalRecoverySyncFailed": 1,
         "RelationalResidentBudget": 1,
         "RelationalResultBudget": 1,
         "RelationalSourceChanged": 1,
         "RelationalSpillBudget": 1,
         "RelationalSpillWorkBudget": 1,
         "RelationalWorkBudget": 1,
+        "RelationalWorkspaceInUse": 1,
         "ResourceReadBatchUnavailable": 1,
         "ResultUnavailable": 1,
         "SourceDefinitionTooLarge": 1,
@@ -15435,11 +15482,12 @@
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidQueryCursor": 6,
-        "InvalidQueryRequest": 4,
+        "InvalidQueryRequest": 6,
         "InvalidQuerySchema": 1,
         "InvalidRelationalBudgets": 1,
-        "InvalidRelationalSources": 2,
+        "InvalidRelationalSources": 3,
         "QueryIdentityMismatch": 8,
+        "RelationalCallerChanged": 2,
         "RelationalResidentBudget": 1,
         "UnsupportedRelationalConsistency": 1
       },
@@ -15478,8 +15526,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 56,
-        "catch": 20
+        "try": 58,
+        "catch": 22
       },
       "imports": [
         "root.zig",
@@ -15533,7 +15581,8 @@
     },
     "packages/zig/transit-query/src/RelationalCaller.zig": {
       "errors": {
-        "InvalidRelationalSources": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidRelationalSources": 3,
         "RelationalCallerChanged": 1
       },
       "outcomes": {
@@ -15556,7 +15605,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 12,
-        "catch": 4
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -16385,6 +16434,77 @@
       },
       "imports": [
         "TableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalWorkspace.zig": {
+      "errors": {
+        "FileNotFound": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidQueryCursor": 2,
+        "InvalidQueryRequest": 4,
+        "InvalidRelationalRecovery": 15,
+        "InvalidRelationalSources": 2,
+        "QueryIdentityMismatch": 5,
+        "RelationalCallerChanged": 1,
+        "RelationalRecoveryRequired": 1,
+        "RelationalRecoverySyncFailed": 1,
+        "RelationalSourceChanged": 1,
+        "RelationalWorkspaceInUse": 1
+      },
+      "outcomes": {
+        "Action": [
+          "capabilities",
+          "explain",
+          "open",
+          "page",
+          "close"
+        ],
+        "Record.state": [
+          "acquiring",
+          "active",
+          "closing",
+          "closed"
+        ],
+        "Recovery.state": [
+          "acquiring",
+          "active",
+          "closing"
+        ],
+        "Request": [
+          "describe",
+          "query",
+          "recover"
+        ],
+        "Response": [
+          "description",
+          "query",
+          "recovered"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "acquire()": "<inferred>",
+        "apply()": "<inferred>",
+        "applyStructured()": "<inferred>",
+        "clientFor()": "<inferred>",
+        "closeRecord()": "<inferred>",
+        "create()": "<inferred>",
+        "nonce()": "<inferred>",
+        "open()": "<inferred>",
+        "prepare()": "<inferred>",
+        "read()": "<inferred>",
+        "sameInput()": "<inferred>",
+        "validate()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 65,
+        "catch": 6
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -17958,6 +18078,7 @@
         "RelationalSpill.zig",
         "RelationalState.zig",
         "RelationalTables.zig",
+        "RelationalWorkspace.zig",
         "ResultDisclosure.zig",
         "RuntimeWitness.zig",
         "SavedSubmission.zig",
@@ -22244,39 +22365,22 @@
     },
     "packages/zig/transit-station-bindings/src/CatalogAbi.zig": {
       "errors": {
-        "AccessDenied": 1,
-        "CatalogConfigurationChanged": 1,
-        "CatalogCursorChanged": 1,
-        "CatalogDenied": 1,
-        "CatalogIdentityConflict": 1,
-        "CatalogNotInitialized": 1,
-        "CatalogOwnerChanged": 1,
-        "CatalogOwnerUnavailable": 1,
-        "CatalogPolicyConflict": 1,
-        "CatalogScopeChanged": 1,
-        "CatalogSourceChanged": 1,
-        "Conflict": 2,
+        "IncompatibleDefinition": 1,
         "InvalidCatalogPrepared": 1,
-        "OutOfMemory": 2,
-        "Rejected": 2,
-        "ResourceUnavailable": 1,
-        "TableIntentNotLoaded": 1
+        "OutOfMemory": 2
       },
       "outcomes": {},
       "error_sets": {},
-      "error_returns": {
-        "apply()": "<inferred>"
-      },
+      "error_returns": {},
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 21
+        "catch": 14
       },
       "imports": [
         "Abi.zig",
         "std",
-        "transit_catalog",
-        "transit_query"
+        "transit_catalog"
       ]
     },
     "packages/zig/transit-station-bindings/src/DocumentBridge.zig": {

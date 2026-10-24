@@ -395,43 +395,88 @@ unified-compound: python-build node-build ruby-build rust-build c-build java-bui
 unified-codecs: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     python3 -B tests/sdk_unified.py
 
-# Installed Python sync/async catalog clients and exact saved command recovery.
-catalog-python: python-build
+# Build matching ReleaseSafe wheels and qualify direct lifecycle and retained SQL.
+direct-catalog-python:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_python.py .cache/bindings/wheels transit-native-client transit-native-station transit-client transit-station
+    zig build test-direct-catalog-python -Doptimize=ReleaseSafe
+
+# Build matching ReleaseSafe packages and qualify the TypeScript direct caller.
+direct-catalog-node:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_node.py .cache/bindings/node transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-node -Doptimize=ReleaseSafe
+
+# Installed Python sync/async direct catalog and exact saved-operation recovery.
+catalog-python: direct-catalog-python
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
-    just test::typed-tables --cold --sdk python
 
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
-catalog-node: node-build node-check
-    just test::typed-tables --cold --sdk node
+catalog-node: node-check direct-catalog-node
+
+# Build matching ReleaseSafe crates and qualify installed Rust direct recovery.
+direct-catalog-rust:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_rust.py .cache/bindings/rust transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-rust -Doptimize=ReleaseSafe
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
-catalog-rust: rust-build
+catalog-rust: direct-catalog-rust
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
-    just test::typed-tables --cold --sdk rust
+
+# Build matching ReleaseSafe gems and qualify the Ruby direct caller.
+direct-catalog-ruby:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_ruby.py .cache/bindings/ruby transit-native-client transit-client transit-native-station transit-station
+    zig build test-direct-catalog-ruby -Doptimize=ReleaseSafe
 
 # Installed Ruby catalog caller with immutable values and joined worker ownership.
-catalog-ruby: ruby-build
+catalog-ruby: direct-catalog-ruby
     ruby -c sdks/ruby/transit-station/lib/transit/station/catalog_values.rb
     ruby -c sdks/ruby/transit-station/lib/transit/station/logical.rb
     ruby -c sdks/ruby/transit-station/lib/transit/station/catalog.rb
-    just test::typed-tables --cold --sdk ruby
+
+# Build matching ReleaseSafe prefixes and qualify both direct C/C++ callers.
+direct-catalog-c:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    cd sdks/c/transit-client && zig build -Doptimize=ReleaseSafe
+    cd sdks/c/transit-station && zig build -Doptimize=ReleaseSafe
+    cd sdks/cpp/transit-station-sdk && zig build check -Doptimize=ReleaseSafe
+    cd examples/station-sdk/c && zig build -Doptimize=ReleaseSafe
+    cd examples/station-sdk/cpp && zig build -Doptimize=ReleaseSafe
+    python3 -B bindings/build_c.py .cache/bindings/c
+    zig build test-direct-catalog-c -Doptimize=ReleaseSafe
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
-catalog-c: c-build
-    just test::typed-tables --cold --sdk c --sdk cpp
+catalog-c: direct-catalog-c
+
+# Build matching ReleaseSafe JARs and qualify Java direct lifecycle recovery.
+direct-catalog-java:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_java.py .cache/bindings/java transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-java -Doptimize=ReleaseSafe
 
 # Installed Java catalog futures, generated port validation and owned recovery.
-catalog-java: java-build
-    just test::typed-tables --cold --sdk java
+catalog-java: direct-catalog-java
+
+# Build matching ReleaseSafe NuGet packages and qualify direct lifecycle recovery.
+direct-catalog-dotnet:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_dotnet.py .cache/bindings/dotnet transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-dotnet -Doptimize=ReleaseSafe
 
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
-catalog-dotnet: dotnet-build
-    just test::typed-tables --cold --sdk dotnet
+catalog-dotnet: direct-catalog-dotnet
+
+# Build matching ReleaseSafe OTP artifacts and qualify both direct callers.
+direct-catalog-beam:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_beam.py .cache/bindings/beam transit-native-client transit-client transit-client-elixir transit-native-station transit-station-sdk transit-station-elixir
+    zig build test-direct-catalog-beam -Doptimize=ReleaseSafe
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
-catalog-beam: beam-build
+catalog-beam: direct-catalog-beam
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
-    just test::typed-tables --cold --sdk erlang --sdk elixir
 
 # Compile and run the public Zig SDK and a separately built application.
 zig-test:

@@ -6,6 +6,8 @@ const q = @import("root.zig");
 const f = q.fuze;
 const r = f.Relational;
 const v = q.catalog.TableValues;
+const h = q.catalog.DirectTableValues;
+const c = q.catalog;
 const Allocator = std.mem.Allocator;
 pub const Options = struct {
     consistency: q.RelationalTables.Consistency,
@@ -17,8 +19,8 @@ pub const Options = struct {
     source_pins: u8,
     requests: []const u8,
     spill_work: []const u8,
-    pub fn native(self: Options) !q.RelationalQuery.Options {
-        const result: q.RelationalQuery.Options = .{ .consistency = self.consistency, .budgets = .{
+    pub fn native(self: Options) !q.DirectRelationalQuery.Options {
+        const result: q.DirectRelationalQuery.Options = .{ .consistency = self.consistency, .budgets = .{
             .resident_bytes = try v.unsigned(self.resident_bytes),
             .spill_bytes = try v.unsigned(self.spill_bytes),
             .result_bytes = try v.unsigned(self.result_bytes),
@@ -26,25 +28,34 @@ pub const Options = struct {
             .work_steps = try v.unsigned(self.work_steps),
             .source_pins = self.source_pins,
         }, .requests = try v.unsigned(self.requests), .spill_work = try v.unsigned(self.spill_work) };
-        if (result.consistency != .per_resource_snapshot_vector) return error.UnsupportedRelationalConsistency;
-        if (result.budgets.resident_bytes <= q.RelationalQuery.resident_base or result.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
+        if (result.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
+        if (result.budgets.resident_bytes <= q.DirectRelationalQuery.resident_base or result.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
         if (result.budgets.result_bytes == 0 or result.budgets.output_rows == 0 or result.budgets.work_steps == 0 or result.requests == 0 or result.spill_work == 0 or self.source_pins == 0 or self.source_pins > r.max_sources) return error.InvalidRelationalBudgets;
         return result;
     }
 };
 pub const Config = struct {
-    catalogs: []const v.Connection,
+    definition: q.protocol.Growth.Definition,
+    catalogs: []const h.Connection,
+    service_url: ?[]const u8 = null,
     options: Options,
     spill_directory: []const u8,
     pub const json_schema_sequence_bounds = .{ .catalogs = r.max_sources };
 };
 pub const Statement = struct {
+    namespace: u64 = 1,
     sql: []const u8,
     /// Configured catalog indices, one per FROM/JOIN target in SQL order.
     routes: []const u16,
     pub const json_schema_sequence_bounds = .{ .routes = r.max_sources };
 };
-pub const Open = struct { id: []const u8, statement: Statement };
+pub const Open = struct {
+    id: []const u8,
+    statement: Statement,
+    bindings: []const h.PreparedBinding,
+    snapshots: []const c.DirectCatalogRetention.Snapshot,
+    pub const json_schema_sequence_bounds = .{ .bindings = r.max_sources, .snapshots = r.max_sources };
+};
 pub const Reference = struct { definition: q.protocol.Growth.Definition, id: []const u8, plan: []const u8, basis: []const u8 };
 pub const Action = union(enum) {
     capabilities,
@@ -61,10 +72,10 @@ pub const Capabilities = struct {
     interactive: bool = true,
     captured: bool = false,
     maintained: bool = false,
-    consistency: q.RelationalTables.Consistency = .per_resource_snapshot_vector,
+    consistency: q.RelationalTables.Consistency = .independent_table_snapshots,
 };
-pub const Source = struct { alias: []const u8, realm: u64, resource: u64, catalog: []const u8, owner: u64, object: []const u8, schema: []const u8 };
-pub const Cut = struct { resource: u64, revision: u64, commitment: []const u8, schema: []const u8 };
+pub const Source = struct { alias: []const u8, binding: h.PreparedBinding, position: h.Position };
+pub const Cut = struct { object: h.Object, position: h.Position, commitment: []const u8, schema: []const u8 };
 pub const Description = struct {
     definition: q.protocol.Growth.Definition = q.protocol.Growth.current_definition,
     plan: []const u8,
@@ -102,10 +113,10 @@ fn id(text: []const u8) ![16]u8 {
     if (std.mem.allEqual(u8, &result, 0)) return error.InvalidQueryRequest;
     return result;
 }
-fn describe(allocator: Allocator, plan: r.Plan) !Description {
+fn describe(allocator: Allocator, plan: r.Plan, bindings: []const c.DirectTableBinding, positions: []const q.protocol.DataLifecycle.Position) !Description {
     var fields: [r.max_outputs]f.Types.Field = undefined;
     const sources = try allocator.alloc(Source, plan.sources.len);
-    for (sources, plan.sources) |*out, source| out.* = .{ .alias = try allocator.dupe(u8, source.alias), .realm = source.realm, .resource = source.resource, .catalog = try v.decimal(allocator, source.catalog), .owner = source.owner, .object = try v.decimal(allocator, source.schema.object), .schema = try v.hex(allocator, &try source.schema.fingerprint()) };
+    for (sources, plan.sources, bindings, positions) |*out, source, binding, position| out.* = .{ .alias = try allocator.dupe(u8, source.alias), .binding = try h.PreparedBinding.foreign(allocator, binding), .position = try h.Position.foreign(allocator, position) };
     var grouped = plan.group_by.len != 0;
     for (plan.outputs) |output| if (output.expression != .column) {
         grouped = true;
@@ -131,11 +142,13 @@ pub const Session = struct {
     allocator: Allocator,
     io: std.Io,
     directory: std.Io.Dir,
-    clients: []const *q.catalog.TableClient,
-    options: q.RelationalQuery.Options,
+    clients: []const c.DirectTableClient,
+    options: q.DirectRelationalQuery.Options,
     closed: ?struct { id: [16]u8, plan: [32]u8, basis: [32]u8 } = null,
     active: ?struct {
-        query: *q.RelationalQuery,
+        query: *q.DirectRelationalQuery,
+        bindings: [r.max_sources]c.DirectTableBinding,
+        positions: [r.max_sources]q.protocol.DataLifecycle.Position,
         id: [16]u8,
         input: [32]u8,
         plan: [32]u8,
@@ -157,14 +170,16 @@ pub const Session = struct {
         return .{ .opened = try self.opened(allocator), .ordinal = try v.decimal(allocator, active.ordinal), .read = active.read };
     }
     fn opened(self: *Session, allocator: Allocator) !Opened {
-        const query = (self.active orelse return error.InvalidQueryCursor).query;
+        const active = self.active orelse return error.InvalidQueryCursor;
+        const query = active.query;
         try query.tables.validate(query.execution.bound);
         const cuts = try allocator.alloc(Cut, query.execution.bound.cuts.len);
-        for (cuts, query.execution.bound.cuts) |*out, cut| out.* = .{ .resource = cut.resource, .revision = cut.revision, .commitment = try v.hex(allocator, &cut.commitment), .schema = try v.hex(allocator, &cut.schema) };
-        return .{ .reference = try self.reference(allocator), .description = try describe(allocator, query.execution.bound.plan), .cuts = cuts };
+        for (cuts, query.execution.bound.cuts, active.bindings[0..cuts.len], active.positions[0..cuts.len]) |*out, cut, binding, position| out.* = .{ .object = try h.Object.foreign(allocator, binding.interpretation.interpretation.object), .position = try h.Position.foreign(allocator, position), .commitment = try v.hex(allocator, &cut.commitment), .schema = try v.hex(allocator, &cut.schema) };
+        return .{ .reference = try self.reference(allocator), .description = try describe(allocator, query.execution.bound.plan, active.bindings[0..cuts.len], active.positions[0..cuts.len]), .cuts = cuts };
     }
-    fn selected(self: *Session, statement: Statement, storage: *[r.max_sources]*q.catalog.TableClient) ![]const *q.catalog.TableClient {
+    fn selected(self: *Session, statement: Statement, storage: *[r.max_sources]c.DirectTableClient) ![]const c.DirectTableClient {
         if (self.clients.len == 0 or self.clients.len > r.max_sources or statement.routes.len == 0 or statement.routes.len > r.max_sources) return error.InvalidRelationalSources;
+        try c.Model.nativeId(statement.namespace);
         for (statement.routes, 0..) |route, i| {
             if (route >= self.clients.len) return error.InvalidRelationalSources;
             storage[i] = self.clients[route];
@@ -208,42 +223,46 @@ pub const Session = struct {
         detail.text(.source_key, .execution, keys) catch {};
     }
     pub fn apply(self: *Session, allocator: Allocator, action: Action, location: ?*f.Sql.Location) !Result {
-        var routes: [r.max_sources]*q.catalog.TableClient = undefined;
+        var routes: [r.max_sources]c.DirectTableClient = undefined;
         switch (action) {
             .capabilities => return .{ .capabilities = .{} },
             .explain => |statement| {
-                const compilation = try q.RelationalCompilation.prepare(self.allocator, try self.selected(statement, &routes), statement.sql, .interactive, self.options, location);
+                const compilation = try q.DirectRelationalCompilation.prepare(self.allocator, try self.selected(statement, &routes), statement.namespace, statement.sql, .interactive, self.options, location);
                 defer compilation.deinit();
-                return .{ .explained = try describe(allocator, compilation.plan) };
+                return .{ .explained = try describe(allocator, compilation.plan, compilation.bindings[0..compilation.plan.sources.len], compilation.positions[0..compilation.plan.sources.len]) };
             },
             .open => |input| {
                 const nonce = try id(input.id);
                 const clients = try self.selected(input.statement, &routes);
+                if (input.bindings.len != clients.len or input.snapshots.len != clients.len) return error.InvalidRelationalSources;
+                var bindings: [r.max_sources]c.DirectTableBinding = undefined;
+                var snapshots: [r.max_sources]c.DirectTableProtocol.Snapshot = undefined;
+                for (input.bindings, input.snapshots, clients, 0..) |binding, snapshot, client, i| {
+                    if (!std.meta.eql(client.connection, clients[0].connection) or client.service != clients[0].service or client.authority != clients[0].authority) return error.RelationalCallerChanged;
+                    bindings[i] = binding.native() catch return error.InvalidQueryRequest;
+                    snapshots[i] = snapshot.native(client.connection) catch return error.InvalidQueryRequest;
+                    if (!std.meta.eql(bindings[i].connection, client.connection)) return error.RelationalCallerChanged;
+                }
+                var temporary = std.heap.ArenaAllocator.init(self.allocator);
+                defer temporary.deinit();
+                const encoded = try q.protocol.Json.valueAlloc(temporary.allocator(), input);
                 var hasher = std.crypto.hash.sha2.Sha256.init(.{});
-                hasher.update("transit.relational.caller.v1\x00");
-                hasher.update(&.{@intCast(input.statement.routes.len)});
-                for (input.statement.routes) |route| hasher.update(&.{@intCast(route)});
-                hasher.update(input.statement.sql);
+                hasher.update("transit.direct.relational.caller.v1\x00");
+                hasher.update(encoded);
                 const fingerprint = hasher.finalResult();
                 if (self.active) |active| {
                     if (!std.mem.eql(u8, &active.id, &nonce) or !std.mem.eql(u8, &active.input, &fingerprint)) return error.QueryIdentityMismatch;
                 } else {
                     if (self.closed) |previous| if (std.mem.eql(u8, &previous.id, &nonce)) return error.QueryIdentityMismatch;
-                    var nonces: [r.max_sources][16]u8 = undefined;
-                    for (&nonces, 0..) |*value, i| {
-                        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-                        hash.update("transit.relational.caller.pin.v1\x00");
-                        hash.update(&nonce);
-                        hash.update(&.{@intCast(i)});
-                        value.* = hash.finalResult()[0..16].*;
-                    }
+                    const prepared = try q.DirectRelationalCompilation.fromRetained(self.allocator, clients[0], input.statement.namespace, input.statement.sql, bindings[0..clients.len], snapshots[0..clients.len], self.options, location);
+                    defer prepared.deinit();
                     // The spill owner creates an exclusive private file and
                     // immediately unlinks it. Names never become recovery state.
                     var name: [64]u8 = undefined;
                     const filename = try std.fmt.bufPrint(&name, "transit-relational-{s}", .{input.id});
-                    const query = try q.RelationalQuery.open(self.allocator, self.io, self.directory, filename, clients, input.statement.sql, nonces, self.options, null, location);
+                    const query = try q.DirectRelationalQuery.openPreparedRetained(self.allocator, self.io, self.directory, filename, clients[0], prepared, snapshots[0..clients.len], self.options, null);
                     errdefer query.deinit();
-                    self.active = .{ .query = query, .id = nonce, .input = fingerprint, .plan = try query.execution.bound.plan.fingerprint(), .basis = try query.execution.bound.fingerprint() };
+                    self.active = .{ .query = query, .bindings = prepared.bindings, .positions = prepared.positions, .id = nonce, .input = fingerprint, .plan = try query.execution.bound.plan.fingerprint(), .basis = try query.execution.bound.fingerprint() };
                 }
                 return .{ .opened = try self.opened(allocator) };
             },
@@ -279,7 +298,7 @@ pub const Session = struct {
                     return .closed;
                 }
                 try self.check(ref);
-                try self.active.?.query.close();
+                self.active.?.query.close();
                 self.closed = .{ .id = self.active.?.id, .plan = self.active.?.plan, .basis = self.active.?.basis };
                 self.deinit();
                 return .closed;
@@ -292,14 +311,14 @@ test "relational neutral options and references reject lossy and foreign input b
     const t = std.testing;
     try t.expectError(error.InvalidQueryRequest, id("ABCDEF00000000000000000000000001"));
     try t.expectError(error.InvalidQueryRequest, id("00000000000000000000000000000000"));
-    const options: Options = .{ .consistency = .per_resource_snapshot_vector, .resident_bytes = "8388608", .spill_bytes = "18446744073709551615", .result_bytes = "1048576", .output_rows = "18446744073709551615", .work_steps = "100000", .source_pins = 2, .requests = "100000", .spill_work = "100000" };
+    const options: Options = .{ .consistency = .independent_table_snapshots, .resident_bytes = "8388608", .spill_bytes = "18446744073709551615", .result_bytes = "1048576", .output_rows = "18446744073709551615", .work_steps = "100000", .source_pins = 2, .requests = "100000", .spill_work = "100000" };
     try t.expectEqual(std.math.maxInt(u64), (try options.native()).budgets.output_rows);
     var invalid = options;
     invalid.output_rows = "01";
     try t.expectError(error.InvalidCatalogInteger, invalid.native());
     var session: Session = .{ .allocator = t.allocator, .io = t.io, .directory = .cwd(), .clients = &.{}, .options = try options.native() };
     defer session.deinit();
-    try t.expectError(error.InvalidRelationalSources, session.apply(t.allocator, .{ .open = .{ .id = "00000000000000000000000000000001", .statement = .{ .sql = "SELECT COUNT(*) FROM t", .routes = &.{0} } } }, null));
+    try t.expectError(error.InvalidRelationalSources, session.apply(t.allocator, .{ .open = .{ .id = "00000000000000000000000000000001", .statement = .{ .sql = "SELECT COUNT(*) FROM t", .routes = &.{0} }, .bindings = &.{}, .snapshots = &.{} } }, null));
 }
 
 test "neutral output keeps full-width bag identity and exact signed and unsigned cells" {

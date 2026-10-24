@@ -755,7 +755,7 @@ impl CatalogNative {
         let local = Local::open(directory)?;
         let key = credential_seed(credential)?;
         let bytes = serde_json::to_vec(
-            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout,"table_service_url":service_url}),
+            &json!({"definition":abi::ABI_DEFINITION,"connection":connection.wire(credential.principal()),"timeout_ms":timeout,"service_url":service_url}),
         )
         .map_err(|_| Error::new(ErrorKind::InvalidArgument, "catalog-config"))?;
         let mut pointer = ptr::null_mut();
@@ -777,8 +777,8 @@ impl CatalogNative {
             return Err(Error::new(ErrorKind::IncompatibleNative, "open-catalog"));
         }
         let mut out = Self { local, pointer };
-        let caps = out.call(json!({"capabilities":{}}))?;
-        let caps = field(&caps, "capabilities")?;
+        let caps = out.call(json!({"catalog":{"capabilities":{}}}))?;
+        let caps = field(field(&caps, "catalog")?, "capabilities")?;
         if !crate::catalog::Capabilities::parse(caps)?.supported() {
             return Err(Error::new(
                 ErrorKind::UnsupportedCapability,
@@ -788,7 +788,14 @@ impl CatalogNative {
         Ok(out)
     }
     pub fn call(&mut self, action: Value) -> Result<Value> {
-        let mutation = action.get("submit").is_some();
+        let mutation = action.get("stage").is_some()
+            || action.get("admit").is_some()
+            || action
+                .get("operation")
+                .is_some_and(|v| v["command"] != "inspect")
+            || action
+                .get("retention")
+                .is_some_and(|v| v.get("acquire").is_some() || v.get("release").is_some());
         let bytes = serde_json::to_vec(&action)
             .map_err(|_| Error::new(ErrorKind::InvalidArgument, "catalog-action"))?;
         if bytes.len() > abi::CATALOG_ACTION_BYTES {

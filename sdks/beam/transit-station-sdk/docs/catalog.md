@@ -1,174 +1,107 @@
-# General Table callers
+# Direct Table lifecycle
 
-Serialization charges each converted column, assignment and predicate before
-building the next owned value. Neutral schemas share 2 MiB and actions share
-16 MiB; complete frame admission also counts enclosing fields. Oversized input
-rejects before constructing the complete JSON batch or dispatching native work.
-
-`transit_catalog` exposes authorized schema discovery, typed Table creation,
-mutations, schema evolution and retirement through the shared Zig caller.
-Include `transit_station_sdk/include/transit_catalog.hrl` for immutable public
-records. Provision the catalog host, resource, ownership and grants explicitly;
-a query connection does not enable catalog administration.
+`transit_catalog` exposes typed Table declarations and mutations through the
+shared Zig direct catalog owner. A connection names a catalog scope, audience,
+branch and optional role. Provision these identities and grants explicitly.
+A connection does not allocate a catalog or confer access; namespace selection
+belongs to each operation or lookup.
 
 ```erlang
-{ok, Client} = transit_catalog:open(Config, Credential, Connection),
-Identity = #transit_catalog_identity{operation = Operation, namespace = Namespace},
-{ok, Compiled} = transit_catalog:compile_sql(Client,
-    <<"CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(120), active BOOL)">>,
-    Identity, Object),
-SaveIntent(Compiled#transit_catalog_compiled.saved),
-Reference = (Compiled#transit_catalog_compiled.intent)#transit_catalog_intent.reference,
-{ok, Step} = transit_catalog:next(Client, Reference),
-#transit_catalog_next{kind = send, prepared = Prepared} = Step,
-SavePrepared(Prepared#transit_catalog_prepared.bytes),
-{ok, #transit_admission{position = Position}} = transit_catalog:submit(Client, Prepared),
-SaveReceipt(Position),
-{ok, Progress} = transit_catalog:progress(Client, Reference, Prepared, Position, true).
+Connection = #transit_catalog_connection{scope=Scope, audience=Audience},
+{ok, Client} = transit_catalog:open(Config, Credential, Connection, ServiceUrl),
+{ok, Work} = transit_catalog:compile_sql(Client,
+    <<"CREATE TABLE people (id BIGINT PRIMARY KEY, name VARCHAR(80))">>,
+    #transit_catalog_identity{operation=Operation, namespace=1}, Object),
+{ok, SavedBytes} = transit_catalog:save(Work#transit_catalog_compiled.saved),
+ok = persist_intent(SavedBytes), % Application-owned durable persistence.
+{ok, Original} = transit_catalog:stage(Client, Work#transit_catalog_compiled.intent),
+{ok, ReferenceBytes} = transit_catalog:save(Original),
+ok = persist_reference(ReferenceBytes),
+{ok, Observation} = transit_catalog:admit(Client, Original).
 ```
 
-The persistence functions are application-owned durable writes. This example
-sends one step; continue to a terminal outcome before claiming publication.
-Opening owns a bounded worker and native port, checks matching definitions and
-capabilities, and returns `{ok, Client}` or `{error, #transit_error{}}`.
-`#transit_catalog_connection{owner, scope}` combines a `#transit_process{}` with
-`#transit_catalog_scope{resource, catalog}` in one realm; the credential must match.
-The client selects installed native artifacts unless given an explicit trusted
-host executable. Immutable generated package metadata is retained with the
-client; authorization and source cuts are read through the native caller.
+Opening verifies the matching native definition and catalog capabilities. It
+starts one owned port worker and performs no service initialization. The optional
+service URL selects the direct endpoint; otherwise requests use the configured
+node URL. Credentials must match the scope's realm. Current public policy governs
+each request independently of saved identities and previous observations.
 
-## Schemas and typed operations
+`compile_sql/4` uses the Transit dialect and point ingestion. `compile_sql/6`
+also selects `transit | mysql` and `point | bulk`. Compilation and typed `prepare/4`
+can inspect current metadata but do not admit work. `preview/2` reports the
+current basis, reason and schema work. `stage/2` stores the intent content and
+returns the exact reference to persist before `admit/2`. `execute/3` advances
+admitted work within a positive step budget; `inspect/2` reads its original
+outcome and `cancel/2` requests cancellation. A committed observation carries
+accepted position, resulting definition, matched/affected counts and live rows.
+Admission, preview and preparation do not establish completion.
 
-`#transit_catalog_schema{object, revision, next_column, columns, primary_key}`
-contains one to 128 ordered `#transit_catalog_column{}` values. Columns carry a
-stable positive ID, UTF-8 name, [logical descriptor](logical.md), nullability,
-optional default cell and optional character limit. Nullability defaults to true;
-`default` and `max_characters` default to `undefined`. Primary keys default to an
-empty list; unkeyed Tables preserve duplicate rows with internal row identities.
-Explicit single/composite keys reference column IDs. Shared Zig validates schema,
-key, default and nullability semantics.
+## Typed values and definitions
 
-Catalog, object, column, operation, staging namespace and revision identities are
-exact positive uint64 integers. Native process/resource/principal/input IDs keep
-their separate safe-integer bounds. Names permit at most 255 UTF-8 bytes and SQL
-at most 4096 bytes. There is no physical key/value Table ID argument.
+Include `transit_catalog.hrl` for public records. `lookup/2` selects namespace 1;
+`lookup/3` selects an explicit namespace. Metadata contains a complete basis,
+authorization identity, accepted position, changed position, row count and schema.
+The basis preserves connection, principal, namespace, name, stable object, branch,
+immutable definition, content commitment and schema fingerprint. ALTER, RENAME,
+DROP and typed mutations use it without resolving a replacement object under an
+old name.
 
-`compile_sql(Client, Sql, Identity, CreateObject)` binds SQL through the authorized
-catalog and returns `#transit_catalog_compiled{intent, saved}`. Supply an object ID
-for CREATE; the three-argument form omits it. Compilation admits no work.
-`prepare(Client, Name, Identity, Operation)` exposes the same semantics through
-language-native operation tuples:
+Schemas own stable column IDs, primary-key IDs and logical types. `encoding` and
+`collation` remain orthogonal to the logical descriptor. Physical fields are
+mandatory on the wire; missing or foreign tags reject. Shared Zig validation
+owns supported conversions, collations and execution semantics. INSERT accepts
+up to 1,024 rows, schemas up to 128 columns, and predicates up to 64 postfix
+instructions. Logical values include exact decimals and recursive structures,
+unions, lists, arrays, maps and missing/null/error/conflict cells. Aggregate
+conversion bounds apply before later values are encoded. Application-owned
+handler Tables reuse these codecs with their separate native turn semantics.
 
-- `{create, Schema, IfNotExists}`.
-- `{mutate, Basis, {insert, Rows}}`.
-- `{mutate, Basis, {update, Assignments, Predicate}}` or
-  `{mutate, Basis, {delete, Predicate}}`.
-- `{alter, Basis, Change}`.
-- `{rename, Basis, NewName}` or `{drop, BasisOrUndefined, IfExists}`.
+The mutation form is `{mutate, Basis, Mutation, point | bulk}`. Names are bounded
+to 255 UTF-8 bytes; SQL to 4,096 bytes. Catalog, object, branch, operation,
+definition and accepted-position identities preserve full-width unsigned 64-bit
+values. Namespace, audience, role and native resource IDs retain native counter
+bounds. `capabilities/1` exposes the current intent/action limits.
 
-Obtain the immutable object/revision/fingerprint `#transit_catalog_basis{}` using
-`basis(Metadata)` from a looked-up definition. A stale basis rejects without
-retargeting work. Rows contain `#transit_catalog_assignment{column, value}`;
-values are logical cells or the atom `default`. INSERT accepts one to 1024 rows
-of at most 128 assignments each. UPDATE/DELETE predicates are `undefined` for all
-rows or a postfix list of at most 64 instructions: `all`, `negate`, `conjunction`,
-`disjunction`, `{state, ColumnId, CellState}` or
-`{compare, ColumnId, eq | ne | lt | le | gt | ge, LogicalAtom}`.
+## Saved recovery and retention
 
-ALTER changes are `{add, Name, Type, Nullable, DefaultOrUndefined,
-MaxCharactersOrUndefined, Encoding, Collation}`, `{drop, ColumnId}`, `{rename, ColumnId, Name}`,
-`{default, ColumnId, CellOrUndefined}`, `{nullable, ColumnId, Boolean}` or
-`{type, ColumnId, Descriptor, MaxCharactersOrUndefined}` or
-`{physical, ColumnId, Encoding, Collation}`. Column records default to `plain`
-encoding and `none` collation; wire schemas require both fields explicitly. Shared Zig owns predicate
-validation, frozen selection, exact conversion and atomic publication.
+`save/1` returns `{ok, Bytes}` for a basis, saved intent, reference, cursor,
+snapshot owner, acquisition or snapshot. `restore/2` takes its explicit kind:
+`basis`, `intent`, `reference`, `cursor`, `snapshot_owner`,
+`snapshot_acquisition` or `snapshot`. Restore validates the current definition,
+generated contract, complete binding and bounded JSON; duplicate members reject.
+`load/2` restores original saved work locally without recompiling SQL. `forget/2`
+releases loaded local work.
 
-## Progression and recovery
+Mutations can return `{uncertain, Original, Error}`. `Original` preserves the
+saved intent for staging, operation reference for admission/execution/cancellation,
+acquisition for pinning, or snapshot for release. Preserve it and inspect that
+same identity after loss. Malformed success replies retain uncertainty. Definite
+failures remain `{error, Error}`. There is no implicit retry or replacement
+operation identity, and caller closure does not cancel accepted work.
 
-A client owns at most one resident intent. Persist both mandatory fields of
-`#transit_catalog_saved_intent{definition, bytes}` before any send. Restore with
-`load(Client, Saved)`; missing/foreign definitions reject. `forget(Client, Ref)`
-releases only local intent ownership and does not cancel accepted work. Complete
-saved intents are bounded to 4,327,031 bytes, action JSON to 16 MiB and prepared
-commands to 8192 bytes. Catalog frames use their declared size and 96-level JSON
-nesting bound; raw clients retain their smaller limits.
+`prepare_snapshot/3` binds metadata's accepted position to an explicit owner
+operation. Persist the acquisition before `acquire_snapshot/2`; resolve an
+uncertain acquisition with `snapshot_status/2` on its original owner. Persist the
+returned snapshot before use or release. `snapshot_metadata/2` reads the retained
+definition after ALTER, DROP or name reuse under current access. Uncertain
+`release_snapshot/2` retains its original snapshot; owner status resolves it,
+and repeated original release is idempotent. Client closure does not release
+pins or authorize expiry or physical deletion. This catalog API exposes retained
+metadata, without an interactive relational SQL cursor.
 
-`next` returns `#transit_catalog_next{kind, prepared, outcome}` with kind `send`,
-`running`, `terminal` or `upload_cancelled`. Save exact prepared bytes before
-`submit` and the admitted position after receiving it. `observe(Client, Prepared,
-Position, true)` waits for processing. `progress(Client, Ref, Prepared, Position,
-true)` returns separate observation, disposition, outcome and upload state; omit
-the final boolean for a single observation. Processed input and sealed upload
-alone do not establish application. `status(Client, Ref)` reads
-`#transit_catalog_state{outcome, upload}` without sending a command.
+## Inspection and worker ownership
 
-Terminal phases are `applied`, `unchanged`, `rejected` and `cancelled`. Only applied
-INSERT/UPDATE/DELETE carry `#transit_catalog_counts{matched, changed}`. Unchanged
-values can produce one matched row and zero changed rows. Original outcomes stay
-bound to their saved object/operation through ALTER, DROP and name reuse. Current
-rights still gate diagnostic disclosure. Diagnostic maps retain owned evidence.
+`describe/1` separates configuration, authenticated subject and current policy
+revision. `namespace/2`, `namespaces/1,2` and `tables/1,2,3` inspect current
+namespace and Table entries. Pages contain at most eight entries. Continue with
+the returned complete cursor; a changed directory cut fails and requires a new
+listing. Table entries carry independent accepted positions and report
+`consistency=independent`. Saved cursors and authorization IDs grant no rights.
+Namespace administration, dependency controls and named KV/Document declarations
+use their owning public operations; this typed adapter does not expose them.
 
-`prepare_resume(Client, Ref)` and `prepare_control(Client, Ref, Control)` prepare
-explicit signed commands. Controls are `cancel_operation`, `cleanup_operation`,
-`cancel_upload` and `collect_upload`. Their meaning depends on durable state;
-cleanup does not erase retained accepted evidence.
-
-Submission may return `{uncertain, OriginalPrepared, Error}`. Retain and reconcile
-those exact original bytes with the original connection and credential. Do not
-recompile, re-sign or replace the intent. Malformed successful receipts, response
-loss and worker loss preserve uncertainty. Definite native rejections retain their
-kind, status, code and diagnostic. The client performs no automatic submission
-retry. A waiting process's death does not request durable cancellation.
-
-## Controls and discovery
-
-`prepare_initialize` takes a configuration with scope, owner, administrator,
-explicit Table limits, a native authority profile and a database name. The
-profile binds three distinct domains, database/schema objects and the initial
-schema namespace. It does not grant privileges. Administration uses native roles
-and object grants, with CONNECT and USAGE preceding Table privileges.
-
-`prepare_dependency(Client, Dependency, Present)` registers/removes
-`#transit_catalog_dependency{scope, object, identity, owner, kind}`. Kinds are
-`query_source`, `writer`, `watch`, `maintained_relation` and `history`. Registration
-grants no access; DROP RESTRICT retains original blocker evidence.
-`input_disposition(Client, Prepared, Position)` reads control/rejection evidence.
-`describe` returns current configuration, authenticated subject and authorization revision; `capabilities` exposes native
-limits. Undefined evidence proves no outcome.
-
-`lookup(Client, Name)` returns a definition with metadata, current head and schema,
-or `undefined`. `definition(Client, Object, Revision)` returns an accepted
-historical definition with metadata and schema, including after retirement; it
-has no current head. Missing/unaccepted definitions are absent. `list(Client)`
-returns a page with a resource revision, at most eight ordered entries and an
-optional cursor. Continue through empty pages while `next` exists. Restore all
-cursor fields: mandatory definition, scope, resource revision and after-object
-ID. A cursor grants neither authority nor a snapshot lease. A changed cut rejects
-continuation; discard partial results before restarting the listing.
-
-One client admits one job at a time and rejects overlap as `busy`. Requests are
-validated before worker admission. Admitted native work survives the waiting
-process's death and remains owned until joined `close`. OTP processes, Tasks and
-managed fields are not durable recovery storage. Generated schemas and typed
-decoders check fields, identities, canonical integers, budgets and continuations.
-
-The [Table reference](../../../../docs/handbook/reference/tables.md) and
-[catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
-publication and retention. The [proof ledger](../../../../tests/README.md) records
-installed-package and recovery evidence and its limits.
-
-Catalog metadata retains the immutable metadata publication commitment: its
-byte length and 32-byte digest. Missing or malformed commitments are rejected;
-query sources use this evidence with the catalog owner and resolved schema.
-
-Connections select `role` (default `undefined`, the login role) and `namespace`
-(default 1). `open/4` accepts an explicit Table-service URL for mediated reads;
-`open/3` uses direct infrastructure reads. Mediation preserves caller signing
-and keeps private service resource credentials separate.
-
-`#transit_catalog_subject{}` contains principal, login role, selected role,
-credential epoch, audience and an owned 32-byte context. Descriptions check that
-the subject matches the selected connection. Metadata includes its positive
-schema namespace and a commitment bounded to 444 bytes. Lookup/list reject
-foreign namespaces; live definitions also carry the native authorization object.
-Historical definitions require the original object's current disclosure rights.
+Requests are immutable and validated before worker admission. One active native
+operation is allowed per client. Loss of a waiting Erlang process does not
+abandon native work; the worker remains busy until completion. `close/1` joins
+active work and native port cleanup. Returned values own their data and outlive
+the client. Package import does not read credentials or start a worker.

@@ -14,7 +14,7 @@ class Failure(Exception):
 
 
 class Native:
-    def __init__(self, library, url, connection):
+    def __init__(self, library, url, connection=None, *, relational=None, seed_byte=10):
         self.api = api = c.CDLL(str(Path(library).resolve()))
         api.station_unified_query_create.argtypes = [c.c_uint32, c.c_char_p, c.c_size_t, c.c_void_p, c.c_char_p, c.c_size_t, c.POINTER(c.c_void_p)]
         api.station_unified_query_create.restype = c.c_uint32
@@ -30,11 +30,14 @@ class Native:
         api.station_buffer_destroy.restype = None
         self.pointer = c.c_void_p()
         endpoint = url.encode()
-        config = json.dumps(dict(connection=connection, timeout_ms=10000)).encode()
-        seed = c.create_string_buffer(bytes([10])*32, 32)
+        config = json.dumps(dict(connection=connection, relational=relational, timeout_ms=10000)).encode()
+        seed = c.create_string_buffer(bytes([seed_byte])*32, 32)
         status = api.station_unified_query_create(1, endpoint, len(endpoint), seed, config, len(config), c.byref(self.pointer))
         assert status == 0
-        assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        if connection is not None:
+            assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        else:
+            assert self.call({'relational': {'capabilities': {}}})['relational']['capabilities']['interactive']
 
     def call(self, action):
         request = json.dumps(action).encode()
@@ -54,12 +57,15 @@ class Native:
 
 
 class Port:
-    def __init__(self, host, root, url, connection):
+    def __init__(self, host, root, url, connection=None, *, relational=None):
         config = root / 'query-client-port.json'
         config.write_text(json.dumps(dict(url=url, seed_file=str(root / 'caller.seed'),
-            query_client=dict(connection=connection, timeout_ms=10000))))
+            query_client=dict(connection=connection, relational=relational, timeout_ms=10000))))
         self.child = subprocess.Popen([host, str(config)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        if connection is not None:
+            assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        else:
+            assert self.call({'relational': {'capabilities': {}}})['relational']['capabilities']['interactive']
 
     def call(self, action):
         self.child.stdin.write(json.dumps({'unified_query': action})+'\n')

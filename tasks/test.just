@@ -30,6 +30,9 @@ direct-table-service:
 direct-table-callers:
     zig build test-direct-table-callers -Doptimize=ReleaseSafe
 
+direct-catalog-abi:
+    zig build test-direct-catalog-abi -Doptimize=ReleaseSafe
+
 direct-dependencies:
     zig build test-direct-dependencies -Doptimize=ReleaseSafe
 
