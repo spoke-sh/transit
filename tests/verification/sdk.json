@@ -395,30 +395,66 @@
     {
       "id": "catalog-saved-command-recovery",
       "steps": [
-        "Install matching artifacts for all ten SDKs outside the checkout and copy immutable full-width caller values",
-        "Prepare typed initialization and conditional controls; compile and prepare named Table creation",
-        "Lose the creation admission reply, replace caller/node/store and retry original saved bytes",
-        "Observe processing and original creation outcome, then revoke catalog/native disclosure",
-        "Abandon only the local wait in injected or actual owned-host checks; retain busy ownership and join cleanup"
+        "Install matching artifacts outside the checkout and preserve complete full-width saved bindings",
+        "Prepare and stage direct Table work, then lose its acceptance reply without replacing the operation",
+        "Replace caller and node; recover the original mutation and snapshot acquisition through further lost replies",
+        "Check current data denial before first and terminal disclosure, then retain the original schema after DROP",
+        "Lose snapshot release acknowledgement; replace caller and node and recover release with unchanged saved bytes",
+        "Abandon only the local wait in the scoped host checks; retain busy ownership and join cleanup"
       ],
       "expected": {
         "exact_receipt_recovered": true,
         "original_request_preserved": true,
         "revoked_status_denied": true,
-        "uncertain_response_retains_prepared": true,
         "cancelled_await_keeps_owner": true,
         "exclusive_rust_borrows": true,
         "cancelled_ruby_wait_keeps_owner": true,
         "cpp_owners_not_copyable": true,
         "cancelled_java_future_keeps_owner": true,
         "cancelled_dotnet_read_keeps_owner": true,
-        "dead_beam_waiter_keeps_owner": true
+        "dead_beam_waiter_keeps_owner": true,
+        "uncertain_response_retains_original_reference": true
       },
       "proofs": [
         {
           "task": "bindings::catalog-python",
-          "source": "tests/typed_table_native.py",
-          "anchor": "Exact accepted request changed its receipt"
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-node",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-rust",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-ruby",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-c",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-java",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-dotnet",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
+        },
+        {
+          "task": "bindings::catalog-beam",
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'original.json').read_bytes() == original"
         },
         {
           "task": "bindings::catalog-python",
@@ -427,58 +463,43 @@
         },
         {
           "task": "bindings::catalog-node",
-          "source": "tests/typed_table_native.py",
-          "anchor": "Exact accepted request changed its receipt"
-        },
-        {
-          "task": "bindings::catalog-node",
           "source": "sdks/ts/transit-station-sdk/src/catalog.test.ts",
-          "anchor": "unconfirmed catalog response retains exact prepared text"
-        },
-        {
-          "task": "bindings::catalog-rust",
-          "source": "tests/typed_table_native.py",
-          "anchor": "Exact accepted request changed its receipt"
+          "anchor": "a mismatched successful mutation remains uncertain with the original reference"
         },
         {
           "task": "bindings::catalog-rust",
           "source": "sdks/rust/transit-station-sdk/src/catalog.rs",
-          "anchor": "fn malformed_success_and_worker_panic_preserve_admission_uncertainty()"
+          "anchor": "fn direct_saved_bindings_and_strict_json_preserve_originals()"
         },
         {
           "task": "bindings::catalog-rust",
-          "source": "tests/sdk_catalog.py",
+          "source": "tests/direct_sdk_catalog.py",
           "anchor": "use of moved value: `client`"
         },
         {
           "task": "bindings::catalog-ruby",
-          "source": "tests/typed_table_native.py",
-          "anchor": "Exact accepted request changed its receipt"
+          "source": "tests/ruby_catalog_values.rb",
+          "anchor": "mutating dispatch as uncertainty, including replies that claim success."
         },
         {
           "task": "bindings::catalog-ruby",
           "source": "tests/ruby_catalog_values.rb",
-          "anchor": "A real owned child exercises generated response validation and transport loss."
-        },
-        {
-          "task": "bindings::catalog-ruby",
-          "source": "tests/ruby_catalog_values.rb",
-          "anchor": "A cancelled waiting thread must not release the worker's active operation."
+          "anchor": "check(closing.alive? && !reply.closed)"
         },
         {
           "task": "bindings::catalog-c",
-          "source": "tests/sdk_catalog.py",
-          "anchor": "('Client', 'Compiled', 'Prepared', 'SavedIntent')"
+          "source": "tests/direct_sdk_catalog.py",
+          "anchor": "('Client', 'Compiled', 'SavedIntent', 'Reference', 'SnapshotAcquisition', 'Snapshot')"
         },
         {
           "task": "bindings::catalog-c",
-          "source": "tests/typed_table_native.py",
-          "anchor": "Exact accepted request changed its receipt"
+          "source": "tests/c_catalog_values.cpp",
+          "anchor": "assert(!closed)"
         },
         {
           "task": "bindings::catalog-java",
           "source": "tests/JavaCatalogValues.java",
-          "anchor": "Close abandoned active native work"
+          "anchor": "Close abandoned native work"
         },
         {
           "task": "bindings::catalog-dotnet",
@@ -489,14 +510,9 @@
           "task": "bindings::catalog-beam",
           "source": "tests/beam_catalog_values.erl",
           "anchor": "error(abandoned_native_work)"
-        },
-        {
-          "task": "bindings::catalog-c",
-          "source": "tests/c_catalog_values.cpp",
-          "anchor": "assert(!closed)"
         }
       ],
-      "limits": "Actual disk recovery uses the shared catalog host. All ten SDKs run the general Table lifecycle fixture. Python cancellation/malformed-response checks use injected adapters; TypeScript malformed responses use an owned port with an injected host; Rust malformed receipts exercise parser/panic injection; Ruby uses injected wait/allocation adapters plus actual child loss. C/C++ uses a forwarding installed native library to inject malformed replies and block submission while deferred POSIX waiter cancellation preserves ownership and close joins; it does not inject allocator exhaustion or establish durable admission for that boundary schedule. Java and BEAM use actual owned ports with post-handshake injected faults and blocked submissions; .NET uses installed decoder checks and actual native HTTP read cancellation, without admitted-mutation cancellation or allocator injection. Table counts and exact selected artifact identities are recorded in tests/README.md; these schedules do not establish native catalog growth or host power-loss recovery."
+      "limits": "All ten installed SDKs use the signed direct owner and local persistent node. Python sync/async and TypeScript exercise retained SQL; the other callers exercise retained metadata. Python cancellation checks use injected adapters; TypeScript malformed replies use an owned port with an injected host. Rust validates saved bindings and substituted outcomes and checks exclusive borrows at compile time. Ruby uses injected wait/allocation adapters plus actual child loss. C/C++ uses an installed native library with forwarded fault injection and joined POSIX waiter cancellation; it does not inject allocator exhaustion. Java and BEAM use actual owned ports with injected faults and blocked submissions. .NET checks installed decoders and actual native HTTP read cancellation without claiming admitted-mutation cancellation. The proof ledger records executed artifact and request counts. These schedules do not establish provider tiers, host power-loss recovery or general catalog growth."
     },
     {
       "id": "typed-query-failures",
