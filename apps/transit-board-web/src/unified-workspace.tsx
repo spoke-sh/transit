@@ -1,4 +1,4 @@
-import { sourcePositionText } from "@transit/query-client";
+import { sourcePositionText, prepareCapture } from "@transit/query-client";
 import { logicalTypeText } from "@transit/query-client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -470,15 +470,18 @@ export function UnifiedWorkspace({
       if (!("compiled" in response)) throw new BoardError(0, "InvalidResponse");
       if (signal.aborted) return;
       if (binding) unifiedContract(binding, response.compiled);
+      const namespace = freshNamespace();
+      const captured = await prepareCapture(query, response.compiled, namespace, signal);
+      if (signal.aborted) return;
       retained.binding = bindingId;
       retained.follow = false;
       work.current = {
         ...empty(),
-        namespace: freshNamespace(),
+        namespace,
         resultSelected: true,
-        bundle: response.compiled.bundle,
+        bundle: captured.bundle,
       };
-      setCompiled(response.compiled);
+      setCompiled(captured);
       setInspection(null);
       setRunDraft(draft);
       setPage(null);

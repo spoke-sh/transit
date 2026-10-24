@@ -33,6 +33,22 @@ plus a positive `namespace`, `sql`, private `recovery_file` path, and `mode`
 result completion. `read` requires a completed query, verifies every page and
 prints a final `complete_coverage: true` only after full manifest coverage.
 
+A direct Table workspace supplies its exact published source and `executor`,
+the native principal running the capture worker. The Table service and native
+authority share the configured URL. Before a fresh upload, the caller observes
+the current definition and signs a single-use capture for the selected namespace.
+The recovery file saves that bundle before dispatch; reopening it does not select
+a new cut or issue another capture grant. The direct local execution and separate
+caller restart are exercised by:
+
+```sh
+zig build test-direct-captured-query -Doptimize=ReleaseSafe -Ddirect-query-example=true -- --follow-only
+```
+
+This uses the native local persistence owner and separate Table, query-worker and
+requester resources. It does not qualify the older Compose or reference Table
+fixtures, which still require migration to the direct service.
+
 The recovery file atomically preserves one original bundle and exact pending
 signed operation before dispatch. A network error exits with that operation
 intact. Rerunning the same configuration retries identical bytes and observes

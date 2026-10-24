@@ -18,6 +18,7 @@ pub const State = struct {
     source: live.ReactiveModel.Source,
     selection: live.RefreshModel.Selection,
     original: q.TablePosition,
+    workspace: q.Workspace.Config,
 };
 const Hosts = struct {
     source: s.GenServer,
@@ -100,6 +101,31 @@ fn now(io: std.Io) u64 {
 fn query(client: c.DirectTableClient, state: State) q.UnifiedClient {
     return .{ .wire = client.authority, .tables = client, .connection = state.connection, .key = client.key };
 }
+/// Drive only workers/delivery while the separate example process owns its
+/// caller sequence. The example must compile, authorize, save and upload itself.
+pub fn example(init: std.process.Init, client: c.DirectTableClient, admin: anytype, saved: State) !void {
+    var state = saved;
+    for ([_]u64{ state.connection.source, state.connection.requester }, [_]u64{ 103, 104 }) |pid, principal| {
+        const generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = pid } }, try support.key(17))).body.process.process.generation;
+        _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = generation, .worker = principal } });
+        if (principal == 103) state.worker_generation = generation + 1 else state.requester_generation = generation + 1;
+    }
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    var hosts = try Hosts.create(init, client, state, &cancellation);
+    var caller = query(client, state);
+    for (0..10000) |_| {
+        try hosts.step(init.io, admin);
+        if (try caller.status(970)) |status| {
+            if (status.phase == .complete) {
+                _ = try result(init, client, state, 970, 20);
+                for (0..8) |_| try hosts.step(init.io, admin);
+                return;
+            }
+            if (status.phase == .denied or status.phase == .rejected or status.phase == .cancelled) return error.QueryCaptureFailed;
+        }
+    }
+    return error.QueryCapturePending;
+}
 fn mutate(init: std.process.Init, client: c.DirectTableClient, operation: u64, sql: []const u8) !void {
     const lookup = try client.call(.{ .lookup = .{ .namespace = 1, .name = "follow_items" } });
     defer lookup.deinit();
@@ -160,7 +186,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     for ([_]u64{ worker.resource, requester.resource }) |resource| _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 105, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
     var declaration = try q.TableSource.from(init.gpa, client.connection, definition);
     defer declaration.deinit();
-    var state: State = .{ .connection = .{ .realm = 42, .principal = 101, .source = worker.pid, .resource = worker.resource, .requester = requester.pid, .requests = requester.resource }, .worker_generation = worker.generation + 1, .requester_generation = requester.generation + 1, .source = try .from(1, declaration.source), .selection = undefined, .original = undefined };
+    var state: State = .{ .connection = .{ .realm = 42, .principal = 101, .source = worker.pid, .resource = worker.resource, .requester = requester.pid, .requests = requester.resource }, .worker_generation = worker.generation + 1, .requester_generation = requester.generation + 1, .source = try .from(1, declaration.source), .selection = undefined, .original = undefined, .workspace = .{ .name = "follow_items", .source = try q.Values.Source.fromNative(alloc, .{ .resource = client.connection.scope.resource, .source = .{ .table = declaration.source } }), .limits = try q.Values.Limits.fromNative(alloc, limits), .executor = 103 } };
     try t.expect(state.connection.resource != state.source.resource);
     try t.expect(state.connection.source != state.source.audience);
     const cancellation = q.fuze.execution.Cancellation.init(false);
@@ -173,8 +199,24 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     _ = try hosts.control(init, client, admin, state, .{ .publish = .{ .expected = 0, .binding = .{ .revision = 1, .target = worker.pid, .codec = 1, .active_limit = 2, .wait_before_ms = now(init.io) + 300000 } } });
     _ = try hosts.control(init, client, admin, state, .{ .policy = .{ .principal = 101, .expected = 0, .policy = .{ .revision = 1, .reads = true, .commands = true, .active_limit = 2 } } });
     _ = try hosts.control(init, client, admin, state, .{ .reactive = .{ .publish = .{ .expected = 0, .source = state.source } } });
-    const description = try q.Bundle.fromSql(alloc, .{ .resource = state.source.resource, .source = .{ .table = declaration.source } }, "follow_items", "SELECT SUM(value) AS total FROM follow_items", limits);
-    const bundle = try caller.authorizeCapture(description, .{ .executor = 103, .operation = 963, .expected = definition.position });
+    const workspace = state.workspace;
+    caller.tables = try q.Workspace.directTables(alloc, &caller, workspace);
+    const compiled = (try q.Workspace.apply(alloc, &caller, workspace, .{ .compile = .{ .sql = "SELECT SUM(value) AS total FROM follow_items" } })).compiled;
+    const unsigned = try q.Bundle.decode(alloc, try q.Values.unhex(alloc, compiled.bundle, q.Bundle.max_bytes));
+    try t.expect(unsigned.authorization == null and unsigned.retention == null);
+    var unconfigured = workspace;
+    unconfigured.executor = null;
+    const capture: q.Workspace.Request = .{ .capture = .{ .bundle = compiled.bundle, .operation = "963" } };
+    try t.expectError(error.QuerySourceUnavailable, q.Workspace.apply(alloc, &caller, unconfigured, capture));
+    const authorized = (try q.Workspace.apply(alloc, &caller, workspace, capture)).compiled;
+    const bundle = try q.Bundle.decode(alloc, try q.Values.unhex(alloc, authorized.bundle, q.Bundle.max_bytes));
+    try t.expectEqual(.current, bundle.retention.?.binding.selection);
+    try t.expectEqual(@as(u64, 103), bundle.retention.?.binding.executor);
+    try t.expectError(error.QueryAlreadyAuthorized, q.Workspace.apply(alloc, &caller, workspace, .{ .capture = .{ .bundle = authorized.bundle, .operation = "963" } }));
+    const before_upload = try client.call(.{ .pin_status = .{ .object = definition.interpretation.interpretation.object, .owner = bundle.retention.?.binding.owner } });
+    defer before_upload.deinit();
+    try t.expect(before_upload.value.result.pin_state.handle == null);
+    try t.expectEqualDeep(definition.position, before_upload.value.result.pin_state.position);
     try hosts.upload(init, client, admin, state, 1, bundle, false);
     for (0..2000) |_| {
         try hosts.step(init.io, admin);
@@ -182,7 +224,8 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, admin: anyty
     } else return error.QueryCapturePending;
     state.original = try result(init, client, state, 1, 10);
     for ([_]u64{ 2, 3 }) |namespace| {
-        const refresh = try caller.authorizeRefresh(alloc, 1, 962 + namespace);
+        const prepared = (try q.Workspace.apply(alloc, &caller, workspace, .{ .refresh = .{ .template = "1", .operation = try q.document.JsonValues.decimal(alloc, 962 + namespace) } })).compiled;
+        const refresh = try q.Bundle.decode(alloc, try q.Values.unhex(alloc, prepared.bundle, q.Bundle.max_bytes));
         try t.expectEqual(.current, refresh.retention.?.binding.selection);
         try hosts.upload(init, client, admin, state, namespace, refresh, true);
         try t.expectEqual(.prepared, (try caller.status(namespace)).?.phase);

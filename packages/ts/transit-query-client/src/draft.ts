@@ -2,6 +2,7 @@ import { boundedQueryJson } from "./logical";
 import { acquireCaller, type AcquireCaller } from "@transit/reactive-client/caller-gate";
 import type { Diagnostic, Draft, Request, Response } from "./types";
 import { QueryError, type Transport } from "./transport";
+import { prepareCapture } from "./capture";
 import { verifiedPage, type ResultPage } from "./result";
 import { Request as validRequest } from "./validators.js";
 import { validateUnifiedQuery } from "./values";
@@ -654,11 +655,14 @@ export class DraftSession {
         !same(value.compiled.contract, selected.contract)
       )
         throw new QueryError(409, "DraftSourceChanged");
+      const identity = namespace();
+      const captured = await prepareCapture(this.transport, value.compiled, identity);
+      if (!this.enabled || this.latest !== sql) return;
       this.job = {
-        namespace: namespace(),
+        namespace: identity,
         generation: selected.generation,
         sql,
-        compiled: value.compiled,
+        compiled: captured,
         uploading: true,
         started: performance.now(),
         compileMs: performance.now() - start,

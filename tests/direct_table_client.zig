@@ -324,6 +324,8 @@ pub fn main(init: std.process.Init) !void {
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "follow-resume")) {
             try Follow.recover(init, client, &admin, profile.follow.?);
+        } else if (std.mem.eql(u8, args[2], "follow-example")) {
+            try Follow.example(init, client, &admin, profile.follow.?);
         } else if (std.mem.eql(u8, args[2], "capture-prepare")) {
             profile.captured = try Captured.prepare(init, client, &admin, profile.role);
             try save(init, args[3], profile);

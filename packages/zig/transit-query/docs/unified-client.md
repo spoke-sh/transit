@@ -26,7 +26,18 @@ The caller signs a delegation for that exact source, worker, query and pin owner
 then binds the complete request to the native query route. Preparing this grant
 does not acquire a pin. The worker commits acquisition eligibility before
 contacting the Table service. A changed frontier rejects acquisition; recovery
-never substitutes a newer cut.
+never substitutes a newer cut. With `selection = .current`, the frontier instead
+sets a lower bound: the first acquisition chooses one current cut under the exact
+definition and all later retries recover that choice.
+
+Scoped workspaces use `capture {bundle, operation}` for a new finite Table read.
+Configure `Workspace.Config.executor` with the worker principal, then compile,
+authorize capture, save the returned bundle and begin uploading. The workspace
+observes a current lower bound and uses current selection. It rejects an already
+authorized bundle. `Workspace.directTables` constructs the direct client for a
+host whose native and Table services share an endpoint; a host with separate
+endpoints supplies `UnifiedClient.tables` explicitly. Neither helper grants rights.
+Both source/catalog and worker/progress resources retain their distinct identities.
 
 The neutral `authorize` action accepts `{bundle, capture}`. Its capture operation,
 partition and log position are decimal strings; `executor` is a native principal

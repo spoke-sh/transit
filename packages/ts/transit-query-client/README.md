@@ -44,6 +44,15 @@ signed requests and bundles, not private keys or verified result rows. Prepared
 native requests remain durable and do not expire implicitly. Board does not yet
 provide a save/restore interface for this owner.
 
+`prepareCapture(transport, compiled, operation, signal)` explicitly authorizes a
+new finite Table query before its first upload. The host uses its configured
+executor principal and the caller's current source rights. Returned source, plan
+and budget metadata must match the unsigned compilation. Save the returned signed
+bundle; recovery sends those bytes and never invokes capture again. Native
+KV/Document compilations pass through unchanged. `DraftSession` uses this step
+once per selected edit; coalesced edits and restored uploads cannot replace an
+accepted capture.
+
 `{ inspect: { sql } }` reads scoped `DESCRIBE`, `SHOW TABLES` or `EXPLAIN SELECT`
 metadata through the same transport. Its `inspection` response remains separate
 from compiled bundles and Arrow results. Validation checks full-width revisions,

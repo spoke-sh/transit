@@ -1189,6 +1189,10 @@ pub fn build(b: *std.Build) void {
     const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/direct_captured_query.py" });
     direct_captured_query.addArtifactArg(node_artifact);
     direct_captured_query.addArtifactArg(direct_table_client);
+    if (b.option(bool, "direct-query-example", "Run the finite SQL example through direct capture and restart recovery") orelse false) {
+        direct_captured_query.addArg("--example");
+        direct_captured_query.addArtifactArg(query_example);
+    }
     direct_captured_query.addPassthruArgs();
     direct_captured_query.has_side_effects = true;
     direct_captured_query.stdio = .inherit;

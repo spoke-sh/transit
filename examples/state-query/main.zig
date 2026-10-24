@@ -40,7 +40,8 @@ pub fn main(init: std.process.Init) !void {
     defer wire.deinit();
     wire.timeout_ms = 10000;
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = config.connection, .key = try q.wire.readKey(init.gpa, init.io, config.seed_file) };
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
+    client.tables = try q.Workspace.directTables(init.arena.allocator(), &client, config.workspace);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&client));
     if (config.mode == .read) {
         var cursor: ?[]const u8 = null;
         defer if (cursor) |value| init.gpa.free(value);
@@ -66,7 +67,8 @@ pub fn main(init: std.process.Init) !void {
     };
     var recovery: Recovery = if (saved) |data| (try std.json.parseFromSlice(Recovery, init.arena.allocator(), data, .{})).value else fresh: {
         if (try client.status(config.namespace) != null) return error.MissingOriginalIntent;
-        const compiled = (try q.Workspace.apply(init.arena.allocator(), &client, config.workspace, .{ .compile = .{ .sql = config.sql } })).compiled;
+        var compiled = (try q.Workspace.apply(init.arena.allocator(), &client, config.workspace, .{ .compile = .{ .sql = config.sql } })).compiled;
+        if (compiled.source.source == .table) compiled = (try q.Workspace.apply(init.arena.allocator(), &client, config.workspace, .{ .capture = .{ .bundle = compiled.bundle, .operation = try q.document.JsonValues.decimal(init.arena.allocator(), config.namespace) } })).compiled;
         const value: Recovery = .{ .identity = identity, .bundle = compiled.bundle };
         try save(init, config.recovery_file, value);
         break :fresh value;

@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { DraftSession } from "./draft";
+import { prepareCapture } from "./capture";
 import { QueryError, type Transport } from "./transport";
 import type { Draft, Request, Response } from "./types";
 import type { ResultPage } from "./result";
@@ -100,9 +101,10 @@ function fixture(role: number | null = null) {
   const jobs = new Set<string>();
   const cancelled = new Set<string>();
   const compiledSql: string[] = [];
+  const captures: Extract<Request, { capture: unknown }>["capture"][] = [];
   const submitted: string[] = [];
   const controls: Request[] = [];
-  const faults = { lose: false, deny: false, ready: true, reject: false };
+  const faults = { lose: false, deny: false, captureDeny: false, ready: true, reject: false };
   const prepare = (request: Request): Response => {
     const token = String(++sequence);
     commands.set(token, structuredClone(request));
@@ -172,8 +174,15 @@ function fixture(role: number | null = null) {
       if (request.compile.sql === "incomplete") throw new QueryError(400, "UnsupportedQuery");
       return { compiled: structuredClone(compiled) };
     }
-    if ("next_draft" in request)
+    if ("capture" in request) {
+      if (faults.deny || faults.captureDeny) throw new QueryError(403, "Forbidden");
+      captures.push(structuredClone(request.capture));
+      return { compiled: { ...structuredClone(compiled), bundle: "01" } };
+    }
+    if ("next_draft" in request) {
+      expect(request.next_draft.bundle).toBe("01");
       return jobs.has(request.next_draft.namespace) ? { prepared: null } : prepare(request);
+    }
     if ("submit" in request) {
       const token = request.submit.token;
       submitted.push(token);
@@ -244,6 +253,7 @@ function fixture(role: number | null = null) {
     faults,
     controls,
     compiledSql,
+    captures,
     submitted,
     held: () => held,
     budget: () => budget,
@@ -273,8 +283,61 @@ test("edits are inert until opt-in and only the newest complete draft consumes t
   f.session.edit("SELECT * FROM items LIMIT 1");
   await advance();
   expect(f.compiledSql).toHaveLength(2);
+  expect(f.captures).toHaveLength(2);
+  expect(f.captures.map((capture) => capture.operation)).toEqual(
+    f.budget()!.namespaces.slice(0, 2),
+  );
   expect(f.controls.filter((request) => "draft_open" in request)).toHaveLength(1);
   expect(f.held()).toBe(0);
+});
+
+test("a restored uncertain draft upload retains its capture without compiling or signing again", async () => {
+  vi.useFakeTimers();
+  const f = fixture();
+  await f.session.open(2);
+  await advance();
+  f.faults.lose = true;
+  f.session.edit("SELECT id FROM items");
+  await advance();
+  expect(f.session.getSnapshot().phase).toBe("uncertain");
+  expect(f.captures).toHaveLength(1);
+  const saved = f.session.exportRecovery();
+  expect(JSON.parse(saved).job.compiled.bundle).toBe("01");
+  const original = f.submitted.at(-1);
+  const restored = new DraftSession(f.transport, async () => () => {});
+  restored.restoreRecovery(saved);
+  restored.recover();
+  await advance();
+  expect(f.submitted.at(-1)).toBe(original);
+  expect(f.captures).toHaveLength(1);
+  expect(f.compiledSql).toEqual(["SELECT id FROM items"]);
+  expect(f.controls.filter((request) => "next_draft" in request)).toHaveLength(1);
+});
+
+test("denied capture authorization cannot dispatch a compiled draft", async () => {
+  vi.useFakeTimers();
+  const f = fixture();
+  f.faults.captureDeny = true;
+  f.session.edit("SELECT id FROM items");
+  await f.session.open(2);
+  await advance();
+  expect(f.session.getSnapshot().phase).toBe("denied");
+  expect(f.session.getSnapshot().acceptedWork).toBe(false);
+  expect(f.budget()?.starts).toBe(0);
+  expect(f.controls.filter((request) => "next_draft" in request)).toHaveLength(0);
+});
+
+test("capture authorization refuses a changed source, plan or budget", async () => {
+  for (const field of ["source", "plan", "limits", "contract", "schema"] as const) {
+    const changed = structuredClone(compiled);
+    if (field === "source") changed.source.resource++;
+    else if (field === "plan") changed.plan.limit = "2";
+    else if (field === "limits") changed.limits.pages = "9";
+    else changed[field][0] = 7;
+    await expect(
+      prepareCapture(async () => ({ compiled: changed }), compiled, "123"),
+    ).rejects.toMatchObject({ code: "CaptureScopeChanged" });
+  }
 });
 
 test("saved unknown controls restore exact tokens and cannot import changed plan identities", async () => {

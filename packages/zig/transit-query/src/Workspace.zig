@@ -13,7 +13,26 @@ pub const max_request_bytes = 65536;
 comptime {
     if (2 * q.Bundle.max_bytes + 1024 > max_request_bytes) @compileError("Workspace request cannot carry its admitted bundle");
 }
-pub const Config = struct { name: []const u8, source: v.Source, limits: v.Limits };
+pub const Config = struct {
+    name: []const u8,
+    source: v.Source,
+    limits: v.Limits,
+    /// Native principal running the capture worker, independent of its PID.
+    /// Required only when explicitly authorizing a new Table capture.
+    executor: ?u64 = null,
+};
+/// Construct the configured Table transport when native and Table services share
+/// an endpoint. Hosts with separate endpoints supply UnifiedClient.tables instead.
+/// This validates routing only; it performs no I/O and grants no permission.
+pub fn directTables(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config) !?q.catalog.DirectTableClient {
+    const source = try config.source.native(allocator);
+    if (source.source != .table) return null;
+    const table = source.source.table;
+    const connection: q.catalog.DirectTableProtocol.Connection = .{ .scope = table.scope, .branch = table.branch, .audience = table.owner, .principal = client.connection.principal, .role = client.connection.role };
+    try connection.validate();
+    if (connection.scope.realm != client.connection.realm) return error.QueryIdentityMismatch;
+    return .{ .allocator = allocator, .authority = client.wire, .service = client.wire, .connection = connection, .key = client.key };
+}
 pub const SqlCapabilities = struct {
     version: u8 = 1,
     statement_bytes: u32 = q.fuze.Sql.max_statement_bytes,
@@ -57,6 +76,7 @@ pub const Request = union(enum) {
     },
     inspect: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8, prepare_only: bool = false },
+    capture: struct { bundle: []const u8, operation: []const u8 },
     refresh: struct { template: []const u8, operation: []const u8 },
     next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },
     draft_open: struct { expected: []const u8, limit: u8 },
@@ -154,6 +174,13 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
             .sql = input.sql,
             .parameters = input.parameters,
         }, detail) },
+        .capture => |input| {
+            const bundle = try q.Bundle.decode(allocator, try v.unhex(allocator, input.bundle, q.Bundle.max_bytes));
+            if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try definition.fingerprint())) return error.QueryIdentityMismatch;
+            if (!limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
+            const authorized = try client.authorizeCurrent(bundle, config.executor orelse return error.QuerySourceUnavailable, try v.unsigned(input.operation));
+            return .{ .compiled = try Compiled.fromBundle(allocator, authorized) };
+        },
         .refresh => |input| {
             const bundle = try client.authorizeRefresh(allocator, try v.unsigned(input.template), try v.unsigned(input.operation));
             if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try definition.fingerprint())) return error.QueryIdentityMismatch;
@@ -204,7 +231,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
 pub fn diagnostic(request: Request, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?Diagnostic.Identity) !Diagnostic {
     const stage: Diagnostic.Stage = switch (request) {
         .compile => .compile,
-        .next, .next_draft, .refresh, .draft_open, .draft_close, .prepare_control => .prepare,
+        .next, .next_draft, .capture, .refresh, .draft_open, .draft_close, .prepare_control => .prepare,
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };
