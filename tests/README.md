@@ -48,11 +48,25 @@ files / 93,832,328 bytes**. This is bounded-residency and recovery evidence; its
 elapsed time and file count do not establish efficient storage or a throughput
 target. Automatic flushing and compaction remain separate work.
 
+`nix develop .#serving --command just test::reactive-views` passes the actual
+Chromium/Board/counter schedule in **332.21 seconds**. The browser verifies 20
+rows across bounded result pages after losing a submission reply and navigating
+away, prepares all eight independent Follow captures, and selects a new finite
+result with a later direct Table acceptance position. Revocation between full
+candidate verification and its visible reread clears the protected workspace.
+Only the bounded Follow recovery record remains in tab storage; it saves control
+and intent state without result snapshots. Observed Board heap use is
+**10,854,716 bytes**, and mutation-to-verified-result time is **59.55 seconds**;
+these establish the tested behavior, not an interactive latency target. The
+preceding attempt passed those query/disclosure steps but failed an obsolete
+assertion that all session storage must be empty. Reload and credential-rotation
+Follow schedules and physical placements remain separate qualification.
+
 The Table mutation receipt precedes the separate native progress/reply commit.
 This does not establish a transaction across those owners. The native fixture
 uses local logs and objects; it does not qualify Ursula or cold storage.
-Reactive browser and physical placement reruns are still open for the changed
-example. Failed attempts exposed fixture
+Physical placement and broader reactive lifecycle reruns are still open for the
+changed example. Failed attempts exposed fixture
 provisioning/SQL/decoding errors, invalid post-revocation signing, mismatched
 executor/inspection identities and temporary upstream admission pressure; those
 attempts are not passed evidence. Final repository gates remain separate.
