@@ -54,6 +54,13 @@ engineering decisions that must precede dependent implementation.
 
 ## Implementation in progress
 
+The [direct SQL ledger schedule](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24)
+passes independent Table acceptance and native control recovery, exact lost-reply
+handling, fencing, parameterized reads and shared self-join pins. Configured Table
+sources now use independent data/progress identities, journaled interactive pins
+and explicitly authorized captured cuts. The full session/placement schedules
+and superseded actor-Table removal remain open.
+
 The [unified recovery schedule](../../tests/README.md#unified-direct-table-recovery-and-closure--2026-10-24)
 now uses independent direct Table storage and native query progress. Native ABI
 and port checks pass exact upload/result recovery, unflushed point data,

@@ -112,7 +112,7 @@ class Client:
         self.http.close()
 
 
-def run(root, port, postgres, restart, console, authorize, select_source, sources=None, faults=None, service_pid=None):
+def run(root, port, postgres, restart, console, authorize, select_source, source_pin, sources=None, faults=None, service_pid=None):
     first, second = Client(root, port).open(), Client(root, port).open()
     rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnsupportedGatewayStatement')['err']
     assert rejected['retry'] == 'never', rejected
@@ -244,6 +244,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
         assert batch['basis']['source']['kind'] == name
         selected.call(dict(close_result=batch['cursor']))
+        if name == 'table':
+            configured = next(source for source in json.loads((root/'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
+            assert configured['connection']['resource'] != configured['workspace']['source']['resource']
+            orphan = Client(root, port).open(name)
+            held = orphan.execute('SELECT value FROM items')['batch']
+            assert held['rows'] and not held['complete'] and held['basis']['source']['kind'] == 'table'
+            pins = [path for path in root.glob('read-pins-*/*.pin')
+                    if json.loads(path.read_text())['table']['connection']['principal'] == configured['connection']['principal']]
+            assert len(pins) == 1, pins
+            (root/'orphaned-source-pin.json').write_bytes(pins[0].read_bytes())
+            assert not source_pin()['released']
+            # Closing transport does not close an explicit native session.
+            # Physical gateway replacement must settle this exact original pin.
+            orphan.http.close()
         # Capture admission belongs to the SQL account, not a running source
         # worker. Keep owners paused until after service replacement, so this
         # schedule proves durable admission before any query can complete.
@@ -257,6 +271,13 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first.close()
     second.close()
     restart(wire=False)
+    if (root/'orphaned-source-pin.json').exists():
+        deadline = time.monotonic() + 30
+        while not source_pin()['released']:
+            assert time.monotonic() < deadline, 'Replacement did not close the source caller pin'
+            time.sleep(.05)
+        print(json.dumps(dict(profile='native_sql_source_pin_recovery', original_pin_released=True,
+                              independent_data_and_progress=True)), flush=True)
     restored = Client(root, port).open()
     prior = restored.call(dict(status=dict(token=insert_token)))['operation']
     assert prior['phase'] == 'terminal' and prior['changed'] == 1

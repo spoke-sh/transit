@@ -1,5 +1,33 @@
 # Validation and evidence
 
+## Direct SQL ledger recovery and pin authority — 2026-10-24
+
+`nix develop --command just test::sql-gateway` passes the migrated direct Table
+schedule in 26.796 seconds. It retains 33 account operations, fences three owner
+replacements, and recovers the exact native admission, detached wait and pipelined
+upload after lost replies. A separately lost committed Table outcome is recovered
+through its original direct operation without executing that mutation again.
+Current preparation/reads dispatch no native writes; parameterized PostgreSQL and
+MySQL reads, a self-join sharing one retained pin, exact mutation counts and paged
+history all pass. The independent control ledger records 153 turns and 156 sends.
+All 30 shared SQL unit tests pass, including configuration checks for independent
+Table data identities and the required capture executor.
+
+`nix develop --command just test::direct-table-service` also passes 1,253 public
+typed calls, including the updated SQL read-pin recovery schedule. A denied
+current credential resolver preserves both original acquisition records. Recovery
+then closes interrupted acquisitions and old-generation pins; current revocation
+still refuses cleanup until access is restored. The complete command also checks
+64 KiB point data, bulk `.tseg` publication, CRUD/DDL, namespace retirement,
+retained SQL/joins, delegated reads and change-reader checkpoints across restart.
+
+SQL Table sources now derive their direct route from the declared data scope;
+their native resource holds independent computation progress. Interactive source
+pins share the account's recovery journal, while captured admission publishes the
+explicit original cut, executor and pin operation. The full native-session
+schedule, including an abandoned source pin, remains in progress. These scoped
+passes do not qualify every SQL deployment or close the coordinated cutover.
+
 ## Unified direct Table recovery and closure — 2026-10-24
 
 `nix develop .#serving --command just test::unified-query -Doptimize=ReleaseSafe

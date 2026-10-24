@@ -541,7 +541,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (std.c.fsync(activation.handle) != 0) return error.GatewayActivationSyncFailed;
     }
     var tasks: [g.Limits.max_accounts]?std.Io.Future(void) = @splat(null);
-    if (!initialize) for (runtimes.items) |runtime| try runtime.attachReadPins(activation);
+    if (!initialize) for (runtimes.items, config.accounts) |runtime, account| try runtime.attachReadPins(activation, account.sources);
     defer for (&tasks) |*task| if (task.*) |*future| future.cancel(init.io);
     for (runtimes.items, 0..) |runtime, i| tasks[i] = try init.io.concurrent(runAccount, .{ runtime, diagnostics });
     const started = std.Io.Clock.awake.now(init.io);

@@ -149,6 +149,9 @@ After checking its native generation, the worker visits at most eight directory
 entries and reconciles at most one eligible record per pass. Current-generation
 active reads remain protected. Closing records and records from earlier
 generations use `pin_status` under their original principal and current rights.
+The account resolves that principal and exact connection against its catalog
+bindings or configured Table sources. Source cleanup reloads the configured key;
+the journal cannot supply credentials or authorize an unconfigured connection.
 An active pin is released; an already released pin needs only journal cleanup.
 If acquisition is absent at the same frontier, recovery repeats the original
 request and releases it. Absence at a later frontier or a retired object proves

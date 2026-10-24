@@ -15,8 +15,9 @@ relative to their declaration file. Source files use YAML or JSON and contain
 Each source has `name`, `database`, `key_file`, `connection` and `workspace`.
 `connection` is the existing `UnifiedClient.Connection`: realm, caller principal,
 source process/resource, requester process/resource and selected role.
-`workspace` is the existing `Workspace.Config`: SQL name, typed source definition
-and finite page/segment/result-byte budgets. The [Query reference](../../../../docs/handbook/reference/queries.md)
+`workspace` is the existing `Workspace.Config`: SQL name, typed source definition,
+finite page/segment/result-byte budgets and, for Tables, the capture worker's
+native principal in `executor`. The [Query reference](../../../../docs/handbook/reference/queries.md)
 describes the source and requester owners. These owners and their policies must
 already exist; loading a source declaration does not provision or grant them.
 
@@ -25,7 +26,7 @@ identities of your already-provisioned owners and login role):
 
 ```yaml
 version: 1
-definition: 1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029
+definition: a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347
 sources:
   - name: counters
     database: transit
@@ -57,9 +58,16 @@ sources:
 The exact definition is also published in the generated
 [native contract schema](../../../../contracts/transit-v1.schema.json). A different
 build's definition is rejected. Table declarations include their catalog scope,
-metadata publication and full row type; Document declarations include an explicit
+branch, exact stored interpretation and full row type; Document declarations include an explicit
 reference, optional expansion path and scalar projections. Those shapes follow
 `Values.Source` in the [Query package](../../../zig/transit-query/README.md).
+
+For a Table, `connection.resource` holds native query progress and
+`workspace.source.resource` identifies the direct catalog's independent data
+resource. The declaration supplies the Table audience and scope. Both public
+services use the configured native endpoint, and the source caller's credential
+and selected role authenticate direct reads. A source declaration neither creates
+an actor-owned Table nor grants native raw-data access.
 
 A source caller uses a dedicated native principal and sequence. It cannot share
 any account worker, Table coordinator or other source's sequenced principal.
@@ -69,14 +77,21 @@ policy, requester identity and source definition are checked separately.
 Changing a source's connection, key, definition or budgets changes its binding
 fingerprint and cannot reinterpret previously admitted work.
 
-Interactive source queries acquire a fresh leased snapshot for each execution.
+Interactive KV and Document source queries acquire a fresh leased snapshot for
+each execution. Interactive Table sources acquire an explicit direct Table pin.
+The account journals its original request before acquisition and its closure
+before release. Recovery resolves the exact configured source connection and
+current key; a removed connection or denied credential leaves cleanup pending.
 Prepared metadata does not hold a snapshot or permission. Results preserve
 logical values and source basis, including missing/type-error/conflict states.
 Session loss interrupts the result; it does not reopen a different snapshot.
 
 Native session callers request `execute.captured: true` for durable source reads.
 The console uses interactive reads and has no captured execution setting.
-The service publishes the exact compiled bundle in the account ledger, then
+For a Table, the service authorizes the exact current cut, executor and distinct
+pin operation before publishing the bundle. The Query owner acquires and closes
+that pin; recovery does not authorize another capture. The service publishes the
+exact compiled bundle in the account ledger, then
 drives the existing Query owner using published signed requests. A dedicated
 recovery task continues accepted work after the caller disconnects. Query
 manifests and current authorization govern retained result reads.

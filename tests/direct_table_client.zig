@@ -330,12 +330,12 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectError(error.AccessDenied, client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = saved.snapshot.handle.owner } }));
     try t.expectError(error.AccessDenied, inspect(client, saved.insert));
     try t.expectError(error.AccessDenied, cleanup.close(client, cleanup_record));
-    try t.expectError(error.AccessDenied, cleanup.tick(client.authority, client.key, client.connection.principal));
+    try t.expectError(error.AccessDenied, cleanup.tick(client, SqlPins.exactClient));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = profile.role } });
     try t.expectEqualDeep(profile.history.?.checkpoint.?, try history_reader.checkpoint());
     (try client.call(observed_action)).deinit();
     (try client.call(suffix_request)).deinit();
-    for (0..3) |_| _ = try cleanup.tick(client.authority, client.key, client.connection.principal);
+    for (0..3) |_| _ = try cleanup.tick(client, SqlPins.exactClient);
     const cleanup_state = try client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = cleanup_record.owner() } });
     defer cleanup_state.deinit();
     try t.expect(cleanup_state.value.result.pin_state.released);

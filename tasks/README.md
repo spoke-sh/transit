@@ -95,7 +95,7 @@ raise that capacity or discard history to complete.
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |
 | `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |
-| `just test::sql-gateway` | Exercise signed gateway controls and coordinator recovery through native owners on disk-backed Ursula; included in growth CI |
+| `just test::sql-gateway` | Exercise signed gateway controls and direct Table outcome recovery through local durable owners; included in growth CI |
 | `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in growth CI |
 | `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
