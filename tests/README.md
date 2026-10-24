@@ -3,7 +3,7 @@
 ## Cancel interactions without clearing drafts — 2026-10-24
 
 `nix develop --command just check` passes for the accepted
-[cancellation interaction](../docs/design/transit-cli/D5.md), including native
+[cancellation interaction](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D5.md), including native
 tests, CLI diagnostics, the complete PTY suite, frontend checks and documentation
 build. The focused cancellation regression fails against the preceding
 implementation because Esc removes `CREATE TABLE` instead of restoring it.
@@ -136,7 +136,7 @@ Shared assistance units cover suffix preservation, active-statement boundaries,
 strings/comments, quoted case sensitivity, escaped quotes, UTF-8, disambiguated
 columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
-The accepted interaction is recorded in [D4](../docs/design/transit-cli/D4.md).
+The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
 ## Stable console completion menus — 2026-10-24
 
@@ -153,7 +153,7 @@ checks; they do not establish new service or authorization behavior.
 
 The [qualification record](verification/results/console-completion-2026-10-24.json)
 retains commands, log hashes and real-service observations for the accepted
-[interaction](../docs/design/transit-cli/D3.md). In the pinned Nix shells,
+[interaction](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D3.md). In the pinned Nix shells,
 `just check`, `just test::unit` and `just test::console-history` pass.
 The primary implementation was qualified at revision `3b03aad7`; subsequent
 checks add clipped-menu paging and complete-empty-result coverage. A final

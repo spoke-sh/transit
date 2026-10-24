@@ -18,7 +18,7 @@ values to ordinary NULLs.
 
 ## Console assistance slice
 
-The accepted [console interaction](../design/transit-cli/D3.md) extends the
+The [console assistance](../../apps/transit-cli/docs/console.md#terminal-editing-and-history) extends the
 existing grammar/catalog assistance operation with typed coverage and context
 status, cursor-local statement scope and settings routing. It retains eight
 candidates and the 128-page metadata acquisition budget. Partial scans are
