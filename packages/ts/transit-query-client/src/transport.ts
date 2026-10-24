@@ -49,6 +49,7 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
       "draft_close",
       "draft_status",
       "observe",
+      "recover_preparation",
       "status",
       "page",
       "prepare_control",

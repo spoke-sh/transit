@@ -185,6 +185,50 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Saved Follow control and preparation recovery — 2026-10-23
+
+The direct Follow schedule under definition
+`554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa`
+passes original receipt recovery before/after native acceptance, namespace
+mismatch rejection and unchanged principal sequences during read-only recovery.
+The private reactive owner decodes actual signed controls, rejects a valid
+signature from another key before acceptance, and returns original receipt
+positions afterward. The Workspace wrapper exercises the corresponding prepared
+upload receipt operation. Existing prepared-capture selection, node restart,
+worker replacement, fresh verified output and bounded pause still pass.
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --follow-only
+```
+
+In `nix develop`, the query and serving package suites pass 143 and 52 tests.
+The query-client
+TypeScript suite passes 57 tests; the full Board suite passes 93 tests, and a
+subsequent focused run passes 29 session/Follow/live-view tests after adding exact
+attachment metadata recovery. Strict types, Board formatting/lint and the Board
+production build pass. The reactive package reports one existing catch-parameter
+lint warning and no errors. Generated query/Board/reactive contract checks,
+diagnostic inventory/mapping checks and the nine documentation tests/build pass.
+
+```sh
+cd packages/zig/transit-query && zig build test -Doptimize=ReleaseSafe --summary all
+cd packages/zig/transit-serving && zig build test -Doptimize=ReleaseSafe --summary all
+cd packages/ts/transit-query-client && vp check && vp exec tsc --noEmit && vp test run
+cd apps/transit-board-web && vp check && vp exec tsc --noEmit && vp test run && vp build
+cd apps/transit-board-web && vp test run src/session-recovery.test.ts src/follow-recovery.test.ts src/live-view.test.ts
+```
+
+Run each command from the repository root. Browser-owner tests use injected
+transport observations: inert import, no saved rows, failure to persist before
+dispatch, original accepted token recovery, changed saved input/scope rejection,
+template/pool/budget binding, consumed-pool reuse without re-preparation,
+exhaustion without replacement, and interrupted closure without reopening. The
+composed Board artifact validates all three owners before making them operational.
+These tests do not establish an installed browser reload against the private
+HTTP host, credential rotation at lost replies, or Compose/reference deployment
+qualification. Those schedules and full repository/committed-HEAD checks remain
+required; the milestone and its broader tracking issues remain open.
+
 ## Named maintained revision inspection and recovery — 2026-10-23
 
 Under definition

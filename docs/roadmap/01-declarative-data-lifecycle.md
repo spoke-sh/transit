@@ -199,8 +199,14 @@ The shared current-v1 definition also changes for these stored semantics. Native
 Follow now passes the real native selection/restart/worker-replacement and
 verified fresh-output path in that evidence record. Broader Follow fault schedules
 and installed caller migration remain under qualification; source observations
-and injected scheduler results alone do not close those execution gates. The refresh preparation owner now exports and validates exact saved recovery;
-Board still needs the corresponding save/restore integration.
+and injected scheduler results alone do not close those execution gates.
+Board now saves preparation, session and Follow intent together before dispatch,
+restores them paused, and offers explicit recovery of the original pool/budget.
+Native owners identify receipts from the exact saved tokens; saved input positions
+cannot substitute for that evidence. The [recovery evidence](../../tests/README.md#saved-follow-control-and-preparation-recovery--2026-10-23)
+separates native owner checks from injected browser transitions. Installed browser
+reload against the composed private host, credential-rotation fault schedules,
+Compose and reference caller qualification remain open.
 
 Explicit Workspace capture now supplies the caller-signed grant for fresh manual
 and Draft Table queries, while compilation remains inert. The

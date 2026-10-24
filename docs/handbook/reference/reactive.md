@@ -72,6 +72,16 @@ captured source basis and can change across refreshes. Compare source resource,
 contract and schema across the generation, and require the full manifest to
 remain identical across pages of each individual finite result.
 
+Board saves the Follow intent, finite capture preparation and exact session
+controls together in tab-local browser storage before dispatch. A reload restores
+them paused and displays no saved rows. **Resume saved Follow** checks the original
+accepted control, current scope and remaining budget before continuing. It never
+replenishes the budget or replaces consumed captures. An interrupted closure
+finishes closing the same session. Storage failure stops dispatch; invalid or
+foreign-definition recovery remains stored and cannot start work. Closing the
+browser tab can remove this local recovery copy; accepted queries remain durable
+and independently inspectable by namespace.
+
 Verify the complete ordered result through bounded pages, discard each verification
 page and reread the visible page from that same immutable result. Recheck current
 authorization on the reread. Replace rows and summaries together only after

@@ -83,6 +83,7 @@ pub const Request = union(enum) {
     draft_close: []const u8,
     draft_status: ?[]const u8,
     submit: Frozen,
+    recover_preparation: struct { token: []const u8, namespace: []const u8 },
     observe: u64,
     status: []const u8,
     page: struct { namespace: []const u8, cursor: ?[]const u8 = null },
@@ -103,6 +104,7 @@ pub const Response = union(enum) {
     inspection: q.SqlInspection.Result,
     prepared: ?Frozen,
     receipt: q.protocol.Receipt,
+    recovered_preparation: ?q.protocol.Receipt,
     observation: q.UnifiedClient.Observation,
     status: ?b.Status,
     page: Page,
@@ -149,6 +151,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
     const limits = scope.limits;
     const name = scope.name;
     switch (request) {
+        .recover_preparation => |input| return .{ .recovered_preparation = try client.recoverPreparation(try b.prepared(allocator, input.token), try v.unsigned(input.namespace)) },
         .sql_capabilities => return .{ .sql_capabilities = .{} },
         .inspect => |value| return .{ .inspection = try q.SqlInspection.applyDiagnostic(allocator, client, .{ .scope = .{ .name = config.name, .source = config.source, .limits = config.limits }, .sql = value.sql }, detail) },
         .assist => |value| {

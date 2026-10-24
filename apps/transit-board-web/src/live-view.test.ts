@@ -153,20 +153,20 @@ test("a new query template cannot publish the previous paused candidate", async 
   const second = deferred<Snapshot<string>>();
   let reads = 0;
   const view = new LiveView(session, async () => {
-    if (++reads === 1) return { ...snapshot, namespace: "old" };
+    if (++reads === 1) return { ...snapshot, namespace: "100" };
     return second.promise;
   });
   view.subscribe(() => {
-    if (view.getSnapshot().snapshot?.namespace === "old") first.resolve();
+    if (view.getSnapshot().snapshot?.namespace === "100") first.resolve();
   });
   await view.start();
   await first.promise;
   await view.pause();
-  expect(view.getSnapshot().snapshot?.namespace).toBe("old");
-  await view.start("new");
+  expect(view.getSnapshot().snapshot?.namespace).toBe("100");
+  await view.start("200");
   expect(view.getSnapshot().snapshot).toBeNull();
   const stopped = view.pause();
-  second.resolve({ ...snapshot, namespace: "new" });
+  second.resolve({ ...snapshot, namespace: "200" });
   await stopped;
   expect(view.getSnapshot().snapshot).toBeNull();
 });

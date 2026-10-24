@@ -11,7 +11,13 @@ import {
 import { acquireCaller } from "@transit/reactive-client";
 import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";
 import { verifiedPage } from "./unified-result";
-import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-live";
+import {
+  liveQuery,
+  liveDraft,
+  querySession,
+  selectLiveTemplate,
+  followRecovery,
+} from "./query-live";
 import { QueryCandidates } from "./query-candidates";
 import { SqlEditor } from "./sql-editor";
 import type { Diagnostic } from "@transit/query-client";
@@ -645,16 +651,36 @@ export function UnifiedWorkspace({
               {live.phase.replaceAll("_", " ")} · {live.detail}
             </p>
             <button
-              disabled={busy || status?.phase !== "complete" || !page}
+              disabled={busy || !!followRecovery.error || status?.phase !== "complete" || !page}
               onClick={() => {
                 retained.follow = true;
                 selectLiveTemplate();
-                void liveQuery.start(work.current.namespace, binding?.starts ?? 8).catch(() => {});
+                void liveQuery.start(work.current.namespace, binding?.starts ?? 8).catch(showError);
               }}
             >
               {followLabel ?? "Follow changes"}
             </button>
-            <button onClick={() => void liveQuery.pause().then(() => refresh((n) => n + 1))}>
+            {followRecovery.error && <p role="alert">{followRecovery.error}</p>}
+            {liveQuery.recoverable && !followRecovery.error && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  retained.follow = true;
+                  selectLiveTemplate();
+                  void liveQuery.resume().catch(showError);
+                }}
+              >
+                Resume saved Follow
+              </button>
+            )}
+            <button
+              disabled={!!followRecovery.error}
+              onClick={() =>
+                void (liveQuery.following ? liveQuery.pause() : liveQuery.recover())
+                  .then(() => refresh((n) => n + 1))
+                  .catch(showError)
+              }
+            >
               Pause changes
             </button>
             {querySession.pending && (

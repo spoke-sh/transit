@@ -23,6 +23,12 @@ committed-input observation, status, cancellation and verified result pages.
 replaced or retired declarations cannot masquerade as the live schema.
 `authorize` checks current rights for exact upload recovery and retained results
 without rebinding their captured schema.
+`recoverPreparation` returns the actual receipt for an exact frozen upload
+command and namespace. It admits begin/part/seal/prepare controls only, verifies
+the current definition and configured route, and checks current requester rights
+before and after lookup. Accepted requests retain their identity after key
+rotation; absent requests must verify under the current key. The Workspace
+`recover_preparation` operation exposes this read without preparing a replacement.
 `UnifiedBehavior.Requester` binds one query principal/source and admits one active
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.
