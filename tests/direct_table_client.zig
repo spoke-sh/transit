@@ -395,6 +395,15 @@ pub fn main(init: std.process.Init) !void {
             try NamedResources.initialize(init.io, client, &admin, profile.named_resources.?, phase);
         } else if (std.mem.eql(u8, args[2], "resource-publish")) {
             try NamedResources.publish(client, profile.named_resources.?);
+        } else if (std.mem.eql(u8, args[2], "resource-dependency-save")) {
+            profile.named_resources.?.dependencies = try NamedResources.dependencyPlan(client, profile.named_resources.?);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "resource-dependency-register")) {
+            try NamedResources.dependencyUncertain(client, profile.named_resources.?, false);
+        } else if (std.mem.eql(u8, args[2], "resource-dependency-recover")) {
+            try NamedResources.dependencyRecover(client, &admin, profile.named_resources.?);
+        } else if (std.mem.eql(u8, args[2], "resource-dependency-remove")) {
+            try NamedResources.dependencyUncertain(client, profile.named_resources.?, true);
         } else if (std.mem.eql(u8, args[2], "resource-verify")) {
             try NamedResources.verify(init.io, client, &admin, profile.named_resources.?);
         } else if (std.mem.eql(u8, args[2], "dependency-prepare")) {

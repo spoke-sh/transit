@@ -145,6 +145,10 @@ pub const Definition = struct {
         return .{ .definition = p.Growth.current_definition, .interpretation = try self.interpretation(allocator), .kind = std.meta.activeTag(self.creation.spec), .resource = self.resource };
     }
 
+    pub fn dependent(self: Definition, allocator: std.mem.Allocator) !c.DirectDependency.Dependent {
+        return .{ .kind = if (self.creation.spec == .kv) .kv else .document, .interpretation = try self.interpretation(allocator) };
+    }
+
     pub fn initial(self: Definition) !Definition {
         try self.validate();
         var result = self;

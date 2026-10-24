@@ -199,25 +199,35 @@ shares the catalog/principal/operation claim with DDL, DML, namespace changes
 and conditional name assertions. A reused identity must match the entire saved
 binding, including authority. Transport credential replacement does not change it.
 
-An edge binds the source Table's exact `DataLifecycle.Definition`, a dependent's
+An edge binds a source Table or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
 kind (`kv`, `document`, `captured`, `maintained`) and exact definition, and a
-nonzero mask of required Table actions. Both objects use branch one and the same
-realm; their resources/catalogs may differ. These actions describe required
-access and never grant it. The dependent's resource owns its metadata rights.
-Registration protects a source from DROP but does not establish that a dependent
-exists, is published, is active or has usable data. It does not retain a data
+nonzero mask of required logical actions. Table sources accept Table action masks;
+named KV/Document sources accept SELECT only, mapped to native INSPECT and READ.
+These actions describe required access and never grant it. Both objects use branch
+one and the same realm. Named resource dependents belong to this catalog; captured
+and maintained dependents use their separate owning native metadata resource.
+Registration verifies a named resource dependent's actual kind and exact allocated
+or published definition. It does not certify initialization, activation or current
+data availability. A computation registration remains an explicit owner assertion;
+the query publication adapter must establish its definition separately.
+Registration protects a source from DROP. It does not retain a data
 snapshot or change history. The dependent owner must register before publication
 and remove after retirement or recovery of an abandoned publication. These steps
 across owners are not atomic. Automatic registration by named resource and query
 publication is not part of this operation.
 
-Registration requires current database CONNECT, dependent resource metadata
-write and source schema USAGE plus every declared Table action. It requires the
-exact live source definition; a changed/retired definition produces
+Registration requires current database CONNECT and the dependent's metadata
+authority: named resources require schema USAGE and object ownership; captured
+and maintained definitions require native metadata WRITE. It never requires
+native WRITE on the shared catalog backing resource. Source authority is schema
+USAGE plus every declared Table action, or schema USAGE, metadata visibility and
+the named resource's native INSPECT/READ. It requires an exact published source
+definition and an exact allocated/published named dependent. Changed or retired
+definitions and incorrect dependent kinds produce
 `rejected/stale_definition`, and a pending source DDL operation produces
 `rejected/source_busy`. Ordinary row mutations do not block registration.
-Dependent mode removal and cancellation need CONNECT and metadata write;
-inspection needs CONNECT and metadata inspect. They need no current source data
+Dependent mode removal and cancellation need CONNECT and the same metadata
+mutation authority; inspection needs CONNECT and metadata inspect. They need no current source data
 grant. Normal graph inspection requires source metadata visibility and dependent
 metadata inspect, independently of data-read permission. All successful
 requirements are rechecked after buffering before response disclosure.
@@ -225,7 +235,7 @@ requirements are rechecked after buffering before response disclosure.
 Explicit administrator graph inspection requires native realm ADMIN and source
 metadata visibility, and can expose retained registrations without dependent
 resource rights. Administrator removal additionally requires current ownership
-of the source Table. It only removes the specified edge; it does not retire the
+of the source object's metadata. It only removes the specified edge; it does not retire the
 consumer, cancel work, delete data or release pins. Administrator registration
 rejects. Native metadata rights may survive logical resource retirement; neither
 those rights nor a dependency receipt establish that resource's usability.
@@ -240,11 +250,11 @@ returns that original receipt. In particular, retrying an old registration after
 its removal does not restore the edge. A lost reply requires inspection of the
 same binding; it does not establish rejection.
 
-Table DROP preview, admission and execution check explicitly registered edges
+Table and named-resource DROP preview, admission and execution check explicitly registered edges
 and report a generic dependency blocker without revealing its metadata. There
 is no CASCADE or implicit expiry. ALTER and RENAME preserve exact registered
 definitions and may leave a consumer stale; they do not rewrite it. Namespace
-DROP still checks live/pending Table membership. Neither registry discovers
+DROP checks live/pending Table and named-resource membership. Neither registry discovers
 unregistered consumers or dependencies embedded in arbitrary payloads.
 
 `dependencies` selects `dependents` of a source object or `dependencies` of a

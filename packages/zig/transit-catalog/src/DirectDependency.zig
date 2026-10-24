@@ -21,8 +21,9 @@ pub const Dependent = struct {
 pub const Edge = struct {
     source: d.Definition,
     dependent: Dependent,
-    /// Required Table actions, checked at registration. This declaration never
-    /// grants those actions; execution must check current policy independently.
+    /// Required logical actions, checked at registration. Named KV/Document
+    /// sources accept SELECT only, mapped to native INSPECT/READ. This never
+    /// grants access; execution checks current policy independently.
     privileges: u64,
 
     pub fn validate(self: Edge) !void {
@@ -136,8 +137,9 @@ pub const Observation = union(enum) { not_observed, outcome: Outcome };
 
 pub const Selection = union(enum) { dependents: d.Object, dependencies: d.Object };
 pub const Cursor = struct { selection: Selection, authority: Authority, position: d.Position, after: [32]u8 };
-// Four distinct source schemas/Tables plus the database and dependent resource
-// fit the native guard's 16 requirements, including the final disclosure fence.
+// Four distinct source schemas/objects plus the database and dependent authority
+// fit the native guard's 16 requirements. Graph inspection uses metadata rights;
+// data access is checked separately during registration and execution.
 pub const page_entries = 4;
 pub const Page = struct {
     entries: [page_entries]?Edge = @splat(null),

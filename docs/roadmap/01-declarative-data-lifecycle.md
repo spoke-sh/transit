@@ -308,8 +308,18 @@ initialization turns. Typed KV writes/deletes, actual Document change acceptance
 native data revocation, metadata rename/DROP and permanent original receipts pass.
 One prepared native allocation per caller is durably serialized within the
 catalog. This closes the metadata-only provisioning gap for that explicit typed
-profile; exact dependency integration, old owner retirement and broader physical
-placement qualification remain open.
+profile; old owner retirement and broader physical placement qualification remain
+open.
+
+The [named dependency proof](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24)
+extends the graph to actual KV/Document source and dependent definitions. Explicit
+registration can precede publication after allocation fixes the interpretation;
+metadata ownership remains separate from native data rights. Public lost-reply
+and restart checks cover both graph directions, read denial, DROP RESTRICT and
+original-edge removal. Component checks preserve old edges through rename and
+consumer retirement. Named query publication still requires its own integration;
+these registrations do not make independent owners atomic or imply automatic
+cleanup.
 
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
