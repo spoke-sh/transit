@@ -272,6 +272,21 @@ dependency_cursor = {"definition": definition, "connection": host_reference["con
                      "position": {"partition": str(2**64 - 1), "next_lsn": str(2**64 - 1)}, "after": edge_digest.hex()}
 host_action_validator.validate({"dependencies": {"page": {"selection": dependency_cursor["selection"],
                                                          "authority": "dependent", "cursor": dependency_cursor}}})
+host_resource = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
+                 "object": host_edge["source"]["object"], "expected": None, "action": {"create": {
+                     "namespace": 1, "name": "named_document", "owner": 19, "writer": 17, "owned": False,
+                     "deadline_ms": None, "history_ms": None, "spec": {"document": {
+                         "document": str(2**64 - 1), "type_revision": 1,
+                         "limits": {"record_bytes": 4096, "staging_bytes": str(2**64 - 1), "staging_records": 4}}}}}}
+host_resource_action = {"resources": {"operation": {"binding": host_resource, "command": "execute", "steps": 64}}}
+host_action_validator.validate(host_resource_action)
+for field in ("definition", "connection", "operation", "object", "expected", "action"):
+    missing = copy.deepcopy(host_resource_action)
+    del missing["resources"]["operation"]["binding"][field]
+    assert not host_action_validator.is_valid(missing), field
+numeric_document = copy.deepcopy(host_resource_action)
+numeric_document["resources"]["operation"]["binding"]["action"]["create"]["spec"]["document"]["document"] = 2**64 - 1
+assert not host_action_validator.is_valid(numeric_document)
 host_namespace = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
                   "namespace": 43, "expected": None, "action": {"create": {"name": "host_namespace", "owner": 1}}}
 host_namespace_action = {"administration": {"preview_namespace": host_namespace}}

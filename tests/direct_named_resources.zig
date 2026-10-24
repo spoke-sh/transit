@@ -6,10 +6,71 @@ const s = c.station;
 const p = c.protocol;
 const g = p.Growth;
 const R = c.DirectResource;
+const h = c.DirectCatalogResources;
 const Owner = app.NamedResource;
 const doc = app.query.document;
 const t = std.testing;
-pub const State = struct { bindings: [2]R.Binding, dependencies: ?[2]c.DirectDependency.Binding = null };
+pub const State = struct { bindings: [2]R.Binding, saved: [2]h.Binding, dependencies: ?[2]c.DirectDependency.Binding = null };
+
+// Exercise the shared serialized host boundary while the fixture's assertions
+// keep using the existing fixed-size native types. Original CREATE operations
+// use the saved host binding read from disk, never a reconstructed replacement.
+const HostClient = struct {
+    catalog: c.DirectTableClient,
+    state: ?*const State = null,
+    fn binding(self: HostClient, allocator: std.mem.Allocator, value: R.Binding) !h.Binding {
+        if (self.state) |state| for (state.bindings, state.saved) |original, saved| {
+            if (std.meta.eql(original.identity(), value.identity())) {
+                try original.requireSame(value);
+                try original.requireSame(try saved.native());
+                return saved;
+            }
+        };
+        return h.Binding.foreign(allocator, value);
+    }
+    fn call(self: HostClient, arena: *std.heap.ArenaAllocator, action: h.Action) !h.Result {
+        var session: c.DirectTableBridge.Session = .{ .allocator = self.catalog.allocator };
+        defer session.deinit();
+        const bytes = try p.Json.valueAlloc(arena.allocator(), c.DirectTableBridge.Action{ .resources = action });
+        const parsed = try c.DirectTableBridge.parse(arena.allocator(), bytes);
+        defer parsed.deinit();
+        return (try session.apply(arena, self.catalog, parsed.value, null)).resources;
+    }
+    fn operation(self: HostClient, original: R.Binding, command: R.Command, steps: u16) !R.Observation {
+        var arena = std.heap.ArenaAllocator.init(self.catalog.allocator);
+        defer arena.deinit();
+        const result = (try self.call(&arena, .{ .operation = .{ .binding = try self.binding(arena.allocator(), original), .command = command, .steps = steps } })).observation;
+        return switch (result) {
+            .not_observed => .not_observed,
+            .operation => |value| .{ .operation = try value.native() },
+        };
+    }
+    fn preview(self: HostClient, original: R.Binding) !R.Preview {
+        var arena = std.heap.ArenaAllocator.init(self.catalog.allocator);
+        defer arena.deinit();
+        const result = (try self.call(&arena, .{ .preview = try self.binding(arena.allocator(), original) })).preview;
+        return .{ .binding = try result.binding.native(), .position = try result.position.native(), .current = if (result.current) |value| try value.native() else null, .reason = result.reason };
+    }
+    fn view(value: h.View) !c.DirectCatalog.ResourceView {
+        return .{ .definition = try value.definition.native(), .interpretation = try value.interpretation.native(), .position = try value.position.native() };
+    }
+    fn lookup(self: HostClient, namespace: u64, name: []const u8) !?c.DirectCatalog.ResourceView {
+        var arena = std.heap.ArenaAllocator.init(self.catalog.allocator);
+        defer arena.deinit();
+        const result = (try self.call(&arena, .{ .lookup = .{ .namespace = namespace, .name = name } })).lookup;
+        return if (result) |value| try view(value) else null;
+    }
+    fn list(self: HostClient, namespace: u64) !@FieldType(c.DirectTableProtocol.Result, "resource_list") {
+        var arena = std.heap.ArenaAllocator.init(self.catalog.allocator);
+        defer arena.deinit();
+        const result = (try self.call(&arena, .{ .list = .{ .namespace = namespace, .cursor = null } })).list;
+        var entries: [8]?c.DirectCatalog.ResourceView = @splat(null);
+        for (result.entries, &entries) |slot, *entry| if (slot) |value| {
+            entry.* = try view(value);
+        };
+        return .{ .entries = entries, .next = if (result.next) |next| try next.check(self.catalog.connection, .{ .resources = namespace }) else null, .position = try result.position.native() };
+    }
+};
 
 fn key(seed: u8) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(seed));
@@ -19,7 +80,7 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
     (try client.call(.initialize)).deinit();
     const worker_role = (try admin.client.query(.{ .realm = 42, .principal = 102, .kind = .{ .authorization = .{ .kind = .identity } } }, try key(31))).body.authorization.body.identity.login_role;
     for ([_]u64{ role, worker_role }) |native_role| _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = native_role, .privileges = p.permission(.inspect) } });
-    var result: State = .{ .bindings = undefined };
+    var result: State = .{ .bindings = undefined, .saved = undefined };
     for (&result.bindings, 0..) |*binding, i| {
         const writer = try admin.submit(.{ .spawn = .{} });
         _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = role, .privileges = p.permission(.admin) | p.permission(.send) } });
@@ -34,7 +95,8 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
             .history_ms = null,
             .spec = if (i == 0) .{ .kv = .{ .value_type = .utf8, .nullable = true, .key_encoding = .native_bytes, .value_encoding = .fvl1 } } else .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } },
         } } };
-        const resources: c.DirectResourceClient = .{ .catalog = client };
+        result.saved[i] = try h.Binding.foreign(client.allocator, binding.*);
+        const resources: HostClient = .{ .catalog = client };
         const preview = try resources.preview(binding.*);
         try t.expectEqual(.none, preview.reason);
         try t.expectEqual(.not_observed, try resources.operation(binding.*, .inspect, 1));
@@ -46,11 +108,11 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
 }
 
 pub fn admit(client: c.DirectTableClient, state: State) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     for (state.bindings) |binding| try t.expectError(error.InvalidTableResponse, resources.operation(binding, .admit, 1));
 }
 pub fn allocationPlan(client: c.DirectTableClient, state: State, index: usize) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     const binding = state.bindings[index];
     try t.expectEqual(.admitted, (try resources.operation(binding, .inspect, 1)).operation.phase);
     try t.expectError(error.InvalidTableResponse, resources.operation(binding, .execute, 64));
@@ -60,7 +122,7 @@ pub fn allocationPlan(client: c.DirectTableClient, state: State, index: usize) !
     }
 }
 pub fn allocate(client: c.DirectTableClient, admin: anytype, state: State, index: usize) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     const binding = state.bindings[index];
     const prepared = (try resources.operation(binding, .inspect, 1)).operation;
     try t.expectEqual(.prepared, prepared.phase);
@@ -134,7 +196,7 @@ fn inspect(client: c.DirectTableClient, definition: R.Definition) !?Owner.Step {
     return owner.inspect(client.allocator, &raw, 101);
 }
 pub fn initialize(io: std.Io, client: c.DirectTableClient, admin: anytype, state: State, phase: u8) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     for (state.bindings, 0..) |binding, i| {
         const allocated = (try resources.operation(binding, .inspect, 1)).operation;
         try t.expectEqual(.allocated, allocated.phase);
@@ -151,11 +213,11 @@ pub fn initialize(io: std.Io, client: c.DirectTableClient, admin: anytype, state
     }
 }
 pub fn publish(client: c.DirectTableClient, state: State) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     for (state.bindings) |binding| try t.expectError(error.InvalidTableResponse, resources.operation(binding, .execute, 64));
 }
 pub fn dependencyPlan(client: c.DirectTableClient, state: State) ![2]c.DirectDependency.Binding {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     var definitions: [2]R.Definition = undefined;
     for (state.bindings, &definitions) |binding, *definition| {
         const known = (try resources.operation(binding, .inspect, 1)).operation;
@@ -193,7 +255,7 @@ pub fn dependencyUncertain(client: c.DirectTableClient, state: State, remove: bo
     for (state.dependencies.?) |binding| try t.expectError(error.InvalidTableResponse, dependency(client, if (remove) removal(binding) else binding, .accept));
 }
 pub fn dependencyRecover(client: c.DirectTableClient, admin: anytype, state: State) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     for (state.dependencies.?, 0..) |binding, i| {
         const receipt = (try dependency(client, binding, .inspect)).outcome;
         try t.expect(receipt.changed and receipt.phase == .applied);
@@ -217,7 +279,7 @@ pub fn dependencyRecover(client: c.DirectTableClient, admin: anytype, state: Sta
     }
 }
 pub fn verify(io: std.Io, client: c.DirectTableClient, admin: anytype, state: State) !void {
-    const resources: c.DirectResourceClient = .{ .catalog = client };
+    const resources: HostClient = .{ .catalog = client, .state = &state };
     for (state.dependencies.?) |binding| {
         const closed = (try dependency(client, removal(binding), .inspect)).outcome;
         try t.expect(closed.changed and closed.phase == .applied);
@@ -282,7 +344,7 @@ pub fn verify(io: std.Io, client: c.DirectTableClient, admin: anytype, state: St
         _ = try admin.submit(.{ .grant_resource = .{ .resource = selected.definition.resource, .subject = 101, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         try t.expectEqual(Owner.Step.complete, (try inspect(client, selected.definition)).?);
     }
-    const page = try resources.list(1, null);
+    const page = try resources.list(1);
     for (page.entries) |entry| try t.expectEqual(null, entry);
     try t.expectEqual(null, page.next);
 }

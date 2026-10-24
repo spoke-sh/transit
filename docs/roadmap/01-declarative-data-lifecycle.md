@@ -112,8 +112,12 @@ the native authorization owner's signed policy record without submission.
 [Host dependency recovery](../../tests/README.md#direct-host-dependency-recovery--2026-10-24)
 now preserves original saved bindings across corrupted replies and restart,
 distinguishes current graph membership from old receipts, and shares the native
-bounded inspection and current-rights checks. Resource host adapters and general
-language/ABI integration remain unfinished.
+bounded inspection and current-rights checks.
+[Host named resource recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24)
+now reuses the same allocation/initialization/publication owner and preserves
+saved host bindings through eight resource reply faults and eleven restarts,
+including current data denial, actual writes and metadata retirement.
+General language/ABI integration remains unfinished.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step

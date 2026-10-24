@@ -7,7 +7,7 @@ const h = c.DirectTableValues;
 const v = c.TableValues;
 const w = c.DirectTableProtocol;
 const Allocator = std.mem.Allocator;
-pub const Selection = union(enum) { namespaces, tables: u64 };
+pub const Selection = union(enum) { namespaces, tables: u64, resources: u64 };
 pub const Cursor = struct {
     definition: p.Growth.Definition,
     connection: h.Connection,
@@ -63,7 +63,7 @@ pub const Result = union(enum) {
     namespaces: struct { entries: [8]?v.Namespace, next: ?Cursor, position: h.Position },
     tables: struct { entries: [8]?Listed, next: ?Cursor, position: h.Position, consistency: enum { independent } },
 };
-fn continuation(allocator: Allocator, connection: w.Connection, selection: Selection, previous: ?Cursor, position: p.DataLifecycle.Position, next: ?u64) !?Cursor {
+pub fn continuation(allocator: Allocator, connection: w.Connection, selection: Selection, previous: ?Cursor, position: p.DataLifecycle.Position, next: ?u64) !?Cursor {
     if (previous) |cursor| if (!std.meta.eql(try cursor.position.native(), position)) return error.CatalogObservationChanged;
     return if (next) |after| .{ .definition = p.Growth.current_definition, .connection = try h.Connection.foreign(allocator, connection), .selection = selection, .position = try h.Position.foreign(allocator, position), .after = try v.decimal(allocator, after) } else null;
 }
