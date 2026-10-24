@@ -94,7 +94,8 @@ and collecting its upload. New Run is unavailable until accepted work settles.
 
 One result page resides in the browser. The shared reader verifies complete
 ordered coverage and rereads the visible page against current authority. The
-UI preserves full-width IDs and labels its source revision and visible page.
+UI preserves full-width IDs and labels the Table partition, accepted position
+and visible page through the shared result formatter.
 An interface change clears the old page; policy denial clears protected state.
 
 For the selected schema evolution, explicitly prepare the empty target, then
