@@ -110,6 +110,11 @@ test "direct data candidates share physical quota and reserve control space with
 }
 
 test "native policy revocation after Table staging denies the whole batch and exact observation" {
+    try revocationAfterStaging(false);
+    try revocationAfterStaging(true);
+}
+
+fn revocationAfterStaging(prerequisite: bool) !void {
     const f = @import("transit_fuze");
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -121,6 +126,15 @@ test "native policy revocation after Table staging denies the whole batch and ex
     var engine = try Engine.bootstrap(&journal, &pages, try genesis());
     const setup = try provision(&engine);
     var authority: backend.DataAuthority = .{ .engine = &engine, .request = setup.guard, .audience = 100, .resource = setup.resource };
+    const revoking: u64 = if (prerequisite) 2 else 1;
+    if (prerequisite) {
+        const original_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(41));
+        _ = try submit(&engine, .{ .grant = .{ .subject = 2, .public_key = original_key.public_key.toBytes(), .permissions = p.permission(.inspect) } });
+        _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 2, .permissions = p.State.all_permissions } });
+        var condition = setup.guard;
+        condition.subject = .{ .signed = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 2, .credential_epoch = (try engine.principal(2)).credential_epoch, .role = null, .audience = 200, .context = @splat(7) }, original_key) };
+        authority.prerequisite = condition;
+    }
     var data: backend.DataStore = .{ .backend = &owner };
     const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = setup.resource, .catalog = 3 }, .branch = 1, .object = 7 };
     const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
@@ -128,7 +142,7 @@ test "native policy revocation after Table staging denies the whole batch and ex
     var table = try storage.TablePartition.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, data.log(), data.objects(), .{ .resident_pages = 1 });
     defer table.deinit();
     try table.recover();
-    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(5) };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(5), .prerequisite = authority.prerequisite };
     const changes = [_]storage.TablePartition.Change{.{ .put = .{ .row = .{
         .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 },
         .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }},
@@ -137,11 +151,12 @@ test "native policy revocation after Table staging denies the whole batch and ex
         authority: *backend.DataAuthority,
         engine: *Engine,
         resource: u64,
+        principal: u64,
         calls: usize = 0,
         fn acquire(context: *anyopaque) !storage.TablePartition.Guard.Fence {
             const self: *@This() = @ptrCast(@alignCast(context));
             self.calls += 1;
-            if (self.calls == 2) _ = try submit(self.engine, .{ .grant_resource = .{ .resource = self.resource, .subject = 1, .permissions = 0 } });
+            if (self.calls == 2) _ = try submit(self.engine, .{ .grant_resource = .{ .resource = self.resource, .subject = self.principal, .permissions = 0 } });
             const guard = self.authority.guard();
             return guard.acquire(guard.context);
         }
@@ -151,14 +166,14 @@ test "native policy revocation after Table staging denies the whole batch and ex
             guard.release(guard.context);
         }
     };
-    var race: Race = .{ .authority = &authority, .engine = &engine, .resource = setup.resource };
+    var race: Race = .{ .authority = &authority, .engine = &engine, .resource = setup.resource, .principal = revoking };
     const before = owner.allocated;
     try t.expectError(error.Forbidden, table.apply(binding, &changes, .bulk, .{ .context = &race, .acquire = Race.acquire, .release = Race.release }));
     try t.expect(owner.allocated > before);
     try t.expectEqual(@as(u64, 0), try data.log().tail(17));
     try t.expectEqual(@as(u64, 0), table.root.live_rows);
     try t.expectError(error.Forbidden, table.observe(binding, authority.guard()));
-    _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = p.State.all_permissions } });
+    _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = revoking, .permissions = p.State.all_permissions } });
     try t.expectEqual(@as(u64, 1), (try table.apply(binding, &changes, .bulk, authority.guard())).affected);
     try table.recover();
     try t.expectEqual(@as(u64, 1), (try table.observe(binding, authority.guard())).?.affected);

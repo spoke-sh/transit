@@ -2325,7 +2325,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
+        "try": 5,
         "catch": 0
       },
       "imports": [
@@ -3227,7 +3227,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 328,
+        "try": 329,
         "catch": 4
       },
       "imports": [
@@ -12461,7 +12461,7 @@
     },
     "packages/zig/transit-protocol/src/DataLifecycle.zig": {
       "errors": {
-        "DataIdentityConflict": 5,
+        "DataIdentityConflict": 6,
         "InconsistentSnapshot": 1,
         "InvalidCatalogIdentity": 1,
         "InvalidDataContent": 1,
@@ -12519,7 +12519,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -12868,7 +12868,7 @@
           "deadline"
         ],
         "Definition": [
-          "e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a"
+          "@\"9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56\""
         ],
         "Effect.phase": [
           "pending",
@@ -18640,7 +18640,7 @@
     },
     "packages/zig/transit-serving/src/table_watch_test_support.zig": {
       "errors": {
-        "CatalogDenied": 3,
+        "CatalogDenied": 4,
         "ReactiveResetRequired": 1,
         "TableDefinitionChanged": 1
       },

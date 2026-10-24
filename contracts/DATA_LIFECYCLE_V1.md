@@ -11,10 +11,10 @@ It groups schema roots; it is not a request envelope or a service endpoint.
 
 These types perform no storage I/O, permission checks, signing, provisioning,
 execution or pin acquisition. Validating an alleged commit does not prove that
-an authority accepted it. Installed Table operations retain their current
-[catalog caller](../packages/zig/transit-catalog/README.md) path until their
-owning runtime implements this acceptance protocol. No new SQL syntax, branch
-operation or transaction session is exposed by this contract.
+an authority accepted it. The installed direct Table owner and its
+[catalog caller](../packages/zig/transit-catalog/README.md) use these identities
+and acceptance records. The types themselves expose no SQL syntax, branch
+operation or transaction session.
 
 The separate [direct Table request contract](DIRECT_TABLE_V1.md) supplies signed
 envelopes and binary schema/row payloads for the internal node dispatcher. It
@@ -53,7 +53,8 @@ publishing a writable branch head.
 
 `Binding` carries the mandatory current contract `definition`, operation identity,
 target object, action, expected interpretation, optional expected data position
-and complete canonical intent digest. CREATE has no expected definition; every
+and complete canonical intent digest. Its optional `prerequisite` retains an
+additional native authorization guard. CREATE has no expected definition; every
 other action binds an existing exact definition. A data expectation also binds
 its partition. It identifies the source basis, not a requirement that control
 records stop advancing. Admission requires the expected frontier to fall between
@@ -64,10 +65,30 @@ actual admission frontier separately and checks logical freshness again before
 execution. Names are resolved before this binding is frozen.
 
 `requireSame` compares every field. A retry with the same operation ID but altered
-content, definition, target, branch or expected data position conflicts. Loading
+content, definition, target, branch, expected data position or prerequisite conflicts. Loading
 saved work must not resolve a current name or replace an expectation implicitly.
 Preview validates proposed work without reserving a name, retaining permission
 or admitting an operation. The owner revalidates at acceptance.
+
+The prerequisite is an additional current-authority condition for admission and
+mutation acceptance. It grants no Table rights to the submitting worker. For
+example, a worker can retain the authenticated subject of an accepted native
+input and require that subject's original credential and selected privileges to
+remain valid. The native owner resolves accepted-input subjects from retained
+history; caller-supplied principal fields alone establish no authenticated input.
+Signed subjects must belong to the binding's realm. Every condition uses the
+existing bounded native guard and current policy evaluator.
+
+The direct owner checks both the worker's Table rights and the prerequisite
+under the same native authority fence, including after private staging and
+during CREATE registration. The prerequisite is immutable across retries and
+worker replacement. Revoking it blocks new acceptance without undoing earlier
+accepted data. Inspection and cancellation still require the worker's current
+Table rights, but do not require the prerequisite to permit another mutation.
+They preserve the exact binding, including its original condition. A committed
+receipt remains inspectable through that current authority after the condition
+ceases to hold. This contract does not make an application's control-ledger
+commit and the Table's acceptance one atomic transition.
 
 The catalog's internal `OperationBinding` storage primitive reserves this exact
 binding across object partitions. Its immutable key hashes the operation's realm,
@@ -96,7 +117,7 @@ target's later retirement, and no cleanup operation is exposed.
 ### Direct catalog publication contract
 
 The direct catalog component implements DDL admission and name publication;
-installed service/SQL integration remains unfinished. Its control partition
+the configured local service and shared SQL runtime expose that owner. Its control partition
 owns immutable paged directories of objects, candidate names, operation records
 and pending work. This directory is separate from each Table's data partition;
 independent row writes do not change its root. The initial local profile uses
@@ -161,7 +182,7 @@ Native turns keep their existing input/one-resource/output commit boundary.
 Both ingestion forms end in `Commit`:
 
 - Point writes record the accepted mutation and exact result in the owning log
-  before acknowledgement; the memtable reflects accepted records.
+  before acknowledgement; accepted rows can remain in retained WAL records.
 - Bulk writes first stage immutable objects. The acceptance record binds their
   verified references, operation and result. Uploading an object alone publishes
   no rows. The owner rechecks schema, policy and conflicts after staging.

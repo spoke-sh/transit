@@ -234,6 +234,15 @@ progress across node restarts, and actual result/delta attribution after later
 definition publication. Lost native naming replies, their credential-rotation
 schedule and direct dependency registration remain open.
 
+Direct mutation bindings now retain an optional native authorization prerequisite
+for the original accepted application input, independently of the worker's
+current Table rights. The [scoped native/storage evidence](../../tests/README.md#direct-mutation-authorization-prerequisites--2026-10-23)
+covers current revocation at acceptance, fresh worker credentials, unchanged
+saved bindings and inspection/cancellation after the original condition fails.
+This supplies an authorization boundary needed by remaining application callers;
+it does not migrate Work items or make its native progress and Table acceptance
+one atomic operation.
+
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

@@ -137,6 +137,17 @@ different target. `admit` stores the complete request and its name reservation
 before returning an admitted record. That record publishes no Table. `perform`
 uses the retained request; it never resolves the current name again.
 
+An optional binding `prerequisite` retains an additional native authorization
+guard for application-originated work. The caller still needs its own current
+Table rights. `Policy.make_guard` must check both guards under one authority
+fence for admission and acceptance, including after private staging. Preview
+and CREATE registration also check the condition. Inspection and cancellation
+pass no prerequisite to the policy callback and retain the original binding;
+they use the inspecting caller's current rights. This permits recovery and
+closure after the original input's credential or privilege is revoked without
+granting permission to perform its mutation. The local native adapter implements
+that shared fence; alternate policy providers must reject unsupported conditions.
+
 A name resolves only when the target's accepted, non-retired declaration contains
 that namespace and name. CREATE, RENAME and DROP therefore become visible at
 their Table acceptance record, without a second catalog visibility decision.

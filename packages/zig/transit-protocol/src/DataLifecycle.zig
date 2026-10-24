@@ -89,10 +89,20 @@ pub const Binding = struct {
     expected_definition: ?Definition,
     expected_data: ?Position,
     intent: [32]u8,
+    /// A further current-authority condition, never a replacement for the data
+    /// caller's rights. The owner checks both under the same acceptance fence.
+    /// Accepted actor inputs can retain their original subject across workers.
+    /// Inspection and cancellation use the data caller's current rights; they
+    /// do not require the prerequisite subject to authorize another mutation.
+    prerequisite: ?p.Authorization.Guard = null,
 
     pub fn validate(self: Binding) !void {
         try self.identity.validate();
         try self.target.validate();
+        if (self.prerequisite) |condition| {
+            try condition.validate();
+            if (condition.subject == .signed and condition.subject.signed.claim.realm != self.identity.scope.realm) return error.DataIdentityConflict;
+        }
         if (!std.meta.eql(self.identity.scope, self.target.scope)) return error.DataIdentityConflict;
         if ((self.action == .create) != (self.expected_definition == null)) return error.InvalidDataDefinition;
         if (self.expected_definition) |expected| {

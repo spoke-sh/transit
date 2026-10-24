@@ -35,6 +35,19 @@ used requirements again after buffering the complete response. Denial at this
 boundary suppresses the response, even if a mutation has already committed.
 Recover that mutation through its original operation binding.
 
+A mutation binding may also retain a native authorization `prerequisite`.
+Admission, DDL preview, CREATE registration and Table acceptance check this
+condition in addition to the transport caller's independent Table privileges,
+under the same native authority fence. The condition can name the original
+accepted native input of application work. A replacement worker authenticates
+with its current credential while retaining that original condition; it cannot
+remove the condition or substitute a newer caller input or credential on retry.
+Inspection, cancellation and final response disclosure use the current data
+caller's rights without requiring that original subject to authorize a new
+mutation. Failure of the condition does not establish rejection or rollback.
+The [frozen-binding contract](DATA_LIFECYCLE_V1.md#frozen-intent-and-acceptance)
+defines its identity and recovery semantics.
+
 `DirectTableClient` checks response context and kind, exact operation bindings,
 terminal phase consistency, resulting definition revisions, matched/changed
 counts, schema fingerprints, listing order and page limits. It owns decoded

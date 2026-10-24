@@ -20,7 +20,8 @@ const Access = struct {
     fn erased(context: *anyopaque) *Access {
         return @ptrCast(@alignCast(context));
     }
-    fn make(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard) !P.Guard {
+    fn make(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
+        if (prerequisite != null) return error.CatalogDenied;
         try requested.validate();
         const result = try allocator.create(Context);
         result.* = .{ .access = erased(context), .requested = requested };
@@ -52,7 +53,7 @@ const Access = struct {
     }
     fn dataGuard(self: *Access, allocator: std.mem.Allocator, properties: D.Properties, object: u64) !P.Guard {
         const namespace: a.Schema = .{ .scope = scope, .id = 1, .authorization = profile.initial_schema_authority, .name = try a.Name.init("public"), .revision = 1 };
-        return make(self, allocator, try a.guard(self.policy().subject, profile, namespace, properties.target(object), .insert));
+        return make(self, allocator, try a.guard(self.policy().subject, profile, namespace, properties.target(object), .insert), null);
     }
 };
 fn configuration() !D.Configuration {

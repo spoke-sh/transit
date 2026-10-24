@@ -35,7 +35,10 @@ fn finish(engine: *Engine, id: u64) !?u64 {
     }
 }
 fn proof(engine: *Engine, context: [32]u8) !a.Proof {
-    return a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 101, .credential_epoch = (try engine.principal(101)).credential_epoch, .role = null, .audience = 100, .context = context }, try key(29));
+    return proofWithSeed(engine, context, 29);
+}
+fn proofWithSeed(engine: *Engine, context: [32]u8, seed: u8) !a.Proof {
+    return a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 101, .credential_epoch = (try engine.principal(101)).credential_epoch, .role = null, .audience = 100, .context = context }, try key(seed));
 }
 
 fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
@@ -45,6 +48,9 @@ fn dispatchDelegated(service: *@import("LocalTableService.zig"), action: c.Direc
     return dispatchBorrowed(service, action, delegation, null);
 }
 fn dispatchBorrowed(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow) !std.json.Parsed(c.DirectTableProtocol.Response) {
+    return dispatchWithSeed(service, action, delegation, borrow, 29);
+}
+fn dispatchWithSeed(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8) !std.json.Parsed(c.DirectTableProtocol.Response) {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
@@ -52,7 +58,7 @@ fn dispatchBorrowed(service: *@import("LocalTableService.zig"), action: c.Direct
     const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .borrow = borrow, .nonce = @splat(7), .action = action };
     const context = try w.Request.context(input, alloc);
     const executor = if (borrow) |value| value.binding.executor else if (delegation) |value| value.binding.executor else 101;
-    const signed = if (delegation != null) try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = executor, .credential_epoch = (try service.engine.principal(executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(if (borrow != null) 33 else 31)) else try proof(service.engine, context);
+    const signed = if (delegation != null) try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = executor, .credential_epoch = (try service.engine.principal(executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(if (borrow != null) 33 else 31)) else try proofWithSeed(service.engine, context, seed);
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
@@ -457,6 +463,108 @@ fn delegatedHistory(service: *@import("LocalTableService.zig"), snapshot_grant: 
     try t.expectError(error.TableSnapshotReleased, dispatchDelegated(service, .{ .retain_history = acquisition }, grant));
 }
 
+fn prerequisiteDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const pid = try command(engine, .{ .spawn = .{} });
+    const role = (try change(engine, .{ .create_role = .{ .name = try .init("original-input-caller"), .login = true } })).?;
+    _ = try change(engine, .{ .bind_credential = .{ .principal = 201, .role = role, .public_key = (try key(41)).public_key.toBytes() } });
+    const grant: @FieldType(a.Action, "grant") = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.send) };
+    _ = try change(engine, .{ .grant = grant });
+    const input = try engine.submit(try g.sign(.{ .realm = 42, .principal = 201, .sequence = (try engine.principal(201)).sequence + 1, .command = .{ .send = .{ .pid = pid, .value = try .init("original work") } } }, try key(41)));
+    var condition: a.Guard = .{ .subject = .{ .accepted = .{ .pid = pid, .input = input, .principal = 201 } }, .requirements = @splat(null) };
+    condition.requirements[0] = .{ .object = grant.object, .privileges = grant.privileges };
+    const revoke: a.Action = .{ .revoke_privileges = .{ .object = grant.object, .grantee = role, .privileges = grant.privileges, .grant_option_only = false, .behavior = .cascade } };
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    var row_schema: c.fuze.TableSchema.Schema = undefined;
+    var selected: w.Definition = undefined;
+    var current_binding: p.DataLifecycle.Binding = undefined;
+    var buffer: [65536]u8 = undefined;
+    for ([_]u64{ 20, 21 }) |object| {
+        const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+        const name = try std.fmt.allocPrint(alloc, "conditioned_{d}", .{object});
+        const intent: D.Intent = .{ .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+        const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 400 + object }, .target = .{ .scope = config.scope, .branch = config.branch, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc), .prerequisite = condition };
+        const ddl: w.Ddl = .{ .binding = binding, .namespace = 1, .name = name, .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(alloc, try schema.encode(&buffer)) } } };
+        (try dispatch(&service, .{ .admit_ddl = ddl })).deinit();
+        _ = try change(engine, revoke);
+        try t.expectError(error.Forbidden, dispatch(&service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 32 } }));
+        const pending = try dispatch(&service, .{ .operation = .{ .binding = binding, .command = .inspect, .steps = 1 } });
+        defer pending.deinit();
+        try t.expect(pending.value.result.ddl == .admitted);
+        if (object == 20) {
+            const closed = try dispatch(&service, .{ .operation = .{ .binding = binding, .command = .cancel, .steps = 1 } });
+            defer closed.deinit();
+            try t.expect(closed.value.result.ddl == .cancelled);
+        }
+        _ = try change(engine, .{ .grant = grant });
+        if (object == 20) continue;
+        const applied = try dispatch(&service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+        defer applied.deinit();
+        try t.expect(applied.value.result.ddl == .committed);
+        const lookup = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = name } });
+        defer lookup.deinit();
+        selected = lookup.value.result.lookup.?;
+        current_binding = binding;
+        row_schema = schema;
+    }
+    const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = 450, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 45 } } }} };
+    var work: w.Rows = .{ .binding = current_binding, .interpretation = selected.interpretation, .schema = try w.Binary.encode(alloc, try row_schema.encode(&buffer)), .changes = &.{.{ .insert = try w.Binary.encode(alloc, try row.encode(row_schema, &buffer)) }}, .ingestion = .point };
+    work.binding.identity.operation = 450;
+    work.binding.action = .insert;
+    work.binding.expected_definition = selected.interpretation.interpretation;
+    work.binding.intent = try work.digest(alloc);
+    // The original caller's condition does not supply the worker's Table rights.
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(selected.authorization), .owner = 0 } });
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .admit_rows = work }));
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(selected.authorization), .owner = owner_role } });
+    (try dispatch(&service, .{ .admit_rows = work })).deinit();
+    _ = try change(engine, revoke);
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } }));
+    _ = try change(engine, .{ .grant = grant });
+    // A replacement worker authenticates afresh but retains the original input.
+    _ = try change(engine, .{ .rotate_credential = .{ .principal = 101, .expected_epoch = (try engine.principal(101)).credential_epoch, .public_key = (try key(47)).public_key.toBytes() } });
+    const committed = try dispatchWithSeed(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } }, null, null, 47);
+    defer committed.deinit();
+    try t.expectEqual(@as(u64, 1), committed.value.result.rows.committed.outcome.affected);
+    try work.binding.requireSame(committed.value.result.rows.committed.binding);
+    _ = try change(engine, .{ .rotate_credential = .{ .principal = 101, .expected_epoch = (try engine.principal(101)).credential_epoch, .public_key = (try key(29)).public_key.toBytes() } });
+
+    work.binding.identity.operation = 451;
+    const next_row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = 451, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 46 } } }} };
+    work.changes = &.{.{ .insert = try w.Binary.encode(alloc, try next_row.encode(row_schema, &buffer)) }};
+    work.binding.intent = try work.digest(alloc);
+    var saved = try c.DirectTableIntent.create(alloc, .{ .scope = config.scope, .branch = config.branch, .audience = config.audience, .principal = 101, .role = null }, .{ .rows = work });
+    defer saved.deinit();
+    const staged = try dispatch(&service, .{ .stage = .{ .namespace = 1, .intent = saved.parsed.value } });
+    defer staged.deinit();
+    try (try saved.reference(1)).requireSame(staged.value.result.staged);
+    (try dispatch(&service, .{ .admit_saved = staged.value.result.staged })).deinit();
+    // Reopen native history; each service dispatch separately recovers the
+    // retained catalog and Table logs. Neither condition depends on live memory.
+    engine.* = try Engine.open(engine.journal, engine.page_store, engine.genesis);
+    var stripped = work.binding;
+    stripped.prerequisite = null;
+    try t.expectError(error.DataIdentityConflict, dispatch(&service, .{ .operation = .{ .binding = stripped, .command = .inspect, .steps = 1 } }));
+    _ = try change(engine, .{ .rotate_credential = .{ .principal = 201, .expected_epoch = (try engine.principal(201)).credential_epoch, .public_key = (try key(43)).public_key.toBytes() } });
+    try t.expectError(error.StaleAuthorizationCredential, dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } }));
+    const pending = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
+    defer pending.deinit();
+    try t.expect(pending.value.result.rows == .admitted);
+    const closed = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .cancel, .steps = 1 } });
+    defer closed.deinit();
+    try t.expect(closed.value.result.rows == .cancelled);
+    const earlier = try dispatch(&service, .{ .operation = .{ .binding = committed.value.result.rows.committed.binding, .command = .inspect, .steps = 1 } });
+    defer earlier.deinit();
+    try t.expectEqualDeep(committed.value.result, earlier.value.result);
+    const final = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = "conditioned_21" } });
+    defer final.deinit();
+    try t.expectEqual(@as(u64, 1), final.value.result.lookup.?.row_count);
+}
+
 test "local catalog checks real native registrations, current ownership and exact request proof" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -491,6 +599,7 @@ test "local catalog checks real native registrations, current ownership and exac
     try catalog.recover();
     try catalog.initialize(policy.policy());
     try directDispatch(&engine, config, role);
+    try prerequisiteDispatch(&engine, config, role);
     // The dispatch proof deliberately rotates the caller. Later independent
     // requests prepare a new proof; accepted delegated work keeps its old one.
     signed = try proof(&engine, request_digest);
