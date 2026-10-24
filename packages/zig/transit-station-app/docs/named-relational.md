@@ -7,12 +7,16 @@ SQL compilation uses the shared Fuze relational parser and explicit authorized
 catalog definitions to produce the frozen `RelationalBundle` first.
 
 Configure one realm, native resource, owner PID, namespace, administrator and
-record/byte quota. The resource and PID must own the first Table. Names are
+record/byte quota. The resource holds computation metadata and progress; direct
+Tables have independent catalog resources, audiences and partitions. Names are
 case-sensitive ASCII identifiers of at most 21 bytes. Nonzero uint64 object
 identities permanently belong to one name; immutable revisions begin at one.
 Native grants and catalog policy remain independent requirements.
 
-1. Stage the canonical bundle with `station.PublicationUpload` in the
+1. Prepare the canonical bundle with exact direct Table definitions and original
+   caller grants for its worker principal, source cuts and pin identities. A
+   captured query uses snapshot grants; a maintained query uses history grants.
+   Stage that bundle with `station.PublicationUpload` in the
    `query_request` domain. The publishing peer will also call activation.
 2. Initialize the namespace from its explicitly configured administrator.
 3. Publish a `Proposal` with name, object, expected name revision, original peer
@@ -22,7 +26,9 @@ Native grants and catalog policy remain independent requirements.
    principal and allow flag. This archives the definition binding and updates the
    existing query policy atomically. Editing a definition does not update policy.
 5. Send the returned `Activation` in an authenticated Station call from the
-   original publishing peer. `activate` returns the captured or maintained root;
+   original publishing peer. Supply the worker's configured direct Table clients
+   to `activate`; they authenticate its saved grants without impersonating the
+   caller. `activate` returns the captured or maintained root;
    result readiness follows the owning query's complete-coverage contract.
 
 `Control.encode/decode` supplies bounded administrator casts for initialization,
@@ -39,6 +45,10 @@ to its named definition, even after later publications. These metadata methods
 require an authorized public resource reader. Metadata and archived policy do not
 grant result access. `RelationalResult` and `RelationalRevision` recheck every
 current dependency, including sources contributing no rows.
+The complete result retains its original direct Table cuts after pin closure.
+Independent Table cuts do not form a catalog-wide atomic snapshot. A published
+definition or a completed captured result alone does not establish freshness
+against later row changes.
 
 Publication retries return the original revision and pin without another quota
 charge. Authorization retries return the original binding without reinstalling

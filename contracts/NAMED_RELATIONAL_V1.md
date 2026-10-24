@@ -9,10 +9,11 @@ rights, revision granularity and recovery semantics.
 ## Scope and identities
 
 A namespace belongs to one realm, owner PID and native resource. It has an
-explicit administrator, record quota and logical retained-byte quota. The first
-Table's owner/resource also owns activation, so all mutations stay within one
-native resource per turn. The namespace does not grant native access or replace
-catalog policy.
+explicit administrator, record quota and logical retained-byte quota. That native
+resource owns computation metadata and progress; direct Table catalogs and
+partitions have independent identities. Each native activation/progress turn
+still mutates at most its own resource. The namespace does not grant native
+access or replace catalog policy.
 
 Names are case-sensitive ASCII identifiers of at most 21 bytes, beginning with
 a letter or underscore and continuing with letters, digits or underscores. This
@@ -25,7 +26,10 @@ reuse and cascading deletion are outside this profile.
 
 A definition binds an exact immutable `RelationalBundle` publication, its original
 publishing peer, fingerprint and captured or maintained lifetime. The bundle
-contains the qualified typed plan, source identities and schemas. Publication
+contains the qualified typed plan, source identities and schemas, and the
+original caller's source-retention grants. Each grant binds the worker principal,
+Table interpretation, capture selection, pin owner and immutable computation
+purpose. Snapshot and history grants remain distinct. Publication
 verifies the complete canonical bundle and publisher and retains its native read
 version. It acquires no source data vector and starts no query. A definition
 cannot change meaning when live Table names, schemas or the query name's current
@@ -76,7 +80,10 @@ default. Definition/policy archive collection is not exposed by this profile.
 An authenticated Station call carries the exact definition reference and policy
 revision. The application owner checks the reference, original publishing peer,
 immutable authorization archive and current `RQA1` policy, then invokes the
-existing captured or maintained `start` operation with the original bundle.
+existing captured or maintained `start` operation with the original bundle and
+configured executor clients. A read-only direct status check discovers source
+authority; native admission commits before later direct pin acquisition. Neither
+publication nor activation may sign a replacement caller grant.
 Activation preserves its existing four-mutation ceiling and commit boundary.
 There is no separate UI configuration authority or alternate query executor.
 

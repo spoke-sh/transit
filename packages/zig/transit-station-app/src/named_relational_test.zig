@@ -7,8 +7,8 @@ const s = root.station;
 const f = q.fuze;
 const r = root.NamedRelationalRecords;
 const Store = q.testing.Store;
+const DirectFixture = @import("named_relational_fixture_test.zig");
 const owner: root.NamedRelational = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .owner = 3, .namespace = 55 }, .administrator = 17, .records = 4096, .bytes = 32 * 1024 * 1024 } };
-const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } } };
 fn turn(store: *Store) !s.Turn {
     var result = try store.capture();
     result.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };
@@ -18,21 +18,6 @@ fn setup(store: *Store) !void {
     var input = try turn(store);
     try owner.initialize(&input);
     try store.commit(input);
-    input = try turn(store);
-    try catalog.initialize(&input);
-    try store.commit(input);
-    var ddl = try f.TableDdl.compile(t.allocator, "CREATE TABLE items (k BIGINT, v BIGINT)", null, null);
-    defer ddl.deinit();
-    for (0..1000) |_| {
-        input = try turn(store);
-        const result = try catalog.step(t.allocator, &input, .{ .principal = 17, .operation = 1, .object = 100, .expected_revision = 0, .name = try c.TableMetadata.Name.init("items"), .action = .{ .create = .{ .schema = try ddl.statement.create.bind(100) } } });
-        try store.commit(input);
-        if (result.terminal()) {
-            try t.expectEqual(.applied, result.operation.state);
-            return;
-        }
-    }
-    return error.UnfinishedFixture;
 }
 fn upload(store: *Store, bundle: q.RelationalBundle) !s.PublicationReference {
     const ref = try bundle.reference(store.resource, store.input);
@@ -78,16 +63,23 @@ test "publication and conditional authorization retain original names without st
     defer store.deinit();
     try setup(&store);
     var input = try turn(&store);
-    var found = (try catalog.lookup(t.allocator, &input, 17, try c.TableMetadata.Name.init("items"))).?;
-    defer found.deinit();
-    var source = try q.TableSource.from(t.allocator, catalog.configuration, found);
-    defer source.deinit();
-    const sources = [_]q.TableSource{source.source};
-    const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = found.schema.schema }};
-    const description: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = q.RelationalMaintenance.resident_base + 8 * 1024 * 1024, .spill_bytes = 32 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 10000, .source_pins = 1 } } };
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    var threaded: std.Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
+    defer threaded.deinit();
+    const io = threaded.io();
+    var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+    defer listener.deinit(io);
+    const url = try std.fmt.allocPrint(arena.allocator(), "http://127.0.0.1:{d}", .{listener.socket.address.getPort()});
+    var task = try io.concurrent(DirectFixture.serve, .{ io, &listener });
+    defer _ = task.cancel(io) catch {};
+    var wire = q.wire.Client.init(t.allocator, io, url);
+    defer wire.deinit();
+    wire.timeout_ms = 3000;
+    const clients = [_]c.DirectTableClient{.{ .allocator = t.allocator, .authority = &wire, .service = &wire, .connection = DirectFixture.connection, .key = try c.testing.Authority.key(2) }};
     const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
     defer t.allocator.free(workspace);
-    const bundle = try Store.signQuery(description, 17, store.pid, store.pid, store.resource);
+    const bundle = try DirectFixture.bundle(arena.allocator(), .captured);
     const request = try upload(&store, bundle);
     const proposal: root.NamedRelational.Proposal = .{ .name = try r.Name.init("totals"), .object = 1001, .expected = 0, .peer = 3, .request = request };
     // Allocation and quota failure discard pins and every partial write.
@@ -123,7 +115,7 @@ test "publication and conditional authorization retain original names without st
     const activation: r.Activation = .{ .reference = first, .policy_revision = 1 };
     input.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
     input.delivery.input.value = try (s.Frame{ .kind = .call, .correlation = 700, .payload = try activation.encode() }).encode();
-    try t.expectError(error.NamedQueryNotFound, owner.activate(&input, activation, workspace));
+    try t.expectError(error.NamedQueryNotFound, owner.activate(&input, activation, &clients, workspace));
     try empty(input);
     input = try turn(&store);
     const permitted = try owner.authorize(&input, first, 0, 17, true);
@@ -135,9 +127,7 @@ test "publication and conditional authorization retain original names without st
     try empty(input);
     // A second definition changes lifetime; the original permission/attribution
     // remains attached to the original immutable revision.
-    var successor = description;
-    successor.plan.lifetime = .maintained;
-    const next_bundle = try Store.signQuery(successor, 17, store.pid, store.pid, store.resource);
+    const next_bundle = try DirectFixture.bundle(arena.allocator(), .maintained);
     const next_request = try upload(&store, next_bundle);
     var replacement = proposal;
     replacement.expected = 1;
@@ -158,7 +148,7 @@ test "publication and conditional authorization retain original names without st
     try empty(input);
     input.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
     input.delivery.input.value = try (s.Frame{ .kind = .call, .correlation = 700, .payload = try permitted.encode() }).encode();
-    const started = try owner.activate(&input, permitted, workspace);
+    const started = try owner.activate(&input, permitted, &clients, workspace);
     try t.expectEqual(first.identity.revision, started.captured.policy_revision);
     try t.expectEqualDeep(request, started.captured.request);
     try store.commit(input);
@@ -169,10 +159,10 @@ test "publication and conditional authorization retain original names without st
     input = try turn(&store);
     input.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
     input.delivery.input.value = try (s.Frame{ .kind = .call, .correlation = 701, .payload = try permitted.encode() }).encode();
-    try t.expectError(error.QueryDenied, owner.activate(&input, permitted, workspace));
+    try t.expectError(error.QueryDenied, owner.activate(&input, permitted, &clients, workspace));
     try empty(input);
     input.delivery.input.value = try (s.Frame{ .kind = .call, .correlation = 701, .payload = try next.encode() }).encode();
-    const maintained = try owner.activate(&input, next, workspace);
+    const maintained = try owner.activate(&input, next, &clients, workspace);
     try t.expectEqualDeep(next_request, maintained.maintained.request);
     try store.commit(input);
     input = try turn(&store);
@@ -203,6 +193,7 @@ test "publication and conditional authorization retain original names without st
     store.denied = true;
     input = try turn(&store);
     try t.expectError(error.AccessDenied, owner.lookup(&input, proposal.name));
+    try task.await(io);
 }
 
 test "independent named relational records preserve uint64 identities and reject malformed saved work" {
