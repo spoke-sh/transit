@@ -54,6 +54,13 @@ engineering decisions that must precede dependent implementation.
 
 ## Implementation in progress
 
+The [unified recovery schedule](../../tests/README.md#unified-direct-table-recovery-and-closure--2026-10-24)
+now uses independent direct Table storage and native query progress. Native ABI
+and port checks pass exact upload/result recovery, unflushed point data,
+released-pin refusal, partial COUNT recovery, cancellation and retained failure
+diagnostics through node/worker replacement. The shared KV regression passes.
+Older catalog/SQL fixture migration and the final repository gates remain open.
+
 Flight and the public captured-query fixtures now use the direct Table owner
 with independent native progress storage. Their
 [native consumer evidence](../../tests/README.md#direct-flight-and-captured-query-consumers--2026-10-24)
@@ -72,6 +79,11 @@ The refresh proof uses separately prepared direct captures, retains the original
 request through worker replacement and enforces current Table SELECT. TLS,
 capacity, lifetime and retained growth qualification also pass. The native browser
 now verifies direct Follow results and denial between verification and disclosure.
+The [multi-tab browser schedule](../../tests/README.md#direct-follow-browser-lifecycle--2026-10-24)
+also passes stream-loss recovery with the original basis, independent sessions,
+watch-generation reset, explicit resnapshot and denial after catalog lifetime
+retirement. A recorded watch-change rejection stops renewal instead of being
+retried as a temporary disconnect.
 Reload/credential-rotation and placement qualification remain open; this does not close the
 coordinated consumer cutover gate.
 

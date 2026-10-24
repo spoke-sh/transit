@@ -25,6 +25,12 @@ def run(node, host, proof, library, kinds):
                 ursula_url=fixture.url, bucket='unified-expiry', journal='authority', port=port,
                 resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000)))
 
+            if kind == 'table':
+                settings = json.loads(config.read_text())
+                for field in ('ursula_url', 'bucket', 'journal'): settings.pop(field)
+                settings['local_directory'] = str(root/'authority')
+                config.write_text(json.dumps(settings))
+
             def start(name, command):
                 log = (root/(name+'.log')).open('w+')
                 logs.append(log)
@@ -38,13 +44,21 @@ def run(node, host, proof, library, kinds):
                 return json.loads(result.stdout) if result.stdout.strip() else None
 
             try:
-                subprocess.run([node, str(config), '--initialize'], check=True, capture_output=True, env=fixture.env)
+                subprocess.run([node, str(config), '--initialize'], check=True, env=fixture.env)
                 authority = start('node', [node, str(config)])
                 wait_ready(fixture.http, authority, url+'/health')
+                if kind == 'table':
+                    invoke('catalog-bootstrap', timeout=300)
+                    authority.terminate(); authority.wait(timeout=10)
+                    settings = json.loads(config.read_text())
+                    settings['table'] = json.loads((root/'catalog-node.json').read_text())
+                    config.write_text(json.dumps(settings))
+                    authority = start('node-catalog', [node, str(config)])
+                    wait_ready(fixture.http, authority, url+'/health')
                 connection = invoke('provision-expiring', kind, timeout=1800)
                 expires = json.loads((root/'client.json').read_text())['expiry_at_ms']
                 for role in ('source', 'requester', 'courier'): start(role, [host, str(root/(role+'.json'))])
-                client = Native(library, url, connection)
+                client = Native(library, url, connection, tables=json.loads((root/'client.json').read_text()).get('tables'))
                 upload(client, root)
                 # The same source has a complete readable publication before the
                 # configured request deadline. The source remains unlimited.
@@ -53,6 +67,7 @@ def run(node, host, proof, library, kinds):
                     time.sleep(.1)
                 first = client.call({'page': {'namespace': '1'}})['page']
                 assert first['rows'] > 0 and first['next']
+                if kind == 'table': invoke('released-pins')
                 versions = invoke('versions')
                 assert all(v['released_at'] is not None for v in versions['entries'] if v)
                 print(f'Unified {kind} expiry: complete result read before opted-in request deadline; waiting for real time.', flush=True)
@@ -81,7 +96,7 @@ def run(node, host, proof, library, kinds):
                 except Failure as error:
                     assert error.detail['err'] in ('QuerySourceUnavailable', 'Rejected', 'AccessDenied'), error
                 print(f'Unified {kind} expiry: prefix/complete reads denied, source pin released, node/store restart preserves expiry; '
-                      f'{time.monotonic()-started:.2f}s / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes.', flush=True)
+                      f'{time.monotonic()-started:.2f}s / backend={"local_directory" if kind == "table" else "ursula"} / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes.', flush=True)
             except BaseException:
                 for log in logs:
                     log.flush(); log.seek(0)

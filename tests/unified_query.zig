@@ -10,7 +10,7 @@ pub const Kind = enum { kv, table, document };
 const count = 41;
 const document_count = 12;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
-const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, source: q.Values.Source, expiry_at_ms: ?u64 = null, compound: bool = false };
+const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, source: q.Values.Source, tables: ?struct { url: []const u8, connection: q.Values.DirectConnection } = null, capture: ?q.Values.Capture = null, expiry_at_ms: ?u64 = null, compound: bool = false };
 const path = [_]q.document.Model.Name{q.document.Model.Name.init("items") catch unreachable};
 const optional_path = [_]q.document.Model.Name{q.document.Model.Name.init("optional") catch unreachable};
 const projections = [_]q.SourceDefinition.Projection{
@@ -175,6 +175,12 @@ pub fn main(init: std.process.Init) !void {
     errdefer if (transport.last_rejection) |reason| std.debug.print("Authority rejection: {s}\n", .{@tagName(reason)});
     var admin: Admin = .{ .wire = &transport, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
+    if (std.mem.eql(u8, command, "catalog-bootstrap")) {
+        const profile = try Catalog.provision(&admin);
+        try save(init, directory, "catalog-profile.json", profile);
+        try save(init, directory, "catalog-node.json", .{ .catalog = profile.catalog, .registrar = .{ .principal = 0, .seed_file = try keyFile(init, directory, "registrar.seed", 7) } });
+        return;
+    }
     if (std.mem.eql(u8, command, "provision-combined")) return Combined.provision(init, url, &transport, &admin, directory);
     if (std.mem.eql(u8, command, "provision") or std.mem.eql(u8, command, "provision-expiring") or std.mem.eql(u8, command, "provision-compound")) {
         if (args.len != 5 and args.len != 6) return error.Usage;
@@ -197,16 +203,19 @@ pub fn main(init: std.process.Init) !void {
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
         var seed: Seed = .{ .kind = kind, .rows = rows, .peer = requester.pid, .requests = requester.resource };
         const handler: s.GenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
-        const table_config: ?q.catalog.TableCatalogRecords.Configuration = if (kind == .table) try Catalog.provision(&admin, writer.resource, writer.pid) else null;
-        var table_owner: ?*q.CatalogQueryOwner = null;
+        const table_config: ?Catalog.Profile = if (kind == .table) try Catalog.configuration(init, directory) else null;
+        var table_owner: ?*q.UnifiedBehavior.Source = null;
         var source_definition: q.SourceDefinition = undefined;
         if (kind == .table) {
             try Catalog.grant(&admin, table_config.?);
-            table_owner = try Catalog.owner(init, &transport, table_config.?);
-            server.input_guard = table_owner.?.guard();
+            table_owner = try Catalog.owner(init, &transport, table_config.?, requester.pid);
             server.failure_policy = .stop;
-            var catalog_client = try Catalog.caller(&transport, table_config.?);
-            source_definition = try Catalog.initialize(init, &admin, &server, table_owner.?, &catalog_client, table_config.?, rows);
+            const catalog_client = try Catalog.caller(init.gpa, &transport, table_config.?);
+            source_definition = try Catalog.initialize(init, catalog_client, rows);
+            // Direct declaration registration uses the configured root registrar.
+            admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+            _ = try Catalog.send(&transport, writer.pid, try q.UnifiedRequest.Command.encode(.initialize));
+            try drive(init, &server, table_owner.?.interface());
         } else {
             try admin.send(writer.pid, -1);
             try drive(init, &server, handler);
@@ -264,9 +273,8 @@ pub fn main(init: std.process.Init) !void {
             try drive(init, &server, handler);
         }
         if (table_owner) |catalog_owner| {
-            server.input_guard = catalog_owner.guard();
-            _ = try Catalog.delegate(&transport, table_config.?, requester.pid, requester.resource, budgets, 1);
-            try Catalog.driveCatalog(init, &server, catalog_owner);
+            _ = try Catalog.delegate(&transport, table_config.?, writer.pid, requester.pid, requester.resource, budgets, 1);
+            try drive(init, &server, catalog_owner.interface());
         } else {
             try admin.send(writer.pid, -2);
             try drive(init, &server, handler);
@@ -278,17 +286,28 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
         const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
-        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .source = try q.Values.Source.fromNative(init.arena.allocator(), source_definition), .expiry_at_ms = expiry_at_ms, .compound = std.mem.eql(u8, command, "provision-compound") };
+        var client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .source = try q.Values.Source.fromNative(init.arena.allocator(), source_definition), .expiry_at_ms = expiry_at_ms, .compound = std.mem.eql(u8, command, "provision-compound") };
+        if (table_config) |profile| {
+            var tables = try Catalog.caller(init.gpa, &transport, profile);
+            tables.connection.principal = 1234;
+            tables.connection.role = null;
+            tables.key = caller_key;
+            const found = try tables.call(.{ .lookup = .{ .namespace = 1, .name = "items" } });
+            defer found.deinit();
+            client_config.tables = .{ .url = url, .connection = try q.Values.DirectConnection.foreign(init.arena.allocator(), tables.connection) };
+            client_config.capture = .{ .executor = 65536, .operation = "1", .expected = .{ .partition = try std.fmt.allocPrint(init.arena.allocator(), "{d}", .{found.value.result.lookup.?.position.partition}), .next_lsn = try std.fmt.allocPrint(init.arena.allocator(), "{d}", .{found.value.result.lookup.?.position.next_lsn}) } };
+        }
         try save(init, directory, "client.json", client_config);
-        try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = client_config.source, .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
+        try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .executor = if (kind == .table) 65536 else null, .source = client_config.source, .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);
         var query_client: q.UnifiedClient = .{ .wire = &transport, .connection = connection, .key = caller_key };
         const description_bundle = try bundle(client_config, init.arena.allocator());
         var bundle_bytes: [q.Bundle.max_bytes]u8 = undefined;
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle-description.bin"), .data = try description_bundle.encode(&bundle_bytes) });
-        const authorized_bundle = try query_client.authorizeBundle(description_bundle);
+        if (client_config.tables) |tables| query_client.tables = .{ .allocator = init.gpa, .authority = &transport, .service = &transport, .connection = try tables.connection.native(), .key = caller_key };
+        const authorized_bundle = if (client_config.capture) |capture| try query_client.authorizeCapture(description_bundle, try capture.native()) else try query_client.authorizeBundle(description_bundle);
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try authorized_bundle.encode(&bundle_bytes) });
-        if (kind == .table) try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .catalog = table_config.? } }) else try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
+        if (kind == .table) try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .tables = q.UnifiedBehavior.TableEndpoint{ .url = url, .scope = table_config.?.catalog.scope, .branch = table_config.?.catalog.branch, .audience = table_config.?.catalog.audience }, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 42 } } }) else try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
         try save(init, directory, "requester.json", .{ .url = url, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = try keyFile(init, directory, "requester.seed", 9), .activation_directory = directory, .role = .{ .unified_requester = behavior } });
         try save(init, directory, "courier.json", .{ .url = url, .realm = 46, .principal = 65538, .seed_file = try keyFile(init, directory, "courier.seed", 11), .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
         return print(init, connection);
@@ -304,14 +323,13 @@ pub fn main(init: std.process.Init) !void {
         const process = (try admin.query(.{ .process = config.connection.source })).body.process.process;
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = config.connection.source, .generation = process.generation, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
         if (config.kind == .table) {
-            const table_config = try Catalog.configuration(&transport, config.connection.resource, config.connection.source);
-            const owner = try Catalog.owner(init, &transport, table_config);
-            server.input_guard = owner.guard();
+            const table_config = try Catalog.configuration(init, directory);
+            const owner = try Catalog.owner(init, &transport, table_config, config.connection.requester);
             server.failure_policy = .stop;
             var limits = budgets;
             const restore = std.mem.eql(u8, command, "restore-policy");
             limits.pages = if (restore) 1000 else 999;
-            _ = try Catalog.delegate(&transport, table_config, config.connection.requester, config.connection.requests, limits, if (restore) 3 else 2);
+            _ = try Catalog.delegate(&transport, table_config, config.connection.source, config.connection.requester, config.connection.requests, limits, if (restore) 3 else 2);
             return drive(init, &server, owner.interface());
         }
         var seed: Seed = .{ .kind = config.kind, .peer = config.connection.requester, .requests = config.connection.requests };
@@ -337,6 +355,7 @@ pub fn main(init: std.process.Init) !void {
         return print(init, .{ .seed_file = try keyFile(init, directory, "inspector.seed", 12) });
     }
     var client: q.UnifiedClient = .{ .wire = &transport, .connection = config.connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+    if (config.tables) |tables| client.tables = .{ .allocator = init.gpa, .authority = &transport, .service = &transport, .connection = try tables.connection.native(), .key = client.key };
     if (std.mem.eql(u8, command, "compile-count")) {
         if (args.len != 5) return error.Usage;
         const source = try config.source.native(init.arena.allocator());
@@ -348,7 +367,7 @@ pub fn main(init: std.process.Init) !void {
     }
     if (std.mem.eql(u8, command, "upload")) {
         for (0..1000) |_| {
-            const pending = (try client.prepareNext(1, try bundle(config, init.arena.allocator()))) orelse return print(init, (try client.status(1)).?);
+            const pending = (try client.prepareNext(1, try q.Bundle.decode(init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "bundle.bin"), init.arena.allocator(), .limited(q.Bundle.max_bytes))))) orelse return print(init, (try client.status(1)).?);
             try save(init, directory, "pending.json", pending);
             try observe(init, &client, try client.submit(pending));
         }
@@ -405,6 +424,37 @@ pub fn main(init: std.process.Init) !void {
             return print(init, snapshot);
         }
         return error.QueryReadConflict;
+    }
+    if (std.mem.eql(u8, command, "released-pins") or (config.kind == .table and std.mem.eql(u8, command, "released-read"))) {
+        if (config.kind != .table) return error.ExpectedTableSource;
+        var source = try (s.client.ResourceReader{ .wire = &transport, .realm = 46, .principal = 0, .key = root }).open(config.connection.resource);
+        const tables = client.tables.?;
+        var after: ?p.Value = null;
+        var count_pins: usize = 0;
+        while (true) {
+            const entries = try source.page(after);
+            for (entries.entries) |entry| if (entry) |item| {
+                if (!std.mem.startsWith(u8, item.key.slice(), "\x00Uj")) continue;
+                const job = try q.UnifiedRecords.Job.decode(item.value);
+                const pin = (try q.CapturedTablePin.observe(init.arena.allocator(), &source, .{ .job = job.id, .source = 0 }, config.connection.source)) orelse return error.MissingTablePin;
+                const state = try tables.call(.{ .pin_status = .{ .object = pin.grant.binding.interpretation.object, .owner = pin.grant.binding.owner } });
+                defer state.deinit();
+                if (!state.value.result.pin_state.released) return error.SourcePinStillHeld;
+                const handle = state.value.result.pin_state.handle orelse return error.MissingTablePin;
+                const disclosed = tables.call(.{ .snapshot = try pin.snapshot(handle) }) catch |err| {
+                    if (err != error.Conflict or tables.service.last_rejection != .QueryExpired) return err;
+                    count_pins += 1;
+                    continue;
+                };
+                disclosed.deinit();
+                return error.ReleasedVersionReadable;
+            };
+            after = entries.next;
+            if (after == null) break;
+        }
+        if (count_pins == 0) return error.NoCapturedSource;
+        if (std.mem.eql(u8, command, "released-read")) return print(init, .{ .released_read_denied = true });
+        return print(init, .{ .released = count_pins });
     }
     if (std.mem.eql(u8, command, "released-read")) {
         const versions = (try admin.query(.{ .read_versions = .{ .pid = config.connection.source } })).body.read_versions;
