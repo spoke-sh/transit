@@ -11,6 +11,36 @@ const v = c.TableValues;
 const Allocator = std.mem.Allocator;
 
 pub const Scope = v.Scope;
+pub const PreviewBasis = struct {
+    interpretation: Stored,
+    position: Position,
+    changed_lsn: []const u8,
+    row_count: []const u8,
+    fn foreign(allocator: Allocator, value: c.DirectCatalog.Preview.Basis) !PreviewBasis {
+        return .{ .interpretation = try Stored.foreign(allocator, value.interpretation), .position = try Position.foreign(allocator, value.position), .changed_lsn = try v.decimal(allocator, value.changed_lsn), .row_count = try v.decimal(allocator, value.row_count) };
+    }
+};
+pub const Preview = union(enum) {
+    ddl: struct {
+        binding: Binding,
+        directory_position: Position,
+        current: ?PreviewBasis,
+        reason: @FieldType(c.DirectCatalog.Preview, "reason"),
+        work: ?c.fuze.TableEvolution.Work,
+        rebuild_key: bool,
+        schema_fingerprint: ?[]const u8,
+    },
+    rows: struct { binding: Binding, directory_position: Position, current: PreviewBasis, reason: @FieldType(c.DirectCatalog.RowPreview, "reason") },
+    name_assertion: struct { binding: NameAssertion, position: Position, current: ?Interpretation, matches: bool },
+    pub fn foreign(allocator: Allocator, value: w.Result) !Preview {
+        return switch (value) {
+            .preview => |found| .{ .ddl = .{ .binding = try Binding.foreign(allocator, found.binding), .directory_position = try Position.foreign(allocator, found.directory_position), .current = if (found.current) |basis| try PreviewBasis.foreign(allocator, basis) else null, .reason = found.reason, .work = found.work, .rebuild_key = found.rebuild_key, .schema_fingerprint = if (found.schema_fingerprint) |digest| try v.hex(allocator, &digest) else null } },
+            .row_preview => |found| .{ .rows = .{ .binding = try Binding.foreign(allocator, found.binding), .directory_position = try Position.foreign(allocator, found.directory_position), .current = try PreviewBasis.foreign(allocator, found.current), .reason = found.reason } },
+            .name_preview => |found| .{ .name_assertion = .{ .binding = try NameAssertion.foreign(allocator, found.binding), .position = try Position.foreign(allocator, found.position), .current = if (found.current) |definition| try Interpretation.foreign(allocator, definition) else null, .matches = found.matches } },
+            else => error.InvalidTableResponse,
+        };
+    }
+};
 pub const Connection = struct {
     scope: Scope,
     branch: []const u8,

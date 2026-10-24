@@ -179,6 +179,8 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             return .{ .list = .{ .entries = page.entries, .next = next, .directory_position = page.directory_position, .consistency = .independent } };
         },
         .preview => |value| return .{ .preview = try catalog.preview(try value.native(allocator, catalog.store.root.configuration), policy) },
+        .name_preview => |value| return .{ .name_preview = try catalog.previewName(value, policy) },
+        inline .preview_rows, .preview_statement => |value| return .{ .row_preview = try catalog.previewRows(try value.native(allocator), policy) },
         .stage => |value| {
             try catalog.checkOperation(value.intent.work.binding(), value.namespace, policy);
             // CREATE additionally checks selection of its frozen owner role;

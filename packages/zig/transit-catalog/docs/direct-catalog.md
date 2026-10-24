@@ -50,8 +50,9 @@ column changes and INSERT/UPDATE/DELETE batches through `DirectTableTyped`.
 Existing objects bind to the exact prepared definition; typed values use Fuze's
 shared schema, cell, predicate and assignment admission. INSERT supports up to
 1024 rows within the 4 MiB encoded mutation budget and point/bulk ingestion.
-Saved work owns its values independently of the request arena. Preview and
-general SDK/ABI dispatch require further integration.
+Saved work owns its values independently of the request arena. `preview` returns
+the owning DDL, row or conditional-name observation without staging or admission.
+General SDK/ABI dispatch still requires integration.
 
 The `observe` action reads an exact current interpretation and optionally its
 first bounded row page. It returns definition, data position, row count and
@@ -196,6 +197,16 @@ schema fingerprint. It does not claim the operation identity, stage an intent,
 reserve a name, provision native authority or publish a declaration. Existing
 identity claims must still match. Row-dependent constraints and final permission
 checks remain execution work; preview cannot promise their later success.
+
+`preview_rows` and `preview_statement` check the frozen definition and data
+expectations under current mutation/inspection rights and acceptance
+prerequisites. They report the current interpretation, Table position and row
+count, plus stale-definition, stale-data or pending/retired-object conflicts.
+They do not scan rows, predict affected counts, stage payloads or admit work.
+`name_preview` checks a frozen conditional declaration under its original rights
+and returns its current match and catalog position without accepting an outcome.
+All previews describe current conditions; recover past outcomes with the
+original operation reference.
 
 The configuration fixes one catalog, branch one, its native authorization
 profile and an exclusive control partition. Each reserved Table receives a

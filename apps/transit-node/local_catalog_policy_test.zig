@@ -535,10 +535,15 @@ fn prerequisiteDispatch(engine: *Engine, config: D.Configuration, owner_role: u6
     work.binding.intent = try work.digest(alloc);
     // The original caller's condition does not supply the worker's Table rights.
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(selected.authorization), .owner = 0 } });
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .preview_rows = work }));
     try t.expectError(error.Forbidden, dispatch(&service, .{ .admit_rows = work }));
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(selected.authorization), .owner = owner_role } });
+    const preview = try dispatch(&service, .{ .preview_rows = work });
+    defer preview.deinit();
+    try t.expectEqual(.none, preview.value.result.row_preview.reason);
     (try dispatch(&service, .{ .admit_rows = work })).deinit();
     _ = try change(engine, revoke);
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .preview_rows = work }));
     try t.expectError(error.Forbidden, dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } }));
     _ = try change(engine, .{ .grant = grant });
     // A replacement worker authenticates afresh but retains the original input.

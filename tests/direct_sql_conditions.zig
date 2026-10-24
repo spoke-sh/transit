@@ -88,6 +88,10 @@ pub fn recover(allocator: std.mem.Allocator, client: c.DirectTableClient, state:
     try t.expectEqual(.unchanged, (try accept(client, now_present)).state);
     try mutate(client, try bind(allocator, client, "DROP TABLE IF EXISTS conditional_created", 508));
     try verify(client, state.*);
+    try callers(allocator, client);
+}
+
+pub fn callers(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     try sharedPreparation(allocator, client);
     try sharedHost(allocator, client);
     try sharedTypedHost(allocator, client);
@@ -115,6 +119,10 @@ fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !v
     const schema: c.fuze.TableSchema.Schema = .{ .object = 1517, .revision = 1, .next_column = 3, .columns = &.{ .{ .id = 1, .name = "id", .type = .int64, .nullable = false }, .{ .id = 2, .name = "payload", .type = .utf8 } }, .primary_key = &.{1} };
     var request: c.DirectTableTyped.Request = .{ .definition = c.protocol.Growth.current_definition, .namespace = 1, .operation = "517", .name = "host_typed", .action = .{ .create = .{ .schema = try c.fuze.TableSchemaJson.foreignInto(a, schema), .if_not_exists = false } } };
     const created = (try session.apply(&output, client, .{ .prepare = request }, null)).compiled;
+    const proposal = (try session.apply(&output, client, .{ .preview = created.summary.id }, null)).preview.ddl;
+    try t.expectEqual(.none, proposal.reason);
+    try t.expect(proposal.current == null);
+    try t.expectEqualDeep(proposal, (try session.apply(&output, client, .{ .preview = created.summary.id }, null)).preview.ddl);
     _ = try applyHost(&output, &session, client, created);
     var metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
     const payload = try a.alloc(u8, 32 * 1024);
@@ -132,6 +140,13 @@ fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !v
     const decoded = try Host.parse(a, wire);
     defer decoded.deinit();
     const inserted = (try session.apply(&output, client, decoded.value, null)).compiled;
+    const preview = (try session.apply(&output, client, .{ .preview = inserted.summary.id }, null)).preview.rows;
+    try t.expectEqual(.none, preview.reason);
+    try t.expectEqualStrings("0", preview.current.row_count);
+    try t.expectEqualDeep(preview, (try session.apply(&output, client, .{ .preview = inserted.summary.id }, null)).preview.rows);
+    // Constructing this recovery identity performs no staging or admission.
+    const unseen = try c.DirectTableValues.Reference.foreign(a, try session.active.?.work.table.reference(1));
+    try t.expect((try session.apply(&output, client, .{ .operation = .{ .reference = .{ .table = unseen }, .command = .inspect, .steps = 1 } }, null)).observation.rows == .not_observed);
     const accepted = (try applyHost(&output, &session, client, inserted)).rows.committed;
     try t.expectEqualStrings("9", accepted.outcome.affected);
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = request.name } });
@@ -148,6 +163,8 @@ fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !v
     request.operation = "519";
     request.action = .{ .alter = .{ .basis = metadata.binding, .change = .{ .add = .{ .name = "note", .type = .utf8, .nullable = true, .default = .{ .value = .{ .atom = .{ .utf8 = "typed" } } }, .max_characters = null, .encoding = .plain, .collation = .none } } } };
     _ = try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled);
+    const old_insert = (try session.apply(&output, client, .{ .load = inserted.saved }, null)).loaded;
+    try t.expectEqual(.stale_definition, (try session.apply(&output, client, .{ .preview = old_insert.id }, null)).preview.rows.reason);
     request.operation = "520";
     request.action = .{ .drop = .{ .basis = stale, .if_exists = false } };
     try t.expectError(error.TableDefinitionChanged, session.apply(&output, client, .{ .prepare = request }, null));
@@ -161,7 +178,14 @@ fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !v
     _ = try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled);
     request.operation = "522";
     request.action = .{ .drop = .{ .basis = null, .if_exists = true } };
-    try t.expectEqual(.unchanged, (try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled)).name_assertion.outcome.state);
+    const absent = (try session.apply(&output, client, .{ .prepare = request }, null)).compiled;
+    const condition = (try session.apply(&output, client, .{ .preview = absent.summary.id }, null)).preview.name_assertion;
+    try t.expect(condition.matches and condition.current == null);
+    try t.expectEqualDeep(condition, (try session.apply(&output, client, .{ .preview = absent.summary.id }, null)).preview.name_assertion);
+    try t.expect((try session.apply(&output, client, .{ .operation = .{ .reference = .{ .name_assertion = absent.saved.name_assertion }, .command = .inspect, .steps = 1 } }, null)).observation.name_assertion == .not_observed);
+    try t.expectEqual(.unchanged, (try applyHost(&output, &session, client, absent)).name_assertion.outcome.state);
+    const retired = (try session.apply(&output, client, .{ .load = inserted.saved }, null)).loaded;
+    try t.expectEqual(.object_conflict, (try session.apply(&output, client, .{ .preview = retired.id }, null)).preview.rows.reason);
 }
 
 fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
@@ -187,6 +211,7 @@ fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     try t.expectEqualStrings("1513", metadata.binding.interpretation.interpretation.object.object);
     try t.expectEqualStrings("0", metadata.row_count);
     const conditional = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "514", .create_object = "1514", .sql = "CREATE TABLE IF NOT EXISTS host_prepared (ignored TEXT)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
+    try t.expect((try recovered.apply(&output, client, .{ .preview = conditional.summary.id }, null)).preview.name_assertion.matches);
     const condition = (try recovered.apply(&output, client, .{ .stage = conditional.summary.id }, null)).staged;
     const unchanged = (try recovered.apply(&output, client, .{ .admit = condition }, null)).observation;
     try t.expectEqual(.unchanged, unchanged.name_assertion.outcome.state);
@@ -197,9 +222,22 @@ fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     const rows = (try recovered.apply(&output, client, .{ .operation = .{ .reference = inserted, .command = .execute, .steps = 32 } }, null)).observation.rows.committed;
     try t.expectEqualStrings("1", rows.outcome.matched);
     try t.expectEqualStrings("1", rows.outcome.affected);
+    const update = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "523", .create_object = null, .sql = "UPDATE host_prepared SET id = 8 WHERE id = 7", .dialect = .transit, .ingestion = .bulk } }, null)).compiled;
+    const before = (try recovered.apply(&output, client, .{ .preview = update.summary.id }, null)).preview.rows;
+    try t.expectEqual(.none, before.reason);
+    try t.expectEqualStrings("1", before.current.row_count);
+    const competing = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "524", .create_object = null, .sql = "INSERT INTO host_prepared (id) VALUES (9)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
+    _ = try applyHost(&output, &recovered, client, competing);
+    const restored_update = (try recovered.apply(&output, client, .{ .load = update.saved }, null)).loaded;
+    const after = (try recovered.apply(&output, client, .{ .preview = restored_update.id }, null)).preview.rows;
+    try t.expectEqual(.stale_data, after.reason);
+    try t.expectEqualStrings("2", after.current.row_count);
+    try t.expectEqualDeep(before.binding, after.binding);
     try mutate(client, try bind(allocator, client, "DROP TABLE host_prepared", 516));
     try t.expectEqualDeep(accepted, (try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .inspect, .steps = 1 } }, null)).observation);
-    _ = try recovered.apply(&output, client, .{ .forget = insert.summary.id }, null);
+    const restored_condition = (try recovered.apply(&output, client, .{ .load = conditional.saved }, null)).loaded;
+    try t.expect(!(try recovered.apply(&output, client, .{ .preview = restored_condition.id }, null)).preview.name_assertion.matches);
+    _ = try recovered.apply(&output, client, .{ .forget = restored_condition.id }, null);
     try t.expect(recovered.active == null);
     // Recovery is independent of the ephemeral handle and keeps the same receipt.
     try t.expectEqualDeep(accepted, (try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .inspect, .steps = 1 } }, null)).observation);

@@ -26,6 +26,10 @@ local-catalog:
 direct-table-service:
     zig build test-direct-table-service -Doptimize=ReleaseSafe
 
+# Focused shared host preparation, saved work and explicit direct operations.
+direct-table-callers:
+    zig build test-direct-table-callers -Doptimize=ReleaseSafe
+
 direct-dependencies:
     zig build test-direct-dependencies -Doptimize=ReleaseSafe
 
