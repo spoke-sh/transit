@@ -1,0 +1,71 @@
+{
+  "tool": "built-in image_gen",
+  "status": "High-fidelity styled D1 visual studies for board-data; synthetic Storefront catalog, 5-state cells, console assistance, data-gravity activation and branch/DDL previews. Does not claim implemented browser routes or runtime performance.",
+  "referencePaths": "Relative to repository root.",
+  "notes": "Generated in three pairwise reference chains sharing a single warm-daylight data studio specification inspired by DuckDB Local UI, MotherDuck Column Explorer and Databricks Unity Catalog Explorer. Final PNGs copied unchanged into docs/design/board-data/images/.",
+  "visualSystem": {
+    "aspectRatio": "16:9 widescreen desktop application screenshot",
+    "surfaceCanvas": "#F8F7F4",
+    "elevatedPanel": "#FFFFFF",
+    "borderRule": "#E2E0D8",
+    "inkPrimary": "#18181B",
+    "semanticAccents": {
+      "selectionAndVerified": "#0F766E",
+      "distributionAndKeys": "#D97706",
+      "codecsAndProcessOrbit": "#4F46E5",
+      "cellTypeError": "#DC2626",
+      "cellConflict": "#7C3AED"
+    }
+  },
+  "images": [
+    {
+      "filename": "d1-01-erd-explorer.png",
+      "title": "The unified Data Explorer, ERD canvas and SQL workbook",
+      "references": [],
+      "prompt": "Use case: ui-mockup.\nCreate a 16:9 high-fidelity desktop UI screenshot for Transit Board's data-first Explore workspace, inspired by DuckDB Local UI, MotherDuck Column Explorer and Databricks Unity Catalog Explorer. Warm daylight studio theme (#F8F7F4 canvas, #FFFFFF cards, #18181B typography, #0F766E teal selection, #D97706 amber histograms/keys, #4F46E5 indigo storage codec badges).\nTop 56px header: Left has bold 'Transit' wordmark, compact Workspace/Operations icon toggle (Workspace grid active), and active 'Explore' tab. Center has 'Search Transit (⌘K)'. Right has realm pill 'Storefront' and branch/cut pill 'main · Manifest v42'.\nThree-pane layout:\n1. Left Catalog Navigator (220px): Scope 'Storefront · main (v42)'; TABLES (4): orders (selected, 1,420), shipments (1,180), inventory (320), supplier_ledger (640 · Foreign); MAINTAINED VIEWS (1): at_risk_deliveries (fresh · v42); DOCUMENTS (1): delivery_notes (84 rev); KV RESOURCES (1): carrier_quotes (512 keys).\n2. Center Upper Half — Interactive ERD Canvas ('Schema ERD' selected beside 'Activation & Gravity' and 'Data Grid'): Four schema cards with orthogonal relationship lines: orders (Table · v12 · 1,420 rows, selected in teal, showing order_id INT64 [PK] [RLE], customer_id INT64 [BITPACK], warehouse_id INT64 [FK] [DICT], promised_day INT64, amount_cents INT64, region VARCHAR(32) [FSST · ASCII_CI]); shipments (Table · v9 · 1,180 rows, 1:N line to orders.order_id); inventory (Table · v7 · 320 rows, connected to orders.warehouse_id); at_risk_deliveries (Maintained View · v6, dashed dependency arrows from orders and shipments, badge 'Fresh · orders@v42, shipments@v38').\n3. Center Lower Half — SQL Workbook Cell 1: Query 'SELECT o.order_id, o.warehouse_id, s.delay_hours FROM orders o INNER JOIN shipments s ON o.order_id = s.order_id WHERE s.delay_hours > 24;' with 3 result rows (1004 | 12 | 36, 1019 | 12 | 48, 1042 | 18 | 29) and timing bar 'Complete · 3 rows · Run 14 ms · Ready 28 ms · Cut: orders@v42, shipments@v38'.\n4. Right Sidebar — Column Explorer (280px): 'Column Explorer · Result (3 rows, 3 cols)' with compact amber distribution bars, distinct/null counts and min/max for order_id (1004..1042), warehouse_id (12: 67%, 18: 33%), and delay_hours (29..48)."
+    },
+    {
+      "filename": "d1-02-erd-join-synthesis.png",
+      "title": "Deep multi-model ERD and interactive join synthesis",
+      "references": [
+        "docs/design/board-data/images/d1-01-erd-explorer.png"
+      ],
+      "prompt": "Use case: ui-mockup.\nUsing Image 1 as the exact visual system reference, expand the Center ERD Canvas across the workspace to show multi-model Entity Relationship exploration across 6 catalog objects.\nHighlight the join edge between orders.order_id and shipments.order_id in Deep Teal (#0F766E) with a floating Join Inspector Card: title 'Equijoin · orders.order_id = shipments.order_id', subtitle 'Admissible · INT64 = INT64 · Key overlap: 1,180 rows', primary teal button '+ Insert INNER JOIN in Workbook' and secondary button 'Preview joined rows'.\nTop-right of canvas: supplier_ledger (Foreign Table · Mainframe Copybook · v4 · 640 rows) displaying indigo physical codec & collation pills: warehouse_id INT64 [ZONED], committed_qty INT64 [COMP-3], depot_code VARCHAR(16) [EBCDIC · CP037], linked via dashed eligible join line on warehouse_id to inventory (Table · v7 · 320 rows).\nBottom-right of canvas: delivery_notes (Document · v5 · 84 revisions) with nested projection tree (order_id, status_note, escalation_tags[]) and carrier_quotes (KV Resource · v3 · 512 keys) with route_key -> quote_envelope_v1.\nBottom status bar: '6 catalog objects · DeclarativeCatalog v42 · Selecting edges inspects metadata without executing SQL'."
+    },
+    {
+      "filename": "d1-03-dataset-column-explorer.png",
+      "title": "Zero-SQL Dataset Inspector, 5-state cell grid and deep Column Explorer",
+      "references": [],
+      "prompt": "Use case: ui-mockup.\nCreate a DuckDB Local UI and MotherDuck-inspired Dataset Inspector view in Transit Board when selecting supplier_ledger in the catalog (no SQL required). Same warm daylight data studio aesthetic (#F8F7F4 canvas, #FFFFFF panels, #0F766E teal, #D97706 amber, #4F46E5 indigo, #DC2626 coral, #7C3AED violet).\nCenter Pane ('Data Grid' selected): Header 'supplier_ledger · Foreign Table · CatalogId 104 · DefinitionId v4 · 640 rows · 96 KiB .tseg · Snapshot v42'.\n5-State Cell Summary Bar: 'Value: 1,915 · Null: 2 · Missing: 1 · Type error: 2 · Conflict: 1'.\nHigh-density data grid with columns warehouse_id (INT64 · ZONED), committed_qty (INT64 · COMP-3), depot_code (VARCHAR · EBCDIC_CP037), and projected status_note (DOCUMENT FIELD):\nRow 1: 12 | 450 | 'ORD-NORTH' | 'On schedule'\nRow 2: 14 | [TYPE_ERROR · Invalid COMP-3 nibble @ 0x1A] (coral-red diagnostic pill) | 'DFW-CENTRAL' | 'Carrier delay'\nRow 3: 18 | 290 | 'ATL-EAST' | [CONFLICT · 2 concurrent edits: r81, r82] (violet diagnostic pill)\nRow 4: 21 | 610 | 'SEA-WEST' | [MISSING] (dashed pill)\nRow 5: 24 | [NULL] (muted grey pill) | 'BOS-NORTH' | 'Verified'\nRow 6: 29 | 840 | 'LAX-SOUTH' | 'On schedule'\nRight Sidebar ('Column Explorer · Snapshot v42 (640 rows)', 360px): Statistical cards with 5-state proportion bars and histograms for warehouse_id (100% value, 18 distinct, min 10, max 48), committed_qty (expanded: 99.4% value, 0.3% null, 0.3% type_error, amber histogram across 0-250, 250-500, 500-750, 750-1000, min 20, max 980, 142 distinct, chip 'Filter to 2 type_error rows'), and depot_code (EBCDIC · Collation EBCDIC_CP037, top categories 'ORD-NORTH' 38%, 'DFW-CENTRAL' 31%, 'ATL-EAST' 19%, caption 'Zone-map min/max sorted by EBCDIC_CP037')."
+    },
+    {
+      "filename": "d1-04-console-workbook-assistance.png",
+      "title": "Console-powered SQL workbook, suffix-aware assistance and history search",
+      "references": [
+        "docs/design/board-data/images/d1-01-erd-explorer.png",
+        "docs/design/board-data/images/d1-03-dataset-column-explorer.png"
+      ],
+      "prompt": "Use case: ui-mockup.\nUsing Image 3 as the visual system reference, show the multi-cell SQL Workbook in Transit Board demonstrating transit console's TLA+-modeled editor interaction state machine and catalog_v1 assistance:\nCell 1 (Completed Grouped Query): 'SELECT warehouse_id, SUM(on_hand_qty) AS total_hand FROM inventory GROUP BY warehouse_id;' with 3 result rows (12 | 1840, 18 | 920, 24 | 610) and provenance bar 'Complete coverage · 3 rows · Cut: inventory@v42 · Run 9 ms · Ready 19 ms'.\nCell 2 (Active Editing with catalog_v1 Suffix-Aware Autocomplete): User is typing 'SELECT o.order_id, s.|' above 'FROM orders o INNER JOIN shipments s ON o.order_id = s.order_id;'. At cursor s.|, an anchored catalog_v1 completion menu offers the exact INT64 columns of shipments: s.\"delay_hours\" (selected in teal), s.\"eta_day\", s.\"order_id\", s.\"shipment_id\", with footer 'catalog_v1 · Authorized basis: orders@v42, shipments@v38 · Tab/Enter to accept · Esc to dismiss'.\nCell 3 (Draft-Seeded Ctrl+R History Search & Authoritative Write Completion): Shows inline 'History search (Ctrl+R): UPDATE inventory SET reserved_qty =' with hint 'Esc restores original draft · Enter accepts into draft (Undoable)', and below it a command completion receipt banner: 'Statement completed · Outcome: applied · Matched: 1 · Changed: 1 · Operation #op-9042 · Catalog revision v43'.",
+      "refinements": [
+        {
+          "input": "Initial generation of d1-04 plus d1-01 shell frame reference",
+          "prompt": "Match the top header and left Storefront · main (v42) Catalog Navigator from d1-01-erd-explorer.png. Give Cell 2 enough vertical room so the catalog_v1 completion menu (s.\"delay_hours\" INT64 · column · shipments, s.\"eta_day\" INT64 · column · shipments, s.\"order_id\" INT64 · shipments [FK], s.\"shipment_id\" INT64 · shipments [PK]) fits cleanly without overlapping Cell 3, and span Cell 3 across the full width of the workbook pane with the History search (Ctrl+R) bar and the DML write receipt banner."
+        }
+      ]
+    },
+    {
+      "filename": "d1-05-data-gravity-activation.png",
+      "title": "Data gravity and activation lineage lens",
+      "references": [],
+      "prompt": "Use case: ui-mockup.\nCreate the Transit Board ERD canvas switched to 'Activation & Gravity' mode (selected beside 'Schema ERD' and 'Data Grid') in the same warm daylight studio visual system. Illustrates that data has gravity while streams, maintained views, Station processes and connectors orbit datasets.\nCenter of canvas (Heavy Gravitational Data Anchors with subtle concentric field rings): orders (Table · CatalogId 101 · v42 · 1,420 rows · 184 KiB .tseg · TWAL1 LSN 18,402) and shipments (Table · CatalogId 102 · v39 · 1,184 rows · 154 KiB .tseg · TWAL1 LSN 18,410).\nLeft Inbound Orbit: carrier_api (HTTP Connection · rev 7) -> carrier_webhook (Source · Last capture #419 Complete) feeding into shipments.\nTop-Right Derived Computation Orbit: Labeled delta stream edges 'TransitLog (+row / -row · LSN 18,410)' flowing from orders and shipments into at_risk_deliveries (Maintained Computation · CatalogId 401 · v6) with amber badge 'Pending · Fresh: false (shipments advanced v38 -> v39, +4 rows)'.\nBottom-Right Process & Effect Orbit: Trigger edge from shipments delta stream to orbital Station process card allocation_coordinator (PID 41 · Gen 3 · Inbox: 1 · Outbox: 0), which links to outbound gRPC Sink dispatch_reallocation (warehouse_grpc · Attempt #814 · Intent recorded -> Outcome verified).\nRight Inspector Panel ('Activation & Policy Inspector · shipments'): Lifecycle published (v39), Dependents: 2 (at_risk_deliveries, allocation_coordinator), Policy: policy_epoch 19, Retention: unlimited, Grants: fulfillment_analyst (SELECT), carrier_ingester (INSERT)."
+    },
+    {
+      "filename": "d1-06-branch-ddl-preview.png",
+      "title": "Versioned branches, scenario comparison and non-mutating previewDdl impact",
+      "references": [
+        "docs/design/board-data/images/d1-05-data-gravity-activation.png"
+      ],
+      "prompt": "Use case: ui-mockup.\nUsing Image 5 as the visual system reference, show the Branch Comparison & Schema Evolution Preview workspace in Transit Board.\nTop Context Bar: Comparing scenario branch 'branch/reallocate-inventory (Head v42+3)' against base 'main (Manifest v42)'. Policy banner: 'Policy epoch 19 · Branching enabled · Direct merge to main requires human approval'.\nUpper Split Pane (Non-Mutating Catalog.previewDdl & Dependency Impact Check):\n- Card A: 'ALTER TABLE orders ADD COLUMN priority_tier INT64 DEFAULT 0;' -> Teal badge 'Admissible · Work: metadata + validate_rows (1,420 rows) · Target: DefinitionId v13'.\n- Card B: 'DROP TABLE inventory RESTRICT;' -> Coral/Amber badge 'Rejected by RESTRICT · Blocked by 2 registered dependents: view warehouse_coverage, query Q4' with mini dependency diagram.\nLower Split Pane (Side-by-Side Scenario Branch Comparison for at_risk_deliveries):\n- Left ('main · Production v42'): '14 orders at risk · Max delay: 48 hrs · Exposure: $42,800'.\n- Right ('branch/reallocate-inventory · Scenario v42+3'): '5 orders at risk (−9) · Max delay: 18 hrs (−30 hrs) · Exposure: $11,200' with badge 'Scenario branch result · Production main unchanged'.\n- Comparison rows for order_id 1004, 1019, 1042 showing Before vs After warehouse and delay reduction, plus bottom-right button 'Review Merge Proposal (Human Principal Required)'."
+    }
+  ]
+}
