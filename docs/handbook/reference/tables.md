@@ -23,8 +23,8 @@ The typed direct caller can observe one current definition and data position,
 optionally with up to eight rows, without acquiring a snapshot or changing
 storage. Metadata and rows describe the same Table root and require current
 SELECT rights. A partial observation reports `more`; a later request may see
-newer data. Complete traversal across requests uses an explicitly retained
-snapshot. See [current observations](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
+newer data. Traversal that must survive later writes uses an explicitly retained
+snapshot; conditional current reads instead reject logical drift. See [current observations](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
 for exact bounds and response semantics.
 
 A caller can explicitly delegate reads of one exact Table definition and data
@@ -35,8 +35,8 @@ Table or catalog access. Both credentials and the caller's current source rights
 are checked before publication and disclosure. A retained grant cannot silently
 refresh a revoked caller proof or select newer data. See the
 [delegated-read contract](../../../contracts/DIRECT_TABLE_V1.md#delegated-retained-reads)
-for the allowed operations and recovery rules. Captured-query integration still
-needs to retain this grant through its admission and cleanup lifecycle.
+for the allowed operations and recovery rules. Captured-query owners retain
+the grant through admission, worker replacement and explicit pin cleanup.
 
 ## Schemas and identities
 
@@ -93,23 +93,28 @@ DROP require role ownership. Metadata visibility follows ownership or an
 applicable Table grant. The native graph supplies the current decision, including
 credential epoch and selected role, during execution and final publication.
 
-Each head replacement preserves its immutable predecessor and native commit
-position. Point changes can publish row, index and predecessor blocks alongside
-the head and terminal outcome in one native turn. The turn admits sixteen blocks
-and 128 KiB of encoded block data separately from four small metadata mutations.
-Larger changes use bounded staging and freeze the source basis.
-Readers see the old head until the complete successor and original
-operation outcome publish atomically. A bad later row, duplicate key or failed
-constraint never exposes a successful statement prefix. Concurrent conflicting
-writes and DDL are fenced while that work is pending.
+Each Table has its own write-ahead acceptance log. Admission retains complete
+frozen work; execution stages private row/index changes and publishes one Table
+successor with its terminal outcome. Readers see the prior state until that
+acceptance. A bad later row, duplicate key or failed constraint exposes no
+successful statement prefix. Conflicting writes and DDL reject stale definition
+or data expectations.
+
+Concrete batches contain at most 1024 changes within 4 MiB of framed work.
+Typed predicate UPDATE/DELETE plans select rows inside the Table owner under
+explicit work budgets. These data operations do not use actor mailbox frames or
+native turn-block quotas. Point writes can remain in retained WAL records;
+bulk ingestion publishes immutable `.tseg` objects. The installed owner does
+not automatically flush point writes. See the [storage boundary](storage.md#direct-table-data)
+for acceptance, retention and physical cleanup limits.
 
 Matched and changed row counts come from the committed outcome. An unchanged
 UPDATE can match a row while changing none. Changed means different canonical
 stored bytes, including JSON text and floating zero sign; it does not imply
 that JSON has a SQL equality operator.
 
-Admission receipts, processed inputs and applied domain outcomes are distinct.
-After an uncertain send, the console observes the original submission internally
+Admission, Table completion and any application's native progress are distinct.
+After an uncertain submission, the console observes the original operation internally
 and reports when its outcome cannot be confirmed. Native callers reconcile the
 original saved identity through the owning operation API. Repeating SQL creates
 new work. Cancellation can close pending work;
@@ -117,8 +122,11 @@ it cannot undo an applied operation. Revoking execution permission does not
 erase outcomes or make uncertain work safe to repeat. Current inspection rights
 still control outcome disclosure.
 
-The one-mutated-resource boundary remains. Multiple Tables, independently
-captured sources and catalog names do not establish cross-resource transactions.
+The direct atomic domain is one Table statement or batch. Native application
+turns separately retain their one-mutated-KV-resource boundary. Multiple Tables,
+independently captured sources and catalog names establish no cross-owner
+transaction. Applications retain exact dispatch references before admission and
+reconcile the original Table outcome before advancing native progress.
 
 ## Schema lifecycle and retained reads
 
@@ -129,17 +137,18 @@ Metadata-only changes and complete row/index rewrites have separate execution
 paths. Existing rows must satisfy every tightened constraint before publication.
 Changing a default does not rewrite earlier values.
 
-[DROP TABLE](sql/drop-table.md) removes the live name and retires its object/head
-under RESTRICT semantics. Registered blocking dependencies prevent DROP;
-historical references do not make a name live. Applications install dependency
-records explicitly, and callers can inspect both incoming `dependents` and
-outgoing `dependencies` as well as object `policyReferences` and five-state
-`inspectLifecycle` (`defined`, `published`, `pending`, `complete`, `unavailable`).
-Before submitting a command, callers can run non-mutating `preview` to verify
-authorization, target revision, schema-evolution work classification and any
-blocking dependency, or call `TableClient.apply` to drive inline and multi-part
-command submission idempotently to a terminal state. The registry does not
-discover arbitrary external users.
+[DROP TABLE](sql/drop-table.md) removes the live name and retires its object.
+Historical references do not make a name live. The direct Table owner does not
+yet consult a shared computation/resource dependency registry. Namespace DROP
+separately rejects live Tables and pending Table declarations in that namespace.
+Neither path discovers arbitrary external consumers.
+
+The typed `preview` operation checks current rights, exact expectations, name
+availability and schema-evolution work without staging or admitting a change.
+It does not scan rows to certify tightened constraints. Save the complete
+`DirectTableIntent`, explicitly admit it, then inspect, execute or cancel its
+original binding. Outcomes distinguish `not_observed`, `admitted`, `committed`,
+`rejected` and `cancelled`; inspection alone starts no work.
 
 Already captured readers retain their original schema and cut, subject to
 current authorization and their own lifetimes. New admissions cannot substitute
@@ -147,53 +156,47 @@ a dropped/recreated object. Exact operation receipts remain reconcilable after
 rename, ALTER or DROP. An exact historical definition contains its accepted
 metadata and schema, without claiming a current live head.
 
-DROP does not physically erase retained data. Cleanup reclaims only qualified
-rejected/cancelled candidate storage, preserves identity floors and receipts,
-and remains separate from accepted-history retention.
+DROP does not physically erase retained data. The installed direct service
+exposes no Table garbage collector; accepted history, staged intents and operation
+receipts remain separate from logical retirement.
 
 ## Snapshot and change capture
 
-`transit-query.TableChangeReader` captures a frozen Table snapshot and returns a
-resume position only after its complete traversal. Later writes remain in the
-Table's immutable head history while backfill is paused. `openTail` resumes that
-exact object, including after rename, retirement or reuse of its former name.
-The signed caller needs current native resource access, database CONNECT,
-schema USAGE and Table SELECT throughout snapshot and tail delivery. A resume
-position retains the original Table identity; rename, DROP or name reuse cannot
-substitute another object's permissions. Every delivered batch and completion
-checks current authority, including a tail reopened from a saved position.
+The direct caller explicitly acquires a history lease with `retain_history`.
+Its original definition and frontier identify the initial source. `history`
+traverses a fixed interval of physical log positions and returns ordered logical
+acceptances, including accepted no-ops. Pages containing only physical progress
+can be empty and still advance their cursor. `history_source` and `history_scan`
+read an exact retained acceptance under its original schema. All operations need
+current CONNECT, USAGE and SELECT and a live lease, including empty output.
 
-The tail covers every committed head revision in order. Inserts have an after
-row, deletes have a before row, and updates pair both values under one stable
-row identity. Each transaction ends with exact previous/new positions, including
-explicit transactions with no row changes. Schema changes carry both schema
-references; changed schemas decode each side with its own definition.
-Reservation and unchanged-data revisions advance progress without scanning the
-whole relation. A caught-up event covers the reader's captured upper bound;
-reopen from the last complete position to observe later writes.
+Maintained-query execution uses these leases for bounded initial backfill and
+successive logical changes. Inserts have an after row, deletes have a before
+row, and updates pair both values under a stable row identity. Native computation
+progress records only fully processed source changes; its bounded physical scan
+cursor is separate. A row prefix establishes neither complete source coverage
+nor a verified result. Independent Table cuts remain independent.
 
-Apply a transaction and save its position atomically in the consumer. A delivered
-row prefix is incomplete; reconnecting from the previous position repeats that
-transaction. Missing history, conflicting roots, corrupt records, expired leases
-and current denial fail explicitly. There is no implicit reset or history skip.
-History is retained without an opt-in expiry policy, independently of resident
-memory. These Table changes do not establish a global resource snapshot or a
-maintained query result. Coalesced reactive watches remain a separate interface.
+Missing history, conflicting roots, corrupt records and current denial fail
+explicitly. There is no implicit reset or history skip. Releasing a lease closes
+its historical reads. Retention defaults to unlimited, independently of resident
+memory; physical reclamation requires its own coverage and lifetime contract.
+See [retained reads](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
+and [computation lifetimes](queries.md). Coalesced reactive watches are separate.
 
 ## Query and observe
 
 Finite Table queries bind the full logical row schema and return typed values.
 A complete primary-key equality or conjunction can use the collision-safe
 index. Partial keys, inequalities and additional predicates use the qualified
-finite scan; the complete Fuze predicate still runs. Rows are stored as immutable
-row records and indexes, not columnar Arrow row groups. Arrow is an interchange
-format and does not itself supply scan pruning.
+finite scan; the complete Fuze predicate still runs. The retained identity/key
+indexes resolve rows in WAL-backed records or immutable segments. Arrow is an
+interchange format and does not itself establish segment pruning.
 
-Finite query pages acquire at most eight row references together. Prefetch admits
-at most eight complete blocks and 128 KiB; larger records use successive bounded
-block reads. Each decoded row retains its schema, digest and identity checks. Interactive pull scans decode one row
-at a time from those references, so a selected LIMIT does not allocate the
-remaining values. Explicit result batches contain at most eight rows and 16 MiB
+Direct source pages return at most eight owned rows under an explicit byte
+budget, preserving their original schema, digest and identity checks. Interactive
+pull scans consume one decoded row at a time from the bounded page, so LIMIT
+does not allocate the remaining Table. Explicit result batches contain at most eight rows and 16 MiB
 of canonical cells. Current authorization is checked after computation before
 each batch is disclosed, including empty output and completion. The single-row
 pull API uses the same check for its one row. Storage pages, execution vectors
@@ -228,7 +231,6 @@ recovery must never turn one accepted input into another mutation identity.
 Backlog remains durable and retention defaults to unlimited.
 
 See the [schema](../../../contracts/TABLE_SCHEMA_V1.md),
-[data/publication](../../../contracts/TABLE_DATA_V1.md),
-[DDL](../../../contracts/TABLE_DDL_V1.md), [DML](../../../contracts/TABLE_DML_V1.md)
-and [catalog query owner](../../../contracts/CATALOG_QUERY_OWNER_V1.md) contracts,
-and the [catalog component guide](../../../packages/zig/transit-catalog/docs/table-metadata.md).
+[direct Table](../../../contracts/DIRECT_TABLE_V1.md) and
+[data lifecycle](../../../contracts/DATA_LIFECYCLE_V1.md) contracts, and the
+[catalog owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md).
