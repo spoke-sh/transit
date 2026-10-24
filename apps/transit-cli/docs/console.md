@@ -254,8 +254,9 @@ Bracketed paste preserves newlines, normalizes CRLF and never submits.
 | Enter | Submit or insert newline | Accept current selection; wait during refresh, or dismiss if no list is visible | Accept match for editing |
 | Up/Down | Move rows, then browse history | Select previous/next item | Select older/newer match |
 | Shift-Tab | Open suggestions without insertion | Select previous item | No action |
-| Ctrl-R | Begin an empty search | Begin an empty search | Find older match |
-| Esc / Ctrl-C | Clear draft | Clear draft and suggestions | Clear search and original draft |
+| Ctrl-R | Search using the current draft | Search using the current draft | Find older match |
+| Esc | Leave draft unchanged | Dismiss suggestions | Restore original draft and cursor |
+| Ctrl-C | Clear draft | Clear draft and suggestions | Clear search and original draft |
 | Ctrl-G | Keep draft | Dismiss suggestions | Restore original draft and cursor |
 | Ctrl-Z / Ctrl-_ | Undo | Undo and close suggestions | Undo query editing |
 
@@ -276,7 +277,23 @@ the background; a selected candidate stays selected if it still matches.
 Moving to another context hides unrelated candidates. PgUp/PgDn pages through the selected
 candidate's full spelling and details when clipped. A limited result says so;
 a single candidate inserts automatically only with complete matching coverage.
+Tab keeps that insertion's validation quiet, without flashing a one-item menu.
+Shift-Tab still opens suggestions for inspection. Typing into an open menu
+filters candidates; insertion requires Tab or Enter.
 No automatic semicolon or generated statement is added.
+
+At the end of a fully typed, unambiguous grammar keyword, completion offers the
+next token: `CREATE` followed by Tab becomes `CREATE TABLE`. Partial words still
+complete in place: `CRE` becomes `CREATE`. A cursor inside a word replaces the
+whole word, including its suffix. Quoted names remain identifier completions.
+
+Acceptance inserts a missing separator between adjacent words, identifiers or
+literal values: selecting `ALL` after `SHOW` produces `SHOW ALL`. Completing
+`SH` to `SHOW` adds no trailing space. Existing spaces, tabs, newlines, quoting
+and punctuation remain intact, including qualified names such as `i."id"`.
+The cursor follows the candidate, before any separator added ahead of a suffix.
+The candidate and its separators form one undoable edit and share the 4 KiB
+statement limit.
 
 Opening completion starts acquisition immediately and shows real suggestions
 as soon as they arrive, with no loading placeholder or opening delay. Local
@@ -285,17 +302,25 @@ request and one latest draft; background refresh waits for 75 ms of idle editing
 and times out after one second (or the smaller connection timeout).
 Typing, clearing and dismissing remain available during acquisition. Acceptance
 rechecks the current source, profile, revisions and authorization through the
-service while keeping the list visible. Tab/Enter during a refresh does not queue
+service while keeping an already displayed list visible. Tab/Enter during a refresh does not queue
 an insertion. A changed basis refreshes the list without accepting a replacement.
 Unsupported context, literal/comment context, no matches and unavailable
 service have separate messages. Completion never samples row values or executes
 SQL. Enter/Tab acceptance consumes that key; execution requires another Enter.
 
+Ctrl-R seeds the history filter with the whole current draft, including multiline
+content, and immediately previews the newest match. An empty draft opens an empty
+filter. Further Ctrl-R presses find older matches using the same filter; Ctrl-U
+clears the filter without changing the saved draft.
 History search matches literal substrings with ASCII case folding and collapsed
 whitespace runs, so a single-line query can match multiline SQL. Previews retain
-original spelling and newlines. Navigation skips duplicate text. Ctrl-G restores
-the saved draft; Esc clears it. Undo after Esc restores that original draft, not
-an unaccepted search preview. Browsing history also preserves the original draft
+original spelling and newlines. Navigation skips duplicate text. Esc or Ctrl-G
+restores the saved draft and cursor, even after changing the filter. A filter
+typed after entering search from an empty prompt is discarded on cancellation.
+Tab or Enter accepts the selected history entry into the draft; Esc then leaves
+that accepted text intact, and undo restores the prior draft. Ctrl-C clears the
+search and original draft; undo restores the original, not an unaccepted preview.
+Browsing history also preserves the original draft
 when moving past the newest entry.
 
 Undo retains at most 128 edit groups and 256 KiB of snapshot bytes shared by the

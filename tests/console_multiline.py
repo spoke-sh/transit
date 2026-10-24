@@ -131,7 +131,7 @@ def check(binary):
             # Recalling/searching preserves the actual multiline draft.
             terminal.send('\x1b[A')
             expect_draft(terminal, ['transit> SELECT *', '    ...> FROM items;'], (1, 20))
-            terminal.send('\x12SELECT\r')
+            terminal.send('\x12\r')
             expect_draft(terminal, ['transit> SELECT *', '    ...> FROM items;'], (1, 20))
             terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))

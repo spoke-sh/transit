@@ -39,7 +39,7 @@ pub fn run(console: *Console.Console) !void {
         editor.arena.deinit();
     }
     editor.history.open(console.init.environ_map.get("HOME")) catch |err| try editor.historyFailure(err);
-    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nTab completes; Ctrl-R searches history; Esc clears; Ctrl-Z undoes.\n\x1b[?2004h");
+    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nTab completes; Ctrl-R searches; Esc dismisses; Ctrl-C clears; Ctrl-Z undoes.\n\x1b[?2004h");
     try Output.write(console.init, &output.interface, "");
     defer {
         Signals.clear(); // Restore display modes even after the handled signal.
@@ -310,10 +310,12 @@ const Editor = struct {
             self.journal.boundary();
             self.saveDraft();
             self.searching = true;
-            self.search_length = 0;
+            @memcpy(self.search[0..self.length], self.text());
+            self.search_length = self.length;
             self.search_failed = false;
             self.history_position = null;
             self.changed();
+            if (self.search_length > 0) try self.searchHistory(false);
             return;
         }
         try self.searchHistory(true);
@@ -417,7 +419,8 @@ const Editor = struct {
                 const found = for (current.items) |candidate| {
                     if (std.mem.eql(u8, candidate.text, selected.text) and candidate.kind == selected.kind) break true;
                 } else false;
-                if (same and found) {
+                const unique = !self.auto_unique or (current.coverage == .complete and current.items.len == 1);
+                if (same and found and unique) {
                     try self.apply();
                     return true;
                 }
@@ -425,9 +428,8 @@ const Editor = struct {
             }
             self.installAssistance(current, &fresh);
             if (self.auto_unique and current.status == .ready and current.coverage == .complete and current.items.len == 1) {
-                self.auto_unique = false;
                 try self.accept();
-            }
+            } else self.auto_unique = false;
             return true;
         }
         if (self.needsRefresh() and !self.unavailable and self.now() >= self.refresh_at) {
@@ -456,22 +458,17 @@ const Editor = struct {
         const range = prior.range orelse return;
         if (self.needsRefresh()) return;
         const selected = self.selection() orelse return;
-        if (range.start > range.end or range.end > self.length or !std.unicode.utf8ValidateSlice(self.text()[0..range.start]) or !std.unicode.utf8ValidateSlice(self.text()[0..range.end]) or !std.unicode.utf8ValidateSlice(selected.text)) return error.InvalidSqlResponse;
-        const length = self.length - (range.end - range.start) + selected.text.len;
-        if (length > max_bytes) return error.StatementTooLarge;
-        if (self.cursor == range.end and std.mem.eql(u8, self.bytes[range.start..range.end], selected.text)) {
+        var buffer: [max_bytes]u8 = undefined;
+        defer std.crypto.secureZero(u8, &buffer);
+        const edited = try q.Assistance.edit(self.text(), range, selected.text, &buffer);
+        if (self.cursor == edited.cursor and std.mem.eql(u8, self.text(), edited.text)) {
             self.dismiss();
             return;
         }
         self.checkpoint(.atomic);
-        var original: [max_bytes]u8 = undefined;
-        defer std.crypto.secureZero(u8, &original);
-        @memcpy(original[0..self.length], self.text());
-        const suffix = original[range.end..self.length];
-        @memcpy(self.bytes[range.start..][0..selected.text.len], selected.text);
-        @memcpy(self.bytes[range.start + selected.text.len ..][0..suffix.len], suffix);
-        self.length = length;
-        self.cursor = range.start + selected.text.len;
+        @memcpy(self.bytes[0..edited.text.len], edited.text);
+        self.length = edited.text.len;
+        self.cursor = edited.cursor;
         self.dismiss();
         self.changed();
     }
@@ -499,7 +496,7 @@ const Editor = struct {
             self.history_position = null;
             const more = if (std.mem.eql(u8, std.mem.trim(u8, statement, " \t\r\n"), ".edit")) try self.editExternal() else try self.console.execute(statement);
             if (!more) return false;
-            // A bare Esc typed during execution must not clear the next draft.
+            // Esc typed during execution must not dismiss the next interaction.
             // Count queued bytes instead of draining typeahead or interpreting
             // keys inside SQL settlement. All input decoding decrements this cut.
             var queued: c_int = 0;
@@ -793,7 +790,7 @@ const Editor = struct {
         }
         if (length == 0) {
             if (queued_during_execution) return;
-            self.clearDraft();
+            if (self.searching) self.finishSearch(false) else self.dismiss();
             return;
         }
         const up = std.mem.eql(u8, code, "[A") or std.mem.eql(u8, code, "OA");
@@ -819,7 +816,7 @@ const Editor = struct {
         } else if (std.mem.eql(u8, code, "[3~")) {
             if (self.cursor < self.length) self.remove(self.cursor, self.cursor + try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor]));
         }
-        // Unknown/truncated escape sequences never become a clear action.
+        // Unknown/truncated escape sequences never become a cancel action.
     }
     fn select(self: *Editor, up: bool) void {
         self.detail_page = 0;
@@ -969,6 +966,7 @@ const Editor = struct {
     }
     fn menuRows(self: *Editor) usize {
         if (!self.completing or self.rows < 3) return 0;
+        if (self.auto_unique and self.accepting) return 0;
         if (!self.unavailable and self.needsRefresh() and self.visible_count == 0) return 0;
         const count = self.visible_count;
         return @min(@max(1, count + 2), @max(1, self.rows / 2));

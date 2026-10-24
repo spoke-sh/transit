@@ -342,6 +342,21 @@ unsupported comparisons, checked sums, slash arguments and allocation failures.
 The console vocabulary is shared data; introducing it does not implement a CLI
 command or administrative SQL operation.
 
+`Assistance.edit` applies a validated completion range and candidate to a draft
+using the shared SQL token scanner. It inserts separators between adjacent
+words, quoted identifiers and literal values while preserving existing
+whitespace, punctuation and suffix text. The returned text borrows a distinct
+caller-provided output buffer; its cursor follows the candidate. The total edit,
+including separators, fits the 4 KiB statement bound or returns an error before
+writing output. The helper provides no metadata or authorization evidence;
+callers validate the current candidate before applying the edit.
+
+Console-mode assistance advances past a fully typed keyword when it is the
+sole match with complete coverage, then obtains the next production-parser
+expectations. The replacement becomes the zero-width cursor range. Partial
+words, interior cursors, identifiers and limited results retain their original
+range. The ordinary SQL editor mode continues to replace the current token.
+
 `TableAssistance` handles the catalog console's Table and relational SQL.
 Relational completion discovers up to two declared aliases, reads their current
 authorized schemas, and rechecks the catalog revision/policy before disclosure.

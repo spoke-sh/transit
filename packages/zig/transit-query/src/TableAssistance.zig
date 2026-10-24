@@ -239,7 +239,9 @@ pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a
     return result;
 }
 fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, request: a.Request) !a.Response {
-    const range = try f.SqlInput.replacement(request.sql, request.cursor);
+    var range = try f.SqlInput.replacement(request.sql, request.cursor);
+    var advanced = false;
+    var pages: usize = 0;
     const initial = try client.describe();
     var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
     hash.update(&c.TableMetadata.definition());
@@ -260,7 +262,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, reque
         response.items = result.items;
         response.coverage = result.coverage;
         response.status = result.status;
-    } else if (range) |selected| {
+    } else while (range) |selected| {
         var prefix = request.sql[selected.start..request.cursor];
         if (selected.quoted and prefix.len != 0) {
             prefix = prefix[1..];
@@ -306,14 +308,19 @@ fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, reque
         } else try suggestions(&builder, editor, source, qualifier);
         if (editor.name_role == .source) {
             var cursor: ?c.TableCatalog.Cursor = null;
-            for (0..max_pages) |_| {
+            var complete_names = false;
+            while (pages < max_pages) {
                 const page = try client.list(cursor);
+                pages += 1;
                 if (page.resource_revision != initial.resource_revision) return error.CatalogCursorChanged;
                 for (page.entries) |entry| if (entry) |value| try builder.add(value.metadata.name.slice(), .source, "Authorized Table");
                 cursor = page.next;
-                if (cursor == null) break;
+                if (cursor == null) {
+                    complete_names = true;
+                    break;
+                }
             }
-            if (cursor != null) builder.limited = true;
+            if (!complete_names) builder.limited = true;
         }
         if (name != null and definition == null and editor.name_role != .source) {
             builder.clear();
@@ -322,7 +329,15 @@ fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, reque
         }
         response.coverage = if (builder.limited) .limited else .complete;
         if (editor.name_role == null and editor.value_type == null and editor.words[0] == null and editor.symbols[0] == null) response.status = .unsupported;
+        if (!advanced) if (a.continuation(request, .{ .range = range, .coverage = response.coverage, .status = response.status, .items = builder.items[0..builder.count] })) |following| {
+            builder.clear();
+            range = following;
+            response.range = following;
+            advanced = true;
+            continue;
+        };
         response.items = try allocator.dupe(a.Item, builder.items[0..builder.count]);
+        break;
     }
     errdefer (a.Completion{ .range = response.range, .items = response.items }).deinit(allocator);
     // Re-read current authorization and discard a mixed schema/policy response.

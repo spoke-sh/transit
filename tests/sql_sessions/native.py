@@ -136,6 +136,24 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         assert result['coverage'] in ('complete', 'limited') and len(result['items']) <= 8
     result = first.call(dict(assist=dict(text="SELECT 'private", cursor=15)))['assistance']
     assert result['status'] == 'inside_text' and not result['items'], result
+    for text, cursor, start, end, expected in (
+        ('CREATE', 6, 6, 6, 'TABLE'),
+        ('create', 6, 6, 6, 'TABLE'),
+        ('CREATE ', 7, 7, 7, 'TABLE'),
+        ('CREATE;', 6, 6, 6, 'TABLE'),
+        ('SELECT 1; CREATE', 16, 16, 16, 'TABLE'),
+        ('CRE', 3, 0, 3, 'CREATE'),
+        ('CREATE', 3, 0, 6, 'CREATE'),
+        ('ALTER', 5, 5, 5, 'TABLE'),
+        ('DROP', 4, 4, 4, 'TABLE'),
+        ('DELETE', 6, 6, 6, 'FROM'),
+        ('INSERT', 6, 6, 6, 'INTO'),
+    ):
+        result = first.call(dict(assist=dict(text=text, cursor=cursor)))['assistance']
+        assert result['status'] == 'ready' and result['coverage'] == 'complete', (text, result)
+        assert result['range'] == dict(start=start, end=end, quoted=False), (text, result)
+        assert [item['text'] for item in result['items']] == [expected], (text, result)
+    print('Native assistance: complete keywords advance grammar, partial/interior words retain their replacement.', flush=True)
     # Failures are produced by the actual shared compiler, before token admission.
     for statement, code in (
         ('SELECT;', 'InvalidSqlSyntax'),
@@ -322,17 +340,26 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     console_security(console, consumer, config, password, port, client_environment)
     # Exercise the real terminal deadline and acceptance refresh over this TLS
     # session, not just a direct protocol call with a longer request budget.
-    from console_terminal import Terminal
+    from console_terminal import Terminal, ANSI
     terminal = Terminal(console, config, home=home, cwd=consumer, env={'PATH': '/unavailable'})
     try:
+        for before, after in (('CREATE', 'CREATE TABLE'), ('CREATE ', 'CREATE TABLE'), ('CRE', 'CREATE')):
+            terminal.send(before + '\t')
+            terminal.expect('transit> ' + after, timeout=10)
+            assert b'\n> ' not in ANSI.sub(b'', terminal.screen), terminal.screen
+            terminal.send('\x1a')
+            terminal.expect('transit> ' + before)
+            terminal.send('\x03')
+            terminal.expect('transit> ')
         terminal.send('SELECT va FROM native_sessions\x01' + '\x1b[C' * 9 + '\t')
         terminal.expect('transit> SELECT "value" FROM native_sessions', timeout=10)
-        terminal.send('\x1b')
+        terminal.send('\x03')
         terminal.expect('transit> ')
         terminal.send('SET query.statement_t\t')
         terminal.expect('transit> SET query.statement_timeout', timeout=10)
     finally:
         terminal.close()
+    print('Native console completion: CREATE advances to TABLE without a menu flash; partial words, undo, catalog and settings passed over TLS.', flush=True)
     def console_read(_):
         result = subprocess.run([console, 'console', '--config', str(config), '-c', 'SELECT id FROM native_sessions'], cwd=consumer, env=client_environment, capture_output=True, text=True, timeout=60)
         assert result.returncode == 0, result.stderr

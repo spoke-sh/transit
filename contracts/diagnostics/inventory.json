@@ -881,10 +881,9 @@
         "IncompleteSqlStatement": 2,
         "InteractiveQueryCancelled": 1,
         "InvalidSqlEncoding": 6,
-        "InvalidSqlResponse": 1,
         "SqlInstanceChanged": 1,
         "SqlSessionExpired": 1,
-        "StatementTooLarge": 3,
+        "StatementTooLarge": 2,
         "TerminalSetupFailed": 2,
         "WriteFailed": 1
       },
@@ -925,7 +924,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 134,
+        "try": 136,
         "catch": 19
       },
       "imports": [
@@ -12317,8 +12316,10 @@
     "packages/zig/transit-query/src/Assistance.zig": {
       "errors": {
         "InvalidQuerySchema": 1,
-        "InvalidSqlCursor": 1,
-        "OutOfMemory": 3
+        "InvalidSqlCursor": 2,
+        "InvalidSqlResponse": 1,
+        "OutOfMemory": 3,
+        "StatementTooLarge": 1
       },
       "outcomes": {
         "Coverage": [
@@ -12370,6 +12371,7 @@
         "Spelling.identifier()": "<inferred>",
         "complete()": "<inferred>",
         "completeStatement()": "<inferred>",
+        "edit()": "<inferred>",
         "local()": "<inferred>",
         "meta()": "<inferred>",
         "offer()": "<inferred>",
@@ -12377,7 +12379,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 49,
         "catch": 2
       },
       "imports": [

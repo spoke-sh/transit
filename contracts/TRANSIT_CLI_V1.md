@@ -250,13 +250,19 @@ error. Dot commands start an empty input statement; slash commands are rejected.
 TTY editing supports movement, deletion, multiline vertical navigation before
 history, direct Ctrl-P/Ctrl-N recall, Ctrl-R search, completion and bounded undo.
 Tab opens completion or accepts a displayed suggestion/history match; acceptance
-never submits. Esc and Ctrl-C clear the entire unsubmitted draft in every editing
-mode. Ctrl-G dismisses suggestions or restores the original draft from search.
+never submits. Esc and Ctrl-G dismiss suggestions or restore the original draft
+and cursor from search; they leave ordinary draft text unchanged. Ctrl-C clears
+the entire unsubmitted draft in every editing mode.
 Ctrl-Z, Ctrl-_ and Ctrl-X Ctrl-U undo draft/query edits, including clearing.
 The combined volatile journal retains 128 groups and 256 KiB of snapshot bytes;
 submission resets it and access loss erases protected copies. Search folds ASCII
 case and whitespace runs and skips duplicate command text, preserving original
-bytes for preview and insertion. Incomplete Enter inserts at the cursor.
+bytes for preview and insertion. Entering search copies the entire current draft
+into the filter and previews its newest match; an empty draft opens an empty
+filter. Repeated Ctrl-R searches older matches. Ctrl-U clears only the filter.
+Canceling search discards filter edits: a filter typed from an empty prompt
+returns to an empty draft. Accepting a match installs it as draft text, preserved
+by Esc and undoable to the saved draft. Incomplete Enter inserts at the cursor.
 Draft newlines render as separate rows with continuation text aligned after the
 primary prompt. Long lines wrap within the display width, and a bounded viewport
 keeps the cursor visible when a draft exceeds the terminal height. Clearing or
@@ -415,10 +421,25 @@ unchanged surrounding text, including the suffix. It does not establish current
 coverage or insertion evidence. An empty preview is hidden until the current
 response establishes the result. Selection follows candidate spelling and kind
 through filtering and replacement of the list.
+At the end of a fully typed keyword that is the sole complete grammar match,
+console assistance advances to the next token using a zero-width cursor range.
+Thus `CREATE` offers `TABLE`; partial and interior words keep their replacement
+range. Identifiers and limited results never establish this keyword transition.
+An initial Tab with one complete match validates and inserts without rendering
+a menu. Shift-Tab explicitly opens suggestions, including a single match.
 It joins cancelled I/O before reusing the session client. Acceptance re-acquires
 current evidence and compares generation, cursor/range, profile, source, contract,
 resource revision and policy revision before one atomic text replacement.
-Validation keeps the menu visible. Tab/Enter during refresh does not queue an
+The shared completion edit helper separates adjacent word, quoted-identifier,
+number and string tokens at replacement boundaries. It preserves existing
+whitespace and punctuation, including qualifier dots and closing parentheses.
+Accepting `ALL` after `SHOW` therefore produces `SHOW ALL`; completing a partial
+word adds no unconditional trailing space. The edit includes any required
+separators in the 4 KiB statement limit and one undo group. Its cursor follows
+the candidate, before any separator inserted ahead of retained suffix text.
+Validation keeps an already displayed menu visible. A unique automatic
+insertion remains hidden during validation; losing uniqueness displays the
+current choices without insertion. Tab/Enter during refresh does not queue an
 insertion. Changed metadata refreshes suggestions without replaying acceptance. Static dot
 vocabulary completes locally. PgUp/PgDn exposes clipped selected-item details.
 

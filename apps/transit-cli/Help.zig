@@ -60,6 +60,7 @@ pub const console =
     \\.execute FILE runs a JSON query object with sql and optional parameters.
     \\.edit opens the latest SQL in $EDITOR; save and close to submit it.
     \\Ctrl-R searches SQL and dot-command history in ~/.transit_history.
+    \\Esc cancels search or dismisses suggestions; Ctrl-C clears the draft.
     \\YAML configures connections; .transitrc contains dot commands.
     \\Each SELECT gets a fresh snapshot. Ctrl-C cancels active reads.
     \\Use console .help for write routes and exact recovery after interruption.

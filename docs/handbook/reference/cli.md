@@ -182,14 +182,22 @@ configuration and terminal keys. Statement topics such as `.help INSERT` and
 text, including in JSON result mode, and submits no SQL.
 
 In the interactive editor, Tab requests grammar/catalog completion and accepts
-selected suggestions or history matches. The menu keeps its selection while
+selected suggestions or history matches. One complete match inserts without
+flashing a menu. A fully typed keyword requests its next grammar continuation,
+so `CREATE` followed by Tab becomes `CREATE TABLE`; `CRE` completes to `CREATE`.
+The menu keeps its selection while
 idle. Typing within the same token filters it immediately, with fresh suggestions
 arriving in the background. Opening starts immediately; acquisition and validation
 show no loading placeholders. Catalog suggestions recheck metadata and
-authorization before insertion. Acceptance never executes
-a statement.
-Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
-the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,
+authorization before insertion. Acceptance adds missing token separators, so
+`SHOW` plus `ALL` becomes `SHOW ALL`, while preserving existing whitespace and
+punctuation. The completion and any added separator undo together. Acceptance
+never executes a statement.
+Ctrl-R uses the whole current draft as its history filter and previews the newest
+match; press it again for older matches or Ctrl-U to clear the filter.
+Esc or Ctrl-G dismisses suggestions or restores the original draft and cursor
+from history search, discarding filter edits. They leave ordinary draft text
+unchanged. Ctrl-C clears the whole unsubmitted draft. Ctrl-Z undoes ordinary edits, paste,
 completion and clearing. Up/Down moves between multiline rows before browsing
 history; Ctrl-P/Ctrl-N always browses history. The
 [terminal key map and limits](../../../apps/transit-cli/docs/console.md#terminal-editing-and-history)

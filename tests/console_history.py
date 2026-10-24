@@ -61,7 +61,10 @@ def check(binary, signal_gate):
             assert stat.S_IMODE(history.stat().st_mode) == 0o600
             terminal.send('draft')
             terminal.expect('transit> draft')
-            search(terminal, 'history_', '.unknown_history_11')
+            terminal.send('\x12')
+            terminal.expect('search draft >\r\n(no match)')
+            terminal.send('\x15history_')
+            terminal.expect('>\r\n.unknown_history_11')
             terminal.send('\x12')
             terminal.expect('>\r\n.unknown_history_10')
             terminal.send('absent')
