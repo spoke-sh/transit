@@ -6,8 +6,8 @@ environment's tasks. Use double colons between task groups.
 
 | Environment | Purpose | Services and limits |
 | --- | --- | --- |
-| `local` | Fast iteration without Docker or Kubernetes | Native disk Ursula, Transit node, maintenance, delivery courier, selected example and embedded Board, managed by Process Compose |
-| `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose; official pinned Ursula image and static Zig images |
+| `local` | Fast iteration without Docker or Kubernetes | Transit node, delivery courier, selected example and embedded Board, managed by Process Compose; storage and maintenance follow the selected example |
+| `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose with static Zig images; the counter also uses the official pinned Ursula image |
 | `reference` | Qualify the deployment target | Kubernetes/Substrate, real provider controller, gVisor workers and recovery/isolation proofs; [reference runbook](../deploy/reference/README.md) |
 
 All three profiles have persistent, separate installations. Moving between them
@@ -25,12 +25,19 @@ limits; they are separate from the persistent counter/Station example selection.
 
 The default example is the small counter. Select `--example station` on the
 first `up` of a named installation to run the three-process
-[Station ledger](../examples/station-ledger/docs/running.md): behaviors with
-associated Tables, a requester, scoped registry/supervision, separate framework
+[Station ledger](../examples/station-ledger/docs/running.md): a direct Table and
+separate behavior progress, a requester, scoped registry/supervision, separate framework
 controllers, and Board. The choice is persisted; later commands use that same
 example. Use a different name to run both, with non-overlapping base ports.
 Its checked-in Process Compose and Docker Compose topologies live beside the
 example; the reference uses the shared [Transit chart](../charts/transit/README.md).
+
+The counter uses disk-backed Ursula and a separate maintenance process. Station
+keeps native history and direct Table storage in one retained local directory,
+with maintenance inside the node. Its reference placement mounts that directory
+from a retained volume claim shared by explicit initialization and the node.
+The initializer is deployed with the claim so storage classes that wait for a
+first consumer can bind it.
 
 ## Incremental development
 
