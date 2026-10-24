@@ -23,7 +23,8 @@ that fault to registration. It is not counted as passing evidence.
 
 The cutover regenerates schemas, binding declarations and independent signing
 fixtures because named dependency authority no longer refers to the catalog's
-backing native resource. `just contract::check` passes. The existing Table
+backing native resource. `just contract::check` and the complete catalog package
+tests pass. The existing Table
 dependency HTTP regression also passes **30 typed calls**, two withheld replies
 and abrupt node replacement, preserving exact receipts, metadata revocation,
 redacted blockers and DROP/name replacement. Diagnostic inventory/mapping checks
