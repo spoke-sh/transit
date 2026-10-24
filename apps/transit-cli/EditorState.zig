@@ -385,22 +385,27 @@ test "acceptance compares every metadata basis and requires complete ready uniqu
     const prior: q.Assistance.Response = .{ .generation = 2, .coverage = .complete, .status = .ready, .resource = 1, .resource_revision = 3, .contract = @splat(4), .policy_revision = "policy", .range = .{ .start = 6, .end = 6 }, .items = &.{selected} };
     try t.expect(matches(prior, prior, selected));
     try t.expect(unique(prior));
-    for (0..9) |field| {
+    for (0..10) |field| {
         var changed = prior;
         switch (field) {
             0 => changed.generation += 1,
             1 => changed.profile = .configuration_v1,
             2 => changed.resource += 1,
-            3 => changed.resource_revision += 1,
+            3 => changed.resource_revision.? += 1,
             4 => changed.contract[0] += 1,
             5 => changed.policy_revision = "new policy",
             6 => changed.range.?.start -= 1,
             7 => changed.items = &.{.{ .text = "OTHER", .kind = .keyword, .detail = "" }},
             8 => changed.items = &.{.{ .text = "TABLE", .kind = .source, .detail = "" }},
+            9 => changed.resource_revision = null,
             else => unreachable,
         }
         try t.expect(!matches(prior, changed, selected));
     }
+    var direct = prior;
+    direct.profile = .direct_table_v1;
+    direct.resource_revision = null;
+    try t.expect(matches(direct, direct, selected));
     var changed = prior;
     changed.coverage = .limited;
     try t.expect(!unique(changed));
