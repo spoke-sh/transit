@@ -14,6 +14,63 @@ reviewed merges and MCP access are not implemented as this integrated experience
 The [availability table](#available-building-blocks-and-proposed-capabilities)
 links each existing building block to its supported interface.
 
+## The observation and feedback loop
+
+> Observe → form a model → imagine alternatives → act → observe the consequences → revise.
+
+This loop connects the stories. Our product thesis starts with applications that
+can already supply useful modeling, reasoning and action selection. Transit
+targets the infrastructure around that reasoning: **make the relevant world
+observable before a decision, and make the consequences observable afterward.**
+Model quality and decision quality still need their own application evaluation.
+
+Observation here means usable business evidence: an order's state, an inventory
+change, a supplier commitment or a delivery outcome, with its meaning, source,
+version, freshness and access policy. Native data and connected systems both
+contribute. Operational logs, metrics and traces help diagnose delivery of that
+evidence; the application's authorized data and recorded outcomes establish what
+it can actually inspect.
+
+| Stage | Application question | Contribution of the proposed data foundation |
+| --- | --- | --- |
+| Observe | What is happening, and what is missing from this picture? | Relevant typed evidence, source versions, freshness and explicit gaps under current access |
+| Form a model | How do I interpret these observations? | A retained basis and definitions that keep facts, assumptions and derived conclusions distinguishable |
+| Imagine alternatives | What might happen if we changed this? | Branches and comparable computations over a known basis, with scenario results identified as such |
+| Act | Which permitted change should we make? | Intent, review where required, conditional publication and separately authorized external effects |
+| Observe the consequences | What actually happened after that action? | The original operation's outcome and subsequent business observations linked to their evidence |
+| Revise | How should the next decision change? | Comparable prior predictions and later observations, preserved with their original context |
+
+People and applications own goals, hypotheses, decisions and revision. Transit
+supplies the data, computation and policy boundaries that make the loop
+inspectable. Revising a hypothesis can produce a new application definition or
+decision; it does not require automatic model training or a reasoning engine in
+the kernel.
+
+For example, Elena predicts that a different allocation will improve delivery.
+An approved allocation change has its own recorded outcome. A later warehouse
+observation can show that stock moved, and a carrier observation can show whether
+the order arrived on time. Those are separate facts. A successful command reply
+does not establish delivery; a missing carrier observation leaves the delivery
+outcome unknown. Linking these records lets Elena compare prediction with
+observation. Establishing that her change caused an improvement requires a
+separate application-specific causal evaluation.
+
+### What progress means
+
+The target dimension is **the quality and speed of observation and feedback**:
+how often can an application obtain the evidence its decision needs, and then
+inspect the consequences within the time that matters to that decision?
+Track evidence coverage together with time to an authorized, usable observation
+and the cost of producing it. Measure initial observations and consequence
+observations separately, and retain the connection between them.
+
+A known failure can provide complete feedback. Missing, stale or conflicting
+evidence remains visible and does not become a successful observation merely
+because a request returned. Improvements must preserve source attribution,
+current authorization and honest uncertainty. This is a product direction to
+evaluate incrementally; the integrated measures are not implemented metrics or
+measured improvements today.
+
 ## Maya needs an answer she can explain
 
 Maya manages deliveries for one region. A customer asks whether an order will

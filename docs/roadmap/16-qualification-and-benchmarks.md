@@ -40,6 +40,65 @@ remains a gate for every preceding milestone.
   lanes. Reuse artifacts without sharing authority or dropping coverage; local
   timings do not establish hosted budgets.
 
+## Observation and consequence evidence
+
+Qualify the product thesis behind the
+[observation and feedback loop](../handbook/reference/collaborative-decisions.md#the-observation-and-feedback-loop):
+better infrastructure makes relevant evidence available before decisions and
+consequences inspectable afterward. The following measures are planned evaluation
+criteria. They add no runtime metric, benchmark result or new supported behavior.
+Each owning milestone supplies scoped evidence; this milestone assembles the
+complete comparison without deferring earlier correctness gates.
+
+Define a workload's business question, permitted audience, expected observations,
+source/delivery semantics, freshness requirements and feedback window before
+running it. Use an independent source/action oracle and retain original operation
+identities, evidence versions and timestamps. An initial snapshot, every change
+and a coalesced latest result have different coverage obligations.
+
+| Measure | Definition and reporting obligation |
+| --- | --- |
+| Initial observation coverage | Required observations available to the authorized application with the declared meaning, source basis, completeness and freshness, divided by all observations required by the fixed workload |
+| Consequence observation coverage | Accepted actions with the declared business consequence established by qualifying later evidence within the feedback window, divided by all accepted actions requiring that evidence; report success and known failure separately |
+| Observation latency | Time from source publication to the qualifying evidence being available through the application's read interface; separately report event-to-source delay where measurable |
+| Feedback latency | Time from original action acceptance to qualifying consequence evidence being available; separate action execution, real-world/source delay, ingestion, computation and disclosure so transport timing cannot stand in for the whole interval |
+| Evidence fidelity and cost | Agreement with independent expected values, definitions, versions and uncertainty states, plus CPU, I/O, resident memory, retained bytes and activation count for the same workload |
+
+Report both coverage measures together. Preserve their relationship per decision:
+identify cases with an adequate initial basis and an observed consequence, cases
+missing either, and cases missing both. A tool receipt establishes only the
+outcome its contract specifies; a successful allocation update is insufficient
+evidence that a shipment arrived. An observed business failure counts as feedback,
+not as business success. Evidence insufficient to settle the declared question
+does not count as complete coverage. Missing inputs, stale data and unresolved
+contradictions retain their recorded states. A question about absence or conflict
+can be answered by evidence establishing that condition; silence alone does not
+establish that an action had no effect.
+
+Fix cohorts and denominators before comparison. Keep pending, timed-out and
+disconnected actions in the accepted-action denominator; report age and follow
+each through its declared window. Report rejected or policy-denied attempts
+separately, without treating them as accepted actions. Never filter to the cases
+that returned data. Publish latency distributions with coverage and unresolved
+counts, plus clock assumptions and uncertainty; unobserved or incomparable times
+are not zero. Authorization violations or loss of evidence fidelity fail the
+qualification regardless of latency or coverage gains.
+
+Start with the delivery-assessment story using controlled native and external
+observations, then qualify selected live sources independently. Preserve a
+prediction, an authorized allocation action and a later delivery observation;
+exercise late, absent, duplicate and contradictory evidence, revocation and
+restart. Keep model/agent version, prompts, decision policy, inputs, access policy
+and budgets fixed when comparing infrastructure variants. Use deterministic
+decision fixtures first; report variability separately for agent-driven trials.
+Record incremental baselines and regressions in the existing proof ledger with
+their source revision and supported profile. Choose workload-specific acceptance
+bounds before execution; this plan supplies no universal numerical target.
+
+Business outcome quality and causal benefit need separate application evaluation.
+Observation provenance makes an explanation inspectable; correlating an action
+with a later event does not establish that the action caused that event.
+
 ## Completion evidence
 
 Record source/toolchain/binary provenance, workload configuration, ordinary versus

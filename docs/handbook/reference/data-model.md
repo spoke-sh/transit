@@ -14,6 +14,9 @@ Table you create, query and evolve through the console.
 application experience through stories about enriched resources, shared evidence,
 branching within a realm and controlled publication by humans and agents. Its
 availability table distinguishes that direction from the operations below.
+The [observation and feedback loop](collaborative-decisions.md#the-observation-and-feedback-loop)
+explains the product target: useful evidence before a decision and inspectable
+consequences afterward, so applications can revise their understanding.
 
 ```mermaid
 flowchart LR
