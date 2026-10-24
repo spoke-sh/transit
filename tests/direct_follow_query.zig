@@ -56,9 +56,33 @@ const Hosts = struct {
     fn control(self: *Hosts, init: std.process.Init, client: c.DirectTableClient, admin: anytype, state: State, command: live.Model.Command) !u64 {
         const identity = try client.authority.query(.{ .realm = 42, .principal = 101, .kind = .identity }, client.key);
         const prepared = try p.Growth.sign(.{ .realm = 42, .principal = 101, .sequence = identity.principal_sequence + 1, .command = .{ .send = .{ .pid = state.connection.requester, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, client.key);
+        const private: live.ReactiveClient = .{ .wire = client.authority, .connection = .{ .realm = 42, .principal = 101, .service = 99, .ingress = state.connection.requester }, .key = client.key, .refresh = true };
+        const adapter: live.Adapter = .{ .resources = self.service.resources, .service = 99, .ingress = state.connection.requester, .resource = state.connection.requests };
+        const saved: live.ReactiveModel.SignedSend = .{ .request = .{ .definition = prepared.request.definition, .realm = prepared.request.realm, .principal = prepared.request.principal, .sequence = prepared.request.sequence, .command = .{ .send = prepared.request.command.send } }, .signature = prepared.signature };
+        const recoverable = command == .refresh or (command == .reactive and switch (command.reactive) {
+            .open, .attach, .subscribe, .renew, .unsubscribe, .close => true,
+            else => false,
+        });
+        if (recoverable) {
+            const recovered = try private.recoverControl(adapter, saved);
+            try t.expectEqualDeep(private.connection, recovered.connection);
+            try t.expectEqual(null, recovered.input);
+            if (command == .reactive) try t.expectEqualDeep(command.reactive, recovered.control.reactive.native());
+            var invalid = saved;
+            invalid.signature = (try p.Growth.sign(invalid.native().request, try support.key(97))).signature;
+            try t.expectError(error.SignatureVerificationFailed, private.recoverControl(adapter, invalid));
+        }
         const receipt = try client.authority.submit(prepared);
         // A duplicate transport submission must preserve the original identity.
         try t.expectEqualDeep(receipt, try client.authority.submit(prepared));
+        if (recoverable) {
+            // Reconstruct from the original bytes and actual receipt; a missing
+            // browser receipt must not create a replacement native sequence.
+            const recovered = try private.recoverControl(adapter, saved);
+            try t.expectEqual(receipt.position, recovered.input.?);
+            const current = try client.authority.query(.{ .realm = 42, .principal = 101, .kind = .identity }, client.key);
+            try t.expectEqual(prepared.request.sequence, current.principal_sequence);
+        }
         var caller = query(client, state);
         for (0..2000) |_| {
             try self.step(init.io, admin);
@@ -82,7 +106,20 @@ const Hosts = struct {
         for (0..2000) |_| {
             const next = if (prepared_only) try caller.prepareTemplateNext(namespace, bundle) else try caller.prepareNext(namespace, bundle);
             const token = next orelse return;
+            if (prepared_only) {
+                try t.expectEqual(null, try caller.recoverPreparation(token, namespace));
+                try t.expectError(error.QueryIdentityMismatch, caller.recoverPreparation(token, namespace + 100));
+            }
             const receipt = try caller.submit(token);
+            if (prepared_only) {
+                const sequence = (try caller.authorizationClient().read(.identity)).principal_sequence;
+                const recovered = try q.Workspace.apply(init.arena.allocator(), &caller, state.workspace, .{ .recover_preparation = .{
+                    .token = try std.json.Stringify.valueAlloc(init.arena.allocator(), token, .{}),
+                    .namespace = try q.document.JsonValues.decimal(init.arena.allocator(), namespace),
+                } });
+                try t.expectEqualDeep(receipt, recovered.recovered_preparation.?);
+                try t.expectEqual(sequence, (try caller.authorizationClient().read(.identity)).principal_sequence);
+            }
             for (0..2000) |_| {
                 try self.step(init.io, admin);
                 switch (try caller.observe(receipt.position)) {

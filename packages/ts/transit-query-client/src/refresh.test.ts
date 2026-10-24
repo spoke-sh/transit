@@ -45,7 +45,7 @@ function compiled(operation: string): Extract<Response, { compiled: unknown }>["
 
 // A caller-state fixture: native signatures, uploads and query execution have
 // separate proofs. Opaque bundles/tokens here expose accidental replacement.
-function fixture() {
+function fixture(persist?: (owner: RefreshPreparation) => void) {
   const connection = {
     realm: 1,
     principal: 2,
@@ -95,16 +95,27 @@ function fixture() {
             ? { rejected: "64656e696564" }
             : { committed: {} },
       };
+    if ("recover_preparation" in request) {
+      expect(tokens.get(request.recover_preparation.token)).toBe(
+        request.recover_preparation.namespace,
+      );
+      const position = receipts.get(request.recover_preparation.token);
+      return { recovered_preparation: position ? { position } : null } as Response;
+    }
     if ("status" in request)
       return { status: { phase: faults.used ? "admitted" : "prepared" } } as Response;
     throw new Error("Unexpected refresh operation");
   };
-  const owner = new RefreshPreparation(transport, async () => {
-    ++held;
-    return () => {
-      --held;
-    };
-  });
+  const owner = new RefreshPreparation(
+    transport,
+    async () => {
+      ++held;
+      return () => {
+        --held;
+      };
+    },
+    () => persist?.(owner),
+  );
   const prepare = (key = "start", template = "1", limit = 2) =>
     owner.prepare(key, template, limit, new AbortController().signal);
   return { owner, prepare, connection, controls, receipts, faults, transport, held: () => held };
@@ -212,9 +223,7 @@ test.each(["lost", "pending"] as const)(
     f.faults.pending = false;
     await restored.prepare("start", "1", 2, new AbortController().signal);
     const submitted = f.controls.flatMap((r) => ("submit" in r ? [r.submit.token] : []));
-    expect(submitted).toEqual(
-      fault === "lost" ? ["frozen:0", "frozen:0", "frozen:1"] : ["frozen:0", "frozen:1"],
-    );
+    expect(submitted).toEqual(["frozen:0", "frozen:1"]);
     expect(f.controls.filter((r) => "refresh" in r)).toHaveLength(2);
     expect(f.receipts.size).toBe(2);
   },
@@ -232,6 +241,44 @@ test("saved readiness is rechecked and an activated capture cannot reopen after 
     "RefreshRequestAlreadyUsed",
   );
   expect(f.controls.slice(before).some((r) => "submit" in r || "refresh" in r)).toBe(false);
+});
+
+test("an altered saved input cannot settle a different preparation upload", async () => {
+  const f = fixture();
+  f.faults.pending = true;
+  await expect(f.prepare()).rejects.toThrow("RefreshPreparationPending");
+  const saved = JSON.parse(f.owner.exportRecovery());
+  saved.pending.input = 99;
+  const recovered = new RefreshPreparation(f.transport, async () => () => {});
+  recovered.restoreRecovery(JSON.stringify(saved));
+  const before = f.controls.length;
+  await expect(recovered.prepare("start", "1", 2, new AbortController().signal)).rejects.toThrow(
+    "RefreshRecoveryChanged",
+  );
+  expect(f.controls.slice(before).map((request) => Object.keys(request)[0])).toEqual([
+    "describe",
+    "recover_preparation",
+  ]);
+  expect(recovered.uncertain).toBe(true);
+});
+
+test("a failed durable save cannot dispatch or replace the prepared token", async () => {
+  let fail = true;
+  let token: unknown;
+  const f = fixture((owner) => {
+    const saved = JSON.parse(owner.exportRecovery());
+    if (saved.pending && fail) {
+      token = saved.pending.token;
+      throw new Error("storage full");
+    }
+  });
+  await expect(f.prepare()).rejects.toThrow("storage full");
+  expect(f.controls.some((request) => "submit" in request)).toBe(false);
+  expect(JSON.parse(f.owner.exportRecovery()).pending.token).toEqual(token);
+  fail = false;
+  await f.prepare();
+  expect(f.controls.filter((request) => "refresh" in request)).toHaveLength(2);
+  expect(f.receipts.size).toBe(2);
 });
 
 test("reload cannot move accepted preparation to a different connection", async () => {

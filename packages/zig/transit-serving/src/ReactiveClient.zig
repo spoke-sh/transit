@@ -26,6 +26,13 @@ pub const Command = union(enum) {
     }
 };
 pub const Observation = union(enum) { pending, committed, rejected: root.ServingFailure.Disposition };
+/// A private host decodes the actual saved bytes; browser metadata never supplies
+/// the command or accepted input used to rebuild its local lifecycle.
+pub const RecoveredControl = struct {
+    connection: Connection,
+    control: union(enum) { reactive: Command, refresh: root.RefreshModel.Input },
+    input: ?u64,
+};
 pub const Request = union(enum) {
     describe,
     clock,
@@ -34,6 +41,7 @@ pub const Request = union(enum) {
     prepare: Command,
     submit: r.SignedSend,
     observe: r.SignedSend,
+    recover_control: r.SignedSend,
     sign_read: r.Read,
     refresh_prepare: root.RefreshModel.Input,
     refresh_status: root.RefreshModel.Selection,
@@ -46,6 +54,7 @@ pub const Response = union(enum) {
     prepared: r.SignedSend,
     receipt: root.Adapter.Receipt,
     observation: Observation,
+    recovered_control: RecoveredControl,
     signed_read: r.SignedRead,
     refresh_status: root.RefreshFailure.Status,
 };
@@ -86,6 +95,39 @@ pub fn validate(self: Self, prepared: r.SignedSend) !void {
         .open, .attach, .subscribe, .renew, .unsubscribe, .close => {},
         else => return error.InvalidServingCommand,
     }
+}
+fn recoveredCommand(self: Self, prepared: r.SignedSend) !@FieldType(RecoveredControl, "control") {
+    const request = prepared.native().request;
+    try p.Growth.validate(request);
+    if (request.realm != self.connection.realm or request.principal != self.connection.principal or
+        request.command.send.pid != self.connection.ingress or request.command.send.role != self.connection.role) return error.ServingDenied;
+    const frame = try root.station.Frame.decode(request.command.send.value);
+    if (frame.kind != .cast) return error.InvalidServingCommand;
+    const command = try m.Command.decode(frame.payload);
+    return switch (command) {
+        .reactive => |value| switch (value) {
+            inline .open, .attach, .subscribe, .renew, .unsubscribe, .close => |body, tag| .{ .reactive = @unionInit(Command, @tagName(tag), body) },
+            else => error.InvalidServingCommand,
+        },
+        .refresh => |value| if (!self.refresh) error.ServingDenied else .{ .refresh = switch (value) {
+            .follow => |body| .{ .follow = body.view },
+            inline else => |body, tag| @unionInit(root.RefreshModel.Input, @tagName(tag), body),
+        } },
+        else => error.InvalidServingCommand,
+    };
+}
+/// Read-only recovery of an exact control under the host's current credential.
+/// An accepted old request is identified by its native receipt, including after
+/// rotation. An absent request must still verify under the current signing key.
+/// Neither case signs, submits, opens a session or renews a lease.
+pub fn recoverControl(self: Self, adapter: root.Adapter, prepared: r.SignedSend) !RecoveredControl {
+    const control = try self.recoveredCommand(prepared);
+    const signed = try self.servingRead(.{ .realm = self.connection.realm, .principal = self.connection.principal, .service = self.connection.service, .ingress = self.connection.ingress, .kind = .discovery });
+    _ = try adapter.read(signed, self.key.public_key.toBytes());
+    const receipt = (try self.authorization().read(.{ .receipt = prepared.native().request })).body.authorization.body.receipt;
+    if (receipt == null) try self.validate(prepared);
+    _ = try adapter.read(signed, self.key.public_key.toBytes());
+    return .{ .connection = self.connection, .control = control, .input = if (receipt) |value| value.position else null };
 }
 fn refreshPrepare(self: Self, adapter: root.Adapter, input: root.RefreshModel.Input) !r.SignedSend {
     if (!self.refresh) return error.ServingDenied;
@@ -195,6 +237,7 @@ pub fn apply(self: Self, adapter: root.Adapter, request: Request) !Response {
             break :blk .{ .receipt = try adapter.submit(prepared.native(), self.key.public_key.toBytes()) };
         },
         .observe => |input| .{ .observation = try self.observe(adapter, input) },
+        .recover_control => |input| .{ .recovered_control = try self.recoverControl(adapter, input) },
         .sign_read => |read| .{ .signed_read = try self.signRead(read) },
         .refresh_prepare => |input| .{ .prepared = try self.refreshPrepare(adapter, input) },
         .refresh_status => |selection| .{ .refresh_status = try self.refreshStatus(adapter, selection) },
@@ -220,4 +263,27 @@ test "reactive caller freezes native identity and excludes ambient administrativ
     changed.signature = admin.signature;
     try t.expectError(error.InvalidServingCommand, client.validate(changed));
     try t.expectError(error.ServingDenied, client.signRead(.{ .scope = .{ .realm = 49, .principal = 65537, .service = 1, .ingress = 7, .session = 19, .generation = 30 }, .kind = .session }));
+}
+
+test "restored reactive controls derive their command and scope from the saved native request" {
+    const t = std.testing;
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(27));
+    const client: Self = .{ .wire = undefined, .connection = .{ .realm = 49, .principal = 65536, .service = 1, .ingress = 7, .role = 11 }, .key = key };
+    const command: Command = .{ .open = .{ .session = 19, .source_revision = 1, .lease_before_ms = 1000 } };
+    const saved = try client.prepareAt(command, 22);
+    try t.expectEqualDeep(command, (try client.recoveredCommand(saved)).reactive);
+    var foreign = client;
+    foreign.connection.role = null;
+    try t.expectError(error.ServingDenied, foreign.recoveredCommand(saved));
+    foreign = client;
+    foreign.connection.ingress += 1;
+    try t.expectError(error.ServingDenied, foreign.recoveredCommand(saved));
+    const admin = try client.nativeAt(.{ .reactive = .{ .observe_clock = 123 } }, 22);
+    try t.expectError(error.InvalidServingCommand, client.recoveredCommand(admin));
+    var refresh_client = client;
+    refresh_client.refresh = true;
+    const pause: root.RefreshModel.Input = .{ .pause = .{ .session = .{ .session = 19, .generation = 20 }, .generation = 21 } };
+    const refresh = try client.nativeAt(.{ .refresh = .{ .pause = pause.pause } }, 22);
+    try t.expectEqualDeep(pause, (try refresh_client.recoveredCommand(refresh)).refresh);
+    try t.expectError(error.ServingDenied, client.recoveredCommand(refresh));
 }

@@ -45,6 +45,16 @@ reporting pending, committed or rejected. Only the committed control advances
 the client lifecycle. Session opening and subscription generations come from
 those actual committed input positions.
 
+The read-only `recover_control` operation takes those original signed bytes,
+validates the current definition and configured realm/principal/ingress/role,
+and returns the owning decoder's control and actual receipt input, or null input
+when absent. It checks current native and service read authority before and after
+receipt lookup. An absent request must verify under the current signing key;
+an accepted request is identified by its exact native receipt even after key
+rotation. It does not sign, submit, open or renew anything. Administrative,
+observer and application commands are rejected. Refresh decoding requires the
+host's explicit refresh capability. This operation uses reserved control capacity.
+
 Sign-read binds the configured realm/principal/service/ingress. The resulting
 signed read uses the reactive API's HTTP read, challenge and SSE bootstrap unchanged. Challenge
 and streaming attachment must reach the same gateway. An attached message means

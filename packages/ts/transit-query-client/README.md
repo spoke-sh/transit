@@ -41,8 +41,13 @@ owns persistence. Import performs no I/O; an explicit `prepare` resumes the
 original tokens and rechecks saved readiness through the host. Malformed, oversized
 or differently scoped recovery data cannot dispatch work. Recovery files contain
 signed requests and bundles, not private keys or verified result rows. Prepared
-native requests remain durable and do not expire implicitly. Board does not yet
-provide a save/restore interface for this owner.
+native requests remain durable and do not expire implicitly. A synchronous
+persistence callback saves allocated identities, compiled grants, pending tokens
+and observed progress before a mutation can dispatch. After import,
+`recover_preparation` locates the exact token's actual native receipt under
+current requester rights; a changed saved input rejects before observation.
+Board composes this recovery with its session and Follow intent in tab-local
+storage and requires explicit resume after reload.
 
 `prepareCapture(transport, compiled, operation, signal)` explicitly authorizes a
 new finite Table query before its first upload. The host uses its configured

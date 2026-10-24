@@ -2,11 +2,16 @@ import { BoardError, unifiedQuery as query } from "@transit/board-client";
 import { LiveView, ReactiveError, Session } from "@transit/reactive-client";
 import { verifiedPage, type ResultPage } from "./unified-result";
 import { DraftSession, QueryError, RefreshPreparation } from "@transit/query-client";
+import { FollowRecovery } from "./follow-recovery";
 
 export const liveDraft = new DraftSession(query);
 
-export const querySession = new Session();
-const refreshPreparation = new RefreshPreparation(query);
+export const followRecovery = new FollowRecovery(() => window.sessionStorage);
+function saveFollow() {
+  followRecovery.save({ session: querySession, preparation: refreshPreparation, view: liveQuery });
+}
+export const querySession = new Session(undefined, undefined, saveFollow);
+const refreshPreparation = new RefreshPreparation(query, undefined, saveFollow);
 let identity: { resource: number; partition: string; contract: string; schema: string } | null =
   null;
 export function selectLiveTemplate() {
@@ -82,4 +87,9 @@ export const liveQuery = new LiveView<ResultPage>(
       throw error;
     }
   },
+  saveFollow,
+);
+followRecovery.restore(
+  { session: querySession, preparation: refreshPreparation, view: liveQuery },
+  query,
 );

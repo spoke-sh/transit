@@ -16615,7 +16615,7 @@
         "Conflict": 1,
         "IncompleteResult": 2,
         "InvalidQueryIdentity": 1,
-        "InvalidQueryRequest": 4,
+        "InvalidQueryRequest": 5,
         "InvalidQueryUpload": 1,
         "InvalidResourceRead": 2,
         "QueryAlreadyAuthorized": 1,
@@ -16626,7 +16626,7 @@
         "QueryDraftConflict": 2,
         "QueryDraftExhausted": 1,
         "QueryDraftNotFound": 1,
-        "QueryIdentityMismatch": 3,
+        "QueryIdentityMismatch": 4,
         "QueryReadConflict": 2,
         "QueryRequesterFailed": 1,
         "QueryRequesterUnavailable": 1,
@@ -16672,6 +16672,7 @@
         "prepareSql()": "<inferred>",
         "prepareTemplateNext()": "<inferred>",
         "query()": "<inferred>",
+        "recoverPreparation()": "<inferred>",
         "requester()": "<inferred>",
         "sourceMetadata()": "<inferred>",
         "status()": "<inferred>",
@@ -16681,7 +16682,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 76,
+        "try": 85,
         "catch": 4
       },
       "imports": [
@@ -17060,6 +17061,7 @@
           "draft_close",
           "draft_status",
           "submit",
+          "recover_preparation",
           "observe",
           "status",
           "page",
@@ -17079,6 +17081,7 @@
           "inspection",
           "prepared",
           "receipt",
+          "recovered_preparation",
           "observation",
           "status",
           "page",
@@ -17098,7 +17101,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 72,
+        "try": 75,
         "catch": 7
       },
       "imports": [
@@ -17790,7 +17793,7 @@
     "packages/zig/transit-serving/src/ReactiveClient.zig": {
       "errors": {
         "Conflict": 1,
-        "InvalidServingCommand": 3,
+        "InvalidServingCommand": 6,
         "InvalidServingReceipt": 1,
         "ReactiveAdapterRequired": 1,
         "ReactiveGenerationConflict": 2,
@@ -17799,7 +17802,7 @@
         "Rejected": 1,
         "ResourceUnavailable": 1,
         "ServiceReadConflict": 5,
-        "ServingDenied": 7
+        "ServingDenied": 9
       },
       "outcomes": {
         "Command": [
@@ -17815,6 +17818,10 @@
           "committed",
           "rejected"
         ],
+        "RecoveredControl.control": [
+          "reactive",
+          "refresh"
+        ],
         "Request": [
           "describe",
           "clock",
@@ -17823,6 +17830,7 @@
           "prepare",
           "submit",
           "observe",
+          "recover_control",
           "sign_read",
           "refresh_prepare",
           "refresh_status"
@@ -17835,6 +17843,7 @@
           "prepared",
           "receipt",
           "observation",
+          "recovered_control",
           "signed_read",
           "refresh_status"
         ]
@@ -17847,6 +17856,8 @@
         "observedClock()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareAt()": "<inferred>",
+        "recoverControl()": "<inferred>",
+        "recoveredCommand()": "<inferred>",
         "refreshPrepare()": "<inferred>",
         "refreshStatus()": "<inferred>",
         "refreshStatusOnce()": "<inferred>",
@@ -17856,7 +17867,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 59,
         "catch": 1
       },
       "imports": [

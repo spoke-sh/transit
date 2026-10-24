@@ -248,6 +248,26 @@ pub fn submit(self: *Self, prepared: Prepared) !p.Receipt {
     // command. Node grants, requester identity and source policy remain live.
     return self.wire.submit(prepared.signed);
 }
+/// Recover a preparation upload's actual native receipt under current rights.
+/// Browser-saved input positions cannot substitute for this exact request.
+pub fn recoverPreparation(self: *Self, prepared: Prepared, namespace: u64) !?p.Receipt {
+    try self.validate(prepared);
+    try g.validate(prepared.signed.request);
+    const frame = try s.Frame.decode(prepared.signed.request.command.send.value);
+    const command = try q.UnifiedRequest.Command.decode(&frame.payload);
+    const target = switch (command) {
+        .begin => |value| value.namespace,
+        .part => |value| value.namespace,
+        .seal, .prepare => |value| value,
+        else => return error.InvalidQueryRequest,
+    };
+    if (target != namespace or namespace == 0) return error.QueryIdentityMismatch;
+    _ = try self.requester();
+    const receipt = (try self.authorizationClient().read(.{ .receipt = prepared.signed.request })).body.authorization.body.receipt;
+    if (receipt == null) try p.Ed25519.Signature.fromBytes(prepared.signed.signature).verify(&try g.digest(prepared.signed.request), self.key.public_key);
+    _ = try self.requester();
+    return receipt;
+}
 /// Receipt position is the requester input, not its ordinal. The public head
 /// can prove that input is still pending or that all earlier input has committed.
 pub fn observe(self: *Self, input: u64) !Observation {

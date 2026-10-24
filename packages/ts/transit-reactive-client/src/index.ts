@@ -14,6 +14,7 @@ import type {
   Error as ErrorResponse,
 } from "./types";
 export type * from "./types";
+export { currentDefinition } from "./types";
 
 export type OperationOutcome = NonNullable<NonNullable<WireResponse["event"]>["outcome"]> & {
   diagnosticInvalid?: boolean;
@@ -333,6 +334,7 @@ export class Transport {
       "inspect" in request ||
       "covered" in request ||
       "observe" in request ||
+      "recover_control" in request ||
       "sign_read" in request ||
       "refresh_status" in request;
     for (let attempt = 0; ; attempt++) {

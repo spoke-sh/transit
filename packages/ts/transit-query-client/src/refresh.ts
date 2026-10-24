@@ -34,10 +34,22 @@ export class RefreshPreparation {
   private release: (() => void) | null = null;
   private busy = false;
   private restored = false;
+  private restoredPending = false;
   constructor(
     private readonly transport: Transport,
     private readonly coordinate: AcquireCaller = acquireCaller,
+    private readonly persist: () => void = () => {},
   ) {}
+  get recoveryIdentity() {
+    return this.work
+      ? {
+          key: this.work.key,
+          template: this.work.template,
+          limit: this.work.slots.length,
+          captures: this.work.slots.map((slot) => slot.namespace),
+        }
+      : null;
+  }
   get uncertain() {
     return this.pending !== null;
   }
@@ -145,6 +157,7 @@ export class RefreshPreparation {
     this.work = structuredClone(saved.work);
     this.pending = structuredClone(saved.pending);
     this.restored = true;
+    this.restoredPending = this.pending !== null;
   }
   async prepare(
     key: string,
@@ -196,6 +209,7 @@ export class RefreshPreparation {
       const work = this.work!;
       if (work.template !== template || work.slots.length !== limit)
         throw new QueryError(409, "RefreshPreparationConflict");
+      this.persist();
       for (const slot of work.slots) {
         if (slot.ready) {
           if (this.restored) {
@@ -227,6 +241,7 @@ export class RefreshPreparation {
           );
           if (!("compiled" in compiled)) throw new QueryError(0, "InvalidResponse");
           slot.compiled = compiled.compiled;
+          this.persist();
         }
         while (!slot.ready) {
           signal.throwIfAborted();
@@ -248,6 +263,7 @@ export class RefreshPreparation {
               if (!("status" in current) || current.status?.phase !== "prepared")
                 throw new QueryError(409, "RefreshRequestAlreadyUsed");
               slot.ready = true;
+              this.persist();
               this.unlock();
               continue;
             }
@@ -258,11 +274,33 @@ export class RefreshPreparation {
             };
           }
           const pending = this.pending;
+          if (this.restoredPending) {
+            this.release ??= await this.coordinate(connection, signal);
+            const actual = await this.transport(
+              {
+                recover_preparation: {
+                  token: pending.token.token,
+                  namespace: pending.namespace,
+                },
+              },
+              signal,
+            );
+            if (!("recovered_preparation" in actual)) throw new QueryError(0, "InvalidResponse");
+            const input = actual.recovered_preparation?.position ?? null;
+            if (pending.input !== null && pending.input !== input)
+              throw new QueryError(409, "RefreshRecoveryChanged");
+            pending.input = input;
+            this.restoredPending = false;
+          }
+          // The exact native bytes must be saved before dispatch; a failed
+          // persistence callback cannot spend another upload sequence.
+          this.persist();
           if (pending.input === null) {
             this.release ??= await this.coordinate(connection, signal);
             const result = await this.transport({ submit: structuredClone(pending.token) }, signal);
             if (!("receipt" in result)) throw new QueryError(0, "InvalidResponse");
             pending.input = result.receipt.position;
+            this.persist();
             this.unlock();
           }
           const result = await this.transport({ observe: pending.input }, signal);
@@ -273,6 +311,7 @@ export class RefreshPreparation {
             throw new QueryError(503, "RefreshPreparationPending");
           }
           this.pending = null;
+          this.persist();
           if ("rejected" in result.observation)
             throw new QueryError(409, "RefreshPreparationRejected");
         }
