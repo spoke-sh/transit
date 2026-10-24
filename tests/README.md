@@ -1214,6 +1214,28 @@ fixture now has an explicit initialization job and separate native/Table PVC,
 but that profile has not run: this checkout lacks the owned reference
 infrastructure and matching runtime image. It remains an open execution gate.
 
+## Work items direct storage on the reference runtime — 2026-10-24
+
+`nix develop .#serving --command python3 -B examples/work-items/placed.py reference`
+passes in **885.08 s**, including **165.31 s** of image work. The actual browser
+verifies its original query in **117.006 s** and its new query after migration in
+**133.614 s**. Both retain the existing 180-second finite-query bound. Only the
+external physical replacement/migration wait uses a separate 600-second bound.
+
+Three Substrate owners receive fresh registrations and conditional native key /
+generation rotation. Their original roles and cross-resource grants survive.
+The node and gateway reopen the same native/direct Table history on the owned
+PVC. The browser recovers its lost accepted upload, observes the schema
+transition, verifies all pages of the replacement query, and clears protected
+state after current denial. Keyboard, responsive layout and axe checks pass.
+The private gateway egress probe also passes. Namespace cleanup completes.
+
+The fixture declares its already-owned node claim to Helm, avoiding an unused
+delayed-binding PVC. Native history and direct Table data use that claim;
+Ursula and MinIO remain isolated denial targets, not evidence of cold-tier
+recovery. The successful run uses isolated reference metadata; the earlier run
+interrupted by removal of the shared reference cache is not passed evidence.
+
 ## Work items direct-admission reply loss — 2026-10-24
 
 Direct data calls fail outside the native turn reader. The Work items worker

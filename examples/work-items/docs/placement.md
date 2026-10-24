@@ -64,6 +64,11 @@ browser reloads, settles the original signed upload, rejects continued execution
 under its old source contract, cancels that original work and explicitly runs a
 new query. Finally, current value-read denial clears protected results.
 
+The finite queries each have a 180-second verification deadline. The browser's
+separate wait for external physical replacement and migration is 180 seconds in
+Compose and 600 seconds in Reference. A longer placement wait does not renew a
+query, replenish its budget or replace its accepted identity.
+
 Provider state, TLS, template identity and restored disk history never grant
 execution rights. These fixtures do not qualify distributed authority movement,
 provider snapshot recovery, root bootstrap recovery after every possible lost

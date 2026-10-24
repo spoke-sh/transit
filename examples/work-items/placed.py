@@ -145,7 +145,8 @@ def run(profile):
             der = subprocess.check_output(['openssl','pkey','-pubin','-outform','DER'],input=public)
             pin = base64.b64encode(hashlib.sha256(der).digest()).decode()
             env['NODE_EXTRA_CA_CERTS'] = str(tls.root/'certificate.pem')
-            browser=local('browser',['node',ROOT/'examples/work-items/web/browser/proof.mjs',origin,marker,pin])
+            browser=local('browser',['node',ROOT/'examples/work-items/web/browser/proof.mjs',origin,marker,pin,
+                '600000' if profile == 'reference' else '180000'])
             def phase(expected):
                 deadline=time.monotonic()+360
                 while not marker.exists() or marker.read_text()!=expected:
