@@ -8,14 +8,7 @@ const e = f.RelationalExecution;
 const Memory = @import("QueryMemory.zig");
 const Self = @This();
 const Run = e.Execution(*q.RelationalTables, *q.RelationalSpill);
-pub const Options = struct {
-    dialect: f.Sql.Dialect = .transit,
-    consistency: q.RelationalTables.Consistency,
-    budgets: r.Budgets,
-    /// Physical access limits supplement the logical operation budget.
-    requests: u64,
-    spill_work: u64,
-};
+pub const Options = q.DirectRelationalQuery.Options;
 parent: std.mem.Allocator,
 memory: Memory,
 syntax: f.RelationalSql.Owned,

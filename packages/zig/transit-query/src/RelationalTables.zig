@@ -11,7 +11,7 @@ const e = f.RelationalExecution;
 const Scan = @import("TableScan.zig");
 const Self = @This();
 pub const Binding = struct { client: *c.TableClient, name: c.TableMetadata.Name, alias: []const u8 };
-pub const Consistency = enum { per_resource_snapshot_vector, independent_table_snapshots, atomic };
+pub const Consistency = q.DirectRelationalQuery.Consistency;
 allocator: std.mem.Allocator,
 scans: [r.max_sources]?Scan = @splat(null),
 declarations: [r.max_sources]r.Source = undefined,

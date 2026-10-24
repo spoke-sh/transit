@@ -32,7 +32,7 @@ pub const Policy = struct {
     pub const declaration_bytes = 118;
     pub const max_bytes = 126;
     pub const Catalog = struct {
-        scope: q.catalog.TableCatalogRecords.Scope,
+        scope: p.DataLifecycle.Scope,
         owner: u64,
         principal: u64,
         pub fn validate(self: Catalog) !void {
@@ -67,7 +67,7 @@ pub const Policy = struct {
                 .declaration => |value| try writer.writeAll(&value),
                 .catalog => |value| {
                     try value.validate();
-                    try q.catalog.TableMetadata.scopeWrite(writer, value.scope);
+                    inline for (.{ "realm", "resource", "catalog" }) |field| try writer.writeInt(u64, @field(value.scope, field), .little);
                     try writer.writeInt(u64, value.owner, .little);
                     try writer.writeInt(u64, value.principal, .little);
                 },
@@ -115,7 +115,7 @@ pub const Policy = struct {
         var bytes: [max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQA1");
-        try writer.writeAll(&q.catalog.TableMetadata.definition());
+        try writer.writeAll(&p.Growth.definition_bytes);
         inline for (.{ "peer", "requests", "revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);
         try self.target.write(&writer);
         try writer.writeByte(@intFromBool(self.allow));
@@ -126,7 +126,7 @@ pub const Policy = struct {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQA1");
-        if (!std.mem.eql(u8, try reader.take(32), &q.catalog.TableMetadata.definition())) return error.IncompatibleDefinition;
+        if (!std.mem.eql(u8, try reader.take(32), &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
         var result: Policy = .{ .peer = try reader.takeInt(u64, .little), .requests = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .target = try Target.read(&reader), .allow = false, .limits = undefined };
         result.allow = switch (try reader.takeByte()) {
             0 => false,

@@ -10,7 +10,7 @@ const h = q.catalog.DirectTableValues;
 const c = q.catalog;
 const Allocator = std.mem.Allocator;
 pub const Options = struct {
-    consistency: q.RelationalTables.Consistency,
+    consistency: q.DirectRelationalQuery.Consistency,
     resident_bytes: []const u8,
     spill_bytes: []const u8,
     result_bytes: []const u8,
@@ -72,7 +72,7 @@ pub const Capabilities = struct {
     interactive: bool = true,
     captured: bool = false,
     maintained: bool = false,
-    consistency: q.RelationalTables.Consistency = .independent_table_snapshots,
+    consistency: q.DirectRelationalQuery.Consistency = .independent_table_snapshots,
 };
 pub const Source = struct { alias: []const u8, binding: h.PreparedBinding, position: h.Position };
 pub const Cut = struct { object: h.Object, position: h.Position, commitment: []const u8, schema: []const u8 };

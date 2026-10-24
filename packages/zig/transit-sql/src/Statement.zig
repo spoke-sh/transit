@@ -74,10 +74,10 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 /// This profile routes every relational target through the selected database's
 /// explicit catalog connection. SQL names never select another configured account.
 pub const Profile = enum { native, wire };
-pub fn prepare(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options) !Self {
+pub fn prepare(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.DirectRelationalQuery.Options) !Self {
     return prepareDiagnostic(allocator, client, namespace, text, dialect, profile, options, null);
 }
-pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
+pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
     if (detail) |value| value.* = .{};
     var location: f.Sql.Location = .{};
     return prepareInner(allocator, client, namespace, text, dialect, profile, options, detail, &location) catch |err| {
@@ -87,7 +87,7 @@ pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableCli
         return err;
     };
 }
-fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
+fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
     try f.Sql.validateText(text);
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
@@ -231,7 +231,7 @@ pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.I
 test "gateway statements reject transaction controls and multiple commands before authority access" {
     const t = std.testing;
     var client: c.DirectTableClient = undefined;
-    const options: q.RelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+    const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
     for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN", "CREATE SCHEMA app", "ALTER SCHEMA app RENAME TO archive", "DROP SCHEMA app" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, 1, sql, .transit, .wire, options));
     if (prepare(t.allocator, &client, 1, "CREATE TABLE t (id BIGINT); CREATE TABLE u (id BIGINT)", .transit, .wire, options)) |value| {
         var result = value;
