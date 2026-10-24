@@ -135,7 +135,7 @@ def delayed(binary):
         return dict(assistance=dict(coverage=state['coverage'], status='ready', profile='catalog_v1', resource=4,
                                     contract=[7]*32, resource_revision=state['revision'], policy_revision='1',
                                     range=dict(start=start, end=len(text), quoted=False),
-                                    items=[dict(text='SELECT', kind='keyword', detail='SQL grammar')]))
+                                    items=[] if state.get('empty') else [dict(text=state.get('candidate', 'SELECT'), kind='keyword', detail='SQL grammar')]))
     with tempfile.TemporaryDirectory(prefix='transit-completion-') as directory, peer(assist=assist) as (endpoint, actions):
         root = Path(directory)
         config = root / 'connection.json'
@@ -186,6 +186,30 @@ def delayed(binary):
             terminal.expect('> SELECT')  # refreshed selection, no replay of acceptance
             terminal.send('\x07')
             expect_draft(terminal, ['transit> SE'], (0, 11))
+            terminal.send('\t')
+            terminal.expect('> SELECT')
+            terminal.send('\x1b')
+            expect_draft(terminal, ['transit>'], (0, 9))
+            state['candidate'] = '"' + 'a' * 120 + 'tail"'
+            terminal.resize(20, 6)
+            terminal.display.resize(20, 6)
+            terminal.send('a\t')
+            terminal.expect('> "aaaa')
+            terminal.send('\x1b[6~' * 6)
+            terminal.expect('tail"')  # full selected spelling remains accessible
+            terminal.send('\x1b')
+            expect_draft(terminal, ['transit>'], (0, 9))
+            terminal.resize(80)
+            terminal.display.resize(80)
+            state.pop('candidate')
+            state['empty'] = True
+            state['coverage'] = 'complete'
+            terminal.send('SE\t')
+            terminal.expect('No matching suggestions')
+            terminal.send('\r')
+            expect_draft(terminal, ['transit> SE'], (0, 11))
+            state['empty'] = False
+            state['coverage'] = 'limited'
             terminal.send('\t')
             terminal.expect('> SELECT')
             state['denied'] = True
