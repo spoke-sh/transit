@@ -1,18 +1,24 @@
 """Installed sync/async relational API consumer; never imports wire declarations."""
 import asyncio
-import dataclasses
 import inspect
 import json
 from pathlib import Path
 import sys
-from transit_client import ProcessRef, ResourceRef
+from transit_client import ResourceRef
 from transit_client.errors import TransitError
 from transit_station import catalog, relational as r
 
 
 def description(value):
-    return dict(plan=value.plan, sources=[dict(alias=s.alias, resource=dict(realm=s.resource.realm, resource=s.resource.resource), catalog=str(s.catalog), owner=s.owner, objectId=str(s.object_id), schema=s.schema) for s in value.sources],
-        columns=[dict(name=c.name, type=dict(kind=c.type.kind), nullable=c.nullable) for c in value.columns], join=value.join, grouped=value.grouped, executed=value.executed)
+    return dict(plan=value.plan, sources=[dict(alias=s.alias, binding=json.loads(s.basis.save()),
+        position=dict(partition=str(s.position.partition), next_lsn=str(s.position.next_lsn))) for s in value.sources],
+        columns=[dict(name=c.name, type=dict(kind=c.type.kind), nullable=c.nullable) for c in value.columns],
+        join=value.join, grouped=value.grouped, executed=value.executed)
+
+
+def cuts(values):
+    return [dict(objectId=str(c.object.object_id), position=dict(partition=str(c.position.partition), nextLsn=str(c.position.next_lsn)),
+        commitment=c.commitment, schema=c.schema) for c in values]
 
 
 def row(value):
@@ -29,10 +35,10 @@ async def resolve(value): return await value if inspect.isawaitable(value) else 
 async def main():
     assert Path(r.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
     config = json.loads(Path(sys.argv[2]).read_text())
-    catalogs = tuple(catalog.Connection(ProcessRef(c['scope']['realm'], c['owner']), catalog.Scope(ResourceRef(c['scope']['realm'], c['scope']['resource']), int(c['scope']['catalog']))) for c in config['catalogs'])
-    options = r.Options('per_resource_snapshot_vector', 16777216, 16777216, 8388608, 1000, 100000, 2, 100000, 100000, Path(config['spill_directory']))
+    catalogs = tuple(catalog.Connection(catalog.Scope(ResourceRef(c['scope']['realm'], c['scope']['resource']), int(c['scope']['catalog'])), c['audience'], int(c['branch']), c['role']) for c in config['catalogs'])
+    options = r.Options('independent_table_snapshots', 16777216, 16777216, 8388608, 1000, 100000, 2, 100000, 100000, Path(config['spill_directory']))
     cls = r.AsyncClient if sys.argv[1] == 'async' else r.Client
-    def connect(): return cls(config['url'], config['catalogs'][0]['principal'], Path(config['seed_file']), catalogs, options)
+    def connect(): return cls(config['url'], config['catalogs'][0]['principal'], Path(config['seed_file']), catalogs, options, service_url=config['service_url'])
     client = connect()
     write = lambda value: print(json.dumps(value), flush=True)
     try:
@@ -45,8 +51,9 @@ async def main():
                     value = description(await resolve(client.explain(r.Statement(**action['explain']))))
                 elif 'open' in action:
                     a = action['open']
-                    result = await resolve(client.open_query(a['id'], r.Statement(**a['statement'])))
-                    value = dict(reference=result.reference.save(), description=description(result.description), cuts=[dataclasses.asdict(c) for c in result.cuts], completeCoverage=result.complete_coverage)
+                    sources = tuple(r.RetainedSource(catalog.Basis.restore(source['basis']), catalog.Snapshot.restore(source['snapshot'])) for source in a['sources'])
+                    result = await resolve(client.open_query(a['id'], r.Statement(**a['statement']), sources))
+                    value = dict(reference=result.reference.save(), description=description(result.description), cuts=cuts(result.cuts), completeCoverage=result.complete_coverage)
                 elif 'page' in action:
                     a = action['page']
                     result = await resolve(client.page(r.Reference.restore(a['reference']), int(a['ordinal'])))

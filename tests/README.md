@@ -1,5 +1,40 @@
 # Validation and evidence
 
+## Retained relational caller conformance — 2026-10-24
+
+`nix develop .#bindings -c zig build test-relational-callers
+-Doptimize=ReleaseSafe -Drelational-sdk=python` passes **1,390 public requests**
+through the native C ABI, native port and independently installed synchronous
+and asynchronous Python clients. The corresponding `-Drelational-sdk=node` run
+passes **1,087 public requests** through the native callers and installed
+TypeScript API. Matching Python wheels and Node tarballs were rebuilt with
+`just bindings::python-build bindings::node-build`.
+
+The fixture provisions three Tables through the direct owner and produces
+`.tseg` files. Two configured routes identify one catalog. Both route layouts
+join independent Table cuts; a self-join explicitly shares one retained pin.
+Nullable keys, unmatched rows, duplicate matches and COUNT/SUM groups have
+independent expected results. Every open carries the original complete bindings
+and explicit snapshots. Repeated open/page/close is stable; malformed bindings,
+changed work and invalid/skipped/earlier cursors reject.
+
+Two abrupt node replacements and one killed native port preserve original
+retention. A pooled connection can report unavailable after node loss; the test
+retries only the identical cached read permitted by its diagnostic. Destroying a
+query client invalidates its old cursor. Explicit reopening from the original
+bindings and snapshots starts execution from the beginning, without acquiring a
+new source basis. Each installed Python and TypeScript API exercises the same reconstruction.
+Current denial blocks a cached row. Output exhaustion preserves an incomplete
+prefix and its original failure; overflow retains the exact output column and
+ordered source-row witness. Local query closure leaves the pins owned; the
+fixture explicitly releases each original pin and verifies its released state.
+
+The former actor-catalog fixture is replaced by this direct service schedule.
+The first attempt stopped on an obsolete malformed-binding error expectation;
+the second stopped on a stale pooled connection after replacement. Neither was
+passed evidence. This run does not establish automatic recovery of execution,
+mixed-catalog joins, physical reclamation or the final repository gates.
+
 ## Direct Board relational recovery — 2026-10-24
 
 `nix develop -c zig build test-direct-board -Doptimize=ReleaseSafe

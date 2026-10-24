@@ -447,7 +447,7 @@ catalog-growth:
 relational-maintenance:
     just test::typed-tables --maintained --cold
 
-# Shared interactive callers and explicit Board pages over real catalog routes.
+# Explicit retained relational callers and Board pages over the direct owner.
 relational-callers:
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true
 

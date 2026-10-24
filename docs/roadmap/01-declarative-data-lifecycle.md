@@ -157,6 +157,14 @@ are qualified. Remaining actor consumers, Follow/placement schedules and the
 final combined SDK and repository gates are unfinished. The milestone remains
 In Progress.
 
+The [retained relational caller conformance run](../../tests/README.md#retained-relational-caller-conformance--2026-10-24)
+replaces the older actor-backed relational caller fixture. It passes native ABI,
+native port and installed Python sync/async joins in 1,390 public requests, and
+installed TypeScript in a separate 1,087-request run. Shared self-join retention,
+current denial, explicit reopening after caller loss, node replacement, output
+budgets and ordered overflow pass. This is independent Table-cut evidence; it
+does not promise a cross-Table atomic snapshot.
+
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step
 path. Its current session adapters use direct prepared reads and mutations.

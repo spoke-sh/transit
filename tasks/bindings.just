@@ -75,7 +75,7 @@ python-test: python-build
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
     just test::typed-tables --cold --sdk python
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
@@ -83,12 +83,12 @@ node-build: build
 
 # Qualify installed relational SQL callers through the shared Zig owner.
 relational-node: node-build node-check
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 relational-python: python-build
     PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_relational_values.py
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 
 # Qualify public Node clients/runners through the shared real-authority schedules.
 node-sdk-test: node-build
@@ -105,7 +105,7 @@ node-sdk-test: node-build
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
     just test::typed-tables --cold --sdk node
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
 logical-test: python-build node-build

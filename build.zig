@@ -1496,18 +1496,21 @@ pub fn build(b: *std.Build) void {
         b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
     }
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
+    relational_callers_native.addFileArg(b.path("tests/direct_table_service.py"));
     relational_callers_native.addArtifactArg(node_artifact);
-    relational_callers_native.addArtifactArg(typed_table_proof);
+    relational_callers_native.addArtifactArg(direct_table_client);
+    const relational_sdk = b.option(enum { python, node }, "relational-sdk", "Include installed relational SDK callers");
+    relational_callers_native.addArg(if (relational_sdk) |language| switch (language) {
+        .python => "relational-python",
+        .node => "relational-node",
+    } else "relational");
+    relational_callers_native.addArtifactArg(station_bindings.artifact("transit_station"));
     relational_callers_native.addArtifactArg(station_host);
-    if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) {
-        relational_callers_native.addArg("--board");
-        relational_callers_native.addArtifactArg(board);
-    }
-    relational_callers_native.addPassthruArgs();
     relational_callers_native.has_side_effects = true;
     relational_callers_native.stdio = .inherit;
-    b.step("test-relational-callers", "Prove repeatable relational caller pages on disk").dependOn(&relational_callers_native.step);
+    const relational_callers_step = b.step("test-relational-callers", "Prove explicit retained relational callers against the direct owner");
+    relational_callers_step.dependOn(&relational_callers_native.step);
+    if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) relational_callers_step.dependOn(&direct_board.step);
     const relational_exchange_native = b.addSystemCommand(&.{ "python3", "-B" });
     relational_exchange_native.addFileArg(b.path("tests/relational_exchange_native.py"));
     relational_exchange_native.addArtifactArg(node_artifact);
