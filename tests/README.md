@@ -1,5 +1,26 @@
 # Validation and evidence
 
+## Console completion separators — 2026-10-24
+
+`nix develop --command zig build transit test` and `just check` pass for the
+completion edit helper and terminal integration. Shared units cover missing
+separators on either side of a replacement, partial words, existing whitespace,
+qualifier dots, parentheses, operators, comments, quoted/escaped identifiers,
+UTF-8 offsets and statement suffixes. Invalid byte ranges and edits exceeding
+the 4 KiB limit, including added separators, fail without writing output.
+
+Real PTYs cover twelve acceptance/undo schedules for `SHOW`, `SET`, `RESET`,
+partial words, spaces, tabs, newlines, semicolons and quoted column names.
+The peer observes exactly two assistance requests per case and no SQL execution.
+The cursor follows the candidate; one undo restores the original draft and cursor,
+including when a separator was inserted before retained suffix text. Existing
+history, idle/refinement, denial, session-loss and cancellation checks also pass.
+
+The new terminal regression fails on the preceding implementation at `4df1ccc8`:
+accepting `ALL` after `SHOW` renders `SHOWALL`. These checks establish shared
+local editing and terminal behavior over a controlled metadata peer; they do not
+extend service authorization or query execution guarantees.
+
 ## Responsive console completion menus — 2026-10-24
 
 `just check` and `just test::console-history` pass for the responsive completion
