@@ -185,6 +185,43 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Direct Table completion and console integration — 2026-10-23
+
+The direct Table adapter carries the shared completion coverage/status contract,
+cursor-local statement selection and bounded ranking through the current v1
+definition `e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a`.
+Both predecessor definitions reject; generated schemas, signing fixtures and
+language resources use the integrated definition.
+
+In the pinned Nix shell, the protocol and query packages' ReleaseSafe tests pass
+**50/50** and **146/146** respectively.
+The ranked-name regression retains the exact definition of a later candidate
+that replaces an earlier full-shortlist entry and rejects conflicting definitions
+for one displayed name. `zig build test-direct-table-service
+-Doptimize=ReleaseSafe --summary all` passes **8/8** build steps and **562** typed
+HTTP calls. Its new checks cover second-statement replacement ranges, quoted
+text, absent source metadata, limited root-keyword coverage and tab-separated
+`.schema` completion. Existing CRUD/DDL, retained reads, exact reply recovery,
+restart and current-revocation assertions also pass.
+
+`just test::console-history` passes the real terminal editing, completion,
+history, signal and outcome schedules. `just contract::check`,
+`just transit-board::contract`, strict query-client TypeScript and **57**
+query-client tests pass. Diagnostic inventory/mappings and
+`just transit-docs::check` pass, including **9** documentation tests and the site
+build. These scoped runs do not establish full repository or clean-checkout
+qualification.
+
+`zig build test-server-direct-tables -Doptimize=ReleaseSafe --summary all`
+passes **13/13** steps, including installed native-session Table/settings
+completion, the original six-statement DDL batch with the query worker stopped,
+and restart/name-reuse checks. This build also includes Board's explicit
+read-only preparation-recovery retry case. An earlier run timed out at the
+batch's 80-second harness deadline while the installation reported
+`AuthorityTimeout` and `HttpCapacity`. Isolated statements completed in
+5.84–10.25 seconds; the unchanged batch then passed on rerun. These observations
+do not identify the earlier delay's cause or establish a latency guarantee.
+
 ## Saved Follow control and preparation recovery — 2026-10-23
 
 The direct Follow schedule under definition

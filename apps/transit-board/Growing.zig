@@ -27,7 +27,7 @@ pub fn unifiedQueryDiagnostic(wire: *client.Client, io: std.Io, config: UnifiedQ
     // a token does not dispatch it; an uncertain submit still needs exact,
     // explicit recovery by the caller.
     const read_only = switch (request) {
-        .describe, .sql_capabilities, .suggest, .assist, .compile, .capture, .refresh, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
+        .describe, .sql_capabilities, .suggest, .assist, .compile, .capture, .refresh, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control, .recover_preparation => true,
         .submit => false,
     };
     var attempt: u2 = 0;
