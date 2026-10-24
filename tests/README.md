@@ -29,8 +29,14 @@ to encode an invalid empty logical structure, and the console omitted the
 recorded dependency reason for a rejected DROP. Both are fixed. The subsequent
 installed run failed earlier, during Table DDL, while SQL readiness repeatedly
 reported `AuthorityTimeout`; the console correctly preserved an unknown outcome.
-That run is not passed. The repository-wide `just check` is running and is not
-yet counted as passed. Contract generation/checks, diagnostic inventory/mappings,
+That run is not passed. A subsequent `just test::server-direct-tables` run passes
+the complete installed schedule: Table CRUD/DDL and schema lifecycle while the
+query worker is stopped, inert preparation, stale schema rejection, visible
+dependency diagnostics, abrupt restart, original outcomes and deliberate
+default-Table deletion/name reuse. The fixture logs each static Table statement
+to identify a failing stage without exposing saved credentials or requests.
+The repository-wide `just check` is running and is not yet counted as passed.
+Contract generation/checks, diagnostic inventory/mappings,
 inferred error boundaries and **3411** diagnostic outcome projections pass.
 The earlier documentation site check passes nine tests and its build, preceding
 the final nullable-schema and diagnostic prose updates. These scoped results do

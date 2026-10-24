@@ -247,8 +247,8 @@ now covers typed CREATE/RENAME/DROP, separate native registration, permanent
 identity claims, bounded RESTRICT progress and retained authority after logical
 retirement. The [native SQL namespace path](../../tests/README.md#native-sql-namespace-lifecycle--2026-10-24)
 now prepares and dispatches the same frozen typed binding through the existing
-SQL ledger. Recovery/cancellation across caller and server loss passes; the full
-installed namespace schedule remains under qualification. Work items also uses
+SQL ledger. Recovery/cancellation across caller and server loss and the full
+installed namespace schedule pass. Work items also uses
 explicit direct catalog setup. Namespace membership checks cover live/pending
 Tables; broader registered dependency kinds remain part of the shared lifecycle
 work. Role and grant publication retains its explicit native administration path.

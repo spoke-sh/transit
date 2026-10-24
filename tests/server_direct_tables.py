@@ -87,6 +87,7 @@ def run(cli, node, host, board, gateway):
                         'ALTER TABLE other ADD COLUMN label TEXT',
                         'ALTER TABLE other RENAME TO renamed',
                         'DROP TABLE renamed'):
+                    print('Direct installed SQL statement:', statement, flush=True)
                     fixture.console(statement + ';\n')
                 from sql_sessions.local import Client
                 peer = Client(fixture.console_config(), before['definition']).open()
