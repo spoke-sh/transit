@@ -43,6 +43,13 @@ saved work before staging, then persist the complete reference before admission.
 Loading and forgetting perform no I/O; destruction does not cancel remote work.
 Inspection, execution and cancellation take the full reference and work after the
 local intent is forgotten. Output states and counts come from the direct owner.
+Its `catalog` actions expose local capabilities, the current catalog description,
+an exact namespace ID, and bounded namespace/Table directory pages through
+`DirectCatalogInspection`. Pages return up to eight entries. Their continuation
+binds the connection, selection and directory position; a directory change
+rejects continuation instead of combining observations. Table positions remain
+independently observed, and a directory cursor retains no Table data. Inspection
+does not replace loaded work or initialize a catalog.
 An uncertain response requires observation of that original reference. The
 shared caller currently supports lookup, unparameterized DDL/DML compilation and
 those recovery operations. Its `prepare` action also accepts typed declarations,

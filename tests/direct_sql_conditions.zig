@@ -210,6 +210,31 @@ fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     const metadata = (try recovered.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = "host_prepared" } }, null)).metadata.?;
     try t.expectEqualStrings("1513", metadata.binding.interpretation.interpretation.object.object);
     try t.expectEqualStrings("0", metadata.row_count);
+    const capabilities = (try recovered.apply(&output, client, .{ .catalog = .capabilities }, null)).catalog.capabilities;
+    try t.expectEqual(c.protocol.Growth.current_definition, capabilities.definition);
+    const description = (try recovered.apply(&output, client, .{ .catalog = .describe }, null)).catalog.description;
+    try t.expectEqualDeep(client.connection.scope, try description.configuration.scope.native());
+    try t.expectEqual(client.connection.principal, description.subject.principal);
+    const namespace = (try recovered.apply(&output, client, .{ .catalog = .{ .namespace = 1 } }, null)).catalog.namespace.?;
+    try t.expectEqualStrings("public", namespace.name);
+    const namespaces = (try recovered.apply(&output, client, .{ .catalog = .{ .namespaces = null } }, null)).catalog.namespaces;
+    try t.expectEqualDeep(namespace, namespaces.entries[0].?);
+    var cursor: ?c.DirectCatalogInspection.Cursor = null;
+    var listed = false;
+    var old_directory: c.DirectTableValues.Position = undefined;
+    for (0..16) |_| {
+        const page = (try recovered.apply(&output, client, .{ .catalog = .{ .tables = .{ .namespace = 1, .cursor = cursor } } }, null)).catalog.tables;
+        for (page.entries) |slot| if (slot) |entry| {
+            if (std.mem.eql(u8, entry.name, "host_prepared")) {
+                try t.expectEqualDeep(metadata.binding.interpretation.interpretation, entry.interpretation);
+                listed = true;
+            }
+        };
+        old_directory = page.position;
+        cursor = page.next;
+        if (cursor == null) break;
+    }
+    try t.expect(listed and cursor == null);
     const conditional = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "514", .create_object = "1514", .sql = "CREATE TABLE IF NOT EXISTS host_prepared (ignored TEXT)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
     try t.expect((try recovered.apply(&output, client, .{ .preview = conditional.summary.id }, null)).preview.name_assertion.matches);
     const condition = (try recovered.apply(&output, client, .{ .stage = conditional.summary.id }, null)).staged;
@@ -234,6 +259,8 @@ fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     try t.expectEqualStrings("2", after.current.row_count);
     try t.expectEqualDeep(before.binding, after.binding);
     try mutate(client, try bind(allocator, client, "DROP TABLE host_prepared", 516));
+    const invalidated: c.DirectCatalogInspection.Cursor = .{ .definition = c.protocol.Growth.current_definition, .connection = try c.DirectTableValues.Connection.foreign(output.allocator(), client.connection), .selection = .{ .tables = 1 }, .position = old_directory, .after = "1513" };
+    try t.expectError(error.CatalogObservationChanged, recovered.apply(&output, client, .{ .catalog = .{ .tables = .{ .namespace = 1, .cursor = invalidated } } }, null));
     try t.expectEqualDeep(accepted, (try recovered.apply(&output, client, .{ .operation = .{ .reference = reference, .command = .inspect, .steps = 1 } }, null)).observation);
     const restored_condition = (try recovered.apply(&output, client, .{ .load = conditional.saved }, null)).loaded;
     try t.expect(!(try recovered.apply(&output, client, .{ .preview = restored_condition.id }, null)).preview.name_assertion.matches);
