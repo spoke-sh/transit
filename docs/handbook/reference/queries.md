@@ -180,6 +180,12 @@ pin separately; it cannot renew the accepted query's read authority. Repeated
 cleanup uses saved prepared bytes and preserves the original result and failure
 evidence.
 
+A current-frontier capture that has not acquired a pin can close when an
+authorized status observation proves its Table definition has advanced. The old
+definition cannot become current again. A pin acquired before ALTER still retains
+the old cut and requires release; advancing data alone does not close an absent
+current-frontier capture. Denial and unavailable observations leave cleanup pending.
+
 Each durable requester runs one active query. Retained queries and results can
 grow on disk without loading their complete history into memory. Work is bounded
 by pages, operators, batches, upload and active execution; omitting SQL `LIMIT`

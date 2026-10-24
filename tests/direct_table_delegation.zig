@@ -6,7 +6,7 @@ const p = c.protocol;
 const w = c.DirectTableProtocol;
 const t = std.testing;
 
-pub const State = struct { grant: c.DirectReadDelegation, snapshot: ?w.Snapshot, authority: c.DirectReadAuthority };
+pub const State = struct { grant: c.DirectReadDelegation, snapshot: ?w.Snapshot, authority: c.DirectReadAuthority, current_absent: c.DirectReadDelegation, current_retained: c.DirectReadDelegation };
 
 fn executor(original: c.DirectTableClient, grant: c.DirectReadDelegation) !c.DirectTableClient {
     var client = original;
@@ -15,7 +15,7 @@ fn executor(original: c.DirectTableClient, grant: c.DirectReadDelegation) !c.Dir
     return client;
 }
 fn acquisition(grant: c.DirectReadDelegation) w.Action {
-    return .{ .pin = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected } };
+    return .{ .pin = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected, .selection = grant.binding.selection } };
 }
 fn status(client: c.DirectTableClient, grant: c.DirectReadDelegation) !std.json.Parsed(w.Response) {
     return client.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
@@ -51,7 +51,37 @@ pub fn prepare(client: c.DirectTableClient) !State {
     // The proxy corrupts the successful reply. Retain the original grant;
     // acquisition recovery waits until after the node is restarted.
     try t.expectError(error.InvalidTableResponse, delegated.call(acquisition(grant)));
-    return .{ .grant = grant, .snapshot = null, .authority = .{ .database = profile.database, .schema = profile.initial_schema_authority, .table = basis.authorization } };
+    var capture = grant.binding;
+    capture.selection = .current;
+    capture.owner.operation = 8201;
+    const current_absent = try c.DirectReadDelegation.prepare(client, capture);
+    capture.owner.operation = 8202;
+    const current_retained = try c.DirectReadDelegation.prepare(client, capture);
+    const retained = try (try executor(client, current_retained)).call(acquisition(current_retained));
+    retained.deinit();
+    return .{ .grant = grant, .snapshot = null, .authority = .{ .database = profile.database, .schema = profile.initial_schema_authority, .table = basis.authorization }, .current_absent = current_absent, .current_retained = current_retained };
+}
+
+/// A definition change before acquisition proves permanent absence. An older
+/// accepted capture under the same definition still needs an explicit release.
+pub fn afterAlter(client: c.DirectTableClient, state: State) !void {
+    for ([_]c.DirectReadDelegation{ state.current_absent, state.current_retained }, 0..) |grant, i| {
+        const delegated = try executor(client, grant);
+        const before = try status(delegated, grant);
+        defer before.deinit();
+        try t.expect(!before.value.result.pin_state.retired);
+        try t.expect(before.value.result.pin_state.interpretation.revision > grant.binding.interpretation.revision);
+        try t.expectEqual(i == 1, before.value.result.pin_state.handle != null);
+        try delegated.closeOriginalPin(grant.binding.interpretation.object, grant.binding.owner, grant.binding.expected, null);
+        const after = try status(delegated, grant);
+        defer after.deinit();
+        if (i == 0) {
+            try t.expect(after.value.result.pin_state.handle == null);
+            try t.expectEqualDeep(before.value.result.pin_state.position, after.value.result.pin_state.position);
+        } else try t.expect(after.value.result.pin_state.released);
+        // A delayed original acquisition cannot reopen either closed case.
+        try t.expectError(error.Conflict, delegated.call(acquisition(grant)));
+    }
 }
 
 pub fn recover(client: c.DirectTableClient, state: *State) !void {
@@ -119,6 +149,13 @@ pub fn close(client: c.DirectTableClient, state: State) !void {
     try t.expectError(error.InvalidTableResponse, delegated.closeOriginalPin(state.snapshot.?.object, state.grant.binding.owner, state.grant.binding.expected, state.snapshot.?.handle));
 }
 
+pub fn deniedClosure(client: c.DirectTableClient, state: State) !void {
+    for ([_]c.DirectReadDelegation{ state.current_absent, state.current_retained }) |grant| {
+        const delegated = try executor(client, grant);
+        try t.expectError(error.AccessDenied, delegated.closeOriginalPin(grant.binding.interpretation.object, grant.binding.owner, grant.binding.expected, null));
+    }
+}
+
 pub fn closed(client: c.DirectTableClient, state: State) !void {
     const delegated = try executor(client, state.grant);
     const retained = try status(delegated, state.grant);
@@ -127,4 +164,12 @@ pub fn closed(client: c.DirectTableClient, state: State) !void {
     try delegated.closeOriginalPin(state.snapshot.?.object, state.grant.binding.owner, state.grant.binding.expected, state.snapshot.?.handle);
     try t.expectError(error.Conflict, delegated.call(acquisition(state.grant)));
     try t.expectError(error.Conflict, delegated.call(.{ .snapshot = state.snapshot.? }));
+    for ([_]c.DirectReadDelegation{ state.current_absent, state.current_retained }, 0..) |grant, i| {
+        const original = try executor(client, grant);
+        try original.closeOriginalPin(grant.binding.interpretation.object, grant.binding.owner, grant.binding.expected, null);
+        const observed = try status(original, grant);
+        defer observed.deinit();
+        if (i == 0) try t.expect(observed.value.result.pin_state.handle == null) else try t.expect(observed.value.result.pin_state.released);
+        try t.expectError(error.Conflict, original.call(acquisition(grant)));
+    }
 }

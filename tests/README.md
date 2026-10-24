@@ -185,6 +185,26 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Current-capture cleanup after definition changes — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+`nix develop -c just test::direct-table-service` passes 549 typed HTTP exchanges.
+Two current-frontier grants are saved before restart; one acquires a pin and the
+other remains absent. After ALTER, authorized cleanup proves the absent grant
+can never acquire under its original definition, without appending a pin record.
+The previously acquired grant instead recovers and releases its original cut.
+Delayed acquisitions reject in both cases, including after another restart and
+DROP/name reuse. Current revocation denies cleanup of both grants. The existing
+uncertain acquisition/release and retained-history schedules still pass.
+
+The catalog suite passes 127 tests. The focused storage `-Dtest-filter=pin` suite
+passes seven tests, and catalog `-Dtest-filter='pin status'` passes four. Mandatory
+interpretation evidence and foreign-object response rejection are covered.
+`just contract::check`, diagnostic mapping/inventory checks and `git diff --check`
+pass. These checks do not rerun the broader captured/Follow or browser schedules;
+the full repository check and clean committed-HEAD gate remain outstanding.
+
 ## Prepared finite refresh and direct watch transitions — 2026-10-23
 
 In the pinned Nix shell, `zig build test -Doptimize=ReleaseSafe` in

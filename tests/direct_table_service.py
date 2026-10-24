@@ -93,7 +93,7 @@ def run(node, caller):
                         history = envelope["action"].get("retain_history")
                         historical = envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "history"
                         for action, key, result in ((pin, "delegated_pin", "pin"), (history, "history_pin", "pin"), (release, "history_release" if historical else "delegated_release", "released")):
-                            if action and envelope["delegation"] and not fault[key]:
+                            if action and envelope["delegation"] and envelope["delegation"]["binding"]["owner"]["operation"] not in (8201, 8202) and not fault[key]:
                                 assert response.status == 200, data
                                 parsed = json.loads(data)
                                 assert result in parsed["result"]

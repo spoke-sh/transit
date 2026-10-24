@@ -278,6 +278,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         },
         .pin_state => |value| {
             try value.authority.validate();
+            try value.interpretation.validate();
+            if (!std.meta.eql(value.interpretation.object, request.action.pin_status.object)) return error.InvalidTableResponse;
             try value.position.validate();
             if (value.position.next_lsn == 0 or (value.released and value.handle == null)) return error.InvalidTableResponse;
             if (value.handle) |handle| {

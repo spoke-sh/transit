@@ -235,7 +235,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, catalog: *D, policy: D.Polic
                 defer source.deinit();
                 try requireSource(delegation, source);
             };
-            return .{ .pin_state = .{ .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = try catalog.readAuthority(value.object, value.owner, policy, true) } };
+            return .{ .pin_state = .{ .interpretation = state.interpretation, .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = try catalog.readAuthority(value.object, value.owner, policy, true) } };
         },
         .snapshot => |value| {
             var found = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);

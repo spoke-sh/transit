@@ -106,6 +106,14 @@ fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecy
             if (state.retired) return;
             if (selection == .exact and state.position.next_lsn > expected.next_lsn) return;
             if (state.position.next_lsn < expected.next_lsn) return error.InvalidTableResponse;
+            if (self.delegation) |grant| {
+                const original = grant.binding.interpretation;
+                // Definitions advance monotonically. With no accepted pin,
+                // a later definition permanently excludes this acquisition,
+                // even when its selection allowed a later data frontier.
+                if (state.interpretation.revision > original.revision) return;
+                if (!std.meta.eql(state.interpretation, original)) return error.InvalidTableResponse;
+            }
         }
         // An unknown handle must be recovered through the original acquisition
         // to verify its retained frontier. A matching owner alone is not enough.

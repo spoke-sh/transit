@@ -266,7 +266,7 @@ fn administration(client: c.DirectTableClient) !void {
     try t.expectEqualDeep(before.value.result.lookup.?.position, after.value.result.lookup.?.position);
 }
 
-pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, client: c.DirectTableClient, role: u64) !OwnedState {
+pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, client: c.DirectTableClient, role: u64, delegation: @import("direct_table_delegation.zig").State) !OwnedState {
     try administration(client);
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
@@ -301,6 +301,7 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     const after_delete = try lookup(client, "events");
     defer after_delete.deinit();
     const altered = try ddl(alloc, client, .{ .binding = binding(client, 6, .alter, after_delete.value.result.lookup.?), .namespace = 1, .name = "events", .action = .{ .alter = .{ .add = .{ .name = "extra", .type = .int64, .nullable = true, .default = null, .max_characters = null, .encoding = .plain, .collation = .none } } } });
+    try @import("direct_table_delegation.zig").afterAlter(client, delegation);
     const after_alter = try lookup(client, "events");
     defer after_alter.deinit();
     try t.expectError(error.Conflict, prepared.require(client, .read));

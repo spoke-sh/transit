@@ -51,6 +51,7 @@ pub const Ingestion = Changes.Ingestion;
 pub const SnapshotHandle = Snapshot.Handle;
 pub const Retention = Snapshot.Retention;
 pub const PinState = struct {
+    interpretation: d.Definition,
     position: d.Position,
     retired: bool,
     handle: ?SnapshotHandle,
@@ -1439,6 +1440,7 @@ pub fn pinState(self: *Self, owner: d.Operation, guard: Guard) !PinState {
     const value = try self.tree().get(self.root.pins, try r.operationKey(owner));
     const existing = if (value) |bytes| try Snapshot.Pin.decode(bytes) else null;
     return .{
+        .interpretation = self.root.interpretation,
         .position = .{ .partition = self.root.partition, .next_lsn = self.root.next_lsn },
         .retired = self.root.retired,
         .handle = if (existing) |pin_value| .{ .owner = owner, .content = pin_value.content } else null,

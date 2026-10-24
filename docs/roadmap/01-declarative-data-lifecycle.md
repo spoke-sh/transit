@@ -129,7 +129,10 @@ The [captured-query recovery proof](../../tests/README.md#direct-captured-table-
 now covers single-source admission, independent progress storage, original-cut
 traversal, verified results and cleanup across lost replies and replacement.
 Fresh cleanup authorization remains separate from the original execution proof
-after credential rotation. All ten installed SDKs now resolve direct definitions,
+after credential rotation. The [current-capture cleanup proof](../../tests/README.md#current-capture-cleanup-after-definition-changes--2026-10-23)
+also distinguishes permanent absence after ALTER from an older accepted pin that
+still needs release, including current denial and delayed retries after restart.
+All ten installed SDKs now resolve direct definitions,
 seal the same captured bundle and read its verified result through that fault
 schedule. The captured relational owner now uses the same direct pin protocol
 with independent native progress. Its scoped self-join and two-Table proofs pass

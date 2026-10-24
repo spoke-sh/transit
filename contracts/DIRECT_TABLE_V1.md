@@ -353,11 +353,17 @@ the live pin are required even when no row matches.
 `release` records terminal pin release through reserved control capacity.
 Current CONNECT/USAGE/SELECT rights apply to every operation, including release.
 
-`pin_status` reads the original owner's handle, release state, current physical
-frontier and Table retirement state. It acquires nothing. Absence at a later
-frontier or after retirement proves the old exact-frontier acquisition cannot
-subsequently succeed. Absence at the original frontier remains unresolved;
-recovery may repeat only that original acquisition before releasing it.
+`pin_status` reads the original owner's handle, release state, current immutable
+interpretation, physical frontier and Table retirement state under the same
+owner fence. It acquires nothing. Absence at a later frontier or after retirement
+proves the old exact-frontier acquisition cannot subsequently succeed. For a
+delegated current-frontier acquisition, a later data frontier alone proves
+nothing: absence together with a strictly later definition revision proves the
+original acquisition cannot succeed. Definition revisions never move backward
+or get reused. An existing pin must still be recovered and released under its
+original grant, even after ALTER. Other absent states remain unresolved; recovery
+may repeat only the original acquisition before releasing it. A timeout, generic
+conflict or denied observation supplies no closure evidence.
 
 `retain_history` acquires a history lease with the same exact-frontier and
 private-owner rules as `pin`. `history_start` returns its original `HistoryPoint`
