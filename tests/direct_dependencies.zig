@@ -5,11 +5,14 @@ const p = c.protocol;
 const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const dep = c.DirectDependency;
+const host = c.DirectCatalogDependencies;
 const t = std.testing;
 
 pub const State = struct {
     registration: dep.Binding,
     removal: dep.Binding,
+    host_registration: host.Binding,
+    host_removal: host.Binding,
     blocked_drop: d.Binding,
     drop: d.Binding,
     owner_role: u64,
@@ -67,24 +70,50 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
     };
     var drop = blocked_drop;
     drop.identity.operation = 70005;
-    return .{ .registration = registration, .removal = removal, .blocked_drop = blocked_drop, .drop = drop, .owner_role = role };
+    return .{ .registration = registration, .removal = removal, .host_registration = try host.Binding.foreign(client.allocator, registration), .host_removal = try host.Binding.foreign(client.allocator, removal), .blocked_drop = blocked_drop, .drop = drop, .owner_role = role };
 }
 
 fn operation(client: c.DirectTableClient, binding: dep.Binding, command: dep.Command) !dep.Observation {
-    const response = try client.call(.{ .dependency_operation = .{ .binding = binding, .command = command } });
-    defer response.deinit();
-    return response.value.result.dependency_operation;
+    var arena = std.heap.ArenaAllocator.init(client.allocator);
+    defer arena.deinit();
+    return operationHost(client, try host.Binding.foreign(arena.allocator(), binding), command);
+}
+fn operationHost(client: c.DirectTableClient, binding: host.Binding, command: dep.Command) !dep.Observation {
+    var arena = std.heap.ArenaAllocator.init(client.allocator);
+    defer arena.deinit();
+    var session: c.DirectTableBridge.Session = .{ .allocator = client.allocator };
+    defer session.deinit();
+    const bytes = try p.Json.valueAlloc(arena.allocator(), c.DirectTableBridge.Action{ .dependencies = .{ .operation = .{ .binding = binding, .command = command } } });
+    const parsed = try c.DirectTableBridge.parse(arena.allocator(), bytes);
+    defer parsed.deinit();
+    const result = (try session.apply(&arena, client, parsed.value, null)).dependencies.observation;
+    return switch (result) {
+        .not_observed => .not_observed,
+        .outcome => |value| .{ .outcome = try value.native() },
+    };
 }
 
-pub fn uncertain(client: c.DirectTableClient, binding: dep.Binding) !void {
+pub fn uncertain(client: c.DirectTableClient, binding: host.Binding) !void {
     // The independent HTTP proxy corrupts the accepted reply's context digest.
-    try t.expectError(error.InvalidTableResponse, operation(client, binding, .accept));
+    try t.expectError(error.InvalidTableResponse, operationHost(client, binding, .accept));
 }
 
 fn page(client: c.DirectTableClient, selection: dep.Selection) !dep.Page {
-    const response = try client.call(.{ .dependencies = .{ .selection = selection, .cursor = null, .authority = .dependent } });
-    defer response.deinit();
-    return response.value.result.dependencies;
+    var arena = std.heap.ArenaAllocator.init(client.allocator);
+    defer arena.deinit();
+    const value = (try host.apply(arena.allocator(), client, .{ .page = .{ .selection = try host.Selection.foreign(arena.allocator(), selection), .cursor = null, .authority = .dependent } })).page;
+    var result: dep.Page = .{ .position = try value.position.native(), .next = if (value.next) |cursor| try cursor.native(client.connection) else null };
+    for (value.entries, &result.entries) |slot, *entry| if (slot) |edge| {
+        entry.* = try edge.native();
+    };
+    return result;
+}
+fn present(client: c.DirectTableClient, edge: dep.Edge) !bool {
+    var arena = std.heap.ArenaAllocator.init(client.allocator);
+    defer arena.deinit();
+    const result = (try host.apply(arena.allocator(), client, .{ .state = try host.Edge.foreign(arena.allocator(), edge) })).state;
+    try t.expectEqualDeep(edge, try result.edge.native());
+    return result.present;
 }
 
 fn restricted(client: c.DirectTableClient, state: State) !void {
@@ -97,7 +126,8 @@ fn restricted(client: c.DirectTableClient, state: State) !void {
 }
 
 pub fn recover(client: c.DirectTableClient, admin: anytype, state: State) !void {
-    const receipt = (try operation(client, state.registration, .inspect)).outcome;
+    try state.registration.requireSame(try state.host_registration.native());
+    const receipt = (try operationHost(client, state.host_registration, .inspect)).outcome;
     try t.expect(receipt.phase == .applied and receipt.changed);
     try t.expectEqualDeep(state.registration, receipt.binding);
     try t.expectEqualDeep(receipt, (try operation(client, state.registration, .accept)).outcome);
@@ -105,6 +135,7 @@ pub fn recover(client: c.DirectTableClient, admin: anytype, state: State) !void 
     altered.edge.dependent.interpretation.revision += 1;
     try t.expectError(error.Conflict, operation(client, altered, .accept));
     const edge = state.registration.edge;
+    try t.expect(try present(client, edge));
     try t.expectEqualDeep(edge, (try page(client, .{ .dependents = edge.source.object })).entries[0].?);
     try t.expectEqualDeep(edge, (try page(client, .{ .dependencies = edge.dependent.interpretation.object })).entries[0].?);
     try restricted(client, state);
@@ -121,7 +152,8 @@ pub fn recover(client: c.DirectTableClient, admin: anytype, state: State) !void 
 }
 
 pub fn finish(client: c.DirectTableClient, state: State) !void {
-    const removed = (try operation(client, state.removal, .inspect)).outcome;
+    try state.removal.requireSame(try state.host_removal.native());
+    const removed = (try operationHost(client, state.host_removal, .inspect)).outcome;
     try t.expect(removed.phase == .applied and removed.changed);
     try t.expectEqualDeep(state.removal, removed.binding);
     try t.expectEqualDeep(removed, (try operation(client, state.removal, .accept)).outcome);
@@ -129,6 +161,7 @@ pub fn finish(client: c.DirectTableClient, state: State) !void {
     const original = (try operation(client, state.registration, .accept)).outcome;
     try t.expect(original.phase == .applied and original.changed);
     try t.expect(original.position.next_lsn < removed.position.next_lsn);
+    try t.expect(!try present(client, state.registration.edge));
     try t.expect((try page(client, .{ .dependents = state.drop.target })).entries[0] == null);
     try t.expect((try page(client, .{ .dependencies = state.registration.edge.dependent.interpretation.object })).entries[0] == null);
     // A previously rejected DROP stays rejected after its blocker is removed.

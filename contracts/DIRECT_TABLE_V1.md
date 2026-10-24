@@ -586,6 +586,19 @@ compile action takes no SQL parameter values. A saved Table value carries the
 current definition, namespace and lowercase hex of the complete `TDI1` bytes;
 a conditional name assertion carries its complete binding.
 
+The host `dependencies` action uses `DirectCatalogDependencies` for explicit
+register/remove/inspect/cancel, exact current membership and bounded forward or
+reverse pages. Every operation carries the complete definition-bound connection,
+operation identity, source/dependent interpretations, privileges and cleanup
+authority. Save that binding before dispatch. An old registration receipt does
+not establish current membership after removal; use `state` for that observation.
+Pages contain four optional edges. Continuations preserve the exact connection,
+selection, authority, catalog position and edge digest. Changed selections reject
+before signing; a changed catalog position rejects through the native owner.
+All storage identities and positions use canonical decimal strings. The adapter
+makes one public request per action and never publishes or retires a dependent,
+acquires a data pin, replaces loaded work or retries an uncertain mutation.
+
 The `prepare` action accepts `DirectTableTyped.Request`: a mandatory current
 definition, namespace, operation identity, name and typed CREATE, ALTER, RENAME,
 DROP or mutation. Existing objects require the complete `PreparedBinding`;
