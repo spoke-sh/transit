@@ -1,5 +1,22 @@
 # Validation and evidence
 
+## Frontend dependency installation during builds — 2026-10-23
+
+In the pinned Nix development shell, `just build release-safe` passes starting
+without root `node_modules` or a project-local Vite+ installation. The
+build installs the frozen workspace dependencies before compiling and embedding
+Board. Existing Zig and package download caches remain available; this is not a
+fully cold toolchain build.
+
+`zig build transit-board transit-serving-example transit-work-items-gateway
+-Doptimize=safe --summary all` also passes. Its build summary records one Vite+
+install step shared by all three asset builds. Package manifests and the lockfile
+remain unchanged. Prebuilt Board assets retain their separate offline Nix path;
+this check does not rebuild the Nix package.
+
+`just check` passes, including native units, CLI checks, generated contracts,
+frontend formatting/types/tests and the documentation production build.
+
 ## Console help and statement outcomes — 2026-10-22
 
 `zig build test-console-history` includes the real executable's independent

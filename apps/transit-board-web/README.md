@@ -37,6 +37,11 @@ just transit-board::check
 just transit-board::demo
 ```
 
+`just transit-board::build` and the root Zig builds install locked workspace
+dependencies automatically before embedding the frontend; see the
+[build commands](../../tasks/README.md). The explicit install above also prepares
+the standalone frontend checks.
+
 The [generated Board client](../../packages/ts/transit-board-client/README.md) supplies
 wire models and CSP-compatible runtime validation. No signing seed or provider
 access reaches the browser. Views open directly without a sign-in form or

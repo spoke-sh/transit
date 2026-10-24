@@ -9,6 +9,17 @@ target updates only that executable; rebuild the complete set before initializin
 a local server. Installations retain executable hashes, so rebuilding is not an
 in-place upgrade of an existing server installation.
 
+Builds that embed Board or an example frontend first run
+`vp install --frozen-lockfile` at the workspace root. This fetches missing
+dependencies and checks existing installations against the committed lockfile;
+it does not update dependency versions or rewrite the lockfile. All frontend
+targets in one Zig build share that install step. A fresh checkout needs network
+access to download uncached dependencies. Targets without embedded frontends
+and Board builds using `-Dboard-assets` do not run this step. The Nix package
+continues to prepare Board assets separately from its locked offline store.
+Use `just transit-board::install` to prepare dependencies for standalone frontend
+development and checks.
+
 ## Task interface
 
 The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,

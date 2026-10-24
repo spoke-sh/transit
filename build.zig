@@ -21,11 +21,18 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_serving", .module = serving.module("transit_serving") }},
     }) });
     b.step("serving-api", "Export reflected OpenAPI and AsyncAPI descriptions").dependOn(&b.addInstallArtifact(serving_api, .{}).step);
+    // All embedded frontends share one workspace install before Vite runs.
+    // Recheck the lockfile on each build, including after manifests change.
+    const web_dependencies = b.addSystemCommand(&.{ "vp", "install", "--frozen-lockfile" });
+    web_dependencies.setCwd(b.path("."));
+    web_dependencies.has_side_effects = true;
+    web_dependencies.stdio = .inherit;
     const counter_embed = b.addSystemCommand(&.{ "python3", "-B" });
     counter_embed.addFileArg(b.path("tasks/embed_web.py"));
     const counter_assets = counter_embed.addOutputFileArg("assets.zig");
     counter_embed.addArg("examples/serving/web");
     counter_embed.has_side_effects = true;
+    counter_embed.step.dependOn(&web_dependencies.step);
     const counter_asset_module = b.createModule(.{ .root_source_file = counter_assets, .target = target, .optimize = optimize });
     const serving_example = b.addExecutable(.{ .name = "transit-serving-example", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/serving/main.zig"),
@@ -262,6 +269,7 @@ pub fn build(b: *std.Build) void {
     const work_items_assets = work_items_embed.addOutputFileArg("assets.zig");
     work_items_embed.addArg("examples/work-items/web");
     work_items_embed.has_side_effects = true;
+    work_items_embed.step.dependOn(&web_dependencies.step);
     work_items_embed.step.dependOn(&work_items_generated.step);
     const work_items_gateway = b.addExecutable(.{ .name = "transit-work-items-gateway", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/Gateway.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "work_items", .module = work_items_module }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") }, .{ .name = "assets", .module = b.createModule(.{ .root_source_file = work_items_assets, .target = target, .optimize = optimize }) } } }) });
     const install_work_items_gateway = b.addInstallArtifact(work_items_gateway, .{});
@@ -590,6 +598,7 @@ pub fn build(b: *std.Build) void {
         embed.addArgs(&.{ "apps/transit-board-web", "contracts/transit-board-v1.openapi.json" });
         // Vite owns its dependency graph; Zig caches the resulting asset bytes.
         embed.has_side_effects = true;
+        embed.step.dependOn(&web_dependencies.step);
         break :assets source;
     };
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
