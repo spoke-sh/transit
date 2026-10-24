@@ -247,8 +247,9 @@ definition publication. The [naming recovery proof](../../tests/README.md#named-
 now covers lost publication/policy replies, abrupt node replacement and worker
 key/generation rotation for both captured and maintained definitions. Current
 credentials recover the exact original receipt; retired signatures and altered
-requests reject. Integration with direct dependency registration, migration of
-the older actor fixtures and broader activation/failure fault schedules remain open.
+requests reject. Dependency registration and retirement are qualified below;
+migration of the older actor fixtures and broader activation/failure fault
+schedules remain open.
 
 Direct mutation bindings now retain an optional native authorization prerequisite
 for the original accepted application input, independently of the worker's
@@ -339,13 +340,16 @@ registration removal remains explicit. Component and contract checks pass.
 The public captured schedule also passes twelve withheld acceptance replies and
 node replacements, current disclosure rights, DROP RESTRICT, explicit retirement
 and edge removal, with complete retained results after source DROP. The maintained
-dependency/retirement schedule remains under qualification.
+schedule now passes the same twelve acceptance faults across both query shapes,
+original history progress, explicit lease/definition/edge cleanup and retained
+revision disclosure after source DROP. These are local native-disk proofs;
+broader installed caller qualification remains separate.
 
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
 it does not complete named consumer integration with the dependency registry.
-Relational and remaining caller migration, named dependency qualification and
-broader resource/computation qualification also remain unfinished. Automatic point
+Relational and remaining caller migration and broader installed
+resource/computation qualification also remain unfinished. Automatic point
 flushing belongs to the following storage milestone. None of the
 completion matrix rows below is closed by this partial caller path.
 

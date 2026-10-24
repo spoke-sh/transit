@@ -326,7 +326,9 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 stop(authority)
                 authority = None
                 authority = start()
-                subprocess.run([caller, endpoint, "maintained-backfill", str(profile)], check=True, timeout=600)
+                # Both shapes publish a second definition and restart after each
+                # new dependency registration before checking backfill progress.
+                subprocess.run([caller, endpoint, "maintained-backfill", str(profile)], check=True, timeout=1200 if maintained_only else 600)
                 stop(authority)
                 authority = None
                 authority = start()
