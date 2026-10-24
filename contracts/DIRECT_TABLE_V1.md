@@ -547,6 +547,17 @@ commitments. It does not resolve names, acquire rights or admit work. These valu
 contracts do not themselves expose a catalog ABI or migrate a language SDK.
 
 `DirectTableBridge.Session` owns one loaded intent for serialized host calls.
+The host `catalog` action dispatches `capabilities`, `describe`, `namespace`,
+`namespaces` and `tables` to `DirectCatalogInspection`. Capabilities are local;
+the other actions make one public catalog request each. Directory pages contain
+eight optional slots and an optional continuation, including empty filtered pages
+with continuation. Each cursor requires the current definition, exact connection,
+selection, directory position and canonical decimal-string last-scanned ID.
+A different selection/connection rejects before remote access; a changed returned
+directory position rejects before disclosure. Table entries retain independent
+interpretation/position pairs, not a common retained data cut. No inspection
+provisions resources, admits work, changes policy or replaces the loaded intent.
+
 Its reflected `HostAction`, `HostResult` and `HostSaved` schemas define lookup,
 SQL compilation, loading, forgetting, staging, admission and operation control.
 Compilation uses the shared DDL/DML preparation owners, explicit operation and

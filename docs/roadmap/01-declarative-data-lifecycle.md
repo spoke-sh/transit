@@ -102,8 +102,11 @@ now shares that path and passes a nine-row bulk request larger than an actor
 mailbox frame, exact prepared-definition rejection and conditional DROP.
 [Shared preview](../../tests/README.md#shared-direct-preview--2026-10-24) now
 reports current DDL, row and conditional-name checks without staging, claims or
-acceptance, including stale data/definitions and native revocation. Language/ABI
-adapters remain unfinished.
+acceptance, including stale data/definitions and native revocation.
+[Host catalog inspection](../../tests/README.md#direct-host-catalog-inspection--2026-10-24)
+also supplies capabilities, descriptions and bounded namespace/Table pages with
+exact connection/selection cursors and changed-directory rejection. Catalog
+administration and language/ABI adapters remain unfinished.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step

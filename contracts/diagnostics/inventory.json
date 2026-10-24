@@ -3161,6 +3161,53 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectCatalogInspection.zig": {
+      "errors": {
+        "CatalogObservationChanged": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogCursor": 3,
+        "InvalidTableResponse": 1
+      },
+      "outcomes": {
+        "Action": [
+          "capabilities",
+          "describe",
+          "namespace",
+          "namespaces",
+          "tables"
+        ],
+        "Result": [
+          "capabilities",
+          "description",
+          "namespace",
+          "namespaces",
+          "tables"
+        ],
+        "Result.tables.consistency": [
+          "independent"
+        ],
+        "Selection": [
+          "namespaces",
+          "tables"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Configuration.foreign()": "<inferred>",
+        "Cursor.check()": "<inferred>",
+        "apply()": "<inferred>",
+        "continuation()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectCatalogIntent.zig": {
       "errors": {
         "CatalogIntentMissing": 1,
@@ -3662,6 +3709,7 @@
       },
       "outcomes": {
         "Action": [
+          "catalog",
           "lookup",
           "compile",
           "load",
@@ -3682,6 +3730,7 @@
           "name_assertion"
         ],
         "Result": [
+          "catalog",
           "metadata",
           "compiled",
           "loaded",
@@ -3718,7 +3767,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 45,
         "catch": 1
       },
       "imports": [
@@ -5787,6 +5836,7 @@
         "AuthorizationSql.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
+        "DirectCatalogInspection.zig",
         "DirectDependency.zig",
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",

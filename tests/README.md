@@ -1,5 +1,22 @@
 # Validation and evidence
 
+## Direct host catalog inspection — 2026-10-24
+
+`just test::direct-table-callers` passes **129 typed HTTP calls** with the host
+inspection adapter. It reads capabilities, the current signed catalog
+description, namespace metadata and the Table directory through the direct
+owner. Directory entries preserve the exact interpretation returned by lookup;
+continuation against a changed directory rejects after DROP. Existing saved-work,
+preview, wide bulk mutation and receipt-recovery checks also pass.
+
+The complete catalog package suite passes. The `direct catalog cursors` test
+round-trips full-width IDs/frontiers, rejects a changed caller or selection and
+rejects a changed directory before returning a continuation result. Independent
+Python fixtures reject missing cursor definitions and numeric full-width IDs.
+Generated contracts, diagnostics, formatting and documentation links pass.
+These checks cover the shared host inspection boundary; general SDK/ABI dispatch,
+catalog administration and the final integrated/clean-checkout gates remain open.
+
 ## Shared direct preview — 2026-10-24
 
 `just test::direct-table-callers` passes **124 typed HTTP calls** through the

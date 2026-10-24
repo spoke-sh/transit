@@ -244,6 +244,16 @@ host_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Hos
 host_validator.validate(host_reference)
 host_action_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostAction"})
 host_action_validator.validate({"admit": {"table": host_reference}})
+host_cursor = {"definition": definition, "connection": host_reference["connection"], "selection": {"tables": 1},
+               "position": {"partition": "9", "next_lsn": str(2**64 - 1)}, "after": str(2**64 - 1)}
+host_listing = {"catalog": {"tables": {"namespace": 1, "cursor": host_cursor}}}
+host_action_validator.validate(host_listing)
+missing_cursor_definition = copy.deepcopy(host_listing)
+del missing_cursor_definition["catalog"]["tables"]["cursor"]["definition"]
+assert not host_action_validator.is_valid(missing_cursor_definition)
+rounded_cursor = copy.deepcopy(host_listing)
+rounded_cursor["catalog"]["tables"]["cursor"]["after"] = 2**64 - 1
+assert not host_action_validator.is_valid(rounded_cursor)
 host_saved = {"table": {"definition": definition, "namespace": 1, "bytes": saved_bytes.hex()}}
 host_action_validator.validate({"load": host_saved})
 host_action_validator.validate({"operation": {"reference": {"table": host_reference}, "command": "inspect", "steps": 1}})
