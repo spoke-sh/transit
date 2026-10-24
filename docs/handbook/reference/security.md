@@ -80,6 +80,15 @@ objects. CONNECT and USAGE precede each Table privilege check; role ownership
 governs ALTER and DROP. Metadata visibility follows the current object's grants
 or ownership. Names and backing-resource associations do not inherit privileges.
 
+Typed direct Table mutations can retain an additional authorization condition
+from an application's original accepted input. The worker needs its own Table
+rights, and the original subject must still satisfy the retained condition at
+admission and acceptance. Worker credential replacement preserves that condition;
+it does not renew the original caller's authority. Current authorized workers
+can still inspect or cancel the same operation after the original condition
+fails. A previously accepted mutation remains accepted. See the
+[direct Table authority contract](../../../contracts/DIRECT_TABLE_V1.md#requests-and-authority).
+
 Root may explicitly bind an authorization domain to a native resource's
 lifetime. The binding is immutable and grants no access to that resource.
 Protected guard checks require both current rights and a usable bound resource;

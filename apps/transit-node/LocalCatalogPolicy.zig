@@ -23,7 +23,7 @@ pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalo
         if (value.claim.realm != configuration.scope.realm or value.claim.audience != configuration.audience) return error.InvalidAuthorizationCredential;
     }
     var result: Self = .{ .engine = engine, .configuration = configuration, .proof = proof, .executor = executor };
-    var initial = result.authority(try a.guard(.{ .signed = proof }, configuration.authority, null, null, .database));
+    var initial = result.authority(try a.guard(.{ .signed = proof }, configuration.authority, null, null, .database), null);
     const guard = initial.guard();
     _ = try guard.acquire(guard.context);
     guard.release(guard.context);
@@ -39,16 +39,17 @@ fn erased(context: *anyopaque) *Self {
     return @ptrCast(@alignCast(context));
 }
 
-fn authority(self: *Self, request: p.Authorization.Guard) backend.DataAuthority {
-    return .{ .engine = self.engine, .request = request, .audience = self.configuration.audience, .resource = self.configuration.scope.resource, .executor = if (self.executor) |value| .{ .signed = value } else null };
+fn authority(self: *Self, request: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) backend.DataAuthority {
+    return .{ .engine = self.engine, .request = request, .audience = self.configuration.audience, .resource = self.configuration.scope.resource, .prerequisite = prerequisite, .executor = if (self.executor) |value| .{ .signed = value } else null };
 }
 
-fn makeGuard(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard) !c.storage.TablePartition.Guard {
+fn makeGuard(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !c.storage.TablePartition.Guard {
     const self = erased(context);
     try requested.validate();
+    if (prerequisite) |condition| try condition.validate();
     if (!std.meta.eql(requested.subject, self.policy().subject)) return error.InvalidAuthorizationCredential;
     const owned = try allocator.create(ObservedGuard);
-    owned.* = .{ .policy = self, .authority = self.authority(requested) };
+    owned.* = .{ .policy = self, .authority = self.authority(requested, prerequisite) };
     return .{ .context = owned, .acquire = ObservedGuard.acquire, .release = ObservedGuard.release };
 }
 
@@ -79,7 +80,7 @@ pub fn check(self: *Self) !u64 {
 }
 
 pub fn observation(self: *Self) !struct { revision: u64, subject: p.Authorization.Verified } {
-    var value = self.authority(self.observed orelse return error.CatalogDenied);
+    var value = self.authority(self.observed orelse return error.CatalogDenied, null);
     const guard = value.guard();
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);

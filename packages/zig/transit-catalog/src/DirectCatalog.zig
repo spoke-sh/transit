@@ -23,10 +23,14 @@ pub const Options = struct { resident_pages: usize = 16, index_work_bytes: usize
 /// The service implements these callbacks using the existing native authority.
 /// make_guard returns an independently owned context in the supplied request
 /// allocator; later callbacks must not overwrite an earlier guard's identity.
+/// Its optional final argument is an additional acceptance prerequisite. The
+/// provider checks it with the primary guard under the same authority fence.
+/// Observation and cancellation retain primary rights without requiring new
+/// acceptance rights from the original prerequisite subject.
 pub const Policy = struct {
     context: *anyopaque,
     subject: p.Authorization.Subject,
-    make_guard: *const fn (*anyopaque, std.mem.Allocator, p.Authorization.Guard) anyerror!P.Guard,
+    make_guard: *const fn (*anyopaque, std.mem.Allocator, p.Authorization.Guard, ?p.Authorization.Guard) anyerror!P.Guard,
     registered: *const fn (*anyopaque, a.Kind, u64) anyerror!?p.Authorization.Object,
 };
 pub const View = struct {
@@ -123,7 +127,7 @@ fn requirements(self: *Self, policy: Policy, namespace: ?a.Schema, target: ?a.Ta
 }
 
 fn guard(self: *Self, allocator: std.mem.Allocator, policy: Policy, namespace: ?a.Schema, target: ?a.Table, access: a.Access) !P.Guard {
-    return policy.make_guard(policy.context, allocator, try self.requirements(policy, namespace, target, access));
+    return policy.make_guard(policy.context, allocator, try self.requirements(policy, namespace, target, access), null);
 }
 
 fn check(current: P.Guard) !void {
@@ -345,7 +349,7 @@ pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !
     defer arena.deinit();
     const namespace = try self.schema(namespace_id);
     var combined = try self.requirements(policy, namespace, null, .schema);
-    try check(try policy.make_guard(policy.context, arena.allocator(), combined));
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined, null));
     const batch = try self.store.tree().scan(self.store.root.objects, after);
     var result: Page = .{ .next = batch.next, .directory_position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
     var count: usize = 0;
@@ -358,7 +362,7 @@ pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !
         defer view.deinit();
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != namespace_id) continue;
         const required = try self.requirements(policy, namespace, view.properties.target(target.object), .inspect);
-        check(try policy.make_guard(policy.context, arena.allocator(), required)) catch |err| {
+        check(try policy.make_guard(policy.context, arena.allocator(), required, null)) catch |err| {
             if (err == error.CatalogDenied or err == error.Forbidden) continue;
             return err;
         };
@@ -366,7 +370,7 @@ pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !
         result.entries[count] = .{ .interpretation = view.table.root.interpretation, .namespace = namespace_id, .name = view.properties.name, .position = .{ .partition = target.partition, .next_lsn = view.table.root.next_lsn }, .changed_lsn = view.table.root.changed_lsn };
         count += 1;
     };
-    try check(try policy.make_guard(policy.context, arena.allocator(), combined));
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined, null));
     return result;
 }
 
@@ -377,7 +381,7 @@ pub fn listNamespaces(self: *Self, after: ?pages.Key, policy: Policy) !Namespace
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var combined = try self.requirements(policy, null, null, .database);
-    try check(try policy.make_guard(policy.context, arena.allocator(), combined));
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined, null));
     const batch = try self.store.tree().scan(self.store.root.schemas, after);
     var result: NamespacePage = .{ .next = batch.next, .directory_position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
     var count: usize = 0;
@@ -387,7 +391,7 @@ pub fn listNamespaces(self: *Self, after: ?pages.Key, policy: Policy) !Namespace
         if (!std.meta.eql(item.key, try r.idKey(namespace_value.id)) or !std.meta.eql(namespace_value.scope, self.config().scope)) return error.InvalidDirectCatalogEntry;
         if (namespace_value.retired) continue;
         const required = try self.requirements(policy, namespace_value, null, .schema);
-        check(try policy.make_guard(policy.context, arena.allocator(), required)) catch |err| {
+        check(try policy.make_guard(policy.context, arena.allocator(), required, null)) catch |err| {
             if (err == error.CatalogDenied or err == error.Forbidden) continue;
             return err;
         };
@@ -395,7 +399,7 @@ pub fn listNamespaces(self: *Self, after: ?pages.Key, policy: Policy) !Namespace
         result.entries[count] = namespace_value;
         count += 1;
     };
-    try check(try policy.make_guard(policy.context, arena.allocator(), combined));
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined, null));
     return result;
 }
 
@@ -410,7 +414,7 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
     defer arena.deinit();
     const namespace = try self.schema(binding.namespace);
     var required = try self.requirements(policy, namespace, null, if (binding.action == .create_if_not_exists) .create_table else .schema);
-    try check(try policy.make_guard(policy.context, arena.allocator(), required));
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
     if (binding.expected) |expected| {
         const allocated = try self.entry(expected.object.object) orelse return error.CatalogDenied;
         if (allocated.seed == null) return error.CatalogDenied;
@@ -418,15 +422,15 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
         defer original_view.deinit();
         if (original_view.properties.namespace != binding.namespace or original_view.table.root.next_lsn == 0) return error.CatalogDenied;
         required = try required.merge(try self.requirements(policy, namespace, original_view.properties.target(allocated.object), .inspect));
-        try check(try policy.make_guard(policy.context, arena.allocator(), required));
+        try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
     }
     if (try c.OperationBinding.lookupAssertion(self.allocator, self.store.objects, binding.identity())) |known| try binding.requireSame(known);
     if (try self.store.assertion(binding)) |outcome| {
-        try check(try policy.make_guard(policy.context, arena.allocator(), required));
+        try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
         return .{ .outcome = outcome };
     }
     if (command == .inspect) {
-        try check(try policy.make_guard(policy.context, arena.allocator(), required));
+        try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
         return .not_observed;
     }
     var matches = false;
@@ -438,7 +442,7 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
             matches = if (binding.expected) |expected| std.meta.eql(expected, view.table.root.interpretation) else false;
         } else matches = binding.expected == null;
     }
-    const current_guard = try policy.make_guard(policy.context, arena.allocator(), required);
+    const current_guard = try policy.make_guard(policy.context, arena.allocator(), required, null);
     try check(current_guard);
     try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, binding);
     try self.store.index.begin(self.options.index_work_bytes);
@@ -456,7 +460,7 @@ fn original(self: *Self, policy: Policy, binding: d.Binding) !void {
     if (policy.subject.principal() != binding.identity.principal or !std.meta.eql(binding.identity.scope, self.config().scope) or binding.target.branch != self.config().branch) return error.CatalogDenied;
 }
 
-fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, request: Request, view: ?*View) !P.Guard {
+fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, request: Request, view: ?*View, acceptance: bool) !P.Guard {
     const namespace = try self.schema(request.intent.namespace);
     const target: ?a.Table = if (view) |value| value.properties.target(request.binding.target.object) else if (request.intent.action == .create) target: {
         const native = try policy.registered(policy.context, .table, request.binding.target.object) orelse break :target null;
@@ -469,7 +473,7 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
     };
     var requested = try self.requirements(policy, namespace, target, access);
     if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
-    return policy.make_guard(policy.context, allocator, requested);
+    return policy.make_guard(policy.context, allocator, requested, if (acceptance) request.binding.prerequisite else null);
 }
 
 fn pending(self: *Self, object: u64, current: P.Guard) !bool {
@@ -541,7 +545,7 @@ pub fn preview(self: *Self, request: Request, policy: Policy) !Preview {
         existing = try self.open(self.allocator, target, false);
     };
     const view: ?*View = if (existing) |*value| value else null;
-    const current = try self.requestGuard(arena.allocator(), policy, request, view);
+    const current = try self.requestGuard(arena.allocator(), policy, request, view, true);
     try check(current);
     if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |claimed| try request.binding.requireSame(claimed);
     var result: Preview = .{
@@ -582,7 +586,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     if (known) |target| if (target.seed != null) {
         existing = try self.open(self.allocator, target, false);
     };
-    const current = try self.requestGuard(arena.allocator(), policy, request, if (existing) |*value| value else null);
+    const current = try self.requestGuard(arena.allocator(), policy, request, if (existing) |*value| value else null, true);
     try check(current);
     try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
     if (try self.store.operation(request.binding)) |observed| {
@@ -645,7 +649,7 @@ pub fn status(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     if (try self.entry(binding.target.object)) |target| if (target.seed != null) {
         view = try self.open(self.allocator, target, false);
     };
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null, false);
     try check(current);
     if (view) |*value| if (try value.table.observeEvidence(binding, current)) |accepted| return .{ .committed = accepted };
     return switch (operation.phase) {
@@ -673,7 +677,7 @@ pub fn registration(self: *Self, binding: d.Binding, policy: Policy) !?Registrat
     defer request.deinit();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, null);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, null, true);
     const namespace = try self.schema(request.value.intent.namespace);
     const native = try policy.registered(policy.context, .table, binding.target.object);
     const fence = try current.acquire(current.context);
@@ -700,7 +704,7 @@ pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Obse
     if (target.seed != null) return error.InvalidDirectCatalogTransition;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, null);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, null, true);
     try check(current);
     const namespace = try self.schema(request.value.intent.namespace);
     const native = try policy.registered(policy.context, .table, binding.target.object) orelse return error.CatalogRegistrationRequired;
@@ -736,7 +740,7 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     view.table.lose_reply = self.lose_table_reply;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, &view);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, true);
     var properties = view.properties;
     if (request.value.intent.action == .rename) properties.name = request.value.intent.action.rename;
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
@@ -799,7 +803,8 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
     defer view.deinit();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.guard(arena.allocator(), policy, try self.schema(view.properties.namespace), view.properties.target(target.object), access);
+    const required = try self.requirements(policy, try self.schema(view.properties.namespace), view.properties.target(target.object), access);
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, if (action == .admit or action == .perform) binding.prerequisite else null);
     try check(current);
     if (action == .admit) {
         try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
@@ -1020,7 +1025,7 @@ pub fn cancel(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     if (target.seed != null) view = try self.open(self.allocator, target, true);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null, false);
     try self.terminal(observed.admitted, .cancelled, .none, current);
     return self.status(binding, policy);
 }
@@ -1037,7 +1042,7 @@ pub fn settle(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     defer view.deinit();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const current = try self.requestGuard(arena.allocator(), policy, request.value, &view);
+    const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, false);
     try self.terminal(operation, .settled, .none, current);
     return observed;
 }

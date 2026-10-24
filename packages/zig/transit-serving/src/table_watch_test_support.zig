@@ -16,7 +16,8 @@ pub const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 7, .catalog 
 pub const profile: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 pub const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 13, .principal = principal, .role = null };
 const Access = struct {
-    fn make(context: *anyopaque, _: std.mem.Allocator, guard: p.Authorization.Guard) !P.Guard {
+    fn make(context: *anyopaque, _: std.mem.Allocator, guard: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
+        if (prerequisite != null) return error.CatalogDenied;
         try guard.validate();
         if (guard.subject.principal() != principal) return error.CatalogDenied;
         return .{ .context = context, .acquire = acquire, .release = release };

@@ -12,6 +12,9 @@ resource: u64,
 /// An explicitly delegated service request authenticates its executor under
 /// this same fence. Object requirements continue to use the original subject.
 executor: ?core.protocol.Authorization.Subject = null,
+/// Additional frozen conditions narrow the independently authorized caller.
+/// They may address an accepted actor input with a different audience.
+prerequisite: ?core.protocol.Authorization.Guard = null,
 held: bool = false,
 /// Valid only after successful acquisition of the current native fence.
 verified: ?core.protocol.Authorization.Verified = null,
@@ -29,6 +32,7 @@ fn acquire(context: *anyopaque) !storage.TablePartition.Guard.Fence {
     errdefer owner.authority.unlockShared(owner.io);
     const verified = try self.engine.authorizeDomain(self.request, self.audience);
     if (self.executor) |subject| _ = try self.engine.authenticateDomain(subject, self.audience);
+    if (self.prerequisite) |condition| _ = try self.engine.authorizeDomain(condition, condition.subject.audience());
     try self.engine.requireResourceLifetime(self.resource);
     self.held = true;
     self.verified = verified;

@@ -78,6 +78,28 @@ test "point and bulk commits require the same identity and advancing accepted fr
     try bulk.validate();
 }
 
+test "saved acceptance prerequisites cannot be removed or rebound on retry" {
+    var conditioned = binding;
+    conditioned.prerequisite = .{ .subject = .{ .accepted = .{ .pid = 9, .input = 10, .principal = 11 } }, .requirements = @splat(null) };
+    conditioned.prerequisite.?.requirements[0] = .{ .object = .{ .kind = .resource, .id = 7 }, .privileges = p.State.permission(.read) };
+    try conditioned.validate();
+    const bytes = try p.Json.valueAlloc(t.allocator, conditioned);
+    defer t.allocator.free(bytes);
+    const saved = try p.Json.parseFromSlice(d.Binding, t.allocator, bytes);
+    defer saved.deinit();
+    try conditioned.requireSame(saved.value);
+    try t.expectError(error.DataIdentityConflict, conditioned.requireSame(binding));
+    var changed = conditioned;
+    changed.prerequisite.?.subject.accepted.input += 1;
+    try t.expectError(error.DataIdentityConflict, conditioned.requireSame(changed));
+    changed = conditioned;
+    changed.prerequisite.?.requirements[0].?.privileges = p.State.permission(.write);
+    try t.expectError(error.DataIdentityConflict, conditioned.requireSame(changed));
+    changed = conditioned;
+    changed.prerequisite.?.requirements[0] = null;
+    try t.expectError(error.InvalidAuthorizationPrivilege, changed.validate());
+}
+
 test "snapshots preserve accepted unflushed rows and reject incomplete checkpoint coverage" {
     try snapshot.requireSource(cut);
     try t.expect(try cut.needsWal());

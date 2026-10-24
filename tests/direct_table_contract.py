@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a"
+definition = "9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -136,7 +136,7 @@ binding = {
     "identity": {"scope": target["scope"], "principal": 4, "operation": 2**64 - 1},
     "target": target, "action": "drop",
     "expected_definition": {"object": target, "revision": 2, "digest": [3] * 32},
-    "expected_data": {"partition": 9, "next_lsn": 10}, "intent": list(intent_digest),
+    "expected_data": {"partition": 9, "next_lsn": 10}, "intent": list(intent_digest), "prerequisite": None,
 }
 saved = {"definition": definition, "connection": request_input["connection"], "work": {"ddl": {"binding": binding, "namespace": 1, "name": "events", "action": {"drop": {}}}}}
 saved_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SavedIntent"})

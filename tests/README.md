@@ -162,6 +162,45 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## Direct mutation authorization prerequisites — 2026-10-23
+
+Direct mutation bindings retain an optional native guard through admission,
+staging, acceptance and recovery under definition
+`9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56`.
+The replaced definition rejects. In the pinned Nix shell, ReleaseSafe package
+tests pass for protocol (**51/51**), catalog (**127/127**), local backend
+(**10/10**) and serving (**52/52**). `just contract::check` and
+`just transit-board::contract` pass with regenerated neutral schemas, language
+resources and independent signing/saved-intent fixtures.
+Diagnostic inventory/mappings and `just transit-docs::check` also pass, including
+**9** documentation tests and the site build.
+
+`zig build test-local-catalog --summary all` passes **2/2** Debug tests against
+real native authorization and disk-backed local storage. The new schedule binds
+an accepted native input from a separate caller, denies CREATE and row execution
+after its privilege is revoked, and permits exact inspection and cancellation.
+Restoring the privilege resumes the original pending work. The worker's own
+Table rights remain necessary. A fresh worker key executes the unchanged
+binding; reopening native history preserves that binding. Rotating the original
+caller's credential blocks the pending mutation while exact cancellation and
+inspection of an earlier committed receipt remain available. Removing the saved
+condition conflicts. The local-backend race also revokes the additional subject
+after private bulk staging and proves that no Table acceptance or row prefix
+was published before exact recovery under restored rights.
+
+`just test::direct-table-service` passes its **562** typed HTTP calls, existing
+CRUD/DDL, retained reads, lost replies, revocation and restart schedules under
+the new definition. The additional accepted-input condition is exercised by the
+native dispatcher test, not a separate HTTP fault schedule. Work-items migration,
+application-policy dispatch eligibility and atomicity between native control
+progress and Table acceptance remain separate work.
+
+Before this change, rebasing onto `origin/main` at `4df1ccc8` preserved responsive
+console completion. The query package's ReleaseSafe suite passed **148/148**,
+`just test::console-history` passed, and the diagnostic inventory was regenerated
+and checked. Those runs used the preceding definition; they are rebase evidence,
+not full-repository qualification of this mutation change.
+
 ## Responsive console completion menus — 2026-10-24
 
 `just check` and `just test::console-history` pass for the responsive completion
