@@ -61,8 +61,21 @@ chart rejects an ephemeral local path, simultaneous Ursula configuration and an
 external maintenance process for the exclusively owned directory. Existing
 Ursula and private-network checks remain in the same passing schedule.
 
-This is manifest validation, not a Kubernetes recovery run. The Station reference
-deployment's direct-storage execution remains unverified.
+The Station reference run uses a newly owned Kind/Substrate cluster. Initial
+attempts exposed a seven-character/eight-character Substrate version mismatch
+and a bootstrap deadlock: Helm waited for an unused native PVC, while the
+`WaitForFirstConsumer` storage class waited for the initializer. Build version,
+DaemonSet lookup and worker node selector now share one explicit pinned value;
+the initializer deploys with the claim. The real claim binds and initialization,
+native provisioning and activation of all three workers complete. The 15
+reference ownership/recovery unit checks and chart checks also pass.
+
+The subsequent run fails the **60-second initial ledger completion deadline**.
+Node evidence includes storage writes canceled at the two-second request budget
+while the disk-backed unit suite runs concurrently. A later inspection observes
+the expected total of 12, which does not turn the deadline failure into a pass.
+The failed installation is stopped with data and logs retained. Full reference
+recovery, upgrades and stop/start remain unverified pending a separate run.
 
 ## Named publication recovery with current credentials — 2026-10-24
 

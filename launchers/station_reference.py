@@ -69,7 +69,9 @@ class StationReference(Reference):
         values["running"] = True
         for pool in values.get("workerPools", []): pool["spec"]["replicas"] = 1
         if not (self.path / "initialized.json").exists():
-            self.deploy(values)
+            # The initializer is the native volume's first consumer. Deploy it
+            # with the PVC so WaitForFirstConsumer storage classes can bind;
+            # waiting on an unused PVC first would deadlock Helm readiness.
             values["initialize"]["enabled"] = True
             self.deploy(values)
             write(self.path / "initialized.json", True)

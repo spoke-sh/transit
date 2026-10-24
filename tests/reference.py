@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / ".cache/reference"
 SOURCE = ROOT / ".cache/upstream/substrate"
 PINS = json.loads((ROOT / "deploy/reference/versions.json").read_text())
+SUBSTRATE_VERSION = PINS["substrate"][:8]
 STATE = CACHE / "state.json"
 
 
@@ -25,7 +26,7 @@ def run(argv, *, cwd=ROOT, env=None, capture=False, input=None, timeout=900):
 
 
 def go(args, env=None, capture=False):
-    values = dict(os.environ, GOTOOLCHAIN=PINS["go"], GOMAXPROCS="4")
+    values = dict(os.environ, GOTOOLCHAIN=PINS["go"], GOMAXPROCS="4", VERSION=SUBSTRATE_VERSION)
     values.update(env or {})
     return run(["nix", "shell", "--inputs-from", ROOT, "nixpkgs#go", "--command", *args],
                cwd=SOURCE, env=values, capture=capture)
@@ -130,7 +131,9 @@ def configure_registry(s):
     # Upstream's kind overlay hardcodes kind-registry. Use the IP of our owned
     # registry instead of changing shared Docker DNS or adopting that name.
     address = run(["docker", "inspect", s["registry"], "--format", "{{.NetworkSettings.Networks.kind.IPAddress}}"], capture=True)
-    name = "atelet-" + PINS["substrate"][:7]
+    # Match the explicit build/install version and the workload node selector;
+    # git's inferred short hash can change as the source cache gains objects.
+    name = "atelet-" + SUBSTRATE_VERSION
     daemon = json.loads(kube(s, ["-n", "ate-system", "get", "daemonset", name, "-o", "json"], capture=True))
     args = daemon["spec"]["template"]["spec"]["containers"][0]["args"]
     args = ["--localhost-registry-replacement=" + address + ":5000" if a.startswith("--localhost-registry-replacement=") else a for a in args]

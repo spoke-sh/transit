@@ -223,7 +223,7 @@ class Reference:
                     "template": name, "template_uid": list(uuid.UUID(current["metadata"]["uid"]).bytes), "image": image, "authority_host": host}
         if role != "counter": provider["container"] = container
         pool = {"name": name, "labels": {"transit.dev/workload": name}, "spec": {"replicas": 1, "workerImage": self.runtime_image(),
-                "template": {"nodeSelector": {"ate.dev/substrate-version": infrastructure.PINS["substrate"][:7]},
+                "template": {"nodeSelector": {"ate.dev/substrate-version": infrastructure.SUBSTRATE_VERSION},
                 "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}}
         return provider, pool
 
