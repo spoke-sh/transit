@@ -171,6 +171,18 @@ registration receipt. Cursor connection, selection, authority and position stay
 fixed; current authorization still governs every operation and disclosure.
 This adapter neither publishes a dependent nor replaces the session's loaded work.
 
+`DirectCatalogResources` exposes named KV/Document declarations through the
+bridge's `resources` actions. Save the complete binding before explicit
+admission; inspect, execute or cancel that binding to recover its original
+allocation and publication phases. Preview admits nothing. CREATE execution
+signs only the already persisted native allocation through `DirectResourceClient`;
+application initialization stays with `transit-station-app.NamedResource`.
+Lookup and eight-entry directory pages expose published definitions under current
+metadata rights. Their cursors retain the exact connection, namespace and catalog
+position. Native data grants remain independent. The
+[named resource contract](../../../../contracts/DIRECT_TABLE_V1.md#named-native-resources)
+defines the initialization evidence and separate cleanup/lifetime boundaries.
+
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.
 `DirectTableReader.open` inspects an existing durable pin and owns its original

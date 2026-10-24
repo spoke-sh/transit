@@ -3295,7 +3295,8 @@
         ],
         "Selection": [
           "namespaces",
-          "tables"
+          "tables",
+          "resources"
         ]
       },
       "error_sets": {},
@@ -3408,6 +3409,63 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 41,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogResources.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1
+      },
+      "outcomes": {
+        "Action": [
+          "preview",
+          "operation",
+          "lookup",
+          "list"
+        ],
+        "Binding.action": [
+          "create",
+          "rename",
+          "drop"
+        ],
+        "Result": [
+          "preview",
+          "observation",
+          "lookup",
+          "list"
+        ],
+        "Result.observation": [
+          "not_observed",
+          "operation"
+        ],
+        "Spec": [
+          "kv",
+          "document"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.check()": "<inferred>",
+        "Binding.foreign()": "<inferred>",
+        "Binding.native()": "<inferred>",
+        "Create.foreign()": "<inferred>",
+        "Create.native()": "<inferred>",
+        "Definition.foreign()": "<inferred>",
+        "Definition.native()": "<inferred>",
+        "Operation.foreign()": "<inferred>",
+        "Operation.native()": "<inferred>",
+        "Spec.foreign()": "<inferred>",
+        "Spec.native()": "<inferred>",
+        "View.foreign()": "<inferred>",
+        "apply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 63,
         "catch": 0
       },
       "imports": [
@@ -3819,6 +3877,7 @@
           "catalog",
           "administration",
           "dependencies",
+          "resources",
           "lookup",
           "compile",
           "load",
@@ -3842,6 +3901,7 @@
           "catalog",
           "administration",
           "dependencies",
+          "resources",
           "metadata",
           "compiled",
           "loaded",
@@ -3878,7 +3938,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
+        "try": 48,
         "catch": 1
       },
       "imports": [
@@ -5950,6 +6010,7 @@
         "DirectCatalogAdministration.zig",
         "DirectCatalogDependencies.zig",
         "DirectCatalogInspection.zig",
+        "DirectCatalogResources.zig",
         "DirectDependency.zig",
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",

@@ -1,5 +1,35 @@
 # Validation and evidence
 
+## Direct host named resource recovery — 2026-10-24
+
+`just test::direct-named-resources` passes **107 typed catalog calls**, eight
+withheld resource replies, four withheld dependency replies and eleven abrupt
+node replacements with resource operations routed through serialized shared host
+actions. The saved host CREATE bindings remain unchanged across each recovery.
+The schedule covers original caller allocation, actual Station KV/Document
+initialization, typed KV writes/deletes, Document publication, current native
+data denial, metadata lookup, rename/DROP and original receipt recovery.
+Dependency registration, both graph directions, RESTRICT and explicit cleanup
+continue to use their existing native owner in this resource schedule.
+
+The focused `direct resource host` package test passes full-width Document IDs,
+staging budgets, object/operation identities and positions, owned restoration
+after freeing the source arena, wrong-caller rejection and exact prepared native
+allocation recovery. Independent schema fixtures require complete bindings and
+reject numeric full-width Document IDs. Their first run caught a missing Python
+brace; the corrected run passes. Generated contracts, diagnostic checks,
+formatting and documentation links pass. General SDK/ABI integration and final
+combined/clean-checkout qualification remain open.
+
+## Shared direct preview repository check — 2026-10-24
+
+`nix develop -c just check` passes on frozen source `1af0494e7`, including
+contracts, independent fixtures, the disk-backed unit suite, CLI diagnostics,
+console history, frontend checks and the documentation tests/build. Later host
+inspection, administration, dependency and resource changes have their own scoped
+evidence below and require the final combined and clean-checkout gates. This run
+is not `just ci-clean` or installed-placement qualification.
+
 ## Direct host dependency recovery — 2026-10-24
 
 `just test::direct-dependencies` passes **32 typed HTTP calls** through the shared
@@ -11,7 +41,10 @@ directions, current metadata revocation, redacted DROP blockers, altered-binding
 rejection and DROP/name replacement pass.
 
 Independent generated-contract checks require complete saved host bindings and
-decimal full-width operation identities. This is shared caller qualification;
+decimal full-width operation identities. All 152 catalog package tests pass,
+including owned saved-binding restoration after freeing its original JSON arena
+and cursor rejection for a changed caller, selection or authority. Diagnostic
+mappings/inventory, formatting and documentation links pass. This is shared caller qualification;
 general SDK/ABI migration and final integrated/clean-checkout gates remain open.
 
 ## Direct host namespace and policy preparation — 2026-10-24

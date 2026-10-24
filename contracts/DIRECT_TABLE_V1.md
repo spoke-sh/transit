@@ -599,6 +599,21 @@ All storage identities and positions use canonical decimal strings. The adapter
 makes one public request per action and never publishes or retires a dependent,
 acquires a data pin, replaces loaded work or retries an uncertain mutation.
 
+The host `resources` action uses `DirectCatalogResources` for named KV/Document
+preview, explicit operation control, lookup and eight-entry directory pages.
+Save its complete definition-bound `Binding` before admission. Names use text;
+storage IDs, revisions, Document identities and full-width staging byte budgets
+use canonical decimal strings. Native authorization/resource IDs and allocation
+sequences retain the native bounded integer representation. Returned operations
+preserve the native phases, original allocation and resulting definition.
+CREATE execution reuses `DirectResourceClient`: it may inspect the persisted
+allocation before signing and executing that exact sequence, for at most two
+catalog exchanges. It performs no automatic Station initialization or polling.
+Resource cursors bind the connection, namespace selection and catalog position;
+they cannot be substituted for Table-directory cursors. These actions leave the
+session's loaded Table work unchanged. A lost response or output-allocation
+failure requires recovery with the same saved binding.
+
 The `prepare` action accepts `DirectTableTyped.Request`: a mandatory current
 definition, namespace, operation identity, name and typed CREATE, ALTER, RENAME,
 DROP or mutation. Existing objects require the complete `PreparedBinding`;

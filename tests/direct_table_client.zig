@@ -380,7 +380,11 @@ pub fn main(init: std.process.Init) !void {
             (try client.call(.initialize)).deinit();
             try Conditions.callers(init.gpa, client);
         } else if (std.mem.eql(u8, args[2], "resource-save")) {
-            profile.named_resources = try NamedResources.prepare(client, &admin, profile.role);
+            var prepared_arena = std.heap.ArenaAllocator.init(init.gpa);
+            defer prepared_arena.deinit();
+            var preparing = client;
+            preparing.allocator = prepared_arena.allocator();
+            profile.named_resources = try NamedResources.prepare(preparing, &admin, profile.role);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "resource-admit")) {
             try NamedResources.admit(client, profile.named_resources.?);

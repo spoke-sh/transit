@@ -23,6 +23,7 @@ pub const DirectTableBridge = @import("DirectTableBridge.zig");
 pub const DirectCatalogInspection = @import("DirectCatalogInspection.zig");
 pub const DirectCatalogAdministration = @import("DirectCatalogAdministration.zig");
 pub const DirectCatalogDependencies = @import("DirectCatalogDependencies.zig");
+pub const DirectCatalogResources = @import("DirectCatalogResources.zig");
 pub const DirectTableTyped = @import("DirectTableTyped.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
 pub const OperationBinding = @import("OperationBinding.zig");
@@ -60,6 +61,7 @@ test {
     _ = DirectCatalogInspection;
     _ = DirectCatalogAdministration;
     _ = DirectCatalogDependencies;
+    _ = DirectCatalogResources;
     _ = DirectTableProtocol;
     _ = DirectTableIntent;
     _ = DirectTableReader;
