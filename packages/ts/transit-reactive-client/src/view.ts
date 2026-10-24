@@ -232,10 +232,17 @@ export class LiveView<T> {
           (error.scopeFailure ? `\nCurrent scope: ${error.scopeFailure.reason}.` : ""),
       });
       this.abort?.abort();
-    } else if (error instanceof ReactiveError && error.reason === "reset_required") {
+    } else if (
+      error instanceof ReactiveError &&
+      (error.reason === "reset_required" ||
+        error.reason === "ReactiveResetRequired" ||
+        error.scopeFailure?.reason === "reset_required")
+    ) {
       this.publish({
         phase: "reset_required",
-        detail: "Source or session changed. Resnapshot explicitly.",
+        detail:
+          (error.diagnostic ? diagnosticLines(error.diagnostic).join("\n") + "\n" : "") +
+          "Source or session changed. Resnapshot explicitly.",
       });
       this.abort?.abort();
     } else {

@@ -115,6 +115,17 @@ not establish permission revocation: the already disclosed snapshot keeps its
 original basis, with no replacement coverage claimed. Reconnection progress does
 not overwrite the failure with generic advice.
 
+A recorded watch-change rejection during renewal or attachment stops local
+renewal and acquisition in `reset_required`, preserving its original diagnostic
+and the last snapshot basis. Starting again requires an explicit authorized
+snapshot. A later current-scope denial or expiry still clears protected state.
+
+Direct Table authorization domains bind the catalog resource's usability.
+Retiring or expiring that resource denies the current authorization guard and
+clears protected view state. This is an authority failure, distinct from a
+temporary storage or transport outage. The [authorization contract](../../../contracts/AUTHORIZATION_V1.md)
+defines this explicit lifetime prerequisite; an association alone does not create it.
+
 Failed Follow reader checks identify the identity field or permission mask,
 resource writer/lifecycle, or template phase and missing manifest. The diagnostic
 retains the policy/resource revision observed at that check. Native read failures

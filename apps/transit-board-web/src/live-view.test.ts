@@ -258,30 +258,88 @@ test.each([new ReactiveError(0, "control_uncertain"), new ReactiveError(503, "un
   },
 );
 
-test("later denial clears protected state and presents the original rejected control separately", async () => {
+test.each(["ReactiveLeaseConflict", "ReactiveResetRequired"])(
+  "later denial clears protected state and presents the original rejected control separately (%s)",
+  async (reason) => {
+    const session = attachedSession();
+    session.open = async () => {
+      session.scope = scope;
+    };
+    session.close = async () => {
+      session.scope = null;
+    };
+    const observed = deferred<void>();
+    const failure = new ReactiveError(409, reason);
+    failure.scopeFailure = new ReactiveError(403, "denied");
+    const view = new LiveView(session, async () => {
+      throw failure;
+    });
+    view.subscribe(() => {
+      if (view.getSnapshot().phase === "denied") observed.resolve();
+    });
+    await view.start();
+    await observed.promise;
+    expect(view.getSnapshot()).toMatchObject({
+      snapshot: null,
+      refresh: null,
+      detail: `${reason}\nCurrent scope: denied.`,
+    });
+    await view.pause();
+  },
+);
+
+test("a retained watch-change rejection stops renewal and preserves the original snapshot", async () => {
   const session = attachedSession();
+  let opens = 0,
+    renewals = 0,
+    reads = 0;
   session.open = async () => {
+    ++opens;
     session.scope = scope;
   };
   session.close = async () => {
     session.scope = null;
   };
-  const observed = deferred<void>();
-  const failure = new ReactiveError(409, "ReactiveLeaseConflict");
-  failure.scopeFailure = new ReactiveError(403, "denied");
-  const view = new LiveView(session, async () => {
+  const failure = new ReactiveError(409, "ReactiveResetRequired", {
+    ...structuredClone(diagnosticFixture),
+    code: "reactive.watch_changed",
+    category: "conflict",
+    stage: "admission",
+    outcome: "input_rejected",
+    evidence: "domain_status",
+    message: "The committed watch changed.",
+    identity: { ...diagnosticFixture.identity, domain: "reactive" },
+    actions: [{ kind: "inspect_status", target: null }, null, null, null],
+  });
+  session.inspect = async () =>
+    ({ observation: { data_revision: "10", basis: snapshot.basis } }) as never;
+  session.renew = async () => {
+    ++renewals;
     throw failure;
+  };
+  const current = deferred<void>();
+  const reset = deferred<void>();
+  const view = new LiveView(session, async () => {
+    ++reads;
+    return snapshot;
   });
   view.subscribe(() => {
-    if (view.getSnapshot().phase === "denied") observed.resolve();
+    if (view.getSnapshot().phase === "current") current.resolve();
+    if (view.getSnapshot().phase === "reset_required") reset.resolve();
   });
   await view.start();
-  await observed.promise;
-  expect(view.getSnapshot()).toMatchObject({
-    snapshot: null,
-    refresh: null,
-    detail: "ReactiveLeaseConflict\nCurrent scope: denied.",
-  });
+  await current.promise;
+  session.leaseBefore = Date.now();
+  await reset.promise;
+  // The real renewal and reader loops join after the reset; they must not
+  // reattach or keep renewing an obsolete watch until the lease expires.
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  expect(view.getSnapshot()).toMatchObject({ phase: "reset_required", snapshot });
+  expect(view.getSnapshot().detail).toContain("reactive.watch_changed");
+  expect(view.getSnapshot().detail).toContain("The committed watch changed.");
+  expect([opens, renewals, reads]).toEqual([1, 1, 1]);
+  expect(failure.reason).toBe("ReactiveResetRequired");
+  expect(view.following).toBe(false);
   await view.pause();
 });
 
