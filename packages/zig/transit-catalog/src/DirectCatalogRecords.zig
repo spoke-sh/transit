@@ -93,13 +93,15 @@ pub const Root = struct {
     initialized: bool,
     schemas: ?pages.Reference,
     schema_names: ?pages.Reference,
+    namespace_claims: ?pages.Reference,
+    namespace_pending: ?pages.Reference,
     objects: ?pages.Reference,
     names: ?pages.Reference,
     operations: ?pages.Reference,
     pending: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .objects = null, .names = null, .operations = null, .pending = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
@@ -133,11 +135,15 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
         switch (self.action) {
+            .namespace => |value| {
+                try value.validate();
+                if (position == 0 or !value.binding.connection.matches(self.root.configuration) or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
+            },
             .initialize => if (position != 0) return error.InvalidDirectCatalogHistory,
             .operation => |value| {
                 if (position == 0) return error.InvalidDirectCatalogHistory;

@@ -565,6 +565,76 @@ fn prerequisiteDispatch(engine: *Engine, config: D.Configuration, owner_role: u6
     try t.expectEqual(@as(u64, 1), final.value.result.lookup.?.row_count);
 }
 
+fn namespaceDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
+    const N = c.DirectNamespace;
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    const binding: N.Binding = .{ .definition = g.current_definition, .connection = .{ .scope = config.scope, .branch = 1, .audience = config.audience, .principal = 101, .role = null }, .operation = 800, .namespace = 30, .expected = null, .action = .{ .create = .{ .name = try .init("application_namespace"), .owner = owner_role } } };
+    const before = engine.head.position;
+    const preview = try dispatch(&service, .{ .namespace_preview = binding });
+    defer preview.deinit();
+    try t.expectEqual(.none, preview.value.result.namespace_preview.reason);
+    try t.expectEqual(before, engine.head.position);
+    (try dispatch(&service, .{ .namespace_operation = .{ .binding = binding, .command = .admit, .steps = 1 } })).deinit();
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(config.authority.database), .owner = 0 } });
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .namespace_operation = .{ .binding = binding, .command = .execute, .steps = 32 } }));
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(config.authority.database), .owner = owner_role } });
+    const hidden = try dispatch(&service, .{ .namespace = 30 });
+    defer hidden.deinit();
+    try t.expect(hidden.value.result.namespace == null);
+    const Revoke = struct {
+        fn run(raw: *anyopaque, current_engine: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(raw));
+            _ = try change(current_engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    var database = config.authority.database;
+    service.before_reply = .{ .context = &database, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .namespace_operation = .{ .binding = binding, .command = .execute, .steps = 32 } }));
+    service.before_reply = null;
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(database), .owner = owner_role } });
+    // A withheld accepted response is recovered after reopening native authority
+    // and every data/catalog owner. A new key authenticates the original binding.
+    engine.* = try Engine.open(engine.journal, engine.page_store, engine.genesis);
+    _ = try change(engine, .{ .rotate_credential = .{ .principal = 101, .expected_epoch = (try engine.principal(101)).credential_epoch, .public_key = (try key(49)).public_key.toBytes() } });
+    const recovered = try dispatchWithSeed(&service, .{ .namespace_operation = .{ .binding = binding, .command = .inspect, .steps = 1 } }, null, null, 49);
+    defer recovered.deinit();
+    const created = recovered.value.result.namespace_operation.operation;
+    try t.expectEqual(.applied, created.phase);
+    _ = try change(engine, .{ .rotate_credential = .{ .principal = 101, .expected_epoch = (try engine.principal(101)).credential_epoch, .public_key = (try key(29)).public_key.toBytes() } });
+    var rename = binding;
+    rename.operation = 801;
+    rename.expected = created.resulting;
+    rename.action = .{ .rename = try .init("renamed_application") };
+    (try dispatch(&service, .{ .namespace_operation = .{ .binding = rename, .command = .admit, .steps = 1 } })).deinit();
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(created.resulting.?.authorization), .owner = 0 } });
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .namespace_operation = .{ .binding = rename, .command = .execute, .steps = 1 } }));
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(created.resulting.?.authorization), .owner = owner_role } });
+    const renamed = try dispatch(&service, .{ .namespace_operation = .{ .binding = rename, .command = .execute, .steps = 1 } });
+    defer renamed.deinit();
+    try t.expectEqual(.applied, renamed.value.result.namespace_operation.operation.phase);
+    var drop = rename;
+    drop.operation = 802;
+    drop.expected = renamed.value.result.namespace_operation.operation.resulting;
+    drop.action = .drop;
+    (try dispatch(&service, .{ .namespace_operation = .{ .binding = drop, .command = .admit, .steps = 1 } })).deinit();
+    var completed = false;
+    for (0..32) |_| {
+        const response = try dispatch(&service, .{ .namespace_operation = .{ .binding = drop, .command = .execute, .steps = 1 } });
+        defer response.deinit();
+        const observed = response.value.result.namespace_operation.operation;
+        if (observed.phase == .applied) {
+            try t.expect(observed.resulting.?.retired);
+            completed = true;
+            break;
+        }
+        try t.expectEqual(.admitted, observed.phase);
+    }
+    try t.expect(completed);
+    const original = try dispatch(&service, .{ .namespace_operation = .{ .binding = binding, .command = .inspect, .steps = 1 } });
+    defer original.deinit();
+    try t.expectEqualDeep(created, original.value.result.namespace_operation.operation);
+}
+
 test "local catalog checks real native registrations, current ownership and exact request proof" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -600,6 +670,7 @@ test "local catalog checks real native registrations, current ownership and exac
     try catalog.initialize(policy.policy());
     try directDispatch(&engine, config, role);
     try prerequisiteDispatch(&engine, config, role);
+    try namespaceDispatch(&engine, config, role);
     // The dispatch proof deliberately rotates the caller. Later independent
     // requests prepare a new proof; accepted delegated work keeps its old one.
     signed = try proof(&engine, request_digest);

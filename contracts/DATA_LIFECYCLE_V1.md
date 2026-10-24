@@ -31,8 +31,12 @@ reuses these identities and the current native authorization proof.
 | `Position` | Partition and exclusive accepted-log frontier `next_lsn` |
 | `Content` | Immutable byte length and SHA-256 commitment; possession grants no permission |
 
-Database authorization and schema namespaces retain their existing catalog/native
-owners. A namespace/name binding points to an object and its definition; rename
+Database authorization uses the native permission owner. Direct schema namespace
+lifecycle publishes through the catalog control WAL, with separate recoverable
+native registration and bounded RESTRICT scans. Its
+[request binding](DIRECT_TABLE_V1.md#namespace-lifecycle) preserves namespace
+identity and the complete expected schema record. A namespace/name binding
+points to an object and its definition; rename
 does not change object identity. Name replacement allocates a different object.
 Catalog scope does not become a new permission store. Resource IDs remain logical
 identities across a storage replacement; they are not filesystem or provider IDs.

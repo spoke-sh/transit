@@ -59,6 +59,53 @@ original schema, advances only after fully decoding a valid page and verifies
 the complete row count. Its explicit `check` revalidates current rights before
 disclosure from cached data. Local destruction does not release the durable pin.
 
+### Namespace lifecycle
+
+`namespace_preview` and `namespace_operation` use `DirectNamespace.Binding`:
+the current definition, exact connection, operation identity, namespace identity,
+nullable complete expected schema record, and CREATE (name/owner role), RENAME
+(new name) or DROP action. CREATE requires a new identity and no expectation;
+RENAME/DROP bind the original namespace record, including its native authority
+reference and revision. Namespace IDs and revisions use native counter bounds;
+operation identities retain their full unsigned 64-bit range. Names use the
+existing 63-byte UTF-8 catalog name contract.
+
+Preview checks current permissions, identity, expected definition and name
+availability. It publishes nothing and does not certify DROP dependencies.
+`namespace_operation` explicitly inspects, admits, executes or cancels the exact
+binding. The response is `not_observed` or an operation with its catalog WAL
+position, phase (`admitted`, `applied`, `rejected`, `cancelled`), reason, nullable
+scan cursor and nullable resulting schema record. Only `applied` includes a
+resulting schema. The catalog WAL is this operation's acceptance authority;
+its position is not a Table data frontier or a consistent multi-Table snapshot.
+
+CREATE requires database CONNECT/ownership and eligibility for its frozen owner
+role. Native schema registration is a separate recoverable step. The service
+rechecks the original caller before each registrar publication and validates
+the resulting native binding and owner before catalog publication. Admission
+reserves the name and permanently claims the namespace identity but does not
+make it visible. A cancelled admission retains that identity claim and any
+completed native registration; it does not silently reuse or delete them.
+
+RENAME/DROP require current CONNECT and ownership of the original native schema.
+An admitted namespace change fences new Table DDL admissions in that namespace.
+DROP examines at most one eight-entry object directory page per execution,
+retaining progress in the original operation. A live Table or an uncommitted
+Table declaration blocks DROP with a generic `dependency` reason; the response
+does not disclose the blocking object's metadata. Committed but unsettled Table
+outcomes are not pending declarations. This scan covers catalog-owned Table
+membership, not unregistered external consumers. Native registration execution
+accepts a 1–256 step budget; it does not widen the dependency scan page.
+
+RENAME preserves identity; DROP removes live namespace visibility and retains
+its original native permission object. Retained Table snapshots, history,
+receipts and result evidence still require current permissions against those
+original native references. Logical namespace retirement neither releases pins
+nor physically deletes retained data. Recreating a name requires another
+namespace identity. Exact retries after rename, retirement or credential
+replacement return the original outcome; changed bindings or cross-kind reuse
+of an operation identity reject. Response disclosure is fenced after buffering.
+
 ### Current observations
 
 `observe` accepts a namespace, exact interpretation (object, revision and digest)

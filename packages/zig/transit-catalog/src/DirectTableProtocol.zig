@@ -231,6 +231,8 @@ pub const Action = union(enum) {
     describe,
     namespace: u64,
     namespaces: struct { after: ?u64 },
+    namespace_preview: c.DirectNamespace.Binding,
+    namespace_operation: struct { binding: c.DirectNamespace.Binding, command: c.DirectNamespace.Command, steps: u16 },
     check: D.AccessRequest,
     /// All requirements are checked together before disclosing the response.
     check_set: []const ReadCheck,
@@ -288,9 +290,10 @@ pub const Request = struct {
             .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release => true,
             .operation => |value| value.command != .inspect,
             .name_assertion => |value| value.command != .inspect,
+            .namespace_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = self.action == .release or self.action == .pin_status or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = self.action == .release or self.action == .pin_status or self.action == .namespace_operation or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -320,6 +323,15 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .namespace_preview => |binding| {
+                try binding.validate();
+                if (!std.meta.eql(binding.connection, connection)) return error.CatalogIdentityConflict;
+            },
+            .namespace_operation => |value| {
+                try value.binding.validate();
+                if (!std.meta.eql(value.binding.connection, connection)) return error.CatalogIdentityConflict;
+                if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
+            },
             .initialize, .describe => {},
             .name_assertion => |value| {
                 try value.binding.validate();
@@ -488,6 +500,8 @@ pub const Result = union(enum) {
     description: D.Configuration,
     namespace: ?c.TableAuthority.Schema,
     namespaces: struct { entries: [8]?c.TableAuthority.Schema, next: ?u64, directory_position: d.Position },
+    namespace_preview: c.DirectNamespace.Preview,
+    namespace_operation: c.DirectNamespace.Observation,
     checked,
     staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },

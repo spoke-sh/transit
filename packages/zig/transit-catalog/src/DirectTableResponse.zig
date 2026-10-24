@@ -105,6 +105,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .describe => .description,
         .namespace => .namespace,
         .namespaces => .namespaces,
+        .namespace_preview => .namespace_preview,
+        .namespace_operation => .namespace_operation,
         .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
@@ -131,6 +133,22 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .namespace_preview => |value| {
+            try request.action.namespace_preview.requireSame(value.binding);
+            try value.position.validate();
+            if (value.position.next_lsn == 0) return error.InvalidTableResponse;
+            if (value.current) |current| {
+                try current.validate();
+                if (current.id != value.binding.namespace or !std.meta.eql(current.scope, request.connection.scope)) return error.InvalidTableResponse;
+            }
+        },
+        .namespace_operation => |value| switch (value) {
+            .not_observed => if (request.action.namespace_operation.command == .admit or request.action.namespace_operation.command == .cancel) return error.InvalidTableResponse,
+            .operation => |operation| {
+                try operation.validate();
+                try request.action.namespace_operation.binding.requireSame(operation.binding);
+            },
+        },
         .read_authority => |value| try value.validate(),
         .name_assertion => |value| switch (value) {
             .not_observed => if (request.action.name_assertion.command != .inspect) return error.InvalidTableResponse,

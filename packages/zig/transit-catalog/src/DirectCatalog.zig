@@ -11,6 +11,7 @@ const s = c.storage;
 const r = @import("DirectCatalogRecords.zig");
 const Store = @import("DirectCatalogStore.zig");
 const IntentStore = @import("DirectCatalogIntent.zig");
+const N = c.DirectNamespace;
 const P = s.TablePartition;
 const pages = s.TreeStore.pages;
 const Self = @This();
@@ -136,10 +137,22 @@ fn check(current: P.Guard) !void {
 }
 
 fn schema(self: *Self, id: u64) !a.Schema {
-    const value = try self.store.tree().get(self.store.root.schemas, try r.idKey(id)) orelse return error.CatalogNamespaceMissing;
+    const result = try self.storedSchema(id) orelse return error.CatalogNamespaceMissing;
+    if (result.retired) return error.CatalogNamespaceMissing;
+    return result;
+}
+fn storedSchema(self: *Self, id: u64) !?a.Schema {
+    const value = try self.store.tree().get(self.store.root.schemas, try r.idKey(id)) orelse return null;
     const result = try r.fromValue(a.Schema, self.allocator, value);
     try result.validate();
-    if (result.id != id or !std.meta.eql(result.scope, self.config().scope) or result.retired) return error.CatalogNamespaceMissing;
+    if (result.id != id or !std.meta.eql(result.scope, self.config().scope)) return error.InvalidDirectCatalogEntry;
+    return result;
+}
+// Logical retirement removes admission/name visibility, not the original
+// native permission object protecting retained Table data and receipts.
+fn authorizationSchema(self: *Self, id: u64) !a.Schema {
+    var result = try self.storedSchema(id) orelse return error.CatalogNamespaceMissing;
+    result.retired = false;
     return result;
 }
 
@@ -241,7 +254,7 @@ pub fn checkOperation(self: *Self, binding: d.Binding, namespace_id: u64, policy
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     try check(try self.guard(arena.allocator(), policy, null, null, .database));
-    const namespace_value = try self.schema(namespace_id);
+    const namespace_value = try self.authorizationSchema(namespace_id);
     try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
     if (binding.action == .create) {
         const native = try policy.registered(policy.context, .table, binding.target.object);
@@ -279,7 +292,7 @@ pub fn initialize(self: *Self, policy: Policy) !void {
     next.initialized = true;
     next.next_lsn = 1;
     next.schemas = try self.store.tree().put(null, try r.idKey(initial.id), try r.pageValue(initial));
-    next.schema_names = try self.store.tree().put(null, try pages.Key.init(&r.hash(initial.name.slice())), try r.pageValue(initial));
+    next.schema_names = try self.store.tree().put(null, try pages.Key.init(&r.hash(initial.name.slice())), try r.pageValue(N.Name{ .namespace = initial.id, .name = initial.name }));
     try self.store.publish(next, .initialize, current);
 }
 
@@ -403,6 +416,185 @@ pub fn listNamespaces(self: *Self, after: ?pages.Key, policy: Policy) !Namespace
     return result;
 }
 
+fn namespacePending(self: *Self, id: u64) !?d.Operation {
+    const value = try self.store.tree().get(self.store.root.namespace_pending, try r.idKey(id)) orelse return null;
+    return try r.fromValue(d.Operation, self.allocator, value);
+}
+fn namespaceGuard(self: *Self, allocator: std.mem.Allocator, binding: N.Binding, policy: Policy) !P.Guard {
+    try binding.validate();
+    if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var required = try self.requirements(policy, null, null, if (binding.action == .create) .create_schema else .database);
+    if (binding.action == .create) {
+        required.selectable = binding.action.create.owner;
+    } else {
+        const expected = binding.expected.?;
+        try self.verifiedObject(policy, .schema, expected.id, expected.authorization, a.reference(self.config().authority.database));
+        required.requirements[1] = .{ .object = a.reference(expected.authorization), .access = .ownership };
+    }
+    return policy.make_guard(policy.context, allocator, required, null);
+}
+fn namespaceNameAvailable(self: *Self, id: u64, name: a.Name) !bool {
+    const encoded = try self.store.tree().get(self.store.root.schema_names, try pages.Key.init(&r.hash(name.slice()))) orelse return true;
+    const reserved = try r.fromValue(N.Name, self.allocator, encoded);
+    if (!std.meta.eql(reserved.name, name)) return error.CatalogIdentityConflict;
+    if (try self.storedSchema(reserved.namespace)) |found| {
+        if (!found.retired and std.meta.eql(found.name, name)) return found.id == id;
+    }
+    if (try self.namespacePending(reserved.namespace)) |identity| {
+        const binding = try c.OperationBinding.lookupNamespace(self.allocator, self.store.objects, identity) orelse return error.InvalidDirectCatalogOperation;
+        if (std.meta.eql(binding.proposedName(), name)) return reserved.namespace == id;
+    }
+    return true;
+}
+fn namespaceReason(self: *Self, binding: N.Binding) !N.Reason {
+    if (try self.namespacePending(binding.namespace) != null) return .object_conflict;
+    const found = try self.storedSchema(binding.namespace);
+    if (binding.action == .create) {
+        if (found != null or try self.store.tree().get(self.store.root.namespace_claims, try r.idKey(binding.namespace)) != null) return .object_conflict;
+    } else {
+        if (found == null or found.?.retired) return .object_conflict;
+        if (!std.meta.eql(found, binding.expected)) return .stale_definition;
+    }
+    if (binding.action != .drop and !try self.namespaceNameAvailable(binding.namespace, binding.proposedName())) return .name_conflict;
+    return .none;
+}
+/// Checks identity, current authority and name conflicts without provisioning
+/// or reserving anything. DROP dependency traversal belongs to bounded execution.
+pub fn previewNamespace(self: *Self, binding: N.Binding, policy: Policy) !N.Preview {
+    try self.requireInitialized();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.namespaceGuard(arena.allocator(), binding, policy);
+    try check(current);
+    if (try c.OperationBinding.lookupNamespace(self.allocator, self.store.objects, binding.identity())) |known| try binding.requireSame(known);
+    const result: N.Preview = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = try self.storedSchema(binding.namespace), .reason = try self.namespaceReason(binding) };
+    try check(current);
+    return result;
+}
+fn recordNamespace(self: *Self, candidate_root: r.Root, proposed: N.Operation, current: P.Guard) !N.Operation {
+    var next = candidate_root;
+    next.next_lsn = try std.math.add(u64, self.store.root.next_lsn, 1);
+    var operation = proposed;
+    operation.position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    if (operation.phase != .admitted) {
+        operation.after = null;
+        if (try self.namespacePending(operation.binding.namespace)) |pending_identity| {
+            if (std.meta.eql(pending_identity, operation.binding.identity())) next.namespace_pending = try self.store.tree().remove(next.namespace_pending, try r.idKey(operation.binding.namespace));
+        }
+    }
+    try self.store.receiptIdentity(&next, operation.binding.identity());
+    try self.store.publish(next, .{ .namespace = operation }, current);
+    return operation;
+}
+/// CREATE has separate native provisioning and catalog publication. DROP scans
+/// one directory page per execution while fencing new DDL in that namespace.
+/// Repeating inspect/execute never chooses another identity, name or revision.
+pub fn namespaceOperation(self: *Self, binding: N.Binding, command: N.Command, policy: Policy) !N.Observation {
+    try self.requireInitialized();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.namespaceGuard(arena.allocator(), binding, policy);
+    try check(current);
+    if (try c.OperationBinding.lookupNamespace(self.allocator, self.store.objects, binding.identity())) |known| try binding.requireSame(known);
+    const previous = try self.store.namespaceOperation(binding);
+    if (command == .inspect or (previous != null and previous.?.phase != .admitted) or (command == .admit and previous != null)) {
+        try check(current);
+        return if (previous) |value| .{ .operation = value } else .not_observed;
+    }
+    if (command == .execute and previous == null) return .not_observed;
+    try c.OperationBinding.claimNamespace(self.allocator, self.store.objects, binding);
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    var operation: N.Operation = previous orelse .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = .admitted, .reason = .none, .after = null, .resulting = null };
+    if (command == .cancel) {
+        operation.phase = .cancelled;
+    } else if (command == .admit) {
+        operation.reason = try self.namespaceReason(binding);
+        if (operation.reason != .none) {
+            operation.phase = .rejected;
+        } else {
+            const id = try r.idKey(binding.namespace);
+            next.namespace_pending = try self.store.tree().put(next.namespace_pending, id, try r.pageValue(binding.identity()));
+            if (binding.action == .create) next.namespace_claims = try self.store.tree().put(next.namespace_claims, id, try r.pageValue(binding.identity()));
+            if (binding.action != .drop) {
+                const name: N.Name = .{ .namespace = binding.namespace, .name = binding.proposedName() };
+                next.schema_names = try self.store.tree().put(next.schema_names, try pages.Key.init(&r.hash(name.name.slice())), try r.pageValue(name));
+            }
+        }
+    } else {
+        const pending_identity = try self.namespacePending(binding.namespace) orelse return error.InvalidDirectCatalogOperation;
+        if (!std.meta.eql(pending_identity, binding.identity())) return error.InvalidDirectCatalogOperation;
+        var resulting: a.Schema = undefined;
+        if (binding.action == .create) {
+            const native = try policy.registered(policy.context, .schema, binding.namespace) orelse return error.CatalogRegistrationRequired;
+            try a.validateObject(self.config().authority, self.config().scope, .schema, binding.namespace, a.reference(self.config().authority.database), native);
+            if (native.owner != binding.action.create.owner) return error.CatalogIdentityConflict;
+            resulting = .{ .scope = self.config().scope, .id = binding.namespace, .authorization = native.reference.id, .name = binding.action.create.name, .revision = 1 };
+        } else {
+            resulting = try self.storedSchema(binding.namespace) orelse return error.InvalidDirectCatalogOperation;
+            if (!std.meta.eql(resulting, binding.expected.?)) return error.InvalidDirectCatalogOperation;
+            if (binding.action == .drop) {
+                const scanned = try self.namespaceDependencies(binding.namespace, operation.after, current);
+                if (scanned.blocked) {
+                    operation.phase = .rejected;
+                    operation.reason = .dependency;
+                    return .{ .operation = try self.recordNamespace(next, operation, current) };
+                }
+                if (scanned.after) |after| {
+                    operation.after = after;
+                    return .{ .operation = try self.recordNamespace(next, operation, current) };
+                }
+                resulting.retired = true;
+            } else resulting.name = binding.action.rename;
+            resulting.revision = try std.math.add(u64, resulting.revision, 1);
+        }
+        operation.phase = .applied;
+        operation.resulting = resulting;
+        next.schemas = try self.store.tree().put(next.schemas, try r.idKey(resulting.id), try r.pageValue(resulting));
+    }
+    return .{ .operation = try self.recordNamespace(next, operation, current) };
+}
+fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P.Guard) !struct { blocked: bool, after: ?u64 } {
+    const batch = try self.store.tree().scan(self.store.root.objects, if (after) |id| try r.idKey(id) else null);
+    for (batch.entries) |slot| if (slot) |item| {
+        const target = try r.fromValue(r.Entry, self.allocator, item.value);
+        try target.validate(self.config());
+        if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        if (target.seed != null) {
+            var view = try self.open(self.allocator, target, true);
+            defer view.deinit();
+            if (view.properties.namespace == namespace_id and view.table.root.next_lsn != 0 and !view.table.root.retired) return .{ .blocked = true, .after = null };
+        }
+        if (try self.pending(target.object, current)) {
+            const value = (try self.store.tree().get(self.store.root.pending, item.key)).?;
+            const identity = try r.fromValue(d.Operation, self.allocator, value);
+            const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, identity) orelse return error.InvalidDirectCatalogOperation;
+            var request = (try self.loadRequest(binding)) orelse return error.InvalidDirectCatalogOperation;
+            defer request.deinit();
+            if (request.value.intent.namespace == namespace_id) return .{ .blocked = true, .after = null };
+        }
+    };
+    const cursor = if (batch.next) |key| blk: {
+        if (key.len != 8) return error.InvalidCatalogCursor;
+        break :blk std.mem.readInt(u64, key.data[0..8], .big);
+    } else null;
+    return .{ .blocked = false, .after = cursor };
+}
+pub fn namespaceRegistration(self: *Self, binding: N.Binding, policy: Policy) !?Registration {
+    const observation = try self.namespaceOperation(binding, .inspect, policy);
+    if (observation != .operation or observation.operation.phase != .admitted or binding.action != .create) return null;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.namespaceGuard(arena.allocator(), binding, policy);
+    const native = try policy.registered(policy.context, .schema, binding.namespace);
+    const fence = try current.acquire(current.context);
+    defer current.release(current.context);
+    if (native != null) return null;
+    if (fence.policy_epoch == 0) return error.InvalidPartitionLease;
+    return .{ .action = .{ .domain = self.config().authority.schema_domain, .owner = binding.action.create.owner, .schema = a.reference(self.config().authority.database), .binding = try a.binding(self.config().scope, .schema, binding.namespace) }, .authorization_revision = fence.policy_epoch - 1 };
+}
+
 /// Accept a conditional name outcome under the directory lock, without
 /// allocating a Table object, changing its rows, or pretending it committed.
 /// Inspection and exact retries recheck the original caller's current rights.
@@ -461,7 +653,7 @@ fn original(self: *Self, policy: Policy, binding: d.Binding) !void {
 }
 
 fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, request: Request, view: ?*View, acceptance: bool) !P.Guard {
-    const namespace = try self.schema(request.intent.namespace);
+    const namespace = if (acceptance) try self.schema(request.intent.namespace) else try self.authorizationSchema(request.intent.namespace);
     const target: ?a.Table = if (view) |value| value.properties.target(request.binding.target.object) else if (request.intent.action == .create) target: {
         const native = try policy.registered(policy.context, .table, request.binding.target.object) orelse break :target null;
         break :target .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = native.reference.id };
@@ -513,6 +705,7 @@ fn record(self: *Self, next_input: r.Root, operation: r.Operation, current: P.Gu
 }
 
 fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View, current: P.Guard) !r.Reason {
+    if (try self.namespacePending(request.intent.namespace) != null) return .object_conflict;
     const object = request.binding.target.object;
     if (request.intent.action == .create) {
         if (known) return .object_conflict;
@@ -803,7 +996,7 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
     defer view.deinit();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    const required = try self.requirements(policy, try self.schema(view.properties.namespace), view.properties.target(target.object), access);
+    const required = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(target.object), access);
     const current = try policy.make_guard(policy.context, arena.allocator(), required, if (action == .admit or action == .perform) binding.prerequisite else null);
     try check(current);
     if (action == .admit) {
@@ -833,7 +1026,7 @@ fn readAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, polic
     if (target.seed == null) return error.CatalogDenied;
     var view = try self.open(self.allocator, target, control);
     errdefer view.deinit();
-    const current = try self.guard(allocator, policy, try self.schema(view.properties.namespace), view.properties.target(object.object), .read);
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
     try check(current);
     return .{ .view = view, .current = current };
 }
@@ -953,7 +1146,7 @@ pub fn readAuthority(self: *Self, object: d.Object, owner: d.Operation, policy: 
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, control);
     defer access.view.deinit();
-    const namespace = try self.schema(access.view.properties.namespace);
+    const namespace = try self.authorizationSchema(access.view.properties.namespace);
     const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
     try result.validate();
     try check(access.current);
@@ -968,7 +1161,7 @@ pub fn currentReadAuthority(self: *Self, object: d.Object, policy: Policy) !c.Di
     defer arena.deinit();
     var access = try self.readAccess(arena.allocator(), object, policy, false);
     defer access.view.deinit();
-    const namespace = try self.schema(access.view.properties.namespace);
+    const namespace = try self.authorizationSchema(access.view.properties.namespace);
     const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
     try result.validate();
     try check(access.current);

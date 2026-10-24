@@ -243,7 +243,15 @@ This supplies an authorization boundary needed by remaining application callers;
 it does not migrate Work items or make its native progress and Table acceptance
 one atomic operation.
 
-Direct namespace lifecycle, relational and remaining caller migration,
+The [direct namespace evidence](../../tests/README.md#direct-namespace-lifecycle--2026-10-23)
+now covers typed CREATE/RENAME/DROP, separate native registration, permanent
+identity claims, bounded RESTRICT progress and retained authority after logical
+retirement. SQL namespace compilation produces the same frozen typed binding;
+interactive administrative dispatch and application catalog setup still need
+migration. Namespace membership checks cover live/pending Tables; broader
+registered dependency kinds remain part of the shared lifecycle work.
+
+Interactive namespace administration, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the
 completion matrix rows below is closed by this partial caller path.

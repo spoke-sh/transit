@@ -11,6 +11,7 @@ pub const max_bytes = 4096;
 const Stored = union(enum) {
     data: d.Binding,
     name_assertion: c.NameAssertion.Binding,
+    namespace: c.DirectNamespace.Binding,
     fn validate(self: Stored) !void {
         switch (self) {
             inline else => |value| try value.validate(),
@@ -20,6 +21,7 @@ const Stored = union(enum) {
         return switch (self) {
             .data => |value| value.identity,
             .name_assertion => |value| value.identity(),
+            .namespace => |value| value.identity(),
         };
     }
     fn requireSame(self: Stored, other: Stored) !void {
@@ -72,7 +74,7 @@ pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operat
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .data => |value| value,
-        .name_assertion => error.DataIdentityConflict,
+        .name_assertion, .namespace => error.DataIdentityConflict,
     };
 }
 pub fn claimAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.NameAssertion.Binding) !void {
@@ -82,7 +84,17 @@ pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .name_assertion => |value| value,
-        .data => error.DataIdentityConflict,
+        .data, .namespace => error.DataIdentityConflict,
+    };
+}
+pub fn claimNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectNamespace.Binding) !void {
+    return claimStored(allocator, objects, .{ .namespace = binding });
+}
+pub fn lookupNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.DirectNamespace.Binding {
+    const stored = try lookupStored(allocator, objects, operation) orelse return null;
+    return switch (stored) {
+        .namespace => |value| value,
+        .data, .name_assertion => error.DataIdentityConflict,
     };
 }
 fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: Stored) !void {
