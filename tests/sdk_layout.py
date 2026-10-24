@@ -20,6 +20,11 @@ def violations(root, paths):
                 for name, version in data.get(kind, {}).items():
                     if name in sdk_names or 'sdks/' in version:
                         errors.append(f'{relative}: runtime dependency on SDK {name}')
+        elif path.name == 'go.mod' or path.suffix == '.go':
+            # Go SDK consumers declare modules, while runtime implementation
+            # must remain independent of the SDK module and local replacements.
+            if re.search(r'github\.com/spoke-sh/transit/sdks/|(?:\.\./)+sdks/', path.read_text()):
+                errors.append(f'{relative}: runtime dependency on Go SDK')
         elif path.name.startswith('tsconfig') and path.suffix == '.json':
             # Compiler path aliases must not hide an otherwise forbidden import.
             for value in re.findall(r'"([^"\n]+)"', path.read_text()):
@@ -57,11 +62,15 @@ def main():
             'apps/bad/tsconfig.json': '{"compilerOptions":{"paths":{"sdk":["../../sdks/ts/client"]}}}',
             'apps/bad/side-effect.ts': 'import "@transit/client";',
             'apps/bad/main.zig': '@import("../../sdks/zig/consumer.zig")',
+            'apps/bad/go.mod': 'module runtime\nrequire github.com/spoke-sh/transit/sdks/go v0.2.0\n',
+            'apps/bad/main.go': 'package main\nimport "github.com/spoke-sh/transit/sdks/go/client"\n',
+            'apps/bad/replaced/go.mod': 'module runtime\nreplace sdk => ../../../sdks/go\n',
         }.items():
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(data)
-        bad = ['apps/bad/package.json', 'packages/zig/bad/build.zig.zon', 'packages/ts/bad/main.ts', 'apps/bad/main.zig', 'apps/bad/side-effect.ts', 'apps/bad/tsconfig.json']
+        bad = ['apps/bad/package.json', 'packages/zig/bad/build.zig.zon', 'packages/ts/bad/main.ts', 'apps/bad/main.zig', 'apps/bad/side-effect.ts', 'apps/bad/tsconfig.json',
+               'apps/bad/go.mod', 'apps/bad/main.go', 'apps/bad/replaced/go.mod']
         assert len(violations(root, bad)) == len(bad)
     print('SDK boundary: runtime manifests/imports are independent; negative controls rejected')
 

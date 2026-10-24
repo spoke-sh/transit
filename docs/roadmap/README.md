@@ -35,7 +35,7 @@ measurements, and they do not assume that modeling or reasoning is solved.
 | 5 | [Managed computations and WAL-activated dataflows](05-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
 | 6 | [Multi-model and multi-format foreign relations](06-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
 | 7 | [Branches, merges and restore](07-branches-merges-and-restore.md) | Planned | Branching within a realm over durable pinned versions, logical three-way merges and forward restore |
-| 8 | [Service and SDK coverage](08-service-and-sdk-coverage.md) | Planned | Broader types, sources and streaming interactions through shared contracts |
+| 8 | [Service and SDK coverage](08-service-and-sdk-coverage.md) | In Progress | Go raw callers and broader types, sources and streaming interactions through shared contracts |
 | 9 | [Enterprise identity and the Control & Policy Plane](09-control-and-policy-plane.md) | Planned | Trusted identity bindings, IAM membership lifecycle, bounded delegation and shared branch/publication authorization |
 | 10 | [Published business resources and consistent investigations](10-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy, shared typed results and one retained basis across related calls |
 | 11 | [Versioned proposals and reviewed publication](11-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |

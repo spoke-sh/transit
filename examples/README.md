@@ -25,6 +25,7 @@ and enrichment, with source excerpts across SQL, Python, TypeScript, Rust and Zi
 | [Finite Flight](flight/README.md) | `transit-flight-gateway` / `transit-query-host` | TLS Flight SQL with independent PyArrow/ADBC consumers, exact admission retry and physical recovery |
 | [Database wire](sql-wire/README.md) | `transit-sql-gateway` / `transit-query-host` | PostgreSQL/MySQL TLS, typed prepared reads/writes and fenced physical recovery |
 | [Language callers](station-sdk/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
+| [Go input caller](go-client/README.md) | `transit-go-client` | Separate signed preparation, persisted exact input and seedless admission recovery |
 
 The [public SDK examples](station-sdk/README.md) share counter/query payload
 formats and fixtures. Their owning guides and the proof ledger describe the

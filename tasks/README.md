@@ -22,6 +22,11 @@ development and checks.
 
 ## Task interface
 
+Go SDK work uses `nix develop .#bindings`: `just bindings::go-build` packages the
+module and native library, `just bindings::go-check` runs formatting, vetting,
+race and cgo pointer checks, and `just bindings::go-sdk-test` runs the installed
+raw-client and example recovery proof. The latter belongs to `bindings-2`.
+
 The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [build](build.just), [launchers](launchers.just), [test](test.just),

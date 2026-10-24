@@ -103,6 +103,12 @@ bundle selects Linux x86_64. Evaluation does not qualify the other platforms.
 
 ## Entering the development shell
 
+The bindings shells include Go 1.26.7 from the existing locked nixpkgs input.
+`just bindings::go-check` reports that compiler and runs the Go/cgo checks with
+`GOTOOLCHAIN=local`; the SDK has no external Go modules. This adds no flake input
+revision or lockfile change. The default runtime/tooling shell remains independent
+of Go SDK compilation. Run Go tasks in `nix develop .#bindings`.
+
 For documentation-only work, `nix develop .#docs` supplies the same pinned Node,
 Vite+, pnpm, Git and `just` without Zig or provider tools. Run
 `just transit-docs::install` then `just transit-docs::dev` or

@@ -104,7 +104,7 @@ const config: Config = {
     footer: { style: "light", copyright: "Transit · Programmable data infrastructure." },
     colorMode: { respectPrefersColorScheme: true },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
-    prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "toml", "zig"] },
+    prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "go", "toml", "zig"] },
   } satisfies ThemeConfig,
 };
 export default config;

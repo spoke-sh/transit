@@ -16,6 +16,7 @@ and installed-consumer checks.
 | [python](python/README.md) | Python |
 | [ts](ts/README.md) | TypeScript / Node.js |
 | [rust](rust/README.md) | Rust |
+| [go](go/README.md) | Go |
 | [ruby](ruby/README.md) | Ruby |
 | [c](c/README.md) | C |
 | [cpp](cpp/README.md) | C++ |

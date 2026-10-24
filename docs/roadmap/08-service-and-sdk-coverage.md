@@ -1,6 +1,6 @@
 # 8. Service and SDK coverage
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Extend source, type and lifecycle limits documented by
 [connectors](../handbook/reference/connectors.md), [reactive APIs](../handbook/reference/reactive.md),
@@ -30,6 +30,27 @@ covers native units, terminal peers and actual TLS session completion. Manual
 terminal/SSH delivery and broader service/SDK parity are not established by it.
 
 ## Remaining work
+
+### Go SDK
+
+The raw Go client slice implements typed input preparation, current capability
+reads, canonical saved-operation recovery and explicit dispatch over the shared
+Zig ABI. A bounded native worker preserves stack, cancellation and joined-close
+requirements. Go module/native archives, installed consumers, a runnable recovery
+example and a required bindings task accompany it. See the
+[Go guide](../../sdks/go/README.md) and
+[executed raw-client evidence](../../tests/README.md#go-raw-client).
+
+Remaining Go work is catalog/Table, KV/Document and finite-query coverage,
+followed by Station handlers, durable calls and recorded HTTP/gRPC outcomes.
+Each slice needs idiomatic types, current authorization, bounded ownership and
+the existing installed-language recovery schedules. Add Go to the Station
+interoperability ring only when both service and requester adapters execute.
+Broader relational/SQL-session APIs, supervisor integration and additional
+platform distribution retain their own shared-contract and qualification gates.
+The raw slice does not complete this milestone or establish those profiles.
+
+### Shared coverage
 
 - Expose the qualified data/computation lifecycle through each selected SDK and
   service adapter: definitions, apply/recovery, dependencies, policy references
