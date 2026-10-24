@@ -13,9 +13,9 @@ from storage import free_port, wait_ready
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser"):
+    if mode not in ("tables", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
-    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") else 0)
+    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-table-") as directory:
         root = Path(directory)
@@ -124,7 +124,7 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             fault["assertion_changed"] = True
                         pin = envelope["action"].get("pin")
-                        if mode not in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
+                        if mode not in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
                             assert response.status == 200, data
                             parsed = json.loads(data)
                             assert "pin" in parsed["result"]
@@ -133,7 +133,7 @@ def run(node, caller, mode="tables", *artifacts):
                             fault["pin_changed"] = True
                         release = envelope["action"].get("release")
                         for selected, tag in ((pin, "pin"), (release, "release")):
-                            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and selected:
+                            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and selected:
                                 owner = selected["owner"] if tag == "pin" else selected["handle"]["owner"]
                                 key = (owner["operation"], tag)
                                 if owner["operation"] in (90000, 90010) and key not in retention_faults:
@@ -167,14 +167,14 @@ def run(node, caller, mode="tables", *artifacts):
                         if operation and operation["command"] == "execute":
                             fault["execute"] = body
                             identity = operation["binding"]["identity"]["operation"]
-                            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and identity in (2, 12) and identity not in abi_faults:
+                            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and identity in (2, 12) and identity not in abi_faults:
                                 assert response.status == 200, data
                                 parsed = json.loads(data)
                                 assert "committed" in parsed["result"]["rows"]
                                 parsed["context"][0] ^= 1
                                 data = json.dumps(parsed).encode()
                                 abi_faults.add(identity)
-                            if mode not in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and operation["binding"]["identity"]["operation"] == 2 and not fault["changed"]:
+                            if mode not in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and operation["binding"]["identity"]["operation"] == 2 and not fault["changed"]:
                                 assert response.status == 200, data
                                 parsed = json.loads(data)
                                 assert "committed" in parsed["result"]["rows"]
@@ -203,8 +203,24 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
-            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser"):
+            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
+                if mode in ("relational", "relational-python", "relational-node"):
+                    from relational_callers_native import exercise
+                    def relational_restart():
+                        nonlocal authority
+                        authority.kill()
+                        authority.wait(timeout=15)
+                        authority = None
+                        authority = start()
+                    def relational_policy(allow):
+                        subprocess.run([caller, endpoint, "caller-allow" if allow else "caller-deny", str(profile)], check=True, timeout=180)
+                    language = mode.removeprefix("relational-") if mode != "relational" else None
+                    exercise(*artifacts, root, url, endpoint, json.loads(profile.read_text()), relational_restart, relational_policy, language)
+                    assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                    assert list((root / "native").rglob("*.tseg"))
+                    print(f"Direct relational callers: {fault['requests']} public requests, original retained joins, current denial, node/caller replacement, budget and ordered overflow passed.")
+                    return
                 if mode in ("board", "board-browser"):
                     from board_relational import exercise
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=180)
@@ -254,7 +270,7 @@ def run(node, caller, mode="tables", *artifacts):
                 assert retention_faults == {(operation, tag) for operation in ((90000,) if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else (90000, 90010)) for tag in ("pin", "release")}, retention_faults
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 assert list((root / "native").rglob("*.tseg"))
-                retained = "retained metadata with current access" if mode in ("sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") else "cached/terminal revocation and retained SQL"
+                retained = "retained metadata with current access" if mode in ("sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else "cached/terminal revocation and retained SQL"
                 print(f"Direct catalog {mode}: {fault['requests']} public requests, wide bulk staging, exact uncertain receipts, uncertain pin/release replies, caller/node replacements, {retained} after DROP/name reuse passed.")
                 return
             if mode == "callers":

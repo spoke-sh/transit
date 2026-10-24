@@ -14888,7 +14888,13 @@
         "RelationalSourceChanged": 2,
         "UnsupportedRelationalConsistency": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Consistency": [
+          "per_resource_snapshot_vector",
+          "independent_table_snapshots",
+          "atomic"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "next()": "<inferred>",
@@ -16410,13 +16416,7 @@
         "UnknownRelationalSource": 1,
         "UnsupportedRelationalConsistency": 1
       },
-      "outcomes": {
-        "Consistency": [
-          "per_resource_snapshot_vector",
-          "independent_table_snapshots",
-          "atomic"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "authorize()": "<inferred>",

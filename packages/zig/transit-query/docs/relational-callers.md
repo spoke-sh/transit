@@ -85,7 +85,10 @@ cannot immediately reopen a different snapshot on that handle.
 Serialize operations and join them before destroying the ABI handle. Destruction
 removes local spill; it performs no durable pin release. Losing the host expires its
 interactive handles; an old reference on a replacement host rejects. It does not
-resume or silently run SQL again. Use the separate
+resume or silently run SQL again. A caller can explicitly open its saved statement
+with the original bindings and still-retained snapshots on a fresh host. This
+starts execution at ordinal zero under current rights; it does not resume the
+discarded row cursor or select newer data. Use the separate
 [captured](relational-capture.md) or [maintained](relational-maintenance.md) typed
 owners for durable execution. Those lifetimes are not enabled by this interactive
 foreign action; its capability response states that distinction explicitly.
