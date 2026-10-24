@@ -32,7 +32,7 @@ def run(profile):
     host = ROOT/'zig-out/bin/transit-query-host'
     with tempfile.TemporaryDirectory(prefix='transit-work-items-') as directory, ExitStack() as resources:
         work = Path(directory)
-        for role in ('operator','data','requester','publication','courier','gateway-0'):
+        for role in ('operator','node','data','requester','publication','courier','gateway-0'):
             (work/role).mkdir(mode=0o700)
             (work/(role+'-data')).mkdir(mode=0o700)
         (work/'wal').mkdir()
@@ -120,13 +120,23 @@ def run(profile):
             config='[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile=='reference' else '/wal')+'"\n'+cold.config()
             (work/'ursula.toml').write_text(config);(work/'ursula.toml').chmod(0o600)
             public=json.loads(subprocess.check_output([proof,'public']))
-            write('operator/node.json',dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url='http://ursula:8080',bucket='work-items',journal='authority',listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000))
+            node_config = dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),local_directory='/authority',listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000)
+            write('operator/node.json', node_config)
             storage=owned.start('ursula');ready(storage,owned.url('ursula')+'/__ursula/ready')
             owned.initialize()
             authority=owned.start('node');url=owned.url('node');ready(authority,url+'/health')
             denied=[owned.address('ursula','storage')+':8080',owned.cold_address+':'+str(owned.cold_port),'1.1.1.1:443']
             assert owned.invoke('caller-probe','probe',owned.authority,*denied)==dict(authority='reachable',denied=3)
             invoke('setup')
+            owned.stop_for_recovery('node', authority)
+            table = json.loads((work/'data-catalog.json').read_text())
+            table['registrar']['seed_file'] = '/operator/registrar.seed'
+            registrar = work/'operator/registrar.seed'
+            registrar.write_bytes((work/'registrar.seed').read_bytes()); registrar.chmod(0o600)
+            node_config['table'] = table
+            write('operator/node.json', node_config)
+            authority=owned.start('node');url=owned.url('node');ready(authority,url+'/health')
+            invoke('initialize-data')
             workers={role:activate(role) for role in ('requester','data','publication')}
             courier=delivery();invoke('seed')
             gateway=start_gateway()
@@ -145,7 +155,8 @@ def run(profile):
                     time.sleep(.2)
             phase('migrate')
             # Stop all actual owners before storage recovery. Fresh registrations
-            # must regrant the foreign requester resource as well as ownership.
+            # preserve native role membership and foreign-resource grants while
+            # advancing the same principal's key and ownership generation.
             for worker in workers.values():
                 if profile=='reference':owned.stop_host(worker)
                 else:worker.kill();worker.wait(timeout=10)
@@ -160,7 +171,7 @@ def run(profile):
             gateway=start_gateway();marker.write_text('migrated')
             phase('deny');invoke('deny');marker.write_text('denied')
             assert browser.wait(timeout=180)==0
-            print(f'Generated work items {profile}: actual owners/browser, private ingress, original query recovery across worker/node/store/gateway replacement, schema publication and current denial passed in {time.monotonic()-started:.2f}s including {built:.2f}s image work; {cold.file_bytes()} retained cold bytes.',flush=True)
+            print(f'Generated work items {profile}: actual owners/browser, private ingress, native/direct Table disk recovery across worker/node/gateway replacement, original query recovery, schema publication and current denial passed in {time.monotonic()-started:.2f}s including {built:.2f}s image work.',flush=True)
         except BaseException:
             if owned:
                 print(owned.call('ps'),file=sys.stderr)
