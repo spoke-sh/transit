@@ -150,6 +150,9 @@ reference, not permission to disclose its contents.
 ## Console commands
 
 The interactive console submits a statement on Enter after its semicolon.
+Before that semicolon, Enter continues on a new display row aligned with the
+SQL after `transit> `. Multiline drafts, including pasted and recalled SQL,
+retain their line breaks; long lines wrap within the terminal width.
 `-c` accepts one statement without a final semicolon; `-f` and stdin stream a
 script and accept a complete final statement at EOF. Batch execution stops on
 the first error. Dot commands start an empty draft and end at newline; slash

@@ -1,5 +1,23 @@
 # Validation and evidence
 
+## Console multiline editing — 2026-10-23
+
+`just test::console-history` passes in the pinned Nix shell. The real PTY
+multiline fixture interprets cursor movement, erasure and scrolling and checks
+aligned continuation rows, blank lines, cross-line cursor movement/deletion,
+bracketed paste, history recall/search, explicit submission, wrapped lines,
+width/height changes, escaped Unicode and drafts taller than the screen.
+Submission retains one aligned transcript; cancelling or shortening the draft
+removes its old display rows. An independent session peer observes the exact
+multiline SQL and verifies that editing does not submit it. This establishes
+terminal/client behavior, not SQL execution or durability.
+
+The same task passes the existing history, external editor, signal, help and
+statement-outcome schedules. The diagnostic inventory records only the renderer's
+additional helper boundaries and propagation counts; public errors are unchanged.
+`just check` passes, including native units, CLI and terminal checks, generated
+contracts, frontend checks and the documentation production build.
+
 ## Frontend dependency installation during builds — 2026-10-23
 
 In the pinned Nix development shell, `just build release-safe` passes starting

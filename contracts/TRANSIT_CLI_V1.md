@@ -249,6 +249,10 @@ are mutually exclusive and do not read stdin. Batch execution stops on the first
 error. Dot commands start an empty input statement; slash commands are rejected.
 TTY editing supports movement, deletion, Up/Down recall, Ctrl-R reverse substring
 history search, completion accept/dismiss/undo, resize and Ctrl-C draft clearing.
+Draft newlines render as separate rows with continuation text aligned after the
+primary prompt. Long lines wrap within the display width, and a bounded viewport
+keeps the cursor visible when a draft exceeds the terminal height. Clearing or
+submitting a draft removes its entire editable display before further output.
 Submitted SQL and dot commands retain the draft's token colors in scrollback.
 SQL keywords, aggregate functions and types are cyan; table/column names,
 qualifiers and aliases use the default foreground, including quoted identifiers

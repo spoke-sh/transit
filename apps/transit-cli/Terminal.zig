@@ -9,6 +9,8 @@ const ExternalEditor = @import("ExternalEditor.zig");
 const Style = @import("Style.zig");
 const input = q.fuze.SqlInput;
 const max_bytes = q.fuze.Sql.max_statement_bytes;
+const prompt = "transit> ";
+const continuation_prompt = "    ...> ";
 pub fn run(console: *Console.Console) !void {
     var original: std.c.termios = undefined;
     if (std.c.tcgetattr(0, &original) != 0) return error.TerminalSetupFailed;
@@ -39,6 +41,7 @@ pub fn run(console: *Console.Console) !void {
     try Output.write(console.init, &output.interface, "");
     defer {
         Signals.clear(); // Restore display modes even after the handled signal.
+        editor.clearDisplay() catch {};
         output.interface.writeAll(console.diagnostic.style.code(.plain)) catch {};
         Output.write(console.init, &output.interface, "\x1b[?2004l\r\x1b[2K\n") catch {};
     }
@@ -70,6 +73,8 @@ const Editor = struct {
     expires: i64 = 0,
     pasting: bool = false,
     columns: usize = 80,
+    rows: usize = 24,
+    display_cursor_row: usize = 0,
     fn text(self: *Editor) []const u8 {
         return self.bytes[0..self.length];
     }
@@ -120,6 +125,7 @@ const Editor = struct {
     fn historyFailure(self: *Editor, err: anyerror) !void {
         self.history.close();
         self.history_position = null;
+        try self.clearDisplay();
         try self.out.print("\r\x1b[2Kwarning: history file unavailable ({s}); using session history only.\n", .{@errorName(err)});
     }
     fn saveDraft(self: *Editor) void {
@@ -338,9 +344,10 @@ const Editor = struct {
         var storage: [max_bytes * 20 + 64]u8 = undefined;
         var transcript: std.Io.Writer = .fixed(&storage);
         const style = self.console.diagnostic.style;
+        try self.clearDisplay();
         try transcript.writeAll("\r\x1b[2K");
         try transcript.writeAll(style.code(.plain));
-        try transcript.writeAll("transit> ");
+        try transcript.writeAll(prompt);
         var syntax = Style.Syntax.init(statement);
         var active: Style.Color = .plain;
         var offset: usize = 0;
@@ -349,7 +356,8 @@ const Editor = struct {
             const length = try std.unicode.utf8ByteSequenceLength(statement[offset]);
             if (statement[offset] == '\n') {
                 try transcript.writeAll(style.code(.plain));
-                try transcript.writeAll("\n   ...> ");
+                try transcript.writeByte('\n');
+                try transcript.writeAll(continuation_prompt);
                 active = .plain;
             } else {
                 const color = syntax.at(offset);
@@ -375,7 +383,8 @@ const Editor = struct {
             };
             if (event == .timeout) {
                 try self.console.keepalive();
-                if ((self.assistance != null and self.now() >= self.expires) or self.width() != self.columns) {
+                const size = dimensions();
+                if ((self.assistance != null and self.now() >= self.expires) or size.columns != self.columns or size.rows != self.rows) {
                     self.dismiss();
                     try self.draw();
                 }
@@ -395,7 +404,7 @@ const Editor = struct {
                 }
                 if (err == error.ConsoleInterrupted or err == error.InteractiveQueryCancelled or err == error.ConsoleOutputTimeout or err == error.WriteFailed) return err;
                 self.dismiss();
-                try self.out.writeAll("\r\x1b[2K");
+                try self.clearDisplay();
                 try self.console.diagnostic.style.text(self.out, .failure, "error:");
                 try self.out.writeByte(' ');
                 try self.console.diagnostic.style.text(self.out, .failure, ExternalEditor.message(err) orelse @errorName(err));
@@ -531,55 +540,111 @@ const Editor = struct {
             if (self.cursor < self.length) self.remove(self.cursor, self.cursor + (try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor])));
         } else self.dismiss();
     }
-    fn width(_: *Editor) usize {
+    fn dimensions() struct { columns: usize, rows: usize } {
         var size: std.c.winsize = .{ .row = 0, .col = 0, .xpixel = 0, .ypixel = 0 };
-        if (std.os.linux.ioctl(2, std.os.linux.T.IOCGWINSZ, @intFromPtr(&size)) != 0 or size.col == 0) return 80;
-        return @max(8, @min(160, size.col));
+        if (std.os.linux.ioctl(2, std.os.linux.T.IOCGWINSZ, @intFromPtr(&size)) != 0) return .{ .columns = 80, .rows = 24 };
+        return .{ .columns = if (size.col == 0) 80 else @max(8, @min(160, size.col)), .rows = if (size.row == 0) 24 else size.row };
+    }
+    fn clearDisplay(self: *Editor) !void {
+        try self.out.writeByte('\r');
+        if (self.display_cursor_row > 0) try self.out.print("\x1b[{d}A", .{self.display_cursor_row});
+        try self.out.writeAll("\x1b[J");
+        self.display_cursor_row = 0;
     }
     fn draw(self: *Editor) !void {
-        self.columns = self.width();
-        try self.out.writeAll("\r\x1b[2K");
-        if (self.searching) return self.drawSearch();
+        const size = dimensions();
+        self.columns = size.columns;
+        self.rows = size.rows;
+        try self.clearDisplay();
+        // A tall draft must not flush stderr outside the output deadline.
+        var storage: [2048]u8 = undefined;
+        var frame = Output.Stream.init(self.console.init.io, self.out, &storage);
+        const result = if (self.searching) self.drawSearch(&frame.interface) else self.drawDraft(&frame.interface);
+        result catch |err| return frame.failure orelse err;
+        try frame.flush();
+    }
+    fn drawDraft(self: *Editor, out: *std.Io.Writer) !void {
         var prefix_buffer: [160]u8 = undefined;
-        const prefix = if (self.assistance) |assistance| if (assistance.items.len == 0) "[no completion] > " else try std.fmt.bufPrint(&prefix_buffer, "[{d}/{d} {s}] > ", .{ self.selected + 1, assistance.items.len, assistance.items[self.selected].text }) else if (std.mem.indexOfScalar(u8, self.text(), '\n') != null) "   ...> " else "transit> ";
+        const prefix = if (self.assistance) |assistance| if (assistance.items.len == 0) "[no completion] > " else try std.fmt.bufPrint(&prefix_buffer, "[{d}/{d} {s}] > ", .{ self.selected + 1, assistance.items.len, assistance.items[self.selected].text }) else prompt;
         const prefix_length = @min(prefix.len, self.columns / 2);
-        // Suggestions are grammar/catalog identifiers; still escape any control.
-        for (prefix[0..prefix_length]) |byte| try self.out.writeByte(if (byte >= 32 and byte < 127) byte else '?');
+        // Explicit row breaks avoid terminal autowrap and leave a cursor cell
+        // at the right edge. Layout is bounded by the existing statement limit.
         const available = self.columns - prefix_length - 1;
-        var start = self.cursor;
-        var left_width: usize = 0;
-        var buffer: [16]u8 = undefined;
-        while (start > 0) {
-            const before = previous(self.text(), start);
-            const visible = try printable(self.bytes[before..start], &buffer);
-            if (left_width + visible.len > available / 2) break;
-            left_width += visible.len;
-            start = before;
-        }
+        var lines: [max_bytes + 1]struct { start: usize, end: usize } = undefined;
+        var count: usize = 0;
+        var start: usize = 0;
         var used: usize = 0;
-        var i = start;
+        var offset: usize = 0;
+        var cursor_row: usize = 0;
+        var cursor_column: usize = 0;
+        var buffer: [16]u8 = undefined;
+        while (offset < self.length) {
+            const length = try std.unicode.utf8ByteSequenceLength(self.bytes[offset]);
+            const newline = self.bytes[offset] == '\n';
+            const visible = try displayCharacter(self.bytes[offset..][0..length], &buffer, available);
+            if (!newline and used + visible.len > available) {
+                lines[count] = .{ .start = start, .end = offset };
+                count += 1;
+                start = offset;
+                used = 0;
+            }
+            if (offset == self.cursor) {
+                cursor_row = count;
+                cursor_column = used;
+            }
+            if (newline) {
+                lines[count] = .{ .start = start, .end = offset };
+                count += 1;
+                start = offset + length;
+                used = 0;
+            } else used += visible.len;
+            offset += length;
+        }
+        lines[count] = .{ .start = start, .end = self.length };
+        if (self.cursor == self.length) {
+            cursor_row = count;
+            cursor_column = used;
+        }
+        count += 1;
+        // Keep the cursor visible even when the draft exceeds the screen.
+        // One spare terminal row lets redraws scroll without losing the origin.
+        const visible_rows = @min(count, @max(1, self.rows -| 1));
+        const first = @min(cursor_row -| (visible_rows / 2), count - visible_rows);
         var syntax = Style.Syntax.init(self.text());
         var active: Style.Color = .plain;
         const style = self.console.diagnostic.style;
-        while (i < self.length) {
-            const length = try std.unicode.utf8ByteSequenceLength(self.bytes[i]);
-            const visible = try printable(self.bytes[i..][0..length], &buffer);
-            if (used + visible.len > available) break;
-            const color = syntax.at(i);
-            if (color != active) try self.out.writeAll(style.code(color));
-            active = color;
-            try self.out.writeAll(visible);
-            i += length;
-            used += visible.len;
+        for (lines[first..][0..visible_rows], first..) |line, row| {
+            if (row > first) try out.writeAll("\r\n");
+            try out.writeAll(style.code(.plain));
+            active = .plain;
+            if (row == 0) {
+                // Suggestions are grammar/catalog identifiers; still escape controls.
+                for (prefix[0..prefix_length]) |byte| try out.writeByte(if (byte >= 32 and byte < 127) byte else '?');
+            } else {
+                const continuation = continuation_prompt;
+                if (prefix_length > continuation.len) try out.splatByteAll(' ', prefix_length - continuation.len);
+                try out.writeAll(continuation[continuation.len - @min(prefix_length, continuation.len) ..]);
+            }
+            offset = line.start;
+            while (offset < line.end) {
+                const length = try std.unicode.utf8ByteSequenceLength(self.bytes[offset]);
+                const color = syntax.at(offset);
+                if (color != active) try out.writeAll(style.code(color));
+                active = color;
+                try out.writeAll(try displayCharacter(self.bytes[offset..][0..length], &buffer, available));
+                offset += length;
+            }
         }
-        try self.out.writeAll(style.code(.plain));
-        try self.out.print("\r\x1b[{d}C", .{prefix_length + left_width});
-        try Output.write(self.console.init, self.out, "");
+        try out.writeAll(style.code(.plain));
+        self.display_cursor_row = cursor_row - first;
+        const up = visible_rows - 1 - self.display_cursor_row;
+        if (up > 0) try out.print("\x1b[{d}A", .{up});
+        try out.print("\r\x1b[{d}C", .{prefix_length + cursor_column});
     }
-    fn drawSearch(self: *Editor) !void {
+    fn drawSearch(self: *Editor, out: *std.Io.Writer) !void {
         const label = if (self.columns < 24) "/" else "search ";
-        try self.out.writeAll(self.console.diagnostic.style.code(.plain));
-        try self.out.writeAll(label);
+        try out.writeAll(self.console.diagnostic.style.code(.plain));
+        try out.writeAll(label);
         var used: usize = label.len;
         var buffer: [16]u8 = undefined;
         var offset: usize = 0;
@@ -597,12 +662,12 @@ const Editor = struct {
         offset = query_start;
         while (offset < query.len) {
             const size = try std.unicode.utf8ByteSequenceLength(query[offset]);
-            try self.out.writeAll(try printable(query[offset..][0..size], &buffer));
+            try out.writeAll(try printable(query[offset..][0..size], &buffer));
             offset += size;
         }
         used += query_width;
         const caret = used;
-        try self.out.writeAll(" > ");
+        try out.writeAll(" > ");
         used += 3;
         const result = if (self.search_failed) "(no match)" else if (self.history_position == null) "(type to search)" else self.text();
         offset = 0;
@@ -610,12 +675,11 @@ const Editor = struct {
             const size = try std.unicode.utf8ByteSequenceLength(result[offset]);
             const visible = try printable(result[offset..][0..size], &buffer);
             if (used + visible.len >= self.columns) break;
-            try self.out.writeAll(visible);
+            try out.writeAll(visible);
             used += visible.len;
             offset += size;
         }
-        try self.out.print("\r\x1b[{d}C", .{caret});
-        try Output.write(self.console.init, self.out, "");
+        try out.print("\r\x1b[{d}C", .{caret});
     }
 };
 fn previous(text: []const u8, offset: usize) usize {
@@ -633,4 +697,10 @@ fn printable(bytes: []const u8, buffer: []u8) ![]const u8 {
         else => std.fmt.bufPrint(buffer, "\\x{x:0>2}", .{bytes[0]}),
     };
     return std.fmt.bufPrint(buffer, "\\u{{{x}}}", .{try std.unicode.utf8Decode(bytes)});
+}
+fn displayCharacter(bytes: []const u8, buffer: []u8, available: usize) ![]const u8 {
+    const visible = try printable(bytes, buffer);
+    // Very narrow terminals may not fit one escaped Unicode scalar. Preserve
+    // its input bytes and cursor boundary while displaying a single safe cell.
+    return if (visible.len > available) "?" else visible;
 }

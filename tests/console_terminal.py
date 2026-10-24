@@ -36,8 +36,13 @@ class Terminal(Shell):
         self.screen = b''
         self.expect('transit> ')
 
-    def resize(self, width):
-        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, width, 0, 0))
+    def resize(self, width, height=24):
+        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', height, width, 0, 0))
+
+    def record_display(self, block):
+        self.screen += block
+        if getattr(self, 'display', None) is not None:
+            self.display.feed(block)
 
     def send(self, value):
         self.screen = b''
@@ -50,7 +55,7 @@ class Terminal(Shell):
             assert self.process.poll() is None, ('terminal exited', self.process.returncode, self.screen)
             assert time.monotonic() < until, (text, ANSI.sub(b'', self.screen)[-4000:])
             if select.select([self.master], [], [], .1)[0]:
-                self.screen += os.read(self.master, 65536)
+                self.record_display(os.read(self.master, 65536))
             assert len(self.screen) <= 1048576, 'terminal rendering bound'
 
     def call(self, text):
@@ -67,7 +72,7 @@ class Terminal(Shell):
             for source in select.select([self.process.stdout, self.master], [], [], .1)[0]:
                 block = os.read(source if isinstance(source, int) else source.fileno(), 65536)
                 assert block, ('terminal exited', self.process.poll(), self.screen[-1000:])
-                if source == self.master: self.screen += block
+                if source == self.master: self.record_display(block)
                 else: self.buffer += block
             assert len(self.buffer) <= 1048576 and len(self.screen) <= 1048576
         line, self.buffer = self.buffer.split(b'\n', 1)
@@ -88,7 +93,7 @@ class Terminal(Shell):
             # recurs. Do not turn an unexpected exit or timeout into a pass.
             if select.select([self.master], [], [], 0)[0]:
                 try:
-                    self.screen += os.read(self.master, 65536)
+                    self.record_display(os.read(self.master, 65536))
                 except OSError:
                     pass  # A closed PTY may report EIO after child exit.
             error.add_note(f'Terminal close: exit={self.process.poll()}, display={ANSI.sub(b"", self.screen)[-1000:]!r}')

@@ -869,8 +869,10 @@
         "Editor.accept()": "<inferred>",
         "Editor.beginSearch()": "<inferred>",
         "Editor.character()": "<inferred>",
+        "Editor.clearDisplay()": "<inferred>",
         "Editor.complete()": "<inferred>",
         "Editor.draw()": "<inferred>",
+        "Editor.drawDraft()": "<inferred>",
         "Editor.drawSearch()": "<inferred>",
         "Editor.echo()": "<inferred>",
         "Editor.editExternal()": "<inferred>",
@@ -882,13 +884,14 @@
         "Editor.recall()": "<inferred>",
         "Editor.searchHistory()": "<inferred>",
         "Editor.submit()": "<inferred>",
+        "displayCharacter()": "<inferred>",
         "printable()": "<inferred>",
         "run()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 80,
-        "catch": 13
+        "try": 92,
+        "catch": 15
       },
       "imports": [
         "Console.zig",

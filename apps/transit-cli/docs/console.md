@@ -235,9 +235,19 @@ text preferences even in JSON mode.
 ## Terminal editing and history
 
 The editor supports cursor movement, Home/End, deletion, Ctrl-U, undo, multiline
-input and bracketed paste. Ctrl-C clears an unsubmitted draft. Up/Down recalls
-commands. Ctrl-R searches history; Enter accepts a match for editing and does
-not execute it. Completion requests authorized metadata from the service;
+input and bracketed paste. Enter before a statement's terminating semicolon adds
+a real display line. Continuation rows align with the SQL after the first prompt:
+
+```text
+transit> SELECT *
+    ...> FROM items;
+```
+
+Long lines wrap within the terminal width. Drafts taller than the terminal show
+a window around the cursor; moving the cursor reveals the other rows. Paste and
+history recall retain their line breaks. Ctrl-C clears an unsubmitted draft.
+Up/Down recalls commands. Ctrl-R searches history; Enter accepts a match for
+editing and does not execute it. Completion requests authorized metadata from the service;
 acceptance checks that the draft and source basis still match. Typing, history
 search and completion do not submit SQL or apply administrative changes.
 
