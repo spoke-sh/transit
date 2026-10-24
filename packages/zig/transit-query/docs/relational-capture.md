@@ -78,6 +78,19 @@ coverage, canonical ordering, output digest chain, encoded byte counts and
 checkpoint result counts. An earlier row is a provisional prefix. `close`
 releases the reader's lease; it does not cancel the durable job.
 
+Before exhaustion, `freshness` compares the manifest's actual retained cuts with
+read-only current Table observations under the result reader's caller identity.
+Each entry reports its exact interpretation, captured position and observed
+logical-change watermark. Later logical row changes report `stale`; pin,
+admission, flush and accepted no-op bookkeeping alone do not. ALTER, DROP or
+name replacement reports `definition_changed` after current source authorization.
+Denied or unavailable observations return their error without a partial vector.
+Same-Table aliases share one observation. Different Tables are sampled
+independently; `fresh` describes coverage of that observation vector, not an atomic
+catalog snapshot or a promise about later writes. This method starts no query,
+acquires no Table pin and does not verify output coverage. Continue to terminal
+`next` before treating the result as completely delivered.
+
 Authenticate cancellation and retirement in the application's public handler,
 then call `RelationalCapture.close`. Cancellation closes active work; retirement
 closes a complete result. Failed/denied outcomes retain the original diagnostic

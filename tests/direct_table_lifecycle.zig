@@ -339,6 +339,7 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
     // Current observation cannot masquerade as a retained read after DROP and
     // name reuse. The original durable snapshots below remain independently valid.
     try t.expectError(error.Conflict, client.call(.{ .observe = .{ .namespace = 1, .interpretation = state.renamed.resulting.interpretation, .rows = null } }));
+    try t.expectEqual(p.ErrorCode.TableDefinitionChanged, client.service.last_rejection.?);
     const authority = try client.call(.{ .read_authority = state.original.object });
     defer authority.deinit();
     try t.expectError(error.AccessDenied, state.prepared.require(client, .read));

@@ -214,8 +214,13 @@ Named captured definitions now have a
 [direct-service execution proof](../../tests/README.md#named-captured-definitions-over-the-direct-service--2026-10-23)
 for self-joins and independent Tables. Publication, authorization and activation
 remain separate; original named attribution survives worker replacement and a
-later definition publication. This does not close computation freshness, named
-maintenance recovery or the older generic catalog's unverified completion path.
+later definition publication. The
+[result freshness and attribution proof](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23)
+now binds named captured inspection to an actual retained result and compares
+captured/maintained cuts with logical source progress. It distinguishes no-ops,
+row changes, definition drift and observation errors without starting execution
+or certifying unread output. Named maintenance recovery, dependency registration
+and replacement of the generic catalog's unverified completion path remain open.
 
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource

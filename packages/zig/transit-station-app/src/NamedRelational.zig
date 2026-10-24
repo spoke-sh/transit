@@ -185,6 +185,35 @@ pub fn attribution(self: Self, source: anytype, peer: u64, policy_revision: u64)
     if (definition_value.peer != peer or definition_value.request.resource != archive.policy.requests or !std.mem.eql(u8, &definition_value.fingerprint, &archive.policy.request)) return error.InvalidNamedQuery;
     return reference;
 }
+/// Resolve the definition of an actual captured result at its retained native
+/// cut. Later name publication cannot relabel it. This consumes only the reader's
+/// metadata budget; output coverage still requires its checked terminal next().
+pub fn capturedDefinition(self: Self, result: *q.RelationalResult) !r.Definition {
+    try self.configuration.validate();
+    try result.check();
+    const scope = self.configuration.scope;
+    if (scope.realm != result.source.client.realm or scope.owner != result.stored.request_version.pid or scope.resource != result.source.view.resource) return error.NamedQueryChanged;
+    var metadata: ResultMetadata = .{ .result = result, .view = result.source.view };
+    const reference = try self.attribution(&metadata, result.stored.destination, result.stored.policy_revision);
+    const found = try self.definition(&metadata, reference);
+    if (found.lifetime != .captured or !std.meta.eql(found.request, result.stored.request) or
+        !std.mem.eql(u8, &found.fingerprint, &try result.bundle.fingerprint())) return error.NamedQueryChanged;
+    try result.check();
+    return found;
+}
+const ResultMetadata = struct {
+    result: *q.RelationalResult,
+    view: @FieldType(s.client.SnapshotReader, "view"),
+    pub fn read(self: *ResultMetadata, key: p.Value) !?p.Value {
+        if (self.result.requests >= self.result.request_limit) return error.QueryPageBudget;
+        self.result.requests += 1;
+        var request: p.Growth.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.result.source.snapshot.id } };
+        request.points[0] = key;
+        const response = try self.result.source.batch(request);
+        try p.Growth.SnapshotRead.validateResult(response, request);
+        return if (response.points[0]) |entry| entry.value else null;
+    }
+};
 pub fn activate(self: Self, turn: *s.Turn, activation: r.Activation, clients: []const q.catalog.DirectTableClient, workspace: []u8) !Started {
     const before = turn.decision;
     errdefer turn.decision = before;

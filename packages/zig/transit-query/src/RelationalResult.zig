@@ -156,6 +156,22 @@ pub fn schema(self: *Self, fields: []f.Types.Field) !f.Types.Type {
     try self.authorize(false);
     return self.bundle.plan.outputSchema(fields);
 }
+/// Recheck current disclosure rights without consuming output. Composed readers
+/// use this around their own bounded metadata reads at this retained snapshot.
+pub fn check(self: *Self) !void {
+    if (self.failed or self.complete or self.source.closed) return error.QueryClosed;
+    try self.authorize(false);
+}
+/// Compare the manifest's retained cuts with current logical Table progress.
+/// This schedules no execution and does not verify an unfinished result prefix.
+/// Call before exhaustion; next()'s terminal check establishes full coverage.
+pub fn freshness(self: *Self, clients: []const c.DirectTableClient) !q.RelationalFreshness {
+    if (self.failed or self.complete) return error.QueryClosed;
+    try self.authorize(false);
+    const result = try q.RelationalFreshness.captured(self.bundle, self.vector, clients, self.disclosure);
+    try self.authorize(false);
+    return result;
+}
 /// One owned scalar row. A failed/unfinished prefix remains incomplete until
 /// the final null has checked counts, digest chain, canonical bytes and rights.
 pub fn next(self: *Self) !?f.RelationalExecution.Output {

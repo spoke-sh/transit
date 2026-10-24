@@ -109,6 +109,15 @@ relation only after complete coverage and saves its position atomically with
 that installation. A partial transaction, unavailable predecessor or incompatible
 schema cannot silently become a newer snapshot.
 
+`NamedRelational.capturedDefinition` resolves an opened captured result's exact
+named definition through its original peer/policy archive at the same retained
+native snapshot. It verifies scope, immutable request, lifetime and bundle
+fingerprint, charging each metadata read to the result's request budget. Current
+result and source disclosure rights are checked before and after inspection.
+Later name revisions cannot relabel this result. Inspection consumes no output;
+the result's `freshness` comparison and checked terminal output coverage remain
+distinct. Closed or exhausted readers reject this inspection.
+
 The last complete maintained revision stays distinct from a failed successor,
 pending input and the current definition draft. Explicit policy changes may deny
 access to earlier results; an archived authorization is not a permission cache.

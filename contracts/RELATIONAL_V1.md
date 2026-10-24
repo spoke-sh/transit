@@ -446,6 +446,22 @@ it does not cancel the durable job or retire the result. Replay of its terminal
 iterator state returns no further data; a new result read opens and authenticates
 a fresh snapshot.
 
+`RelationalResult.freshness` and `RelationalRevision.freshness` perform bounded
+read-only source observations while their result reader remains open and has not
+reached terminal exhaustion. They bind to the manifest's actual source vector,
+use the disclosure caller's direct Table routes, and recheck combined result and
+source rights before returning. For an unchanged exact interpretation, logical
+change LSN at or below the result's captured frontier reports `fresh`; a later
+logical change reports `stale`. A mismatching partition, regressed frontier or
+invalid logical watermark rejects. Authorized definition/retirement changes
+report `definition_changed`; denied or unavailable observations propagate their
+error without returning a partial vector. Each entry retains the original
+interpretation/cut and, when available, observed acceptance, logical watermark
+and policy revision. Same-Table aliases share an observation. Independent Tables
+do not acquire a common atomic cut. Freshness refers to this sampled vector;
+later writes may change it. These methods neither activate work nor establish
+output coverage; the reader's checked terminal outcome remains required.
+
 The generic single-source `UnifiedClient` protocol, existing foreign-language
 ports, console and Flight routes have their own admitted profiles; the captured
 owner operations above do not implicitly enable those transports for relational

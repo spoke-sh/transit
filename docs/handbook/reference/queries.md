@@ -281,6 +281,15 @@ chunks in bounded turns while preserving control evidence. The
 [captured owner guide](../../../packages/zig/transit-query/docs/relational-capture.md)
 defines the host's exact-retry and authorization responsibilities.
 
+Before exhausting a captured result or maintained revision, its typed reader's
+`freshness` operation compares the original retained source vector with current
+authorized Table observations. Logical row changes make the result stale even
+when the schema is unchanged; no-op writes and physical storage work alone do
+not. A changed interpretation is reported separately, while denied or unavailable
+reads return an error. Different Tables are observed independently. Inspection
+starts no computation and does not establish complete output coverage: that
+still requires the result reader's checked terminal outcome.
+
 The Station query ABI and port expose explicit catalog configuration, explanation,
 repeatable one-row pages and close through the shared
 [interactive caller](../../../packages/zig/transit-query/docs/relational-callers.md).

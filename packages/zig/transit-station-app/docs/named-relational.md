@@ -50,6 +50,16 @@ Independent Table cuts do not form a catalog-wide atomic snapshot. A published
 definition or a completed captured result alone does not establish freshness
 against later row changes.
 
+For an opened captured `RelationalResult`, `capturedDefinition` reads the original
+authorization archive and exact definition at that reader's retained native cut.
+It checks the computation scope, request reference, lifetime and bundle
+fingerprint, and rechecks current result/source rights before returning. Its
+bounded metadata reads use the result's request budget and consume no output.
+Use the reader's `freshness` method to compare the actual source cuts with current
+logical row progress; read through terminal `next` to verify complete output.
+The definition, source freshness and complete delivery are separate observations.
+These methods start no work and reject closed or exhausted result readers.
+
 Publication retries return the original revision and pin without another quota
 charge. Authorization retries return the original binding without reinstalling
 an older policy. A conflicting expected revision or changed accepted proposal

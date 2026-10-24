@@ -71,6 +71,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
         proxy = None
         thread = None
         faults = {"pin": False, "release": False, "cleanup_release": False}
+        freshness_faults = {1062: 0, 1063: 0}
         history_gap = False
 
         class Proxy(BaseHTTPRequestHandler):
@@ -91,6 +92,14 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     response = connection.getresponse()
                     data = response.read()
                     status = response.status
+                    if self.path == "/table/v1" and "observe" in envelope["action"]:
+                        object_id = envelope["action"]["observe"]["interpretation"]["object"]["object"]
+                        fault = freshness_faults.get(object_id, 2)
+                        if fault < 2:
+                            assert status == 200, data
+                            status, rejection = (409, "Conflict") if fault == 0 else (503, "AuthorityUnavailable")
+                            data = json.dumps({"err": rejection}).encode()
+                            freshness_faults[object_id] += 1
                     if self.path == "/table/v1" and "history" in envelope["action"] and envelope["action"]["history"]["snapshot"]["object"]["object"] == 84 and not history_gap:
                         # Permanent retained-coverage rejection at the service
                         # boundary. This is not a disk-corruption experiment.
@@ -158,6 +167,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             if named_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
                 subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=600)
+                assert all(value == 2 for value in freshness_faults.values()), freshness_faults
                 print("Direct named queries: publication without execution, explicit authorization/activation, original attribution across worker replacement, verified independent Table cuts and current disclosure denial passed.", flush=True)
                 return
             if follow_only:

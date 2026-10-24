@@ -129,6 +129,18 @@ pub fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, state
     try t.expect(try reader.next() == null);
     return reader.checkpoint();
 }
+fn freshness(client: c.DirectTableClient, bundle: q.RelationalBundle, state: State, revision: u64, expected: bool) !void {
+    const before = try observed(client, state);
+    const options: q.RelationalRevision.Options = .{ .owner = state.worker.pid, .resource = state.worker.resource, .identity = state.identity, .revision = revision, .requests = 4000 };
+    const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
+    var reader = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(150 + revision)));
+    defer reader.close() catch {};
+    const result = try reader.freshness(&.{ client, client });
+    try t.expectEqual(expected, result.fresh());
+    // Inspecting source progress cannot verify unread output or wake maintenance.
+    try t.expectError(error.IncompleteResult, reader.checkpoint());
+    try t.expectEqualDeep(before, try observed(client, state));
+}
 pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anytype, state: State, backfill: bool) !void {
     const alloc = init.arena.allocator();
     const bytes = try state.bundle.decode(alloc, q.RelationalBundle.max_bytes);
@@ -158,6 +170,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
         } else return error.MaintainedQueryPending;
         try t.expect(changed);
         _ = try readResult(client, bundle, state, 1, 2);
+        try freshness(client, bundle, state, 1, false);
         try support.send(client, state.worker.pid, try .init("wake"));
         for (0..100) |_| {
             try step(init, &running, &behavior, admin);
@@ -210,6 +223,8 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
         previous_count = expected;
     }
     try t.expectEqual(@as(u128, 1), previous_count);
+    try freshness(client, bundle, state, 1, false);
+    try freshness(client, bundle, state, 3, true);
     const before_idle = try observed(client, state);
     try support.send(client, state.worker.pid, try .init("wake"));
     for (0..100) |_| {

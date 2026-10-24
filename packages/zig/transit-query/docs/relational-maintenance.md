@@ -111,6 +111,15 @@ current query policy and the reading caller's rights to every source, including
 empty or noncontributing sources. Close the reader on success or failure to release its
 lease. Closing a reader does not stop maintenance.
 
+Before exhaustion, `freshness` compares this exact revision's source vector with
+authorized current Table observations. A later logical row change makes the
+entry stale even when its schema is unchanged. Physical bookkeeping and accepted
+no-ops do not require a different result. Changed/retired interpretations are
+reported separately; denied and unavailable reads propagate without a partial
+vector. Observations of different Tables remain independent. This read neither
+wakes maintenance nor advances its input or consumer checkpoint. Output and
+delta coverage still require terminal `next`.
+
 An authorized recovery caller can read an already complete revision after the
 original caller loses permission or rotates its key. This does not authorize
 another maintenance step: execution continues to use the accepted original
