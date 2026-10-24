@@ -122,11 +122,18 @@ pub fn allocationPlan(client: c.DirectTableClient, state: State, index: usize) !
     }
 }
 pub fn allocate(client: c.DirectTableClient, admin: anytype, state: State, index: usize) !void {
-    const resources: HostClient = .{ .catalog = client, .state = &state };
+    var attempt: c.DirectTableClient.Attempt = .{};
+    var observed = client;
+    observed.attempt = &attempt;
+    const resources: HostClient = .{ .catalog = observed, .state = &state };
     const binding = state.bindings[index];
     const prepared = (try resources.operation(binding, .inspect, 1)).operation;
     try t.expectEqual(.prepared, prepared.phase);
+    try t.expect(attempt.mutation == null);
     try t.expectError(error.AccessDenied, resources.operation(binding, .execute, 64));
+    const diagnostic = (try attempt.failure(error.AccessDenied, client.service.last_rejection)).?;
+    try t.expectEqual(.unknown, diagnostic.outcome);
+    try t.expectEqual(binding.operation, try diagnostic.identity.?.id.value());
     // Allocation is already accepted, but it grants no data access. Recover
     // the original caller's native receipt before granting explicit rights.
     const request = try binding.allocation(prepared.allocation.?);

@@ -95,7 +95,13 @@ fn operationHost(client: c.DirectTableClient, binding: host.Binding, command: de
 
 pub fn uncertain(client: c.DirectTableClient, binding: host.Binding) !void {
     // The independent HTTP proxy corrupts the accepted reply's context digest.
-    try t.expectError(error.InvalidTableResponse, operationHost(client, binding, .accept));
+    var attempt: c.DirectTableClient.Attempt = .{};
+    var observed = client;
+    observed.attempt = &attempt;
+    try t.expectError(error.InvalidTableResponse, operationHost(observed, binding, .accept));
+    const diagnostic = (try attempt.failure(error.InvalidTableResponse, client.service.last_rejection)).?;
+    try t.expectEqual(.unknown, diagnostic.outcome);
+    try t.expectEqual((try binding.native()).operation, try diagnostic.identity.?.id.value());
 }
 
 fn page(client: c.DirectTableClient, selection: dep.Selection) !dep.Page {

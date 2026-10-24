@@ -3948,12 +3948,15 @@
     },
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {
+        "AccessDenied": 1,
+        "CatalogDenied": 1,
         "InvalidTableDelegation": 3,
         "InvalidTableResponse": 7
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Attempt.failure()": "<inferred>",
         "call()": "<inferred>",
         "closeOriginal()": "<inferred>",
         "closeOriginalHistory()": "<inferred>",
@@ -3961,9 +3964,9 @@
         "require()": "<inferred>",
         "signed()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 21,
+        "try": 28,
         "catch": 0
       },
       "imports": [

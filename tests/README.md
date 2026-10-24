@@ -1,5 +1,22 @@
 # Validation and evidence
 
+## Direct caller mutation-attempt evidence — 2026-10-24
+
+The focused `direct caller attempt` package run passes **4 tests**, including
+root imports. It preserves original operation identity across later reads and
+projects unknown outcomes for denial, conflict, malformed replies, timeout and
+allocation errors after mutation dispatch. Failed credential lookup against an
+unreachable authority leaves the attempt empty. These are attempt projections;
+they do not establish a durable operation outcome or inject output-allocation
+failure into a real accepted request.
+
+The first filtered run omitted the new test import and establishes no test pass.
+The first public-proof build caught an incorrect staged-intent member access;
+it is corrected, the test import is present, and the explicit-count package rerun
+passes. Public dependency/resource fault reruns are pending at this commit.
+Contract, diagnostic inventory/mapping and documentation checks pass. The hook
+does not yet replace the general catalog ABI's dispatch/error boundary.
+
 ## Direct host named resource recovery — 2026-10-24
 
 `just test::direct-named-resources` passes **107 typed catalog calls**, eight
