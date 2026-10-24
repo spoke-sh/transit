@@ -90,6 +90,7 @@ raise that capacity or discard history to complete.
 | `just test::public-query` | Exercise the native query callers/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::named-relational` | Check independent named-query records, separate publication/authorization/activation and captured/maintained native recovery on disk |
 | `just test::direct-named-query` | Qualify named captured definitions over direct Tables, separate activation, worker replacement, original attribution and verified results |
+| `just test::direct-dependencies` | Qualify exact dependency registration/removal, redacted DROP RESTRICT and original receipt recovery across abrupt node replacement |
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |
 | `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |

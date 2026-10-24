@@ -112,6 +112,18 @@ permission references used by retained Table reads and receipts. See the
 [namespace contract](../../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
 for exact phases, authority and recovery semantics.
 
+`dependency_operation` registers, removes, inspects or cancels an exact
+`DirectDependency.Binding`. Save the complete binding before dispatch. Acceptance
+publishes forward and reverse graph indices with its terminal receipt in one
+catalog WAL record; a retry returns that receipt even after a later removal.
+`dependencies` scans a bounded page in either direction, filtering inaccessible
+metadata and binding continuation to one catalog position. Table DROP preview,
+admission and execution reject registered blockers. ALTER and RENAME preserve
+their original exact definitions. Registration is a separate conservative step
+before dependent publication; it does not publish a consumer or acquire a pin.
+The [dependency contract](../../../../contracts/DIRECT_TABLE_V1.md#explicit-definition-dependencies)
+defines source/metadata rights, explicit administrator cleanup and recovery.
+
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.
 `DirectTableReader.open` inspects an existing durable pin and owns its original
@@ -319,8 +331,8 @@ Row admission blocks while DDL is pending; DDL admission rejects while the Table
 has pending row work. Neither row admission nor its outcome changes the catalog
 directory root. Terminal row controls use the configured control quota handles.
 
-Schema lifecycle beyond the initial namespace, dependency RESTRICT and automatic
-service scheduling are not exposed. Generic foreign-language Table CRUD adapters
+Automatic service scheduling and named consumer dependency integration are not
+exposed. Generic foreign-language Table CRUD adapters
 do not expose this direct protocol; use SQL or typed Zig clients. The single-source
 query SDKs use their own captured-query interface and original-caller read grants.
 The [Table storage owner](../../transit-storage/docs/table-partitions.md) defines

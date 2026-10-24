@@ -1186,6 +1186,14 @@ pub fn build(b: *std.Build) void {
     direct_table_service.has_side_effects = true;
     direct_table_service.stdio = .inherit;
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
+    const direct_dependencies = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_dependencies.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_dependencies.addArtifactArg(node_artifact);
+    direct_dependencies.addArtifactArg(direct_table_client);
+    direct_dependencies.addArg("dependencies");
+    direct_dependencies.has_side_effects = true;
+    direct_dependencies.stdio = .inherit;
+    b.step("test-direct-dependencies", "Prove direct dependency registration, RESTRICT and exact recovery across node loss").dependOn(&direct_dependencies.step);
     const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/direct_captured_query.py" });
     direct_captured_query.addArtifactArg(node_artifact);
     direct_captured_query.addArtifactArg(direct_table_client);

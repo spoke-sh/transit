@@ -69,6 +69,54 @@ test "direct Table request proof binds the complete typed action and current def
     try t.expectError(error.MissingField, w.Request.parse(t.allocator, missing));
 }
 
+test "direct dependency consumes independently signed full-width registration and binary digest" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
+    defer parsed.deinit();
+    try parsed.value.request.validate(t.allocator);
+    try parsed.value.request.proof.verify(parsed.value.public_key);
+    const binding = parsed.value.request.action.dependency_operation.binding;
+    try t.expectEqual(std.math.maxInt(u64), binding.operation);
+    try t.expectEqual(std.math.maxInt(u64), binding.edge.dependent.interpretation.revision);
+    try t.expectEqualDeep(parsed.value.edge_digest, try binding.edge.digest());
+    var changed = parsed.value.request;
+    changed.action.dependency_operation.binding.authority = .catalog_administrator;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+}
+
+test "direct dependency graph response rejects substituted objects and mixed observations" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
+    defer parsed.deinit();
+    const edge = parsed.value.request.action.dependency_operation.binding.edge;
+    var request = parsed.value.request;
+    const selection: c.DirectDependency.Selection = .{ .dependents = edge.source.object };
+    request.action = .{ .dependencies = .{ .selection = selection, .cursor = null, .authority = .dependent } };
+    request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
+    request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    const position: p.DataLifecycle.Position = .{ .partition = 1, .next_lsn = 10 };
+    const cursor: c.DirectDependency.Cursor = .{ .selection = selection, .authority = .dependent, .position = position, .after = try edge.digest() };
+    const page: c.DirectDependency.Page = .{ .entries = .{ edge, null, null, null }, .next = cursor, .position = position };
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .dependencies = page } };
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    var changed = response;
+    changed.result.dependencies.entries[0].?.source.object.object -= 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.dependencies.next.?.position.next_lsn += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.dependencies.next.?.authority = .catalog_administrator;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.dependencies.entries[1] = edge;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    // Filtered work may produce an empty, incomplete page with a valid cursor.
+    changed = response;
+    changed.result.dependencies.entries = @splat(null);
+    try c.DirectTableClient.validateResponse(t.allocator, request, changed);
+}
+
 test "direct Table delegation consumes independent caller and executor signatures" {
     const Fixture = struct { request: w.Request, caller_key: [32]u8, executor_key: [32]u8, retained_grant: []const u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-delegation-v1.json"));

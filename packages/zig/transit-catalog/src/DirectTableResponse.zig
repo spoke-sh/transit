@@ -107,6 +107,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .namespaces => .namespaces,
         .namespace_preview => .namespace_preview,
         .namespace_operation => .namespace_operation,
+        .dependency_operation => .dependency_operation,
+        .dependencies => .dependencies,
         .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
@@ -134,6 +136,42 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .dependency_operation => |value| switch (value) {
+            .not_observed => if (request.action.dependency_operation.command != .inspect) return error.InvalidTableResponse,
+            .outcome => |outcome| {
+                try outcome.validate();
+                try request.action.dependency_operation.binding.requireSame(outcome.binding);
+            },
+        },
+        .dependencies => |page| {
+            const input = request.action.dependencies;
+            try page.position.validate();
+            if (page.position.next_lsn == 0) return error.InvalidTableResponse;
+            if (input.cursor) |cursor| if (!std.meta.eql(cursor.position, page.position)) return error.InvalidTableResponse;
+            var previous: ?[32]u8 = if (input.cursor) |cursor| cursor.after else null;
+            var ended = false;
+            for (page.entries) |slot| {
+                const edge = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                if (ended) return error.InvalidTableResponse;
+                try edge.validate();
+                try request.connection.object(edge.source.object);
+                switch (input.selection) {
+                    .dependents => |object| if (!std.meta.eql(edge.source.object, object)) return error.InvalidTableResponse,
+                    .dependencies => |object| if (!std.meta.eql(edge.dependent.interpretation.object, object)) return error.InvalidTableResponse,
+                }
+                const digest = try edge.digest();
+                if (previous) |before| if (std.mem.order(u8, &before, &digest) != .lt) return error.InvalidTableResponse;
+                previous = digest;
+            }
+            if (page.next) |cursor| {
+                if (!std.meta.eql(cursor.selection, input.selection) or !std.meta.eql(cursor.position, page.position) or cursor.authority != input.authority) return error.InvalidTableResponse;
+                if (input.cursor) |before| if (std.mem.order(u8, &before.after, &cursor.after) != .lt) return error.InvalidTableResponse;
+                if (previous) |before| if (std.mem.order(u8, &before, &cursor.after) == .gt) return error.InvalidTableResponse;
+            }
+        },
         .namespace_preview => |value| {
             try request.action.namespace_preview.requireSame(value.binding);
             try value.position.validate();

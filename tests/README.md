@@ -1,5 +1,52 @@
 # Validation and evidence
 
+## Direct definition dependencies and restricted retirement — 2026-10-24
+
+Under shared current-v1 definition
+`876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1`,
+`just test::direct-dependencies` passes **30 typed HTTP calls** in the pinned Nix
+shell. The independent proxy corrupts the first accepted registration and removal
+replies; each is followed by an abrupt node kill and separate caller recovery.
+Saved bindings remain byte-identical. Original terminal receipts, altered-intent
+rejection, both graph directions, current metadata denial and restoration, and
+generic RESTRICT with a redacted blocker pass. A rejected DROP stays rejected
+after removal; a separate DROP and same-name creation preserve the old identity.
+Replaying the original registration does not restore the removed edge.
+
+The focused catalog tests pass disk recovery, revocation at the publication fence, cancel
+tombstones, no-op receipts, source DDL exclusion, rename/stale-definition handling,
+and **41 edges with a one-page resident cache**. Four-edge scans omit inaccessible
+records, advance past filtered records and reject changed observation
+cursors without writing during inspection. Independent Python/OpenSSL signing
+and big-endian digest fixtures cover full-width identifiers. Client validation
+rejects substituted objects, duplicate edges, mixed positions and authority modes.
+
+`zig build test-local-catalog -Doptimize=ReleaseSafe` passes real native grants,
+denial after acceptance/response buffering, exact receipt recovery, metadata-only
+inspection and explicit orphan cleanup. Native resource retirement alone retains
+metadata grants; the test separately revokes them, then requires realm ADMIN and
+source ownership for cleanup. No dependent data grant is inferred.
+
+`just contract::check`, diagnostic inventory/mapping checks and documentation
+links pass after coordinated schema, binding and signing-fixture regeneration.
+The first contract run lacked installed frontend dependencies in the isolated
+worktree; the locked install and complete rerun pass. Earlier HTTP attempts had
+incorrect fixture expectations for a typed DROP rejection and tried to inject a
+successful-reply fault into a denied removal. Those failed attempts are not
+evidence of success; the final fixture preserves both distinctions.
+
+This qualifies explicit registration and inspection. It does not publish or
+activate named KV, Document or query consumers, retain their data, integrate
+their publication owners automatically, or qualify Table garbage collection.
+The catalog format requires both graph indices and the new definition; prior
+artifacts reject rather than acquiring an empty graph through a default.
+
+The existing `just test::direct-table-service` regression also passes **1090
+typed calls**: point/bulk rows with a real `.tseg`, full CRUD/DDL, SQL namespace
+and conditional-name recovery, retained joins and history, original-caller read
+delegation, explicit pin cleanup and three restarts. It does not acquire
+dependency registrations implicitly.
+
 ## Station ledger over the direct Table owner — 2026-10-24
 
 The shared current-v1 definition is

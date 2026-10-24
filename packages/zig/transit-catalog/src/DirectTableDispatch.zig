@@ -73,6 +73,8 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
         .read_authority => |object| return .{ .read_authority = try catalog.currentReadAuthority(object, policy) },
         .name_assertion => |value| return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) },
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
+        .dependency_operation => |value| return .{ .dependency_operation = try catalog.dependencyOperation(value.binding, value.command, policy) },
+        .dependencies => |value| return .{ .dependencies = try catalog.dependencyPage(value.selection, value.cursor, value.authority, policy) },
         .namespace_preview => |binding| return .{ .namespace_preview = try catalog.previewNamespace(binding, policy) },
         .namespace_operation => |value| {
             if (value.command != .execute) return .{ .namespace_operation = try catalog.namespaceOperation(value.binding, value.command, policy) };

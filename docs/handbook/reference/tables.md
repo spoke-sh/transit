@@ -138,10 +138,28 @@ paths. Existing rows must satisfy every tightened constraint before publication.
 Changing a default does not rewrite earlier values.
 
 [DROP TABLE](sql/drop-table.md) removes the live name and retires its object.
-Historical references do not make a name live. The direct Table owner does not
-yet consult a shared computation/resource dependency registry. Namespace DROP
-separately rejects live Tables and pending Table declarations in that namespace.
-Neither path discovers arbitrary external consumers.
+Historical references do not make a name live. The direct Table owner rejects
+DROP while an explicitly registered definition dependency remains. Namespace
+DROP separately rejects live Tables and pending Table declarations in that
+namespace. Neither path discovers arbitrary external consumers.
+
+Typed callers use `dependency_operation` to register or remove an exact source
+and dependent definition, and `dependencies` to inspect either graph direction.
+Registration requires current source privileges and dependent metadata write
+access; it does not publish or activate the dependent or retain a read cut.
+The dependent owner registers before publication and removes after retirement
+or abandoned-publication recovery. These steps are separate operations. Named
+resource and computation publication does not yet register those edges itself.
+ALTER and RENAME retain the original edge and may make its definition stale.
+
+Graph pages filter metadata the caller cannot inspect. A blocked DROP reports
+a generic dependency reason even when its blocker is hidden. Each page scans at
+most four edges, and an empty page with a continuation is incomplete. A catalog
+change invalidates the continuation. Retired consumers require explicit edge
+removal; native realm administrators with source ownership can remove an orphan
+without dependent-resource rights. That cleanup does not delete or cancel the
+consumer. The [dependency contract](../../../contracts/DIRECT_TABLE_V1.md#explicit-definition-dependencies)
+defines exact authorization, receipts and recovery.
 
 The typed `preview` operation checks current rights, exact expectations, name
 availability and schema-evolution work without staging or admitting a change.

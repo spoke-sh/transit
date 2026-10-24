@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "40ebbb4d9c928daa573cfaf38cafe3361c7fb972bfcd314d64f9dc665e75e547"
+definition = "876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -100,6 +100,19 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(current_claim)).digest()),
     }}
     current_fixture = {"request": current_request, "public_key": public_key}
+    dependent_definition = {"object": {"scope": {"realm": 42, "resource": 9, "catalog": 8}, "branch": 1, "object": 99}, "revision": 2**64 - 1, "digest": [4] * 32}
+    source_definition = {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2}, "revision": 2**64 - 3, "digest": [3] * 32}
+    edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1}
+    dependency_binding = {"definition": definition, "connection": request_input["connection"], "operation": 2**64 - 1, "edge": edge, "action": "register", "authority": "dependent"}
+    dependency_input = {**request_input, "action": {"dependency_operation": {"binding": dependency_binding, "command": "accept"}}}
+    dependency_context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(dependency_input)).digest()
+    dependency_claim = {**claim, "context": list(dependency_context)}
+    dependency_request = {**dependency_input, "proof": {"claim": dependency_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(dependency_claim)).digest())}}
+    edge_bytes = (struct.pack(">6Q", 42, 3, 2**64 - 1, 1, 2**64 - 2, 2**64 - 3) + bytes([3] * 32)
+                  + bytes([3]) + struct.pack(">6Q", 42, 9, 8, 1, 99, 2**64 - 1) + bytes([4] * 32) + struct.pack(">Q", 1))
+    assert len(edge_bytes) == 169
+    edge_digest = hashlib.sha256(b"transit.catalog.dependency.v1\0" + edge_bytes).digest()
+    dependency_fixture = {"request": dependency_request, "public_key": public_key, "edge_digest": list(edge_digest)}
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -113,6 +126,11 @@ validator.validate(request)
 validator.validate(delegated_request)
 validator.validate(borrowed_request)
 validator.validate(current_request)
+validator.validate(dependency_request)
+for field in ("definition", "connection", "operation", "edge", "action", "authority"):
+    invalid = copy.deepcopy(dependency_request)
+    del invalid["action"]["dependency_operation"]["binding"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("interpretation", "expected", "selection"):
     invalid = copy.deepcopy(current_request)
     del invalid["action"]["read_current"][field]
@@ -150,6 +168,8 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-borrow-v1
         (json.dumps(borrowed_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-current-read-v1.json",
         (json.dumps(current_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-dependency-v1.json",
+        (json.dumps(dependency_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 
 # The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
 # the saved envelope uses the public JSON writer's exact array representation.

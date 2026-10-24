@@ -12,7 +12,9 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller):
+def run(node, caller, mode="tables"):
+    if mode not in ("tables", "dependencies"):
+        raise ValueError("Unknown direct service proof mode")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-table-") as directory:
         root = Path(directory)
@@ -55,6 +57,8 @@ def run(node, caller):
 
         fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "execute": None, "requests": 0, "commands": []}
 
+        dependency_faults = set()
+
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
@@ -73,6 +77,18 @@ def run(node, caller):
                     data = response.read()
                     if self.path == "/table/v1":
                         fault["requests"] += 1
+                        dependency = envelope["action"].get("dependency_operation")
+                        if (mode == "dependencies" and dependency and dependency["command"] == "accept"
+                                and dependency["binding"]["operation"] in (70001, 70002)
+                                and dependency["binding"]["operation"] not in dependency_faults
+                                and response.status == 200):
+                            parsed = json.loads(data)
+                            outcome = parsed["result"]["dependency_operation"]["outcome"]
+                            assert outcome["phase"] == "applied" and outcome["changed"]
+                            assert outcome["binding"] == dependency["binding"]
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
+                            dependency_faults.add(dependency["binding"]["operation"])
                         namespace = envelope["action"].get("namespace_operation")
                         if namespace and namespace["binding"]["operation"] == 65000 and namespace["command"] == "execute" and not fault["namespace_changed"]:
                             assert response.status == 200, data
@@ -140,6 +156,23 @@ def run(node, caller):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "dependencies":
+                subprocess.run([caller, endpoint, "dependency-prepare", str(profile)], check=True, timeout=180)
+                saved = profile.read_bytes()
+                for phase, operation in (("dependency-register", 70001), ("dependency-remove", 70002)):
+                    subprocess.run([caller, endpoint, phase, str(profile)], check=True, timeout=180)
+                    assert operation in dependency_faults
+                    assert profile.read_bytes() == saved, "Recovery changed the original saved binding"
+                    authority.kill()
+                    authority.wait(timeout=15)
+                    authority = None
+                    authority = start()
+                    recovered = "dependency-recover" if operation == 70001 else "dependency-final"
+                    subprocess.run([caller, endpoint, recovered, str(profile)], check=True, timeout=180)
+                    assert profile.read_bytes() == saved
+                assert set(fault["commands"]) <= {"authorization", "spawn", "create_resource", "grant_resource"}, fault["commands"]
+                print(f"Direct dependencies: {fault['requests']} typed calls, exact registration/removal receipts after corrupt replies and abrupt node replacement, unchanged saved caller bindings, current metadata revocation, redacted RESTRICT blockers, reverse inspection, stale retry rejection and DROP/name replacement passed.")
+                return
             subprocess.run([caller, endpoint, "write", str(profile)], check=True, timeout=180)
             assert fault["changed"]
             assert fault["pin_changed"]
