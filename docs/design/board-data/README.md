@@ -2,15 +2,13 @@
 
 [Design items](../README.md)
 
-This design item reimagines Board around Transit's data-first architecture:
-data, derived computations and governing policies are the primary user-facing
-declarations, while write-ahead change streams (`TransitLog`), durable processes
-(`Station`) and connectors (`Sources` and `Sinks`) act as the activation
-mechanisms orbiting that data. It introduces a first-class data exploration
-surface combining auto-generated Entity Relationship Diagrams (ERDs), zero-SQL
-dataset and 5-state column profiling, multi-cell SQL workbooks powered by
-`transit console`'s verified interaction model, data-gravity lineage, and
-branch/DDL impact previews.
+This design item reimagines Board around data, derived computations and
+governing policies. Its current proposal connects a searchable catalog to
+focused dataset inspection, schema relationships, SQL workbooks, directed
+lineage and change review. Write-ahead change streams (`TransitLog`), durable
+processes (`Station`) and connectors explain how those declarations are
+activated. D2 reviews a crisp monochrome visual system, restrained impact color
+and spacious desktop layouts with a laptop companion.
 
 Earlier items remain intact with their recorded outcomes:
 [board-atlas](../board-atlas/README.md) owns the process/resource relief studies,
@@ -21,24 +19,27 @@ declaration profile. [Inspect with Board](../../handbook/guides/inspect-board.md
 and the [data model](../../handbook/reference/data-model.md) own current
 implemented behavior and public contracts.
 
-**Current review:** [D1 — Data gravity: entity relationships, column exploration and interactive workbooks](D1.md).
+**Current review:** [D2 — A focused data workbench, with monochrome visual styling](D2.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
-| [D1](D1.md) | Entity-relationship canvas, zero-SQL 5-state dataset/column explorer, `transit console`-powered SQL workbooks, data-gravity activation lineage and branch/`previewDdl` comparison | In review | Review the four-pillar data-first architecture and six high-fidelity visual studies |
+| [D1](D1.md) | Entity-relationship canvas, five-state profiles, SQL workbooks, data-gravity lineage and branch/DDL comparison | Reviewed | Data-first direction retained; reviewer requested a different theme, greater fidelity and larger screens. D2 develops that feedback. |
+| [D2](D2.md) | Focused catalog, dataset, relationship, workbook, lineage and change views; monochrome styling and eight browser-rendered screenshots | In review | Selected monochrome direction is reflected in the artifacts; review the catalog-first default, contextual detail and separate change workflows. |
 
-Review status tracks the design conversation. The D1 studies are high-fidelity
-styled concepts in the spirit of DuckDB Local UI, MotherDuck Column Explorer and
-Databricks Unity Catalog Explorer; they do not establish implemented browser
-routes, multi-table arbitrary joins, or measured latency. Delivery scope and
+Review status tracks the design conversation. The studies and local prototype
+do not establish implemented browser routes, arbitrary joins, whole-dataset
+profiles or measured latency. Delivery scope and
 qualification belong in the [roadmap](../../roadmap/README.md).
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
 [template](../TEMPLATE.md) when adding subsequent reviews; the next review in
-this item is `D2.md`.
+this item is `D3.md`.
 
 ## Supporting material
 
+- [D2 visual studies and full-resolution screenshots](D2.md#visual-studies),
+  [local prototype](d2.html), [screen source](d2.js), [styles](d2.css),
+  [fixture](d2-fixture.js) and [capture script](d2-render.mjs).
 - [D1 visual studies](D1.md#visual-studies) and [generated PNG assets](images):
   [Figure 1 — Unified Data Explorer & ERD](images/d1-01-erd-explorer.png),
   [Figure 2 — Multi-model ERD & join synthesis](images/d1-02-erd-join-synthesis.png),
