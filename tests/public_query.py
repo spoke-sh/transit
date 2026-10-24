@@ -196,6 +196,15 @@ def run(node, host, cli, proof):
             expected = [[{"value": {"atom": {"signed": str(i)}}}, {"null": {}} if i % 5 == 0 else {"value": {"atom": {"signed": str(9007199254740993 + i)}}}] for i in range(41)]
             assert rows == expected, (rows[:3], expected[:3])
             assert int(manifest["rows"]) == 41 and int(manifest["segments"]) == segments
+            # Replace the filtered courier after retained history exists. The
+            # realm-wide mode discovers pending work through the native index;
+            # both modes must preserve the same query recovery and cancellation.
+            courier.kill(); courier.wait(timeout=10)
+            courier_path = fixture.root / "courier.json"
+            courier_config = json.loads(courier_path.read_text())
+            courier_config["role"] = {"courier": {"all_destinations": True}}
+            courier_path.write_text(json.dumps(courier_config))
+            courier = start("courier-recovered", [host, str(courier_path)])
             # A fresh HTTP exchange reconciles the original admission after later sequences.
             wire = HTTPConnection("127.0.0.1", port, timeout=15)
             wire.request("POST", "/v1/command", fault["lost"][0], {"Content-Type": "application/json"})
@@ -248,7 +257,8 @@ def run(node, host, cli, proof):
             assert fault["startup"] == {65536, 65537}, fault["startup"]
             assert fault["wait_headers"] > 0, "native wait hints were not exercised"
             shell.close()
-            print("public query: transient startup reads, real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
+            assert courier.poll() is None, "realm courier exited"
+            print("public query: transient startup reads, real shell/hosts, filtered and realm courier replacement, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException as error:
             if isinstance(error, subprocess.CalledProcessError) and error.stderr:
                 print(error.stderr.decode()[-5000:], file=sys.stderr)

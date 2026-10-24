@@ -65,9 +65,13 @@ guide lists the exact [general Table contracts](../../packages/zig/transit-catal
 
 Each OS worker owns one activation. Query execution uses a 4 MiB Arrow
 workspace; the source adds a 1 MiB adapter arena. The
-courier walks eight-output public pages and preserves exact pending delivery
-requests. It scans retained output history on restart; startup cost can grow
-with history, while resident memory stays bounded. Delivery selects either an
+courier preserves exact pending delivery requests and first consults the public
+pending-output index. With no pending work it waits for output changes. Realm
+delivery uses that index directly; destination-filtered delivery walks
+eight-output pages starting at the first pending output, skipping any earlier
+resolved history. Unselected pending outputs can still require scanning later
+pages; resident memory stays bounded. Expired page observations back off before
+retrying and do not replace a prepared delivery. Delivery selects either an
 explicit destination list or `all_destinations: true`; an empty scope or both
 selectors rejects. Realm selection needs no resident process catalog and does
 not grant execution, resource access or permission to invent outputs.

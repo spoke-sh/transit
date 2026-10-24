@@ -1,5 +1,21 @@
 # Validation and evidence
 
+## Courier discovery through the pending index — 2026-10-24
+
+`nix develop .#serving --command just test::public-query` passes with the courier
+using the public native pending-output index. The fixture first runs filtered
+delivery, then replaces that courier with realm-wide delivery after retained
+query history exists. Original signed admission recovery, source fencing,
+41 exact int64/null rows, busy admission, malformed schema rejection, incomplete
+result refusal, cancellation and current read denial all pass.
+
+Realm-wide delivery uses the indexed output directly. A filtered courier starts
+its bounded destination scan at the first pending output and retains its cursor;
+no pending work means an output-change wait. Expired page observations back off
+without changing any prepared delivery. This qualifies the exercised scheduling
+and recovery paths; it does not establish a latency target or complete the
+remaining browser/placement schedules.
+
 ## Direct Flight and captured-query consumers — 2026-10-24
 
 The public-query, Board captured-query and Flight fixtures now provision Tables

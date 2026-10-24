@@ -209,13 +209,37 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             idle_ms = config.interval_ms;
             continue;
         }
-        const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
+        const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key) catch |err| {
             if (!q.wire.Client.unavailable(err) and !wire.contended(err)) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
+        // The pending index avoids walking retained, resolved history after a
+        // restart. A courier authorized for every visible destination can use
+        // that observation directly; filtered couriers still inspect destinations.
+        if (basis.body.delivery.next) |next| {
+            if (all) {
+                pending = try g.sign(.{ .realm = config.realm, .principal = config.principal, .sequence = basis.principal_sequence + 1, .command = .{ .deliver = next } }, key);
+                continue;
+            }
+            if (after == null or after.? < next) after = if (next == 1) null else next - 1;
+        } else {
+            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key, .{
+                .after = basis.position,
+                .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
+            }) catch |err| {
+                if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            };
+            idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
+            continue;
+        }
         const page = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
-            if (err == error.Conflict and wire.last_rejection == .QueryExpired) continue;
+            if (err == error.Conflict and wire.last_rejection == .QueryExpired) {
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            }
             if (q.wire.Client.unavailable(err) or wire.contended(err)) {
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
@@ -230,7 +254,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             after = output.id;
         };
         if (pending == null and page.body.outputs.next == null) {
-            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{} } }, key, .{
+            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key, .{
                 .after = page.position,
                 .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
             }) catch |err| {
