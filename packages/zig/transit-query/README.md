@@ -101,6 +101,9 @@ coverage, and distinguishes unsupported syntax from a cursor inside quoted text.
 The shortlist holds eight candidates; source enumeration visits at most 128
 pages. Ranking retains the exact definition of each selected name, including
 names that replace earlier candidates in a full shortlist.
+In console mode a fully typed, unique keyword advances to the next grammar
+token within the same page budget. Partial words, identifiers, limited
+shortlists and SQL editor mode keep their replacement range.
 It rechecks all disclosed definitions and current rights together. Its contract
 fingerprint binds that metadata vector; it supplies no native resource revision
 or data snapshot. Installed launcher/SQL recovery qualification and durable

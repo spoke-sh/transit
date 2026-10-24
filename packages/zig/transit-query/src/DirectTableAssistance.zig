@@ -27,7 +27,9 @@ pub fn complete(allocator: std.mem.Allocator, client: c.DirectTableClient, names
 }
 fn completeStatement(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, request: a.Request) !Response {
     _ = try client.require(.{ .namespace = namespace, .target = null, .access = .schema });
-    const range = try f.SqlInput.replacement(request.sql, request.cursor);
+    var range = try f.SqlInput.replacement(request.sql, request.cursor);
+    var advanced = false;
+    var pages: usize = 0;
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
     const temporary = arena.allocator();
@@ -43,7 +45,10 @@ fn completeStatement(allocator: std.mem.Allocator, client: c.DirectTableClient, 
         result.items = meta.items;
         result.coverage = meta.coverage;
         result.status = meta.status;
-    } else if (range) |selected| {
+    } else while (range) |selected| {
+        // Only the final shortlist is disclosed. Rebuild its exact metadata
+        // checks after keyword continuation, within the same page budget.
+        count = 1;
         var prefix = request.sql[selected.start..request.cursor];
         if (selected.quoted and prefix.len != 0) {
             prefix = prefix[1..];
@@ -104,17 +109,22 @@ fn completeStatement(allocator: std.mem.Allocator, client: c.DirectTableClient, 
         if (editor.name_role == .source) {
             var names: Names = .{};
             var cursor: ?u64 = null;
-            for (0..128) |_| {
+            var complete_names = false;
+            while (pages < 128) {
                 const response = try client.call(.{ .list = .{ .namespace = namespace, .after = cursor } });
                 defer response.deinit();
+                pages += 1;
                 const page = response.value.result.list;
                 for (page.entries) |slot| if (slot) |entry| {
                     try names.offer(&builder, entry);
                 };
                 cursor = page.next;
-                if (cursor == null) break;
+                if (cursor == null) {
+                    complete_names = true;
+                    break;
+                }
             }
-            if (cursor != null) builder.limited = true;
+            if (!complete_names) builder.limited = true;
             for (names.retained) |slot| if (slot) |entry| {
                 checks[count] = .{ .access = .{ .namespace = namespace, .target = entry.interpretation, .access = .inspect } };
                 count += 1;
@@ -122,7 +132,15 @@ fn completeStatement(allocator: std.mem.Allocator, client: c.DirectTableClient, 
         }
         result.coverage = if (builder.limited) .limited else .complete;
         if (editor.name_role == null and editor.value_type == null and editor.words[0] == null and editor.symbols[0] == null) result.status = .unsupported;
+        if (!advanced) if (a.continuation(request, .{ .range = range, .coverage = result.coverage, .status = result.status, .items = builder.items[0..builder.count] })) |following| {
+            builder.clear();
+            range = following;
+            result.range = following;
+            advanced = true;
+            continue;
+        };
         result.items = try allocator.dupe(a.Item, builder.items[0..builder.count]);
+        break;
     }
     errdefer (a.Completion{ .range = result.range, .items = result.items }).deinit(allocator);
     // One current policy revision and exact interpretation checks cover every

@@ -267,6 +267,29 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectEqual(q.Assistance.max_items, starts.items.len);
     const schema_hint = try q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = ".schema\teve", .cursor = 11, .generation = 8, .mode = .console });
     try t.expectEqualStrings("\"events\"", schema_hint.items[0].text);
+    for ([_]struct { text: []const u8, cursor: u16, start: u16, end: u16, expected: []const u8 }{
+        .{ .text = "CREATE", .cursor = 6, .start = 6, .end = 6, .expected = "TABLE" },
+        .{ .text = "create", .cursor = 6, .start = 6, .end = 6, .expected = "TABLE" },
+        .{ .text = "CREATE ", .cursor = 7, .start = 7, .end = 7, .expected = "TABLE" },
+        .{ .text = "CREATE;", .cursor = 6, .start = 6, .end = 6, .expected = "TABLE" },
+        .{ .text = "SELECT 1; CREATE", .cursor = 16, .start = 16, .end = 16, .expected = "TABLE" },
+        .{ .text = "CRE", .cursor = 3, .start = 0, .end = 3, .expected = "CREATE" },
+        .{ .text = "CREATE", .cursor = 3, .start = 0, .end = 6, .expected = "CREATE" },
+        .{ .text = "ALTER", .cursor = 5, .start = 5, .end = 5, .expected = "TABLE" },
+        .{ .text = "DROP", .cursor = 4, .start = 4, .end = 4, .expected = "TABLE" },
+        .{ .text = "DELETE", .cursor = 6, .start = 6, .end = 6, .expected = "FROM" },
+        .{ .text = "INSERT", .cursor = 6, .start = 6, .end = 6, .expected = "INTO" },
+    }) |case| {
+        const hint = try q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = case.text, .cursor = case.cursor, .generation = 9, .mode = .console });
+        try t.expectEqual(q.Assistance.Status.ready, hint.status);
+        try t.expectEqual(q.Assistance.Coverage.complete, hint.coverage);
+        try t.expectEqual(q.fuze.SqlInput.Range{ .start = case.start, .end = case.end }, hint.range.?);
+        try t.expectEqual(@as(usize, 1), hint.items.len);
+        try t.expectEqualStrings(case.expected, hint.items[0].text);
+    }
+    const sql_hint = try q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = "CREATE", .cursor = 6, .generation = 10 });
+    try t.expectEqual(@as(u16, 0), sql_hint.range.?.start);
+    try t.expectEqualStrings("CREATE", sql_hint.items[0].text);
     const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
     const clients = [_]c.DirectTableClient{ client, client };
     const prepared = try q.DirectRelationalCompilation.prepare(init.gpa, &clients, 1, "SELECT a.id AS id, COUNT(*) AS matches FROM events a LEFT JOIN events b ON a.id = b.id GROUP BY a.id", .interactive, options, null);
