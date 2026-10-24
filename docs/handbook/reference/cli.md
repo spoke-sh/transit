@@ -182,7 +182,10 @@ configuration and terminal keys. Statement topics such as `.help INSERT` and
 text, including in JSON result mode, and submits no SQL.
 
 In the interactive editor, Tab requests grammar/catalog completion and accepts
-selected suggestions or history matches. Acceptance never executes a statement.
+selected suggestions or history matches. The menu keeps its selection while
+idle; editing or moving the cursor refreshes suggestions. Catalog suggestions
+recheck metadata and authorization before insertion. Acceptance never executes
+a statement.
 Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
 the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,
 completion and clearing. Up/Down moves between multiline rows before browsing
