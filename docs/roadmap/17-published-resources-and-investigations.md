@@ -1,4 +1,4 @@
-# 11. Published business resources and consistent investigations
+# 17. Published business resources and consistent investigations
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -11,11 +11,11 @@ separately maintained business semantics.
 ## Prerequisites and scope
 
 Consume [statement results and client consumption](04-statement-results-and-consumption.md),
-[historical interpretation](05-standards-and-catalogs.md),
-[managed computations](06-sql-and-dataflows.md), the selected
-[foreign sources](07-multi-model-and-foreign-relations.md),
-[branches](08-branches-merges-and-restore.md) and the
-[access plane](10-control-and-policy-plane.md). Finite resources can be qualified
+[historical interpretation](07-standards-and-catalogs.md),
+[managed computations](08-sql-and-dataflows.md), the selected
+[foreign sources](09-multi-model-and-foreign-relations.md),
+[branches](10-branches-merges-and-restore.md) and the
+[access plane](16-control-and-policy-plane.md). Finite resources can be qualified
 before maintained activation or every foreign format is implemented. Current
 application bindings and named queries are foundations, not an implemented
 publication/disclosure contract for enriched resources.
@@ -51,7 +51,12 @@ publication/disclosure contract for enriched resources.
    individually consistent queries do not establish one consistent investigation.
    Freeze accepted bindings, account for pins and lifetime, and reject missing
    history. This context survives replacement of a transport connection where
-   its own lifetime permits; it confers no authorization.
+   its own lifetime permits; it confers no authorization. Reuse
+   [transaction/snapshot primitives](05-transactions-and-atomic-composition.md)
+   without requiring an interactive database transaction to stay open across an
+   investigation. Retained snapshot ownership and expiry are explicit. Captured
+   foreign observations may form an independent basis vector, never an invented
+   global atomic cut.
 5. **Publish attributable results and explicit refresh.** Bind every chart,
    report, summary and result page to the same completed revision and source
    evidence. Changing the basis creates an explicit successor; it cannot relabel

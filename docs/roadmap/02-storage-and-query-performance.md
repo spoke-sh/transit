@@ -1,11 +1,14 @@
-# 2. Storage hierarchy, `.tseg` segments and query performance
+# 2. Local durable storage, `.tseg` segments and bounded queries
 
 [Roadmap](README.md) · [Tracker #109](https://github.com/spoke-sh/transit/issues/109) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
 
 Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and
 **`TransitObjectStore`**), a pure-Zig hybrid OLTP/OLAP segment format (**`.tseg`**)
-with composable physical codecs and collations, and partitioned/OCC concurrency.
+with composable physical codecs and collations, bounded native persistence and
+correct local conditional publication. [Provider/concurrent-writer qualification](12-storage-providers-and-concurrency.md)
+receives distributed-provider and partitioned-writer integration explicitly;
+its contracts are still designed with this foundation before dependent formats.
 The [performance reference](../handbook/reference/performance.md) records current
 measurements; the [storage reference](../handbook/reference/storage.md) and
 [storage internals](../handbook/internals/storage-runtime.md) document the current
@@ -48,9 +51,14 @@ The live runtime still uses the existing Table page path.
 | Real disk/failure/growth evidence and matched performance controls | [#124](https://github.com/spoke-sh/transit/issues/124), [#76](https://github.com/spoke-sh/transit/issues/76) |
 
 Resolve commit authority before wiring storage, establish the correct bounded
-local slice, then qualify concurrent/distributed paths and complete the
-[live cutover](03-live-storage-and-sql-cutover.md). The target architecture and
-completion criteria below incorporate the authorized transcript review.
+local slice, then complete the [installed cutover](03-live-storage-and-sql-cutover.md).
+The sequencing review transfers #117/#121 implementation and distributed runtime
+qualification to [milestone 12](12-storage-providers-and-concurrency.md).
+#109 remains the umbrella for its original outstanding local and provider scope;
+this milestone remains In Progress. Local cross-process CAS, fencing at its
+supported authority boundary and all local recovery obligations remain here.
+The target architecture and completion criteria below incorporate the authorized
+transcript review.
 The [shared contract gates](README.md#firm-scope-and-contract-gates) must resolve
 exact transaction, layout, codec/collation, trust and provider semantics before
 dependent implementation. Zero-copy access, bounded lookup I/O and efficient
@@ -114,6 +122,12 @@ reopening review:
    serialized through a single journal tail.
 
 ## Target architecture
+
+The architecture below includes future backend choices to keep the shared
+interfaces coherent. This milestone qualifies the native local profile and
+codec/query foundation; the named distributed backends, disk range cache and
+partitioned concurrent-writer delivery belong to milestone 12. Existing helper
+implementations retain only their recorded component evidence.
 
 ### Two pluggable storage primitives
 
@@ -228,30 +242,16 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
     (where `'a' < 'A' < '0'`) and ASCII/UTF-8 columns prune row groups and sort
     identically to their declared source semantics.
 
-### Eliminating the single global sequencer (3-level progression)
+### Partitioned authority and concurrent-writer extension
 
-1. **Level 1 — Partitioned Authority:** Split the global realm root into a
-   **Control/Policy Log** with bounded resident caching (Principals, Grants, `policy_epoch`,
-   Catalog Directory, Partition Lease table) and independent **Data & Process Log
-   Partitions** (each Table partition and Station process group owns its own
-   `TransitLog` stream and `Manifest` chain).
-2. **Level 2 — Fenced Partition Leases for Direct Data-Plane Writes:**
-   `transit-node` issues scoped, epoch-fenced **Partition Leases**
-   `(partition_id, writer_epoch, policy_epoch)` to authorized writers. Holding a
-   valid lease allows a writer to append directly to the partition's `TransitLog`
-   and flush `.tseg` segments and Manifests directly to `TransitObjectStore`
-   without proxying row payloads through `transit-node`. #117 defines the trust
-   boundary, scoped credentials and enforceable ordering between revocation and
-   append/publication/disclosure for each provider. Neither a signed lease nor
-   a cached epoch automatically fences a disconnected writer.
-3. **Level 3 — Multi-Writer OCC:** Multiple writers stage immutable
-   `.tseg` files in parallel to `TransitObjectStore` (`put_immutable` with UUIDv7
-   content keys) and commit via conditional Manifest CAS (`If-None-Match` on
-   `manifest/v{N+1}` coordinated with the accepted `TransitLog` protocol).
-   Non-conflicting appends and disjoint primary-key ranges reuse staged segments
-   during metadata retries; measure rebase work against actual manifest/index
-   structure. Detect write conflicts and any read/predicate conflicts required
-   by the isolation profile. Do not infer formal lock-freedom from the use of CAS.
+Design control/policy, independent data/process partitions, writer epochs and
+conditional publication with #117/#125/#111 before freezing local log formats.
+Do not require every unrelated write to advance one global catalog CAS.
+[Milestone 12](12-storage-providers-and-concurrency.md) delivers enforceable
+provider leases, scoped credentials and integrated multi-writer OCC, including
+read/predicate validation required by the selected isolation contract. Local
+atomic publication must already be safe across independent processes; it cannot
+use an unsafe check-then-rename implementation pending that extension.
 
 ## Maintenance, inspection and deployment gates
 
@@ -263,32 +263,29 @@ expiry. Inspection reports the selected backend/root, committed and flushed
 positions, pending bytes, maintenance failures and retention floors through
 authorized public reads; Board receives no raw provider access.
 
-[#121](https://github.com/spoke-sh/transit/issues/121) records acknowledgement
-points, durable-copy locations and failure behavior for process crash, host/disk
-loss, network partition and WAL/object-store outages. A remote object store
-cannot recover acknowledged data left only in a lost local WAL before flush.
-Deliver the native local profile first, then the Ursula/S3 reference, retaining
-the other explicitly planned provider profiles until qualified or explicitly
-rescoped. [Replication](17-replication-and-failover.md) qualifies complete
-replicated recovery and failover over these provider contracts;
-[operations](18-operations-and-recovery.md) owns backup/restore and upgrades.
-[Clustered execution](19-clustered-execution.md) adds distributed placement.
-These later outcomes do not absorb this milestone's provider durability,
-fencing or retained-history obligations.
+Provider acknowledgement, durable-copy locations, disk/host loss and network
+partition profiles remain in [#121](https://github.com/spoke-sh/transit/issues/121)
+and [milestone 12](12-storage-providers-and-concurrency.md). This owner proves
+the declared local sync/restart profile and explicitly excludes losing the only
+durable disk. Distributed providers, cache qualification and concurrent writer
+integration have moved; local safety, native recovery, codecs and bounded
+query/maintenance obligations have not. Replication, disaster recovery and
+automatic placement each retain their later acceptance owners.
 
 ## Delivery sequence
 
 Resolve #125/#111, #126/#127 and #128/#118 contracts before their dependent
-formats and code. Land the native local implementation and installed checkpoint
-in milestone 3 before extending distributed/provider coverage. The steps below
-remain the full delivery scope, not prerequisites that all must close before
-the first local integration proof.
+formats and code. Qualify the local component foundation here and the actual
+installed caller paths in milestone 3 before milestone 12 extends distributed
+providers and concurrent writers. Contract collaboration can proceed early;
+each milestone closes only against its own explicit evidence.
 
 1. **Define and implement `TransitLog` and `TransitObjectStore` with native local backends.**
    Specify `TWAL1` frames and the `TransitObjectStore` conditional-put/range-read
    contract. Build `LocalWal` (`fdatasync`/`io_uring` + group commit) and
    `LocalSegmentStore` (`O_CREAT|O_EXCL` + `fsync` + `rename`, `mmap`/`preadv`)
-   and compose them with native durable owners from #126 in the live server.
+   and compose them with native durable owners from #126 in disk-backed owner
+   proofs. Milestone 3 owns actual live-server wiring and installed acceptance.
 2. **Implement Tier 0 Memtables, `.tseg` v1 segments, `.tdel` deletion vectors and Manifest CAS.**
    Route table DML and batch writes into `TransitLog` + Tier 0 Memtables for
    immediate MVCC read-your-writes visibility, flush immutable `.tseg` segments
@@ -303,28 +300,22 @@ the first local integration proof.
    descriptors through zone maps, order-preserving B-tree sort keys and `Fuze`
    comparison/sort/join/group-by kernels. Implement #128's encoded column access,
    selected pushdown/late materialization and correct bounded fallback paths.
-4. **Implement `UrsulaWal`, `S3ObjectStore` and the local NVMe read-through cache.**
-   Reposition Ursula as a `TransitLog` stream backend and add `S3ObjectStore`
-   with content-verified (`SHA-256`) local NVMe range caching and `Fuze` disk
-   spill. Qualify Compose and Kubernetes/Substrate launchers on the distributed
-   Ursula + S3 profile.
-5. **Split authority into Partitioned Logs, Fenced Leases and Multi-Writer OCC.**
-   Separate the Control/Policy Log from per-table/per-process partitions, add
-   epoch-fenced partition leases for direct data-plane writes, and implement
-   optimistic manifest CAS rebasing and key-conflict detection across concurrent
-   writers.
-6. **Re-baseline end-to-end latency, IO amplification and memory bounds.**
-   Reproduce matched controls across SQL sessions, PostgreSQL/MySQL wire, Flight
-   and SDK callers, attributing ingestion, WAL commit, Memtable/segment scan,
-   vector execution and manifest publication separately.
+4. **Re-baseline local latency, IO amplification and memory bounds.**
+   Measure disk-backed owner paths, attributing ingestion, WAL commit,
+   Memtable/segment scans, vector execution and manifest publication separately.
+   Preserve the end-to-end SQL, PostgreSQL/MySQL, Flight and SDK matched controls
+   as installed acceptance in milestone 3 and provider acceptance in milestone 12;
+   their observations must not be replaced by library-only measurements.
 
 ## Completion evidence
 
 The acceptance matrix in [#124](https://github.com/spoke-sh/transit/issues/124)
-includes complete native KV/Document/process recovery, both ingestion paths,
+includes complete disk-backed native KV/Document/process-owner recovery, both ingestion paths,
 snapshot pins over accepted unflushed data, complete-change versus net-result
 consumers, compaction without logical mutations, and encoded/decoded reader
-equivalence. A Table-only library proof cannot close this milestone.
+equivalence. A Table-only library proof cannot close this milestone. These owner
+proofs qualify the local foundation; milestone 3 must separately pass actual
+installed lifecycle and performance gates before the cutover is complete.
 
 Require independently verified values/counts, matched ReleaseSafe controls, raw
 samples, sufficient observations for percentiles and explicit remaining limits.
@@ -333,8 +324,8 @@ transferred, resident RAM (Tier 0) and retained storage (Tier 2/3) alongside
 latency.
 
 Qualify crash recovery between WAL commit and manifest flush, lost receipts,
-`policy_epoch` revocation fencing, concurrent OCC writer rebase versus key-conflict
-rejection, corrupted mainframe nibble/codepage preservation as `type_error`,
+current-policy enforcement, competing local conditional publications,
+corrupted mainframe nibble/codepage preservation as `type_error`,
 collation-consistent zone-map pruning, and datasets exceeding resident RAM and
-NVMe cache bounds. Tighten regression ceilings in the
+local cache/spill budgets. Tighten regression ceilings in the
 [performance reference](../handbook/reference/performance.md) as each slice lands.

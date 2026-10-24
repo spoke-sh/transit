@@ -1,4 +1,4 @@
-# 17. Replication and durable failover
+# 13. Replication and durable failover
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -11,7 +11,8 @@ placement and distributed queries.
 
 ## Prerequisites and scope
 
-Consume [storage and provider contracts](02-storage-and-query-performance.md),
+Consume [local storage](02-storage-and-query-performance.md),
+[provider/concurrent-writer qualification](12-storage-providers-and-concurrency.md),
 the [installed runtime cutover](03-live-storage-and-sql-cutover.md), catalog roots
 and the complete native durable-owner inventory. The prerequisites include
 [#117](https://github.com/spoke-sh/transit/issues/117) for enforceable writer and
@@ -30,6 +31,13 @@ storage nor a replicated provider by itself establishes complete Transit
 recovery. Cover catalog/control policy, native process progress, receipts,
 KV/Documents/Tables, effect evidence and required captured/stream payloads,
 including accepted unflushed WAL state and directly published bulk objects.
+
+Replicate the [transaction owner's](05-transactions-and-atomic-composition.md)
+participant preparation, durable decision, visibility cut, receipts and committed
+outbox eligibility as one recoverable history. Promotion must not expose a subset
+of committed participants, invent an abort or redispatch a captured effect.
+Follower reads need an explicit isolation/freshness contract; replication alone
+does not make independent snapshots atomic or establish real-time ordering.
 
 ## Delivery sequence
 
@@ -72,8 +80,8 @@ including accepted unflushed WAL state and directly published bulk objects.
    provider credentials and metrics cannot authorize a promotion.
 6. **Qualify the selected real deployment profiles.** Use disk-backed providers
    and real network/storage faults in Compose and Kubernetes/Substrate as
-   applicable. Carry the exact contract into [operations](18-operations-and-recovery.md)
-   and [clustered execution](19-clustered-execution.md). Automatic worker/query
+   applicable. Carry the exact contract into [operations](14-operations-and-recovery.md)
+   and [clustered execution](15-clustered-execution.md). Automatic worker/query
    placement, disaster restore to an older cut and cross-region live failover are
    separate profiles; asynchronous copying alone qualifies none of them.
 
@@ -89,7 +97,8 @@ is an explicit refusal/uncertainty condition, not permission to weaken durabilit
 
 Verify policy revocation, permanent retirement, native input/state/output
 atomicity, recorded effect outcomes and no dispatch during recovery. Include
-failure before flush and immediately after bulk publication, and retained state
+failure before flush, during multi-object transaction preparation/decision,
+after commit with a lost reply and immediately after bulk publication, and retained state
 larger than RAM/cache. Check state and source bases against independent oracles.
 Measure commit latency, lag, failover, catch-up throughput and reserved control
 progress separately. Record topology, provider configuration and actual fault

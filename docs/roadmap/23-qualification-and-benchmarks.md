@@ -1,4 +1,4 @@
-# 20. Qualification and complete benchmarks
+# 23. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -20,13 +20,20 @@ remains a gate for every preceding milestone.
 - Extend deterministic schedules and external faults at new storage, historical,
   branching and distributed boundaries. Save reproducible counterexamples and
   check forbidden outcomes as well as eventual success.
+- Qualify [transactions and atomic composition](05-transactions-and-atomic-composition.md)
+  across the selected local, provider, replicated and distributed profiles at one
+  revision. Use independent history/business-invariant oracles for write skew,
+  predicates, partial participants, lost commit replies, savepoints after spill,
+  current authorization and outbox recovery. Include retained investigations,
+  branch publication, complete dataflow commits and backup/PITR cuts. Earlier
+  transaction correctness gates remain required; this is combined qualification.
 - Compose the [result-set](04-statement-results-and-consumption.md),
-  [replication](17-replication-and-failover.md) and
-  [operations](18-operations-and-recovery.md) evidence at the same revision:
+  [replication](13-replication-and-failover.md) and
+  [operations](14-operations-and-recovery.md) evidence at the same revision:
   complete/incomplete result delivery, failover, verified backups, restore
   activation and upgrades during real caller workloads and placement changes.
   Their focused acceptance gates remain required before this combined exercise.
-- Qualify [direct-client, Station and mixed applications](16-programming-model.md)
+- Qualify [direct-client, Station and mixed applications](22-programming-model.md)
   through real installed language packages, including cross-language typed service
   calls, original-operation recovery, explicit commit scopes and bounded host
   scheduling. Compare the same data/outcomes across modes; shared native code
@@ -136,4 +143,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](21-releases.md).
+and immutable release links remain part of [release distribution](24-releases.md).

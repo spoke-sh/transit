@@ -1,4 +1,4 @@
-# 3. Live storage engine and SQL execution cutover
+# 3. Executable data lifecycles and live storage/SQL cutover
 
 [Roadmap](README.md) · [Tracker #110](https://github.com/spoke-sh/transit/issues/110) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
 
@@ -45,6 +45,7 @@ host long poll is also unfinished.
 | Shared direct operation and durable acceptance protocol | [#111](https://github.com/spoke-sh/transit/issues/111) |
 | Safe current-v1 cutover and incompatible-artifact rejection | [#112](https://github.com/spoke-sh/transit/issues/112) |
 | Native control/process/KV/Document and payload persistence | [#126](https://github.com/spoke-sh/transit/issues/126) |
+| Named KV/Document provisioning and computation lifecycle integration | [#119](https://github.com/spoke-sh/transit/issues/119), [#120](https://github.com/spoke-sh/transit/issues/120) |
 | Actual executable ownership, write/read wiring, local default and long polling | [#122](https://github.com/spoke-sh/transit/issues/122) |
 | Accurate runtime documentation and proof attribution | [#123](https://github.com/spoke-sh/transit/issues/123) |
 | Installed SQL, real artifacts, restart/fault and matched performance qualification | [#124](https://github.com/spoke-sh/transit/issues/124), [#76](https://github.com/spoke-sh/transit/issues/76) |
@@ -57,6 +58,50 @@ selected-operation mirroring plan with the single-authority path in #111/#122
 and complete native persistence in #126. The earlier cache/wakeup outcomes and
 recorded bottleneck diagnosis remain evidence to preserve; they are not an
 instruction to keep bulk data in the superseded actor/page path.
+
+## Installed lifecycle integration
+
+The sequencing review transfers executable lifecycle delivery from milestone 1
+to this installed integration owner. Preserve #108's original acceptance gates:
+
+- Complete the direct Table slice from #111: validate/preview, CREATE/ALTER/DROP,
+  point and bounded batch mutations, inspect and exact recovery. Retire redundant
+  actor staging without introducing a second writable authority.
+- Complete #119's named KV/Document provisioning and initialization through
+  existing service owners. Expose interpretation, partial/failed initialization,
+  bounded recovery, cleanup, rename, retirement and same-name replacement. A
+  catalog record alone cannot establish usability or cross-owner atomicity.
+- Complete #120's named computation dependencies and inspection: exact input
+  identities, requested lifetime, actual result evidence and data-source
+  freshness. SQL/SDK and Board projections reuse qualified operations; reading
+  or explaining a declaration activates no work. Automatic scheduling stays
+  with [managed computations](08-sql-and-dataflows.md).
+
+Original lifecycle acceptance, retained from milestone 1:
+
+- An application can create a Table, inspect its definition, write/query rows,
+  alter the schema and recover the original accepted change after losing a reply
+  without routing bulk row data through multi-turn actor mailbox loops.
+- Named KV and Document objects expose explicit interpretation, initialization
+  state, current rights and lifecycle outcomes through the qualified typed path.
+- Repeating an inspection or loading a definition starts no work. Applying a
+  competing change rejects the stale expectation; recreating a name never
+  retargets an earlier operation or dependent definition.
+- Independent caller fixtures agree on definitions, outcomes and permission
+  failures. Test revocation, interrupted provisioning/publication, missing
+  dependencies and object/dependency counts beyond resident caches.
+- Snapshot/transaction fixtures distinguish consistent from independent cuts,
+  include accepted unflushed data, and establish the selected isolation profile
+  under concurrent data/schema changes without promising unsupported atomicity.
+- The handbook states each object's executable lifecycle and demonstrates how
+  to distinguish defined, published, pending, complete and unavailable evidence.
+  These are review questions; the implementation must define exact status types.
+
+Distributed-provider and concurrent-writer integration transfers explicitly to
+[milestone 12](12-storage-providers-and-concurrency.md), retaining #117/#121 and
+their #124 proof gates. This milestone remains In Progress; the split establishes
+no newly completed lifecycle or deployment. #108/#110 retain their delivered
+evidence and track these installed outcomes together.
 
 ## Recorded diagnosis of live runtime latency
 
@@ -126,14 +171,13 @@ bottlenecks keeping interactive SQL and server workflows slow:
    before flushing; restart and recover them from WAL. Then trigger a documented
    flush condition, observe segments/manifests and verify the same accepted
    outcomes after restart. No external storage daemon may remain necessary for
-   a less-visible native owner. This checkpoint does not close all milestone 2
-   provider, codec or concurrency promises.
-5. **Extend concurrency and deployment qualification.** Integrate the selected
-   writer/isolation profiles and real distributed providers from #117/#121.
-   Qualify current-policy enforcement, point/bulk conflicts, source snapshots,
-   failures and complete logical history using the same public contracts.
-   Replicated failover belongs to [replication](17-replication-and-failover.md);
-   automatic placement remains [clustered execution](19-clustered-execution.md).
+   a less-visible native owner. Later provider/concurrent-writer promises remain
+   explicit milestone 12 obligations; this checkpoint does not complete them.
+5. **Complete named resources and computation lifecycles.** Qualify #119/#120
+   through the installed paths above, including interrupted provisioning, exact
+   accepted-result binding, data-source freshness, dependencies and current
+   rights. Deliver the complete local lifecycle before later managed scheduling,
+   transaction sessions or provider expansion relies on it.
 6. **Preserve latency improvements and qualify the final cutover.** Retain
    validated cache visibility/sharing, batched reads, gateway wakeups and
    shorter readiness paths where their owners remain applicable. Complete or
@@ -155,12 +199,12 @@ creating native `.tseg`/`.tdel`/manifest artifacts under the resolved storage ro
 after a documented flush condition, querying independently verified rows, and
 recovering the exact accepted results after process restart and lost replies.
 Qualify complete CRUD and schema changes,
-bounded datasets beyond RAM/cache and the selected deployment profiles. Large
+bounded datasets beyond RAM/cache and the native local deployment profile. Large
 statements must retain bounded recoverable progress through the resolved direct
 operation contract; the earlier actor fallback cannot remain the bulk data path
-and still satisfy milestone 1. Return this milestone to `Completed` only after
-those executable acceptance paths, accurate public documentation and the linked
-proof review are complete.
+and still satisfy the transferred lifecycle acceptance. Return this milestone to
+`Completed` only after those executable acceptance paths, accurate public
+documentation and the linked proof review are complete.
 
 A successful INSERT need not create a `.tseg` immediately: WAL durability and
 memtable visibility precede asynchronous flushing in the point-write profile.

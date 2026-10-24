@@ -1,4 +1,4 @@
-# 15. Recorded outbound MCP and application guidance
+# 21. Recorded outbound MCP and application guidance
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,13 +10,13 @@ during replay. An external MCP endpoint is not automatically a trusted data sour
 ## Prerequisites and scope
 
 Reuse the existing [connector intent/capture boundary](../handbook/reference/connectors.md),
-[access/delegation contract](10-control-and-policy-plane.md),
-[published resources](11-published-resources-and-investigations.md) and the
-selected [MCP protocol implementation](13-mcp-service-and-apps.md).
-[Reactive activation](14-reactive-context-and-agent-activation.md) supplies triggers
+[access/delegation contract](16-control-and-policy-plane.md),
+[published resources](17-published-resources-and-investigations.md) and the
+selected [MCP protocol implementation](19-mcp-service-and-apps.md).
+[Reactive activation](20-reactive-context-and-agent-activation.md) supplies triggers
 where needed; finite explicit calls can be qualified independently.
 
-The next [programming-model milestone](16-programming-model.md) makes recorded
+The next [programming-model milestone](22-programming-model.md) makes recorded
 capabilities and their outcomes usable from direct clients, Station behaviors
 and mixed applications where the owning service contracts support them. This
 connector milestone retains intent, capture, reconciliation and replay semantics;
@@ -69,7 +69,7 @@ Where a workflow promises consequence tracking, qualify a later external
 observation against the original action and the declared business question.
 Distinguish tool completion from the observed business consequence, and retain
 missing or conflicting observations. Apply the shared
-[observation measures](20-qualification-and-benchmarks.md#observation-and-consequence-evidence);
+[observation measures](23-qualification-and-benchmarks.md#observation-and-consequence-evidence);
 record correlation without treating it as proof of causal impact.
 
 See the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview)
