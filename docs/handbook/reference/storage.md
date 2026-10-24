@@ -21,8 +21,9 @@ Point writes can remain in retained WAL records. Bulk ingestion publishes
 immutable `.tseg` objects before accepting the new Table state. A query's durable
 pin protects its original interpretation and accepted frontier, including
 unflushed data; independently retained Tables do not form one atomic catalog
-snapshot. Read-only current observations create no pin and cannot support later
-resumable traversal. Current database/schema/Table rights apply to both paths.
+snapshot. Read-only current observations create no pin; conditional traversal
+rejects logical changes instead of preserving an earlier cut through them.
+Current database/schema/Table rights apply to both paths.
 
 The installed owner does not automatically flush point writes or expose physical
 Table garbage collection. Absence of a new `.tseg` after a point write does not
