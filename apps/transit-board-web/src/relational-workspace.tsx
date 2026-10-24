@@ -7,17 +7,22 @@ import {
   type RelationalOpened,
   type RelationalPage,
   type RelationalReference,
+  type RelationalRequest,
 } from "@transit/board-client";
 import { QueryDiagnostic } from "./query-diagnostic";
 import type { Diagnostic } from "@transit/query-client";
 
-type Statement = { sql: string; routes: number[] };
+type Open = Extract<
+  Extract<RelationalRequest, { query: unknown }>["query"],
+  { open: unknown }
+>["open"];
 // Recovery identities outlive route components. No result or credential is saved.
 const retained: {
   reference: RelationalReference | null;
-  pending: { id: string; statement: Statement } | null;
+  pending: Open | null;
+  recoveryId: string | null;
   ordinal: string;
-} = { reference: null, pending: null, ordinal: "0" };
+} = { reference: null, pending: null, recoveryId: null, ordinal: "0" };
 function freshId() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   bytes[0] = bytes[0]! | 1;
@@ -99,6 +104,7 @@ export function RelationalWorkspace() {
         setPage(null);
         setOpened(value.active?.opened ?? null);
         retained.reference = value.active?.opened.reference ?? null;
+        retained.recoveryId = value.recovery?.id ?? null;
         retained.ordinal = value.active?.ordinal ?? "0";
         if (value.active) retained.pending = null;
       }),
@@ -154,12 +160,24 @@ export function RelationalWorkspace() {
   }, [page, read, attempt]);
   const open = () =>
     attempt(async (signal) => {
-      retained.pending ??= { id: freshId(), statement: { sql, routes: [...routes] } };
+      if (!retained.pending) {
+        const statement = { namespace: 1, sql, routes: [...routes] };
+        const prepared = await relationalQuery({ query: { explain: statement } }, signal);
+        if (
+          signal.aborted ||
+          document.hidden ||
+          !("query" in prepared) ||
+          !("explained" in prepared.query)
+        )
+          return;
+        retained.pending = { id: freshId(), statement, sources: prepared.query.explained.sources };
+      }
       const result = await relationalQuery({ query: { open: retained.pending } }, signal);
       if (signal.aborted || document.hidden || !("query" in result) || !("opened" in result.query))
         return;
       const value = result.query.opened;
       retained.reference = value.reference;
+      retained.recoveryId = value.reference.id;
       retained.ordinal = "0";
       retained.pending = null;
       setOpened(value);
@@ -183,9 +201,9 @@ export function RelationalWorkspace() {
             {profile.routes.map((route, index) => (
               <li key={index}>
                 Route {index}: realm {route.connection.scope.realm}, resource{" "}
-                {route.connection.scope.resource}, catalog {route.connection.scope.catalog}, owner{" "}
-                {route.connection.owner}; metadata revision {route.resource_revision}, policy{" "}
-                {route.policy_revision}
+                {route.connection.scope.resource}, catalog {route.connection.scope.catalog}, branch{" "}
+                {route.connection.branch}, audience {route.connection.audience}; policy{" "}
+                {route.description.policy_revision}
               </li>
             ))}
           </ul>
@@ -253,7 +271,12 @@ export function RelationalWorkspace() {
         Explain relational query
       </button>
       <button
-        disabled={busy || !!retained.reference || (!retained.pending && (!profile || !sql))}
+        disabled={
+          busy ||
+          !!retained.reference ||
+          profile?.recovery?.state === "closing" ||
+          (!retained.pending && (!profile || !sql || !!profile.recovery))
+        }
         onClick={() => void open()}
       >
         {retained.pending ? "Retry original open" : "Run relational query"}
@@ -266,7 +289,9 @@ export function RelationalWorkspace() {
             if (signal.aborted) return;
             retained.reference = null;
             retained.pending = null;
+            retained.recoveryId = null;
             retained.ordinal = "0";
+            setProfile((current) => current && { ...current, active: null, recovery: null });
             setOpened(null);
             setPage(null);
           })
@@ -274,6 +299,35 @@ export function RelationalWorkspace() {
       >
         Close relational query
       </button>
+      {!opened && (retained.recoveryId || retained.pending) && (
+        <div>
+          <p>
+            Query {retained.recoveryId ?? retained.pending!.id} has an unresolved open or close.
+            {profile?.recovery?.state === "closing"
+              ? " Its executor is unavailable or closing. Close the original sources before starting another query."
+              : " Inspect or retry the original open. Closing this work settles its original source ownership."}
+          </p>
+          <button
+            disabled={busy}
+            onClick={() =>
+              void attempt(async (signal) => {
+                const id = retained.recoveryId ?? retained.pending!.id;
+                const result = await relationalQuery({ recover: { id } }, signal);
+                if (signal.aborted || !("recovered" in result)) return;
+                retained.reference = null;
+                retained.pending = null;
+                retained.recoveryId = null;
+                retained.ordinal = "0";
+                setProfile(null);
+                setOpened(null);
+                setPage(null);
+              })
+            }
+          >
+            Close interrupted query
+          </button>
+        </div>
+      )}
       {proposed && (
         <div>
           <h3>Proposed plan · not executed</h3>
@@ -282,7 +336,8 @@ export function RelationalWorkspace() {
             Sources:{" "}
             {proposed.sources
               .map(
-                (source) => `${source.alias}: resource ${source.resource}, object ${source.object}`,
+                (source) =>
+                  `${source.alias}: resource ${source.binding.connection.scope.resource}, object ${source.binding.interpretation.interpretation.object.object}`,
               )
               .join("; ")}
           </p>
@@ -302,13 +357,14 @@ export function RelationalWorkspace() {
           <ul>
             {opened.cuts.map((cut, index) => (
               <li key={index}>
-                {opened.description.sources[index]!.alias}: resource {cut.resource}, revision{" "}
-                {cut.revision}, schema <code>{cut.schema}</code>
+                {opened.description.sources[index]!.alias}: resource {cut.object.scope.resource},
+                object {cut.object.object}, partition {cut.position.partition}, accepted position{" "}
+                {cut.position.next_lsn}, schema <code>{cut.schema}</code>
               </li>
             ))}
           </ul>
           <p>
-            Per-resource snapshot vector; different resources do not share a global transaction.
+            Independent Table snapshots; the source vector does not establish a global transaction.
           </p>
           <button
             disabled={busy}

@@ -1,135 +1,128 @@
 # Catalog callers
 
-`station_catalog_create/call/destroy` expose the shared general Table client
+`station_catalog_create/call/destroy` expose the shared direct catalog caller
 through an owned native handle. The Station port selects `catalog_client` and
-accepts `catalog` actions. Both execute the same
-[neutral Table session](../../transit-catalog/docs/table-metadata.md#neutral-general-table-callers)
-and generated `CatalogConfig`, `CatalogAction` and `CatalogResult` contracts.
-SQL and typed requests lower to the same immutable intent and owning Table
-operations. No caller handle is a Table worker or grants execution rights.
+accepts `catalog` actions. Both execute
+[`DirectTableBridge.Session`](../../transit-catalog/src/DirectTableBridge.zig)
+using the generated `CatalogConfig`, `CatalogAction` and `CatalogResult`
+contracts. SQL and typed declarations lower to the same immutable work and public
+direct operations. A caller handle does not provision a catalog or grant rights.
 
 Creation takes ABI version one, an explicit authority URL, a 32-byte signing seed
-and JSON configuration containing `connection` and optional `timeout_ms` (default
-5000, range 1–60000). The connection contains `scope` (realm/resource numbers and
-a decimal-string catalog ID), owner PID, caller principal, namespace and optional
-selected role. URLs are at most
-2048 bytes, configuration at most 8192 bytes and complete action JSON at most
-16 MiB. Native counters remain safe integers; catalog, object, operation, schema,
-column and row counts use canonical decimal strings for their full widths.
+and JSON configuration with mandatory `definition` and `connection` fields.
+The connection contains `scope` (native realm/resource counters and a decimal
+catalog ID), decimal `branch`, native `audience` and `principal`, and nullable
+selected `role`. The service validates the supported branch and native authority
+bindings. There is no actor PID in this connection.
 
-An optional `table_service_url` routes metadata, preparation and recovery reads
-through the shared authenticated Table service. `table_service_limits` bounds
-each request/response body to 1 MiB by default, with an explicit 16 MiB maximum.
-The authority URL and original caller key still own authentication and exact
-mutation submission. The service's private reader is never installed in the
-caller handle. This profile requires the caller's native send capability for
-mutations but no native process inspection or backing-resource read rights.
-Initialization and dependency provisioning require the direct operator profile.
+Optional `service_url` selects the direct service endpoint; its default is the
+explicit authority URL. The shared client uses `/table/v1` for direct requests
+and the authority endpoint for current credentials and authorization evidence.
+`timeout_ms` defaults to 5000 and accepts 1–60000. Endpoints are at most 2048 bytes
+and exclude user information, query strings and fragments. Configuration is at
+most 8192 bytes. Creation performs no I/O, activation, initialization or grants.
+An omitted service URL never selects an actor transport.
 
-Creating a handle performs no network request, provisioning, grant change,
-activation or catalog initialization. `capabilities` and loading saved intent are
-local. Direct CREATE compilation is local; mediated compilation uses the Table
-service. Other SQL compilation and typed preparation resolve current authorized
-metadata. No preparation submits a command. The owning
-catalog independently checks current authorization and conditional state when
-applying each input. Database CONNECT, schema USAGE/CREATE and Table
-SELECT/INSERT/UPDATE/DELETE are native privileges. ALTER and DROP require logical
-object ownership, independently of the catalog worker's PID ownership.
+Native counters remain safe integers. Catalog, branch, object, operation,
+interpretation, position and row-count fields use canonical decimal strings for
+their full widths. Missing or foreign definitions, old actor configurations,
+unknown fields and incorrectly encoded numbers are rejected. No persisted
+compatibility field defaults to the current definition.
 
-## Owned calls and exact recovery
+## Saved work and explicit recovery
 
-The handle uses the [shared ownership rules](bindings.md): an 8 MiB calling-thread
-stack, one active call per handle, `busy` on overlap and joined destruction. It
-owns one immutable Table intent and bounded transport work, and wipes its signing
-key during destruction. Native result buffers outlive the handle and each require
-one `station_buffer_destroy` call.
+The handle owns one immutable local Table intent or conditional name assertion.
+SQL `compile` and typed `prepare` return a local summary and an independently
+owned `saved` value. They may read current authorized definitions; neither stages
+nor admits work. A typed basis retains the entire original connection, namespace,
+name and exact stored interpretation. A later lookup or reused name cannot redirect
+that binding to a replacement Table.
 
-`compile` and typed `prepare` return an intent summary and exact saved bytes.
-Persist the saved value before dispatch. Subsequent calls carry its small reference,
-which commits to the full original intent, rather than repeating its body. `next`
-returns a signed step, running state, terminal Table outcome or closed upload.
-Persist every signed step before calling `submit`, then retain its admission
-receipt. `load` restores the original saved intent after handle replacement without
-name resolution, recompilation or dispatch. `forget` releases local memory; it
-neither cancels nor discards durable accepted work. A mismatched or unloaded
-reference rejects before remote access.
+Persist the saved value before `stage`. `load` restores it without I/O and
+replaces local work only after successful validation and allocation. `preview`
+checks current state and rights without staging, claims or admission. `stage`
+publishes a Table intent's content and returns its complete recovery reference;
+a conditional name assertion already contains its complete recovery binding.
+Persist that reference before `admit`. Staging does not imply acceptance.
 
-`submit` checks the saved step's definition, connection, complete frame and
-signature before dispatch. Malformed local recovery returns `invalid_argument`.
-Once valid dispatch starts, unconfirmed transport/response failures and result
-allocation failure return `uncertain`. Submit failures never trigger re-signing. Reconcile
-with the identical signed bytes, including after handle or port replacement.
-A returned receipt establishes native admission only.
+`admit` requests durable admission. `operation.inspect`, `operation.execute` and
+`operation.cancel` address the original complete recovery reference. They never
+recompile SQL or look up a replacement by name. Execution takes an explicit step
+budget; the caller chooses whether to make another call after inspecting progress.
+Conditional name assertions use admission, inspection and cancellation; they do
+not have a separate execute action. Their outcomes retain a catalog position
+without inventing a Table commit.
 
-`observe`/`wait_observe` report input progress. `status` reports the original
-Table outcome and upload independently. `progress`/`wait_progress` combine
-observation with the exact intent and signed input. `input_disposition` describes
-control application or input rejection; it is not a row-mutation result. Null
-outcome or disposition is absence, not success. Applied DML exposes recorded
-matched and changed counts. Current inspection rights gate retained outcomes.
-Reads and local preparation may restart after `StaleStateResource` or
-`QueryExpired`; the mediated profile also retries `StaleAuthorizationRevision`
-when a policy change invalidates a dependent read. At most eight retries occur
-within the configured deadline. Each attempt releases its workspace and checks
-current authorization for the same saved intent and policy preconditions. Cursor
-conflicts, denials and submits are not retried.
+`forget` only releases local work. Destroying a handle, closing a port or stopping
+a wait does not cancel or expire accepted work. Original recovery references
+remain usable under current rights after local forgetting, caller replacement,
+Table retirement and name reuse. Keep saved work and recovery references outside
+the handle's lifetime. An uncertain staging result can be recovered by loading
+and staging the original saved work; it does not authorize fresh compilation.
 
-`prepare_resume`, `prepare_control`, `prepare_initialize` and
-`prepare_dependency` return signed commands without sending them. Operation
-cancellation, upload cancellation and cleanup are distinct controls. Closed
-uploads do not imply cancelled Table operations; cleanup does not erase accepted
-history or receipts.
+## Inspection and related declarations
 
-## Metadata and failures
+`catalog` actions expose local capabilities, current configuration and subject,
+individual namespaces, and bounded namespace/Table pages. Page cursors retain
+the original connection, selection and catalog position. A changed directory
+rejects continuation; a returned prefix is not complete coverage. Table pages
+report independent observations rather than a cross-Table transaction snapshot.
+`lookup` returns the complete prepared binding, logical schema and authorized
+current metadata. It is not a general row reader or arbitrary historical-definition
+lookup.
 
-`lookup` returns the current owned metadata, complete typed schema and live head
-for an exact authorized name. `list` returns up to eight metadata/head entries
-ordered by object identity at one resource revision; listing does not decode every
-schema. Its dense optional slots and mandatory-definition cursor preserve scope,
-resource revision and the last scanned object. A cursor may pass retired objects,
-including an empty page with continuation. A changed resource revision requires
-restarting the listing without combining different cuts.
+`retention.acquire` takes a separately saved exact snapshot acquisition. Persist
+its owner, connection, stable object and expected position before sending it.
+`retention.status` resolves that original owner after an uncertain reply or caller
+replacement. Its current Table interpretation and position are distinct from
+the retained snapshot's basis. `retention.metadata` reads the snapshot's accepted
+position, original schema and interpretation under current rights, including
+after DROP and name reuse. `retention.release` addresses the exact owner and
+content; an uncertain release preserves that reference for status inspection or
+exact retry. Local handle disposal never releases these durable pins, and release
+does not claim physical reclamation.
 
-`definition` takes exact object and metadata-revision decimal strings and returns
-an optional `historical` value containing owned metadata and schema. It has no
-live head. Applied historical definitions remain inspectable after rename, DROP
-and name reuse under current grants and inspection policy. Absent revisions and
-known unaccepted candidates return null; corrupt or missing original acceptance
-evidence returns an error. Private metadata publication alone grants no visibility.
+`administration` actions prepare namespace operations and native policy changes.
+Namespace publication uses explicit saved bindings and admission/execution/
+inspection/cancellation. Policy preparation returns the native authorization
+owner's signed record without submitting it; selecting a role remains explicit.
+`dependencies` and `resources` use their original saved bindings for graph and
+named KV/Document lifecycle operations. Graph membership remains distinct from
+old operation receipts. Resource execution preserves recorded allocation and
+initialization progress; it does not create a second resource authority.
 
-Metadata reads validate retained publication evidence and current grants. A
-missing or inconsistent retained definition is not an absent live name. Preparing
-against a typed basis freezes object identity, metadata revision and full schema
-fingerprint; name reuse cannot redirect saved work to another Table.
+## Ownership, diagnostics and transport bounds
+
+The [shared ownership rules](bindings.md) require an 8 MiB calling-thread stack,
+one active call per handle, `busy` on overlap and joined destruction. Each result
+buffer outlives the handle and requires one `station_buffer_destroy`. Destruction
+wipes the caller's signing key and releases both transports.
 
 Errors retain the native cause, available authority rejection and an owned
-structured diagnostic. SQL errors use the general parser's captured location;
-typed inputs retain their own schema and operation failures. Failed reads never
-claim terminal outcomes. A lost submit confirmation remains unknown with its
-original sequence and exact-recovery guidance. Definitive native rejection does
-not settle previously accepted Table work.
+structured diagnostic. SQL compile failures retain source locations. Failures
+before a direct mutation attempt report `not_submitted`; failed reads report
+`not_applicable`. After any mutation attempt, an unconfirmed result reports ABI
+`uncertain` and diagnostic `unknown`, including a denial, conflict, malformed
+response or result allocation failure. An authority rejection may follow earlier
+acceptance within the same operation. Preserve the original work and inspect its
+owner; a transport error is not a terminal catalog outcome.
 
-Denied operations return `denied`; changed identities, scope, metadata or policy
-return `conflict`. Missing initialization or unloaded local intent returns
-`not_ready`; unavailable transport, resource or owner returns `unavailable`.
+Before mutation dispatch, denied requests return `denied`, conflicts return
+`conflict`, missing local work returns `not_ready`, and transport failures return
+`unavailable`. Local malformed input returns `invalid_argument`. A failure to
+allocate an error buffer can leave the returned buffer empty; the status still
+preserves possible dispatch.
 
-## Port configuration and budgets
+The port accepts `url`, private `seed_file` and `catalog_client` with the same
+configuration. Its catalog profile is exclusive with query, server and
+local-codec profiles. Other profiles return `not_ready` for catalog calls.
+Generated `catalog_intent_bytes`, `catalog_action_bytes` and `catalog_line_bytes`
+limits govern saved work, action JSON and complete port lines respectively.
+The host starts with a 16 KiB input buffer and grows only for the current bounded
+line. Oversized or truncated lines fail before dispatch. Independent logical-cell,
+row, batch, schema, JSON depth, token and field limits still apply. Bulk direct
+requests can exceed an actor frame without changing native turn limits.
 
-Configure `url`, a private `seed_file` and `catalog_client` with the same options
-as the native handle. The profile is mutually exclusive with query, mutation,
-server and local-codec profiles. Other profiles return `not_ready` for catalog
-calls. JSON validation rejects numeric wide identities, quoted native counters,
-unknown fields and incompatible definitions. Recursive logical cells preserve
-numeric precision and typed nested structure.
-
-The generated `limits.catalog_line_bytes` bounds the complete catalog host line
-at 16 MiB plus 16 KiB of framing space. Other profiles retain the raw-client bound.
-The host uses a 16 KiB input buffer and grows storage only for the current line;
-an oversized or truncated line terminates framing without dispatching it.
-Catalog JSON has independent depth, token and field budgets. Table schema,
-value, row, intent and prepared-step bounds still apply below the transport.
-These limits do not widen kernel frames, 256-byte native values or turn budgets.
-
-`shutdown` joins and destroys catalog and raw transport owners before acknowledging
-closure. Keep saved intent, signed steps and known receipts independently of
-child-process lifetime, with current grants for reconciliation.
+`shutdown` joins and destroys the catalog owner before acknowledging closure.
+The native port retains machine-readable stdout; diagnostics do not disclose
+signing seeds or application payloads.

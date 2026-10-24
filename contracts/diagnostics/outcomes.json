@@ -5880,6 +5880,34 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "InvalidRelationalRecovery": {
+          "code": "query.relational_recovery_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "RelationalRecoveryRequired": {
+          "code": "query.relational_recovery_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalRecoverySyncFailed": {
+          "code": "query.relational_recovery_sync",
+          "category": "unavailable",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "RelationalWorkspaceInUse": {
+          "code": "query.relational_workspace_in_use",
+          "category": "conflict",
+          "actions": [
+            "contact_operator"
+          ]
         }
       }
     },
@@ -8194,6 +8222,38 @@
             "correct_input"
           ],
           "transport_status": 400
+        },
+        "InvalidRelationalRecovery": {
+          "code": "query.relational_recovery_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "RelationalRecoveryRequired": {
+          "code": "query.relational_recovery_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "RelationalRecoverySyncFailed": {
+          "code": "query.relational_recovery_sync",
+          "category": "unavailable",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 503
+        },
+        "RelationalWorkspaceInUse": {
+          "code": "query.relational_workspace_in_use",
+          "category": "conflict",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 409
         }
       }
     },
@@ -9649,6 +9709,38 @@
             "correct_input"
           ],
           "transport_status": 3
+        },
+        "InvalidRelationalRecovery": {
+          "code": "query.relational_recovery_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "RelationalRecoveryRequired": {
+          "code": "query.relational_recovery_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "RelationalRecoverySyncFailed": {
+          "code": "query.relational_recovery_sync",
+          "category": "unavailable",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 14
+        },
+        "RelationalWorkspaceInUse": {
+          "code": "query.relational_workspace_in_use",
+          "category": "conflict",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 10
         }
       }
     },
@@ -13021,6 +13113,34 @@
               "execution",
               "provided"
             ]
+          ]
+        },
+        "InvalidRelationalRecovery": {
+          "code": "query.relational_recovery_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "RelationalRecoveryRequired": {
+          "code": "query.relational_recovery_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalRecoverySyncFailed": {
+          "code": "query.relational_recovery_sync",
+          "category": "unavailable",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "RelationalWorkspaceInUse": {
+          "code": "query.relational_workspace_in_use",
+          "category": "conflict",
+          "actions": [
+            "contact_operator"
           ]
         }
       }

@@ -18,12 +18,14 @@ public static partial class Catalog
     public enum Encoding { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp_3, Zoned, IbmHfp, Ebcdic }
     public enum Collation { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot }
     public enum Kind { Create, Alter, Rename, Drop, Insert, Update, Delete }
-    public enum Phase { Preparing, Delegated, Building, Applied, Unchanged, Rejected, Cancelled }
-    public enum Observation { Pending, Processed }
-    public enum UploadPhase { Uploading, Sealed, Ready, Cancelled }
-    public enum DispositionOutcome { Initialized, PolicyApplied, DependencyApplied, InvalidCommand, Blocked, Denied, IdentityConflict, StalePolicy }
-    public enum Control { CancelOperation, CleanupOperation, CancelUpload, CollectUpload }
-    public enum DependencyKind { QuerySource, Writer, Watch, MaintainedRelation, History }
+    public enum Ingestion { Point, Bulk }
+    public enum Dialect { Transit, Mysql }
+    public enum WorkKind { Table, NameAssertion }
+    public enum ObservationKind { Ddl, Rows, NameAssertion }
+    public enum OperationState { NotObserved, Admitted, Rejected, Cancelled, Committed, Unchanged }
+    public enum Phase { Admitted, Ready, Settled, Rejected, Cancelled }
+    public enum Reason { None, NameConflict, ObjectConflict, StaleDefinition, StaleData, Dependency, Constraint, DefinitionChanged, DataChanged, DuplicateKey, MissingRow, InvalidRows, WorkLimit, ConditionChanged }
+    public enum EvolutionWork { Metadata, ValidateRows, RewriteRows }
     public sealed record Scope {
         public ResourceRef Resource { get; }
         public ulong CatalogId { get; }
@@ -31,15 +33,16 @@ public static partial class Catalog
         internal JsonObject Wire() => V.Obj(("realm", Resource.Realm), ("resource", Resource.Resource), ("catalog", Turn.Decimal(CatalogId)));
     }
     public sealed record Connection {
-        public ProcessRef Owner { get; }
         public Scope Scope { get; }
+        public ulong Audience { get; }
+        public ulong Branch { get; }
         public ulong? Role { get; }
-        public ulong Namespace { get; }
-        public Connection(ProcessRef owner, Scope scope, ulong? role = null, ulong schemaNamespace = 1) {
-            ArgumentNullException.ThrowIfNull(owner); ArgumentNullException.ThrowIfNull(scope); if (owner.Realm != scope.Resource.Realm) throw new ArgumentException("Catalog requires one realm"); Owner = owner; Scope = scope; Role = role.HasValue ? V.Counter(role.Value, 0) : null; Namespace = V.Counter(schemaNamespace);
+        public Connection(Scope scope, ulong audience, ulong branch = 1, ulong? role = null) {
+            ArgumentNullException.ThrowIfNull(scope); Scope = scope; Audience = V.Counter(audience); Branch = Positive(branch); Role = role.HasValue ? V.Counter(role.Value, 0) : null;
         }
+        internal JsonObject Wire(ulong principal) => V.Obj(("scope", Scope.Wire()), ("audience", Audience), ("branch", Turn.Decimal(Branch)), ("role", Role), ("principal", V.Counter(principal, 0)));
         internal JsonObject Wire(Credential identity) {
-            if (identity.Realm != Owner.Realm) throw new ArgumentException("Different credential realm"); return V.Obj(("scope", Scope.Wire()), ("owner", Owner.Pid), ("principal", identity.Principal), ("role", Role), ("namespace", Namespace));
+            if (identity.Realm != Scope.Resource.Realm) throw new ArgumentException("Different credential realm"); return Wire(identity.Principal);
         }
     }
     public sealed record TableLimits {
@@ -48,20 +51,6 @@ public static partial class Catalog
         public uint StagingRecords { get; }
         public TableLimits(uint recordBytes, ulong stagingBytes, uint stagingRecords) { RecordBytes = Positive(recordBytes); StagingBytes = Positive(stagingBytes); StagingRecords = Positive(stagingRecords); if (stagingBytes < recordBytes) throw new ArgumentException("Staging quota cannot hold one record"); }
         internal JsonObject Wire() => V.Obj(("record_bytes", (ulong)RecordBytes), ("staging_bytes", Turn.Decimal(StagingBytes)), ("staging_records", (ulong)StagingRecords));
-    }
-    public sealed record Configuration {
-        public Scope Scope { get; }
-        public ProcessRef Owner { get; }
-        public ulong Administrator { get; }
-        public TableLimits TableLimits { get; }
-        public AuthorityProfile Authority { get; }
-        public string DatabaseName { get; }
-        public Configuration(Scope scope, ProcessRef owner, ulong administrator, TableLimits tableLimits, AuthorityProfile authority, string databaseName) {
-            _ = new Connection(owner, scope); ArgumentNullException.ThrowIfNull(tableLimits); ArgumentNullException.ThrowIfNull(authority);
-            Scope = scope; Owner = owner; Administrator = V.Counter(administrator, 0); TableLimits = tableLimits;
-            Authority = authority; DatabaseName = V.Text(Identifier(databaseName), 63);
-        }
-        internal JsonObject Wire() => V.Obj(("scope", Scope.Wire()), ("owner", Owner.Pid), ("administrator", Administrator), ("table_limits", TableLimits.Wire()), ("authority", Authority.Wire()), ("database_name", DatabaseName));
     }
     /// <summary>Stable bindings allocated by explicit native provisioning.</summary>
     public sealed record AuthorityProfile {
@@ -136,114 +125,13 @@ public static partial class Catalog
     public sealed record Identity {
         public ulong Operation { get; }
         public ulong Namespace { get; }
-        public Identity(ulong operation, ulong @namespace) { Operation = Positive(operation); Namespace = Positive(@namespace); }
-        internal JsonObject Wire() => V.Obj(("operation", Turn.Decimal(Operation)), ("namespace", Turn.Decimal(Namespace)));
+        public Identity(ulong operation, ulong @namespace = 1) { Operation = Positive(operation); Namespace = V.Counter(@namespace); }
     }
-    public sealed record Basis {
-        public ulong ObjectId { get; }
-        public ulong Revision { get; }
-        public Bytes SchemaFingerprint { get; }
-        public Basis(ulong objectId, ulong revision, Bytes schemaFingerprint) { ObjectId = Positive(objectId); Revision = Positive(revision); SchemaFingerprint = Digest(schemaFingerprint); }
-        internal JsonObject Wire() => V.Obj(("object", Turn.Decimal(ObjectId)), ("revision", Turn.Decimal(Revision)), ("schema_fingerprint", V.Hex(SchemaFingerprint.Copy())));
-    }
-    public sealed record MetadataCommitment {
-        public int Bytes { get; } public Bytes Digest { get; }
-        public MetadataCommitment(int bytes,Bytes digest) { if(bytes<1 || bytes>444) throw new ArgumentException("Invalid Table metadata length"); Bytes=bytes; Digest=Catalog.Digest(digest); }
-        internal JsonObject Wire() => V.Obj(("format",0x54434d01),("length",Bytes),("digest",new JsonArray(Digest.Copy().Select(b=>(JsonNode?)JsonValue.Create((uint)b)).ToArray())));
-    }
-    public sealed record Metadata {
-        public ulong Namespace { get; }
-        public Scope Scope { get; }
-        public ulong ObjectId { get; }
-        public ulong Revision { get; }
-        public string Name { get; }
-        public Bytes SchemaFingerprint { get; }
-        public ulong Principal { get; }
-        public ulong Operation { get; }
-        public ulong AdmittedInput { get; }
-        public MetadataCommitment Commitment { get; }
-        public Metadata(Scope scope, ulong schemaNamespace, ulong objectId, ulong revision, string name, Bytes schemaFingerprint, ulong principal, ulong operation, ulong admittedInput, MetadataCommitment commitment) { ArgumentNullException.ThrowIfNull(scope); Scope = scope; Namespace = V.Counter(schemaNamespace); ObjectId = Positive(objectId); Revision = Positive(revision); Name = Identifier(name); SchemaFingerprint = Digest(schemaFingerprint); Principal = V.Counter(principal, 0); Operation = Positive(operation); AdmittedInput = V.Counter(admittedInput); ArgumentNullException.ThrowIfNull(commitment); Commitment=commitment; }
-        public Basis Basis => new(ObjectId, Revision, SchemaFingerprint);
-    }
-    public sealed record Head {
-        public ulong Revision { get; }
-        public ulong Rows { get; }
-        public ulong Pending { get; }
-        public Head(ulong revision, ulong rows, ulong pending) { Revision = Positive(revision); Rows = rows; Pending = pending; }
-    }
-    public sealed record Entry(Metadata Metadata, Head Head);
-    public sealed record Definition(ulong Authorization, Metadata Metadata, Head Head, Schema Schema);
-    public sealed record HistoricalDefinition(Metadata Metadata, Schema Schema);
-    public sealed record Cursor {
-        public string Definition { get; }
-        public Scope Scope { get; }
-        public ulong ResourceRevision { get; }
-        public ulong AfterObject { get; }
-        public Cursor(string definition, Scope scope, ulong resourceRevision, ulong afterObject) { Definition = Current(definition); ArgumentNullException.ThrowIfNull(scope); Scope = scope; ResourceRevision = V.Counter(resourceRevision, 0); AfterObject = Positive(afterObject); }
-        internal JsonObject Wire() => V.Obj(("definition", Definition), ("scope", Scope.Wire()), ("resource_revision", ResourceRevision), ("after_object", Turn.Decimal(AfterObject)));
-    }
-    public sealed record Page {
-        public ulong ResourceRevision { get; }
-        public IReadOnlyList<Entry> Entries { get; }
-        public Cursor? Next { get; }
-        public Page(ulong resourceRevision, IReadOnlyList<Entry> entries, Cursor? next) {
-            ResourceRevision = V.Counter(resourceRevision, 0); Entries = Logical.Own(entries, 8); Next = next;
-            for (int i = 1; i < Entries.Count; i++) if (Entries[i-1].Metadata.Scope != Entries[i].Metadata.Scope || Entries[i-1].Metadata.ObjectId >= Entries[i].Metadata.ObjectId) throw new ArgumentException("Unordered or foreign page entries");
-            if (next is not null && (next.ResourceRevision != resourceRevision || (Entries.Count > 0 && (next.Scope != Entries[^1].Metadata.Scope || next.AfterObject < Entries[^1].Metadata.ObjectId)))) throw new ArgumentException("Invalid page continuation");
-        }
-    }
-    public sealed record Reference {
-        public string Definition { get; }
-        public Bytes Digest { get; }
-        public Reference(string definition, Bytes digest) { Definition = Current(definition); Digest = Catalog.Digest(digest); }
-        internal JsonObject Wire() => V.Obj(("definition", Definition), ("digest", V.Hex(Digest.Copy())));
-    }
-    public sealed record SavedIntent {
-        public string Definition { get; }
-        private readonly byte[] bytes;
-        public SavedIntent(string definition, byte[] bytes) { Definition = Current(definition); this.bytes = V.Bytes(bytes, Limit("catalog_intent_bytes")); if (bytes.Length == 0) throw new ArgumentException("Empty Table intent"); }
-        public byte[] Copy() => (byte[])bytes.Clone();
-        public bool Equals(SavedIntent? other) => other is not null && Definition == other.Definition && bytes.AsSpan().SequenceEqual(other.bytes);
-        public override int GetHashCode() { HashCode hash = new(); hash.Add(Definition); hash.AddBytes(bytes); return hash.ToHashCode(); }
-        public override string ToString() => $"SavedIntent[OwnedBytes={bytes.Length}]";
-        internal JsonObject Wire() => V.Obj(("definition", Definition), ("bytes", V.Hex(bytes)));
-    }
-    public sealed record Prepared {
-        public Bytes Bytes { get; }
-        public Prepared(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if (bytes.Length == 0 || bytes.Length > Limit("catalog_prepared_bytes")) throw new ArgumentException("Invalid prepared Table length"); _ = V.Utf8.GetString(bytes.Copy()); Bytes = bytes; }
-        internal string Wire() => V.Utf8.GetString(Bytes.Copy());
-        public override string ToString() => "Prepared[Owned signed command]";
-    }
-    public sealed record Intent(Reference Reference, Scope Scope, ProcessRef Owner, ulong Principal, Identity Identity, ulong ObjectId, Kind Kind);
-    public sealed record Compiled(Intent Intent, SavedIntent Saved);
     public sealed record Counts {
         public ulong Matched { get; }
         public ulong Changed { get; }
         public Counts(ulong matched, ulong changed) { if (changed > matched) throw new ArgumentException("Changed exceeds matched"); Matched = matched; Changed = changed; }
     }
-    // Exact generated JSON is privately retained; callers receive independent trees.
-    public sealed class Diagnostic : IEquatable<Diagnostic> {
-        private readonly JsonObject value;
-        public Diagnostic(JsonObject value) {
-            V.Text(value.ToJsonString(), 32768);
-            Transit.Client.Internal.Schema.Require(V.Object(V.Object(V.Contract["schemas"])["Diagnostic"]), value);
-            this.value = value.DeepClone().AsObject();
-        }
-        public JsonObject Copy() => value.DeepClone().AsObject();
-        public bool Equals(Diagnostic? other) => other is not null && JsonNode.DeepEquals(value, other.value);
-        public override bool Equals(object? other) => other is Diagnostic diagnostic && Equals(diagnostic);
-        public override int GetHashCode() => 0; // Equality includes objects independent of member order.
-        public override string ToString() => "Diagnostic[Owned evidence]";
-    }
-    public sealed record Outcome(Kind Kind, ulong Operation, ulong ObjectId, ulong? ActualObject, Phase Phase, bool Terminal, Counts? Counts, ulong AdmittedInput, ulong? CompletedInput, Diagnostic Diagnostic);
-    public sealed record Upload(UploadPhase Phase, uint Received, uint Total);
-    public sealed record State(Outcome? Outcome, Upload? Upload);
-    public sealed record Disposition(ulong Input, DispositionOutcome Outcome, Diagnostic Diagnostic);
-    public enum NextKind { Send, Running, Terminal, UploadCancelled }
-    public sealed record Next(NextKind Kind, Prepared? Prepared = null, Outcome? Outcome = null);
-    public sealed record Progress(Observation Observation, Disposition? Disposition = null, Outcome? Outcome = null, Upload? Upload = null);
-    public sealed record Capabilities(uint Version, string Definition, uint MaxColumns, uint MaxRows, uint MaxSqlBytes, uint MaxIntentBytes, uint MaxActionBytes, uint MaxPreparedBytes, uint ResidentIntents);
-    public sealed record Description(Configuration Configuration, Subject Subject, ulong AuthorizationRevision, ulong ResourceRevision);
     public abstract record AssignmentValue;
     public sealed record Default : AssignmentValue;
     public sealed record CellValue : AssignmentValue { public Logical.Cell Cell { get; } public CellValue(Logical.Cell cell) { ArgumentNullException.ThrowIfNull(cell); Cell = cell; } }
@@ -378,17 +266,170 @@ public static partial class Catalog
     public sealed record Mutate : Operation {
         public Basis Basis { get; }
         public Mutation Mutation { get; }
-        public Mutate(Basis basis, Mutation mutation) { ArgumentNullException.ThrowIfNull(basis); ArgumentNullException.ThrowIfNull(mutation); Basis = basis; Mutation = mutation; }
+        public Ingestion Ingestion { get; }
+        public Mutate(Basis basis, Mutation mutation, Ingestion ingestion = Ingestion.Point) { ArgumentNullException.ThrowIfNull(basis); ArgumentNullException.ThrowIfNull(mutation); Basis = basis; Mutation = mutation; Logical.EnumName(ingestion); Ingestion = ingestion; }
         public override Kind Kind => Mutation.Kind; public override ulong ObjectId => Basis.ObjectId;
-        internal override JsonObject Wire() => V.Obj(("mutate", V.Obj(("basis", Basis.Wire()), ("mutation", Mutation.Wire()))));
+        internal override JsonObject Wire() => V.Obj(("mutate", V.Obj(("basis", Basis.Wire()), ("mutation", Mutation.Wire()), ("ingestion", Logical.EnumName(Ingestion)))));
     }
-    public sealed record Dependency {
+    public sealed record Position {
+        public ulong Partition { get; }
+        public ulong NextLsn { get; }
+        public Position(ulong partition, ulong nextLsn) { Partition = Positive(partition); NextLsn = nextLsn; }
+        internal JsonObject Wire() => V.Obj(("partition", Turn.Decimal(Partition)), ("next_lsn", Turn.Decimal(NextLsn)));
+    }
+    public sealed record ObjectIdentity {
         public Scope Scope { get; }
+        public ulong Branch { get; }
         public ulong ObjectId { get; }
-        public ulong Identity { get; }
-        public ProcessRef Owner { get; }
-        public DependencyKind Kind { get; }
-        public Dependency(Scope scope, ulong objectId, ulong identity, ProcessRef owner, DependencyKind kind) { _ = new Connection(owner, scope); Logical.EnumName(kind); Scope = scope; ObjectId = Positive(objectId); Identity = Positive(identity); Owner = owner; Kind = kind; }
-        internal JsonObject Wire(bool present) => V.Obj(("scope", Scope.Wire()), ("object", Turn.Decimal(ObjectId)), ("identity", Turn.Decimal(Identity)), ("owner", Owner.Pid), ("kind", Logical.EnumName(Kind)), ("present", present));
+        public ObjectIdentity(Scope scope, ulong branch, ulong objectId) { ArgumentNullException.ThrowIfNull(scope); Scope = scope; Branch = Positive(branch); ObjectId = Positive(objectId); }
+        internal JsonObject Wire() => V.Obj(("scope", Scope.Wire()), ("branch", Turn.Decimal(Branch)), ("object", Turn.Decimal(ObjectId)));
+    }
+    public sealed record Interpretation(ObjectIdentity Object, ulong Revision, Bytes Digest);
+    public sealed record Content(ulong Bytes, Bytes Sha256);
+    public sealed record StoredDefinition(Interpretation Interpretation, Content Content, Bytes SchemaFingerprint, bool Retired);
+    public sealed record Configuration(Scope Scope, ulong Branch, ulong Partition, ulong Audience, AuthorityProfile Authority, string DatabaseName, string InitialSchemaName);
+    public sealed record Description(Configuration Configuration, Subject Subject, ulong PolicyRevision);
+    public sealed record Capabilities(uint Version, string Definition, uint MaxColumns, uint MaxRows, uint MaxSqlBytes, uint MaxIntentBytes, uint MaxActionBytes, uint MetadataPageEntries, uint ResidentIntents);
+    public sealed record Metadata(Basis Basis, ulong Authorization, Position Position, ulong ChangedLsn, ulong RowCount, Schema Schema);
+    public sealed record Namespace(Scope Scope, ulong Id, ulong Authorization, string Name, ulong Revision, bool Retired);
+    public sealed record Entry(Interpretation Interpretation, ulong Namespace, string Name, Position Position, ulong ChangedLsn);
+    public enum Consistency { Independent }
+    public sealed record Page<T> {
+        public Position Position { get; }
+        public IReadOnlyList<T> Entries { get; }
+        public Cursor? Next { get; }
+        public Consistency? Consistency { get; }
+        internal Page(Position position, IReadOnlyList<T> entries, Cursor? next, Consistency? consistency) {
+            Position = position; Entries = Array.AsReadOnly(entries.ToArray()); Next = next; Consistency = consistency;
+        }
+    }
+    public sealed record Commit(StoredDefinition Definition, Position Position, ulong Matched, ulong Affected, ulong LiveRows);
+    public sealed record Observation(ObservationKind Kind, OperationState State, Reference Reference, Commit? Commit = null, Phase? Phase = null, Reason? Reason = null, Position? Position = null);
+    public abstract record PreviewCurrent;
+    public sealed record CurrentBasis(StoredDefinition Definition, Position Position, ulong ChangedLsn, ulong RowCount) : PreviewCurrent;
+    public sealed record CurrentName(Interpretation Interpretation) : PreviewCurrent;
+    public sealed record Preview(ObservationKind Kind, Intent Intent, Position Position, PreviewCurrent? Current, Reason? Reason = null,
+        EvolutionWork? Work = null, bool? RebuildKey = null, Bytes? SchemaFingerprint = null, bool? Matches = null);
+    public sealed record ReadAuthority(ulong Database, ulong Schema, ulong Table);
+    public sealed record SnapshotStatus(SnapshotOwner Owner, Interpretation CurrentInterpretation, Position CurrentPosition, bool Retired, Snapshot? Snapshot, bool Released, ReadAuthority Authority);
+    public sealed record SnapshotMetadata(Snapshot Snapshot, StoredDefinition Interpretation, Position Accepted, ulong ChangedLsn, ulong RowCount, Schema Schema, ReadAuthority Authority);
+    public sealed record Compiled(Intent Intent, SavedIntent Saved);
+    public sealed class Intent {
+        private readonly string id, binding;
+        public WorkKind Kind { get; }
+        public Identity Identity { get; }
+        public SavedIntent Saved { get; }
+        internal Intent(JsonObject id, JsonObject binding, WorkKind kind, Identity identity, SavedIntent saved) {
+            this.id = id.ToJsonString(CatalogJson); this.binding = binding.ToJsonString(CatalogJson); Kind = kind; Identity = identity; Saved = saved;
+        }
+        internal JsonObject Id() => ParseSaved(id);
+        internal JsonObject Binding() => ParseSaved(binding);
+        public override string ToString() => "Intent[Owned local work]";
+    }
+    public interface IRecovery { string Save(); }
+    public abstract class SavedValue : IEquatable<SavedValue> {
+        private readonly string data;
+        private protected SavedValue(JsonObject value) { data = value.ToJsonString(CatalogJson); }
+        public string Save() => data;
+        internal JsonObject Wire() => ParseSaved(data);
+        public bool Equals(SavedValue? other) => other is not null && other.GetType() == GetType() && JsonNode.DeepEquals(Wire(), other.Wire());
+        public override bool Equals(object? other) => other is SavedValue value && Equals(value);
+        public override int GetHashCode() => 0; // Binding equality ignores JSON object-member order.
+        public override string ToString() => GetType().Name + "[Owned saved binding]";
+    }
+    public sealed class Basis : SavedValue {
+        private Basis(JsonObject value) : base(value) { }
+        public static Basis Restore(string data) {
+            var v = ParseSaved(data);
+            ValidateAction(V.Obj(("prepare", V.Obj(("definition", ContractDefinition), ("namespace", 1), ("operation", "1"), ("name", "check"), ("action", V.Obj(("drop", V.Obj(("basis", v), ("if_exists", false)))))))));
+            Current(V.String(v["definition"])); V.Number(v["namespace"], 1); Identifier(V.String(v["name"]));
+            var c = ParseConnection(v["connection"]); var stored = ParseStored(v["interpretation"]); Owns(c, stored.Interpretation.Object);
+            if (stored.Retired) throw new ArgumentException("Cannot prepare from retired definition"); return new(v);
+        }
+        public Connection Connection => ParseConnection(Wire()["connection"]);
+        public ulong Principal => V.Number(V.Object(Wire()["connection"])["principal"]);
+        public ulong Namespace => V.Number(Wire()["namespace"], 1);
+        public string Name => V.String(Wire()["name"]);
+        public StoredDefinition Interpretation => ParseStored(Wire()["interpretation"]);
+        public ulong ObjectId => Interpretation.Interpretation.Object.ObjectId;
+    }
+    public sealed class SavedIntent : SavedValue, IRecovery {
+        private SavedIntent(JsonObject value) : base(value) { }
+        public static SavedIntent Restore(string data) {
+            var v = ParseSaved(data); ValidateAction(V.Obj(("load", v)));
+            if (v["table"] is JsonObject table) {
+                Current(V.String(table["definition"])); V.Number(table["namespace"], 1);
+                if (V.Unhex(table["bytes"], Limit("catalog_intent_bytes")).Length == 0) throw new ArgumentException("Empty saved intent");
+            } else CheckAssertion(V.Object(v["name_assertion"]));
+            return new(v);
+        }
+    }
+    public sealed class Reference : SavedValue, IRecovery {
+        private Reference(JsonObject value) : base(value) { }
+        public static Reference Restore(string data) {
+            var v = ParseSaved(data); ValidateAction(V.Obj(("admit", v)));
+            if (v["table"] is JsonObject table) {
+                Current(V.String(table["definition"])); V.Number(table["namespace"], 1); var c = V.Object(table["connection"]);
+                CheckBinding(V.Object(table["binding"]), ParseConnection(c), V.Number(c["principal"])); var content = ParseContent(table["content"]);
+                if (content.Bytes <= 36 || content.Bytes > (ulong)Limit("catalog_intent_bytes")) throw new ArgumentException("Invalid saved work length");
+            } else CheckAssertion(V.Object(v["name_assertion"]));
+            return new(v);
+        }
+        public WorkKind Kind => Wire().ContainsKey("table") ? WorkKind.Table : WorkKind.NameAssertion;
+        internal JsonObject Value() => V.Object(Wire()[Logical.EnumName(Kind)]);
+        internal JsonObject Binding() => Kind == WorkKind.Table ? V.Object(Value()["binding"]) : Value();
+        public Connection Connection => ParseConnection(Value()["connection"]);
+        public ulong Principal => V.Number(V.Object(Value()["connection"])["principal"]);
+        public Identity Identity => new(Wide(Kind == WorkKind.Table ? V.Object(Binding()["identity"])["operation"] : Value()["operation"]), V.Number(Value()["namespace"], 1));
+    }
+    public sealed class Cursor : SavedValue {
+        private Cursor(JsonObject value) : base(value) { }
+        public static Cursor Restore(string data) {
+            var v = ParseSaved(data); var selection = V.Object(v["selection"]);
+            var action = selection.ContainsKey("namespaces") ? V.Obj(("namespaces", v)) : V.Obj(("tables", V.Obj(("namespace", selection["tables"]?.DeepClone()), ("cursor", v))));
+            ValidateAction(V.Obj(("catalog", action))); Current(V.String(v["definition"])); ParseConnection(v["connection"]);
+            var position = ParsePosition(v["position"]); ulong after = Wide(v["after"]);
+            if (position.NextLsn == 0) throw new ArgumentException("Invalid directory cut"); if (selection.ContainsKey("namespaces")) V.Counter(after);
+            return new(v);
+        }
+        internal void Check(Connection connection, ulong principal, JsonObject selection) {
+            var v = Wire(); if (!JsonNode.DeepEquals(v["connection"], connection.Wire(principal)) || !JsonNode.DeepEquals(v["selection"], selection)) throw new ArgumentException("Foreign cursor");
+        }
+        public Position Position => ParsePosition(Wire()["position"]);
+        public ulong After => Wide(Wire()["after"]);
+    }
+    public sealed class SnapshotOwner : SavedValue {
+        private SnapshotOwner(JsonObject value) : base(value) { }
+        public static SnapshotOwner Restore(string data) {
+            var v = ParseSaved(data); ValidateAction(V.Obj(("retention", V.Obj(("status", v))))); Current(V.String(v["definition"])); Wide(v["operation"]);
+            Owns(ParseConnection(v["connection"]), ParseObject(v["object"])); return new(v);
+        }
+        public Connection Connection => ParseConnection(Wire()["connection"]);
+        public ulong Principal => V.Number(V.Object(Wire()["connection"])["principal"]);
+        public ObjectIdentity Object => ParseObject(Wire()["object"]);
+        public ulong Operation => Wide(Wire()["operation"]);
+    }
+    public sealed class SnapshotAcquisition : SavedValue, IRecovery {
+        private SnapshotAcquisition(JsonObject value) : base(value) { }
+        public static SnapshotAcquisition Restore(string data) {
+            var v = ParseSaved(data); ValidateAction(V.Obj(("retention", V.Obj(("acquire", v))))); SnapshotOwner.Restore(V.Object(v["owner"]).ToJsonString(CatalogJson)); ParsePosition(v["expected"]); return new(v);
+        }
+        public SnapshotOwner Owner => SnapshotOwner.Restore(V.Object(Wire()["owner"]).ToJsonString(CatalogJson));
+        public Position Expected => ParsePosition(Wire()["expected"]);
+    }
+    public sealed class Snapshot : SavedValue, IRecovery {
+        private Snapshot(JsonObject value) : base(value) { }
+        public static Snapshot Restore(string data) {
+            var v = ParseSaved(data); ValidateAction(V.Obj(("retention", V.Obj(("metadata", v))))); SnapshotOwner.Restore(V.Object(v["owner"]).ToJsonString(CatalogJson)); ParseContent(v["content"]); return new(v);
+        }
+        public SnapshotOwner Owner => SnapshotOwner.Restore(V.Object(Wire()["owner"]).ToJsonString(CatalogJson));
+        public Content Content => ParseContent(Wire()["content"]);
+    }
+    public sealed class Uncertain : Exception {
+        public IRecovery Original { get; }
+        public TransitException Failure { get; }
+        internal Uncertain(IRecovery original, Exception cause) : base("Catalog outcome is uncertain; retain the original saved binding", cause) {
+            Original = original; Failure = cause is TransitException { Kind: ErrorKind.UnknownOutcome } error ? error : new TransitException(ErrorKind.UnknownOutcome, "catalog", 6);
+        }
     }
 }

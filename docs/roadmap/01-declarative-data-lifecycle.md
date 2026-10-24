@@ -31,16 +31,16 @@ Computation completion is not bound to verified result evidence, and schema
 revision comparisons do not establish freshness after row changes. Metadata
 transitions alone do not fulfill a data declaration.
 
-| Remaining work | Tracking issue |
-| --- | --- |
-| Direct Table operations and one acceptance/visibility/recovery protocol | [#111](https://github.com/spoke-sh/transit/issues/111) |
-| Catalog/branch identities, transaction domains and durable snapshot roots | [#125](https://github.com/spoke-sh/transit/issues/125) |
+| Remaining work                                                             | Tracking issue                                         |
+| -------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Direct Table operations and one acceptance/visibility/recovery protocol    | [#111](https://github.com/spoke-sh/transit/issues/111) |
+| Catalog/branch identities, transaction domains and durable snapshot roots  | [#125](https://github.com/spoke-sh/transit/issues/125) |
 | Real named KV/Document provisioning, initialization and lifecycle recovery | [#119](https://github.com/spoke-sh/transit/issues/119) |
-| Computation results, dependencies and data-source freshness evidence | [#120](https://github.com/spoke-sh/transit/issues/120) |
-| Executable codec/collation semantics behind declared descriptors | [#118](https://github.com/spoke-sh/transit/issues/118) |
-| Coordinated current-v1 definition and artifact cutover | [#112](https://github.com/spoke-sh/transit/issues/112) |
-| Accurate current documentation and scoped proof claims | [#123](https://github.com/spoke-sh/transit/issues/123) |
-| Public caller, failure, growth and recovery qualification | [#124](https://github.com/spoke-sh/transit/issues/124) |
+| Computation results, dependencies and data-source freshness evidence       | [#120](https://github.com/spoke-sh/transit/issues/120) |
+| Executable codec/collation semantics behind declared descriptors           | [#118](https://github.com/spoke-sh/transit/issues/118) |
+| Coordinated current-v1 definition and artifact cutover                     | [#112](https://github.com/spoke-sh/transit/issues/112) |
+| Accurate current documentation and scoped proof claims                     | [#123](https://github.com/spoke-sh/transit/issues/123) |
+| Public caller, failure, growth and recovery qualification                  | [#124](https://github.com/spoke-sh/transit/issues/124) |
 
 The issues retain their original work and proof obligations. #125 and the
 neutral contract portions of #111/#119/#120 belong here; executable direct Table,
@@ -90,8 +90,8 @@ The [shared DDL preparation proof](../../tests/README.md#shared-direct-table-ddl
 now puts SQL and typed CREATE/ALTER/RENAME/DROP binding in one direct caller
 owner. Independent operation/object identities, saved work after template
 disposal, stale-definition rejection and original receipts after retirement pass
-through the public service. The remaining general Table SDK/ABI migration still
-needs to use this owner.
+through the public service. The general Table ABI and existing language catalog
+adapters now use this owner; the remaining application consumers are listed below.
 Its [lossless caller reference contract](../../tests/README.md#lossless-direct-caller-references--2026-10-24)
 now defines exact prepared bindings and saved-work references with independent
 full-width identity fixtures. The [shared direct caller session](../../tests/README.md#shared-direct-caller-session--2026-10-24)
@@ -117,7 +117,45 @@ bounded inspection and current-rights checks.
 now reuses the same allocation/initialization/publication owner and preserves
 saved host bindings through eight resource reply faults and eleven restarts,
 including current data denial, actual writes and metadata retirement.
-General language/ABI integration remains unfinished.
+The [direct catalog ABI and port proof](../../tests/README.md#direct-catalog-abi-and-port-recovery--2026-10-24)
+now uses the same owner for wide typed work and original receipt recovery. Its
+extended run passes exact snapshot acquisition/status/metadata/release through
+lost replies, caller loss and four abrupt node replacements. Retained metadata
+keeps the accepted schema and interpretation after DROP/name reuse. The shared
+definition and generated artifacts are being cut over together. The C ABI and
+port now also pass explicit retained relational reads and current cached/terminal
+revocation in 233 public requests. The [installed Python proof](../../tests/README.md#installed-python-direct-lifecycle-and-retained-sql--2026-10-24)
+passes 393 public requests through both synchronous and asynchronous clients,
+including six caller/node replacements and unchanged original recovery bindings.
+The [installed TypeScript proof](../../tests/README.md#installed-typescript-direct-lifecycle-and-retained-sql--2026-10-24)
+passes the same schedule through its packaged native port in 197 public requests
+and three caller/node replacements. The [installed Ruby proof](../../tests/README.md#installed-ruby-direct-lifecycle-and-retained-metadata--2026-10-24)
+passes 78 public requests, three caller/node replacements, original receipt and
+retained-metadata recovery, exact mutation counts and current revocation. Ruby's
+proof does not establish interactive relational reads. The [installed Java proof](../../tests/README.md#installed-java-direct-lifecycle-and-retained-metadata--2026-10-24)
+also passes 78 public requests and three replacements, with explicit original
+retention and joined future/child ownership. Its scope is retained metadata.
+The [installed .NET proof](../../tests/README.md#installed-net-direct-lifecycle-and-retained-metadata--2026-10-24)
+also passes 78 public requests and three replacements, with original recovery
+values, retained metadata and joined native worker disposal.
+The [installed Rust proof](../../tests/README.md#installed-rust-direct-lifecycle-and-retained-metadata--2026-10-24)
+passes 78 public requests and three replacements, with 14 library tests and
+compile-time ownership rejection. It also checks retained metadata; the
+wide-intent run exposed and corrected a raw-client bound reused by the decoder.
+The [installed Erlang/Elixir proof](../../tests/README.md#installed-erlang-and-elixir-direct-lifecycle--2026-10-24)
+passes 155 public requests and six replacements across both APIs, including
+current retained-metadata authorization and joined cleanup after waiting-process
+loss. The [installed C/C++ proof](../../tests/README.md#installed-c-and-c-direct-lifecycle--2026-10-24)
+passes 152 public requests and six replacements through independently installed
+C11 and C++17 consumers, plus 77 native-boundary cases for complete bindings,
+unknown outcomes and joined POSIX cancellation. It also checks retained metadata.
+The [direct Board recovery proof](../../tests/README.md#direct-board-relational-recovery--2026-10-24)
+now passes 504 public requests and the embedded Chromium worksheet. Original pin
+requests survive lost replies, node/Board replacements and credential rotation;
+stale explanation, browser reload, cached/terminal denial and explicit cleanup
+are qualified. Remaining actor consumers, Follow/placement schedules and the
+final combined SDK and repository gates are unfinished. The milestone remains
+In Progress.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step
@@ -506,15 +544,15 @@ It does not expand the foundation-only completion criteria above or close #108.
 The implementation review uses the following matrix. Descriptor validation and
 contract fixtures are a foundation, not closure of the public caller gates.
 
-| Gate | Work owner | Required executable evidence |
-| --- | --- | --- |
-| Stable identities and exact retry binding | #125, #111 | Lost-reply recovery, altered-content rejection and rename/drop/recreate without retargeting |
-| One durable Table acceptance authority | #111, #112 | Point and bulk operations, complete CRUD/DDL, atomic visibility, incompatible-artifact rejection |
-| Durable snapshots including unflushed data | #125, #127 | Retained object/WAL coverage, interrupted acquisition, restart and GC/compaction races |
-| Named usable resources | #119, #126 | Real KV/Document provisioning, initialization, reads/writes, partial failure and recovery |
-| Dependency and policy evidence | #111, #119, #120 | Current rights, redacted blockers, explicit RESTRICT and paged collections beyond cache |
-| Actual computation completion and freshness | #120 | Verified output/source binding, row-change detection and inspection without execution |
-| Admitted codec/collation semantics | #118, #128 | Independent SQL/storage equivalence and unsupported-profile rejection |
+| Gate                                             | Work owner       | Required executable evidence                                                                                        |
+| ------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Stable identities and exact retry binding        | #125, #111       | Lost-reply recovery, altered-content rejection and rename/drop/recreate without retargeting                         |
+| One durable Table acceptance authority           | #111, #112       | Point and bulk operations, complete CRUD/DDL, atomic visibility, incompatible-artifact rejection                    |
+| Durable snapshots including unflushed data       | #125, #127       | Retained object/WAL coverage, interrupted acquisition, restart and GC/compaction races                              |
+| Named usable resources                           | #119, #126       | Real KV/Document provisioning, initialization, reads/writes, partial failure and recovery                           |
+| Dependency and policy evidence                   | #111, #119, #120 | Current rights, redacted blockers, explicit RESTRICT and paged collections beyond cache                             |
+| Actual computation completion and freshness      | #120             | Verified output/source binding, row-change detection and inspection without execution                               |
+| Admitted codec/collation semantics               | #118, #128       | Independent SQL/storage equivalence and unsupported-profile rejection                                               |
 | Installed qualification and current explanations | #122, #123, #124 | Real local artifacts, WAL-only recovery, controlled flushing, caller/fault proofs and accurate public documentation |
 
 The [neutral data contract](../../contracts/DATA_LIFECYCLE_V1.md) defines the

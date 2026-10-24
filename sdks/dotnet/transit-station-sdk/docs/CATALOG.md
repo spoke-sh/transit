@@ -1,181 +1,119 @@
-# General Table callers
+# Direct catalog lifecycle
 
-Columns preserve orthogonal encoding and collation descriptors through creation,
-ADD COLUMN and metadata readback. New columns default to plain encoding and no
-declared collation. Wire schemas require both fields and reject unknown tags;
-missing fields never acquire defaults. `SetPhysical` selects physical descriptors
-for an existing column. Shared Zig validation owns supported combinations and
-exact conversion; carrying a collation does not establish SQL comparison support.
-
-Serialization charges each converted column, assignment and predicate before
-building the next owned value. Neutral schemas share 2 MiB and actions share
-16 MiB; complete frame admission also counts enclosing fields. Oversized input
-rejects before constructing the complete JSON batch or dispatching native work.
-
-`Transit.Station.Sdk.Catalog.Client` exposes authorized schema discovery, typed
-Table creation, mutations, schema evolution and retirement through shared Zig.
-Provision the catalog host, resource, ownership and caller grants explicitly;
-a query connection does not enable catalog administration.
+`Catalog.Client` exposes direct Table definitions, row changes, current inspection
+and explicit retention through the shared Zig caller. Compilation and typed
+preparation freeze work without reserving names or accepting changes. Provision
+the catalog service and native grants first.
 
 ```csharp
-await using var client = await Catalog.Client.OpenAsync(config, credential, connection);
-var compiled = await client.CompileSqlAsync(
-    "CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(120), active BOOL)",
-    new Catalog.Identity(operationId, stagingNamespace), objectId);
-SaveIntent(compiled.Saved.Definition, compiled.Saved.Copy());
-var step = await client.NextAsync(compiled.Intent.Reference);
-if (step.Kind == Catalog.NextKind.Send) {
-    var prepared = step.Prepared!;
-    SavePrepared(prepared.Bytes.Copy());
-    ulong position = (await client.SubmitAsync(prepared)).Position;
-    SaveReceipt(position);
-    var progress = await client.ProgressAsync(
-        compiled.Intent.Reference, prepared, position, wait: true);
+using C = Transit.Station.Sdk.Catalog;
+
+var connection = new C.Connection(scope, audience);
+await using var client = await C.Client.OpenAsync(config, credential, connection, serviceUrl);
+var work = await client.CompileSqlAsync(
+    "CREATE TABLE people (id BIGINT PRIMARY KEY, name UTF8)",
+    new C.Identity(operationId, 1), objectId);
+SaveDurably("intent", work.Saved.Save());
+InspectPreview(await client.PreviewAsync(work.Intent));
+var original = await client.StageAsync(work.Intent);
+SaveDurably("reference", original.Save());
+var observed = await client.AdmitAsync(original);
+while (observed.State == C.OperationState.Admitted) {
+    observed = await client.ExecuteAsync(original, 32);
 }
+InspectOutcome(observed);
 ```
 
-The persistence functions are application-owned durable writes. This example
-sends one step; continue to a terminal outcome before claiming publication.
-`Connection(owner, scope)` combines a `ProcessRef` with
-`Scope(resource, catalogId)` in one realm; the `Credential` must match.
-`ClientConfig` selects the native profile, URL, timeout and optional trusted
-native directory. The separate native Station NuGet package is selected by
-default. Opening owns a native worker and checks the exact shared definition
-and capabilities.
+Persistence and inspection functions belong to the application. The application
+supplies distinct operation IDs and continuation budgets. Staging, admission and
+completion are separate. Committed Table work reports the resulting definition,
+accepted position and exact `Matched`, `Affected` and `LiveRows`. Conditional name
+assertions report a catalog position with `Unchanged`, `Rejected` or `Cancelled`;
+they do not invent a Table commit.
 
-Resolved `Metadata` owns a `MetadataCommitment(bytes, digest)` identifying its
-immutable publication. The length is one to 444 bytes and the digest is an
-immutable 32-byte `Bytes` value. Query sources consume it with the metadata
-revision and schema; it grants no access and does not establish live resolution.
+`Connection(scope, audience, branch: 1, role: null)` contains no actor PID.
+Credentials supply the principal. Catalog, branch, object, operation, definition,
+position and row-count values use exact uint64 `ulong` values. Realm, resource,
+principal and namespace counters retain their native safe-integer bounds.
+`ClientConfig` selects `Profile.NativeV1`, authority endpoint, timeout and optional
+trusted native library directory. `serviceUrl` defaults to the authority URL.
+Both endpoints exclude user information, query strings and fragments. Native
+catalog timeouts range from 1 through 60000 milliseconds. Opening checks the
+current definition and capabilities, loads the supplied key and owns an ABI
+worker. It initializes no catalog and grants no rights.
 
-## Types and operations
+## Typed work and inspection
 
-`Schema(objectId, revision, nextColumn, columns, primaryKey)` owns one to 128
-ordered `Column` records. Each column has a stable positive ID, UTF-8 name,
-[logical descriptor](LOGICAL.md), nullability, optional logical-cell default and
-optional character limit. Columns default to nullable with no default or length
-bound. Omitted primary keys preserve duplicate rows with internal row identities;
-explicit single/composite keys reference column IDs. Shared Zig validates key,
-nullability, default and schema semantics.
+`Schema` owns one to 128 columns with stable IDs, [logical types](LOGICAL.md),
+nullability, optional defaults and character bounds. Encoding and collation are
+independent descriptors. New columns default to `Plain` and `None`; returned
+schemas require both explicitly. Shared Zig validates supported combinations and
+conversion semantics. Empty primary keys permit unkeyed duplicate rows. Names
+are at most 255 UTF-8 bytes; SQL is at most 4096 bytes.
 
-Catalog, object, column, operation, staging namespace and revision values are
-exact positive `ulong` values. Native resource/process/principal/input IDs retain
-their separate safe-integer bounds. Names allow at most 255 UTF-8 bytes; SQL
-allows at most 4096 bytes. No physical key/value Table ID is required.
+`PrepareAsync(name, identity, operation)` accepts `Create`, `Alter`, `Rename`,
+`Drop` and `Mutate`. Existing-object actions require the complete `Metadata.Basis`
+returned by `LookupAsync`. `Basis.Save()` preserves the connection, namespace,
+name and stored interpretation; restore it with `Basis.Restore(text)`. Stale
+bases reject without retargeting newer definitions or same-named replacements.
+ALTER supports adding, dropping and renaming columns, defaults, nullability,
+logical types and physical descriptors.
 
-`CompileSqlAsync(sql, identity, createObject)` binds SQL through the authorized
-catalog and returns `Compiled(Intent, Saved)`. Supply an object identity for
-CREATE; omit it for other statements. Compilation admits no work.
-`PrepareAsync(name, identity, operation)` exposes the same semantics through
-owned operation records:
+`Mutate(basis, mutation, ingestion: Ingestion.Point)` accepts `Insert`, `Update`
+and `Delete`; `Ingestion.Bulk` stages immutable data directly. INSERT owns one to
+1024 rows with at most 128 assignments each. UPDATE and DELETE accept at most 64
+postfix predicate instructions; an absent predicate selects all rows. Assignments
+address stable column IDs with logical cells or defaults. SQL compilation accepts
+an optional create-object ID, `Dialect.Transit` or `Mysql`, and ingestion selection.
+Shared owners enforce constraints, atomic publication and current authorization.
 
-- `Create(schema, ifNotExists)`.
-- `Mutate(basis, mutation)` with `Insert(rows)`,
-  `Update(assignments, predicate)` or `Delete(predicate)`.
-- `Alter(basis, change)` with `AddColumn`, `DropColumn`, `RenameColumn`,
-  `SetDefault`, `SetNullable` or `SetType`.
-- `Rename(basis, name)` and `Drop(basis, ifExists)`.
+Schema and mutation conversion charge fragments before constructing further
+values. Schemas are at most 2 MiB. Complete saved work and action frames obey the
+generated `catalog_intent_bytes` and `catalog_action_bytes` limits. Direct catalog
+requests can exceed actor frame limits. The [Table reference](../../../../docs/handbook/reference/tables.md)
+describes executable storage and codec profiles.
 
-Obtain the immutable object/revision/fingerprint `Basis` from a looked-up
-`Definition.Metadata.Basis`. A stale basis rejects without retargeting work.
-Assignments take a column ID and logical cell, or `new Catalog.Default()`.
-INSERT owns one to 1024 rows of at most 128 assignments each. UPDATE/DELETE
-predicates are optional postfix lists of at most 64 instructions: `Comparison`,
-`StatePredicate` and `BooleanPredicate` with `All`, `Negate`, `Conjunction` or
-`Disjunction`. Omitted predicates select all rows. Zig owns predicate validation,
-frozen selection, atomic publication and exact conversions.
+`CapabilitiesAsync`, `DescribeAsync`, `NamespaceAsync`, `NamespacesAsync`,
+`TablesAsync` and `LookupAsync` return current observations. Descriptions separate
+authenticated subject from native policy revision. Pages hold at most eight
+entries; cursors bind their original connection, selection and directory position.
+A changed directory requires a fresh scan. Table observations have `Independent`
+consistency, without establishing a shared transactional cut.
 
-## Explicit progression and recovery
+## Recovery and retention
 
-A client owns at most one resident intent. Persist `SavedIntent.Definition` and
-its copied binary bytes before any send. Restore both through the constructor,
-then `LoadAsync(saved)`. Missing/foreign definitions reject. `ForgetAsync(reference)`
-drops only local intent ownership; it does not cancel accepted work. Saved intents
-are bounded to the generated 4,327,031-byte limit, action JSON to 16 MiB and
-prepared commands to 8192 bytes. Catalog JSON uses a 96-level nesting limit;
-raw callers retain their smaller response and nesting limits.
+Save `SavedIntent.Save()` before staging. `SavedIntent.Restore(text)` and
+`LoadAsync` restore local work without recompilation. Save `Reference.Save()`
+before admission; `Reference.Restore(text)` supports exact `InspectAsync`,
+`ExecuteAsync` and `CancelAsync`, including after DROP/name reuse. Missing or
+foreign definitions reject. One local intent can be loaded at a time.
+`ForgetAsync(intent)` releases that local ownership without cancelling accepted
+work. `NotObserved` remains distinct from admission, rejection, cancellation and
+commitment.
 
-`NextAsync(reference)` returns `Send`, `Running`, `Terminal` or `UploadCancelled`.
-Persist each Send's exact `Prepared.Bytes` before `SubmitAsync` and the admitted
-position after receiving it. `ObserveAsync(prepared, position, wait: true)` waits
-for input processing; `ProgressAsync(reference, prepared, position, wait: true)`
-observes processing plus separate disposition, operation outcome and upload
-state. Neither processed input nor sealed upload establishes successful
-application. `StatusAsync(reference)` reads `State(Outcome, Upload)` without
-sending a command.
+`Catalog.Uncertain.Original` retains the exact saved intent, operation reference,
+snapshot acquisition or snapshot needed for recovery. `Failure` preserves the
+native `TransitException`, status, code and optional structured diagnostic.
+Malformed successful replies and transport loss after mutation dispatch do not
+establish mutation failure. Persist the original value and recover the same
+identity instead of recompiling or inventing a replacement operation.
 
-Terminal phases are `Applied`, `Unchanged`, `Rejected` and `Cancelled`. Only
-applied INSERT/UPDATE/DELETE outcomes carry `Counts(Matched, Changed)`; a matched
-row with unchanged values can yield one matched and zero changed. Original
-outcomes remain bound to their saved object/operation after ALTER, DROP and name
-reuse. Current rights still gate diagnostic disclosure. `Diagnostic.Copy()`
-returns an independent JSON tree; mutating it cannot change retained evidence.
+`PrepareSnapshot(metadata, operationId)` creates an exact acquisition. Save its
+`Save()` result before `AcquireSnapshotAsync`, then save the returned snapshot.
+After a lost reply, restore the acquisition and inspect
+`SnapshotStatusAsync(acquisition.Owner)`. Status reports current Table
+interpretation and position separately from retained metadata.
+`SnapshotMetadataAsync(snapshot)` returns the accepted interpretation, schema
+and row count after ALTER, DROP and name reuse. Its authorization object IDs do
+not confer rights; remote reads recheck current access. This .NET API exposes
+retained metadata, not an interactive relational cursor.
 
-`PrepareResumeAsync(reference)` and `PrepareControlAsync(reference, control)`
-return explicit signed commands. Controls are `CancelOperation`,
-`CleanupOperation`, `CancelUpload` and `CollectUpload`. Their meaning depends on
-durable state; cleanup does not erase retained accepted evidence. Cancelling a
-local Task does not request durable cancellation.
+`ReleaseSnapshotAsync(snapshot)` explicitly releases the original handle. Save
+cleanup responsibility first. After a lost reply, inspect the same owner's status
+and retry that release. Client disposal does not release durable snapshots or
+assign an expiry. Applications retain cleanup responsibility.
 
-After `ErrorKind.UnknownOutcome`, retain and reconcile the exact original
-`Prepared` with the original connection and credential. Do not recompile, re-sign
-or replace its intent. Malformed success receipts, transport loss and result
-allocation failure preserve uncertainty. Definite native rejections retain their
-category, status, code and diagnostic. The client performs no automatic submission
-retry; durable recovery material belongs to the application, independently of a
-Task or managed object.
-
-## Authority, dependencies and metadata
-
-`PrepareInitializeAsync(Configuration(scope, owner, administrator, tableLimits,
-authority, databaseName))` prepares immutable host configuration. `TableLimits`
-requires explicit deployment quotas. `AuthorityProfile(databaseDomain,
-schemaDomain, tableDomain, database, initialSchema, initialSchemaAuthority)`
-contains the six registered native bindings. Provision these explicitly; startup
-does not invent objects or restore grants.
-
-`Connection(owner, scope, role: null, schemaNamespace: 1)` selects an eligible
-active role and schema namespace. `Client.OpenAsync` accepts an explicit
-`tableServiceUrl` for trusted Table mediation. The caller retains its own signing
-credential; the service holds its separate infrastructure identity. Restricted
-Table users receive no raw-resource access. Omitting the endpoint uses direct
-reads and requires separately granted infrastructure rights.
-
-`PrepareDependencyAsync(Dependency(scope, objectId, identity, owner, kind), present)`
-registers/removes a dependency. Kinds are `QuerySource`, `Writer`, `Watch`,
-`MaintainedRelation` and `History`; registration grants no access. DROP RESTRICT
-retains original blocking dependency evidence. `InputDispositionAsync` reads an
-administrator-control or rejected-input result. Absence proves no outcome.
-`DescribeAsync` returns current configuration, authenticated `Subject` and
-`AuthorizationRevision`; `CapabilitiesAsync` returns typed native limits. The
-subject carries principal, login role, selected role, credential epoch, audience
-and an owned context digest. It grants no authority. Protected disclosures and
-owner continuations check current rights; accepted write identities survive
-revocation.
-
-`LookupAsync(name)` returns a nullable `Definition(Authorization, Metadata, Head, Schema)`.
-`DefinitionAsync(objectId, revision)` returns a nullable accepted
-`HistoricalDefinition` with metadata and schema, including after retirement;
-it has no current head. Missing/unaccepted definitions are absent. Metadata
-includes the schema `Namespace`; `Authorization` identifies the stable native
-Table object. Current CONNECT, USAGE and SELECT also govern historical reads.
-`ListAsync` returns a `Page` with a resource revision, at most eight ordered
-`Entry(Metadata, Head)` values and optional `Next`. Continue while the cursor
-exists, including empty pages with continuation. Restore all `Cursor` fields:
-definition, scope, resource revision and after-object ID. A cursor grants neither
-authority nor a snapshot lease; a changed cut rejects continuation. Discard
-partial results before restarting that listing.
-
-Methods return `Task` through one bounded owned worker and the shared C ABI.
-Overlap fails with `ErrorKind.Busy`. A previously cancelled token prevents local
-admission. Cancellation of admitted work abandons only its local wait; it does
-not release native ownership or cancel accepted work. `await using` joins active
-work and native cleanup. Collections and binary values own their contents and
-outlive the client. Requests are encoded before queuing native work. Generated
-recursive schemas and typed decoders validate fields, identities, canonical
-integers, budgets and continuations.
-
-The [Table reference](../../../../docs/handbook/reference/tables.md) and
-[catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
-publication and retention. The [proof ledger](../../../../tests/README.md) records
-executed installed-NuGet and recovery evidence.
+One worker admits one operation at a time. A cancelled `CancellationToken`
+abandons a local wait without cancelling native ownership. `DisposeAsync()` joins
+active work and native cleanup before returning. Responses own their nested data;
+mutable JSON representations remain behind the SDK boundary.

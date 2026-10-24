@@ -1,165 +1,119 @@
-# General Table callers
+# Direct Table lifecycle
 
-Columns preserve orthogonal encoding and collation descriptors through creation,
-ADD COLUMN and metadata readback. New columns default to plain encoding and no
-declared collation. Wire schemas require both fields and reject unknown tags;
-missing fields never acquire defaults. `Change::Physical` selects physical descriptors
-for an existing column. Shared Zig validation owns supported combinations and
-exact conversion; carrying a collation does not establish SQL comparison support.
-
-`transit_station_sdk::catalog::Client` exposes CREATE, typed INSERT/UPDATE/DELETE,
-ALTER, RENAME, DROP, authorized metadata and exact saved-intent recovery through
-the shared Zig compiler and owner. Provision the catalog host, native resource,
-ownership, roles and object grants explicitly.
+`transit_station_sdk::catalog::Client` compiles, prepares and executes named Table
+work through the shared Zig direct catalog owner. A connection names a catalog
+scope, audience, branch and optional active role. Provisioning supplies these
+identities and their grants. A connection does not allocate a catalog or grant
+access. Namespace selection belongs to each operation and lookup.
 
 ```rust
-use transit_station_sdk::catalog::{Client, Connection, Identity, Scope};
+use transit_station_sdk::catalog::{Client, Connection, Dialect, Identity, Ingestion, Scope};
 
-let scope = Scope::new(resource, catalog_id)?;
-let connection = Connection::new(owner, scope)?;
-let mut client = Client::open(config, credential, connection)?;
-let compiled = client.compile_sql(
-    "CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(80))",
-    Identity::new(operation_id, namespace_id)?,
+let connection = Connection::new(Scope::new(resource, catalog_id)?, audience)?;
+let mut client = Client::open(config, credential, connection, Some(service_url))?;
+let work = client.compile_sql(
+    "CREATE TABLE people (id BIGINT PRIMARY KEY, name VARCHAR(80))",
+    Identity::new(operation_id, 1)?,
     Some(object_id),
+    Dialect::Transit,
+    Ingestion::Point,
 )?;
-save_intent(compiled.saved.definition(), compiled.saved.bytes())?;
-// Application-owned persistence; prepare and persist each step before dispatch.
-let reference = compiled.intent.reference;
+persist_intent(&work.saved.save())?; // Application-owned durable persistence.
+let original = client.stage(&work.intent)?;
+persist_reference(&original.save())?;
+let observed = client.admit(&original)?;
 ```
 
-`owner` and `resource` are `ProcessRef` and `ResourceRef` in one realm;
-`credential` is a `Credential` in that realm. Use the raw client's explicit
-`ClientConfig::growing` profile and timeout. Opening checks the installed native
-ABI and general Table capabilities on one owned worker. It performs no network
-request. Importing starts no worker and reads no credential.
+`Client::open` accepts a growing `ClientConfig`, a credential and an optional
+service URL. Without a separate URL, direct catalog requests use the configured
+node endpoint. Opening verifies the native ABI and local catalog capabilities;
+it does not initialize the service. The current definition is mandatory in
+saved values, native configuration and responses. Foreign definitions reject.
 
-Catalog, object, operation, namespace, schema/metadata revision and column IDs
-use exact full-width `u64`; native process, resource and input positions retain
-their separate safe-integer bounds. `Identity::new` requires positive operation
-and upload namespace identities. SQL is limited to 4,096 UTF-8 bytes. Compilation
-and typed preparation can read currently authorized metadata; they never dispatch
-an operation. `compile_sql` takes `Some(object)` for CREATE and `None` for other
-statements.
+`compile_sql` and typed `prepare` can read current authorized metadata. Their
+results contain a local `Intent` and an owned `SavedIntent`; they do not admit
+work. `preview` describes the current basis, reason and required schema work.
+`stage` stores the intent content and returns its exact `Reference`. Persist that
+reference before `admit`. `execute` advances admitted work within an explicit
+step budget; `inspect` observes the original operation and `cancel` requests
+cancellation. Only a committed observation carries `Commit` with accepted
+position, resulting definition, matched/affected counts and live row count.
+Admission, preparation and preview are distinct from completion.
 
-Resolved `Metadata` includes an owned `MetadataCommitment { bytes, digest }`
-for its immutable publication. The length is one to 444 bytes; the digest is
-`[u8; 32]`. Query sources consume it with the metadata revision and schema.
-It identifies the definition and does not grant access or establish current
-name resolution.
+## Definitions and values
 
-## Typed schemas and mutations
+`lookup(name, namespace)` returns `Option<Metadata>` with a complete `Basis`,
+authorization identity, accepted position, changed position, row count and typed
+schema. The basis includes the original connection, namespace, name, object,
+branch, immutable definition, content commitment and schema fingerprint.
+ALTER, RENAME, DROP and typed mutations use that complete basis. Old work cannot
+retarget an object subsequently created under the same name.
 
-`Schema` owns up to 128 `Column` values, a stable `next_column` and explicit
-`primary_key` column IDs. `Column::new(id, name, datatype)` defaults to nullable,
-without a default or character limit. `logical::Descriptor` represents scalar,
-decimal, timestamp, structure, tagged union, list, fixed array and map types.
-`logical::Cell` distinguishes missing, null, source type error, value and conflict;
-`CellValue` owns recursive children. Atoms use Rust integer widths including
-`i128`/`u128`, finite `f32`/`f64`, owned UTF-8/binary, exact decimal coefficients,
-calendar/time units, intervals and 16-byte UUIDs. Floating-point conversion keeps
-signed zero and uses the selected width's exact little-endian bits.
+Catalog, object, branch, operation, definition revision and accepted positions
+use full-width `u64`. Native resource, audience, principal, role and namespace
+identities retain native safe-integer bounds. `Identity::new(operation, namespace)`
+requires positive identities. SQL text is limited to 4,096 UTF-8 bytes; names to
+255 UTF-8 bytes. Generated capability values expose intent/action bounds.
 
-Pass `Operation` to `prepare(name, identity, &operation)`. CREATE takes a `Schema`;
-ALTER takes one `Change`; RENAME and DROP use catalog lifecycle semantics.
-`Mutation::Insert` accepts at most 1,024 rows of assignments; UPDATE and DELETE
-accept up to 64 postfix `Predicate` instructions. Assignments name stable column
-IDs and carry `AssignmentValue::Cell` or `Default`. Comparisons use typed atoms;
-state tests and boolean instructions preserve native predicate semantics.
+`Schema` owns up to 128 columns and stable primary-key column IDs. Logical
+`Descriptor`, physical `Encoding` and `Collation` remain separate. Wire schemas
+require physical fields; absent or foreign tags reject. `Change::Physical`
+selects descriptors for an existing column. Shared Zig validation owns supported
+combinations, exact conversion and comparison semantics.
 
-Non-CREATE work uses `Metadata::basis()` to freeze object, metadata revision and
-schema fingerprint. Absent-name DROP IF EXISTS can omit its basis. Work never
-retargets a replacement object found under the same name. SQL and typed inputs
-lower to the same native immutable intent and execution contract.
+`Operation::Mutate` selects `Ingestion::Point` or `Bulk`. INSERT accepts at most
+1,024 rows; assignments use stable column IDs and owned logical cells or an
+explicit default. UPDATE and DELETE accept bounded postfix predicates. Logical
+values include recursive structures, unions, lists, arrays, maps, exact decimal
+coefficients, binary data and typed missing/null/error/conflict states. Conversion
+bounds depth, children and aggregate bytes before serializing later values.
+Handler-local Table helpers reuse these codecs and retain their separate native
+turn commit semantics.
 
-Logical conversion bounds both directions to depth below 16, 256 type nodes,
-4,096 field-name bytes, 65,536 value children and 1 MiB of value data. MAP keys
-count as children; conflict alternatives share their owning cell's depth and
-require two to eight increasing positive counter/replica pairs. Native admission
-checks the complete schema, values and intent. Names are bounded to 255 UTF-8
-bytes; schema JSON is bounded to 2 MiB. The generated 16 MiB action limit applies
-only to this catalog profile; raw-client and kernel frame bounds are unchanged.
+## Recovery and retention
 
-## Persistence, submission and outcomes
+`SavedIntent::restore` and `load` restore exact original work without recompiling
+SQL. `forget` releases local loaded work. `Reference::restore` preserves every
+original binding for inspection or resumption. Saved values own their JSON and
+reject duplicate fields, excess depth, missing fields and incompatible definitions.
+The language decoder validates the generated Zig schema and checks identity,
+page ordering and receipt consistency. It does not establish authorization or
+accepted history independently of the native owner.
 
-Persist `SavedIntent::definition()` together with its exact `bytes()` before
-submitting work. Restore with `SavedIntent::new(definition, bytes)` and
-`client.load(&saved)`; omitted or foreign definitions reject. Loading validates
-the original intent locally and never recompiles SQL or sends a command. A handle
-owns one loaded intent; `forget(&reference)` releases that local ownership.
+Mutating calls return `DispatchResult<T>`. `DispatchError::Uncertain` contains
+the native `cause` and a typed `Recovery` holding the original saved intent,
+reference, acquisition or snapshot. Preserve that value and inspect the original
+operation after loss. Malformed success responses retain uncertainty. Definite
+failures remain `DispatchError::Definite`. There is no automatic retry or new
+identity allocation. Closing a caller does not cancel accepted work.
 
-`next(&reference)` returns `Next::Send(Prepared)`, `Running`, `UploadCancelled` or
-`Terminal(Outcome)`. Persist `Prepared::data()` unchanged before `submit(&prepared)`.
-Recover it using `Prepared::from_data(saved_text)`. Shared Zig validates the
-original definition, connection, frame and signature before dispatch. Submission
-borrows the command and returns an `AdmissionReceipt`.
+`prepare_snapshot(&metadata, operation)` creates an explicit
+`SnapshotAcquisition` for the accepted position. Persist it before
+`acquire_snapshot`. Resolve uncertain acquisition through
+`snapshot_status(&acquisition.owner())`. Persist the resulting `Snapshot` before
+using `snapshot_metadata` or releasing it. Uncertain release retains the original
+snapshot; owner status resolves it, and repeated original release is idempotent.
 
-`observe(&prepared, position, wait)` reports input progress. `progress(&reference,
-&prepared, position, wait)` combines input progress with the original operation;
-processed inputs may have a separate `Disposition`. `status(&reference)` returns
-operation outcome and upload state separately. Only applied DML has recorded
-`Counts { matched, changed }`; processed input or sealed upload alone does not
-establish successful execution. `prepare_resume` and `prepare_control` produce
-explicit signed recovery, operation/upload cancellation and cleanup commands;
-each still requires persistence and separate submission.
+Retained metadata preserves the accepted definition after ALTER, DROP and name
+reuse. Every disclosure checks current access. Saved bindings, snapshot ownership
+and `ReadAuthority` identifiers do not grant rights. This Rust catalog API exposes
+retained metadata; it does not expose an interactive relational SQL cursor.
+Snapshot acquisition and release are explicit. Dropping the Rust client does not
+release retained data or authorize physical deletion or expiry.
 
-On `ErrorKind::UnknownOutcome`, reconcile the identical `Prepared` using the
-original connection and credential, replacing the caller if needed. Missing or
-malformed success receipts and failures after worker dispatch retain uncertainty.
-Definite native rejections retain their status and validated diagnostic. Do not
-recompile, re-sign or replace uncertain work. Closing a client or deleting local
-files does not cancel accepted work.
+## Inspection and ownership
 
-## Metadata and administration
+`describe`, `namespace`, `namespaces` and `tables` inspect the current authorized
+catalog. Description separates configuration, authenticated subject and current
+policy revision. Pages contain at most eight entries and a complete continuation
+`Cursor`. Restore its exact saved fields and continue only that listing. Changed
+catalog cuts fail; start a fresh listing rather than mixing revisions. Table
+entries use independent accepted positions and report `Consistency::Independent`.
+Namespace administration, dependency controls and named KV/Document declarations
+use their owning public operations; this typed adapter does not expose them.
 
-`lookup(name)` returns `Option<Definition>` with current `metadata`, complete
-`schema`, live `head` and stable native `authorization` object. Metadata includes
-the schema `namespace`. `definition(object, revision)` returns an accepted
-`HistoricalDefinition` with metadata and schema and no live head. Historical
-reads survive ALTER, DROP and name reuse under current database CONNECT, schema
-USAGE and Table SELECT. Absent revisions and known unaccepted candidates return `None`; missing
-original acceptance evidence or corrupt/incompatible retained records fail.
-Private publication alone does not establish acceptance.
-
-`list(None)` returns a `Page` with resource revision, up to eight owned
-metadata/head entries ordered by object ID, and optional continuation. Empty
-pages can continue past retired objects. Persist every cursor field and restore
-with `Cursor::new(definition, scope, resource_revision, after_object)`; cursors
-confer no authority. Continue using only `page.next`. Changed cuts fail; begin a
-fresh listing rather than combining revisions. Response decoding checks exact
-identity, page shape/order/scope, continuation and outcome/count consistency.
-Native validation checks success and failure diagnostics.
-
-`Configuration` includes explicit record/staging byte and staging-record limits,
-a database name and an `AuthorityProfile` containing the six registered native
-bindings. Provisioning allocates these identities explicitly. `prepare_initialize`
-and `prepare_dependency` prepare controls without dispatch. `describe` returns
-configuration, the current authenticated `Subject`, and `authorization_revision`.
-The subject carries the login role, selected role, credential epoch, audience and
-an owned context digest; the observation itself grants no authority. The native
-owner rechecks the original subject on continuation and publication.
-
-`Connection::with_role` selects an eligible active role; `with_namespace` selects
-a schema namespace (initially 1). `Client::open_mediated` takes the explicitly
-configured Table service URL. The caller signs commands with its own credential;
-the trusted service holds its separate infrastructure identity. Restricted Table
-users receive no raw-resource access. `Client::open` uses direct reads and requires
-separately granted infrastructure rights. Saved intents retain their original
-identities across revocation and credential rotation.
-
-Methods borrow the client mutably, preventing overlapping calls through safe
-Rust. Use an owned blocking task on an async executor. `close(self)` consumes the
-caller and joins destruction; `Drop` also joins cleanup. Returned values own
-their data and outlive the handle. There is no implicit submission retry or
-principal-sequence coordinator. Native reads/preparation may restart only an
-exact transient stale-resource rejection within the configured deadline.
-
-Serialization charges each converted column, assignment and predicate before
-building the next owned value. Neutral schemas share 2 MiB and actions share
-16 MiB; complete frame admission also counts enclosing fields. An oversized
-batch rejects during conversion rather than after its complete JSON allocation.
-
-The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
-publication and authority. The [proof ledger](../../../../tests/README.md) records
-executed installed-package schedules, compiler rejection and malformed-response
-checks and their limits.
+The blocking client owns one native worker and one loaded intent. Methods borrow
+it mutably, preventing concurrent calls in safe Rust. Move ownership into an
+executor's blocking task when needed. `close(self)` consumes the handle and joins
+destruction; `Drop` also joins. Returned values own their data and outlive the
+client. Imported packages do not read credentials or start workers.

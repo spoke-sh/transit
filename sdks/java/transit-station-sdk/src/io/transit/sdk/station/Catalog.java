@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /** General Tables; shared Zig owns compilation, authority and durable recovery. */
 public final class Catalog {
@@ -26,31 +25,31 @@ public final class Catalog {
     public enum Encoding { PLAIN, BITPACKED, RLE, DICTIONARY, FSST, COMP, COMP_3, ZONED, IBM_HFP, EBCDIC }
     public enum Collation { NONE, UTF8_BINARY, ASCII_CI, EBCDIC_CP037, ICU_ROOT }
     public enum Kind { CREATE, ALTER, RENAME, DROP, INSERT, UPDATE, DELETE }
-    public enum Phase { PREPARING, DELEGATED, BUILDING, APPLIED, UNCHANGED, REJECTED, CANCELLED }
-    public enum Observation { PENDING, PROCESSED }
-    public enum UploadPhase { UPLOADING, SEALED, READY, CANCELLED }
-    public enum DispositionOutcome { INITIALIZED, POLICY_APPLIED, DEPENDENCY_APPLIED, INVALID_COMMAND, BLOCKED, DENIED, IDENTITY_CONFLICT, STALE_POLICY }
-    public enum Control { CANCEL_OPERATION, CLEANUP_OPERATION, CANCEL_UPLOAD, COLLECT_UPLOAD }
-    public enum DependencyKind { QUERY_SOURCE, WRITER, WATCH, MAINTAINED_RELATION, HISTORY }
+    public enum Ingestion { POINT, BULK }
+    public enum Dialect { TRANSIT, MYSQL }
+    public enum WorkKind { TABLE, NAME_ASSERTION }
+    public enum ObservationKind { DDL, ROWS, NAME_ASSERTION }
+    public enum OperationState { NOT_OBSERVED, ADMITTED, REJECTED, CANCELLED, COMMITTED, UNCHANGED }
+    public enum Phase { ADMITTED, READY, SETTLED, REJECTED, CANCELLED }
+    public enum Reason { NONE, NAME_CONFLICT, OBJECT_CONFLICT, STALE_DEFINITION, STALE_DATA, DEPENDENCY, CONSTRAINT,
+        DEFINITION_CHANGED, DATA_CHANGED, DUPLICATE_KEY, MISSING_ROW, INVALID_ROWS, WORK_LIMIT, CONDITION_CHANGED }
+    public enum EvolutionWork { METADATA, VALIDATE_ROWS, REWRITE_ROWS }
     public record Scope(ResourceRef resource, BigInteger catalog) {
         public Scope { Objects.requireNonNull(resource); positive(catalog); }
         JsonObject wire() { return obj("realm", resource.realm(), "resource", resource.resource(), "catalog", catalog.toString()); }
     }
-    public record Connection(ProcessRef owner, Scope scope, Optional<Long> role, long namespace) {
-        public Connection(ProcessRef owner, Scope scope) { this(owner, scope, Optional.empty(), 1); }
-        public Connection { Objects.requireNonNull(role); role.ifPresent(value -> counter(value, 0)); counter(namespace, 1); Objects.requireNonNull(owner); Objects.requireNonNull(scope); if (owner.realm() != scope.resource().realm()) throw new IllegalArgumentException("Catalog requires one realm"); }
+    public record Connection(Scope scope, long audience, BigInteger branch, Optional<Long> role) {
+        public Connection(Scope scope, long audience) { this(scope, audience, BigInteger.ONE, Optional.empty()); }
+        public Connection { Objects.requireNonNull(scope); counter(audience, 1); positive(branch); role.ifPresent(v -> counter(v, 0)); }
+        JsonObject wire(long principal) { return obj("scope", scope.wire(), "audience", audience, "branch", branch.toString(), "role", role.orElse(null), "principal", counter(principal, 0)); }
         JsonObject wire(Credential identity) {
-            if (identity.realm() != owner.realm()) throw new IllegalArgumentException("Different credential realm");
-            return obj("scope", scope.wire(), "owner", owner.pid(), "principal", identity.principal(), "role", role.orElse(null), "namespace", namespace);
+            if (identity.realm() != scope.resource().realm()) throw new IllegalArgumentException("Different credential realm");
+            return wire(identity.principal());
         }
     }
     public record TableLimits(long recordBytes, BigInteger stagingBytes, long stagingRecords) {
         public TableLimits { u32(recordBytes); positive(stagingBytes); u32(stagingRecords); if (stagingBytes.compareTo(BigInteger.valueOf(recordBytes)) < 0) throw new IllegalArgumentException("Staging quota cannot hold a record"); }
         JsonObject wire() { return obj("record_bytes", recordBytes, "staging_bytes", stagingBytes.toString(), "staging_records", stagingRecords); }
-    }
-    public record Configuration(Scope scope, ProcessRef owner, long administrator, TableLimits tableLimits, AuthorityProfile authority, String databaseName) {
-        public Configuration { new Connection(owner, scope); counter(administrator, 0); Objects.requireNonNull(tableLimits); Objects.requireNonNull(authority); text(name(databaseName), 63); }
-        JsonObject wire() { return obj("scope", scope.wire(), "owner", owner.pid(), "administrator", administrator, "table_limits", tableLimits.wire(), "authority", authority.wire(), "database_name", databaseName); }
     }
     /** Stable IDs allocated through explicit native provisioning. */
     public record AuthorityProfile(long databaseDomain, long schemaDomain, long tableDomain,
@@ -97,81 +96,13 @@ public final class Catalog {
             text(result.toString(), 2 * 1024 * 1024); return result;
         }
     }
-    public record Identity(BigInteger operation, BigInteger namespace) {
-        public Identity { positive(operation); positive(namespace); }
-        JsonObject wire() { return obj("operation", operation.toString(), "namespace", namespace.toString()); }
+    public record Identity(BigInteger operation, long namespace) {
+        public Identity { positive(operation); counter(namespace, 1); }
+        public Identity(BigInteger operation) { this(operation, 1); }
     }
-    public record Basis(BigInteger object, BigInteger revision, Bytes schemaFingerprint) {
-        public Basis { positive(object); positive(revision); digest(schemaFingerprint); }
-        JsonObject wire() { return obj("object", object.toString(), "revision", revision.toString(), "schema_fingerprint", hex(schemaFingerprint)); }
-    }
-    public record MetadataCommitment(int bytes,Bytes digest) {
-        public MetadataCommitment { if(bytes<1 || bytes>444)throw new IllegalArgumentException("Invalid Table metadata length"); Catalog.digest(digest); }
-        JsonObject wire() { JsonArray data=new JsonArray(); for(byte b:digest.copy())data.add(Byte.toUnsignedInt(b)); return obj("format",0x54434d01,"length",bytes,"digest",data); }
-    }
-    public record Metadata(Scope scope, long namespace, BigInteger object, BigInteger revision, String name, Bytes schemaFingerprint, long principal, BigInteger operation, long admittedInput, MetadataCommitment commitment) {
-        public Metadata { counter(namespace, 1); Objects.requireNonNull(scope); positive(object); positive(revision); Catalog.name(name); digest(schemaFingerprint); counter(principal, 0); positive(operation); counter(admittedInput, 1); Objects.requireNonNull(commitment); }
-        public Basis basis() { return new Basis(object, revision, schemaFingerprint); }
-    }
-    public record Head(BigInteger revision, BigInteger rows, BigInteger pending) { public Head { positive(revision); u64(rows); u64(pending); } }
-    public record Entry(Metadata metadata, Head head) { public Entry { Objects.requireNonNull(metadata); Objects.requireNonNull(head); } }
-    public record Definition(long authorization, Metadata metadata, Head head, Schema schema) { public Definition { counter(authorization, 1); } }
-    public record HistoricalDefinition(Metadata metadata, Schema schema) {}
-    public record Cursor(String definition, Scope scope, long resourceRevision, BigInteger afterObject) {
-        public Cursor { Catalog.definition(definition); Objects.requireNonNull(scope); counter(resourceRevision, 0); positive(afterObject); }
-        JsonObject wire() { return obj("definition", definition, "scope", scope.wire(), "resource_revision", resourceRevision, "after_object", afterObject.toString()); }
-    }
-    public record Page(long resourceRevision, List<Entry> entries, Optional<Cursor> next) {
-        public Page {
-            counter(resourceRevision, 0); entries = Logical.owned(entries, 8); Objects.requireNonNull(next);
-            for (int i = 1; i < entries.size(); i++) {
-                Metadata a = entries.get(i - 1).metadata(), b = entries.get(i).metadata();
-                if (!a.scope().equals(b.scope()) || a.object().compareTo(b.object()) >= 0) throw new IllegalArgumentException("Unordered or foreign Table entries");
-            }
-            if (next.isPresent()) {
-                Cursor c = next.get(); Metadata last = entries.isEmpty() ? null : entries.getLast().metadata();
-                if (c.resourceRevision() != resourceRevision || (last != null && (!c.scope().equals(last.scope()) || c.afterObject().compareTo(last.object()) < 0))) throw new IllegalArgumentException("Invalid Table continuation");
-            }
-        }
-    }
-    public record Reference(String definition, Bytes digest) {
-        public Reference { Catalog.definition(definition); Catalog.digest(digest); }
-        JsonObject wire() { return obj("definition", definition, "digest", hex(digest)); }
-    }
-    /** Persist both fields unchanged before sending a step. */
-    public record SavedIntent(String definition, byte[] bytes) {
-        public SavedIntent { Catalog.definition(definition); bytes = io.transit.client.internal.Values.bytes(bytes, limit("catalog_intent_bytes")); if (bytes.length == 0) throw new IllegalArgumentException("Empty Table intent"); }
-        @Override public byte[] bytes() { return bytes.clone(); }
-        @Override public boolean equals(Object other) { return other instanceof SavedIntent saved && definition.equals(saved.definition) && Arrays.equals(bytes, saved.bytes); }
-        @Override public int hashCode() { return 31 * definition.hashCode() + Arrays.hashCode(bytes); }
-        @Override public String toString() { return "SavedIntent[owned recovery bytes=" + bytes.length + "]"; }
-        JsonObject wire() { return obj("definition", definition, "bytes", HexFormat.of().formatHex(bytes)); }
-    }
-    public record Prepared(Bytes bytes) {
-        public Prepared { Objects.requireNonNull(bytes); if (bytes.size() == 0 || bytes.size() > limit("catalog_prepared_bytes")) throw new IllegalArgumentException("Invalid prepared Table length"); text(bytes.copy()); }
-        String wire() { return text(bytes.copy()); }
-        @Override public String toString() { return "Prepared[owned signed command]"; }
-    }
-    public record Intent(Reference reference, Scope scope, ProcessRef owner, long principal, Identity identity, BigInteger object, Kind kind) {}
-    public record Compiled(Intent intent, SavedIntent saved) {}
     public record Counts(BigInteger matched, BigInteger changed) {
         public Counts { u64(matched); u64(changed); if (changed.compareTo(matched) > 0) throw new IllegalArgumentException("Changed exceeds matched"); }
     }
-    public record Outcome(Kind kind, BigInteger operation, BigInteger object, Optional<BigInteger> actualObject, Phase phase, boolean terminal, Optional<Counts> counts, long admittedInput, Optional<Long> completedInput, JsonObject diagnostic) {
-        public Outcome { diagnostic = CatalogValues.diagnostic(diagnostic); }
-        @Override public JsonObject diagnostic() { return diagnostic.deepCopy(); }
-    }
-    public record Upload(UploadPhase phase, int received, int total) {}
-    public record State(Optional<Outcome> outcome, Optional<Upload> upload) {}
-    public record Disposition(long input, DispositionOutcome outcome, JsonObject diagnostic) {
-        public Disposition { diagnostic = CatalogValues.diagnostic(diagnostic); }
-        @Override public JsonObject diagnostic() { return diagnostic.deepCopy(); }
-    }
-    public enum NextKind { SEND, RUNNING, TERMINAL, UPLOAD_CANCELLED }
-    public record Next(NextKind kind, Optional<Prepared> prepared, Optional<Outcome> outcome) {}
-    public record Progress(Observation observation, Optional<Disposition> disposition, Optional<Outcome> outcome, Optional<Upload> upload) {}
-    public record Capabilities(int version, String definition, int maxColumns, int maxRows, int maxSqlBytes, int maxIntentBytes, int maxActionBytes, int maxPreparedBytes, int residentIntents) {}
-    public record Description(Configuration configuration, Subject subject, long authorizationRevision, long resourceRevision) {}
     public sealed interface AssignmentValue permits Default, CellValue {}
     public enum Default implements AssignmentValue { VALUE }
     public record CellValue(Logical.Cell cell) implements AssignmentValue { public CellValue { Objects.requireNonNull(cell); } }
@@ -257,92 +188,314 @@ public final class Catalog {
         public Kind kind() { return Kind.DROP; } public BigInteger object() { return basis.map(Basis::object).orElse(BigInteger.ZERO); }
         public JsonObject wire() { return obj("drop", obj("basis", basis.map(Basis::wire).orElse(null), "if_exists", ifExists)); }
     }
-    public record Mutate(Basis basis, Mutation mutation) implements Operation {
-        public Mutate { Objects.requireNonNull(basis); Objects.requireNonNull(mutation); }
+    public record Mutate(Basis basis, Mutation mutation, Ingestion ingestion) implements Operation {
+        public Mutate { Objects.requireNonNull(basis); Objects.requireNonNull(mutation); Objects.requireNonNull(ingestion); }
+        public Mutate(Basis basis, Mutation mutation) { this(basis, mutation, Ingestion.POINT); }
         public Kind kind() { return mutation.kind(); } public BigInteger object() { return basis.object(); }
-        public JsonObject wire() { return obj("mutate", obj("basis", basis.wire(), "mutation", mutation.wire())); }
+        public JsonObject wire() { return obj("mutate", obj("basis", basis.wire(), "mutation", mutation.wire(), "ingestion", Logical.tag(ingestion))); }
     }
-    public record Dependency(Scope scope, BigInteger object, BigInteger identity, ProcessRef owner, DependencyKind kind) {
-        public Dependency { new Connection(owner, scope); positive(object); positive(identity); Objects.requireNonNull(kind); }
-        JsonObject wire(boolean present) { return obj("scope", scope.wire(), "object", object.toString(), "identity", identity.toString(), "owner", owner.pid(), "kind", Logical.tag(kind), "present", present); }
+    public record Position(BigInteger partition, BigInteger nextLsn) {
+        public Position { positive(partition); u64(nextLsn); }
+        JsonObject wire() { return obj("partition", partition.toString(), "next_lsn", nextLsn.toString()); }
     }
-    static Outcomes.AdmissionReceipt admission(JsonElement value) {
-        try { return new Outcomes.AdmissionReceipt(number(Logical.fields(CatalogValues.result(value, "receipt"), "position").get("position"), 1)); }
-        catch (RuntimeException | OutOfMemoryError error) { throw uncertain(); }
+    public record ObjectIdentity(Scope scope, BigInteger branch, BigInteger object) {
+        public ObjectIdentity { Objects.requireNonNull(scope); positive(branch); positive(object); }
+        JsonObject wire() { return obj("scope", scope.wire(), "branch", branch.toString(), "object", object.toString()); }
     }
-    static Outcomes.AdmissionReceipt submission(Supplier<JsonObject> send) {
-        JsonObject reply;
-        try { reply = send.get(); } catch (TransitException error) { throw error; } catch (RuntimeException | OutOfMemoryError error) { throw uncertain(); }
-        return admission(reply);
+    public record Interpretation(ObjectIdentity object, BigInteger revision, Bytes digest) {
+        public Interpretation { Objects.requireNonNull(object); positive(revision); Catalog.digest(digest); }
     }
-    private static TransitException uncertain() { return new TransitException(TransitException.Kind.UNKNOWN_OUTCOME, 6, null, "catalog-submit"); }
-    /** One owned port and intent. Cancelling a future does not cancel native work. */
+    public record Content(BigInteger bytes, Bytes sha256) { public Content { positive(bytes); digest(sha256); } }
+    public record StoredDefinition(Interpretation interpretation, Content content, Bytes schemaFingerprint, boolean retired) {
+        public StoredDefinition { digest(schemaFingerprint); if (!interpretation.digest().equals(content.sha256())) throw new IllegalArgumentException("Changed definition content"); }
+    }
+    public record Configuration(Scope scope, BigInteger branch, BigInteger partition, long audience, AuthorityProfile authority, String databaseName, String initialSchemaName) {}
+    public record Description(Configuration configuration, Subject subject, long policyRevision) {}
+    public record Capabilities(int version, String definition, int maxColumns, int maxRows, int maxSqlBytes, int maxIntentBytes, int maxActionBytes, int metadataPageEntries, int residentIntents) {}
+    public record Metadata(Basis basis, long authorization, Position position, BigInteger changedLsn, BigInteger rowCount, Schema schema) {}
+    public record Namespace(Scope scope, long id, long authorization, String name, long revision, boolean retired) {}
+    public record Entry(Interpretation interpretation, long namespace, String name, Position position, BigInteger changedLsn) {}
+    public enum Consistency { INDEPENDENT }
+    public record Page<T>(Position position, List<T> entries, Optional<Cursor> next, Optional<Consistency> consistency) {
+        public Page { entries = List.copyOf(entries); }
+    }
+    public record Commit(StoredDefinition definition, Position position, BigInteger matched, BigInteger affected, BigInteger liveRows) {}
+    public record Observation(ObservationKind kind, OperationState state, Reference reference, Optional<Commit> commit, Optional<Phase> phase, Optional<Reason> reason, Optional<Position> position) {}
+    public sealed interface PreviewCurrent permits CurrentBasis, CurrentName {}
+    public record CurrentBasis(StoredDefinition definition, Position position, BigInteger changedLsn, BigInteger rowCount) implements PreviewCurrent {}
+    public record CurrentName(Interpretation interpretation) implements PreviewCurrent {}
+    public record Preview(ObservationKind kind, Intent intent, Position position, Optional<PreviewCurrent> current,
+        Optional<Reason> reason, Optional<EvolutionWork> work, Optional<Boolean> rebuildKey, Optional<Bytes> schemaFingerprint, Optional<Boolean> matches) {}
+    public record ReadAuthority(long database, long schema, long table) {
+        public ReadAuthority { counter(database, 1); counter(schema, 1); counter(table, 1); if (database == schema || database == table || schema == table) throw new IllegalArgumentException("Conflicting authority identities"); }
+    }
+    public record SnapshotStatus(SnapshotOwner owner, Interpretation currentInterpretation, Position currentPosition, boolean retired, Optional<Snapshot> snapshot, boolean released, ReadAuthority authority) {}
+    public record SnapshotMetadata(Snapshot snapshot, StoredDefinition interpretation, Position accepted, BigInteger changedLsn, BigInteger rowCount, Schema schema, ReadAuthority authority) {}
+    public record Compiled(Intent intent, SavedIntent saved) {}
+    public static final class Intent {
+        private final String id, binding;
+        private final WorkKind kind;
+        private final Identity identity;
+        private final SavedIntent saved;
+        Intent(JsonObject id, JsonObject binding, WorkKind kind, Identity identity, SavedIntent saved) {
+            this.id = id.toString(); this.binding = binding.toString(); this.kind = kind; this.identity = identity; this.saved = saved;
+        }
+        JsonObject id() { return CatalogValues.parseSaved(id); }
+        JsonObject binding() { return CatalogValues.parseSaved(binding); }
+        public WorkKind kind() { return kind; }
+        public Identity identity() { return identity; }
+        public SavedIntent saved() { return saved; }
+        @Override public String toString() { return "Intent[owned local work]"; }
+    }
+    /** Preserve this exact value when a mutating result is uncertain. */
+    public sealed interface Recovery permits SavedIntent, Reference, SnapshotAcquisition, Snapshot { String save(); }
+    private abstract static class Saved {
+        private final String data;
+        Saved(JsonObject value) { data = value.toString(); }
+        public final String save() { return data; }
+        final JsonObject wire() { return CatalogValues.parseSaved(data); }
+        @Override public final boolean equals(Object other) { return other != null && other.getClass() == getClass() && wire().equals(((Saved) other).wire()); }
+        @Override public final int hashCode() { return wire().hashCode(); }
+        @Override public final String toString() { return getClass().getSimpleName() + "[owned saved binding]"; }
+    }
+    public static final class Basis extends Saved {
+        private Basis(JsonObject value) { super(value); }
+        public static Basis restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data);
+            CatalogValues.action(obj("prepare", obj("definition", DEFINITION, "namespace", 1, "operation", "1", "name", "check", "action", obj("drop", obj("basis", value, "if_exists", false)))));
+            definition(string(value.get("definition"))); counter(number(value.get("namespace"), 1), 1); Catalog.name(string(value.get("name")));
+            Connection c = CatalogValues.connection(value.get("connection")); StoredDefinition stored = CatalogValues.stored(value.get("interpretation"));
+            CatalogValues.owns(c, stored.interpretation().object());
+            if (stored.retired()) throw new IllegalArgumentException("Cannot prepare from retired definition");
+            return new Basis(value);
+        }
+        public Connection connection() { return CatalogValues.connection(wire().get("connection")); }
+        public long principal() { return number(wire().getAsJsonObject("connection").get("principal"), 0); }
+        public long namespace() { return number(wire().get("namespace"), 1); }
+        public String name() { return string(wire().get("name")); }
+        public StoredDefinition interpretation() { return CatalogValues.stored(wire().get("interpretation")); }
+        public BigInteger object() { return interpretation().interpretation().object().object(); }
+    }
+    public static final class SavedIntent extends Saved implements Recovery {
+        private SavedIntent(JsonObject value) { super(value); }
+        public static SavedIntent restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data); CatalogValues.action(obj("load", value));
+            if (value.has("table")) {
+                JsonObject table = value.getAsJsonObject("table"); definition(string(table.get("definition"))); number(table.get("namespace"), 1);
+                if (unhex(table.get("bytes"), limit("catalog_intent_bytes")).length == 0) throw new IllegalArgumentException("Empty saved intent");
+            } else CatalogValues.assertion(value.getAsJsonObject("name_assertion"));
+            return new SavedIntent(value);
+        }
+    }
+    public static final class Reference extends Saved implements Recovery {
+        private Reference(JsonObject value) { super(value); }
+        public static Reference restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data); CatalogValues.action(obj("admit", value));
+            if (value.has("table")) {
+                JsonObject table = value.getAsJsonObject("table"); definition(string(table.get("definition"))); number(table.get("namespace"), 1);
+                JsonObject c = table.getAsJsonObject("connection"); CatalogValues.checkBinding(table.getAsJsonObject("binding"), CatalogValues.connection(c), number(c.get("principal"), 0));
+                Content content = CatalogValues.content(table.get("content"));
+                if (content.bytes().compareTo(BigInteger.valueOf(36)) <= 0 || content.bytes().compareTo(BigInteger.valueOf(limit("catalog_intent_bytes"))) > 0) throw new IllegalArgumentException("Invalid saved work length");
+            } else CatalogValues.assertion(value.getAsJsonObject("name_assertion"));
+            return new Reference(value);
+        }
+        public WorkKind kind() { return wire().has("table") ? WorkKind.TABLE : WorkKind.NAME_ASSERTION; }
+        JsonObject value() { return wire().getAsJsonObject(Logical.tag(kind())); }
+        JsonObject binding() { return kind() == WorkKind.TABLE ? value().getAsJsonObject("binding") : value(); }
+        public Connection connection() { return CatalogValues.connection(value().get("connection")); }
+        public long principal() { return number(value().getAsJsonObject("connection").get("principal"), 0); }
+        public Identity identity() { return new Identity(CatalogValues.wide(kind() == WorkKind.TABLE ? binding().getAsJsonObject("identity").get("operation") : value().get("operation")), number(value().get("namespace"), 1)); }
+    }
+    public static final class Cursor extends Saved {
+        private Cursor(JsonObject value) { super(value); }
+        public static Cursor restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data), selection = value.getAsJsonObject("selection");
+            CatalogValues.action(obj("catalog", selection.has("namespaces") ? obj("namespaces", value) : obj("tables", obj("namespace", selection.get("tables"), "cursor", value))));
+            definition(string(value.get("definition"))); CatalogValues.connection(value.get("connection"));
+            Position position = CatalogValues.position(value.get("position")); BigInteger after = CatalogValues.wide(value.get("after"));
+            if (position.nextLsn().signum() == 0) throw new IllegalArgumentException("Invalid directory position");
+            if (selection.has("namespaces")) counter(after.longValueExact(), 1);
+            return new Cursor(value);
+        }
+        void check(Connection c, long principal, JsonObject selection) {
+            if (!wire().get("connection").equals(c.wire(principal)) || !wire().get("selection").equals(selection)) throw new IllegalArgumentException("Foreign cursor");
+        }
+        public Position position() { return CatalogValues.position(wire().get("position")); }
+        public BigInteger after() { return CatalogValues.wide(wire().get("after")); }
+    }
+    public static final class SnapshotOwner extends Saved {
+        private SnapshotOwner(JsonObject value) { super(value); }
+        public static SnapshotOwner restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data); CatalogValues.action(obj("retention", obj("status", value)));
+            definition(string(value.get("definition"))); CatalogValues.wide(value.get("operation"));
+            CatalogValues.owns(CatalogValues.connection(value.get("connection")), CatalogValues.objectIdentity(value.get("object")));
+            return new SnapshotOwner(value);
+        }
+        public Connection connection() { return CatalogValues.connection(wire().get("connection")); }
+        public long principal() { return number(wire().getAsJsonObject("connection").get("principal"), 0); }
+        public ObjectIdentity object() { return CatalogValues.objectIdentity(wire().get("object")); }
+        public BigInteger operation() { return CatalogValues.wide(wire().get("operation")); }
+    }
+    public static final class SnapshotAcquisition extends Saved implements Recovery {
+        private SnapshotAcquisition(JsonObject value) { super(value); }
+        public static SnapshotAcquisition restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data); CatalogValues.action(obj("retention", obj("acquire", value)));
+            SnapshotOwner.restore(value.get("owner").toString()); CatalogValues.position(value.get("expected")); return new SnapshotAcquisition(value);
+        }
+        public SnapshotOwner owner() { return SnapshotOwner.restore(wire().get("owner").toString()); }
+        public Position expected() { return CatalogValues.position(wire().get("expected")); }
+    }
+    public static final class Snapshot extends Saved implements Recovery {
+        private Snapshot(JsonObject value) { super(value); }
+        public static Snapshot restore(String data) {
+            JsonObject value = CatalogValues.parseSaved(data); CatalogValues.action(obj("retention", obj("metadata", value)));
+            SnapshotOwner.restore(value.get("owner").toString()); CatalogValues.content(value.get("content")); return new Snapshot(value);
+        }
+        public SnapshotOwner owner() { return SnapshotOwner.restore(wire().get("owner").toString()); }
+        public Content content() { return CatalogValues.content(wire().get("content")); }
+    }
+    public static final class Uncertain extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        @SuppressWarnings("serial") // Recovery is saved explicitly; Java serialization is refused.
+        private final Recovery original;
+        private final TransitException failure;
+        Uncertain(Recovery original, Throwable cause) {
+            super("Catalog outcome is uncertain; retain the original saved binding", cause);
+            this.original = Objects.requireNonNull(original);
+            failure = cause instanceof TransitException error && error.kind() == TransitException.Kind.UNKNOWN_OUTCOME ? error :
+                new TransitException(TransitException.Kind.UNKNOWN_OUTCOME, 6, null, "catalog");
+        }
+        @java.io.Serial private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+            throw new java.io.NotSerializableException("Save the original catalog recovery value explicitly");
+        }
+        @java.io.Serial private void readObject(java.io.ObjectInputStream in) throws java.io.IOException {
+            throw new java.io.InvalidObjectException("Restore the saved catalog recovery value explicitly");
+        }
+        public Recovery original() { return original; }
+        public TransitException failure() { return failure; }
+    }
+    /** One owned port and intent. Future cancellation does not cancel native work. */
     public static final class Client implements AutoCloseable {
         private final Connection connection;
         private final long principal;
         private final Worker<Bridge, Void> worker;
-        private Client(ClientConfig config, Credential credential, Connection connection, String tableServiceUrl) {
-            if (tableServiceUrl != null) { text(tableServiceUrl, 2048); new ClientConfig(java.net.URI.create(tableServiceUrl), ClientConfig.Profile.NATIVE_V1); }
-            connection.wire(credential); this.connection = connection; this.principal = credential.principal();
+        private Client(ClientConfig config, Credential credential, Connection connection, String serviceUrl) {
+            if (serviceUrl != null) { text(serviceUrl, 2048); new ClientConfig(java.net.URI.create(serviceUrl), ClientConfig.Profile.NATIVE_V1); }
+            connection.wire(credential); this.connection = connection; principal = credential.principal();
             worker = new Worker<>(() -> {
-                Bridge bridge = Bridge.catalog(config, credential, connection, tableServiceUrl);
+                Bridge bridge = Bridge.catalog(config, credential, connection, serviceUrl);
                 try {
-                    Capabilities caps = CatalogValues.decode(() -> CatalogValues.capabilities(CatalogValues.result(bridge.catalog(obj("capabilities", obj())), "capabilities")));
-                    if (!CatalogValues.supported(caps)) throw new TransitException(TransitException.Kind.UNSUPPORTED_CAPABILITY, "catalog-capabilities");
+                    JsonObject result = bridge.catalog(obj("catalog", obj("capabilities", obj())));
+                    CatalogValues.response(result);
+                    CatalogValues.capabilities(CatalogValues.path(result, "catalog", "capabilities"));
                     return bridge;
                 } catch (RuntimeException | Error error) { bridge.close(); throw error; }
             });
         }
         public static Client open(ClientConfig config, Credential credential, Connection connection) { return new Client(config, credential, connection, null); }
-        public static Client open(ClientConfig config, Credential credential, Connection connection, String tableServiceUrl) { return new Client(config, credential, connection, tableServiceUrl); }
+        public static Client open(ClientConfig config, Credential credential, Connection connection, String serviceUrl) { return new Client(config, credential, connection, serviceUrl); }
         public Connection connection() { return connection; }
-        private <T> CompletableFuture<T> read(JsonObject action, String field, Function<JsonElement, T> decode) {
-            text(action.toString(), limit("catalog_action_bytes"));
-            return worker.submit(b -> { JsonObject response = b.catalog(action); return CatalogValues.decode(() -> decode.apply(CatalogValues.result(response, field))); });
-        }
-        public CompletableFuture<Capabilities> capabilities() { return read(obj("capabilities", obj()), "capabilities", CatalogValues::capabilities); }
-        public CompletableFuture<Description> describe() { return read(obj("describe", obj()), "description", v -> CatalogValues.description(v, connection, principal)); }
-        public CompletableFuture<Optional<Definition>> lookup(String name) { String requested = Catalog.name(name); return read(obj("lookup", requested), "definition", v -> CatalogValues.resolved(v, connection.scope(), connection.namespace(), requested)); }
-        public CompletableFuture<Optional<HistoricalDefinition>> definition(BigInteger object, BigInteger revision) {
-            return read(obj("definition", obj("object", positive(object).toString(), "revision", positive(revision).toString())), "historical", v -> CatalogValues.historical(v, connection.scope(), object, revision));
-        }
-        public CompletableFuture<Page> list() { return list(Optional.empty()); }
-        public CompletableFuture<Page> list(Optional<Cursor> cursor) {
-            if (cursor.isPresent() && !cursor.get().scope().equals(connection.scope())) throw new IllegalArgumentException("Foreign cursor");
-            return read(obj("list", cursor.map(Cursor::wire).orElse(null)), "page", v -> {
-                Page page = CatalogValues.page(v, connection.scope(), cursor);
-                if (page.entries().stream().anyMatch(entry -> entry.metadata().namespace() != connection.namespace())) throw incompatible("catalog-page-namespace");
-                return page;
+        private <T> CompletableFuture<T> read(JsonObject action, Recovery original, Function<JsonElement,T> decode, String... path) {
+            CatalogValues.action(action); String data = text(action.toString(), limit("catalog_action_bytes"));
+            return worker.submit(bridge -> {
+                JsonObject response;
+                try { response = bridge.catalog(CatalogValues.parseSaved(data)); }
+                catch (TransitException error) { if (original != null && error.kind() == TransitException.Kind.UNKNOWN_OUTCOME) throw new Uncertain(original, error); throw error; }
+                catch (OutOfMemoryError error) { if (original != null) throw new Uncertain(original, error); throw error; }
+                try {
+                    return CatalogValues.decode(() -> { CatalogValues.response(response); return decode.apply(CatalogValues.path(response, path)); });
+                } catch (RuntimeException | OutOfMemoryError error) { if (original != null) throw new Uncertain(original, error); throw error; }
             });
         }
-        public CompletableFuture<Compiled> compileSql(String sql, Identity identity, Optional<BigInteger> createObject) {
-            if (text(sql, 4096).isEmpty()) throw new IllegalArgumentException("Empty Table SQL");
-            JsonObject action = obj("compile", obj("sql", sql, "identity", identity.wire(), "create_object", createObject.map(v -> positive(v).toString()).orElse(null)));
-            return read(action, "compiled", v -> CatalogValues.compiled(v, connection, principal, identity, createObject.isPresent() ? Kind.CREATE : null, createObject.orElse(null)));
+        private void owner(Connection c, long p) { if (!connection.equals(c) || p != principal) throw new IllegalArgumentException("Foreign catalog caller"); }
+        public CompletableFuture<Capabilities> capabilities() { return read(obj("catalog", obj("capabilities", obj())), null, CatalogValues::capabilities, "catalog", "capabilities"); }
+        public CompletableFuture<Description> describe() { return read(obj("catalog", obj("describe", obj())), null, v -> CatalogValues.description(v, connection, principal), "catalog", "description"); }
+        public CompletableFuture<Optional<Namespace>> namespace(long id) {
+            counter(id, 1); return read(obj("catalog", obj("namespace", id)), null, v -> CatalogValues.optional(v, value -> {
+                Namespace found = CatalogValues.namespace(value); if (found.id() != id || !found.scope().equals(connection.scope())) throw incompatible("catalog-namespace"); return found;
+            }), "catalog", "namespace");
         }
+        public CompletableFuture<Page<Namespace>> namespaces(Optional<Cursor> cursor) {
+            JsonObject selection = obj("namespaces", obj()); cursor.ifPresent(v -> v.check(connection, principal, selection));
+            return read(obj("catalog", obj("namespaces", cursor.map(Cursor::wire).orElse(null))), null,
+                v -> CatalogValues.namespaces(v, connection, principal, cursor), "catalog", "namespaces");
+        }
+        public CompletableFuture<Page<Namespace>> namespaces() { return namespaces(Optional.empty()); }
+        public CompletableFuture<Page<Entry>> tables(long namespace, Optional<Cursor> cursor) {
+            counter(namespace, 1); JsonObject selection = obj("tables", namespace); cursor.ifPresent(v -> v.check(connection, principal, selection));
+            return read(obj("catalog", obj("tables", obj("namespace", namespace, "cursor", cursor.map(Cursor::wire).orElse(null)))), null,
+                v -> CatalogValues.tables(v, connection, principal, namespace, cursor), "catalog", "tables");
+        }
+        public CompletableFuture<Page<Entry>> tables() { return tables(1, Optional.empty()); }
+        public CompletableFuture<Optional<Metadata>> lookup(String name, long namespace) {
+            Catalog.name(name); counter(namespace, 1);
+            return read(obj("lookup", obj("namespace", namespace, "name", name)), null,
+                v -> CatalogValues.optional(v, raw -> CatalogValues.metadata(raw, connection, principal, namespace, name)), "metadata");
+        }
+        public CompletableFuture<Optional<Metadata>> lookup(String name) { return lookup(name, 1); }
+        private CompletableFuture<Compiled> compiled(JsonObject action, Identity identity) {
+            return read(action, null, value -> {
+                JsonObject v = object(value); SavedIntent saved = SavedIntent.restore(v.get("saved").toString());
+                return new Compiled(CatalogValues.summary(v.get("summary"), saved, connection, principal, identity), saved);
+            }, "compiled");
+        }
+        public CompletableFuture<Compiled> compileSql(String sql, Identity identity, Optional<BigInteger> createObject, Dialect dialect, Ingestion ingestion) {
+            if (text(sql, 4096).isEmpty()) throw new IllegalArgumentException("Empty SQL");
+            return compiled(obj("compile", obj("sql", sql, "namespace", identity.namespace(), "operation", identity.operation().toString(),
+                "create_object", createObject.map(v -> positive(v).toString()).orElse(null), "dialect", Logical.tag(dialect), "ingestion", Logical.tag(ingestion))), identity);
+        }
+        public CompletableFuture<Compiled> compileSql(String sql, Identity identity, Optional<BigInteger> createObject) { return compileSql(sql, identity, createObject, Dialect.TRANSIT, Ingestion.POINT); }
         public CompletableFuture<Compiled> compileSql(String sql, Identity identity) { return compileSql(sql, identity, Optional.empty()); }
         public CompletableFuture<Compiled> prepare(String name, Identity identity, Operation operation) {
-            JsonObject action = obj("prepare", obj("definition", DEFINITION, "identity", identity.wire(), "name", Catalog.name(name), "action", operation.wire()));
-            return read(action, "compiled", v -> CatalogValues.compiled(v, connection, principal, identity, operation.kind(), operation.object()));
+            return compiled(obj("prepare", obj("definition", DEFINITION, "namespace", identity.namespace(), "operation", identity.operation().toString(), "name", Catalog.name(name), "action", operation.wire())), identity);
         }
-        public CompletableFuture<Intent> load(SavedIntent saved) { return read(obj("load", saved.wire()), "loaded", v -> CatalogValues.intent(v, connection, principal)); }
-        public CompletableFuture<Void> forget(Reference reference) { return read(obj("forget", reference.wire()), "forgotten", v -> { Logical.fields(v); return null; }); }
-        public CompletableFuture<Next> next(Reference reference) { return read(obj("next", reference.wire()), "next", CatalogValues::next); }
-        public CompletableFuture<State> status(Reference reference) { return read(obj("status", reference.wire()), "state", CatalogValues::state); }
-        private CompletableFuture<Prepared> prepared(String name, JsonObject value) { return read(obj(name, value), "prepared", CatalogValues::prepared); }
-        public CompletableFuture<Prepared> prepareResume(Reference reference) { return prepared("prepare_resume", reference.wire()); }
-        public CompletableFuture<Prepared> prepareControl(Reference reference, Control control) { return prepared("prepare_control", obj("intent", reference.wire(), "control", Logical.tag(control))); }
-        public CompletableFuture<Prepared> prepareInitialize(Configuration value) { return prepared("prepare_initialize", value.wire()); }
-        public CompletableFuture<Prepared> prepareDependency(Dependency value, boolean present) { return prepared("prepare_dependency", value.wire(present)); }
-        public CompletableFuture<Outcomes.AdmissionReceipt> submit(Prepared prepared) { JsonObject action = obj("submit", prepared.wire()); return worker.submit(b -> submission(() -> b.catalog(action))); }
-        private static JsonObject input(Prepared prepared, long position) { return obj("prepared", prepared.wire(), "input", counter(position, 1)); }
-        public CompletableFuture<Observation> observe(Prepared prepared, long position, boolean wait) { return read(obj(wait ? "wait_observe" : "observe", input(prepared, position)), "observation", v -> Logical.variant(Observation.class, v)); }
-        public CompletableFuture<Observation> observe(Prepared prepared, long position) { return observe(prepared, position, false); }
-        public CompletableFuture<Optional<Disposition>> inputDisposition(Prepared prepared, long position) { return read(obj("input_disposition", input(prepared, position)), "disposition", CatalogValues::disposition); }
-        public CompletableFuture<Progress> progress(Reference reference, Prepared prepared, long position, boolean wait) {
-            JsonObject value = input(prepared, position); value.add("intent", reference.wire()); return read(obj(wait ? "wait_progress" : "progress", value), "progress", CatalogValues::progress);
+        public CompletableFuture<Intent> load(SavedIntent saved) { return read(obj("load", saved.wire()), null, v -> CatalogValues.summary(v, saved, connection, principal, null), "loaded"); }
+        public CompletableFuture<Void> forget(Intent intent) { return read(obj("forget", intent.id()), null, v -> null, "forgotten"); }
+        public CompletableFuture<Preview> preview(Intent intent) { return read(obj("preview", intent.id()), null, v -> CatalogValues.preview(v, intent), "preview"); }
+        public CompletableFuture<Reference> stage(Intent intent) {
+            return read(obj("stage", intent.id()), intent.saved(), v -> {
+                Reference reference = Reference.restore(v.toString()); owner(reference.connection(), reference.principal());
+                if (reference.kind() != intent.kind() || !reference.binding().equals(intent.binding()) || reference.identity().namespace() != intent.identity().namespace()) throw incompatible("catalog-staged-binding");
+                return reference;
+            }, "staged");
         }
-        public CompletableFuture<Progress> progress(Reference reference, Prepared prepared, long position) { return progress(reference, prepared, position, false); }
+        public CompletableFuture<Observation> admit(Reference original) {
+            owner(original.connection(), original.principal());
+            return read(obj("admit", original.wire()), original, v -> CatalogValues.observation(v, original), "observation");
+        }
+        private CompletableFuture<Observation> operation(Reference original, String command, int steps) {
+            owner(original.connection(), original.principal()); if (steps < 1 || steps > 65535) throw new IllegalArgumentException("Invalid execution budget");
+            return read(obj("operation", obj("reference", original.wire(), "command", command, "steps", steps)), command.equals("inspect") ? null : original,
+                v -> CatalogValues.observation(v, original), "observation");
+        }
+        public CompletableFuture<Observation> inspect(Reference original) { return operation(original, "inspect", 1); }
+        public CompletableFuture<Observation> execute(Reference original, int steps) { return operation(original, "execute", steps); }
+        public CompletableFuture<Observation> cancel(Reference original) { return operation(original, "cancel", 1); }
+        public SnapshotAcquisition prepareSnapshot(Metadata metadata, BigInteger operation) {
+            Basis basis = metadata.basis(); owner(basis.connection(), basis.principal());
+            return SnapshotAcquisition.restore(obj("owner", obj("definition", DEFINITION, "connection", connection.wire(principal),
+                "object", basis.interpretation().interpretation().object().wire(), "operation", positive(operation).toString()), "expected", metadata.position().wire()).toString());
+        }
+        public CompletableFuture<Snapshot> acquireSnapshot(SnapshotAcquisition acquisition) {
+            SnapshotOwner owner = acquisition.owner(); owner(owner.connection(), owner.principal());
+            return read(obj("retention", obj("acquire", acquisition.wire())), acquisition, v -> {
+                Snapshot snapshot = Snapshot.restore(v.toString()); if (!snapshot.owner().equals(owner)) throw incompatible("catalog-snapshot-owner"); return snapshot;
+            }, "retention", "acquired");
+        }
+        public CompletableFuture<SnapshotStatus> snapshotStatus(SnapshotOwner owner) {
+            owner(owner.connection(), owner.principal());
+            return read(obj("retention", obj("status", owner.wire())), null, v -> CatalogValues.snapshotStatus(v, owner), "retention", "status");
+        }
+        public CompletableFuture<SnapshotMetadata> snapshotMetadata(Snapshot snapshot) {
+            owner(snapshot.owner().connection(), snapshot.owner().principal());
+            return read(obj("retention", obj("metadata", snapshot.wire())), null, v -> CatalogValues.snapshotMetadata(v, snapshot), "retention", "metadata");
+        }
+        public CompletableFuture<Snapshot> releaseSnapshot(Snapshot snapshot) {
+            owner(snapshot.owner().connection(), snapshot.owner().principal());
+            return read(obj("retention", obj("release", snapshot.wire())), snapshot, v -> {
+                if (!v.equals(snapshot.wire())) throw incompatible("catalog-released-snapshot"); return snapshot;
+            }, "retention", "released");
+        }
         @Override public void close() { worker.close(); }
     }
 }

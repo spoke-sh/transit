@@ -26,10 +26,6 @@ public static partial class Catalog
     internal static Scope ParseScope(JsonNode? value) {
         var v = Fields(value, "realm", "resource", "catalog"); return new(new ResourceRef(V.Number(v["realm"], 1), V.Number(v["resource"], 1)), Wide(v["catalog"]));
     }
-    private static Configuration ParseConfiguration(JsonNode? value) {
-        var v = Fields(value, "scope", "owner", "administrator", "table_limits", "authority", "database_name"); var scope = ParseScope(v["scope"]); var l = Fields(v["table_limits"], "record_bytes", "staging_bytes", "staging_records");
-        return new(scope, new ProcessRef(scope.Resource.Realm, V.Number(v["owner"], 1)), V.Number(v["administrator"]), new(Small(l["record_bytes"], 1), Wide(l["staging_bytes"]), Small(l["staging_records"], 1)), ParseAuthority(v["authority"]), V.String(v["database_name"]));
-    }
     private static AuthorityProfile ParseAuthority(JsonNode? value) {
         var v = Fields(value, "database_domain", "schema_domain", "table_domain", "database", "initial_schema", "initial_schema_authority");
         return new(V.Number(v["database_domain"], 1), V.Number(v["schema_domain"], 1), V.Number(v["table_domain"], 1),
@@ -93,94 +89,139 @@ public static partial class Catalog
         if (!JsonNode.DeepEquals(result.Wire(), value)) throw V.Incompatible("catalog-mutation-canonical");
         return result;
     }
-    private static MetadataCommitment ParseCommitment(JsonNode? value) {
-        var v=Fields(value,"format","length","digest");
-        if(V.Number(v["format"],1)!=0x54434d01) throw V.Incompatible("catalog-metadata-format");
-        return new(checked((int)V.Number(v["length"],1)),NativeValues.Digest(v["digest"]));
+    private static readonly JsonObject CatalogSchemas = V.Object(Contract["schemas"]);
+    internal static JsonObject ParseSaved(string data) => V.Object(V.Parse(V.Utf8.GetBytes(V.Text(data, Limit("catalog_action_bytes"))), 96));
+    private static void ValidateAction(JsonObject value) => Transit.Client.Internal.Schema.Require(V.Object(CatalogSchemas["CatalogAction"]), value);
+    private static void ValidateResponse(JsonObject value) => Transit.Client.Internal.Schema.Require(V.Object(CatalogSchemas["CatalogResult"]), value);
+    private static JsonNode? Path(JsonNode? value, string[] fields) { foreach (string field in fields) value = Result(value, field); return value; }
+    private static string Tag(JsonObject value) => value.Count == 1 ? value.Single().Key : throw V.Incompatible("catalog-variant");
+    private static Bytes DigestHex(JsonNode? value) => Digest(new Bytes(V.Unhex(value, 32)));
+    private static Connection ParseConnection(JsonNode? value) {
+        var v = Fields(value, "scope", "branch", "audience", "principal", "role"); V.Number(v["principal"]);
+        return new(ParseScope(v["scope"]), V.Number(v["audience"], 1), Wide(v["branch"]), v["role"] is {} role ? V.Number(role) : null);
     }
-    private static Metadata ParseMetadata(JsonNode? value) {
-        var v = Fields(value, "namespace", "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
-        return new(ParseScope(v["scope"]), V.Number(v["namespace"], 1), Wide(v["object"]), Wide(v["revision"]), V.String(v["name"]), new Bytes(V.Unhex(v["schema_fingerprint"], 32)), V.Number(v["principal"]), Wide(v["operation"]), V.Number(v["admitted_input"], 1),ParseCommitment(v["commitment"]));
+    private static ObjectIdentity ParseObject(JsonNode? value) { var v = V.Object(value); return new(ParseScope(v["scope"]), Wide(v["branch"]), Wide(v["object"])); }
+    private static Interpretation ParseInterpretation(JsonNode? value) { var v = V.Object(value); return new(ParseObject(v["object"]), Wide(v["revision"]), DigestHex(v["digest"])); }
+    private static Content ParseContent(JsonNode? value) { var v = V.Object(value); return new(Wide(v["bytes"]), DigestHex(v["sha256"])); }
+    private static StoredDefinition ParseStored(JsonNode? value) {
+        var v = V.Object(value); var interpretation = ParseInterpretation(v["interpretation"]); var content = ParseContent(v["content"]);
+        if (!interpretation.Digest.Equals(content.Sha256)) throw V.Incompatible("catalog-definition-content");
+        return new(interpretation, content, DigestHex(v["schema_fingerprint"]), V.Boolean(v["retired"]));
     }
-    private static Head ParseHead(JsonNode? value) { var v = Fields(value, "revision", "rows", "pending"); return new(Wide(v["revision"]), Zero(v["rows"]), Zero(v["pending"])); }
-    internal static Definition? Resolved(JsonNode? value, Scope scope, ulong schemaNamespace, string name) {
-        if (value is null) return null;
-        var v = Fields(value, "authorization", "metadata", "head", "schema"); Definition found = new(V.Number(v["authorization"], 1), ParseMetadata(v["metadata"]), ParseHead(v["head"]), ParseSchema(v["schema"]));
-        if (found.Metadata.Scope != scope || found.Metadata.Namespace != schemaNamespace || found.Metadata.Name != name || found.Schema.ObjectId != found.Metadata.ObjectId) throw V.Incompatible("catalog-definition-identity"); return found;
+    private static Position ParsePosition(JsonNode? value) { var v = V.Object(value); return new(Wide(v["partition"]), Zero(v["next_lsn"])); }
+    private static void Owns(Connection c, ObjectIdentity target) { if (c.Scope != target.Scope || c.Branch != target.Branch) throw new ArgumentException("Foreign catalog object"); }
+    private static void CheckBinding(JsonObject value, Connection c, ulong principal) {
+        Current(V.String(value["definition"])); var identity = V.Object(value["identity"]); Wide(identity["operation"]);
+        var target = ParseObject(value["target"]); Owns(c, target); DigestHex(value["intent"]);
+        if (ParseScope(identity["scope"]) != c.Scope || V.Number(identity["principal"]) != principal) throw new ArgumentException("Foreign original caller");
+        var expected = value["expected_definition"] is {} d ? ParseInterpretation(d) : null;
+        if (expected is not null && expected.Object != target) throw new ArgumentException("Foreign expected definition");
+        if (value["expected_data"] is {} p) ParsePosition(p);
+        if (V.String(value["action"]) == "create" ? expected is not null || value["expected_data"] is not null : expected is null) throw new ArgumentException("Invalid definition expectations");
     }
-    internal static HistoricalDefinition? Historical(JsonNode? value, Scope scope, ulong objectId, ulong revision) {
-        if (value is null) return null;
-        var v = Fields(value, "metadata", "schema"); HistoricalDefinition found = new(ParseMetadata(v["metadata"]), ParseSchema(v["schema"]));
-        if (found.Metadata.Scope != scope || found.Metadata.ObjectId != objectId || found.Metadata.Revision != revision || found.Schema.ObjectId != objectId) throw V.Incompatible("catalog-historical-identity"); return found;
-    }
-    private static Cursor? ParseCursor(JsonNode? value) {
-        if (value is null) return null; var v = Fields(value, "definition", "scope", "resource_revision", "after_object");
-        return new(V.String(v["definition"]), ParseScope(v["scope"]), V.Number(v["resource_revision"]), Wide(v["after_object"]));
-    }
-    internal static Page ParsePage(JsonNode? value, Scope scope, Cursor? previous) {
-        var v = Fields(value, "resource_revision", "entries", "next");
-        if (v["entries"] is not JsonArray { Count: 8 } slots) throw V.Incompatible("catalog-page-slots");
-        List<Entry> entries = []; bool ended = false;
-        foreach (var slot in slots) {
-            if (slot is null) ended = true;
-            else { var entry = Fields(slot, "metadata", "head"); Entry item = new(ParseMetadata(entry["metadata"]), ParseHead(entry["head"])); if (ended || item.Metadata.Scope != scope) throw V.Incompatible("catalog-page-scope"); entries.Add(item); }
-        }
-        Page page = new(V.Number(v["resource_revision"]), entries, ParseCursor(v["next"]));
-        if (page.Next is not null && page.Next.Scope != scope) throw V.Incompatible("catalog-cursor-scope");
-        if (previous is not null && (page.ResourceRevision != previous.ResourceRevision || (entries.Count > 0 && entries[0].Metadata.ObjectId <= previous.AfterObject) || (page.Next is not null && page.Next.AfterObject <= previous.AfterObject))) throw V.Incompatible("catalog-page-continuation");
-        return page;
-    }
-    internal static Intent ParseIntent(JsonNode? value, Connection connection, ulong principal) {
-        var v = Fields(value, "reference", "scope", "owner", "principal", "operation", "namespace", "object", "kind"); var r = Fields(v["reference"], "definition", "digest"); var scope = ParseScope(v["scope"]);
-        Intent result = new(new(V.String(r["definition"]), new Bytes(V.Unhex(r["digest"], 32))), scope, new ProcessRef(scope.Resource.Realm, V.Number(v["owner"], 1)), V.Number(v["principal"]), new(Wide(v["operation"]), Wide(v["namespace"])), Zero(v["object"]), Variant<Kind>(v["kind"]));
-        if (result.Scope != connection.Scope || result.Owner != connection.Owner || result.Principal != principal) throw V.Incompatible("catalog-intent-connection"); return result;
-    }
-    internal static Compiled ParseCompiled(JsonNode? value, Connection connection, ulong principal, Identity identity, Kind? kind, ulong? objectId) {
-        var v = Fields(value, "intent", "saved"); var s = Fields(v["saved"], "definition", "bytes");
-        Compiled result = new(ParseIntent(v["intent"], connection, principal), new(V.String(s["definition"]), V.Unhex(s["bytes"], Limit("catalog_intent_bytes"))));
-        if (result.Intent.Identity != identity || (kind.HasValue && result.Intent.Kind != kind) || (objectId.HasValue && result.Intent.ObjectId != objectId)) throw V.Incompatible("catalog-compiled-identity"); return result;
-    }
-    internal static Outcome? ParseOutcome(JsonNode? value) {
-        if (value is null) return null;
-        var v = Fields(value, "kind", "operation", "object", "actual_object", "phase", "terminal", "counts", "admitted_input", "completed_input", "diagnostic");
-        Kind kind = Variant<Kind>(v["kind"]); Phase phase = Variant<Phase>(v["phase"]); bool terminal = V.Boolean(v["terminal"]); Counts? counts = null;
-        if (v["counts"] is {} c) { var n = Fields(c, "matched", "changed"); counts = new(Zero(n["matched"]), Zero(n["changed"])); }
-        if (terminal != (phase is Phase.Applied or Phase.Unchanged or Phase.Rejected or Phase.Cancelled)) throw V.Incompatible("catalog-terminal");
-        if ((counts is not null) != (phase == Phase.Applied && kind is Kind.Insert or Kind.Update or Kind.Delete)) throw V.Incompatible("catalog-counts");
-        return new(kind, Wide(v["operation"]), Zero(v["object"]), v["actual_object"] is {} a ? Zero(a) : null, phase, terminal, counts, V.Number(v["admitted_input"], 1), v["completed_input"] is {} p ? V.Number(p, 1) : null, new Diagnostic(V.Object(v["diagnostic"])));
-    }
-    private static Upload? ParseUpload(JsonNode? value) {
-        if (value is null) return null;
-        var v = Fields(value, "phase", "received", "total"); uint received = Small(v["received"]), total = Small(v["total"], 1);
-        if (received > total || total > Limit("catalog_intent_bytes")) throw V.Incompatible("catalog-upload-bounds"); return new(Variant<UploadPhase>(v["phase"]), received, total);
-    }
-    private static State ParseState(JsonNode? value) { var v = Fields(value, "outcome", "upload"); return new(ParseOutcome(v["outcome"]), ParseUpload(v["upload"])); }
-    private static Disposition? ParseDisposition(JsonNode? value) {
-        if (value is null) return null; var v = Fields(value, "input", "outcome", "diagnostic"); return new(V.Number(v["input"], 1), Variant<DispositionOutcome>(v["outcome"]), new Diagnostic(V.Object(v["diagnostic"])));
-    }
-    private static Prepared ParsePrepared(JsonNode? value) => new(new Bytes(V.Utf8.GetBytes(V.Text(V.String(value), Limit("catalog_prepared_bytes")))));
-    private static Next ParseNext(JsonNode? value) {
-        var v = V.Object(value); if (v.Count != 1) throw V.Incompatible("catalog-next"); var entry = v.Single();
-        switch (entry.Key) {
-            case "send": return new(NextKind.Send, ParsePrepared(entry.Value));
-            case "terminal": var result = ParseOutcome(entry.Value); if (result is null || !result.Terminal) throw V.Incompatible("catalog-terminal"); return new(NextKind.Terminal, Outcome: result);
-            case "running": Fields(entry.Value); return new(NextKind.Running);
-            case "upload_cancelled": Fields(entry.Value); return new(NextKind.UploadCancelled);
-            default: throw V.Incompatible("catalog-next");
-        }
-    }
-    private static Progress ParseProgress(JsonNode? value) {
-        var v = V.Object(value); if (v.Count != 1) throw V.Incompatible("catalog-progress");
-        if (v.ContainsKey("pending")) { Fields(v["pending"]); return new(Observation.Pending); }
-        var p = Fields(Result(v, "processed"), "disposition", "outcome", "upload"); return new(Observation.Processed, ParseDisposition(p["disposition"]), ParseOutcome(p["outcome"]), ParseUpload(p["upload"]));
+    private static void CheckAssertion(JsonObject value) {
+        Current(V.String(value["definition"])); var c = ParseConnection(value["connection"]);
+        V.Number(value["namespace"], 1); Identifier(V.String(value["name"])); Wide(value["operation"]); DigestHex(value["intent"]);
+        var expected = value["expected"] is {} d ? ParseInterpretation(d) : null; if (expected is not null) Owns(c, expected.Object);
+        if ((V.String(value["action"]) == "create_if_not_exists") != (expected is not null)) throw new ArgumentException("Invalid name assertion");
     }
     internal static Capabilities ParseCapabilities(JsonNode? value) {
-        var v = Fields(value, "version", "definition", "max_columns", "max_rows", "max_sql_bytes", "max_intent_bytes", "max_action_bytes", "max_prepared_bytes", "resident_intents"); Current(V.String(v["definition"]));
-        return new(Small(v["version"], 1), ContractDefinition, Small(v["max_columns"], 1), Small(v["max_rows"], 1), Small(v["max_sql_bytes"], 1), Small(v["max_intent_bytes"], 1), Small(v["max_action_bytes"], 1), Small(v["max_prepared_bytes"], 1), Small(v["resident_intents"], 1));
+        var v = V.Object(value); Current(V.String(v["definition"]));
+        Capabilities c = new(Small(v["version"],1), ContractDefinition, Small(v["max_columns"],1), Small(v["max_rows"],1), Small(v["max_sql_bytes"],1), Small(v["max_intent_bytes"],1), Small(v["max_action_bytes"],1), Small(v["metadata_page_entries"],1), Small(v["resident_intents"],1));
+        if (c.Version != 1 || c.MaxColumns != 128 || c.MaxRows != 1024 || c.MaxSqlBytes != 4096 || c.MaxIntentBytes != Limit("catalog_intent_bytes") || c.MaxActionBytes != Limit("catalog_action_bytes") || c.MetadataPageEntries != 8 || c.ResidentIntents != 1) throw new TransitException(ErrorKind.UnsupportedCapability,"catalog-capabilities");
+        return c;
     }
-    internal static bool Supported(Capabilities c) => c.Version == 1 && c.MaxColumns == 128 && c.MaxRows == 1024 && c.MaxSqlBytes == 4096 && c.MaxIntentBytes == Limit("catalog_intent_bytes") && c.MaxActionBytes == Limit("catalog_action_bytes") && c.MaxPreparedBytes == Limit("catalog_prepared_bytes") && c.ResidentIntents == 1;
-    private static Description ParseDescription(JsonNode? value, Connection connection, ulong principal) {
-        var v = Fields(value, "configuration", "subject", "authorization_revision", "resource_revision"); Description result = new(ParseConfiguration(v["configuration"]), ParseSubject(v["subject"]), V.Number(v["authorization_revision"]), V.Number(v["resource_revision"]));
-        if (result.Configuration.Scope != connection.Scope || result.Configuration.Owner != connection.Owner || result.Subject.Principal != principal || result.Subject.Audience != connection.Owner.Pid || (connection.Role.HasValue && result.Subject.Role != connection.Role.Value)) throw V.Incompatible("catalog-description"); return result;
+    private static Description ParseDescription(JsonNode? value, Connection c, ulong principal) {
+        var v = V.Object(value); var raw = V.Object(v["configuration"]);
+        Configuration config = new(ParseScope(raw["scope"]), Wide(raw["branch"]), Wide(raw["partition"]), V.Number(raw["audience"],1), ParseAuthority(raw["authority"]), Identifier(V.String(raw["database_name"])), Identifier(V.String(raw["initial_schema_name"])));
+        var subject = ParseSubject(v["subject"]);
+        if (config.Scope != c.Scope || config.Branch != c.Branch || config.Audience != c.Audience || subject.Principal != principal || subject.Audience != c.Audience || c.Role is {} role && role != subject.Role) throw V.Incompatible("catalog-description");
+        return new(config, subject, V.Number(v["policy_revision"]));
+    }
+    private static Namespace ParseNamespace(JsonNode? value) {
+        var v = V.Object(value); return new(ParseScope(v["scope"]), V.Number(v["id"],1), V.Number(v["authorization"],1), Identifier(V.String(v["name"])), V.Number(v["revision"],1), V.Boolean(v["retired"]));
+    }
+    private static Page<T> ParsePage<T>(JsonNode? value, Connection c, ulong principal, JsonObject selection, Cursor? previous, Func<JsonNode?,T> decode, Func<T,ulong> identity) {
+        var v = V.Object(value); var position = ParsePosition(v["position"]); List<T> entries = []; bool ended = false; ulong after = previous?.After ?? 0;
+        if (v["entries"] is not JsonArray { Count: 8 } slots) throw V.Incompatible("catalog-page-bound");
+        foreach (var raw in slots) {
+            if (raw is null) { ended = true; continue; } if (ended) throw V.Incompatible("catalog-page-hole");
+            var entry = decode(raw); ulong id = identity(entry); if (id <= after) throw V.Incompatible("catalog-page-order"); after = id; entries.Add(entry);
+        }
+        var next = v["next"] is JsonObject n ? Cursor.Restore(n.ToJsonString(CatalogJson)) : null;
+        if (next is not null) {
+            next.Check(c, principal, selection);
+            if (next.Position != position || next.After < after || next.After <= (previous?.After ?? 0)) throw V.Incompatible("catalog-page-continuation");
+        }
+        if (previous is not null && previous.Position != position) throw V.Incompatible("catalog-directory-changed");
+        return new(position, entries, next, selection.ContainsKey("tables") ? Consistency.Independent : null);
+    }
+    private static Page<Namespace> ParseNamespaces(JsonNode? value, Connection c, ulong principal, Cursor? cursor) => ParsePage(value, c, principal, V.Obj(("namespaces", V.Obj())), cursor, raw => {
+        var found = ParseNamespace(raw); if (found.Scope != c.Scope) throw V.Incompatible("catalog-namespace-scope"); return found;
+    }, item => item.Id);
+    private static Page<Entry> ParseTables(JsonNode? value, Connection c, ulong principal, ulong schemaNamespace, Cursor? cursor) => ParsePage(value, c, principal, V.Obj(("tables", schemaNamespace)), cursor, raw => {
+        var v = V.Object(raw); var interpretation = ParseInterpretation(v["interpretation"]); Owns(c, interpretation.Object); ulong ns = V.Number(v["namespace"],1);
+        if (ns != schemaNamespace) throw V.Incompatible("catalog-page-namespace");
+        return new Entry(interpretation, ns, Identifier(V.String(v["name"])), ParsePosition(v["position"]), Zero(v["changed_lsn"]));
+    }, item => item.Interpretation.Object.ObjectId);
+    private static Metadata ParseMetadata(JsonNode? value, Connection c, ulong principal, ulong schemaNamespace, string name) {
+        var v = V.Object(value); var basis = Basis.Restore(V.Object(v["binding"]).ToJsonString(CatalogJson)); var schema = ParseSchema(v["schema"]);
+        if (basis.Connection != c || basis.Principal != principal || basis.Namespace != schemaNamespace || basis.Name != name || basis.ObjectId != schema.ObjectId) throw V.Incompatible("catalog-lookup-identity");
+        return new(basis, V.Number(v["authorization"],1), ParsePosition(v["position"]), Zero(v["changed_lsn"]), Zero(v["row_count"]), schema);
+    }
+    private static Intent ParseSummary(JsonNode? value, SavedIntent saved, Connection c, ulong principal, Identity? expected) {
+        var v = V.Object(value); var id = V.Object(v["id"]); var tagged = V.Object(v["binding"]); Current(V.String(id["definition"])); DigestHex(id["digest"]);
+        ulong ns = V.Number(v["namespace"],1); string kind = Tag(tagged); var binding = V.Object(tagged[kind]); ulong operation;
+        if (kind == "table") { CheckBinding(binding,c,principal); operation = Wide(V.Object(binding["identity"])["operation"]); }
+        else {
+            CheckAssertion(binding); operation = Wide(binding["operation"]);
+            if (!JsonNode.DeepEquals(binding["connection"],c.Wire(principal)) || V.Number(binding["namespace"],1) != ns) throw V.Incompatible("catalog-name-binding");
+        }
+        Identity identity = new(operation,ns); if (expected is not null && expected != identity) throw V.Incompatible("catalog-prepared-identity");
+        var savedWire = saved.Wire(); if (savedWire[kind] is not JsonObject raw || V.Number(raw["namespace"],1) != ns || kind == "name_assertion" && !JsonNode.DeepEquals(raw,binding)) throw V.Incompatible("catalog-saved-binding");
+        return new(id,binding,Variant<WorkKind>(JsonValue.Create(kind)),identity,saved);
+    }
+    private static ObservationKind ExpectedKind(WorkKind kind, JsonObject binding) => kind == WorkKind.NameAssertion ? ObservationKind.NameAssertion : V.String(binding["action"]) is "insert" or "update" or "delete" ? ObservationKind.Rows : ObservationKind.Ddl;
+    private static Observation ParseObservation(JsonNode? value, Reference original) {
+        var tagged = V.Object(value); string kind = Tag(tagged); var state = V.Object(tagged[kind]); string tag = Tag(state); var raw = V.Object(state[tag]); var observed = Variant<ObservationKind>(JsonValue.Create(kind));
+        if (observed != ExpectedKind(original.Kind,original.Binding())) throw V.Incompatible("catalog-observation-kind");
+        if (tag == "not_observed") return new(observed,OperationState.NotObserved,original);
+        if (!JsonNode.DeepEquals(raw["binding"],original.Binding())) throw V.Incompatible("catalog-original-binding");
+        if (observed == ObservationKind.NameAssertion) return new(observed,Variant<OperationState>(raw["state"]),original,Reason: Variant<Reason>(raw["reason"]),Position: ParsePosition(raw["position"]));
+        if (tag == "committed") {
+            var stored = ParseStored(raw["resulting"]); var outcome = V.Object(raw["outcome"]); ulong matched = Zero(outcome["matched"]), affected = Zero(outcome["affected"]);
+            if (affected > matched || stored.Interpretation.Object != ParseObject(original.Binding()["target"])) throw V.Incompatible("catalog-commit-evidence");
+            return new(observed,OperationState.Committed,original,new(stored,ParsePosition(outcome["position"]),matched,affected,Zero(outcome["live_rows"])));
+        }
+        ParseContent(raw["intent"]); string phase = V.String(raw["phase"]);
+        if (tag == "admitted" ? phase is not ("admitted" or "ready" or "settled") : phase != tag) throw V.Incompatible("catalog-operation-phase");
+        if (observed == ObservationKind.Rows) { var basis = V.Object(raw["basis"]); ParseInterpretation(basis["interpretation"]); ParsePosition(basis["position"]); Zero(basis["changed_lsn"]); }
+        return new(observed,Variant<OperationState>(JsonValue.Create(tag)),original,Phase: Variant<Phase>(raw["phase"]),Reason: Variant<Reason>(raw["reason"]));
+    }
+    private static Preview ParsePreview(JsonNode? value, Intent intent) {
+        var tagged = V.Object(value); string kind = Tag(tagged); var raw = V.Object(tagged[kind]); var observed = Variant<ObservationKind>(JsonValue.Create(kind));
+        if (observed != ExpectedKind(intent.Kind,intent.Binding()) || !JsonNode.DeepEquals(raw["binding"],intent.Binding())) throw V.Incompatible("catalog-preview-binding");
+        if (observed == ObservationKind.NameAssertion) return new(observed,intent,ParsePosition(raw["position"]), raw["current"] is {} named ? new CurrentName(ParseInterpretation(named)) : null, Matches: V.Boolean(raw["matches"]));
+        CurrentBasis? current = null;
+        if (raw["current"] is JsonObject v) current = new(ParseStored(v["interpretation"]),ParsePosition(v["position"]),Zero(v["changed_lsn"]),Zero(v["row_count"]));
+        bool ddl = observed == ObservationKind.Ddl;
+        return new(observed,intent,ParsePosition(raw["directory_position"]),current,Variant<Reason>(raw["reason"]),
+            ddl && raw["work"] is {} w ? Variant<EvolutionWork>(w) : null, ddl ? V.Boolean(raw["rebuild_key"]) : null, ddl && raw["schema_fingerprint"] is {} f ? DigestHex(f) : null);
+    }
+    private static ReadAuthority ParseReadAuthority(JsonNode? value) {
+        var v = V.Object(value); ulong database = V.Number(v["database"],1), schema = V.Number(v["schema"],1), table = V.Number(v["table"],1);
+        if (database == schema || database == table || schema == table) throw V.Incompatible("catalog-read-authority"); return new(database,schema,table);
+    }
+    private static SnapshotStatus ParseSnapshotStatus(JsonNode? value, SnapshotOwner owner) {
+        var v = V.Object(value); var current = ParseInterpretation(v["current_interpretation"]);
+        if (!JsonNode.DeepEquals(v["owner"],owner.Wire()) || current.Object != owner.Object) throw V.Incompatible("catalog-retention-owner");
+        var snapshot = v["snapshot"] is JsonObject s ? Snapshot.Restore(s.ToJsonString(CatalogJson)) : null;
+        if (snapshot is not null && !snapshot.Owner.Equals(owner)) throw V.Incompatible("catalog-original-snapshot");
+        return new(owner,current,ParsePosition(v["current_position"]),V.Boolean(v["retired"]),snapshot,V.Boolean(v["released"]),ParseReadAuthority(v["authority"]));
+    }
+    private static SnapshotMetadata ParseSnapshotMetadata(JsonNode? value, Snapshot snapshot) {
+        var v = V.Object(value); var stored = ParseStored(v["interpretation"]); var schema = ParseSchema(v["schema"]);
+        if (!JsonNode.DeepEquals(v["snapshot"],snapshot.Wire()) || stored.Interpretation.Object != snapshot.Owner.Object || schema.ObjectId != snapshot.Owner.Object.ObjectId) throw V.Incompatible("catalog-retained-definition");
+        return new(snapshot,stored,ParsePosition(v["accepted"]),Zero(v["changed_lsn"]),Zero(v["row_count"]),schema,ParseReadAuthority(v["authority"]));
     }
 }

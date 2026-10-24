@@ -12,9 +12,10 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, mode="tables"):
-    if mode not in ("tables", "dependencies", "resources", "callers"):
+def run(node, caller, mode="tables", *artifacts):
+    if mode not in ("tables", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser"):
         raise ValueError("Unknown direct service proof mode")
+    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-table-") as directory:
         root = Path(directory)
@@ -61,6 +62,9 @@ def run(node, caller, mode="tables"):
 
         dependency_faults = set()
         resource_faults = set()
+        abi_faults = set()
+        retention_faults = set()
+        board_fault = {"next": None, "accepted": []}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -120,7 +124,7 @@ def run(node, caller, mode="tables"):
                             data = json.dumps(parsed).encode()
                             fault["assertion_changed"] = True
                         pin = envelope["action"].get("pin")
-                        if pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
+                        if mode not in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
                             assert response.status == 200, data
                             parsed = json.loads(data)
                             assert "pin" in parsed["result"]
@@ -128,6 +132,27 @@ def run(node, caller, mode="tables"):
                             data = json.dumps(parsed).encode()
                             fault["pin_changed"] = True
                         release = envelope["action"].get("release")
+                        for selected, tag in ((pin, "pin"), (release, "release")):
+                            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and selected:
+                                owner = selected["owner"] if tag == "pin" else selected["handle"]["owner"]
+                                key = (owner["operation"], tag)
+                                if owner["operation"] in (90000, 90010) and key not in retention_faults:
+                                    assert response.status == 200, data
+                                    parsed = json.loads(data)
+                                    assert ("pin" if tag == "pin" else "released") in parsed["result"]
+                                    parsed["context"][0] ^= 1
+                                    data = json.dumps(parsed).encode()
+                                    retention_faults.add(key)
+                        if mode in ("board", "board-browser"):
+                            for selected, tag in ((pin, "pin"), (release, "release")):
+                                if selected and board_fault["next"] == tag:
+                                    assert response.status == 200, data
+                                    parsed = json.loads(data)
+                                    assert ("pin" if tag == "pin" else "released") in parsed["result"]
+                                    board_fault["accepted"].append(dict(action=selected, result=parsed["result"]))
+                                    board_fault["next"] = None
+                                    parsed["context"][0] ^= 1
+                                    data = json.dumps(parsed).encode()
                         history = envelope["action"].get("retain_history")
                         historical = envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "history"
                         for action, key, result in ((pin, "delegated_pin", "pin"), (history, "history_pin", "pin"), (release, "history_release" if historical else "delegated_release", "released")):
@@ -141,7 +166,15 @@ def run(node, caller, mode="tables"):
                         operation = envelope["action"].get("operation")
                         if operation and operation["command"] == "execute":
                             fault["execute"] = body
-                            if operation["binding"]["identity"]["operation"] == 2 and not fault["changed"]:
+                            identity = operation["binding"]["identity"]["operation"]
+                            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and identity in (2, 12) and identity not in abi_faults:
+                                assert response.status == 200, data
+                                parsed = json.loads(data)
+                                assert "committed" in parsed["result"]["rows"]
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                abi_faults.add(identity)
+                            if mode not in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") and operation["binding"]["identity"]["operation"] == 2 and not fault["changed"]:
                                 assert response.status == 200, data
                                 parsed = json.loads(data)
                                 assert "committed" in parsed["result"]["rows"]
@@ -170,6 +203,60 @@ def run(node, caller, mode="tables"):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser"):
+                subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
+                if mode in ("board", "board-browser"):
+                    from board_relational import exercise
+                    subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=180)
+                    def board_restart():
+                        nonlocal authority
+                        authority.kill()
+                        authority.wait(timeout=15)
+                        authority = None
+                        authority = start()
+                    def board_policy(allow):
+                        subprocess.run([caller, endpoint, "caller-allow" if allow else "caller-deny", str(profile)], check=True, timeout=180)
+                    exercise(*artifacts, root, url, endpoint, json.loads(profile.read_text()), board_restart, board_policy, board_fault, caller, mode == "board-browser")
+                    assert board_fault["next"] is None
+                    assert len(board_fault["accepted"]) == 3, board_fault
+                    assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                    assert list((root / "native").rglob("*.tseg"))
+                    print(f"Direct Board: {fault['requests']} public requests; original pin recovery, node/Board replacements, cached/terminal current denial, private origin and explicit cleanup passed.")
+                    return
+                if mode == "abi":
+                    from direct_catalog_abi import exercise
+                elif mode == "sdk-python":
+                    from direct_sdk_catalog import exercise
+                elif mode == "sdk-node":
+                    from direct_sdk_catalog import exercise_node as exercise
+                elif mode == "sdk-ruby":
+                    from direct_sdk_catalog import exercise_ruby as exercise
+                elif mode == "sdk-java":
+                    from direct_sdk_catalog import exercise_java as exercise
+                elif mode == "sdk-dotnet":
+                    from direct_sdk_catalog import exercise_dotnet as exercise
+                elif mode == "sdk-rust":
+                    from direct_sdk_catalog import exercise_rust as exercise
+                elif mode == "sdk-beam":
+                    from direct_sdk_catalog import exercise_beam as exercise
+                else:
+                    from direct_sdk_catalog import exercise_c as exercise
+                def restart():
+                    nonlocal authority
+                    authority.kill()
+                    authority.wait(timeout=15)
+                    authority = None
+                    authority = start()
+                def policy(allow):
+                    subprocess.run([caller, endpoint, "caller-allow" if allow else "caller-deny", str(profile)], check=True, timeout=180)
+                exercise(*artifacts, root, url, endpoint, json.loads(profile.read_text()), restart, policy)
+                assert abi_faults == ({2} if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else {2, 12}), abi_faults
+                assert retention_faults == {(operation, tag) for operation in ((90000,) if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else (90000, 90010)) for tag in ("pin", "release")}, retention_faults
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                assert list((root / "native").rglob("*.tseg"))
+                retained = "retained metadata with current access" if mode in ("sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser") else "cached/terminal revocation and retained SQL"
+                print(f"Direct catalog {mode}: {fault['requests']} public requests, wide bulk staging, exact uncertain receipts, uncertain pin/release replies, caller/node replacements, {retained} after DROP/name reuse passed.")
+                return
             if mode == "callers":
                 subprocess.run([caller, endpoint, "callers", str(profile)], check=True, timeout=240)
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]

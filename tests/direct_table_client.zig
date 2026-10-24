@@ -480,6 +480,16 @@ pub fn main(init: std.process.Init) !void {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);
             try Captured.namedRelational(init, fresh, &admin);
+        } else if (std.mem.eql(u8, args[2], "caller-deny") or std.mem.eql(u8, args[2], "caller-allow")) {
+            const allow = std.mem.eql(u8, args[2], "caller-allow");
+            const identity = try admin.client.query(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .identity } } }, try key(if (allow) 55 else 29));
+            _ = try admin.change(.{ .rotate_credential = .{ .principal = 101, .expected_epoch = identity.body.authorization.body.identity.credential_epoch, .public_key = (try key(if (allow) 29 else 55)).public_key.toBytes() } });
+        } else if (std.mem.eql(u8, args[2], "initialize")) {
+            (try client.call(.initialize)).deinit();
+        } else if (std.mem.eql(u8, args[2], "board-inspector")) {
+            const role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("board-inspector"), .login = true } })).?;
+            _ = try admin.change(.{ .bind_credential = .{ .principal = 104, .role = role, .public_key = (try key(12)).public_key.toBytes() } });
+            _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.inspect) } });
         } else if (std.mem.eql(u8, args[2], "maintained-initialize")) {
             (try client.call(.initialize)).deinit();
             _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = profile.role, .privileges = p.permission(.inspect) } });

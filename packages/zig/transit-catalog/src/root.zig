@@ -24,6 +24,7 @@ pub const DirectCatalogInspection = @import("DirectCatalogInspection.zig");
 pub const DirectCatalogAdministration = @import("DirectCatalogAdministration.zig");
 pub const DirectCatalogDependencies = @import("DirectCatalogDependencies.zig");
 pub const DirectCatalogResources = @import("DirectCatalogResources.zig");
+pub const DirectCatalogRetention = @import("DirectCatalogRetention.zig");
 pub const DirectTableDiagnostic = @import("DirectTableDiagnostic.zig");
 pub const DirectTableTyped = @import("DirectTableTyped.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
@@ -59,6 +60,7 @@ pub const TableAttempt = @import("TableAttempt.zig");
 test {
     _ = DirectTableClient;
     _ = DirectTableDiagnostic;
+    _ = DirectCatalogRetention;
     _ = DirectTableValues;
     _ = DirectTableBridge;
     _ = DirectCatalogInspection;

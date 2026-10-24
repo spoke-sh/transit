@@ -1,63 +1,66 @@
-//! Explicit catalog caller. This owns transport and signing, never a writer PID.
+//! Direct catalog caller. A handle owns transports and immutable local work;
+//! durable acceptance and recovery belong to the public catalog/data owners.
 const std = @import("std");
 const base = @import("Abi.zig");
 const catalog = @import("transit_catalog");
-const query = @import("transit_query");
 const p = catalog.protocol;
 const wire = catalog.station.client;
-pub const bridge = catalog.TableBridge;
+pub const bridge = catalog.DirectTableBridge;
+pub const max_intent_bytes = catalog.DirectTableIntent.max_bytes;
 const allocator = std.heap.page_allocator;
 pub const Client = opaque {};
-pub const Config = struct { connection: bridge.Connection, timeout_ms: u32 = 5000, table_service_url: ?[]const u8 = null, table_service_limits: wire.Client.OwnedLimits = .{} };
+pub const Config = struct {
+    definition: p.Growth.Definition,
+    connection: catalog.DirectTableValues.Connection,
+    timeout_ms: u32 = 5000,
+    service_url: ?[]const u8 = null,
+};
 const Impl = struct {
     threaded: std.Io.Threaded,
-    transport: wire.Client,
-    client: catalog.TableClient,
+    authority: wire.Client,
+    service: wire.Client,
+    client: catalog.DirectTableClient,
     session: bridge.Session,
-    url: []u8,
-    service_url: ?[]u8,
-    service: ?wire.Client,
-    service_limits: wire.Client.OwnedLimits,
+    authority_url: []u8,
+    service_url: []u8,
     busy: std.atomic.Value(bool) = .init(false),
 };
 fn cast(pointer: *Client) *Impl {
     return @ptrCast(@alignCast(pointer));
 }
+fn validEndpoint(url: []const u8) bool {
+    if (url.len == 0 or url.len > 2048) return false;
+    const uri = std.Uri.parse(url) catch return false;
+    return (std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) and uri.host != null and uri.user == null and uri.password == null and uri.query == null and uri.fragment == null;
+}
 pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u8, config: [*]const u8, config_len: usize, out: *?*Client) callconv(.c) base.Status {
     out.* = null;
     if (version != 1) return .incompatible_version;
-    if (url_len == 0 or url_len > 2048 or config_len == 0 or config_len > 8192) return .invalid_argument;
-    const uri = std.Uri.parse(url[0..url_len]) catch return .invalid_argument;
-    if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return .invalid_argument;
+    if (!validEndpoint(url[0..url_len]) or config_len == 0 or config_len > 8192) return .invalid_argument;
     const parsed = p.Json.parseFromSlice(Config, allocator, config[0..config_len]) catch |err| return base.status(err);
     defer parsed.deinit();
     const options = parsed.value;
+    if (options.definition != p.Growth.current_definition) return .incompatible_version;
     const connection = options.connection.native() catch return .invalid_argument;
     if (options.timeout_ms == 0 or options.timeout_ms > 60000) return .invalid_argument;
-    options.table_service_limits.validate() catch return .invalid_argument;
-    if (options.table_service_url) |endpoint| {
-        if (endpoint.len == 0 or endpoint.len > 2048) return .invalid_argument;
-        const target = std.Uri.parse(endpoint) catch return .invalid_argument;
-        if (!(std.mem.eql(u8, target.scheme, "http") or std.mem.eql(u8, target.scheme, "https")) or target.host == null or target.user != null or target.password != null or target.query != null or target.fragment != null) return .invalid_argument;
-    }
+    const target = options.service_url orelse url[0..url_len];
+    if (!validEndpoint(target)) return .invalid_argument;
     const client = allocator.create(Impl) catch return .out_of_memory;
-    const endpoint = allocator.dupe(u8, url[0..url_len]) catch {
+    const authority_url = allocator.dupe(u8, url[0..url_len]) catch {
         allocator.destroy(client);
         return .out_of_memory;
     };
-    const service_endpoint = if (options.table_service_url) |value| allocator.dupe(u8, value) catch {
-        allocator.free(endpoint);
+    const service_url = allocator.dupe(u8, target) catch {
+        allocator.free(authority_url);
         allocator.destroy(client);
         return .out_of_memory;
-    } else null;
-    client.* = .{ .url = endpoint, .service_url = service_endpoint, .service = null, .service_limits = options.table_service_limits, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .transport = undefined, .client = undefined, .session = .{ .allocator = allocator } };
-    client.transport = wire.Client.init(allocator, client.threaded.io(), endpoint);
-    client.transport.timeout_ms = options.timeout_ms;
-    if (service_endpoint) |value| {
-        client.service = wire.Client.init(allocator, client.threaded.io(), value);
-        client.service.?.timeout_ms = options.timeout_ms;
-    }
-    client.client = .{ .transport = &client.transport, .connection = connection, .key = p.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable };
+    };
+    client.* = .{ .authority_url = authority_url, .service_url = service_url, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .authority = undefined, .service = undefined, .client = undefined, .session = .{ .allocator = allocator } };
+    client.authority = wire.Client.init(allocator, client.threaded.io(), authority_url);
+    client.service = wire.Client.init(allocator, client.threaded.io(), service_url);
+    client.authority.timeout_ms = options.timeout_ms;
+    client.service.timeout_ms = options.timeout_ms;
+    client.client = .{ .allocator = allocator, .authority = &client.authority, .service = &client.service, .connection = connection, .key = p.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable };
     out.* = @ptrCast(client);
     return .ok;
 }
@@ -65,16 +68,16 @@ pub fn destroy(pointer: ?*Client) callconv(.c) void {
     const client = cast(pointer orelse return);
     client.session.deinit();
     std.crypto.secureZero(u8, std.mem.asBytes(&client.client.key));
-    client.transport.deinit();
-    if (client.service) |*service| service.deinit();
+    client.authority.deinit();
+    client.service.deinit();
     client.threaded.deinit();
-    allocator.free(client.url);
-    if (client.service_url) |value| allocator.free(value);
+    allocator.free(client.authority_url);
+    allocator.free(client.service_url);
     allocator.destroy(client);
 }
 pub fn observe(pointer: *Client, observer: *wire.observability.telemetry.Runtime) void {
-    cast(pointer).transport.observer = observer;
-    if (cast(pointer).service) |*service| service.observer = observer;
+    cast(pointer).authority.observer = observer;
+    cast(pointer).service.observer = observer;
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
@@ -82,161 +85,107 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     const client = cast(pointer);
     if (client.busy.swap(true, .acquire)) return .busy;
     defer client.busy.store(false, .release);
-    client.transport.last_rejection = null;
+    client.authority.last_rejection = null;
+    client.service.last_rejection = null;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    const alloc = arena.allocator();
-    const action = bridge.parse(alloc, json[0..len]) catch |err| return invalidEnvelope(err, out);
-    // Malformed recovery cannot be dispatched. Once a validated submit starts,
-    // unconfirmed transport or result-allocation failures remain uncertain.
-    var identity: ?p.Diagnostic.Identity = null;
-    if (action.value == .submit) {
-        const command = bridge.prepared(alloc, action.value.submit) catch |err| return localFailure(client, action.value, err, out);
-        client.client.validate(command) catch |err| return localFailure(client, action.value, err, out);
-        identity = .{ .domain = .transport, .id = .init(command.signed.request.sequence), .sequence = .init(command.signed.request.sequence), .realm = .init(command.signed.request.realm) };
-    }
+    const action = bridge.parse(arena.allocator(), json[0..len]) catch |err| return invalidEnvelope(err, out);
+    defer action.deinit();
+    var attempt: catalog.DirectTableClient.Attempt = .{};
+    var caller = client.client;
+    caller.attempt = &attempt;
     var location: catalog.fuze.Sql.Location = .{};
-    var result_arena: std.heap.ArenaAllocator = .init(allocator);
-    defer result_arena.deinit();
-    const result = apply(client, &result_arena, action.value, &location) catch |err| {
-        const diagnostic = catalog.TableAttempt.attempt(&client.session, client.client.connection, action.value, err, location, action.value == .submit, identity, client.transport.last_rejection) catch null;
-        base.output(.{ .err = @errorName(err), .protocol_error = client.transport.last_rejection, .diagnostic = diagnostic }, out) catch {};
-        if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
-        return switch (err) {
-            error.CatalogDenied => .denied,
-            error.CatalogOwnerUnavailable, error.ResourceUnavailable => .unavailable,
-            error.CatalogNotInitialized, error.TableIntentNotLoaded => .not_ready,
-            error.CatalogIdentityConflict, error.CatalogScopeChanged, error.CatalogOwnerChanged, error.CatalogConfigurationChanged, error.CatalogPolicyConflict, error.CatalogCursorChanged, error.CatalogSourceChanged => .conflict,
-            error.OutOfMemory => .out_of_memory,
-            else => switch (catalog.TableAttempt.category(action.value, err)) {
-                .access => .denied,
-                .conflict => .conflict,
-                .limit => .budget_exceeded,
-                .unavailable => .unavailable,
-                .integrity, .internal => .invalid_response,
-                else => base.status(err),
-            },
-        };
+    var results: std.heap.ArenaAllocator = .init(allocator);
+    defer results.deinit();
+    const result = client.session.apply(&results, caller, action.value, &location) catch |err| {
+        const native = client.service.last_rejection orelse client.authority.last_rejection;
+        const diagnostic = catalog.DirectTableDiagnostic.failure(action.value, err, location, attempt, native) catch null;
+        base.output(.{ .err = @errorName(err), .protocol_error = native, .diagnostic = diagnostic }, out) catch {};
+        if (attempt.mutation != null) return .uncertain;
+        return failureStatus(err, if (diagnostic) |value| value.category else .internal);
     };
-    base.output(result, out) catch |err| return if (action.value == .submit) .uncertain else base.status(err);
+    base.output(result, out) catch |err| return if (attempt.mutation != null) .uncertain else base.status(err);
     return .ok;
 }
-fn apply(client: *Impl, arena: *std.heap.ArenaAllocator, action: bridge.Action, location: *catalog.fuze.Sql.Location) !bridge.Result {
-    // Resource and policy revisions can advance between dependent metadata
-    // reads (including object registration). Restart locally unsubmitted work
-    // after those exact conflicts, repeating authorization for the same intent.
-    // A submit, uncertain send, cursor conflict or authorization failure is
-    // never included in this loop. Each failed read releases its workspace.
-    const io = client.threaded.io();
-    const deadline = std.Io.Clock.boot.now(io).toMilliseconds() + client.transport.timeout_ms;
-    var attempts: u8 = 0;
-    while (true) {
-        client.transport.last_rejection = null;
-        if (client.service) |*service| service.last_rejection = null;
-        return (if (client.service) |*service| query.MediatedTableBridge.apply(arena, &client.session, &client.client, service, client.service_limits, action) else client.session.applyDiagnostic(arena, &client.client, action, location)) catch |err| {
-            if (client.service) |service| if (service.last_rejection) |rejection| {
-                client.transport.last_rejection = rejection;
-            };
-            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired or
-                (client.service != null and client.transport.last_rejection == .StaleAuthorizationRevision);
-            if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or !stale or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
-            attempts += 1;
-            _ = arena.reset(.free_all);
-            continue;
-        };
-    }
+fn failureStatus(cause: anyerror, category: p.Diagnostic.Category) base.Status {
+    if (cause == error.OutOfMemory) return .out_of_memory;
+    if (cause == error.IncompatibleDefinition) return .incompatible_version;
+    return switch (category) {
+        .access => .denied,
+        .conflict => .conflict,
+        .limit => .budget_exceeded,
+        .unavailable => .unavailable,
+        .lifecycle => .not_ready,
+        .integrity, .internal => .invalid_response,
+        else => .invalid_argument,
+    };
 }
-fn invalidEnvelope(err: anyerror, out: *?*base.Buffer) base.Status {
-    const diagnostic = catalog.TableAttempt.invalidEnvelope(err) catch null;
-    base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
-    return if (err == error.OutOfMemory) .out_of_memory else .invalid_argument;
-}
-fn localFailure(client: *Impl, action: bridge.Action, err: anyerror, out: *?*base.Buffer) base.Status {
-    const diagnostic = catalog.TableAttempt.attempt(&client.session, client.client.connection, action, err, .{}, false, null, null) catch null;
-    base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
-    return base.status(err);
+pub fn invalidEnvelope(cause: anyerror, out: *?*base.Buffer) base.Status {
+    const diagnostic = catalog.DirectTableDiagnostic.invalidEnvelope(cause) catch null;
+    base.output(.{ .err = @errorName(cause), .diagnostic = diagnostic }, out) catch {};
+    return if (cause == error.OutOfMemory) .out_of_memory else .invalid_argument;
 }
 
-test "catalog ABI owns outputs and validates before its uncertain dispatch boundary" {
+test "direct catalog ABI rejects old configuration and owns local saved work" {
     const t = std.testing;
     const endpoint = "http://127.0.0.1:1";
-    const config = "{\"connection\":{\"scope\":{\"realm\":46,\"resource\":7,\"catalog\":\"18446744073709551615\"},\"owner\":3,\"principal\":17},\"timeout_ms\":100}";
     const seed: [32]u8 = @splat(10);
     var pointer: ?*Client = null;
+    const old = "{}";
+    try t.expectEqual(.invalid_argument, create(1, endpoint.ptr, endpoint.len, &seed, old.ptr, old.len, &pointer));
+    try t.expect(pointer == null);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: catalog.DirectTableProtocol.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = std.math.maxInt(u64) }, .branch = 1, .audience = 3, .principal = 17, .role = null };
+    const legacy = try p.Json.valueAlloc(alloc, .{ .definition = p.Growth.current_definition, .connection = .{ .scope = try catalog.DirectTableValues.Scope.foreign(alloc, connection.scope), .owner = 3, .principal = 17, .namespace = 1, .role = @as(?u64, null) } });
+    try t.expectEqual(.invalid_argument, create(1, endpoint.ptr, endpoint.len, &seed, legacy.ptr, legacy.len, &pointer));
+    try t.expect(pointer == null);
+    const foreign = try p.Json.valueAlloc(alloc, .{ .definition = "0000000000000000000000000000000000000000000000000000000000000000", .connection = try catalog.DirectTableValues.Connection.foreign(alloc, connection) });
+    try t.expectEqual(.invalid_argument, create(1, endpoint.ptr, endpoint.len, &seed, foreign.ptr, foreign.len, &pointer));
+    try t.expect(pointer == null);
+    const config = try p.Json.valueAlloc(alloc, Config{ .definition = p.Growth.current_definition, .connection = try catalog.DirectTableValues.Connection.foreign(alloc, connection), .timeout_ms = 100 });
     try t.expectEqual(.incompatible_version, create(2, endpoint.ptr, endpoint.len, &seed, config.ptr, config.len, &pointer));
     try t.expect(pointer == null);
     try t.expectEqual(.ok, create(1, endpoint.ptr, endpoint.len, &seed, config.ptr, config.len, &pointer));
     defer destroy(pointer);
-    var arena = std.heap.ArenaAllocator.init(t.allocator);
-    defer arena.deinit();
-    const alloc = arena.allocator();
-    const compile_action = "{\"compile\":{\"identity\":{\"operation\":\"18446744073709551615\",\"namespace\":\"1000\"},\"create_object\":\"18446744073709551615\",\"sql\":\"CREATE TABLE items (id INTEGER PRIMARY KEY, value VARCHAR(200), enabled BOOLEAN DEFAULT TRUE)\"}}";
-    var buffer: ?*base.Buffer = null;
-    try t.expectEqual(.ok, call(pointer.?, compile_action.ptr, compile_action.len, &buffer));
-    defer base.Api.station_buffer_destroy(buffer);
-    const decoded = try p.Json.parseFromSlice(bridge.Result, alloc, base.Api.station_buffer_data(buffer.?)[0..base.Api.station_buffer_size(buffer.?)]);
-    const original = decoded.value.compiled;
-    try t.expectEqualStrings("18446744073709551615", original.intent.operation);
-    const read_action = try p.Json.valueAlloc(alloc, bridge.Action{ .status = original.intent.reference });
-    var read_failure: ?*base.Buffer = null;
-    try t.expectEqual(.unavailable, call(pointer.?, read_action.ptr, read_action.len, &read_failure));
-    defer base.Api.station_buffer_destroy(read_failure);
-    const failed_read = try std.json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(read_failure.?)[0..base.Api.station_buffer_size(read_failure.?)], .{});
-    try t.expectEqual(.not_applicable, failed_read.value.diagnostic.outcome);
-    try t.expectEqual(.none, failed_read.value.diagnostic.evidence);
-    try t.expectEqual(std.math.maxInt(u64), try failed_read.value.diagnostic.identity.?.id.value());
-    try t.expectEqual(@as(u64, 46), try failed_read.value.diagnostic.identity.?.realm.?.value());
-    try t.expectEqual(@as(u64, 7), try failed_read.value.diagnostic.identity.?.resource.?.value());
-    for (failed_read.value.diagnostic.actions) |slot| if (slot) |recovery| {
-        try t.expectEqual(.retry_read, recovery.kind);
-        try t.expectEqualDeep(failed_read.value.diagnostic.identity, recovery.target);
-    };
-    // These calls execute the real offline compiler while the configured
-    // endpoint is unavailable. No admission or metadata read is necessary.
-    for ([_]struct { sql: []const u8, code: []const u8 }{
-        .{ .sql = "CREATE TABLE items (id INTEGER, id UTF8)", .code = "sql.duplicate_column" },
-        .{ .sql = "CREATE TABLE items (value VARCHAR(0))", .code = "sql.invalid_character_limit" },
-    }) |case| {
-        const input = try p.Json.valueAlloc(alloc, bridge.Action{ .compile = .{ .identity = .{ .operation = "1", .namespace = "2" }, .create_object = "3", .sql = case.sql } });
-        var rejected_compile: ?*base.Buffer = null;
-        try t.expectEqual(.invalid_argument, call(pointer.?, input.ptr, input.len, &rejected_compile));
-        defer base.Api.station_buffer_destroy(rejected_compile);
-        const detail = try p.Json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(rejected_compile.?)[0..base.Api.station_buffer_size(rejected_compile.?)]);
-        try detail.value.diagnostic.validate();
-        try t.expectEqualStrings(case.code, detail.value.diagnostic.code.slice());
-        try t.expectEqual(.not_submitted, detail.value.diagnostic.outcome);
-        try t.expect(detail.value.diagnostic.location != null);
-        _ = try cast(pointer.?).session.get(original.intent.reference, cast(pointer.?).client.connection);
-    }
+    const binding: catalog.NameAssertion.Binding = .{ .definition = p.Growth.current_definition, .connection = connection, .operation = std.math.maxInt(u64), .namespace = 1, .name = try .init("absent"), .action = .drop_if_exists, .expected = null, .intent = @splat(9) };
+    const recovery: bridge.Recovery = .{ .name_assertion = try catalog.DirectTableValues.NameAssertion.foreign(alloc, binding) };
+    const load = try p.Json.valueAlloc(alloc, bridge.Action{ .load = .{ .name_assertion = recovery.name_assertion } });
+    var loaded: ?*base.Buffer = null;
+    try t.expectEqual(.ok, call(pointer.?, load.ptr, load.len, &loaded));
+    defer base.Api.station_buffer_destroy(loaded);
+    const decoded = try p.Json.parseFromSlice(bridge.Result, alloc, base.Api.station_buffer_data(loaded.?)[0..base.Api.station_buffer_size(loaded.?)]);
+    try t.expectEqualStrings("18446744073709551615", decoded.value.loaded.binding.name_assertion.operation);
+    const read = try p.Json.valueAlloc(alloc, bridge.Action{ .operation = .{ .reference = recovery, .command = .inspect, .steps = 1 } });
+    var failed: ?*base.Buffer = null;
+    try t.expectEqual(.unavailable, call(pointer.?, read.ptr, read.len, &failed));
+    defer base.Api.station_buffer_destroy(failed);
+    const detail = try p.Json.parseFromSlice(struct { err: []const u8, protocol_error: ?p.ErrorCode, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(failed.?)[0..base.Api.station_buffer_size(failed.?)]);
+    try t.expectEqual(.not_applicable, detail.value.diagnostic.outcome);
+    try t.expectEqual(std.math.maxInt(u64), try detail.value.diagnostic.identity.?.id.value());
+    const admit = try p.Json.valueAlloc(alloc, bridge.Action{ .admit = recovery });
+    var no_dispatch: ?*base.Buffer = null;
+    try t.expectEqual(.unavailable, call(pointer.?, admit.ptr, admit.len, &no_dispatch));
+    defer base.Api.station_buffer_destroy(no_dispatch);
+    const unavailable = try p.Json.parseFromSlice(struct { err: []const u8, protocol_error: ?p.ErrorCode, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(no_dispatch.?)[0..base.Api.station_buffer_size(no_dispatch.?)]);
+    try t.expectEqual(.not_submitted, unavailable.value.diagnostic.outcome);
     cast(pointer.?).busy.store(true, .release);
     var overlap: ?*base.Buffer = null;
-    try t.expectEqual(.busy, call(pointer.?, compile_action.ptr, compile_action.len, &overlap));
+    try t.expectEqual(.busy, call(pointer.?, load.ptr, load.len, &overlap));
     try t.expect(overlap == null);
     cast(pointer.?).busy.store(false, .release);
-    const invalid = "{\"submit\":\"{}\"}";
+    const hostile = "{\"submit\":\"{}\"}";
     var rejected: ?*base.Buffer = null;
-    try t.expectEqual(.invalid_argument, call(pointer.?, invalid.ptr, invalid.len, &rejected));
+    try t.expectEqual(.invalid_argument, call(pointer.?, hostile.ptr, hostile.len, &rejected));
     defer base.Api.station_buffer_destroy(rejected);
-    const local = try p.Json.parseFromSlice(struct { err: []const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(rejected.?)[0..base.Api.station_buffer_size(rejected.?)]);
-    try t.expectEqual(.not_submitted, local.value.diagnostic.outcome);
-    const signed: catalog.TableClient.Prepared = .{ .version = 1, .definition = p.Growth.current_definition, .connection = cast(pointer.?).client.connection, .public_key = cast(pointer.?).client.key.public_key.toBytes(), .signed = try p.Growth.sign(.{ .realm = 46, .principal = 17, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try (catalog.station.Frame{ .kind = .cast, .payload = try (catalog.TableControl.Command{ .cancel_upload = (try cast(pointer.?).session.get(original.intent.reference, cast(pointer.?).client.connection)).upload() }).encode() }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(seed)) };
-    const token = try signed.save(alloc);
-    const action = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = token });
-    var failure: ?*base.Buffer = null;
-    try t.expectEqual(.uncertain, call(pointer.?, action.ptr, action.len, &failure));
-    defer base.Api.station_buffer_destroy(failure);
-    const remote = try p.Json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(failure.?)[0..base.Api.station_buffer_size(failure.?)]);
-    try t.expectEqual(.unknown, remote.value.diagnostic.outcome);
-    try t.expectEqual(.resume_exact, remote.value.diagnostic.actions[1].?.kind);
-    try t.expectEqual(@as(u64, 1), try remote.value.diagnostic.identity.?.sequence.?.value());
-    var forged = signed;
-    forged.signed.signature[0] ^= 1;
-    const tampered = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = try std.json.Stringify.valueAlloc(alloc, forged, .{}) });
-    var signature: ?*base.Buffer = null;
-    try t.expectEqual(.invalid_argument, call(pointer.?, tampered.ptr, tampered.len, &signature));
-    defer base.Api.station_buffer_destroy(signature);
+    const capabilities = "{\"catalog\":{\"capabilities\":{}}}";
+    var retained: ?*base.Buffer = null;
+    try t.expectEqual(.ok, call(pointer.?, capabilities.ptr, capabilities.len, &retained));
+    defer base.Api.station_buffer_destroy(retained);
     destroy(pointer);
     pointer = null;
-    const retained = try p.Json.parseFromSlice(bridge.Result, alloc, base.Api.station_buffer_data(buffer.?)[0..base.Api.station_buffer_size(buffer.?)]);
-    try t.expectEqualDeep(decoded.value, retained.value);
+    const after_close = try p.Json.parseFromSlice(bridge.Result, alloc, base.Api.station_buffer_data(retained.?)[0..base.Api.station_buffer_size(retained.?)]);
+    defer after_close.deinit();
+    try t.expectEqual(p.Growth.current_definition, after_close.value.catalog.capabilities.definition);
 }

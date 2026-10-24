@@ -98,10 +98,14 @@ browser-install:
 # Exercise the real embedded UI against an isolated disk-backed Transit node.
 browser:
     zig build test-transit-board -Dtransit-board-browser=true
-    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true -- --browser
+    zig build test-direct-board -Doptimize=ReleaseSafe -Ddirect-board-browser=true
 
 relational-browser:
-    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true -- --browser
+    zig build test-direct-board -Doptimize=ReleaseSafe -Ddirect-board-browser=true
+
+# Prove the direct worksheet and durable original pin cleanup against the real node.
+relational-test:
+    zig build test-direct-board -Doptimize=ReleaseSafe
 
 # Open a disposable counter realm for interactive inspection; Ctrl-C cleans it up.
 demo: build

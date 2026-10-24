@@ -4492,7 +4492,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029"
+                        "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
                       ]
                     },
                     "code": {
@@ -6570,7 +6570,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029"
+                      "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
                     ]
                   },
                   "code": {
@@ -18022,7 +18022,7 @@
           "T145": {
             "type": "string",
             "enum": [
-              "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029"
+              "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
             ]
           },
           "T146": {
@@ -19805,6 +19805,18 @@
                     "$ref": "#/components/schemas/RelationalRequest/$defs/T2"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "recover"
+                ],
+                "properties": {
+                  "recover": {
+                    "$ref": "#/components/schemas/RelationalRequest/$defs/T27"
+                  }
+                }
               }
             ]
           },
@@ -19846,7 +19858,7 @@
                 ],
                 "properties": {
                   "open": {
-                    "$ref": "#/components/schemas/RelationalRequest/$defs/T7"
+                    "$ref": "#/components/schemas/RelationalRequest/$defs/T8"
                   }
                 }
               },
@@ -19858,7 +19870,7 @@
                 ],
                 "properties": {
                   "page": {
-                    "$ref": "#/components/schemas/RelationalRequest/$defs/T8"
+                    "$ref": "#/components/schemas/RelationalRequest/$defs/T24"
                   }
                 }
               },
@@ -19870,7 +19882,7 @@
                 ],
                 "properties": {
                   "close": {
-                    "$ref": "#/components/schemas/RelationalRequest/$defs/T9"
+                    "$ref": "#/components/schemas/RelationalRequest/$defs/T25"
                   }
                 }
               }
@@ -19880,63 +19892,367 @@
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
+              "namespace",
               "sql",
               "routes"
             ],
             "properties": {
-              "sql": {
+              "namespace": {
                 "$ref": "#/components/schemas/RelationalRequest/$defs/T4"
               },
-              "routes": {
+              "sql": {
                 "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
+              },
+              "routes": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T6"
               }
             },
             "required": [
               "sql",
               "routes"
             ],
-            "x-transit-defaults": {}
+            "x-transit-defaults": {
+              "namespace": 1
+            }
           },
           "T4": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "T5": {
             "type": "string",
             "maxLength": 4096
           },
-          "T5": {
+          "T6": {
             "type": "array",
             "maxItems": 2,
             "items": {
-              "$ref": "#/components/schemas/RelationalRequest/$defs/T6"
+              "$ref": "#/components/schemas/RelationalRequest/$defs/T7"
             }
           },
-          "T6": {
+          "T7": {
             "type": "integer",
             "minimum": 0,
             "maximum": 65535,
             "x-transit-bits": 16,
             "x-transit-signed": false
           },
-          "T7": {
+          "T8": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
               "id",
-              "statement"
+              "statement",
+              "sources"
             ],
             "properties": {
               "id": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T4"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
               },
               "statement": {
                 "$ref": "#/components/schemas/RelationalRequest/$defs/T3"
+              },
+              "sources": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T9"
               }
             },
             "required": [
               "id",
-              "statement"
+              "statement",
+              "sources"
             ],
             "x-transit-defaults": {}
           },
-          "T8": {
+          "T9": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/RelationalRequest/$defs/T10"
+            }
+          },
+          "T10": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "alias",
+              "binding",
+              "position"
+            ],
+            "properties": {
+              "alias": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "binding": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T12"
+              },
+              "position": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T23"
+              }
+            },
+            "required": [
+              "alias",
+              "binding",
+              "position"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T11": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "T12": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "connection",
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T13"
+              },
+              "connection": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T14"
+              },
+              "namespace": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T16"
+              },
+              "name": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "interpretation": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T18"
+              }
+            },
+            "required": [
+              "definition",
+              "connection",
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T13": {
+            "type": "string",
+            "enum": [
+              "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
+            ]
+          },
+          "T14": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "branch",
+              "audience",
+              "principal",
+              "role"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T15"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "audience": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T16"
+              },
+              "principal": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T16"
+              },
+              "role": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T17"
+              }
+            },
+            "required": [
+              "scope",
+              "branch",
+              "audience",
+              "principal",
+              "role"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T15": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "realm",
+              "resource",
+              "catalog"
+            ],
+            "properties": {
+              "realm": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T16"
+              },
+              "resource": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T16"
+              },
+              "catalog": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              }
+            },
+            "required": [
+              "realm",
+              "resource",
+              "catalog"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T16": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "T17": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T16"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T18": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "interpretation",
+              "content",
+              "schema_fingerprint",
+              "retired"
+            ],
+            "properties": {
+              "interpretation": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T19"
+              },
+              "content": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T21"
+              },
+              "schema_fingerprint": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "retired": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T22"
+              }
+            },
+            "required": [
+              "interpretation",
+              "content",
+              "schema_fingerprint",
+              "retired"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T19": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "properties": {
+              "object": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T20"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "digest": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              }
+            },
+            "required": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T20": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T15"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "object": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              }
+            },
+            "required": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T21": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "bytes",
+              "sha256"
+            ],
+            "properties": {
+              "bytes": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "sha256": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              }
+            },
+            "required": [
+              "bytes",
+              "sha256"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T22": {
+            "type": "boolean"
+          },
+          "T23": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "partition",
+              "next_lsn"
+            ],
+            "properties": {
+              "partition": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              },
+              "next_lsn": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T11"
+              }
+            },
+            "required": [
+              "partition",
+              "next_lsn"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T24": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19945,10 +20261,10 @@
             ],
             "properties": {
               "reference": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T9"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T25"
               },
               "ordinal": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T4"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
               }
             },
             "required": [
@@ -19957,7 +20273,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T9": {
+          "T25": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19968,16 +20284,16 @@
             ],
             "properties": {
               "definition": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T10"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T26"
               },
               "id": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T4"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
               },
               "plan": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T4"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
               },
               "basis": {
-                "$ref": "#/components/schemas/RelationalRequest/$defs/T4"
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
               }
             },
             "required": [
@@ -19988,11 +20304,27 @@
             ],
             "x-transit-defaults": {}
           },
-          "T10": {
+          "T26": {
             "type": "string",
             "enum": [
-              "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029"
+              "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
             ]
+          },
+          "T27": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/RelationalRequest/$defs/T5"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "x-transit-defaults": {}
           }
         }
       },
@@ -20021,7 +20353,19 @@
                 ],
                 "properties": {
                   "query": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T51"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T68"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "recovered"
+                ],
+                "properties": {
+                  "recovered": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
                   }
                 }
               }
@@ -20033,7 +20377,8 @@
             "x-transit-field-order": [
               "capabilities",
               "routes",
-              "active"
+              "active",
+              "recovery"
             ],
             "properties": {
               "capabilities": {
@@ -20043,26 +20388,19 @@
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T7"
               },
               "active": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T14"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T20"
+              },
+              "recovery": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
               }
             },
             "required": [
               "capabilities",
               "routes",
-              "active"
+              "active",
+              "recovery"
             ],
-            "x-transit-defaults": {
-              "capabilities": {
-                "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
-                "sources": 2,
-                "active_queries": 1,
-                "page_rows": 1,
-                "interactive": true,
-                "captured": false,
-                "maintained": false,
-                "consistency": "per_resource_snapshot_vector"
-              }
-            }
+            "x-transit-defaults": {}
           },
           "T2": {
             "type": "object",
@@ -20114,20 +20452,20 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
+              "definition": "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
               "interactive": true,
               "captured": false,
               "maintained": false,
-              "consistency": "per_resource_snapshot_vector"
+              "consistency": "independent_table_snapshots"
             }
           },
           "T3": {
             "type": "string",
             "enum": [
-              "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029"
+              "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
             ]
           },
           "T4": {
@@ -20160,24 +20498,19 @@
             "additionalProperties": false,
             "x-transit-field-order": [
               "connection",
-              "resource_revision",
-              "policy_revision"
+              "description"
             ],
             "properties": {
               "connection": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T9"
               },
-              "resource_revision": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
-              },
-              "policy_revision": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              "description": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T14"
               }
             },
             "required": [
               "connection",
-              "resource_revision",
-              "policy_revision"
+              "description"
             ],
             "x-transit-defaults": {}
           },
@@ -20186,16 +20519,19 @@
             "additionalProperties": false,
             "x-transit-field-order": [
               "scope",
-              "owner",
+              "branch",
+              "audience",
               "principal",
-              "role",
-              "namespace"
+              "role"
             ],
             "properties": {
               "scope": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T10"
               },
-              "owner": {
+              "branch": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "audience": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
               "principal": {
@@ -20203,22 +20539,16 @@
               },
               "role": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T13"
-              },
-              "namespace": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               }
             },
             "required": [
               "scope",
-              "owner",
+              "branch",
+              "audience",
               "principal",
-              "role",
-              "namespace"
+              "role"
             ],
-            "x-transit-defaults": {
-              "role": null,
-              "namespace": 1
-            }
+            "x-transit-defaults": {}
           },
           "T10": {
             "type": "object",
@@ -20268,16 +20598,185 @@
             ]
           },
           "T14": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "configuration",
+              "subject",
+              "policy_revision"
+            ],
+            "properties": {
+              "configuration": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T15"
+              },
+              "subject": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T17"
+              },
+              "policy_revision": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              }
+            },
+            "required": [
+              "configuration",
+              "subject",
+              "policy_revision"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T15": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "branch",
+              "partition",
+              "audience",
+              "authority",
+              "database_name",
+              "initial_schema_name"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T10"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "partition": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "audience": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "authority": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T16"
+              },
+              "database_name": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "initial_schema_name": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              }
+            },
+            "required": [
+              "scope",
+              "branch",
+              "partition",
+              "audience",
+              "authority",
+              "database_name",
+              "initial_schema_name"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T16": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "database_domain",
+              "schema_domain",
+              "table_domain",
+              "database",
+              "initial_schema",
+              "initial_schema_authority"
+            ],
+            "properties": {
+              "database_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "schema_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "table_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "database": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "initial_schema": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "initial_schema_authority": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              }
+            },
+            "required": [
+              "database_domain",
+              "schema_domain",
+              "table_domain",
+              "database",
+              "initial_schema",
+              "initial_schema_authority"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T17": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "principal",
+              "login_role",
+              "role",
+              "credential_epoch",
+              "audience",
+              "context"
+            ],
+            "properties": {
+              "principal": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "login_role": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "role": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "credential_epoch": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "audience": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "context": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+              }
+            },
+            "required": [
+              "principal",
+              "login_role",
+              "role",
+              "credential_epoch",
+              "audience",
+              "context"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T18": {
+            "type": "array",
+            "minItems": 32,
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T19"
+            }
+          },
+          "T19": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "T20": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T15"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T21"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T15": {
+          "T21": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -20287,10 +20786,10 @@
             ],
             "properties": {
               "opened": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T16"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T22"
               },
               "ordinal": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "read": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
@@ -20303,7 +20802,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T16": {
+          "T22": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -20314,13 +20813,13 @@
             ],
             "properties": {
               "reference": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T17"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T23"
               },
               "description": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T19"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
               },
               "cuts": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T49"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T63"
               },
               "complete_coverage": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
@@ -20336,7 +20835,7 @@
               "complete_coverage": false
             }
           },
-          "T17": {
+          "T23": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -20350,13 +20849,13 @@
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T3"
               },
               "id": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "plan": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "basis": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               }
             },
             "required": [
@@ -20367,11 +20866,11 @@
             ],
             "x-transit-defaults": {}
           },
-          "T18": {
+          "T24": {
             "type": "string",
             "maxLength": 4096
           },
-          "T19": {
+          "T25": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -20388,16 +20887,16 @@
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T3"
               },
               "plan": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "sources": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T20"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T26"
               },
               "columns": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T22"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T36"
               },
               "join": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T47"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T61"
               },
               "grouped": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
@@ -20416,71 +20915,221 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029",
+              "definition": "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347",
               "executed": false
             }
           },
-          "T20": {
+          "T26": {
             "type": "array",
             "maxItems": 2,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T21"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T27"
             }
           },
-          "T21": {
+          "T27": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
               "alias",
-              "realm",
-              "resource",
-              "catalog",
-              "owner",
-              "object",
-              "schema"
+              "binding",
+              "position"
             ],
             "properties": {
               "alias": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
               },
-              "realm": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              "binding": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T28"
               },
-              "resource": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
-              },
-              "catalog": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
-              },
-              "owner": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
-              },
-              "object": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
-              },
-              "schema": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              "position": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T35"
               }
             },
             "required": [
               "alias",
-              "realm",
-              "resource",
-              "catalog",
-              "owner",
-              "object",
-              "schema"
+              "binding",
+              "position"
             ],
             "x-transit-defaults": {}
           },
-          "T22": {
+          "T28": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "connection",
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T29"
+              },
+              "connection": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T9"
+              },
+              "namespace": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "name": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "interpretation": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T30"
+              }
+            },
+            "required": [
+              "definition",
+              "connection",
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T29": {
+            "type": "string",
+            "enum": [
+              "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
+            ]
+          },
+          "T30": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "interpretation",
+              "content",
+              "schema_fingerprint",
+              "retired"
+            ],
+            "properties": {
+              "interpretation": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T31"
+              },
+              "content": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T33"
+              },
+              "schema_fingerprint": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "retired": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T34"
+              }
+            },
+            "required": [
+              "interpretation",
+              "content",
+              "schema_fingerprint",
+              "retired"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T31": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "properties": {
+              "object": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "digest": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              }
+            },
+            "required": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T32": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T10"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "object": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              }
+            },
+            "required": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T33": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "bytes",
+              "sha256"
+            ],
+            "properties": {
+              "bytes": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "sha256": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              }
+            },
+            "required": [
+              "bytes",
+              "sha256"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T34": {
+            "type": "boolean"
+          },
+          "T35": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "partition",
+              "next_lsn"
+            ],
+            "properties": {
+              "partition": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              },
+              "next_lsn": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
+              }
+            },
+            "required": [
+              "partition",
+              "next_lsn"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T36": {
             "type": "array",
             "maxItems": 128,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T23"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T37"
             }
           },
-          "T23": {
+          "T37": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -20491,417 +21140,16 @@
             ],
             "properties": {
               "name": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
-              },
-              "type": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
-              "nullable": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
-              },
-              "optional": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
-              }
-            },
-            "required": [
-              "name",
-              "type",
-              "nullable",
-              "optional"
-            ],
-            "x-transit-defaults": {
-              "nullable": false,
-              "optional": false
-            }
-          },
-          "T24": {
-            "oneOf": [
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int64"
-                ],
-                "properties": {
-                  "int64": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint64"
-                ],
-                "properties": {
-                  "uint64": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "float64"
-                ],
-                "properties": {
-                  "float64": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "boolean"
-                ],
-                "properties": {
-                  "boolean": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "utf8"
-                ],
-                "properties": {
-                  "utf8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "binary"
-                ],
-                "properties": {
-                  "binary": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int8"
-                ],
-                "properties": {
-                  "int8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int16"
-                ],
-                "properties": {
-                  "int16": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int32"
-                ],
-                "properties": {
-                  "int32": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int128"
-                ],
-                "properties": {
-                  "int128": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint8"
-                ],
-                "properties": {
-                  "uint8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint16"
-                ],
-                "properties": {
-                  "uint16": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint32"
-                ],
-                "properties": {
-                  "uint32": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint128"
-                ],
-                "properties": {
-                  "uint128": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "float32"
-                ],
-                "properties": {
-                  "float32": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "decimal"
-                ],
-                "properties": {
-                  "decimal": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T26"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "date"
-                ],
-                "properties": {
-                  "date": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "time"
-                ],
-                "properties": {
-                  "time": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "timestamp"
-                ],
-                "properties": {
-                  "timestamp": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T27"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "interval"
-                ],
-                "properties": {
-                  "interval": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uuid"
-                ],
-                "properties": {
-                  "uuid": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "structure"
-                ],
-                "properties": {
-                  "structure": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T28"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "list"
-                ],
-                "properties": {
-                  "list": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "array"
-                ],
-                "properties": {
-                  "array": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T44"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "map"
-                ],
-                "properties": {
-                  "map": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "tagged_union"
-                ],
-                "properties": {
-                  "tagged_union": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T28"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "json"
-                ],
-                "properties": {
-                  "json": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
-                  }
-                }
-              }
-            ]
-          },
-          "T25": {
-            "type": "object",
-            "maxProperties": 0
-          },
-          "T26": {
-            "type": "object",
-            "additionalProperties": false,
-            "x-transit-field-order": [
-              "precision",
-              "scale"
-            ],
-            "properties": {
-              "precision": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T4"
-              },
-              "scale": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T4"
-              }
-            },
-            "required": [
-              "precision",
-              "scale"
-            ],
-            "x-transit-defaults": {}
-          },
-          "T27": {
-            "type": "string",
-            "enum": [
-              "civil",
-              "utc"
-            ]
-          },
-          "T28": {
-            "type": "array",
-            "maxItems": 256,
-            "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T29"
-            }
-          },
-          "T29": {
-            "type": "object",
-            "additionalProperties": false,
-            "x-transit-field-order": [
-              "name",
-              "type",
-              "nullable",
-              "optional"
-            ],
-            "properties": {
-              "name": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T30"
-              },
               "type": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T31"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T38"
               },
               "nullable": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T38"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
               },
               "optional": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T38"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
               }
             },
             "required": [
@@ -20915,11 +21163,7 @@
               "optional": false
             }
           },
-          "T30": {
-            "type": "string",
-            "maxLength": 4096
-          },
-          "T31": {
+          "T38": {
             "oneOf": [
               {
                 "type": "object",
@@ -20929,282 +21173,6 @@
                 ],
                 "properties": {
                   "int64": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint64"
-                ],
-                "properties": {
-                  "uint64": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "float64"
-                ],
-                "properties": {
-                  "float64": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "boolean"
-                ],
-                "properties": {
-                  "boolean": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "utf8"
-                ],
-                "properties": {
-                  "utf8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "binary"
-                ],
-                "properties": {
-                  "binary": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int8"
-                ],
-                "properties": {
-                  "int8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int16"
-                ],
-                "properties": {
-                  "int16": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int32"
-                ],
-                "properties": {
-                  "int32": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "int128"
-                ],
-                "properties": {
-                  "int128": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint8"
-                ],
-                "properties": {
-                  "uint8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint16"
-                ],
-                "properties": {
-                  "uint16": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint32"
-                ],
-                "properties": {
-                  "uint32": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uint128"
-                ],
-                "properties": {
-                  "uint128": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "float32"
-                ],
-                "properties": {
-                  "float32": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "decimal"
-                ],
-                "properties": {
-                  "decimal": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T33"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "date"
-                ],
-                "properties": {
-                  "date": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "time"
-                ],
-                "properties": {
-                  "time": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "timestamp"
-                ],
-                "properties": {
-                  "timestamp": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T35"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "interval"
-                ],
-                "properties": {
-                  "interval": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "uuid"
-                ],
-                "properties": {
-                  "uuid": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "structure"
-                ],
-                "properties": {
-                  "structure": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T28"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "list"
-                ],
-                "properties": {
-                  "list": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T36"
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "array"
-                ],
-                "properties": {
-                  "array": {
                     "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
                   }
                 }
@@ -21213,11 +21181,287 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
+                  "uint64"
+                ],
+                "properties": {
+                  "uint64": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float64"
+                ],
+                "properties": {
+                  "float64": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boolean"
+                ],
+                "properties": {
+                  "boolean": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "utf8"
+                ],
+                "properties": {
+                  "utf8": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "binary"
+                ],
+                "properties": {
+                  "binary": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int8"
+                ],
+                "properties": {
+                  "int8": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int16"
+                ],
+                "properties": {
+                  "int16": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int32"
+                ],
+                "properties": {
+                  "int32": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int128"
+                ],
+                "properties": {
+                  "int128": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint8"
+                ],
+                "properties": {
+                  "uint8": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint16"
+                ],
+                "properties": {
+                  "uint16": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint32"
+                ],
+                "properties": {
+                  "uint32": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint128"
+                ],
+                "properties": {
+                  "uint128": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float32"
+                ],
+                "properties": {
+                  "float32": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decimal"
+                ],
+                "properties": {
+                  "decimal": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T40"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date"
+                ],
+                "properties": {
+                  "date": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "time"
+                ],
+                "properties": {
+                  "time": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "timestamp"
+                ],
+                "properties": {
+                  "timestamp": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T41"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "interval"
+                ],
+                "properties": {
+                  "interval": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uuid"
+                ],
+                "properties": {
+                  "uuid": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "structure"
+                ],
+                "properties": {
+                  "structure": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "list"
+                ],
+                "properties": {
+                  "list": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T56"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "array"
+                ],
+                "properties": {
+                  "array": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T58"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
                   "map"
                 ],
                 "properties": {
                   "map": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T41"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T60"
                   }
                 }
               },
@@ -21229,7 +21473,7 @@
                 ],
                 "properties": {
                   "tagged_union": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T28"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
                   }
                 }
               },
@@ -21241,17 +21485,17 @@
                 ],
                 "properties": {
                   "json": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
                   }
                 }
               }
             ]
           },
-          "T32": {
+          "T39": {
             "type": "object",
             "maxProperties": 0
           },
-          "T33": {
+          "T40": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21260,10 +21504,10 @@
             ],
             "properties": {
               "precision": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T34"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T4"
               },
               "scale": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T34"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T4"
               }
             },
             "required": [
@@ -21272,21 +21516,426 @@
             ],
             "x-transit-defaults": {}
           },
-          "T34": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 255,
-            "x-transit-bits": 8,
-            "x-transit-signed": false
-          },
-          "T35": {
+          "T41": {
             "type": "string",
             "enum": [
               "civil",
               "utc"
             ]
           },
-          "T36": {
+          "T42": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T43"
+            }
+          },
+          "T43": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "name",
+              "type",
+              "nullable",
+              "optional"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T44"
+              },
+              "type": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T45"
+              },
+              "nullable": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T52"
+              },
+              "optional": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T52"
+              }
+            },
+            "required": [
+              "name",
+              "type",
+              "nullable",
+              "optional"
+            ],
+            "x-transit-defaults": {
+              "nullable": false,
+              "optional": false
+            }
+          },
+          "T44": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "T45": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int64"
+                ],
+                "properties": {
+                  "int64": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint64"
+                ],
+                "properties": {
+                  "uint64": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float64"
+                ],
+                "properties": {
+                  "float64": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boolean"
+                ],
+                "properties": {
+                  "boolean": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "utf8"
+                ],
+                "properties": {
+                  "utf8": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "binary"
+                ],
+                "properties": {
+                  "binary": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int8"
+                ],
+                "properties": {
+                  "int8": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int16"
+                ],
+                "properties": {
+                  "int16": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int32"
+                ],
+                "properties": {
+                  "int32": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int128"
+                ],
+                "properties": {
+                  "int128": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint8"
+                ],
+                "properties": {
+                  "uint8": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint16"
+                ],
+                "properties": {
+                  "uint16": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint32"
+                ],
+                "properties": {
+                  "uint32": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint128"
+                ],
+                "properties": {
+                  "uint128": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float32"
+                ],
+                "properties": {
+                  "float32": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decimal"
+                ],
+                "properties": {
+                  "decimal": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T47"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date"
+                ],
+                "properties": {
+                  "date": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "time"
+                ],
+                "properties": {
+                  "time": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "timestamp"
+                ],
+                "properties": {
+                  "timestamp": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T49"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "interval"
+                ],
+                "properties": {
+                  "interval": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uuid"
+                ],
+                "properties": {
+                  "uuid": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "structure"
+                ],
+                "properties": {
+                  "structure": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "list"
+                ],
+                "properties": {
+                  "list": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T50"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "array"
+                ],
+                "properties": {
+                  "array": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T53"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "map"
+                ],
+                "properties": {
+                  "map": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T55"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tagged_union"
+                ],
+                "properties": {
+                  "tagged_union": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "json"
+                ],
+                "properties": {
+                  "json": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
+                  }
+                }
+              }
+            ]
+          },
+          "T46": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "T47": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "precision",
+              "scale"
+            ],
+            "properties": {
+              "precision": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T48"
+              },
+              "scale": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T48"
+              }
+            },
+            "required": [
+              "precision",
+              "scale"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T48": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "T49": {
+            "type": "string",
+            "enum": [
+              "civil",
+              "utc"
+            ]
+          },
+          "T50": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21295,10 +21944,10 @@
             ],
             "properties": {
               "type": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T37"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T51"
               },
               "nullable": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T38"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T52"
               }
             },
             "required": [
@@ -21309,13 +21958,13 @@
               "nullable": false
             }
           },
-          "T37": {
-            "$ref": "#/components/schemas/RelationalResponse/$defs/T31"
+          "T51": {
+            "$ref": "#/components/schemas/RelationalResponse/$defs/T45"
           },
-          "T38": {
+          "T52": {
             "type": "boolean"
           },
-          "T39": {
+          "T53": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21324,10 +21973,10 @@
             ],
             "properties": {
               "element": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T36"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T50"
               },
               "length": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T40"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T54"
               }
             },
             "required": [
@@ -21336,14 +21985,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T40": {
+          "T54": {
             "type": "integer",
             "minimum": 0,
             "maximum": 4294967295,
             "x-transit-bits": 32,
             "x-transit-signed": false
           },
-          "T41": {
+          "T55": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21352,10 +22001,10 @@
             ],
             "properties": {
               "key": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T37"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T51"
               },
               "value": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T36"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T50"
               }
             },
             "required": [
@@ -21364,7 +22013,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T42": {
+          "T56": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21373,7 +22022,7 @@
             ],
             "properties": {
               "type": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T43"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T57"
               },
               "nullable": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
@@ -21387,10 +22036,10 @@
               "nullable": false
             }
           },
-          "T43": {
-            "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
+          "T57": {
+            "$ref": "#/components/schemas/RelationalResponse/$defs/T38"
           },
-          "T44": {
+          "T58": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21399,10 +22048,10 @@
             ],
             "properties": {
               "element": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T56"
               },
               "length": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T45"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T59"
               }
             },
             "required": [
@@ -21411,14 +22060,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T45": {
+          "T59": {
             "type": "integer",
             "minimum": 0,
             "maximum": 4294967295,
             "x-transit-bits": 32,
             "x-transit-signed": false
           },
-          "T46": {
+          "T60": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21427,10 +22076,10 @@
             ],
             "properties": {
               "key": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T43"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T57"
               },
               "value": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T42"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T56"
               }
             },
             "required": [
@@ -21439,45 +22088,45 @@
             ],
             "x-transit-defaults": {}
           },
-          "T47": {
+          "T61": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T48"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T62"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T48": {
+          "T62": {
             "type": "string",
             "enum": [
               "inner",
               "left"
             ]
           },
-          "T49": {
+          "T63": {
             "type": "array",
             "maxItems": 2,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T50"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T64"
             }
           },
-          "T50": {
+          "T64": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
-              "resource",
-              "revision",
+              "object",
+              "position",
               "commitment",
               "schema"
             ],
             "properties": {
-              "resource": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              "object": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T32"
               },
-              "revision": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              "position": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T35"
               },
               "commitment": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T12"
@@ -21487,14 +22136,58 @@
               }
             },
             "required": [
-              "resource",
-              "revision",
+              "object",
+              "position",
               "commitment",
               "schema"
             ],
             "x-transit-defaults": {}
           },
-          "T51": {
+          "T65": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T66"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T66": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "state",
+              "remaining_pins"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
+              },
+              "state": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T67"
+              },
+              "remaining_pins": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "remaining_pins"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T67": {
+            "type": "string",
+            "enum": [
+              "acquiring",
+              "active",
+              "closing"
+            ]
+          },
+          "T68": {
             "oneOf": [
               {
                 "type": "object",
@@ -21516,7 +22209,7 @@
                 ],
                 "properties": {
                   "explained": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T19"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
                   }
                 }
               },
@@ -21528,7 +22221,7 @@
                 ],
                 "properties": {
                   "opened": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T16"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T22"
                   }
                 }
               },
@@ -21540,7 +22233,7 @@
                 ],
                 "properties": {
                   "page": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T52"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T69"
                   }
                 }
               },
@@ -21552,13 +22245,13 @@
                 ],
                 "properties": {
                   "closed": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
                   }
                 }
               }
             ]
           },
-          "T52": {
+          "T69": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21569,13 +22262,13 @@
             ],
             "properties": {
               "reference": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T17"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T23"
               },
               "ordinal": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "row": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T53"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T70"
               },
               "complete_coverage": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T5"
@@ -21589,17 +22282,17 @@
             ],
             "x-transit-defaults": {}
           },
-          "T53": {
+          "T70": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T54"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T54": {
+          "T71": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21608,10 +22301,10 @@
             ],
             "properties": {
               "identity": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T55"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T72"
               },
               "cells": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T59"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T76"
               }
             },
             "required": [
@@ -21620,7 +22313,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T55": {
+          "T72": {
             "oneOf": [
               {
                 "type": "object",
@@ -21630,7 +22323,7 @@
                 ],
                 "properties": {
                   "pair": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T56"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T73"
                   }
                 }
               },
@@ -21642,13 +22335,13 @@
                 ],
                 "properties": {
                   "group": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T58"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T75"
                   }
                 }
               }
             ]
           },
-          "T56": {
+          "T73": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -21657,10 +22350,10 @@
             ],
             "properties": {
               "left": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "right": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T57"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T74"
               }
             },
             "required": [
@@ -21669,31 +22362,31 @@
             ],
             "x-transit-defaults": {}
           },
-          "T57": {
+          "T74": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T58": {
+          "T75": {
             "type": "array",
             "maxItems": 128,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T57"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T74"
             }
           },
-          "T59": {
+          "T76": {
             "type": "array",
             "maxItems": 128,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T60"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T77"
             }
           },
-          "T60": {
+          "T77": {
             "oneOf": [
               {
                 "type": "object",
@@ -21703,7 +22396,7 @@
                 ],
                 "properties": {
                   "missing": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
                   }
                 }
               },
@@ -21715,7 +22408,7 @@
                 ],
                 "properties": {
                   "null": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T25"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
                   }
                 }
               },
@@ -21727,7 +22420,7 @@
                 ],
                 "properties": {
                   "type_error": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T61"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T78"
                   }
                 }
               },
@@ -21739,7 +22432,7 @@
                 ],
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T62"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T79"
                   }
                 }
               },
@@ -21751,13 +22444,13 @@
                 ],
                 "properties": {
                   "conflict": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T79"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T96"
                   }
                 }
               }
             ]
           },
-          "T61": {
+          "T78": {
             "type": "string",
             "enum": [
               "unknown",
@@ -21793,7 +22486,7 @@
               "character"
             ]
           },
-          "T62": {
+          "T79": {
             "oneOf": [
               {
                 "type": "object",
@@ -21803,7 +22496,7 @@
                 ],
                 "properties": {
                   "atom": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T63"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T80"
                   }
                 }
               },
@@ -21815,7 +22508,7 @@
                 ],
                 "properties": {
                   "structure": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
                   }
                 }
               },
@@ -21827,7 +22520,7 @@
                 ],
                 "properties": {
                   "list": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
                   }
                 }
               },
@@ -21839,7 +22532,7 @@
                 ],
                 "properties": {
                   "array": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
                   }
                 }
               },
@@ -21851,7 +22544,7 @@
                 ],
                 "properties": {
                   "map": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T74"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T91"
                   }
                 }
               },
@@ -21863,7 +22556,7 @@
                 ],
                 "properties": {
                   "tagged_union": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T99"
                   }
                 }
               },
@@ -21875,13 +22568,13 @@
                 ],
                 "properties": {
                   "json": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               }
             ]
           },
-          "T63": {
+          "T80": {
             "oneOf": [
               {
                 "type": "object",
@@ -21891,7 +22584,7 @@
                 ],
                 "properties": {
                   "signed": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21903,7 +22596,7 @@
                 ],
                 "properties": {
                   "unsigned": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21915,7 +22608,7 @@
                 ],
                 "properties": {
                   "decimal": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21927,7 +22620,7 @@
                 ],
                 "properties": {
                   "float_bits": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21951,7 +22644,7 @@
                 ],
                 "properties": {
                   "utf8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21963,7 +22656,7 @@
                 ],
                 "properties": {
                   "binary": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21975,7 +22668,7 @@
                 ],
                 "properties": {
                   "date_days": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21987,7 +22680,7 @@
                 ],
                 "properties": {
                   "time_nanos": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -21999,7 +22692,7 @@
                 ],
                 "properties": {
                   "timestamp_micros": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               },
@@ -22011,7 +22704,7 @@
                 ],
                 "properties": {
                   "interval": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T64"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T81"
                   }
                 }
               },
@@ -22023,13 +22716,13 @@
                 ],
                 "properties": {
                   "uuid": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
                   }
                 }
               }
             ]
           },
-          "T64": {
+          "T81": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -22039,13 +22732,13 @@
             ],
             "properties": {
               "months": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "days": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               },
               "nanos": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T18"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T24"
               }
             },
             "required": [
@@ -22055,14 +22748,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T65": {
+          "T82": {
             "type": "array",
             "maxItems": 65536,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T66"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T83"
             }
           },
-          "T66": {
+          "T83": {
             "oneOf": [
               {
                 "type": "object",
@@ -22072,7 +22765,7 @@
                 ],
                 "properties": {
                   "missing": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T67"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T84"
                   }
                 }
               },
@@ -22084,7 +22777,7 @@
                 ],
                 "properties": {
                   "null": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T67"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T84"
                   }
                 }
               },
@@ -22096,7 +22789,7 @@
                 ],
                 "properties": {
                   "type_error": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T68"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T85"
                   }
                 }
               },
@@ -22108,7 +22801,7 @@
                 ],
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T69"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T86"
                   }
                 }
               },
@@ -22120,17 +22813,17 @@
                 ],
                 "properties": {
                   "conflict": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T79"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T96"
                   }
                 }
               }
             ]
           },
-          "T67": {
+          "T84": {
             "type": "object",
             "maxProperties": 0
           },
-          "T68": {
+          "T85": {
             "type": "string",
             "enum": [
               "unknown",
@@ -22166,7 +22859,7 @@
               "character"
             ]
           },
-          "T69": {
+          "T86": {
             "oneOf": [
               {
                 "type": "object",
@@ -22176,7 +22869,7 @@
                 ],
                 "properties": {
                   "atom": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T70"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T87"
                   }
                 }
               },
@@ -22188,7 +22881,7 @@
                 ],
                 "properties": {
                   "structure": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
                   }
                 }
               },
@@ -22200,7 +22893,7 @@
                 ],
                 "properties": {
                   "list": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
                   }
                 }
               },
@@ -22212,7 +22905,7 @@
                 ],
                 "properties": {
                   "array": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T65"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T82"
                   }
                 }
               },
@@ -22224,7 +22917,7 @@
                 ],
                 "properties": {
                   "map": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T74"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T91"
                   }
                 }
               },
@@ -22236,7 +22929,7 @@
                 ],
                 "properties": {
                   "tagged_union": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T76"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T93"
                   }
                 }
               },
@@ -22248,13 +22941,13 @@
                 ],
                 "properties": {
                   "json": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               }
             ]
           },
-          "T70": {
+          "T87": {
             "oneOf": [
               {
                 "type": "object",
@@ -22264,7 +22957,7 @@
                 ],
                 "properties": {
                   "signed": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22276,7 +22969,7 @@
                 ],
                 "properties": {
                   "unsigned": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22288,7 +22981,7 @@
                 ],
                 "properties": {
                   "decimal": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22300,7 +22993,7 @@
                 ],
                 "properties": {
                   "float_bits": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22312,7 +23005,7 @@
                 ],
                 "properties": {
                   "boolean": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T72"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T89"
                   }
                 }
               },
@@ -22324,7 +23017,7 @@
                 ],
                 "properties": {
                   "utf8": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22336,7 +23029,7 @@
                 ],
                 "properties": {
                   "binary": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22348,7 +23041,7 @@
                 ],
                 "properties": {
                   "date_days": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22360,7 +23053,7 @@
                 ],
                 "properties": {
                   "time_nanos": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22372,7 +23065,7 @@
                 ],
                 "properties": {
                   "timestamp_micros": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               },
@@ -22384,7 +23077,7 @@
                 ],
                 "properties": {
                   "interval": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T73"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T90"
                   }
                 }
               },
@@ -22396,20 +23089,20 @@
                 ],
                 "properties": {
                   "uuid": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
                   }
                 }
               }
             ]
           },
-          "T71": {
+          "T88": {
             "type": "string",
             "maxLength": 4096
           },
-          "T72": {
+          "T89": {
             "type": "boolean"
           },
-          "T73": {
+          "T90": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -22419,13 +23112,13 @@
             ],
             "properties": {
               "months": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
               },
               "days": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
               },
               "nanos": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
               }
             },
             "required": [
@@ -22435,14 +23128,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T74": {
+          "T91": {
             "type": "array",
             "maxItems": 65536,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T75"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T92"
             }
           },
-          "T75": {
+          "T92": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -22451,10 +23144,10 @@
             ],
             "properties": {
               "key": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T70"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T87"
               },
               "value": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T66"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T83"
               }
             },
             "required": [
@@ -22463,7 +23156,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T76": {
+          "T93": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -22472,10 +23165,10 @@
             ],
             "properties": {
               "index": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T77"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T94"
               },
               "value": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T78"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T95"
               }
             },
             "required": [
@@ -22484,24 +23177,24 @@
             ],
             "x-transit-defaults": {}
           },
-          "T77": {
+          "T94": {
             "type": "integer",
             "minimum": 0,
             "maximum": 255,
             "x-transit-bits": 8,
             "x-transit-signed": false
           },
-          "T78": {
-            "$ref": "#/components/schemas/RelationalResponse/$defs/T66"
+          "T95": {
+            "$ref": "#/components/schemas/RelationalResponse/$defs/T83"
           },
-          "T79": {
+          "T96": {
             "type": "array",
             "maxItems": 65536,
             "items": {
-              "$ref": "#/components/schemas/RelationalResponse/$defs/T80"
+              "$ref": "#/components/schemas/RelationalResponse/$defs/T97"
             }
           },
-          "T80": {
+          "T97": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -22511,13 +23204,13 @@
             ],
             "properties": {
               "counter": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
               },
               "replica": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T71"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T88"
               },
               "value": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T81"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T98"
               }
             },
             "required": [
@@ -22527,7 +23220,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T81": {
+          "T98": {
             "oneOf": [
               {
                 "type": "object",
@@ -22537,7 +23230,7 @@
                 ],
                 "properties": {
                   "null": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T67"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T84"
                   }
                 }
               },
@@ -22549,7 +23242,7 @@
                 ],
                 "properties": {
                   "type_error": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T68"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T85"
                   }
                 }
               },
@@ -22561,13 +23254,13 @@
                 ],
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/RelationalResponse/$defs/T69"
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T86"
                   }
                 }
               }
             ]
           },
-          "T82": {
+          "T99": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -22579,7 +23272,7 @@
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T4"
               },
               "value": {
-                "$ref": "#/components/schemas/RelationalResponse/$defs/T83"
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T100"
               }
             },
             "required": [
@@ -22588,8 +23281,8 @@
             ],
             "x-transit-defaults": {}
           },
-          "T83": {
-            "$ref": "#/components/schemas/RelationalResponse/$defs/T60"
+          "T100": {
+            "$ref": "#/components/schemas/RelationalResponse/$defs/T77"
           }
         }
       }

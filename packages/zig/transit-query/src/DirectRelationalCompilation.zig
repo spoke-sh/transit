@@ -11,6 +11,7 @@ parent: std.mem.Allocator,
 memory: Memory,
 syntax: f.RelationalSql.Owned,
 bindings: [r.max_sources]c.DirectTableBinding = undefined,
+positions: [r.max_sources]q.protocol.DataLifecycle.Position = undefined,
 schemas: [r.max_sources]?f.TableSchema.Owned = @splat(null),
 sources: [r.max_sources]r.Source = undefined,
 plan: r.Plan,
@@ -35,6 +36,7 @@ pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClien
         defer response.deinit();
         const metadata = response.value.result.lookup orelse return error.TableNotFound;
         self.bindings[i] = try c.DirectTableBinding.init(client.connection, metadata);
+        self.positions[i] = metadata.position;
         _ = try self.bindings[i].require(client, .read);
         const bytes = try metadata.schema.decode(self.memory.allocator(), f.TableSchema.max_bytes);
         defer self.memory.allocator().free(bytes);
@@ -90,6 +92,7 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
         const source = response.value.result.snapshot;
         if (!std.meta.eql(source.interpretation, binding.interpretation)) return error.RelationalSourceChanged;
         self.bindings[i] = binding;
+        self.positions[i] = source.accepted;
         const bytes = try source.schema.decode(self.memory.allocator(), f.TableSchema.max_bytes);
         defer self.memory.allocator().free(bytes);
         self.schemas[i] = try f.TableSchema.decode(self.memory.allocator(), bytes);

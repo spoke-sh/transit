@@ -2,86 +2,73 @@
 #include <transit/catalog_values.hpp>
 
 namespace transit::sdk::station::catalog {
+using Recovery = std::variant<SavedIntent, Reference, SnapshotAcquisition, Snapshot>;
+// Construct recovery before dispatch. Throwing this exception needs no copying
+// or allocation of the original, even if receipt publication failed.
+class Uncertain : public std::exception {
+    transit_sdk_error failure_;
+    Recovery original_;
+public:
+    Uncertain(transit_sdk_error failure, Recovery original) noexcept : failure_(failure), original_(std::move(original)) {}
+    const char *what() const noexcept override { return "Transit catalog outcome is unknown; inspect the original recovery value"; }
+    const transit_sdk_error &failure() const noexcept { return failure_; }
+    const Recovery &original() const noexcept { return original_; }
+};
 class Client {
     std::unique_ptr<transit_station_catalog_client, decltype(&transit_station_catalog_client_destroy)> value_;
-    explicit Client(transit_station_catalog_client *value) : value_(value, transit_station_catalog_client_destroy) {}
-    template<class F> Prepared prepare_command(F &&work) {
-        transit_station_catalog_prepared *out = nullptr; check(work(&out)); return Prepared(out);
+    explicit Client(transit_station_catalog_client *value) noexcept : value_(value, transit_station_catalog_client_destroy) {}
+    static void dispatched(transit_sdk_error result, Recovery original) {
+        if (result.kind == TRANSIT_SDK_UNKNOWN_OUTCOME) throw Uncertain(result, std::move(original));
+        check(result);
     }
 public:
     Client(Client &&) noexcept = default;
     Client &operator=(Client &&) noexcept = default;
-    static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection, const std::optional<std::string> &table_service_url = {}) {
+    static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection, const std::optional<std::string> &service_url = {}) {
         const auto settings = config.native(); const auto identity = credential.native(); transit_station_catalog_client *out = nullptr;
-        check(transit_station_catalog_open(&settings, &identity, {connection.owner.native(), detail::native(connection.scope), connection.role.has_value(), connection.role.value_or(0), connection.namespace_id}, table_service_url ? detail::text(*table_service_url) : nullptr, &out)); return Client(out);
+        check(transit_station_catalog_open(&settings, &identity, detail::native(connection), service_url ? detail::text(*service_url) : nullptr, &out)); return Client(out);
     }
-    Capabilities capabilities() {
-        transit_station_catalog_capabilities v{}; check(transit_station_catalog_capabilities_read(value_.get(), &v));
-        return {v.version, v.definition, v.max_columns, v.max_rows, v.max_sql_bytes, v.max_intent_bytes, v.max_action_bytes, v.max_prepared_bytes, v.resident_intents};
+    Capabilities capabilities() { Capabilities out{}; check(transit_station_catalog_capabilities_read(value_.get(), &out)); return out; }
+    Description describe() { Description out{}; check(transit_station_catalog_describe(value_.get(), &out)); return out; }
+    std::optional<Namespace> namespace_read(uint64_t id) { Namespace out{}; bool found = false; check(transit_station_catalog_namespace_read(value_.get(), id, &found, &out)); return found ? std::optional<Namespace>(out) : std::nullopt; }
+    NamespacePage namespaces(const Cursor *cursor = nullptr) { transit_station_catalog_namespace_page *out = nullptr; check(transit_station_catalog_namespaces(value_.get(), cursor ? cursor->native() : nullptr, &out)); return NamespacePage(out); }
+    TablePage tables(uint64_t namespace_id = 1, const Cursor *cursor = nullptr) { transit_station_catalog_table_page *out = nullptr; check(transit_station_catalog_tables(value_.get(), namespace_id, cursor ? cursor->native() : nullptr, &out)); return TablePage(out); }
+    std::optional<Metadata> lookup(const std::string &name, uint64_t namespace_id = 1) {
+        transit_station_catalog_metadata *out = nullptr; check(transit_station_catalog_lookup(value_.get(), detail::text(name), namespace_id, &out)); return out ? std::optional<Metadata>(Metadata(out)) : std::nullopt;
     }
-    Description describe() {
-        transit_station_catalog_description v{}; check(transit_station_catalog_describe(value_.get(), &v)); return {detail::from(v.configuration), detail::from(v.subject), v.authorization_revision, v.resource_revision};
-    }
-    std::optional<Definition> lookup(const std::string &name) {
-        transit_station_catalog_definition *out = nullptr; check(transit_station_catalog_lookup(value_.get(), detail::text(name), &out));
-        std::unique_ptr<transit_station_catalog_definition, decltype(&transit_station_catalog_definition_destroy)> owner(out, transit_station_catalog_definition_destroy);
-        if (!out) return {}; const transit_station_catalog_definition_view *v = nullptr; check(transit_station_catalog_definition_get(out, &v));
-        return Definition{detail::from(v->metadata), detail::from(v->head), detail::from(v->schema), v->authorization};
-    }
-    std::optional<HistoricalDefinition> definition(uint64_t object, uint64_t revision) {
-        transit_station_catalog_historical *out = nullptr; check(transit_station_catalog_definition_read(value_.get(), object, revision, &out));
-        std::unique_ptr<transit_station_catalog_historical, decltype(&transit_station_catalog_historical_destroy)> owner(out, transit_station_catalog_historical_destroy);
-        if (!out) return {}; const transit_station_catalog_historical_view *v = nullptr; check(transit_station_catalog_historical_get(out, &v));
-        return HistoricalDefinition{detail::from(v->metadata), detail::from(v->schema)};
-    }
-    Page list(const std::optional<Cursor> &cursor = {}) {
-        transit_station_catalog_cursor before{}; if (cursor) before = detail::native(*cursor);
-        transit_station_catalog_page v{}; check(transit_station_catalog_list(value_.get(), cursor ? &before : nullptr, &v)); Page out{v.resource_revision, {}, {}};
-        for (size_t i = 0; i < v.count; ++i) out.entries.push_back({detail::from(v.entries[i].metadata), detail::from(v.entries[i].head)});
-        if (v.has_next) out.next = detail::from(v.next); return out;
-    }
-    Compiled compile_sql(const std::string &sql, Identity identity, std::optional<uint64_t> create_object = {}) {
+    Compiled compile_sql(const std::string &sql, Identity identity, std::optional<uint64_t> create_object = {}, Dialect dialect = Dialect::Transit, Ingestion ingestion = Ingestion::Point) {
         transit_station_catalog_compiled *out = nullptr;
-        check(transit_station_catalog_compile_sql(value_.get(), detail::text(sql), detail::native(identity), create_object ? &*create_object : nullptr, &out)); return Compiled(out);
+        check(transit_station_catalog_compile_sql(value_.get(), detail::text(sql), detail::native(identity), create_object ? &*create_object : nullptr, static_cast<uint32_t>(dialect), static_cast<uint32_t>(ingestion), &out)); return Compiled(out);
     }
-    Compiled prepare(const std::string &name, Identity identity, const Action &action) {
-        detail::RequestView request(name, identity, action); transit_station_catalog_compiled *out = nullptr;
-        check(transit_station_catalog_prepare(value_.get(), &request.value, &out)); return Compiled(out);
+    Compiled prepare(const std::string &name, Identity identity, const Action &action) { detail::RequestView request(name, identity, action); transit_station_catalog_compiled *out = nullptr; check(transit_station_catalog_prepare(value_.get(), &request.value, &out)); return Compiled(out); }
+    Intent load(const SavedIntent &saved) { transit_station_catalog_intent *out = nullptr; check(transit_station_catalog_load(value_.get(), saved.native(), &out)); return Intent(out); }
+    void forget(const Intent &intent) { check(transit_station_catalog_forget(value_.get(), intent.native())); }
+    Preview preview(const Intent &intent) { transit_station_catalog_preview *out = nullptr; check(transit_station_catalog_preview_read(value_.get(), intent.native(), &out)); return Preview(out); }
+    Reference stage(const Intent &intent) {
+        Recovery original(intent.saved()); transit_station_catalog_reference *out = nullptr;
+        dispatched(transit_station_catalog_stage(value_.get(), intent.native(), &out), std::move(original)); return Reference(out);
     }
-    Intent load(const SavedIntent &saved) {
-        transit_station_catalog_intent out{}; check(transit_station_catalog_load(value_.get(), saved.native(), &out)); return detail::from(out);
+    Observation admit(const Reference &reference) {
+        Recovery original(Reference::copy(reference.native())); transit_station_catalog_observation *out = nullptr;
+        dispatched(transit_station_catalog_admit(value_.get(), reference.native(), &out), std::move(original)); return Observation(out);
     }
-    void forget(const Reference &reference) { const auto v = detail::native(reference); check(transit_station_catalog_forget(value_.get(), &v)); }
-    Next next(const Reference &reference) {
-        const auto ref = detail::native(reference); transit_station_catalog_next *out = nullptr; check(transit_station_catalog_next_read(value_.get(), &ref, &out));
-        std::unique_ptr<transit_station_catalog_next, decltype(&transit_station_catalog_next_destroy)> owner(out, transit_station_catalog_next_destroy);
-        transit_station_catalog_next_view v{}; check(transit_station_catalog_next_get(out, &v)); Next result{static_cast<NextKind>(v.kind), {}, {}};
-        if (v.prepared) result.prepared = Prepared::copy(v.prepared); if (v.outcome) result.outcome = detail::from(*v.outcome); return result;
+    Observation inspect(const Reference &reference) { transit_station_catalog_observation *out = nullptr; check(transit_station_catalog_inspect(value_.get(), reference.native(), &out)); return Observation(out); }
+    Observation execute(const Reference &reference, uint16_t steps = 256) {
+        Recovery original(Reference::copy(reference.native())); transit_station_catalog_observation *out = nullptr;
+        dispatched(transit_station_catalog_execute(value_.get(), reference.native(), steps, &out), std::move(original)); return Observation(out);
     }
-    State status(const Reference &reference) { const auto v = detail::native(reference); transit_station_catalog_state out{}; check(transit_station_catalog_status_read(value_.get(), &v, &out)); return detail::from(out); }
-    Prepared prepare_resume(const Reference &reference) {
-        const auto v = detail::native(reference); return prepare_command([&](auto **out) { return transit_station_catalog_prepare_resume(value_.get(), &v, out); });
+    Observation cancel(const Reference &reference) {
+        Recovery original(Reference::copy(reference.native())); transit_station_catalog_observation *out = nullptr;
+        dispatched(transit_station_catalog_cancel(value_.get(), reference.native(), &out), std::move(original)); return Observation(out);
     }
-    Prepared prepare_control(const Reference &reference, Control control) {
-        const auto v = detail::native(reference); return prepare_command([&](auto **out) { return transit_station_catalog_prepare_control(value_.get(), &v, static_cast<uint32_t>(control), out); });
+    static SnapshotAcquisition prepare_snapshot(const Metadata &metadata, uint64_t operation) { transit_station_catalog_snapshot_acquisition *out = nullptr; check(transit_station_catalog_prepare_snapshot(metadata.native(), operation, &out)); return SnapshotAcquisition(out); }
+    Snapshot acquire_snapshot(const SnapshotAcquisition &acquisition) {
+        Recovery original(SnapshotAcquisition::copy(acquisition.native())); transit_station_catalog_snapshot *out = nullptr;
+        dispatched(transit_station_catalog_acquire_snapshot(value_.get(), acquisition.native(), &out), std::move(original)); return Snapshot(out);
     }
-    Prepared prepare_initialize(const Configuration &configuration) {
-        const auto v = detail::native(configuration); return prepare_command([&](auto **out) { return transit_station_catalog_prepare_initialize(value_.get(), &v, out); });
-    }
-    Prepared prepare_dependency(const Dependency &dependency, bool present) {
-        const auto v = detail::native(dependency); return prepare_command([&](auto **out) { return transit_station_catalog_prepare_dependency(value_.get(), &v, present, out); });
-    }
-    uint64_t submit(const Prepared &prepared) { uint64_t out = 0; check(transit_station_catalog_submit(value_.get(), prepared.native(), &out)); return out; }
-    Observation observe(const Prepared &prepared, uint64_t input, bool wait = false) {
-        transit_station_catalog_observation out{}; check(transit_station_catalog_observe(value_.get(), prepared.native(), input, wait, &out)); return static_cast<Observation>(out);
-    }
-    std::optional<Disposition> input_disposition(const Prepared &prepared, uint64_t input) {
-        transit_station_catalog_disposition out{}; check(transit_station_catalog_input_disposition(value_.get(), prepared.native(), input, &out)); return detail::from(out);
-    }
-    Progress progress(const Reference &reference, const Prepared &prepared, uint64_t input, bool wait = false) {
-        const auto ref = detail::native(reference); transit_station_catalog_progress out{};
-        check(transit_station_catalog_progress_read(value_.get(), &ref, prepared.native(), input, wait, &out)); return {static_cast<Observation>(out.observation), detail::from(out.disposition), detail::from(out.state)};
-    }
+    SnapshotStatus snapshot_status(const SnapshotOwner &owner) { transit_station_catalog_snapshot_status *out = nullptr; check(transit_station_catalog_snapshot_status_read(value_.get(), owner.native(), &out)); return SnapshotStatus(out); }
+    SnapshotMetadata snapshot_metadata(const Snapshot &snapshot) { transit_station_catalog_snapshot_metadata *out = nullptr; check(transit_station_catalog_snapshot_metadata_read(value_.get(), snapshot.native(), &out)); return SnapshotMetadata(out); }
+    void release_snapshot(const Snapshot &snapshot) { Recovery original(Snapshot::copy(snapshot.native())); dispatched(transit_station_catalog_release_snapshot(value_.get(), snapshot.native()), std::move(original)); }
     void close() { check(transit_station_catalog_close(value_.get())); }
 };
 }

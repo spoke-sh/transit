@@ -551,6 +551,7 @@ dependencies = [
  "arrow-array",
  "arrow-ipc",
  "libloading",
+ "serde",
  "serde_json",
  "transit-client",
  "transit-native-station",

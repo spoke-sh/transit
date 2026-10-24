@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029"
+definition = "a9bae9f9ad6d17d045a6051ed818082517d0b59ce633b8c8921dcc0783179347"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -330,6 +330,22 @@ assert len(canonical(host_bulk)) > 256 * 1024
 host_action_validator.validate(host_bulk)
 host_result_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostResult"})
 host_result_validator.validate({"staged": {"table": host_reference}})
+retention_owner = {"definition": definition, "connection": host_reference["connection"],
+                   "object": host_binding["target"], "operation": str(2**64 - 1)}
+retention_acquisition = {"owner": retention_owner, "expected": {"partition": "9", "next_lsn": str(2**64 - 1)}}
+retention_snapshot = {"owner": retention_owner, "content": {"bytes": str(2**64 - 1), "sha256": "09" * 32}}
+host_action_validator.validate({"retention": {"acquire": retention_acquisition}})
+host_action_validator.validate({"retention": {"status": retention_owner}})
+host_action_validator.validate({"retention": {"metadata": retention_snapshot}})
+host_action_validator.validate({"retention": {"release": retention_snapshot}})
+host_result_validator.validate({"retention": {"acquired": retention_snapshot}})
+for field in ("definition", "connection", "object", "operation"):
+    malformed = copy.deepcopy(retention_owner)
+    del malformed[field]
+    assert not host_action_validator.is_valid({"retention": {"status": malformed}}), field
+rounded = copy.deepcopy(retention_snapshot)
+rounded["content"]["bytes"] = 2**64 - 1
+assert not host_action_validator.is_valid({"retention": {"release": rounded}})
 host_action_validator.validate({"preview": {"definition": definition, "digest": "07" * 32}})
 row_preview = {"preview": {"rows": {
     "binding": host_binding, "directory_position": {"partition": "1", "next_lsn": str(2**64 - 1)},

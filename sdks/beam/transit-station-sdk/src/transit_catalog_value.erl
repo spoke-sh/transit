@@ -1,7 +1,7 @@
 %% Strict general Table values at the language/native boundary.
 -module(transit_catalog_value).
 -include("transit_catalog.hrl").
--export([scope/1,commitment/1,action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/2,context/0,with_context/2]).
+-export([scope/1,action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/3,context/0,with_context/2,save/1,restore/2,prepare_snapshot/3,reference_info/1]).
 -export([schema/1,parse_schema/1,parse_scope/1,mutation/1,parse_mutation/1]).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
 small(V) -> transit_sdk_value:integer(V,1,4294967295).
@@ -28,7 +28,7 @@ parsed(V,F) -> F(V).
 %% after every operation, including failed encoding and decoding.
 context() ->
     Station=transit_sdk_value:contract(transit_station_sdk),Client=transit_sdk_value:contract(transit_client),
-    #{definition=>maps:get(<<"definition">>,Station),limits=>maps:get(<<"limits">>,Station),diagnostic=>maps:get(<<"Diagnostic">>,maps:get(<<"schemas">>,Client))}.
+    #{definition=>maps:get(<<"definition">>,Station),limits=>maps:get(<<"limits">>,Station),diagnostic=>maps:get(<<"Diagnostic">>,maps:get(<<"schemas">>,Client)),schemas=>maps:get(<<"schemas">>,Station)}.
 with_context(Context,Fun) ->
     Before=put(?MODULE,Context),try Fun() after case Before of undefined->erase(?MODULE); _->put(?MODULE,Before) end end.
 context_value(Key) -> case get(?MODULE) of undefined->maps:get(Key,context()); Context->maps:get(Key,Context) end.
@@ -43,14 +43,9 @@ kinds() -> [create,alter,rename,drop,insert,update,delete].
 
 scope(#transit_catalog_scope{resource=#transit_resource{realm=Realm,resource=Resource},catalog=Catalog}) ->
     #{<<"realm">>=>counter(Realm),<<"resource">>=>counter(Resource),<<"catalog">>=>decimal(Catalog)}.
-connection(#transit_catalog_connection{owner=#transit_process{realm=Realm,pid=Owner},scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm}}=Scope,role=Role,namespace=Namespace},#transit_credential{realm=Realm,principal=Principal}) ->
-    #{<<"scope">>=>scope(Scope),<<"owner">>=>counter(Owner),<<"principal">>=>zero(Principal),<<"role">>=>optional(Role,fun zero/1),<<"namespace">>=>counter(Namespace)}.
 authority(#transit_catalog_authority{database_domain=D,schema_domain=S,table_domain=T,database=DO,initial_schema_authority=SO,initial_schema=NS}) ->
     check(D=/=S andalso D=/=T andalso S=/=T andalso DO=/=SO),
     #{<<"database_domain">>=>counter(D),<<"schema_domain">>=>counter(S),<<"table_domain">>=>counter(T),<<"database">>=>counter(DO),<<"initial_schema_authority">>=>counter(SO),<<"initial_schema">>=>counter(NS)}.
-configuration(#transit_catalog_configuration{scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm}}=Scope,owner=#transit_process{realm=Realm,pid=Owner},administrator=Admin,table_limits=#transit_catalog_limits{record_bytes=Record,staging_bytes=Staging,staging_records=Records},authority=Authority,database_name=Name}) ->
-    check(Staging>=Record),Database=identifier(Name),check(byte_size(Database)=<63),
-    #{<<"scope">>=>scope(Scope),<<"owner">>=>counter(Owner),<<"administrator">>=>zero(Admin),<<"table_limits">>=>#{<<"record_bytes">>=>small(Record),<<"staging_bytes">>=>decimal(Staging),<<"staging_records">>=>small(Records)},<<"authority">>=>authority(Authority),<<"database_name">>=>Database}.
 column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation) ->
     #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>enum(Collation,collations())}.
 column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max,encoding=Encoding,collation=Collation}) ->
@@ -65,18 +60,6 @@ schema(#transit_catalog_schema{object=Object,revision=Revision,next_column=Next,
     {Encoded,_}=wire_map(fun column/1,Columns,2097152),
     V=#{<<"definition">>=>definition(),<<"object">>=>decimal(Object),<<"revision">>=>decimal(Revision),<<"next_column">>=>decimal(Next),<<"columns">>=>Encoded,<<"primary_key">>=>[decimal(K)||K<-Keys]},
     check(byte_size(transit_sdk_value:encode(V))=<2097152),V.
-identity(#transit_catalog_identity{operation=Operation,namespace=Namespace}) -> #{<<"operation">>=>decimal(Operation),<<"namespace">>=>decimal(Namespace)}.
-basis(#transit_catalog_metadata{object=O,revision=R,schema_fingerprint=F}) -> #transit_catalog_basis{object=O,revision=R,schema_fingerprint=F}.
-basis_wire(#transit_catalog_basis{object=O,revision=R,schema_fingerprint=F}) -> #{<<"object">>=>decimal(O),<<"revision">>=>decimal(R),<<"schema_fingerprint">>=>transit_sdk_value:hex(fixed(F,32))}.
-cursor(undefined) -> null;
-cursor(#transit_catalog_cursor{definition=Definition,scope=Scope,resource_revision=Revision,after_object=After}) ->
-    #{<<"definition">>=>current(Definition),<<"scope">>=>scope(Scope),<<"resource_revision">>=>zero(Revision),<<"after_object">>=>decimal(After)}.
-reference(#transit_catalog_reference{definition=Definition,digest=Digest}) -> #{<<"definition">>=>current(Definition),<<"digest">>=>transit_sdk_value:hex(fixed(Digest,32))}.
-saved_intent(#transit_catalog_saved_intent{definition=Definition,bytes=Bytes}) ->
-    B=transit_sdk_value:bytes(Bytes,limit(<<"catalog_intent_bytes">>)),check(byte_size(B)>0),#{<<"definition">>=>current(Definition),<<"bytes">>=>transit_sdk_value:hex(B)}.
-saved(#transit_catalog_prepared{bytes=Bytes}) -> B=transit_sdk_value:text(Bytes,limit(<<"catalog_prepared_bytes">>)),check(byte_size(B)>0),B.
-dependency(#transit_catalog_dependency{scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm}}=Scope,object=O,identity=I,owner=#transit_process{realm=Realm,pid=Owner},kind=Kind},Present) ->
-    #{<<"scope">>=>scope(Scope),<<"object">>=>decimal(O),<<"identity">>=>decimal(I),<<"owner">>=>counter(Owner),<<"kind">>=>enum(Kind,[query_source,writer,watch,maintained_relation,history]),<<"present">>=>transit_sdk_value:boolean(Present)}.
 assignments(Values,Budget) -> wire_map(fun assignment/1,list(Values,128),Budget).
 assignment(#transit_catalog_assignment{column=Column,value=Value}) ->
     V=case Value of default->#{<<"default">>=>#{}}; _->#{<<"cell">>=>transit_logical:cell_wire(Value)} end,#{<<"column">>=>decimal(Column),<<"value">>=>V}.
@@ -101,49 +84,6 @@ change({rename,Column,Name}) -> #{<<"rename">>=>#{<<"column">>=>decimal(Column),
 change({default,Column,Value}) -> #{<<"default">>=>#{<<"column">>=>decimal(Column),<<"value">>=>optional(Value,fun transit_logical:cell_wire/1)}};
 change({nullable,Column,Value}) -> #{<<"nullable">>=>#{<<"column">>=>decimal(Column),<<"value">>=>transit_sdk_value:boolean(Value)}};
 change({type,Column,Type,Max}) -> #{<<"type">>=>#{<<"column">>=>decimal(Column),<<"type">>=>transit_logical:type_wire(Type),<<"max_characters">>=>optional(Max,fun small/1)}}.
-operation({create,#transit_catalog_schema{object=Object}=Schema,IfNotExists}) -> {#{<<"create">>=>#{<<"schema">>=>schema(Schema),<<"if_not_exists">>=>transit_sdk_value:boolean(IfNotExists)}},create,Object};
-operation({alter,#transit_catalog_basis{object=Object}=Basis,Change}) -> {#{<<"alter">>=>#{<<"basis">>=>basis_wire(Basis),<<"change">>=>change(Change)}},alter,Object};
-operation({rename,#transit_catalog_basis{object=Object}=Basis,Name}) -> {#{<<"rename">>=>#{<<"basis">>=>basis_wire(Basis),<<"name">>=>identifier(Name)}},rename,Object};
-operation({drop,Basis,IfExists}) ->
-    Object=case Basis of undefined->0; #transit_catalog_basis{object=O}->O end,
-    {#{<<"drop">>=>#{<<"basis">>=>optional(Basis,fun basis_wire/1),<<"if_exists">>=>transit_sdk_value:boolean(IfExists)}},drop,Object};
-operation({mutate,#transit_catalog_basis{object=Object}=Basis,Mutation}) ->
-    {M,Kind}=mutation(Mutation),{#{<<"mutate">>=>#{<<"basis">>=>basis_wire(Basis),<<"mutation">>=>M}},Kind,Object}.
-input(Prepared,Input) -> #{<<"prepared">>=>saved(Prepared),<<"input">>=>counter(Input)}.
-action(capabilities) -> {#{<<"capabilities">>=>#{}},<<"capabilities">>,capabilities};
-action(describe) -> {#{<<"describe">>=>#{}},<<"description">>,description};
-action({lookup,Name}) -> N=identifier(Name),{#{<<"lookup">>=>N},<<"definition">>,{lookup,N}};
-action({definition,Object,Revision}) -> {#{<<"definition">>=>#{<<"object">>=>decimal(Object),<<"revision">>=>decimal(Revision)}},<<"historical">>,{historical,Object,Revision}};
-action({list,Cursor}) -> {#{<<"list">>=>cursor(Cursor)},<<"page">>,{page,Cursor}};
-action({compile,Sql,Identity,CreateObject}) ->
-    S=transit_sdk_value:text(Sql,4096),check(byte_size(S)>0),Kind=case CreateObject of undefined->undefined; _->create end,
-    {#{<<"compile">>=>#{<<"sql">>=>S,<<"identity">>=>identity(Identity),<<"create_object">>=>optional(CreateObject,fun decimal/1)}},<<"compiled">>,{compiled,Identity,Kind,CreateObject}};
-action({prepare,Name,Identity,Operation}) ->
-    {A,Kind,Object}=operation(Operation),{#{<<"prepare">>=>#{<<"definition">>=>definition(),<<"name">>=>identifier(Name),<<"identity">>=>identity(Identity),<<"action">>=>A}},<<"compiled">>,{compiled,Identity,Kind,Object}};
-action({load,Saved}) -> {#{<<"load">>=>saved_intent(Saved)},<<"loaded">>,intent};
-action({forget,Reference}) -> {#{<<"forget">>=>reference(Reference)},<<"forgotten">>,empty};
-action({next,Reference}) -> {#{<<"next">>=>reference(Reference)},<<"next">>,next};
-action({status,Reference}) -> {#{<<"status">>=>reference(Reference)},<<"state">>,state};
-action({prepare_resume,Reference}) -> {#{<<"prepare_resume">>=>reference(Reference)},<<"prepared">>,prepared};
-action({prepare_control,Reference,Control}) -> {#{<<"prepare_control">>=>#{<<"intent">>=>reference(Reference),<<"control">>=>enum(Control,[cancel_operation,cleanup_operation,cancel_upload,collect_upload])}},<<"prepared">>,prepared};
-action({prepare_initialize,Configuration}) -> {#{<<"prepare_initialize">>=>configuration(Configuration)},<<"prepared">>,prepared};
-action({prepare_dependency,Dependency,Present}) -> {#{<<"prepare_dependency">>=>dependency(Dependency,Present)},<<"prepared">>,prepared};
-action({submit,Prepared}) -> {#{<<"submit">>=>saved(Prepared)},<<"receipt">>,admission};
-action({observe,Prepared,Input,Wait}) -> Tag=case Wait of true-> <<"wait_observe">>; false-> <<"observe">> end,{#{Tag=>input(Prepared,Input)},<<"observation">>,observation};
-action({input_disposition,Prepared,Input}) -> {#{<<"input_disposition">>=>input(Prepared,Input)},<<"disposition">>,disposition};
-action({progress,Reference,Prepared,Input,Wait}) ->
-    Tag=case Wait of true-> <<"wait_progress">>; false-> <<"progress">> end,{#{Tag=>(input(Prepared,Input))#{<<"intent">>=>reference(Reference)}},<<"progress">>,progress}.
-check_request({page,#transit_catalog_cursor{scope=Scope}},#transit_catalog_connection{scope=Scope}) -> ok;
-check_request({page,undefined},_) -> ok;
-check_request({page,_},_) -> check(false);
-check_request(_,_) -> ok.
-
-decode(admission,V,_,_) ->
-    try fields(V,[<<"position">>]),#transit_admission{position=counter(maps:get(<<"position">>,V))}
-    catch _:_ -> transit_sdk_value:fail(unknown_outcome,catalog_receipt) end;
-decode(Kind,V,Connection,Principal) ->
-    try decode_value(Kind,V,Connection,Principal)
-    catch _:_ -> transit_sdk_value:fail(incompatible_native,catalog_response) end.
 parse_scope(V) ->
     fields(V,[<<"realm">>,<<"resource">>,<<"catalog">>]),#transit_catalog_scope{resource=#transit_resource{realm=counter(maps:get(<<"realm">>,V)),resource=counter(maps:get(<<"resource">>,V))},catalog=wide(maps:get(<<"catalog">>,V))}.
 parse_authority(V) ->
@@ -152,11 +92,6 @@ parse_authority(V) ->
 parse_subject(V) ->
     fields(V,[<<"principal">>,<<"login_role">>,<<"role">>,<<"credential_epoch">>,<<"audience">>,<<"context">>]),
     #transit_catalog_subject{principal=zero(maps:get(<<"principal">>,V)),login_role=zero(maps:get(<<"login_role">>,V)),role=zero(maps:get(<<"role">>,V)),credential_epoch=counter(maps:get(<<"credential_epoch">>,V)),audience=counter(maps:get(<<"audience">>,V)),context=transit_station_value:digest(maps:get(<<"context">>,V))}.
-parse_configuration(V) ->
-    fields(V,[<<"scope">>,<<"owner">>,<<"administrator">>,<<"table_limits">>,<<"authority">>,<<"database_name">>]),Scope=parse_scope(maps:get(<<"scope">>,V)),
-    L=fields(maps:get(<<"table_limits">>,V),[<<"record_bytes">>,<<"staging_bytes">>,<<"staging_records">>]),
-    Out=#transit_catalog_configuration{scope=Scope,owner=#transit_process{realm=(Scope#transit_catalog_scope.resource)#transit_resource.realm,pid=counter(maps:get(<<"owner">>,V))},administrator=zero(maps:get(<<"administrator">>,V)),table_limits=#transit_catalog_limits{record_bytes=small(maps:get(<<"record_bytes">>,L)),staging_bytes=wide(maps:get(<<"staging_bytes">>,L)),staging_records=small(maps:get(<<"staging_records">>,L))},authority=parse_authority(maps:get(<<"authority">>,V)),database_name=identifier(maps:get(<<"database_name">>,V))},
-    configuration(Out),Out.
 parse_schema(V) ->
     fields(V,[<<"definition">>,<<"object">>,<<"revision">>,<<"next_column">>,<<"columns">>,<<"primary_key">>]),current(maps:get(<<"definition">>,V)),
     Columns=[parse_column(C)||C<-list(maps:get(<<"columns">>,V),128)],Keys=[wide(K)||K<-list(maps:get(<<"primary_key">>,V),length(Columns))],
@@ -195,99 +130,198 @@ parse_mutation(V) ->
         _->check(false)
     end,
     {Encoded,_}=mutation(Result),check(Encoded=:=V),Result.
-commitment(#transit_catalog_metadata_commitment{bytes=Bytes,digest=Digest}) ->
-    #{<<"format">>=>16#54434d01,<<"length">>=>transit_sdk_value:integer(Bytes,1,444),<<"digest">>=>binary_to_list(fixed(Digest,32))}.
-parse_commitment(V) ->
-    fields(V,[<<"format">>,<<"length">>,<<"digest">>]),check(maps:get(<<"format">>,V)=:=16#54434d01),
-    #transit_catalog_metadata_commitment{bytes=transit_sdk_value:integer(maps:get(<<"length">>,V),1,444),digest=transit_station_value:digest(maps:get(<<"digest">>,V))}.
-metadata(V) ->
-    fields(V,[<<"scope">>,<<"namespace">>,<<"object">>,<<"revision">>,<<"name">>,<<"schema_fingerprint">>,<<"principal">>,<<"operation">>,<<"admitted_input">>,<<"commitment">>]),
-    #transit_catalog_metadata{scope=parse_scope(maps:get(<<"scope">>,V)),namespace=counter(maps:get(<<"namespace">>,V)),object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),name=identifier(maps:get(<<"name">>,V)),schema_fingerprint=unhex(maps:get(<<"schema_fingerprint">>,V),32),principal=zero(maps:get(<<"principal">>,V)),operation=wide(maps:get(<<"operation">>,V)),admitted_input=counter(maps:get(<<"admitted_input">>,V)),commitment=parse_commitment(maps:get(<<"commitment">>,V))}.
-head(V) -> fields(V,[<<"revision">>,<<"rows">>,<<"pending">>]),#transit_catalog_head{revision=wide(maps:get(<<"revision">>,V)),rows=number(maps:get(<<"rows">>,V)),pending=number(maps:get(<<"pending">>,V))}.
-resolved(null,_,_) -> undefined;
-resolved(V,#transit_catalog_connection{scope=Scope,namespace=Namespace},Name) ->
-    fields(V,[<<"metadata">>,<<"head">>,<<"schema">>,<<"authorization">>]),#transit_catalog_metadata{scope=Scope,namespace=Namespace,name=Name,object=Object}=M=metadata(maps:get(<<"metadata">>,V)),#transit_catalog_schema{object=Object}=S=parse_schema(maps:get(<<"schema">>,V)),
-    #transit_catalog_definition{metadata=M,head=head(maps:get(<<"head">>,V)),schema=S,authorization=counter(maps:get(<<"authorization">>,V))}.
-historical(null,_,_,_) -> undefined;
-historical(V,Scope,Object,Revision) ->
-    fields(V,[<<"metadata">>,<<"schema">>]),#transit_catalog_metadata{scope=Scope,object=Object,revision=Revision}=M=metadata(maps:get(<<"metadata">>,V)),#transit_catalog_schema{object=Object}=S=parse_schema(maps:get(<<"schema">>,V)),
-    #transit_catalog_historical_definition{metadata=M,schema=S}.
+
+get(K,V) -> maps:get(atom_to_binary(K),V).
+validate(Kind,V) -> transit_sdk_value:require(maps:get(Kind,context_value(schemas)),V).
+connection(#transit_catalog_connection{scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm}}}=C,#transit_credential{realm=Realm,principal=P}) -> connection(C,P);
+connection(#transit_catalog_connection{scope=S,audience=A,branch=B,role=R},P) when is_integer(P) ->
+    #{<<"scope">>=>scope(S),<<"audience">>=>counter(A),<<"branch">>=>decimal(B),<<"role">>=>optional(R,fun zero/1),<<"principal">>=>zero(P)}.
+parse_connection(V) ->
+    fields(V,[<<"scope">>,<<"audience">>,<<"branch">>,<<"role">>,<<"principal">>]),zero(get(principal,V)),
+    #transit_catalog_connection{scope=parse_scope(get(scope,V)),audience=counter(get(audience,V)),branch=wide(get(branch,V)),role=parsed(get(role,V),fun zero/1)}.
+position(V) -> fields(V,[<<"partition">>,<<"next_lsn">>]),#transit_catalog_position{partition=wide(get(partition,V)),next_lsn=number(get(next_lsn,V))}.
+position_wire(#transit_catalog_position{partition=P,next_lsn=N}) -> #{<<"partition">>=>decimal(P),<<"next_lsn">>=>integer_to_binary(transit_sdk_value:integer(N,0,18446744073709551615))}.
+object(V) -> fields(V,[<<"scope">>,<<"branch">>,<<"object">>]),#transit_catalog_object{scope=parse_scope(get(scope,V)),branch=wide(get(branch,V)),object=wide(get(object,V))}.
+object_wire(#transit_catalog_object{scope=S,branch=B,object=O}) -> #{<<"scope">>=>scope(S),<<"branch">>=>decimal(B),<<"object">>=>decimal(O)}.
+interpretation(V) -> fields(V,[<<"object">>,<<"revision">>,<<"digest">>]),#transit_catalog_interpretation{object=object(get(object,V)),revision=wide(get(revision,V)),digest=unhex(get(digest,V),32)}.
+interpretation_wire(#transit_catalog_interpretation{object=O,revision=R,digest=D}) -> #{<<"object">>=>object_wire(O),<<"revision">>=>decimal(R),<<"digest">>=>transit_sdk_value:hex(fixed(D,32))}.
+content(V) -> fields(V,[<<"bytes">>,<<"sha256">>]),#transit_catalog_content{bytes=wide(get(bytes,V)),sha256=unhex(get(sha256,V),32)}.
+content_wire(#transit_catalog_content{bytes=B,sha256=D}) -> #{<<"bytes">>=>decimal(B),<<"sha256">>=>transit_sdk_value:hex(fixed(D,32))}.
+stored(V) ->
+    fields(V,[<<"interpretation">>,<<"content">>,<<"schema_fingerprint">>,<<"retired">>]),I=interpretation(get(interpretation,V)),C=content(get(content,V)),
+    check(I#transit_catalog_interpretation.digest=:=C#transit_catalog_content.sha256),
+    #transit_catalog_stored{interpretation=I,content=C,schema_fingerprint=unhex(get(schema_fingerprint,V),32),retired=transit_sdk_value:boolean(get(retired,V))}.
+stored_wire(#transit_catalog_stored{interpretation=I,content=C,schema_fingerprint=F,retired=R}) ->
+    #{<<"interpretation">>=>interpretation_wire(I),<<"content">>=>content_wire(C),<<"schema_fingerprint">>=>transit_sdk_value:hex(fixed(F,32)),<<"retired">>=>transit_sdk_value:boolean(R)}.
+owns(#transit_catalog_connection{scope=S,branch=B},#transit_catalog_object{scope=S,branch=B}) -> ok;
+owns(_,_) -> check(false).
+basis(#transit_catalog_metadata{basis=B}) -> B.
+basis_wire(#transit_catalog_basis{definition=D,connection=C,principal=P,namespace=N,name=Name,interpretation=I}) ->
+    #{<<"definition">>=>current(D),<<"connection">>=>connection(C,P),<<"namespace">>=>counter(N),<<"name">>=>identifier(Name),<<"interpretation">>=>stored_wire(I)}.
+parse_basis(V) ->
+    validate(<<"CatalogAction">>,#{<<"prepare">>=>#{<<"definition">>=>definition(),<<"namespace">>=>1,<<"operation">>=><<"1">>,<<"name">>=><<"check">>,<<"action">>=>#{<<"drop">>=>#{<<"basis">>=>V,<<"if_exists">>=>false}}}}),
+    C=parse_connection(get(connection,V)),I=stored(get(interpretation,V)),owns(C,(I#transit_catalog_stored.interpretation)#transit_catalog_interpretation.object),check(not I#transit_catalog_stored.retired),
+    #transit_catalog_basis{definition=current(get(definition,V)),connection=C,principal=zero(get(principal,get(connection,V))),namespace=counter(get(namespace,V)),name=identifier(get(name,V)),interpretation=I}.
+check_binding(V,C,P) ->
+    current(get(definition,V)),I=get(identity,V),wide(get(operation,I)),check(parse_scope(get(scope,I))=:=C#transit_catalog_connection.scope),check(zero(get(principal,I))=:=P),
+    O=object(get(target,V)),owns(C,O),unhex(get(intent,V),32),A=known(get(action,V),kinds()),
+    E=parsed(get(expected_definition,V),fun interpretation/1),Data=parsed(get(expected_data,V),fun position/1),
+    case A of create->check(E=:=undefined andalso Data=:=undefined); _->check(is_record(E,transit_catalog_interpretation)),check(E#transit_catalog_interpretation.object=:=O) end,V.
+check_assertion(V) ->
+    current(get(definition,V)),C=parse_connection(get(connection,V)),counter(get(namespace,V)),identifier(get(name,V)),wide(get(operation,V)),unhex(get(intent,V),32),
+    Expected=parsed(get(expected,V),fun interpretation/1),case Expected of undefined->ok; I->owns(C,I#transit_catalog_interpretation.object) end,
+    case known(get(action,V),[create_if_not_exists,drop_if_exists]) of create_if_not_exists->check(Expected=/=undefined);drop_if_exists->check(Expected=:=undefined) end,V.
+parse_saved(V) ->
+    validate(<<"CatalogAction">>,#{<<"load">>=>V}),case maps:to_list(V) of
+        [{<<"table">>,T}]->current(get(definition,T)),counter(get(namespace,T)),check(byte_size(transit_sdk_value:unhex(get(bytes,T),limit(<<"catalog_intent_bytes">>)))>0);
+        [{<<"name_assertion">>,A}]->check_assertion(A)
+    end,#transit_catalog_saved_intent{data=transit_sdk_value:encode(V)}.
+parse_reference(V) ->
+    validate(<<"CatalogAction">>,#{<<"admit">>=>V}),case maps:to_list(V) of
+        [{<<"table">>,T}]->current(get(definition,T)),counter(get(namespace,T)),C=get(connection,T),check_binding(get(binding,T),parse_connection(C),zero(get(principal,C))),Content=content(get(content,T)),check(Content#transit_catalog_content.bytes>36 andalso Content#transit_catalog_content.bytes=<limit(<<"catalog_intent_bytes">>));
+        [{<<"name_assertion">>,A}]->check_assertion(A)
+    end,#transit_catalog_reference{data=transit_sdk_value:encode(V)}.
+reference_info(#transit_catalog_reference{data=Data}) ->
+    V=saved_json(Data),parse_reference(V),[{Tag,T}]=maps:to_list(V),Kind=known(Tag,[table,name_assertion]),C=get(connection,T),
+    B=case Kind of table->get(binding,T);name_assertion->T end,
+    Operation=case Kind of table->wide(get(operation,get(identity,B)));name_assertion->wide(get(operation,T)) end,
+    {Kind,parse_connection(C),zero(get(principal,C)),#transit_catalog_identity{operation=Operation,namespace=counter(get(namespace,T))},B}.
 parse_cursor(V) ->
-    fields(V,[<<"definition">>,<<"scope">>,<<"resource_revision">>,<<"after_object">>]),#transit_catalog_cursor{definition=current(maps:get(<<"definition">>,V)),scope=parse_scope(maps:get(<<"scope">>,V)),resource_revision=zero(maps:get(<<"resource_revision">>,V)),after_object=wide(maps:get(<<"after_object">>,V))}.
-page_entries([],_,_,Acc) -> lists:reverse(Acc);
-page_entries([null|Rest],Scope,_,Acc) -> page_entries(Rest,Scope,true,Acc);
-page_entries([V|Rest],Scope,false,Acc) ->
-    fields(V,[<<"metadata">>,<<"head">>]),#transit_catalog_metadata{scope=Scope,object=Object}=M=metadata(maps:get(<<"metadata">>,V)),
-    case Acc of []->ok; [#transit_catalog_entry{metadata=#transit_catalog_metadata{object=Before}}|_]->check(Before<Object) end,
-    page_entries(Rest,Scope,false,[#transit_catalog_entry{metadata=M,head=head(maps:get(<<"head">>,V))}|Acc]).
-page(V,#transit_catalog_connection{scope=Scope,namespace=Namespace},Previous) ->
-    fields(V,[<<"resource_revision">>,<<"entries">>,<<"next">>]),Revision=zero(maps:get(<<"resource_revision">>,V)),Slots=list(maps:get(<<"entries">>,V),8),8=length(Slots),
-    Entries=page_entries(Slots,Scope,false,[]),check(lists:all(fun(#transit_catalog_entry{metadata=M})->M#transit_catalog_metadata.namespace=:=Namespace end,Entries)),Next=parsed(maps:get(<<"next">>,V),fun parse_cursor/1),
-    case Next of undefined->ok; #transit_catalog_cursor{scope=Scope,resource_revision=Revision,after_object=After}->
-        case Entries of []->ok; _->#transit_catalog_entry{metadata=#transit_catalog_metadata{object=Last}}=lists:last(Entries),check(After>=Last) end end,
-    case Previous of undefined->ok; #transit_catalog_cursor{scope=Scope,resource_revision=Revision,after_object=Before}->
-        case Entries of []->ok; [#transit_catalog_entry{metadata=#transit_catalog_metadata{object=First}}|_]->check(First>Before) end,
-        case Next of undefined->ok; #transit_catalog_cursor{after_object=End}->check(End>Before) end end,
-    #transit_catalog_page{resource_revision=Revision,entries=Entries,next=Next}.
-intent(V,#transit_catalog_connection{scope=Scope,owner=Owner},Principal) ->
-    fields(V,[<<"reference">>,<<"scope">>,<<"owner">>,<<"principal">>,<<"operation">>,<<"namespace">>,<<"object">>,<<"kind">>]),
-    R=fields(maps:get(<<"reference">>,V),[<<"definition">>,<<"digest">>]),Scope=parse_scope(maps:get(<<"scope">>,V)),
-    Owner=#transit_process{realm=(Scope#transit_catalog_scope.resource)#transit_resource.realm,pid=counter(maps:get(<<"owner">>,V))},Principal=zero(maps:get(<<"principal">>,V)),
-    #transit_catalog_intent{reference=#transit_catalog_reference{definition=current(maps:get(<<"definition">>,R)),digest=unhex(maps:get(<<"digest">>,R),32)},scope=Scope,owner=Owner,principal=Principal,
-        identity=#transit_catalog_identity{operation=wide(maps:get(<<"operation">>,V)),namespace=wide(maps:get(<<"namespace">>,V))},object=number(maps:get(<<"object">>,V)),kind=known(maps:get(<<"kind">>,V),kinds())}.
-compiled(V,Connection,Principal,Identity,Kind,Object) ->
-    fields(V,[<<"intent">>,<<"saved">>]),#transit_catalog_intent{identity=Identity,kind=K,object=O}=Intent=intent(maps:get(<<"intent">>,V),Connection,Principal),
-    check(Kind=:=undefined orelse K=:=Kind),check(Object=:=undefined orelse O=:=Object),S=fields(maps:get(<<"saved">>,V),[<<"definition">>,<<"bytes">>]),
-    Saved=#transit_catalog_saved_intent{definition=current(maps:get(<<"definition">>,S)),bytes=transit_sdk_value:unhex(maps:get(<<"bytes">>,S),limit(<<"catalog_intent_bytes">>))},check(byte_size(Saved#transit_catalog_saved_intent.bytes)>0),#transit_catalog_compiled{intent=Intent,saved=Saved}.
-diagnostic(V) ->
-    Bytes=transit_sdk_value:encode(V),check(byte_size(Bytes)=<32768),Schema=context_value(diagnostic),
-    transit_sdk_value:require(Schema,V),transit_sdk_value:json(Bytes).
-outcome(null) -> undefined;
-outcome(V) ->
-    fields(V,[<<"kind">>,<<"operation">>,<<"object">>,<<"actual_object">>,<<"phase">>,<<"terminal">>,<<"counts">>,<<"admitted_input">>,<<"completed_input">>,<<"diagnostic">>]),
-    Kind=known(maps:get(<<"kind">>,V),kinds()),Phase=known(maps:get(<<"phase">>,V),[preparing,delegated,building,applied,unchanged,rejected,cancelled]),Terminal=transit_sdk_value:boolean(maps:get(<<"terminal">>,V)),
-    Counts=parsed(maps:get(<<"counts">>,V),fun(C)->fields(C,[<<"matched">>,<<"changed">>]),M=number(maps:get(<<"matched">>,C)),Ch=number(maps:get(<<"changed">>,C)),check(Ch=<M),#transit_catalog_counts{matched=M,changed=Ch} end),
-    check(Terminal=:=lists:member(Phase,[applied,unchanged,rejected,cancelled])),check((Counts=/=undefined)=:=(Phase=:=applied andalso lists:member(Kind,[insert,update,delete]))),
-    #transit_catalog_outcome{kind=Kind,operation=wide(maps:get(<<"operation">>,V)),object=number(maps:get(<<"object">>,V)),actual_object=parsed(maps:get(<<"actual_object">>,V),fun number/1),phase=Phase,terminal=Terminal,counts=Counts,admitted_input=counter(maps:get(<<"admitted_input">>,V)),completed_input=parsed(maps:get(<<"completed_input">>,V),fun counter/1),diagnostic=diagnostic(maps:get(<<"diagnostic">>,V))}.
-upload(null) -> undefined;
-upload(V) ->
-    fields(V,[<<"phase">>,<<"received">>,<<"total">>]),Received=zero(maps:get(<<"received">>,V)),Total=small(maps:get(<<"total">>,V)),check(Received=<Total andalso Total=<limit(<<"catalog_intent_bytes">>)),
-    #transit_catalog_upload{phase=known(maps:get(<<"phase">>,V),[uploading,sealed,ready,cancelled]),received=Received,total=Total}.
-disposition(null) -> undefined;
-disposition(V) ->
-    fields(V,[<<"input">>,<<"outcome">>,<<"diagnostic">>]),#transit_catalog_disposition{input=counter(maps:get(<<"input">>,V)),outcome=known(maps:get(<<"outcome">>,V),[initialized,policy_applied,dependency_applied,invalid_command,blocked,denied,identity_conflict,stale_policy]),diagnostic=diagnostic(maps:get(<<"diagnostic">>,V))}.
-prepared(V) -> P=#transit_catalog_prepared{bytes=V},#transit_catalog_prepared{bytes=saved(P)}.
-next(V) when is_map(V),map_size(V)=:=1 ->
-    case maps:to_list(V) of
-        [{<<"send">>,P}]->#transit_catalog_next{kind=send,prepared=prepared(P)};
-        [{<<"terminal">>,O}]->#transit_catalog_outcome{terminal=true}=Out=outcome(O),#transit_catalog_next{kind=terminal,outcome=Out};
-        [{Tag,E}] when Tag=:= <<"running">>; Tag=:= <<"upload_cancelled">> -> fields(E,[]),#transit_catalog_next{kind=known(Tag,[running,upload_cancelled])}
-    end.
-progress(#{<<"pending">>:=V}=All) when map_size(All)=:=1 -> fields(V,[]),#transit_catalog_progress{observation=pending};
-progress(#{<<"processed">>:=V}=All) when map_size(All)=:=1 ->
-    fields(V,[<<"disposition">>,<<"outcome">>,<<"upload">>]),#transit_catalog_progress{observation=processed,disposition=disposition(maps:get(<<"disposition">>,V)),outcome=outcome(maps:get(<<"outcome">>,V)),upload=upload(maps:get(<<"upload">>,V))}.
+    Selection=get(selection,V),case maps:to_list(Selection) of
+        [{<<"namespaces">>,_}]->validate(<<"CatalogAction">>,#{<<"catalog">>=>#{<<"namespaces">>=>V}}),counter(wide(get('after',V)));
+        [{<<"tables">>,N}]->validate(<<"CatalogAction">>,#{<<"catalog">>=>#{<<"tables">>=>#{<<"namespace">>=>counter(N),<<"cursor">>=>V}}}),wide(get('after',V));
+        _->check(false)
+    end,current(get(definition,V)),parse_connection(get(connection,V)),check((position(get(position,V)))#transit_catalog_position.next_lsn>0),#transit_catalog_cursor{data=transit_sdk_value:encode(V)}.
+owner_wire(#transit_catalog_snapshot_owner{definition=D,connection=C,principal=P,object=O,operation=Operation}) ->
+    #{<<"definition">>=>current(D),<<"connection">>=>connection(C,P),<<"object">>=>object_wire(O),<<"operation">>=>decimal(Operation)}.
+parse_owner(V) ->
+    validate(<<"CatalogAction">>,#{<<"retention">>=>#{<<"status">>=>V}}),C=parse_connection(get(connection,V)),O=object(get(object,V)),owns(C,O),
+    #transit_catalog_snapshot_owner{definition=current(get(definition,V)),connection=C,principal=zero(get(principal,get(connection,V))),object=O,operation=wide(get(operation,V))}.
+acquisition_wire(#transit_catalog_snapshot_acquisition{owner=O,expected=P}) -> #{<<"owner">>=>owner_wire(O),<<"expected">>=>position_wire(P)}.
+parse_acquisition(V) -> validate(<<"CatalogAction">>,#{<<"retention">>=>#{<<"acquire">>=>V}}),#transit_catalog_snapshot_acquisition{owner=parse_owner(get(owner,V)),expected=position(get(expected,V))}.
+snapshot_wire(#transit_catalog_snapshot{owner=O,content=C}) -> #{<<"owner">>=>owner_wire(O),<<"content">>=>content_wire(C)}.
+parse_snapshot(V) -> validate(<<"CatalogAction">>,#{<<"retention">>=>#{<<"metadata">>=>V}}),#transit_catalog_snapshot{owner=parse_owner(get(owner,V)),content=content(get(content,V))}.
+prepare_snapshot(#transit_catalog_metadata{basis=#transit_catalog_basis{connection=C,principal=P,interpretation=I},position=Position},Operation,Definition) ->
+    #transit_catalog_snapshot_acquisition{owner=#transit_catalog_snapshot_owner{definition=current(Definition),connection=C,principal=P,object=(I#transit_catalog_stored.interpretation)#transit_catalog_interpretation.object,operation=positive(Operation)},expected=Position}.
+saved_json(Data) -> transit_sdk_value:json(transit_sdk_value:text(Data,limit(<<"catalog_action_bytes">>)),96).
+wire(#transit_catalog_basis{}=V)->B=basis_wire(V),parse_basis(B),B;
+wire(#transit_catalog_saved_intent{data=D})->V=saved_json(D),parse_saved(V),V;
+wire(#transit_catalog_reference{data=D})->V=saved_json(D),parse_reference(V),V;
+wire(#transit_catalog_cursor{data=D})->V=saved_json(D),parse_cursor(V),V;
+wire(#transit_catalog_snapshot_owner{}=V)->B=owner_wire(V),parse_owner(B),B;
+wire(#transit_catalog_snapshot_acquisition{}=V)->B=acquisition_wire(V),parse_acquisition(B),B;
+wire(#transit_catalog_snapshot{}=V)->B=snapshot_wire(V),parse_snapshot(B),B.
+save(V) -> transit_sdk_value:encode(wire(V)).
+restore(Kind,Data) -> V=saved_json(Data),case Kind of
+    basis->parse_basis(V);intent->parse_saved(V);reference->parse_reference(V);cursor->parse_cursor(V);snapshot_owner->parse_owner(V);snapshot_acquisition->parse_acquisition(V);snapshot->parse_snapshot(V)
+end.
+
+operation({create,Schema,If}) -> #{<<"create">>=>#{<<"schema">>=>schema(Schema),<<"if_not_exists">>=>transit_sdk_value:boolean(If)}};
+operation({alter,Basis,Change}) -> #{<<"alter">>=>#{<<"basis">>=>wire(Basis),<<"change">>=>change(Change)}};
+operation({rename,Basis,Name}) -> #{<<"rename">>=>#{<<"basis">>=>wire(Basis),<<"name">>=>identifier(Name)}};
+operation({drop,Basis,If}) -> #{<<"drop">>=>#{<<"basis">>=>optional(Basis,fun wire/1),<<"if_exists">>=>transit_sdk_value:boolean(If)}};
+operation({mutate,Basis,Mutation,Ingestion}) -> {M,_}=mutation(Mutation),#{<<"mutate">>=>#{<<"basis">>=>wire(Basis),<<"mutation">>=>M,<<"ingestion">>=>enum(Ingestion,[point,bulk])}}.
+work(Action,Path,Check,Original) -> validate(<<"CatalogAction">>,Action),check(byte_size(transit_sdk_value:encode(Action))=<limit(<<"catalog_action_bytes">>)),{Action,Path,Check,Original}.
+action(capabilities) -> work(#{<<"catalog">>=>#{<<"capabilities">>=>#{}}},[<<"catalog">>,<<"capabilities">>],capabilities,undefined);
+action(describe) -> work(#{<<"catalog">>=>#{<<"describe">>=>#{}}},[<<"catalog">>,<<"description">>],description,undefined);
+action({namespace,N}) -> work(#{<<"catalog">>=>#{<<"namespace">>=>counter(N)}},[<<"catalog">>,<<"namespace">>],{namespace,N},undefined);
+action({namespaces,Cursor}) -> work(#{<<"catalog">>=>#{<<"namespaces">>=>optional(Cursor,fun wire/1)}},[<<"catalog">>,<<"namespaces">>],{page,namespaces,Cursor},undefined);
+action({tables,N,Cursor}) -> work(#{<<"catalog">>=>#{<<"tables">>=>#{<<"namespace">>=>counter(N),<<"cursor">>=>optional(Cursor,fun wire/1)}}},[<<"catalog">>,<<"tables">>],{page,{tables,N},Cursor},undefined);
+action({lookup,Name,N}) -> work(#{<<"lookup">>=>#{<<"namespace">>=>counter(N),<<"name">>=>identifier(Name)}},[<<"metadata">>],{lookup,Name,N},undefined);
+action({compile,Sql,#transit_catalog_identity{operation=O,namespace=N}=I,Create,Dialect,Ingestion}) ->
+    S=transit_sdk_value:text(Sql,4096),check(byte_size(S)>0),work(#{<<"compile">>=>#{<<"sql">>=>S,<<"namespace">>=>counter(N),<<"operation">>=>decimal(O),<<"create_object">>=>optional(Create,fun decimal/1),<<"dialect">>=>enum(Dialect,[transit,mysql]),<<"ingestion">>=>enum(Ingestion,[point,bulk])}},[<<"compiled">>],{compiled,I},undefined);
+action({prepare,Name,#transit_catalog_identity{operation=O,namespace=N}=I,Operation}) ->
+    work(#{<<"prepare">>=>#{<<"definition">>=>definition(),<<"namespace">>=>counter(N),<<"operation">>=>decimal(O),<<"name">>=>identifier(Name),<<"action">>=>operation(Operation)}},[<<"compiled">>],{compiled,I},undefined);
+action({load,Saved}) -> work(#{<<"load">>=>wire(Saved)},[<<"loaded">>],{loaded,Saved},undefined);
+action({forget,#transit_catalog_intent{id=Id}}) -> work(#{<<"forget">>=>Id},[<<"forgotten">>],empty,undefined);
+action({preview,#transit_catalog_intent{id=Id}=I}) -> work(#{<<"preview">>=>Id},[<<"preview">>],{preview,I},undefined);
+action({stage,#transit_catalog_intent{id=Id,saved=Saved}=I}) -> wire(Saved),work(#{<<"stage">>=>Id},[<<"staged">>],{staged,I},Saved);
+action({admit,Reference}) -> work(#{<<"admit">>=>wire(Reference)},[<<"observation">>],{observation,Reference},Reference);
+action({operation,Reference,Command,Steps}) ->
+    Original=case Command of inspect->undefined;_->Reference end,
+    work(#{<<"operation">>=>#{<<"reference">>=>wire(Reference),<<"command">>=>enum(Command,[inspect,execute,cancel]),<<"steps">>=>transit_sdk_value:integer(Steps,1,65535)}},[<<"observation">>],{observation,Reference},Original);
+action({retention,Command,Value}) ->
+    {Field,Original}=case Command of acquire->{<<"acquired">>,Value};release->{<<"released">>,Value};status->{<<"status">>,undefined};metadata->{<<"metadata">>,undefined} end,
+    work(#{<<"retention">>=>#{enum(Command,[acquire,release,status,metadata])=>wire(Value)}},[<<"retention">>,Field],{retention,Command,Value},Original).
+selection(namespaces) -> #{<<"namespaces">>=>#{}};
+selection({tables,N}) -> #{<<"tables">>=>counter(N)}.
+check_request({page,Selection,#transit_catalog_cursor{}=Cursor},C,P) -> V=wire(Cursor),check(get(connection,V)=:=connection(C,P)),check(get(selection,V)=:=selection(Selection));
+check_request({observation,R},C,P) -> {_,RC,RP,_,_}=reference_info(R),check(RC=:=C andalso RP=:=P);
+check_request({retention,_,V},C,P) -> O=case V of #transit_catalog_snapshot_owner{}->V;#transit_catalog_snapshot_acquisition{owner=A}->A;#transit_catalog_snapshot{owner=A}->A end,
+    check(O#transit_catalog_snapshot_owner.connection=:=C andalso O#transit_catalog_snapshot_owner.principal=:=P);
+check_request(_,_,_) -> ok.
+reasons() -> [none,name_conflict,object_conflict,stale_definition,stale_data,dependency,constraint,definition_changed,data_changed,duplicate_key,missing_row,invalid_rows,work_limit,condition_changed].
 capabilities(V) ->
-    fields(V,[<<"version">>,<<"definition">>,<<"max_columns">>,<<"max_rows">>,<<"max_sql_bytes">>,<<"max_intent_bytes">>,<<"max_action_bytes">>,<<"max_prepared_bytes">>,<<"resident_intents">>]),
-    #transit_catalog_capabilities{version=small(maps:get(<<"version">>,V)),definition=current(maps:get(<<"definition">>,V)),max_columns=small(maps:get(<<"max_columns">>,V)),max_rows=small(maps:get(<<"max_rows">>,V)),max_sql_bytes=small(maps:get(<<"max_sql_bytes">>,V)),max_intent_bytes=small(maps:get(<<"max_intent_bytes">>,V)),max_action_bytes=small(maps:get(<<"max_action_bytes">>,V)),max_prepared_bytes=small(maps:get(<<"max_prepared_bytes">>,V)),resident_intents=small(maps:get(<<"resident_intents">>,V))}.
-supported(#transit_catalog_capabilities{version=1,max_columns=128,max_rows=1024,max_sql_bytes=4096,max_intent_bytes=I,max_action_bytes=A,max_prepared_bytes=P,resident_intents=1}) ->
-    I=:=limit(<<"catalog_intent_bytes">>) andalso A=:=limit(<<"catalog_action_bytes">>) andalso P=:=limit(<<"catalog_prepared_bytes">>);
+    current(get(definition,V)),#transit_catalog_capabilities{version=small(get(version,V)),definition=definition(),max_columns=small(get(max_columns,V)),max_rows=small(get(max_rows,V)),max_sql_bytes=small(get(max_sql_bytes,V)),max_intent_bytes=small(get(max_intent_bytes,V)),max_action_bytes=small(get(max_action_bytes,V)),metadata_page_entries=small(get(metadata_page_entries,V)),resident_intents=small(get(resident_intents,V))}.
+supported(#transit_catalog_capabilities{version=1,max_columns=128,max_rows=1024,max_sql_bytes=4096,max_intent_bytes=I,max_action_bytes=A,metadata_page_entries=8,resident_intents=1}) -> I=:=limit(<<"catalog_intent_bytes">>) andalso A=:=limit(<<"catalog_action_bytes">>);
 supported(_) -> false.
-decode_value(capabilities,V,_,_) -> capabilities(V);
-decode_value(description,V,#transit_catalog_connection{scope=Scope,owner=#transit_process{pid=Audience}=Owner,role=Role},Principal) ->
-    fields(V,[<<"configuration">>,<<"subject">>,<<"authorization_revision">>,<<"resource_revision">>]),
-    #transit_catalog_configuration{scope=Scope,owner=Owner}=C=parse_configuration(maps:get(<<"configuration">>,V)),
-    #transit_catalog_subject{principal=Principal,audience=Audience,login_role=Login,role=Selected}=Subject=parse_subject(maps:get(<<"subject">>,V)),
-    check(Selected=:=case Role of undefined->Login; _->Role end),
-    #transit_catalog_description{configuration=C,subject=Subject,authorization_revision=zero(maps:get(<<"authorization_revision">>,V)),resource_revision=zero(maps:get(<<"resource_revision">>,V))};
-decode_value({lookup,Name},V,C,_) -> resolved(V,C,Name);
-decode_value({historical,Object,Revision},V,#transit_catalog_connection{scope=Scope},_) -> historical(V,Scope,Object,Revision);
-decode_value({page,Previous},V,C,_) -> page(V,C,Previous);
-decode_value({compiled,Identity,Kind,Object},V,C,P) -> compiled(V,C,P,Identity,Kind,Object);
-decode_value(intent,V,C,P) -> intent(V,C,P);
-decode_value(empty,V,_,_) -> fields(V,[]),ok;
-decode_value(next,V,_,_) -> next(V);
-decode_value(state,V,_,_) -> fields(V,[<<"outcome">>,<<"upload">>]),#transit_catalog_state{outcome=outcome(maps:get(<<"outcome">>,V)),upload=upload(maps:get(<<"upload">>,V))};
-decode_value(prepared,V,_,_) -> prepared(V);
-decode_value(observation,V,_,_) -> known(V,[pending,processed]);
-decode_value(disposition,V,_,_) -> disposition(V);
-decode_value(progress,V,_,_) -> progress(V).
+parse_configuration(V) -> #transit_catalog_configuration{scope=parse_scope(get(scope,V)),branch=wide(get(branch,V)),partition=wide(get(partition,V)),audience=counter(get(audience,V)),authority=parse_authority(get(authority,V)),database_name=identifier(get(database_name,V)),initial_schema_name=identifier(get(initial_schema_name,V))}.
+namespace(V) -> #transit_catalog_namespace{scope=parse_scope(get(scope,V)),id=counter(get(id,V)),authorization=counter(get(authorization,V)),name=identifier(get(name,V)),revision=counter(get(revision,V)),retired=transit_sdk_value:boolean(get(retired,V))}.
+summary(V,Saved,C,P,Expected) ->
+    Id=get(id,V),current(get(definition,Id)),unhex(get(digest,Id),32),[{Tag,Binding}]=maps:to_list(get(binding,V)),Kind=known(Tag,[table,name_assertion]),N=counter(get(namespace,V)),
+    O=case Kind of table->check_binding(Binding,C,P),wide(get(operation,get(identity,Binding)));name_assertion->check_assertion(Binding),check(get(connection,Binding)=:=connection(C,P)),check(get(namespace,Binding)=:=N),wide(get(operation,Binding)) end,
+    Identity=#transit_catalog_identity{operation=O,namespace=N},check(Expected=:=undefined orelse Expected=:=Identity),Raw=maps:get(Tag,wire(Saved)),check(get(namespace,Raw)=:=N),check(Kind=:=table orelse Raw=:=Binding),
+    #transit_catalog_intent{id=Id,binding=Binding,kind=Kind,identity=Identity,saved=Saved}.
+expected_kind(name_assertion,_) -> name_assertion;
+expected_kind(table,B) -> case get(action,B) of <<"insert">>->rows;<<"update">>->rows;<<"delete">>->rows;_->ddl end.
+observation(V,R) ->
+    {Work,_,_,_,Binding}=reference_info(R),[{Tag,State}]=maps:to_list(V),Kind=known(Tag,[ddl,rows,name_assertion]),check(Kind=:=expected_kind(Work,Binding)),[{StateTag,Raw}]=maps:to_list(State),
+    Out=#transit_catalog_observation{kind=Kind,reference=R},case StateTag of
+        <<"not_observed">>->fields(Raw,[]),Out#transit_catalog_observation{state=not_observed};
+        _->check(get(binding,Raw)=:=Binding),case Kind of
+            name_assertion->check(StateTag=:= <<"outcome">>),Out#transit_catalog_observation{state=known(get(state,Raw),[unchanged,rejected]),reason=known(get(reason,Raw),reasons()),position=position(get(position,Raw))};
+            _->case StateTag of
+                <<"committed">>->I=stored(get(resulting,Raw)),O=get(outcome,Raw),M=number(get(matched,O)),A=number(get(affected,O)),check(A=<M),check((I#transit_catalog_stored.interpretation)#transit_catalog_interpretation.object=:=object(get(target,Binding))),
+                    Out#transit_catalog_observation{state=committed,commit=#transit_catalog_commit{definition=I,position=position(get(position,O)),matched=M,affected=A,live_rows=number(get(live_rows,O))}};
+                _->StateName=known(StateTag,[admitted,rejected,cancelled]),Phase=known(get(phase,Raw),[admitted,ready,settled,rejected,cancelled]),
+                    case StateName of admitted->check(lists:member(Phase,[admitted,ready,settled]));_->check(Phase=:=StateName) end,content(get(intent,Raw)),
+                    case Kind of rows->Basis=get(basis,Raw),interpretation(get(interpretation,Basis)),position(get(position,Basis)),number(get(changed_lsn,Basis));_->ok end,
+                    Out#transit_catalog_observation{state=StateName,phase=Phase,reason=known(get(reason,Raw),reasons())}
+            end
+        end
+    end.
+current_basis(V) -> #transit_catalog_current{definition=stored(get(interpretation,V)),position=position(get(position,V)),changed_lsn=number(get(changed_lsn,V)),row_count=number(get(row_count,V))}.
+preview(V,#transit_catalog_intent{kind=Work,binding=B}=I) ->
+    [{Tag,Raw}]=maps:to_list(V),Kind=known(Tag,[ddl,rows,name_assertion]),check(Kind=:=expected_kind(Work,B) andalso get(binding,Raw)=:=B),Out=#transit_catalog_preview{kind=Kind,intent=I},
+    case Kind of name_assertion->Out#transit_catalog_preview{position=position(get(position,Raw)),current=parsed(get(current,Raw),fun interpretation/1),matches=transit_sdk_value:boolean(get(matches,Raw))};
+        _->Base=Out#transit_catalog_preview{position=position(get(directory_position,Raw)),current=parsed(get(current,Raw),fun current_basis/1),reason=known(get(reason,Raw),reasons())},
+            case Kind of rows->Base;ddl->Base#transit_catalog_preview{work=parsed(get(work,Raw),fun(W)->known(W,[metadata,validate_rows,rewrite_rows]) end),rebuild_key=transit_sdk_value:boolean(get(rebuild_key,Raw)),schema_fingerprint=parsed(get(schema_fingerprint,Raw),fun(F)->unhex(F,32) end)} end
+    end.
+read_authority(V) -> D=counter(get(database,V)),S=counter(get(schema,V)),T=counter(get(table,V)),check(D=/=S andalso D=/=T andalso S=/=T),#transit_catalog_read_authority{database=D,schema=S,table=T}.
+page(V,Selection,Previous,C,P) ->
+    Position=position(get(position,V)),Slots=get(entries,V),check(is_list(Slots) andalso length(Slots)=:=8),
+    Before=case Previous of undefined->0;_->PV=wire(Previous),check(position(get(position,PV))=:=Position),wide(get('after',PV)) end,
+    {Entries,Last,_}=lists:foldl(fun(null,{Items,After,_})->{Items,After,true};(Raw,{Items,After,false})->
+        {Id,Entry}=case Selection of namespaces->N=namespace(Raw),check(N#transit_catalog_namespace.scope=:=C#transit_catalog_connection.scope),{N#transit_catalog_namespace.id,N};
+            {tables,Ns}->I=interpretation(get(interpretation,Raw)),O=I#transit_catalog_interpretation.object,owns(C,O),check(counter(get(namespace,Raw))=:=Ns),{O#transit_catalog_object.object,#transit_catalog_entry{interpretation=I,namespace=Ns,name=identifier(get(name,Raw)),position=position(get(position,Raw)),changed_lsn=number(get(changed_lsn,Raw))}}
+        end,check(Id>After),{[Entry|Items],Id,false};(_,_) -> check(false)
+    end,{[],Before,false},Slots),
+    Next=parsed(get(next,V),fun parse_cursor/1),case Next of undefined->ok;_->check_request({page,Selection,Next},C,P),NV=wire(Next),check(position(get(position,NV))=:=Position andalso wide(get('after',NV))>=Last andalso wide(get('after',NV))>Before) end,
+    Consistency=case Selection of namespaces->undefined;_->known(get(consistency,V),[independent]) end,#transit_catalog_page{position=Position,entries=lists:reverse(Entries),next=Next,consistency=Consistency}.
+decode(capabilities,V,_,_) -> capabilities(V);
+decode(description,V,#transit_catalog_connection{scope=S,branch=B,audience=A,role=Role},P) ->
+    Config=parse_configuration(get(configuration,V)),Subject=parse_subject(get(subject,V)),
+    check(Config#transit_catalog_configuration.scope=:=S andalso Config#transit_catalog_configuration.branch=:=B andalso Config#transit_catalog_configuration.audience=:=A),
+    check(Subject#transit_catalog_subject.principal=:=P andalso Subject#transit_catalog_subject.audience=:=A andalso (Role=:=undefined orelse Role=:=Subject#transit_catalog_subject.role)),
+    #transit_catalog_description{configuration=Config,subject=Subject,policy_revision=zero(get(policy_revision,V))};
+decode({namespace,N},V,C,_) -> parsed(V,fun(Raw)->Out=namespace(Raw),check(Out#transit_catalog_namespace.id=:=N andalso Out#transit_catalog_namespace.scope=:=C#transit_catalog_connection.scope),Out end);
+decode({page,Selection,Previous},V,C,P) -> page(V,Selection,Previous,C,P);
+decode({lookup,Name,N},V,C,P) -> parsed(V,fun(Raw)->B=parse_basis(get(binding,Raw)),Schema=parse_schema(get(schema,Raw)),
+    check(B#transit_catalog_basis.connection=:=C andalso B#transit_catalog_basis.principal=:=P andalso B#transit_catalog_basis.namespace=:=N andalso B#transit_catalog_basis.name=:=Name),
+    check(((B#transit_catalog_basis.interpretation)#transit_catalog_stored.interpretation)#transit_catalog_interpretation.object=:=#transit_catalog_object{scope=C#transit_catalog_connection.scope,branch=C#transit_catalog_connection.branch,object=Schema#transit_catalog_schema.object}),
+    #transit_catalog_metadata{basis=B,authorization=counter(get(authorization,Raw)),position=position(get(position,Raw)),changed_lsn=number(get(changed_lsn,Raw)),row_count=number(get(row_count,Raw)),schema=Schema} end);
+decode({compiled,I},V,C,P) -> Saved=parse_saved(get(saved,V)),#transit_catalog_compiled{intent=summary(get(summary,V),Saved,C,P,I),saved=Saved};
+decode({loaded,Saved},V,C,P) -> summary(V,Saved,C,P,undefined);
+decode(empty,V,_,_) -> fields(V,[]),ok;
+decode({preview,I},V,_,_) -> preview(V,I);
+decode({staged,#transit_catalog_intent{kind=Kind,binding=B,identity=Identity}},V,C,P) -> R=parse_reference(V),{Kind,C,P,Identity,B}=reference_info(R),R;
+decode({observation,R},V,_,_) -> observation(V,R);
+decode({retention,acquire,#transit_catalog_snapshot_acquisition{owner=O}},V,_,_) -> S=parse_snapshot(V),check(S#transit_catalog_snapshot.owner=:=O),S;
+decode({retention,release,S},V,_,_) -> check(V=:=wire(S)),S;
+decode({retention,status,O},V,_,_) ->
+    check(get(owner,V)=:=owner_wire(O)),I=interpretation(get(current_interpretation,V)),check(I#transit_catalog_interpretation.object=:=O#transit_catalog_snapshot_owner.object),S=parsed(get(snapshot,V),fun parse_snapshot/1),
+    check(S=:=undefined orelse S#transit_catalog_snapshot.owner=:=O),#transit_catalog_snapshot_status{owner=O,current_interpretation=I,current_position=position(get(current_position,V)),retired=transit_sdk_value:boolean(get(retired,V)),snapshot=S,released=transit_sdk_value:boolean(get(released,V)),authority=read_authority(get(authority,V))};
+decode({retention,metadata,S},V,_,_) ->
+    check(get(snapshot,V)=:=wire(S)),I=stored(get(interpretation,V)),Schema=parse_schema(get(schema,V)),O=(S#transit_catalog_snapshot.owner)#transit_catalog_snapshot_owner.object,
+    check((I#transit_catalog_stored.interpretation)#transit_catalog_interpretation.object=:=O andalso Schema#transit_catalog_schema.object=:=O#transit_catalog_object.object),
+    #transit_catalog_snapshot_metadata{snapshot=S,interpretation=I,accepted=position(get(accepted,V)),changed_lsn=number(get(changed_lsn,V)),row_count=number(get(row_count,V)),schema=Schema,authority=read_authority(get(authority,V))}.

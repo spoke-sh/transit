@@ -1,16 +1,69 @@
 #include "catalog_internal.hpp"
+#include "catalog_schema.hpp"
 
 namespace transit::sdk::catalog_detail {
 namespace {
+const Json *find(const Json &v, std::string_view key) {
+    if (v.kind != Json::Kind::Object) return nullptr;
+    for (const auto &e : v.members) if (e.first == key) return &e.second;
+    return nullptr;
+}
+// Validate generated schemas, with no defaults for persisted compatibility or
+// authority fields. The parser bounds bytes, nodes and depth before validation.
+void check_schema(const Json &rule, const Json &v, const Json &root, size_t depth) {
+    require(depth < 256, "catalog-schema-depth");
+    if (const auto *ref = find(rule, "$ref")) {
+        const auto &s = ref->string(); require(s.substr(0, 8) == "#/$defs/", "catalog-schema-ref");
+        check_schema(root.at("$defs").at(s.substr(8)), v, root, depth + 1); return;
+    }
+    for (const auto *key : {"oneOf", "anyOf"}) if (const auto *choices = find(rule, key)) {
+        size_t accepted = 0;
+        for (const auto &choice : choices->array(256)) {
+            try { check_schema(choice, v, root, depth + 1); ++accepted; } catch (const Failure &) {}
+        }
+        require(accepted && (std::string_view(key) == "anyOf" || accepted == 1), "catalog-schema-union"); return;
+    }
+    const auto &type = rule.at("type").string();
+    if (type == "object") {
+        require(v.kind == Json::Kind::Object, "catalog-schema-object");
+        if (const auto *max = find(rule, "maxProperties")) require(v.members.size() <= max->number(SIZE_MAX), "catalog-schema-fields");
+        if (const auto *keys = find(rule, "required")) for (const auto &key : keys->array(256)) (void)v.at(key.string());
+        const auto *properties = find(rule, "properties");
+        for (const auto &entry : v.members) {
+            if (properties) if (const auto *property = find(*properties, entry.first)) { check_schema(*property, entry.second, root, depth + 1); continue; }
+            const auto *additional = find(rule, "additionalProperties");
+            require(!additional || additional->boolean(), "catalog-schema-extra-field");
+        }
+    } else if (type == "array") {
+        const auto *max = find(rule, "maxItems"); const auto &items = v.array(max ? max->number(SIZE_MAX) : 1048576);
+        if (const auto *min = find(rule, "minItems")) require(items.size() >= min->number(SIZE_MAX), "catalog-schema-array");
+        for (const auto &item : items) check_schema(rule.at("items"), item, root, depth + 1);
+    } else if (type == "string") {
+        const auto &s = v.string();
+        if (const auto *max = find(rule, "maxLength")) require(s.size() <= max->number(SIZE_MAX), "catalog-schema-string");
+        if (const auto *values = find(rule, "enum")) {
+            bool matched = false; for (const auto &value : values->array(256)) matched |= equal(v, value);
+            require(matched, "catalog-schema-enum");
+        }
+        if (const auto *pattern = find(rule, "pattern")) {
+            require(pattern->string() == "^(?:[0-9a-f]{2})*$" && s.size() % 2 == 0, "catalog-schema-pattern");
+            for (const auto c : s) require((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'), "catalog-schema-hex");
+        }
+    } else if (type == "integer") {
+        const auto *max = find(rule, "maximum"); const auto number = v.number(max ? max->number(UINT64_MAX) : UINT64_MAX);
+        if (const auto *min = find(rule, "minimum")) require(number >= min->number(UINT64_MAX), "catalog-schema-integer");
+    } else if (type == "boolean") (void)v.boolean();
+    else { require(type == "null" && v.is_null(), "catalog-schema-null"); }
+}
 uint64_t full(const Json &v, bool zero = false) { return logical_detail::wide(v, zero); }
-uint64_t small(const Json &v, bool zero = false) { return v.number(TRANSIT_CLIENT_MAX_COUNTER, zero); }
+uint64_t counter_value(const Json &v, bool zero = false) { return v.number(TRANSIT_CLIENT_MAX_COUNTER, zero); }
 uint32_t choice(const Json &v, std::initializer_list<const char *> names) {
     const auto &text = v.string(); uint32_t i = 0; for (const auto *name : names) { if (text == name) return i; ++i; }
     fail(TRANSIT_SDK_INVALID_ARGUMENT, "catalog-response-tag");
 }
 void current(const Json &v) { require(v.string() == STATION_ABI_DEFINITION, "catalog-response-definition"); }
-template<size_t N> void string(const Json &v, char (&out)[N], bool empty = false) {
-    const auto &text = v.string(); require((empty || !text.empty()) && text.size() < N && text.find('\0') == std::string::npos, "catalog-response-string");
+template<size_t N> void string(const Json &v, char (&out)[N]) {
+    const auto &text = v.string(); require(!text.empty() && text.size() < N && text.find('\0') == std::string::npos, "catalog-response-string");
     std::copy(text.begin(), text.end(), out); out[text.size()] = 0;
 }
 Bytes bytes(const Json &v, size_t max, std::optional<size_t> exact = {}) {
@@ -19,34 +72,54 @@ Bytes bytes(const Json &v, size_t max, std::optional<size_t> exact = {}) {
     return unhex(text, max);
 }
 void digest(const Json &v, uint8_t (&out)[32]) { const auto data = bytes(v, 32, 32); std::copy(data.begin(), data.end(), out); }
-Scope scope(const Json &v) { v.fields({"realm", "resource", "catalog"}); return {{small(v.at("realm")), small(v.at("resource"))}, full(v.at("catalog"))}; }
-Configuration configuration(const Json &v) {
-    v.fields({"scope", "owner", "administrator", "table_limits", "authority", "database_name"});
-    Configuration out{}; out.scope = scope(v.at("scope")); out.owner = {out.scope.resource.realm, small(v.at("owner"))}; out.administrator = small(v.at("administrator"), true);
-    const auto &limits = v.at("table_limits"); limits.fields({"record_bytes", "staging_bytes", "staging_records"});
-    out.table_limits = {static_cast<uint32_t>(limits.at("record_bytes").number(UINT32_MAX, false)), full(limits.at("staging_bytes")), static_cast<uint32_t>(limits.at("staging_records").number(UINT32_MAX, false))};
-    const auto &a = v.at("authority"); a.fields({"database_domain", "schema_domain", "table_domain", "database", "initial_schema_authority", "initial_schema"});
-    out.authority = {small(a.at("database_domain")), small(a.at("schema_domain")), small(a.at("table_domain")), small(a.at("database")), small(a.at("initial_schema_authority")), small(a.at("initial_schema"))};
-    string(v.at("database_name"), out.database_name); (void)configuration_wire(out); return out;
+Scope scope(const Json &v) { return {{counter_value(v.at("realm")), counter_value(v.at("resource"))}, full(v.at("catalog"))}; }
+Connection connection(const Json &v) {
+    Connection c{scope(v.at("scope")), counter_value(v.at("audience")), full(v.at("branch")), !v.at("role").is_null(), 0};
+    if (c.has_role) c.role = counter_value(v.at("role"), true);
+    (void)counter_value(v.at("principal"), true); return c;
 }
-Subject subject(const Json &v) {
-    v.fields({"principal", "login_role", "role", "credential_epoch", "audience", "context"});
-    Subject out{small(v.at("principal"), true), small(v.at("login_role"), true), small(v.at("role"), true), small(v.at("credential_epoch")), small(v.at("audience")), {}};
-    const auto &context = v.at("context").array(32); require(context.size() == 32, "catalog-subject-context");
-    for (size_t i = 0; i < 32; ++i) out.context[i] = static_cast<uint8_t>(context[i].number(255)); return out;
+Position position(const Json &v) { return {full(v.at("partition")), full(v.at("next_lsn"), true)}; }
+Object object(const Json &v) { return {scope(v.at("scope")), full(v.at("branch")), full(v.at("object"))}; }
+bool same_object(Object a, Object b) { return same_scope(a.scope, b.scope) && a.branch == b.branch && a.object == b.object; }
+void owns_object(Connection c, Object o) { require(same_scope(c.scope, o.scope) && c.branch == o.branch, "catalog-object-owner"); }
+Interpretation interpretation(const Json &v) {
+    Interpretation i{object(v.at("object")), full(v.at("revision")), {}}; digest(v.at("digest"), i.digest); return i;
 }
-Metadata metadata(const Json &v) {
-    v.fields({"scope", "namespace", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment"}); Metadata out{};
-    out.scope = scope(v.at("scope")); out.namespace_id = small(v.at("namespace")); out.object = full(v.at("object")); out.revision = full(v.at("revision")); string(v.at("name"), out.name);
-    digest(v.at("schema_fingerprint"), out.schema_fingerprint); out.principal = small(v.at("principal"), true); out.operation = full(v.at("operation")); out.admitted_input = small(v.at("admitted_input"));
-    const auto &c = v.at("commitment"); c.fields({"format", "length", "digest"});
-    require(c.at("format").number(UINT32_MAX) == 0x54434d01, "catalog-metadata-format");
-    out.commitment.bytes = static_cast<uint32_t>(c.at("length").number(444, false));
-    const auto &bytes = c.at("digest").array(32); require(bytes.size() == 32, "catalog-metadata-digest");
-    for (size_t i = 0; i < bytes.size(); ++i) out.commitment.digest[i] = static_cast<uint8_t>(bytes[i].number(255));
-    return out;
+Content content(const Json &v) { Content c{full(v.at("bytes")), {}}; digest(v.at("sha256"), c.sha256); return c; }
+Stored stored(const Json &v) {
+    Stored s{interpretation(v.at("interpretation")), content(v.at("content")), {}, v.at("retired").boolean()};
+    require(std::equal(std::begin(s.interpretation.digest), std::end(s.interpretation.digest), std::begin(s.content.sha256)), "catalog-definition-content");
+    digest(v.at("schema_fingerprint"), s.schema_fingerprint); return s;
 }
-Head head(const Json &v) { v.fields({"revision", "rows", "pending"}); return {full(v.at("revision")), full(v.at("rows"), true), full(v.at("pending"), true)}; }
+void binding_check(const Json &v, Connection c, uint64_t principal) {
+    current(v.at("definition")); const auto &id = v.at("identity"); (void)full(id.at("operation"));
+    require(same_scope(scope(id.at("scope")), c.scope) && counter_value(id.at("principal"), true) == principal, "catalog-binding-owner");
+    const auto target = object(v.at("target")); owns_object(c, target); (void)bytes(v.at("intent"), 32, 32);
+    const auto kind = choice(v.at("action"), {"create", "alter", "rename", "drop", "insert", "update", "delete"});
+    if (kind == TRANSIT_CATALOG_CREATE) require(v.at("expected_definition").is_null() && v.at("expected_data").is_null(), "catalog-create-basis");
+    else require(same_object(interpretation(v.at("expected_definition")).object, target), "catalog-binding-target");
+    if (!v.at("expected_data").is_null()) (void)position(v.at("expected_data"));
+}
+void assertion_check(const Json &v) {
+    current(v.at("definition")); const auto c = connection(v.at("connection")); (void)counter_value(v.at("namespace"));
+    (void)name(v.at("name").string().c_str()); (void)full(v.at("operation")); (void)bytes(v.at("intent"), 32, 32);
+    const auto action = choice(v.at("action"), {"create_if_not_exists", "drop_if_exists"});
+    require(v.at("expected").is_null() == (action == 1), "catalog-name-assertion");
+    if (!v.at("expected").is_null()) owns_object(c, interpretation(v.at("expected")).object);
+}
+Json selection(uint64_t ns) { return ns ? tag("tables", small(ns)) : tag("namespaces"); }
+const Json &reference_binding(const Reference &r) {
+    const auto &variant = r.wire.variant(); return variant.first == "table" ? variant.second.at("binding") : variant.second;
+}
+uint32_t expected_kind(uint32_t work, const Json &binding) {
+    if (work == TRANSIT_CATALOG_NAME_ASSERTION) return TRANSIT_CATALOG_NAME_OBSERVATION;
+    const auto &kind = binding.at("action").string(); return kind == "insert" || kind == "update" || kind == "delete" ? TRANSIT_CATALOG_ROWS : TRANSIT_CATALOG_DDL;
+}
+uint32_t reason(const Json &v) { return choice(v, {"none", "name_conflict", "object_conflict", "stale_definition", "stale_data", "dependency", "constraint", "definition_changed", "data_changed", "duplicate_key", "missing_row", "invalid_rows", "work_limit", "condition_changed"}); }
+transit_station_catalog_read_authority read_authority(const Json &v) {
+    transit_station_catalog_read_authority out{counter_value(v.at("database")), counter_value(v.at("schema")), counter_value(v.at("table"))};
+    require(out.database != out.schema && out.database != out.table && out.schema != out.table, "catalog-read-authority"); return out;
+}
 Schema decode_schema(const Json &v, Arena &a) {
     v.fields({"definition", "object", "revision", "next_column", "columns", "primary_key"}); current(v.at("definition"));
     // Bound the entire schema independently of each descriptor/default.
@@ -63,107 +136,200 @@ Schema decode_schema(const Json &v, Arena &a) {
     }
     const auto &keys = v.at("primary_key").array(out.column_count); auto *owned_keys = a.array<uint64_t>(keys.size()); out.primary_key = owned_keys; out.primary_key_count = keys.size();
     for (size_t i = 0; i < keys.size(); ++i) owned_keys[i] = full(keys[i]); return out;
+}} // namespace
+bool equal(const Json &a, const Json &b) {
+    if (a.kind != b.kind || a.flag != b.flag || a.text != b.text || a.items.size() != b.items.size() || a.members.size() != b.members.size()) return false;
+    for (size_t i = 0; i < a.items.size(); ++i) if (!equal(a.items[i], b.items[i])) return false;
+    for (const auto &e : a.members) { const auto *other = find(b, e.first); if (!other || !equal(e.second, *other)) return false; }
+    return true;
 }
-Cursor cursor(const Json &v) {
-    v.fields({"definition", "scope", "resource_revision", "after_object"}); current(v.at("definition")); Cursor out{}; string(v.at("definition"), out.definition);
-    out.scope = scope(v.at("scope")); out.resource_revision = small(v.at("resource_revision"), true); out.after_object = full(v.at("after_object")); return out;
+void validate(const char *key, const Json &v) {
+    static const Json action = logical_detail::JsonParser(generated::CatalogAction).parse();
+    static const Json result = logical_detail::JsonParser(generated::CatalogResult).parse();
+    require(std::string_view(key) == "CatalogAction" || std::string_view(key) == "CatalogResult", "catalog-schema-name");
+    const auto &root = std::string_view(key) == "CatalogAction" ? action : result;
+    check_schema(root, v, root, 0);
 }
-transit_station_catalog_kind kind(const Json &v) { return choice(v, {"create", "alter", "rename", "drop", "insert", "update", "delete"}); }
-transit_sdk_diagnostic diagnostic(const Json &v, const Local &local) {
-    const auto data = logical_detail::encode(v, 32768);
-    require(local.raw.transit_diagnostic_validate(reinterpret_cast<const uint8_t *>(data.data()), data.size()) == 1, "catalog-diagnostic");
-    transit_sdk_diagnostic out{}; out.size = data.size(); std::copy(data.begin(), data.end(), out.json); return out;
+bool same_position(Position a, Position b) { return a.partition == b.partition && a.next_lsn == b.next_lsn; }
+void owns(const Json &wire, Connection c, uint64_t principal) { require(equal(wire, connection_wire(c, principal)), "catalog-connection-owner"); }
+Schema schema(const Json &v, Arena &a) { return decode_schema(v, a); }
+std::unique_ptr<Basis> basis(const Json &v) {
+    validate("CatalogAction", tag("prepare", Json::object({{"definition", Json::string(STATION_ABI_DEFINITION)}, {"namespace", small(1)}, {"operation", wide(1)}, {"name", Json::string("check")}, {"action", tag("drop", Json::object({{"basis", v}, {"if_exists", Json::boolean(false)}}))}})));
+    current(v.at("definition")); auto out = std::make_unique<Basis>(v); auto &b = out->value;
+    b.connection = connection(v.at("connection")); b.principal = counter_value(v.at("connection").at("principal"), true);
+    b.namespace_id = counter_value(v.at("namespace")); string(v.at("name"), b.name); b.interpretation = stored(v.at("interpretation"));
+    owns_object(b.connection, b.interpretation.interpretation.object); require(!b.interpretation.retired, "catalog-retired-basis"); return out;
 }
-Outcome outcome(const Json &v, const Local &local) {
-    v.fields({"kind", "operation", "object", "actual_object", "phase", "terminal", "counts", "admitted_input", "completed_input", "diagnostic"}); Outcome out{};
-    out.kind = kind(v.at("kind")); out.operation = full(v.at("operation")); out.object = full(v.at("object"), true);
-    if (!v.at("actual_object").is_null()) { out.has_actual_object = true; out.actual_object = full(v.at("actual_object"), true); }
-    out.phase = choice(v.at("phase"), {"preparing", "delegated", "building", "applied", "unchanged", "rejected", "cancelled"}); out.terminal = v.at("terminal").boolean();
-    require(out.terminal == (out.phase >= TRANSIT_CATALOG_APPLIED), "catalog-terminal"); out.has_counts = !v.at("counts").is_null();
-    require(out.has_counts == (out.phase == TRANSIT_CATALOG_APPLIED && out.kind >= TRANSIT_CATALOG_INSERT), "catalog-counts");
-    if (out.has_counts) {
-        const auto &counts = v.at("counts"); counts.fields({"matched", "changed"}); out.counts = {full(counts.at("matched"), true), full(counts.at("changed"), true)};
-        require(out.counts.changed <= out.counts.matched, "catalog-counts");
-    }
-    out.admitted_input = small(v.at("admitted_input")); if (!v.at("completed_input").is_null()) { out.has_completed_input = true; out.completed_input = small(v.at("completed_input")); }
-    out.diagnostic = diagnostic(v.at("diagnostic"), local); return out;
+std::unique_ptr<Saved> saved(const Json &v) {
+    validate("CatalogAction", tag("load", v)); const auto &variant = v.variant(); const auto &raw = variant.second;
+    if (variant.first == "table") {
+        current(raw.at("definition")); (void)counter_value(raw.at("namespace")); require(!bytes(raw.at("bytes"), max_intent).empty(), "catalog-empty-intent");
+    } else { require(variant.first == "name_assertion", "catalog-work-kind"); assertion_check(raw); }
+    return std::make_unique<Saved>(v);
 }
-Upload upload(const Json &v) {
-    v.fields({"phase", "received", "total"}); Upload out{choice(v.at("phase"), {"uploading", "sealed", "ready", "cancelled"}), static_cast<uint32_t>(v.at("received").number(max_intent)), static_cast<uint32_t>(v.at("total").number(max_intent, false))};
-    require(out.received <= out.total, "catalog-upload"); return out;
+std::unique_ptr<Reference> reference(const Json &v) {
+    validate("CatalogAction", tag("admit", v)); const auto &variant = v.variant(); const auto &raw = variant.second;
+    auto out = std::make_unique<Reference>(v); auto &r = out->value;
+    current(raw.at("definition")); r.connection = connection(raw.at("connection")); r.principal = counter_value(raw.at("connection").at("principal"), true); r.identity.namespace_id = counter_value(raw.at("namespace"));
+    if (variant.first == "table") {
+        r.kind = TRANSIT_CATALOG_TABLE; binding_check(raw.at("binding"), r.connection, r.principal);
+        r.identity.operation = full(raw.at("binding").at("identity").at("operation"));
+        const auto c = content(raw.at("content")); require(c.bytes > 36 && c.bytes <= max_intent, "catalog-intent-content");
+    } else { require(variant.first == "name_assertion", "catalog-work-kind"); r.kind = TRANSIT_CATALOG_NAME_ASSERTION; assertion_check(raw); r.identity.operation = full(raw.at("operation")); }
+    return out;
 }
-State state_fields(const Json &v, const Local &local) {
-    State out{}; if (!v.at("outcome").is_null()) { out.has_outcome = true; out.outcome = outcome(v.at("outcome"), local); }
-    if (!v.at("upload").is_null()) { out.has_upload = true; out.upload = upload(v.at("upload")); } return out;
+std::unique_ptr<Cursor> cursor(const Json &v) {
+    const auto &s = v.at("selection").variant();
+    const auto ns = s.first == "tables" ? counter_value(s.second) : 0;
+    require(ns || s.first == "namespaces", "catalog-page-selection");
+    validate("CatalogAction", tag("catalog", ns ? tag("tables", Json::object({{"namespace", small(ns)}, {"cursor", v}})) : tag("namespaces", v)));
+    current(v.at("definition")); (void)connection(v.at("connection")); auto out = std::make_unique<Cursor>(v);
+    out->value = {position(v.at("position")), full(v.at("after"))}; require(out->value.position.next_lsn, "catalog-cursor-position");
+    if (!ns) counter(out->value.after); return out;
 }
+void cursor_check(const Cursor &v, Connection c, uint64_t p, uint64_t ns) {
+    owns(v.wire.at("connection"), c, p); require(equal(v.wire.at("selection"), selection(ns)), "catalog-cursor-selection");
 }
-Schema schema(const Json &value, Arena &arena) { return decode_schema(value, arena); }
+std::unique_ptr<Owner> owner(const Json &v) {
+    validate("CatalogAction", tag("retention", tag("status", v))); current(v.at("definition")); auto out = std::make_unique<Owner>(v);
+    out->value = {connection(v.at("connection")), counter_value(v.at("connection").at("principal"), true), object(v.at("object")), full(v.at("operation"))};
+    owns_object(out->value.connection, out->value.object); return out;
+}
+std::unique_ptr<Acquisition> acquisition(const Json &v) {
+    validate("CatalogAction", tag("retention", tag("acquire", v))); auto out = std::make_unique<Acquisition>(v);
+    out->owner = owner(v.at("owner")); out->value = {out->owner.get(), position(v.at("expected"))}; return out;
+}
+std::unique_ptr<Snapshot> snapshot(const Json &v) {
+    validate("CatalogAction", tag("retention", tag("metadata", v))); auto out = std::make_unique<Snapshot>(v);
+    out->owner = owner(v.at("owner")); out->value = {out->owner.get(), content(v.at("content"))}; return out;
+}
 Capabilities capabilities(const Json &v) {
-    v.fields({"version", "definition", "max_columns", "max_rows", "max_sql_bytes", "max_intent_bytes", "max_action_bytes", "max_prepared_bytes", "resident_intents"}); current(v.at("definition"));
-    Capabilities out{}; out.version = static_cast<uint8_t>(v.at("version").number(UINT8_MAX, false)); string(v.at("definition"), out.definition);
-    out.max_columns = static_cast<uint16_t>(v.at("max_columns").number(UINT16_MAX, false)); out.max_rows = static_cast<uint16_t>(v.at("max_rows").number(UINT16_MAX, false));
-    out.max_sql_bytes = static_cast<uint16_t>(v.at("max_sql_bytes").number(UINT16_MAX, false)); out.max_intent_bytes = static_cast<uint32_t>(v.at("max_intent_bytes").number(UINT32_MAX, false));
-    out.max_action_bytes = static_cast<uint32_t>(v.at("max_action_bytes").number(UINT32_MAX, false)); out.max_prepared_bytes = static_cast<uint16_t>(v.at("max_prepared_bytes").number(UINT16_MAX, false));
-    out.resident_intents = static_cast<uint8_t>(v.at("resident_intents").number(UINT8_MAX, false));
-    require(out.version == 1 && out.max_columns == 128 && out.max_rows == 1024 && out.max_sql_bytes == 4096 && out.max_intent_bytes == max_intent && out.max_action_bytes == max_action && out.max_prepared_bytes == max_prepared && out.resident_intents == 1, "catalog-capabilities"); return out;
+    current(v.at("definition")); Capabilities out{}; string(v.at("definition"), out.definition);
+    auto number = [&](const char *k) { return static_cast<uint32_t>(v.at(k).number(UINT32_MAX, false)); };
+    out.version = number("version"); out.max_columns = number("max_columns"); out.max_rows = number("max_rows"); out.max_sql_bytes = number("max_sql_bytes");
+    out.max_intent_bytes = number("max_intent_bytes"); out.max_action_bytes = number("max_action_bytes"); out.metadata_page_entries = number("metadata_page_entries"); out.resident_intents = number("resident_intents");
+    require(out.version == 1 && out.max_columns == 128 && out.max_rows == 1024 && out.max_sql_bytes == 4096 && out.max_intent_bytes == max_intent && out.max_action_bytes == max_action && out.metadata_page_entries == 8 && out.resident_intents == 1, "catalog-capabilities"); return out;
 }
-Description description(const Json &v, Connection c, uint64_t principal) {
-    v.fields({"configuration", "subject", "authorization_revision", "resource_revision"});
-    Description out{configuration(v.at("configuration")), subject(v.at("subject")), small(v.at("authorization_revision"), true), small(v.at("resource_revision"), true)};
-    require(same_scope(out.configuration.scope, c.scope) && out.configuration.owner.realm == c.owner.realm && out.configuration.owner.pid == c.owner.pid && out.subject.principal == principal && out.subject.audience == c.owner.pid && out.subject.role == (c.has_role ? c.role : out.subject.login_role), "catalog-description-identity"); return out;
+Description description(const Json &v, Connection c, uint64_t p) {
+    Description out{}; const auto &config = v.at("configuration"); auto &g = out.configuration;
+    g.scope = scope(config.at("scope")); g.branch = full(config.at("branch")); g.partition = full(config.at("partition")); g.audience = counter_value(config.at("audience"));
+    string(config.at("database_name"), g.database_name); string(config.at("initial_schema_name"), g.initial_schema_name);
+    const auto &a = config.at("authority"); g.authority = {counter_value(a.at("database_domain")), counter_value(a.at("schema_domain")), counter_value(a.at("table_domain")), counter_value(a.at("database")), counter_value(a.at("initial_schema_authority")), counter_value(a.at("initial_schema"))};
+    const auto &x = g.authority; require(x.database_domain != x.schema_domain && x.database_domain != x.table_domain && x.schema_domain != x.table_domain && x.database != x.initial_schema_authority, "catalog-authority");
+    const auto &s = v.at("subject"); out.subject = {counter_value(s.at("principal"), true), counter_value(s.at("login_role"), true), counter_value(s.at("role"), true), counter_value(s.at("credential_epoch")), counter_value(s.at("audience")), {}};
+    const auto &context = s.at("context").array(32); require(context.size() == 32, "catalog-context");
+    for (size_t i = 0; i < context.size(); ++i) out.subject.context[i] = static_cast<uint8_t>(context[i].number(255));
+    out.policy_revision = counter_value(v.at("policy_revision"), true);
+    require(same_scope(g.scope, c.scope) && g.branch == c.branch && g.audience == c.audience && out.subject.principal == p && out.subject.audience == c.audience && out.subject.role == (c.has_role ? c.role : out.subject.login_role), "catalog-description-owner"); return out;
 }
-std::unique_ptr<Definition> definition(const Json &v, Connection c, const std::string &name) {
-    if (v.is_null()) return {}; v.fields({"metadata", "head", "schema", "authorization"}); auto out = std::make_unique<Definition>();
-    out->value.authorization = small(v.at("authorization")); out->value.metadata = metadata(v.at("metadata")); out->value.head = head(v.at("head")); out->value.schema = schema(v.at("schema"), out->arena);
-    require(same_scope(out->value.metadata.scope, c.scope) && out->value.metadata.namespace_id == c.namespace_id && name == out->value.metadata.name && out->value.metadata.object == out->value.schema.object, "catalog-lookup-identity"); return out;
+Namespace namespace_value(const Json &v, Connection c, uint64_t expected) {
+    Namespace out{scope(v.at("scope")), counter_value(v.at("id")), counter_value(v.at("authorization")), counter_value(v.at("revision")), {}, v.at("retired").boolean()}; string(v.at("name"), out.name);
+    require(same_scope(out.scope, c.scope) && (!expected || out.id == expected), "catalog-namespace-owner"); return out;
 }
-std::unique_ptr<Historical> historical(const Json &v, Scope s, uint64_t object, uint64_t revision) {
-    if (v.is_null()) return {}; v.fields({"metadata", "schema"}); auto out = std::make_unique<Historical>(); out->value.metadata = metadata(v.at("metadata")); out->value.schema = schema(v.at("schema"), out->arena);
-    require(same_scope(out->value.metadata.scope, s) && out->value.metadata.object == object && out->value.metadata.revision == revision && out->value.schema.object == object, "catalog-history-identity"); return out;
+std::unique_ptr<Metadata> metadata(const Json &v, Connection c, uint64_t p, const std::string &n, uint64_t ns) {
+    if (v.is_null()) return {}; auto out = std::make_unique<Metadata>(); out->basis = basis(v.at("binding"));
+    const auto &b = out->basis->value; owns(out->basis->wire.at("connection"), c, p);
+    require(b.namespace_id == ns && n == b.name, "catalog-lookup-name"); auto &m = out->value;
+    m = {out->basis.get(), counter_value(v.at("authorization")), position(v.at("position")), full(v.at("changed_lsn"), true), full(v.at("row_count"), true), schema(v.at("schema"), out->arena)};
+    require(m.schema.object == b.interpretation.interpretation.object.object, "catalog-lookup-schema"); return out;
 }
-Page page(const Json &v, Connection c, const Cursor *previous) {
-    const auto s = c.scope;
-    v.fields({"resource_revision", "entries", "next"}); Page out{}; out.resource_revision = small(v.at("resource_revision"), true); const auto &entries = v.at("entries").array(8); require(entries.size() == 8, "catalog-page-size");
-    bool ended = false;
-    for (const auto &e : entries) {
-        if (e.is_null()) { ended = true; continue; } require(!ended, "catalog-page-density"); e.fields({"metadata", "head"}); const auto m = metadata(e.at("metadata"));
-        require(same_scope(m.scope, s) && m.namespace_id == c.namespace_id && (!out.count || out.entries[out.count - 1].metadata.object < m.object), "catalog-page-order");
-        out.entries[out.count++] = {m, head(e.at("head"))};
+namespace {
+template<class Page, class Entry> std::unique_ptr<Page> page(const Json &v, Connection c, uint64_t p, uint64_t ns, const Cursor *previous, Entry &&entry) {
+    auto out = std::make_unique<Page>(); auto &view = out->value; view.position = position(v.at("position"));
+    const auto before = previous ? previous->value.after : 0;
+    if (previous) { cursor_check(*previous, c, p, ns); require(same_position(previous->value.position, view.position), "catalog-page-position"); }
+    const auto &slots = v.at("entries").array(8); require(slots.size() == 8, "catalog-page-slots"); bool ended = false; auto last = before;
+    for (const auto &raw : slots) {
+        if (raw.is_null()) { ended = true; continue; }
+        require(!ended, "catalog-page-density"); const auto id = entry(raw, view.entries[view.count]);
+        require(id > last, "catalog-page-order"); last = id; ++view.count;
     }
     if (!v.at("next").is_null()) {
-        out.has_next = true; out.next = cursor(v.at("next"));
-        require(same_scope(out.next.scope, s) && out.next.resource_revision == out.resource_revision && (!out.count || out.next.after_object >= out.entries[out.count - 1].metadata.object), "catalog-page-next");
+        out->next = cursor(v.at("next")); cursor_check(*out->next, c, p, ns); const auto &next = out->next->value;
+        require(same_position(next.position, view.position) && next.after >= last && next.after > before, "catalog-page-next"); view.next = out->next.get();
     }
-    if (previous) require(same_scope(previous->scope, s) && previous->resource_revision == out.resource_revision && (!out.count || out.entries[0].metadata.object > previous->after_object) && (!out.has_next || out.next.after_object > previous->after_object), "catalog-page-continuation"); return out;
-}
-Intent intent(const Json &v, Connection c, uint64_t principal) {
-    v.fields({"reference", "scope", "owner", "principal", "operation", "namespace", "object", "kind"}); Intent out{}; const auto &r = v.at("reference"); r.fields({"definition", "digest"}); current(r.at("definition")); string(r.at("definition"), out.reference.definition); digest(r.at("digest"), out.reference.digest);
-    out.scope = scope(v.at("scope")); out.owner = {out.scope.resource.realm, small(v.at("owner"))}; out.principal = small(v.at("principal"), true);
-    out.identity = {full(v.at("operation")), full(v.at("namespace"))}; out.object = full(v.at("object"), true); out.kind = kind(v.at("kind"));
-    require(same_scope(out.scope, c.scope) && out.owner.realm == c.owner.realm && out.owner.pid == c.owner.pid && out.principal == principal, "catalog-intent-identity"); return out;
-}
-std::unique_ptr<Compiled> compiled(const Json &v, Connection c, uint64_t principal, Identity id, std::optional<transit_station_catalog_kind> expected_kind, std::optional<uint64_t> object) {
-    v.fields({"intent", "saved"}); auto out = std::make_unique<Compiled>(); out->intent = intent(v.at("intent"), c, principal);
-    require(out->intent.identity.operation == id.operation && out->intent.identity.namespace_id == id.namespace_id && (!expected_kind || out->intent.kind == *expected_kind) && (!object || out->intent.object == *object), "catalog-compiled-identity");
-    const auto &saved = v.at("saved"); saved.fields({"definition", "bytes"}); current(saved.at("definition")); out->saved.definition = saved.at("definition").string(); out->saved.bytes = bytes(saved.at("bytes"), max_intent);
-    require(!out->saved.bytes.empty(), "catalog-saved-intent"); return out;
-}
-std::unique_ptr<Prepared> prepared(const Json &v) { const auto &text = v.string(); require(!text.empty() && text.size() <= max_prepared, "catalog-prepared"); return std::make_unique<Prepared>(Prepared{Bytes(text.begin(), text.end())}); }
-State state(const Json &v, const Local &local) { v.fields({"outcome", "upload"}); return state_fields(v, local); }
-Disposition disposition(const Json &v, const Local &local) {
-    if (v.is_null()) return {}; v.fields({"input", "outcome", "diagnostic"}); return {true, small(v.at("input")), choice(v.at("outcome"), {"initialized", "policy_applied", "dependency_applied", "invalid_command", "blocked", "denied", "identity_conflict", "stale_policy"}), diagnostic(v.at("diagnostic"), local)};
-}
-Progress progress(const Json &v, const Local &local) {
-    const auto &entry = v.variant(); Progress out{};
-    if (entry.first == "pending") { entry.second.fields({}); return out; }
-    require(entry.first == "processed", "catalog-progress"); const auto &p = entry.second; p.fields({"disposition", "outcome", "upload"});
-    out.observation = TRANSIT_CATALOG_PROCESSED; out.disposition = disposition(p.at("disposition"), local); out.state = state_fields(p, local); return out;
-}
-std::unique_ptr<Next> next(const Json &v, const Local &local) {
-    const auto &entry = v.variant(); auto out = std::make_unique<Next>();
-    if (entry.first == "send") { out->kind = TRANSIT_CATALOG_NEXT_SEND; out->prepared = prepared(entry.second); }
-    else if (entry.first == "terminal") { out->kind = TRANSIT_CATALOG_NEXT_TERMINAL; out->outcome = outcome(entry.second, local); require(out->outcome->terminal, "catalog-terminal"); }
-    else { require(entry.first == "running" || entry.first == "upload_cancelled", "catalog-next"); entry.second.fields({}); out->kind = entry.first == "running" ? TRANSIT_CATALOG_NEXT_RUNNING : TRANSIT_CATALOG_NEXT_UPLOAD_CANCELLED; }
     return out;
+}
+}
+std::unique_ptr<NamespacePage> namespace_page(const Json &v, Connection c, uint64_t p, const Cursor *previous) {
+    return page<NamespacePage>(v, c, p, 0, previous, [&](const Json &raw, Namespace &out) { out = namespace_value(raw, c); return out.id; });
+}
+std::unique_ptr<TablePage> table_page(const Json &v, Connection c, uint64_t p, uint64_t ns, const Cursor *previous) {
+    require(v.at("consistency").string() == "independent", "catalog-page-consistency");
+    return page<TablePage>(v, c, p, ns, previous, [&](const Json &raw, transit_station_catalog_entry &out) {
+        out.interpretation = interpretation(raw.at("interpretation")); owns_object(c, out.interpretation.object); out.namespace_id = counter_value(raw.at("namespace"));
+        require(out.namespace_id == ns, "catalog-page-namespace"); string(raw.at("name"), out.name); out.position = position(raw.at("position")); out.changed_lsn = full(raw.at("changed_lsn"), true); return out.interpretation.object.object;
+    });
+}
+std::unique_ptr<Intent> intent(const Json &v, const Saved &s, Connection c, uint64_t p, const Identity *expected) {
+    auto out = std::make_unique<Intent>(); out->id = v.at("id"); current(out->id.at("definition")); (void)bytes(out->id.at("digest"), 32, 32);
+    const auto &variant = v.at("binding").variant(); out->binding = variant.second; auto &view = out->value; view.identity.namespace_id = counter_value(v.at("namespace"));
+    if (variant.first == "table") {
+        view.kind = TRANSIT_CATALOG_TABLE; binding_check(out->binding, c, p); view.identity.operation = full(out->binding.at("identity").at("operation"));
+    } else {
+        require(variant.first == "name_assertion", "catalog-work-kind"); view.kind = TRANSIT_CATALOG_NAME_ASSERTION; assertion_check(out->binding); owns(out->binding.at("connection"), c, p);
+        view.identity.operation = full(out->binding.at("operation")); require(counter_value(out->binding.at("namespace")) == view.identity.namespace_id, "catalog-intent-namespace");
+    }
+    require(!expected || (expected->operation == view.identity.operation && expected->namespace_id == view.identity.namespace_id), "catalog-intent-identity");
+    const auto &sv = s.wire.variant(); require(sv.first == variant.first && counter_value(sv.second.at("namespace")) == view.identity.namespace_id, "catalog-saved-binding");
+    if (view.kind == TRANSIT_CATALOG_NAME_ASSERTION) require(equal(sv.second, out->binding), "catalog-saved-assertion");
+    out->saved = saved(s.wire); view.saved = out->saved.get(); return out;
+}
+std::unique_ptr<Compiled> compiled(const Json &v, Connection c, uint64_t p, Identity expected) {
+    auto out = std::make_unique<Compiled>(); const auto s = saved(v.at("saved")); out->intent = intent(v.at("summary"), *s, c, p, &expected); return out;
+}
+std::unique_ptr<Reference> staged(const Json &v, const Intent &i, Connection c, uint64_t p) {
+    auto out = reference(v); const auto &r = out->value; owns(out->wire.variant().second.at("connection"), c, p);
+    require(r.kind == i.value.kind && r.identity.operation == i.value.identity.operation && r.identity.namespace_id == i.value.identity.namespace_id && equal(reference_binding(*out), i.binding), "catalog-staged-binding"); return out;
+}
+std::unique_ptr<Observation> observation(const Json &v, const Reference &r) {
+    auto out = std::make_unique<Observation>(); out->reference = reference(r.wire); auto &view = out->value; view.reference = out->reference.get();
+    const auto &binding = reference_binding(r); const auto &outer = v.variant(); view.kind = choice(Json::string(outer.first), {"ddl", "rows", "name_assertion"});
+    require(view.kind == expected_kind(r.value.kind, binding), "catalog-observation-kind"); const auto &variant = outer.second.variant(); const auto &raw = variant.second;
+    if (variant.first == "not_observed") { raw.fields({}); view.state = TRANSIT_CATALOG_NOT_OBSERVED; return out; }
+    require(equal(raw.at("binding"), binding), "catalog-observation-binding");
+    if (view.kind == TRANSIT_CATALOG_NAME_OBSERVATION) {
+        require(variant.first == "outcome", "catalog-name-outcome"); const auto s = choice(raw.at("state"), {"unchanged", "rejected"});
+        view.state = s == 0 ? TRANSIT_CATALOG_UNCHANGED : TRANSIT_CATALOG_REJECTED; view.has_reason = true; view.reason = reason(raw.at("reason")); view.has_position = true; view.position = position(raw.at("position")); return out;
+    }
+    if (variant.first == "committed") {
+        view.state = TRANSIT_CATALOG_COMMITTED; view.has_commit = true; auto &commit = view.commit; commit.definition = stored(raw.at("resulting")); const auto &result = raw.at("outcome");
+        commit.position = position(result.at("position")); commit.matched = full(result.at("matched"), true); commit.affected = full(result.at("affected"), true); commit.live_rows = full(result.at("live_rows"), true);
+        require(commit.affected <= commit.matched && same_object(commit.definition.interpretation.object, object(binding.at("target"))), "catalog-commit-result"); return out;
+    }
+    const auto state = choice(Json::string(variant.first), {"admitted", "rejected", "cancelled"}); view.state = state + TRANSIT_CATALOG_ADMITTED;
+    view.has_phase = true; view.phase = choice(raw.at("phase"), {"admitted", "ready", "settled", "rejected", "cancelled"});
+    require(state == 0 ? view.phase <= TRANSIT_CATALOG_SETTLED : view.phase == state + 2, "catalog-observation-phase");
+    (void)content(raw.at("intent")); view.has_reason = true; view.reason = reason(raw.at("reason"));
+    if (view.kind == TRANSIT_CATALOG_ROWS) { const auto &b = raw.at("basis"); (void)interpretation(b.at("interpretation")); (void)position(b.at("position")); (void)full(b.at("changed_lsn"), true); }
+    return out;
+}
+std::unique_ptr<Preview> preview(const Json &v, const Intent &i) {
+    auto out = std::make_unique<Preview>(); auto &view = out->value; const auto &variant = v.variant(); const auto &raw = variant.second;
+    view.kind = choice(Json::string(variant.first), {"ddl", "rows", "name_assertion"}); require(view.kind == expected_kind(i.value.kind, i.binding) && equal(raw.at("binding"), i.binding), "catalog-preview-binding");
+    view.has_current = !raw.at("current").is_null();
+    if (view.kind == TRANSIT_CATALOG_NAME_OBSERVATION) {
+        view.position = position(raw.at("position")); if (view.has_current) view.current_name = interpretation(raw.at("current")); view.matches = raw.at("matches").boolean(); return out;
+    }
+    view.position = position(raw.at("directory_position")); view.has_reason = true; view.reason = reason(raw.at("reason"));
+    if (view.has_current) { const auto &b = raw.at("current"); view.current = {stored(b.at("interpretation")), position(b.at("position")), full(b.at("changed_lsn"), true), full(b.at("row_count"), true)}; }
+    if (view.kind == TRANSIT_CATALOG_DDL) {
+        view.has_work = !raw.at("work").is_null(); if (view.has_work) view.work = choice(raw.at("work"), {"metadata", "validate_rows", "rewrite_rows"});
+        view.rebuild_key = raw.at("rebuild_key").boolean(); view.has_schema_fingerprint = !raw.at("schema_fingerprint").is_null(); if (view.has_schema_fingerprint) digest(raw.at("schema_fingerprint"), view.schema_fingerprint);
+    }
+    return out;
+}
+std::unique_ptr<SnapshotStatus> snapshot_status(const Json &v, const Owner &o) {
+    require(equal(v.at("owner"), o.wire), "catalog-snapshot-status-owner"); auto out = std::make_unique<SnapshotStatus>(); out->owner = owner(v.at("owner")); auto &view = out->value;
+    view.owner = out->owner.get(); view.current_interpretation = interpretation(v.at("current_interpretation")); require(same_object(view.current_interpretation.object, o.value.object), "catalog-snapshot-current-object");
+    view.current_position = position(v.at("current_position")); view.retired = v.at("retired").boolean(); view.released = v.at("released").boolean(); view.authority = read_authority(v.at("authority"));
+    if (!v.at("snapshot").is_null()) { out->snapshot = snapshot(v.at("snapshot")); require(equal(out->snapshot->owner->wire, o.wire), "catalog-snapshot-owner"); view.snapshot = out->snapshot.get(); }
+    return out;
+}
+std::unique_ptr<SnapshotMetadata> snapshot_metadata(const Json &v, const Snapshot &s) {
+    require(equal(v.at("snapshot"), s.wire), "catalog-snapshot-metadata-binding"); auto out = std::make_unique<SnapshotMetadata>(); out->snapshot = snapshot(v.at("snapshot")); auto &view = out->value;
+    view.snapshot = out->snapshot.get(); view.interpretation = stored(v.at("interpretation")); view.accepted = position(v.at("accepted")); view.changed_lsn = full(v.at("changed_lsn"), true); view.row_count = full(v.at("row_count"), true);
+    view.schema = schema(v.at("schema"), out->arena); view.authority = read_authority(v.at("authority"));
+    require(same_object(view.interpretation.interpretation.object, s.owner->value.object) && view.schema.object == s.owner->value.object.object, "catalog-retained-schema"); return out;
 }
 }

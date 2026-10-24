@@ -100,6 +100,7 @@ pub fn observe(pointer: *Client, observer: *q.wire.observability.telemetry.Runti
     const client = cast(pointer);
     client.wire.observer = observer;
     if (client.table_wire) |*wire| wire.observer = observer;
+    if (client.relational) |relational| relational.service.observer = observer;
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
@@ -109,6 +110,7 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     defer client.busy.store(false, .release);
     client.wire.last_rejection = null;
     if (client.table_wire) |*wire| wire.last_rejection = null;
+    if (client.relational) |relational| relational.service.last_rejection = null;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -124,7 +126,7 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     }
     var detail: q.fuze.Sql.Binding = .{};
     const result = apply(client, alloc, action.value, &detail) catch |err| {
-        const original_rejection = if (client.table_wire) |wire| wire.last_rejection orelse client.wire.last_rejection else client.wire.last_rejection;
+        const original_rejection = if (action.value == .relational and client.relational != null) client.relational.?.service.last_rejection orelse client.wire.last_rejection else if (client.table_wire) |wire| wire.last_rejection orelse client.wire.last_rejection else client.wire.last_rejection;
         var diagnostic = q.ApiDiagnostic.project(action.value, err, detail, action.value == .submit, identity) catch null;
         if (action.value == .relational) if (client.relational) |relational| if (diagnostic) |*value| relational.session.diagnostic(action.value.relational, err, value);
         if (action.value != .relational) if (client.client) |unified| q.ApiDiagnostic.qualify(&diagnostic, unified.connection);

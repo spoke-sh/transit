@@ -38,6 +38,77 @@ describe("relational browser boundaries", () => {
     ])
       expect(validateRelational({ query: { page: { ...page, ...change } } })).toBe(false);
   });
+  it("validates direct definitions and independent partition cuts", async () => {
+    const scope = { realm: 1, resource: 7, catalog: "18446744073709551615" };
+    const object = { scope, branch: "1", object: "18446744073709551615" };
+    const binding = {
+      definition: reference.definition,
+      connection: { scope, branch: "1", audience: 3, principal: 9, role: null },
+      namespace: 1,
+      name: "items",
+      interpretation: {
+        interpretation: { object, revision: "18446744073709551615", digest: "04".repeat(32) },
+        content: { bytes: "1024", sha256: "04".repeat(32) },
+        schema_fingerprint: "05".repeat(32),
+        retired: false,
+      },
+    };
+    const position = { partition: "18446744073709551615", next_lsn: "18446744073709551615" };
+    const opened = {
+      reference,
+      description: {
+        definition: reference.definition,
+        plan: reference.plan,
+        sources: [{ alias: "items", binding, position }],
+        columns: [{ name: "id", type: { int64: {} }, optional: false, nullable: false }],
+        join: null,
+        grouped: false,
+        executed: false,
+      },
+      cuts: [
+        {
+          object,
+          position,
+          commitment: "06".repeat(32),
+          schema: binding.interpretation.schema_fingerprint,
+        },
+      ],
+      complete_coverage: false,
+    };
+    expect(validateRelational({ query: { opened } })).toBe(true);
+    const shifted = structuredClone(opened);
+    shifted.cuts[0]!.position = { ...position, next_lsn: "1" };
+    expect(validateRelational({ query: { opened: shifted } })).toBe(false);
+    const inconsistent = structuredClone(opened);
+    inconsistent.description.sources[0]!.binding.interpretation.content.sha256 = "07".repeat(32);
+    expect(validateRelational({ query: { opened: inconsistent } })).toBe(false);
+    for (const bytes of ["0", "01", "18446744073709551616"]) {
+      const corrupt = structuredClone(opened);
+      corrupt.description.sources[0]!.binding.interpretation.content.bytes = bytes;
+      expect(validateRelational({ query: { opened: corrupt } })).toBe(false);
+    }
+    const replaced = structuredClone(opened);
+    replaced.description.sources[0]!.binding.name = "another_name";
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ query: { opened: replaced } }), { status: 200 }),
+        ),
+    );
+    await expect(
+      relationalQuery({
+        query: {
+          open: {
+            id: reference.id,
+            statement: { sql: "SELECT id FROM items", routes: [0], namespace: 1 },
+            sources: [{ alias: "items", binding, position }],
+          },
+        },
+      }),
+    ).rejects.toBeInstanceOf(BoardError);
+  });
   it("rejects a valid page belonging to another active query", async () => {
     vi.stubGlobal(
       "fetch",

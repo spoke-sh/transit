@@ -74,11 +74,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
         if (catalog_client != null) s.fuze.Types.Json.preflight(line, .{ .bytes = host.catalog_line_bytes, .depth = 97, .tokens = 1024 * 1024, .fields = 256 }) catch |err| {
-            try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
+            try catalogInputFailure(&output.interface, err);
             continue;
         };
         const request = (if (catalog_client != null) s.protocol.Json.parseFromSlice(host.Request, arena.allocator(), line) else std.json.parseFromSlice(host.Request, arena.allocator(), line, .{})) catch |err| {
-            try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
+            if (catalog_client != null) {
+                try catalogInputFailure(&output.interface, err);
+            } else try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
             continue;
         };
         defer request.deinit();
@@ -98,6 +100,12 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };
     }
+}
+fn catalogInputFailure(out: *std.Io.Writer, cause: anyerror) !void {
+    var buffer: ?*abi.Buffer = null;
+    defer abi.Api.station_buffer_destroy(buffer);
+    const status = abi.catalog_client.invalidEnvelope(cause, &buffer);
+    try respond(out, @backingInt(status), if (buffer) |owned| abi.Api.station_buffer_data(owned)[0..abi.Api.station_buffer_size(owned)] else "null");
 }
 fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, catalog_client: ?*abi.catalog_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     var buffer: ?*abi.Buffer = null;

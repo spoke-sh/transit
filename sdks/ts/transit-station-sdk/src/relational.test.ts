@@ -3,8 +3,8 @@ import test from "node:test";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Credential, ProcessRef, ResourceRef, IncompatibleNative } from "@transit/client";
-import { Connection, Scope } from "./catalog.ts";
+import { Credential, ResourceRef, IncompatibleNative } from "@transit/client";
+import { Basis, Connection, Scope, Snapshot } from "./catalog.ts";
 import * as r from "./relational.ts";
 import contract from "./contract.json" with { type: "json" };
 
@@ -15,7 +15,7 @@ const reference = {
   basis: "03".repeat(32),
 };
 const options: r.Options = {
-  consistency: "per_resource_snapshot_vector",
+  consistency: "independent_table_snapshots",
   residentBytes: 16777216n,
   spillBytes: (1n << 64n) - 1n,
   resultBytes: 8388608n,
@@ -96,6 +96,94 @@ test("relational responses cannot change references, coverage or the int64 profi
     });
 });
 
+test("relational opens retain complete source bindings and full-width partition cuts", async () => {
+  const max = "18446744073709551615";
+  const connection = {
+    scope: { realm: 1, resource: 7, catalog: max },
+    branch: "1",
+    audience: 3,
+    principal: 9,
+    role: null,
+  };
+  const object = { scope: connection.scope, branch: "1", object: max };
+  const binding = {
+    definition: contract.definition,
+    connection,
+    namespace: 1,
+    name: "items",
+    interpretation: {
+      interpretation: { object, revision: max, digest: "04".repeat(32) },
+      content: { bytes: "1024", sha256: "04".repeat(32) },
+      schema_fingerprint: "06".repeat(32),
+      retired: false,
+    },
+  };
+  const pin = {
+    owner: { definition: contract.definition, connection, object, operation: max },
+    content: { bytes: max, sha256: "07".repeat(32) },
+  };
+  const source = {
+    basis: Basis.restore(JSON.stringify(binding)),
+    snapshot: Snapshot.restore(JSON.stringify(pin)),
+  };
+  const statement = { sql: "SELECT id FROM items", routes: [0] };
+  const opened = {
+    reference,
+    description: {
+      definition: contract.definition,
+      plan: reference.plan,
+      sources: [{ alias: "items", binding, position: { partition: max, next_lsn: max } }],
+      columns: [{ name: "id", type: { int64: {} }, nullable: false, optional: false }],
+      join: null,
+      grouped: false,
+      executed: false,
+    },
+    cuts: [
+      {
+        object,
+        position: { partition: max, next_lsn: max },
+        commitment: "08".repeat(32),
+        schema: binding.interpretation.schema_fingerprint,
+      },
+    ],
+    complete_coverage: false,
+  };
+  await withHost({ opened }, async (client, requests) => {
+    const result = await client.openQuery(reference.id, statement, [source]);
+    assert.equal(result.cuts[0]?.position.nextLsn, (1n << 64n) - 1n);
+    assert.equal(result.cuts[0]?.object.objectId, (1n << 64n) - 1n);
+    assert.equal(result.description.sources[0]?.basis.save(), source.basis.save());
+    assert(Object.isFrozen(result.cuts[0]?.position));
+    const sent = (await requests()).find((request) =>
+      JSON.stringify(request).includes('"snapshots"'),
+    );
+    assert.deepEqual(sent, {
+      unified_query: {
+        relational: {
+          open: {
+            id: reference.id,
+            statement: { ...statement, namespace: 1 },
+            bindings: [binding],
+            snapshots: [pin],
+          },
+        },
+      },
+    });
+  });
+  for (const change of ["connection", "definition", "position"] as const) {
+    const altered = structuredClone(opened);
+    if (change === "connection") altered.description.sources[0]!.binding.connection.audience++;
+    else if (change === "definition")
+      altered.description.sources[0]!.binding.interpretation.interpretation.digest = "09".repeat(
+        32,
+      );
+    else altered.cuts[0]!.position.next_lsn = "1";
+    await withHost({ opened: altered }, async (client) => {
+      await assert.rejects(client.openQuery(reference.id, statement, [source]), IncompatibleNative);
+    });
+  }
+});
+
 async function withHost(
   response: object,
   run: (client: r.Client, requests: () => Promise<unknown[]>) => Promise<void>,
@@ -113,7 +201,7 @@ for await (const line of createInterface({input: process.stdin})) {
   const action=JSON.parse(line); let value;
   if ('hello' in action) value={host_version:1,station_version:1,transit_version:1};
   else if ('growing_capabilities' in action) value={definition:${JSON.stringify(contract.definition)}};
-  else if ('capabilities' in action.unified_query.relational) value={relational:{capabilities:{definition:${JSON.stringify(contract.definition)},sources:2,active_queries:1,page_rows:1,interactive:true,captured:false,maintained:false,consistency:'per_resource_snapshot_vector'}}};
+  else if ('capabilities' in action.unified_query.relational) value={relational:{capabilities:{definition:${JSON.stringify(contract.definition)},sources:2,active_queries:1,page_rows:1,interactive:true,captured:false,maintained:false,consistency:'independent_table_snapshots'}}};
   else value={relational:${JSON.stringify(response)}};
   console.log(JSON.stringify({status:0,value}));
 }
@@ -124,7 +212,7 @@ for await (const line of createInterface({input: process.stdin})) {
     const client = await r.Client.open(
       { url: "http://127.0.0.1:1", profile: "native_v1", nativeHost: path },
       new Credential(1, 9, "unused.seed"),
-      [new Connection(new ProcessRef(1, 3), new Scope(new ResourceRef(1, 7), (1n << 64n) - 1n))],
+      [new Connection(new Scope(new ResourceRef(1, 7), (1n << 64n) - 1n), 3)],
       options,
     );
     try {

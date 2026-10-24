@@ -131,10 +131,16 @@ Resolve metadata through the configured direct owner before compiling:
 ```typescript
 const definition = await client.lookupTable("people", 1);
 if (definition === undefined) throw new Error("Table not found");
-const description = await client.compileSql(definition.source, "people",
-  "SELECT COUNT(*) AS n FROM people", { pages: 100n, segments: 100n, resultBytes: 1048576n });
-const bundle = await client.authorizeBundle(description,
-  definition.capture(workerPrincipal, pinOperation));
+const description = await client.compileSql(
+  definition.source,
+  "people",
+  "SELECT COUNT(*) AS n FROM people",
+  { pages: 100n, segments: 100n, resultBytes: 1048576n },
+);
+const bundle = await client.authorizeBundle(
+  description,
+  definition.capture(workerPrincipal, pinOperation),
+);
 ```
 
 Lookup starts no query and acquires no pin. A concurrent change can invalidate the
@@ -160,3 +166,9 @@ work with a newly signed bundle. The complete bundle bound is 25,614 bytes.
 control using the current credential. Persist, submit and observe that control.
 It preserves the original execution proof and source cut after credential rotation
 and grants no source scan or query resumption.
+
+A Table result manifest exposes `tablePosition` when its publisher supplied an
+accepted direct-storage frontier. It contains the exact resource, partition,
+accepted position, source contract and schema commitment. The decoder rejects a
+frontier for a different resource or schema. This position remains separate from
+the retained cut commitment and from native resource revisions.

@@ -1,87 +1,68 @@
-%% Installed general Table lifecycle, shared by Erlang and the Elixir adapter.
+%% Installed direct lifecycle, shared by independently installed Erlang/Elixir APIs.
 -module(beam_catalog_controller).
 -include_lib("transit_station_sdk/include/transit_catalog.hrl").
 -export([main/2]).
-report(V) -> io:put_chars([json:encode(V),"\n"]).
-result({ok,V}) -> V;
-result({error,E}) -> throw({failure,E});
-result({uncertain,_,E}) -> throw({failure,E}).
-scope(#{<<"realm">>:=R,<<"resource">>:=K,<<"catalog">>:=C}) -> #transit_catalog_scope{resource=#transit_resource{realm=R,resource=K},catalog=binary_to_integer(C)}.
-connect(A,Cfg) ->
-    Conn=maps:get(<<"connection">>,Cfg),Scope=scope(maps:get(<<"scope">>,Conn)),Realm=(Scope#transit_catalog_scope.resource)#transit_resource.realm,
-    Config=#transit_config{url=maps:get(<<"url">>,Cfg),profile=native_v1,timeout_ms=case maps:get(<<"table_service_url">>,Cfg,null) of null->10000; _->30000 end},
-    Identity=#transit_credential{realm=Realm,principal=maps:get(<<"principal">>,Conn),seed_file=maps:get(<<"seed_file">>,Cfg)},
-    Connection=#transit_catalog_connection{owner=#transit_process{realm=Realm,pid=maps:get(<<"owner">>,Conn)},scope=Scope,role=case maps:get(<<"role">>,Conn,null) of null->undefined; R->R end,namespace=maps:get(<<"namespace">>,Conn,1)},result(A:open(Config,Identity,Connection,case maps:get(<<"table_service_url">>,Cfg,null) of null->undefined; U->U end)).
-persist(Path,Bytes) ->
-    {ok,F}=file:open(Path,[write,binary,raw]),try ok=file:change_mode(Path,8#600),ok=file:write(F,Bytes),ok=file:sync(F) after ok=file:close(F) end.
-finish(A,C,#transit_catalog_compiled{intent=#transit_catalog_intent{reference=Reference},saved=#transit_catalog_saved_intent{definition=Definition,bytes=Bytes}},Root) ->
-    persist(filename:join(Root,"intent.json"),json:encode(#{definition=>Definition,bytes=>binary:encode_hex(Bytes,lowercase)})),
-    advance(A,C,Reference,Root,erlang:monotonic_time(millisecond)+120000).
-advance(A,C,Reference,Root,Deadline) ->
-    true=erlang:monotonic_time(millisecond)<Deadline,
-    case result(A:next(C,Reference)) of
-        #transit_catalog_next{kind=terminal,outcome=Outcome}->Outcome;
-        #transit_catalog_next{kind=running}->advance(A,C,Reference,Root,Deadline);
-        #transit_catalog_next{kind=send,prepared=#transit_catalog_prepared{bytes=Bytes}=Prepared}->
-            persist(filename:join(Root,"step.json"),Bytes),#transit_admission{position=Position}=result(A:submit(C,Prepared)),
-            persist(filename:join(Root,"receipt.json"),integer_to_binary(Position)),
-            processed(A,C,Reference,Prepared,Position,Root,Deadline)
-    end.
-processed(A,C,Reference,Prepared,Position,Root,Deadline) ->
-    true=erlang:monotonic_time(millisecond)<Deadline,
-    case result(A:progress(C,Reference,Prepared,Position,true)) of
-        #transit_catalog_progress{observation=pending}->processed(A,C,Reference,Prepared,Position,Root,Deadline);
-        #transit_catalog_progress{observation=processed,disposition=undefined,outcome=#transit_catalog_outcome{terminal=true}=Outcome}->Outcome;
-        #transit_catalog_progress{observation=processed,disposition=undefined}->advance(A,C,Reference,Root,Deadline)
-    end.
-identity(Base,Offset) -> #transit_catalog_identity{operation=Base+Offset,namespace=Base+Offset+100000}.
-atom(V) -> {value,{atom,V}}.
-assignment(Column,Value) -> #transit_catalog_assignment{column=Column,value=Value}.
-scenario(A,C,Cfg,Root,Index) ->
-    Base=1100+Index*100,Object=12001+Index*10,Name= <<"sdk_people_",(integer_to_binary(Index))/binary>>,
-    #transit_catalog_description{configuration=#transit_catalog_configuration{scope=Scope},subject=#transit_catalog_subject{principal=Principal}}=result(A:describe(C)),
-    Scope=scope(maps:get(<<"scope">>,maps:get(<<"connection">>,Cfg))),Principal=maps:get(<<"principal">>,maps:get(<<"connection">>,Cfg)),
-    Create=result(A:compile_sql(C,<<"CREATE TABLE ",Name/binary," (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))">>,identity(Base,0),Object)),
-    #transit_catalog_outcome{phase=applied}=finish(A,C,Create,Root),
-    #transit_catalog_definition{metadata=OriginalMetadata,schema=#transit_catalog_schema{columns=[_,#transit_catalog_column{type={structure,_}},_]}=OriginalSchema}=result(A:lookup(C,Name)),
-    Basis=A:basis(OriginalMetadata),Payload={value,{structure,[atom({binary,<<0,128,255>>}),atom({utf8,<<"東京"/utf8>>})]}},Amount=atom({decimal,123456789012345678901234567890}),
-    Insert=result(A:prepare(C,Name,identity(Base,1),{mutate,Basis,{insert,[[assignment(3,Amount),assignment(1,atom({signed,1})),assignment(2,Payload)]]}})),
-    #transit_catalog_outcome{counts=#transit_catalog_counts{matched=1,changed=1}}=Applied=finish(A,C,Insert,Root),
-    Predicate=[{compare,1,eq,{signed,1}}],Update=result(A:prepare(C,Name,identity(Base,2),{mutate,Basis,{update,[assignment(3,Amount)],Predicate}})),
-    #transit_catalog_outcome{counts=#transit_catalog_counts{matched=1,changed=0}}=finish(A,C,Update,Root),
-    Alter=result(A:prepare(C,Name,identity(Base,3),{alter,Basis,{add,<<"enabled">>,boolean,false,atom({boolean,true}),undefined,plain,none}})),
-    #transit_catalog_outcome{phase=applied}=finish(A,C,Alter,Root),
-    {error,_}=A:prepare(C,Name,identity(Base,4),{drop,Basis,false}),
-    #transit_catalog_definition{metadata=CurrentMetadata}=result(A:lookup(C,Name)),Current=A:basis(CurrentMetadata),
-    Delete=result(A:prepare(C,Name,identity(Base,5),{mutate,Current,{delete,Predicate}})),
-    #transit_catalog_outcome{counts=#transit_catalog_counts{matched=1,changed=1}}=finish(A,C,Delete,Root),
-    #transit_catalog_outcome{phase=applied}=finish(A,C,result(A:prepare(C,Name,identity(Base,6),{drop,Current,false})),Root),
-    #transit_catalog_outcome{phase=applied}=finish(A,C,result(A:compile_sql(C,<<"CREATE TABLE ",Name/binary," (replacement TEXT)">>,identity(Base,7),Object+1)),Root),
-    result(A:close(C)),Replacement=connect(A,Cfg),
-    try
-        #transit_catalog_intent{object=Object,reference=Reference}=result(A:load(Replacement,Insert#transit_catalog_compiled.saved)),
-        #transit_catalog_state{outcome=Applied}=result(A:status(Replacement,Reference)),
-        #transit_catalog_definition{metadata=#transit_catalog_metadata{object=NewObject}}=result(A:lookup(Replacement,Name)),true=NewObject=:=Object+1,
-        #transit_catalog_historical_definition{metadata=OriginalMetadata,schema=OriginalSchema}=result(A:definition(Replacement,Object,OriginalMetadata#transit_catalog_metadata.revision)),
-        undefined=result(A:definition(Replacement,Object,999)),#transit_catalog_page{entries=Entries}=result(A:list(Replacement)),true=Entries=/=[]
-    after A:close(Replacement) end,
-    Language=case A of transit_catalog-> <<"erlang">>; _-> <<"elixir">> end,
-    #{profile=><<"installed-",Language/binary,"-general-table">>,original_object=>integer_to_binary(Object),replacement_object=>integer_to_binary(Object+1),counts=>#{matched=><<"1">>,changed=><<"1">>}}.
-loop(A,C,Cfg,Root) ->
-    case io:get_line("") of
-        eof->ok;
-        Line->case json:decode(unicode:characters_to_binary(Line)) of
-            #{<<"close">>:=_}->ok;
-            #{<<"denied">>:=_}->Fresh=connect(A,Cfg),try {error,#transit_error{status=4}}=A:describe(Fresh) after A:close(Fresh) end,report(#{status=>0,value=>#{denied=>true}}),loop(A,C,Cfg,Root);
-            #{<<"scenario">>:=#{<<"index">>:=Index}}->report(#{status=>0,value=>scenario(A,C,Cfg,Root,Index)}),loop(A,C,Cfg,Root)
-        end
-    end.
-main(A,[Path]) ->
-    try
-        {ok,Bytes}=file:read_file(Path),Cfg=json:decode(Bytes),Client=connect(A,Cfg),
-        try report(#{ready=>true}),loop(A,Client,Cfg,filename:dirname(Path)),report(#{closed=>true}) after A:close(Client) end
-    catch Class:Reason:Stack ->
-        Safe=case Reason of {failure,#transit_error{kind=K,phase=P}}->{K,P}; Atom when is_atom(Atom)->Atom; _->assertion_failed end,
-        Locations=[{M,F,case Args of N when is_integer(N)->N; _->arguments end,Info} || {M,F,Args,Info}<-Stack],
-        io:format(standard_error,"Catalog SDK proof failed: ~p ~p ~p~n",[Class,Safe,Locations]),halt(1)
-    end.
+report(V)->io:put_chars([json:encode(V),"\n"]).
+result({ok,V})->V;
+result(Failure)->error({unexpected_catalog_result,Failure}).
+persist(Path,Bytes)->{ok,F}=file:open(Path,[write,binary,raw]),try ok=file:change_mode(Path,8#600),ok=file:write(F,Bytes),ok=file:sync(F) after ok=file:close(F) end.
+save(A,Root,Name,V)->persist(filename:join(Root,Name),result(A:save(V))).
+restore(A,Root,Name,Kind)->{ok,Data}=file:read_file(filename:join(Root,Name)),result(A:restore(Kind,Data)).
+finish(A,C,#transit_catalog_compiled{intent=I,saved=S},Root)->
+    save(A,Root,"work.json",S),R=result(A:stage(C,I)),save(A,Root,"work-reference.json",R),advance(A,C,R,result(A:admit(C,R)),16).
+advance(A,C,R,#transit_catalog_observation{state=admitted},N) when N>0->advance(A,C,R,result(A:execute(C,R,32)),N-1);
+advance(_,_,_,#transit_catalog_observation{state=committed}=V,_)->V.
+uncertain(A,Original,{uncertain,Recovery,#transit_error{kind=unknown_outcome,status=6,diagnostic=D,diagnostic_invalid=false}})->
+    true=result(A:save(Recovery))=:=result(A:save(Original)),<<"unknown">>=maps:get(<<"outcome">>,D),ok.
+identity(Operation)->#transit_catalog_identity{operation=Operation,namespace=1}.
+compile(A,C,Sql,O,Object)->result(A:compile_sql(C,Sql,identity(O),Object)).
+object(#transit_catalog_basis{interpretation=#transit_catalog_stored{interpretation=#transit_catalog_interpretation{object=#transit_catalog_object{object=O}}}})->O.
+snapshot(A,Root)->restore(A,Root,"snapshot.json",snapshot).
+main(A,[ConfigFile])->
+    {ok,Bytes}=file:read_file(ConfigFile),Cfg=json:decode(Bytes),Conn=maps:get(<<"connection">>,Cfg),S=maps:get(<<"scope">>,Conn),Realm=maps:get(<<"realm">>,S),
+    Scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm,resource=maps:get(<<"resource">>,S)},catalog=binary_to_integer(maps:get(<<"catalog">>,S))},
+    Connection=#transit_catalog_connection{scope=Scope,audience=maps:get(<<"audience">>,Conn),branch=binary_to_integer(maps:get(<<"branch">>,Conn)),role=case maps:get(<<"role">>,Conn) of null->undefined;R->R end},
+    C=result(A:open(#transit_config{url=maps:get(<<"url">>,Cfg),profile=native_v1,timeout_ms=10000},#transit_credential{realm=Realm,principal=maps:get(<<"principal">>,Conn),seed_file=maps:get(<<"seed_file">>,Cfg)},Connection,maps:get(<<"service_url">>,Cfg))),
+    Mode=maps:get(<<"mode">>,Cfg),Root=filename:join(filename:dirname(ConfigFile),Mode),ok=filelib:ensure_dir(filename:join(Root,"saved")),
+    Offset=case Mode of <<"erlang">>->0;<<"elixir">>->10 end,Name= <<Mode/binary,"_items">>,Object=18446744073709551614-Offset,
+    report(#{ready=>true}),try loop(A,C,Root,Name,Object,Offset) after A:close(C) end,report(#{closed=>true}).
+loop(A,C,Root,Name,Object,Offset)->
+    case io:get_line("") of eof->ok;Line->case json:decode(unicode:characters_to_binary(Line)) of
+        #{<<"close">>:=_}->ok;
+        Action->[{Command,_}]=maps:to_list(Action),Value=phase(Command,A,C,Root,Name,Object,Offset),report(#{status=>0,value=>Value}),loop(A,C,Root,Name,Object,Offset)
+    end end.
+phase(<<"prepare">>,A,C,Root,Name,Object,Offset)->
+    #transit_catalog_description{subject=#transit_catalog_subject{principal=101}}=result(A:describe(C)),#transit_catalog_namespace{name= <<"public">>}=result(A:namespace(C,1)),
+    #transit_catalog_page{entries=Namespaces}=result(A:namespaces(C)),true=lists:any(fun(#transit_catalog_namespace{id=N})->N=:=1 end,Namespaces),
+    finish(A,C,compile(A,C,<<"CREATE TABLE ",Name/binary," (id BIGINT PRIMARY KEY, payload BINARY)">>,1+Offset,Object),Root),
+    #transit_catalog_metadata{basis=B,row_count=0}=result(A:lookup(C,Name)),Object=object(B),
+    Rows=[[#transit_catalog_assignment{column=1,value={value,{atom,{signed,I}}}},#transit_catalog_assignment{column=2,value={value,{atom,{binary,binary:copy(<<I>>,32768)}}}}]||I<-lists:seq(0,8)],
+    Work=result(A:prepare(C,Name,identity(2+Offset),{mutate,B,{insert,Rows},bulk})),#transit_catalog_preview{current=#transit_catalog_current{row_count=0}}=result(A:preview(C,Work#transit_catalog_compiled.intent)),
+    save(A,Root,"intent.json",Work#transit_catalog_compiled.saved),Loaded=result(A:load(C,restore(A,Root,"intent.json",intent))),Original=result(A:stage(C,Loaded)),save(A,Root,"original.json",Original),
+    #transit_catalog_observation{state=admitted}=result(A:admit(C,Original)),uncertain(A,Original,A:execute(C,Original,32)),#{uncertain=>true};
+phase(<<"recover">>,A,C,Root,Name,_,Offset)->
+    Original=restore(A,Root,"original.json",reference),#transit_catalog_observation{state=committed,commit=#transit_catalog_commit{matched=9,affected=9,live_rows=9}}=Observed=result(A:inspect(C,Original)),Observed=result(A:execute(C,Original,32)),
+    Current=result(A:lookup(C,Name)),Acquisition=result(A:prepare_snapshot(C,Current,90000+Offset)),save(A,Root,"basis.json",Current#transit_catalog_metadata.basis),save(A,Root,"acquisition.json",Acquisition),
+    uncertain(A,Acquisition,A:acquire_snapshot(C,Acquisition)),#{retention_uncertain=>true};
+phase(<<"retained">>,A,C,Root,_,_,_)->
+    Acquisition=restore(A,Root,"acquisition.json",snapshot_acquisition),#transit_catalog_snapshot_status{released=false,snapshot=S}=result(A:snapshot_status(C,Acquisition#transit_catalog_snapshot_acquisition.owner)),true=is_record(S,transit_catalog_snapshot),
+    save(A,Root,"snapshot.json",S),#transit_catalog_snapshot_metadata{accepted=Expected,row_count=9,schema=#transit_catalog_schema{columns=Columns}}=result(A:snapshot_metadata(C,S)),Expected=Acquisition#transit_catalog_snapshot_acquisition.expected,2=length(Columns),#{retained=>true};
+phase(<<"denied">>,A,C,Root,_,_,_)->
+    {error,#transit_error{kind=access_denied,status=4,diagnostic=D}}=A:snapshot_metadata(C,snapshot(A,Root)),<<"access">>=maps:get(<<"category">>,D),#{denied=>true};
+phase(<<"metadata">>,A,C,Root,_,_,_)->
+    #transit_catalog_snapshot_metadata{interpretation=I,row_count=Rows,schema=#transit_catalog_schema{columns=Columns}}=result(A:snapshot_metadata(C,snapshot(A,Root))),#transit_catalog_basis{interpretation=I}=restore(A,Root,"basis.json",basis),#{rows=>Rows,columns=>length(Columns)};
+phase(<<"retire">>,A,C,Root,Name,Object,Offset)->
+    #transit_catalog_observation{commit=#transit_catalog_commit{matched=1,affected=0}}=finish(A,C,compile(A,C,<<"UPDATE ",Name/binary," SET id=0 WHERE id=0">>,3+Offset,undefined),Root),
+    #transit_catalog_observation{commit=#transit_catalog_commit{matched=1,affected=1}}=finish(A,C,compile(A,C,<<"DELETE FROM ",Name/binary," WHERE id=8">>,4+Offset,undefined),Root),
+    #transit_catalog_metadata{basis=B}=result(A:lookup(C,Name)),Work=result(A:prepare(C,Name,identity(5+Offset),{alter,B,{add,<<"extra">>,int64,true,undefined,undefined,plain,none}})),finish(A,C,Work,Root),
+    {error,#transit_error{code= <<"TableDefinitionChanged">>}}=A:prepare(C,Name,identity(55+Offset),{drop,B,false}),
+    finish(A,C,compile(A,C,<<"ALTER TABLE ",Name/binary," RENAME TO ",Name/binary,"_old">>,6+Offset,undefined),Root),
+    finish(A,C,compile(A,C,<<"DROP TABLE ",Name/binary,"_old">>,7+Offset,undefined),Root),
+    finish(A,C,compile(A,C,<<"CREATE TABLE ",Name/binary," (replacement BIGINT)">>,8+Offset,Object-1),Root),
+    #transit_catalog_metadata{basis=New}=result(A:lookup(C,Name)),true=object(New)=:=Object-1,#transit_catalog_snapshot_metadata{row_count=9}=result(A:snapshot_metadata(C,snapshot(A,Root))),#{original=>true};
+phase(<<"release">>,A,C,Root,_,_,_)->S=snapshot(A,Root),#transit_catalog_snapshot_status{released=false}=result(A:snapshot_status(C,S#transit_catalog_snapshot.owner)),uncertain(A,S,A:release_snapshot(C,S)),#{release_uncertain=>true};
+phase(<<"verify">>,A,C,Root,Name,Object,Offset)->
+    S=snapshot(A,Root),#transit_catalog_snapshot_status{released=true}=result(A:snapshot_status(C,S#transit_catalog_snapshot.owner)),S=result(A:release_snapshot(C,S)),
+    #transit_catalog_observation{commit=#transit_catalog_commit{affected=9}}=result(A:inspect(C,restore(A,Root,"original.json",reference))),
+    #transit_catalog_intent{identity=#transit_catalog_identity{operation=Operation}}=result(A:load(C,restore(A,Root,"intent.json",intent))),true=Operation=:=2+Offset,
+    #transit_catalog_metadata{basis=B}=result(A:lookup(C,Name)),true=object(B)=:=Object-1,#transit_catalog_page{consistency=independent}=result(A:tables(C)),#{recovered=>true}.

@@ -5,8 +5,8 @@ from enum import Enum
 import copy
 import json
 from pathlib import Path
-from typing import Any, TypeAlias, TypeVar
-from transit_client import ProcessRef, ResourceRef
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from transit_client import ResourceRef
 from transit_client._native import encode
 from transit_client.types import integer, owned_bytes
 from . import logical_values as logical
@@ -96,21 +96,6 @@ class Scope:
 
 
 @dataclass(frozen=True, slots=True)
-class Connection:
-    owner: ProcessRef
-    scope: Scope
-    role: int | None = None
-    namespace: int = 1
-    def __post_init__(self) -> None:
-        if not isinstance(self.owner, ProcessRef) or not isinstance(self.scope, Scope): raise TypeError('Expected catalog connection')
-        if self.owner.realm != self.scope.resource.realm: raise ValueError('Catalog connection must use one realm')
-        if self.role is not None: integer(self.role, 'selected role', minimum=0)
-        integer(self.namespace, 'schema namespace')
-    def _wire(self, principal: int) -> object:
-        return dict(scope=self.scope._wire(), owner=self.owner.pid, principal=integer(principal, 'principal', minimum=0), role=self.role, namespace=self.namespace)
-
-
-@dataclass(frozen=True, slots=True)
 class TableLimits:
     record_bytes: int
     staging_bytes: int
@@ -156,25 +141,6 @@ class Subject:
         integer(self.audience, 'audience')
         object.__setattr__(self, 'context', owned_bytes(self.context, 32))
         if len(self.context) != 32: raise ValueError('Expected subject context digest')
-
-
-@dataclass(frozen=True, slots=True)
-class Configuration:
-    scope: Scope
-    owner: ProcessRef
-    administrator: int
-    table_limits: TableLimits
-    authority: AuthorityProfile
-    database_name: str
-    def __post_init__(self) -> None:
-        Connection(self.owner, self.scope)
-        integer(self.administrator, 'administrator', minimum=0)
-        if not isinstance(self.table_limits, TableLimits): raise TypeError('Specify deployment Table limits')
-        if not isinstance(self.authority, AuthorityProfile): raise TypeError('Specify native authorization bindings')
-        _text(self.database_name, 63)
-        if '\0' in self.database_name: raise ValueError('NUL in database name')
-    def _wire(self) -> object:
-        return dict(scope=self.scope._wire(), owner=self.owner.pid, administrator=self.administrator, table_limits=self.table_limits._wire(), authority=self.authority._wire(), database_name=self.database_name)
 
 
 class Encoding(str, Enum):
@@ -235,266 +201,9 @@ class Schema:
                     columns=[budget.take(item._wire()) for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key])
 
 
-@dataclass(frozen=True, slots=True)
-class Identity:
-    operation: int
-    namespace: int
-    def __post_init__(self) -> None: _wide(self.operation); _wide(self.namespace)
-    def _wire(self) -> object: return dict(operation=str(self.operation), namespace=str(self.namespace))
 
 
-@dataclass(frozen=True, slots=True)
-class Basis:
-    object_id: int
-    revision: int
-    schema_fingerprint: str
-    def __post_init__(self) -> None: _wide(self.object_id); _wide(self.revision); _digest(self.schema_fingerprint)
-    def _wire(self) -> object: return dict(object=str(self.object_id), revision=str(self.revision), schema_fingerprint=self.schema_fingerprint)
-
-
-@dataclass(frozen=True, slots=True)
-class MetadataCommitment:
-    bytes: int
-    digest: str
-    def __post_init__(self) -> None:
-        integer(self.bytes, 'metadata bytes', maximum=444)
-        _digest(self.digest)
-
-
-@dataclass(frozen=True, slots=True)
-class Metadata:
-    scope: Scope
-    object_id: int
-    revision: int
-    name: str
-    schema_fingerprint: str
-    principal: int
-    operation: int
-    admitted_input: int
-    commitment: MetadataCommitment
-    namespace: int
-    def __post_init__(self) -> None:
-        if not isinstance(self.scope, Scope): raise TypeError('Expected scope')
-        if not isinstance(self.commitment, MetadataCommitment): raise TypeError('Expected metadata commitment')
-        integer(self.namespace, 'schema namespace')
-        _wide(self.object_id); _wide(self.revision); _name(self.name); _digest(self.schema_fingerprint)
-        integer(self.principal, 'principal', minimum=0); _wide(self.operation); integer(self.admitted_input, 'admitted input')
-    @property
-    def basis(self) -> Basis: return Basis(self.object_id, self.revision, self.schema_fingerprint)
-
-
-@dataclass(frozen=True, slots=True)
-class Head:
-    revision: int
-    rows: int
-    pending: int
-    def __post_init__(self) -> None: _wide(self.revision); _wide(self.rows, minimum=0); _wide(self.pending, minimum=0)
-
-
-@dataclass(frozen=True, slots=True)
-class Entry:
-    metadata: Metadata
-    head: Head
-
-
-@dataclass(frozen=True, slots=True)
-class Definition(Entry):
-    schema: Schema
-    authorization: int
-    def __post_init__(self) -> None: integer(self.authorization, 'Table authorization object')
-
-
-@dataclass(frozen=True, slots=True)
-class HistoricalDefinition:
-    metadata: Metadata
-    schema: Schema
-
-
-@dataclass(frozen=True, slots=True)
-class Cursor:
-    definition: str
-    scope: Scope
-    resource_revision: int
-    after_object: int
-    def __post_init__(self) -> None:
-        _definition(self.definition)
-        if not isinstance(self.scope, Scope): raise TypeError('Expected scope')
-        integer(self.resource_revision, 'resource revision', minimum=0); _wide(self.after_object)
-    def _wire(self) -> object:
-        return dict(definition=self.definition, scope=self.scope._wire(), resource_revision=self.resource_revision, after_object=str(self.after_object))
-
-
-@dataclass(frozen=True, slots=True)
-class Page:
-    resource_revision: int
-    entries: tuple[Entry, ...]
-    next: Cursor | None
-    def __post_init__(self) -> None:
-        integer(self.resource_revision, 'resource revision', minimum=0)
-        object.__setattr__(self, 'entries', tuple(self.entries))
-        if len(self.entries) > 8: raise ValueError('Expected at most eight entries')
-        for entry in self.entries:
-            if not isinstance(entry, Entry) or not isinstance(entry.metadata, Metadata) or not isinstance(entry.head, Head): raise TypeError('Expected catalog entries')
-        for a, b in zip(self.entries, self.entries[1:]):
-            if a.metadata.scope != b.metadata.scope or a.metadata.object_id >= b.metadata.object_id: raise ValueError('Expected ordered entries in one scope')
-        if self.next is not None:
-            if not isinstance(self.next, Cursor) or self.next.resource_revision != self.resource_revision: raise ValueError('Invalid continuation')
-            if self.entries:
-                last = self.entries[-1].metadata
-                if last.scope != self.next.scope or last.object_id > self.next.after_object: raise ValueError('Continuation precedes its last entry')
-
-
-@dataclass(frozen=True, slots=True)
-class Reference:
-    definition: str
-    digest: str
-    def __post_init__(self) -> None: _definition(self.definition); _digest(self.digest)
-    def _wire(self) -> object: return dict(definition=self.definition, digest=self.digest)
-
-
-@dataclass(frozen=True, slots=True)
-class SavedIntent:
-    definition: str
-    data: bytes = field(repr=False)
-    def __post_init__(self) -> None:
-        _definition(self.definition)
-        object.__setattr__(self, 'data', owned_bytes(self.data, LIMITS['catalog_intent_bytes']))
-        if not self.data: raise ValueError('Empty saved intent')
-    def _wire(self) -> object: return dict(definition=self.definition, bytes=self.data.hex())
-
-
-@dataclass(frozen=True, slots=True)
-class Prepared:
-    data: bytes = field(repr=False)
-    def __post_init__(self) -> None:
-        object.__setattr__(self, 'data', owned_bytes(self.data, LIMITS['catalog_prepared_bytes']))
-        _text(self.data.decode(), LIMITS['catalog_prepared_bytes'])
-
-
-class Kind(str, Enum):
-    CREATE = 'create'
-    ALTER = 'alter'
-    RENAME = 'rename'
-    DROP = 'drop'
-    INSERT = 'insert'
-    UPDATE = 'update'
-    DELETE = 'delete'
-
-
-@dataclass(frozen=True, slots=True)
-class Intent:
-    reference: Reference
-    scope: Scope
-    owner: ProcessRef
-    principal: int
-    identity: Identity
-    object_id: int
-    kind: Kind
-
-
-@dataclass(frozen=True, slots=True)
-class Compiled:
-    intent: Intent
-    saved: SavedIntent
-
-
-class Phase(str, Enum):
-    PREPARING = 'preparing'
-    DELEGATED = 'delegated'
-    BUILDING = 'building'
-    APPLIED = 'applied'
-    UNCHANGED = 'unchanged'
-    REJECTED = 'rejected'
-    CANCELLED = 'cancelled'
-
-
-@dataclass(frozen=True, slots=True)
-class Counts:
-    matched: int
-    changed: int
-    def __post_init__(self) -> None:
-        _wide(self.matched, minimum=0); _wide(self.changed, minimum=0)
-        if self.changed > self.matched: raise ValueError('Changed count exceeds matched count')
-
-
-@dataclass(frozen=True, slots=True)
-class Outcome:
-    kind: Kind
-    operation: int
-    object_id: int
-    actual_object: int | None
-    phase: Phase
-    terminal: bool
-    counts: Counts | None
-    admitted_input: int
-    completed_input: int | None
-    diagnostic: dict[str, Any] = field(repr=False)
-
-
-class UploadPhase(str, Enum):
-    UPLOADING = 'uploading'
-    SEALED = 'sealed'
-    READY = 'ready'
-    CANCELLED = 'cancelled'
-
-
-@dataclass(frozen=True, slots=True)
-class Upload:
-    phase: UploadPhase
-    received: int
-    total: int
-
-
-@dataclass(frozen=True, slots=True)
-class State:
-    outcome: Outcome | None
-    upload: Upload | None
-
-
-class DispositionOutcome(str, Enum):
-    INITIALIZED = 'initialized'
-    POLICY_APPLIED = 'policy_applied'
-    DEPENDENCY_APPLIED = 'dependency_applied'
-    INVALID_COMMAND = 'invalid_command'
-    BLOCKED = 'blocked'
-    DENIED = 'denied'
-    IDENTITY_CONFLICT = 'identity_conflict'
-    STALE_POLICY = 'stale_policy'
-
-
-@dataclass(frozen=True, slots=True)
-class Disposition:
-    input: int
-    outcome: DispositionOutcome
-    diagnostic: dict[str, Any] = field(repr=False)
-
-
-class Observation(str, Enum):
-    PENDING = 'pending'
-    PROCESSED = 'processed'
-
-
-class NextKind(str, Enum):
-    SEND = 'send'
-    RUNNING = 'running'
-    UPLOAD_CANCELLED = 'upload_cancelled'
-    TERMINAL = 'terminal'
-
-
-@dataclass(frozen=True, slots=True)
-class Next:
-    kind: NextKind
-    prepared: Prepared | None = None
-    outcome: Outcome | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Progress:
-    observation: Observation
-    disposition: Disposition | None = None
-    outcome: Outcome | None = None
-    upload: Upload | None = None
-
+# Direct lifecycle values. Every saved binding preserves its original definition.
 
 class Default(Enum):
     VALUE = 'default'
@@ -650,57 +359,10 @@ class Drop:
 class Mutate:
     basis: Basis
     mutation: Mutation
+    ingestion: Literal['point', 'bulk'] = 'point'
 
 
 Operation: TypeAlias = Create | Alter | Rename | Drop | Mutate
-
-
-class Control(str, Enum):
-    CANCEL_OPERATION = 'cancel_operation'
-    CLEANUP_OPERATION = 'cleanup_operation'
-    CANCEL_UPLOAD = 'cancel_upload'
-    COLLECT_UPLOAD = 'collect_upload'
-
-
-class DependencyKind(str, Enum):
-    QUERY_SOURCE = 'query_source'
-    WRITER = 'writer'
-    WATCH = 'watch'
-    MAINTAINED_RELATION = 'maintained_relation'
-    HISTORY = 'history'
-
-
-@dataclass(frozen=True, slots=True)
-class Dependency:
-    scope: Scope
-    object_id: int
-    identity: int
-    owner: ProcessRef
-    kind: DependencyKind
-    def _wire(self, present: bool) -> object:
-        Connection(self.owner, self.scope)
-        return dict(scope=self.scope._wire(), object=str(_wide(self.object_id)), identity=str(_wide(self.identity)), owner=self.owner.pid, kind=_enum(self.kind, DependencyKind), present=_boolean(present))
-
-
-@dataclass(frozen=True, slots=True)
-class Capabilities:
-    version: int
-    definition: str
-    max_columns: int
-    max_rows: int
-    max_sql_bytes: int
-    max_intent_bytes: int
-    max_action_bytes: int
-    max_prepared_bytes: int
-    resident_intents: int
-
-
-@dataclass(frozen=True, slots=True)
-class Description:
-    configuration: Configuration
-    subject: Subject
-    authorization_revision: int
-    resource_revision: int
 
 
 def _enum(value: E, kind: type[E]) -> str:
@@ -723,159 +385,6 @@ def _schema(value: object) -> Schema:
         c = _object(item, 'id name type nullable default max_characters encoding collation')
         columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation'])))
     return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']))
-
-
-def _metadata(value: object) -> Metadata:
-    v = _object(value, 'scope namespace object revision name schema_fingerprint principal operation admitted_input commitment')
-    spec = _object(v['commitment'], 'format length digest')
-    if spec['format'] != 0x54434d01 or not isinstance(spec['digest'], list) or len(spec['digest']) != 32: raise ValueError('Invalid metadata commitment')
-    return Metadata(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), _name(v['name']), _digest(v['schema_fingerprint']), v['principal'], _decimal(v['operation']), v['admitted_input'], MetadataCommitment(spec['length'], bytes(spec['digest']).hex()), v['namespace'])
-
-
-def _head(value: object) -> Head:
-    v = _object(value, 'revision rows pending')
-    return Head(_decimal(v['revision']), _decimal(v['rows'], 0), _decimal(v['pending'], 0))
-
-
-def _resolved(value: object, scope: Scope, name: str) -> Definition | None:
-    if value is None: return None
-    v = _object(value, 'authorization metadata head schema')
-    result = Definition(_metadata(v['metadata']), _head(v['head']), _schema(v['schema']), v['authorization'])
-    if result.metadata.scope != scope or result.metadata.name != name or result.metadata.object_id != result.schema.object_id: raise ValueError('Foreign Table definition')
-    return result
-
-
-def _historical(value: object, scope: Scope, object_id: int, revision: int) -> HistoricalDefinition | None:
-    if value is None: return None
-    v = _object(value, 'metadata schema')
-    result = HistoricalDefinition(_metadata(v['metadata']), _schema(v['schema']))
-    if result.metadata.scope != scope or result.metadata.object_id != object_id or result.metadata.revision != revision or result.schema.object_id != object_id:
-        raise ValueError('Foreign historical definition')
-    return result
-
-
-def _page(value: object, scope: Scope, previous: Cursor | None) -> Page:
-    v = _object(value, 'resource_revision entries next')
-    if not isinstance(v['entries'], list) or len(v['entries']) != 8: raise ValueError('Expected eight optional entry slots')
-    entries = []
-    ended = False
-    for item in v['entries']:
-        if item is None: ended = True
-        else:
-            e = _object(item, 'metadata head'); entry = Entry(_metadata(e['metadata']), _head(e['head']))
-            if ended or entry.metadata.scope != scope: raise ValueError('Page has a hole or foreign scope')
-            entries.append(entry)
-    cursor = None
-    if v['next'] is not None:
-        c = _object(v['next'], 'definition scope resource_revision after_object')
-        cursor = Cursor(c['definition'], _scope(c['scope']), c['resource_revision'], _decimal(c['after_object']))
-        if cursor.scope != scope: raise ValueError('Foreign continuation scope')
-    page = Page(v['resource_revision'], tuple(entries), cursor)
-    if previous is not None and (page.resource_revision != previous.resource_revision or
-        (entries and entries[0].metadata.object_id <= previous.after_object) or (cursor is not None and cursor.after_object <= previous.after_object)):
-        raise ValueError('Response does not continue the requested page')
-    return page
-
-
-def _intent(value: object, connection: Connection, principal: int) -> Intent:
-    v = _object(value, 'reference scope owner principal operation namespace object kind')
-    r = _object(v['reference'], 'definition digest'); scope = _scope(v['scope'])
-    result = Intent(Reference(r['definition'], r['digest']), scope, ProcessRef(scope.resource.realm, v['owner']), integer(v['principal'], 'principal', minimum=0),
-                    Identity(_decimal(v['operation']), _decimal(v['namespace'])), _decimal(v['object'], 0), Kind(v['kind']))
-    if result.scope != connection.scope or result.owner != connection.owner or result.principal != principal: raise ValueError('Foreign intent connection')
-    return result
-
-
-def _compiled(value: object, connection: Connection, principal: int, ids: Identity, kind: Kind | None = None, object_id: int | None = None) -> Compiled:
-    v = _object(value, 'intent saved'); s = _object(v['saved'], 'definition bytes')
-    result = Compiled(_intent(v['intent'], connection, principal), SavedIntent(s['definition'], _hex(s['bytes'], LIMITS['catalog_intent_bytes'])))
-    if result.intent.identity != ids or (kind is not None and result.intent.kind != kind) or (object_id is not None and result.intent.object_id != object_id): raise ValueError('Compiled intent does not match its request')
-    return result
-
-
-def _diagnostic(value: object) -> dict[str, Any]:
-    if not isinstance(value, dict): raise ValueError('Missing catalog diagnostic')
-    # The native exported validator checks this before the decoder runs.
-    return copy.deepcopy(value)
-
-
-def _outcome(value: object) -> Outcome | None:
-    if value is None: return None
-    v = _object(value, 'kind operation object actual_object phase terminal counts admitted_input completed_input diagnostic')
-    phase, kind, terminal = Phase(v['phase']), Kind(v['kind']), _boolean(v['terminal'])
-    if terminal != (phase in (Phase.APPLIED, Phase.UNCHANGED, Phase.REJECTED, Phase.CANCELLED)): raise ValueError('Inconsistent terminal state')
-    counts = None
-    if v['counts'] is not None:
-        c = _object(v['counts'], 'matched changed'); counts = Counts(_decimal(c['matched'], 0), _decimal(c['changed'], 0))
-    if (counts is not None) != (phase == Phase.APPLIED and kind in (Kind.INSERT, Kind.UPDATE, Kind.DELETE)): raise ValueError('Inconsistent mutation counts')
-    return Outcome(kind, _decimal(v['operation']), _decimal(v['object'], 0), None if v['actual_object'] is None else _decimal(v['actual_object'], 0), phase, terminal, counts,
-                   integer(v['admitted_input'], 'admitted input'), None if v['completed_input'] is None else integer(v['completed_input'], 'completed input'), _diagnostic(v['diagnostic']))
-
-
-def _upload(value: object) -> Upload | None:
-    if value is None: return None
-    v = _object(value, 'phase received total')
-    total = integer(v['total'], 'upload total', maximum=LIMITS['catalog_intent_bytes'])
-    return Upload(UploadPhase(v['phase']), integer(v['received'], 'received', minimum=0, maximum=total), total)
-
-
-def _state(value: object) -> State:
-    v = _object(value, 'outcome upload')
-    return State(_outcome(v['outcome']), _upload(v['upload']))
-
-
-def _disposition(value: object) -> Disposition | None:
-    if value is None: return None
-    v = _object(value, 'input outcome diagnostic')
-    return Disposition(integer(v['input'], 'input'), DispositionOutcome(v['outcome']), _diagnostic(v['diagnostic']))
-
-
-def _next(value: object) -> Next:
-    kind, payload = _variant(value); tag = NextKind(kind)
-    if tag == NextKind.SEND: return Next(tag, prepared=_prepared(payload))
-    if tag == NextKind.TERMINAL:
-        result = _outcome(payload)
-        if result is None or not result.terminal: raise ValueError('Missing terminal outcome')
-        return Next(tag, outcome=result)
-    _object(payload, '')
-    return Next(tag)
-
-
-def _progress(value: object) -> Progress:
-    kind, payload = _variant(value)
-    if kind == 'pending':
-        _object(payload, '')
-        return Progress(Observation.PENDING)
-    if kind != 'processed': raise ValueError('Unknown progress variant')
-    v = _object(payload, 'disposition outcome upload')
-    return Progress(Observation.PROCESSED, _disposition(v['disposition']), _outcome(v['outcome']), _upload(v['upload']))
-
-
-def _prepared(value: object) -> Prepared: return Prepared(_text(value, LIMITS['catalog_prepared_bytes']).encode())
-
-
-def _capabilities(value: object) -> Capabilities:
-    fields = 'version definition max_columns max_rows max_sql_bytes max_intent_bytes max_action_bytes max_prepared_bytes resident_intents'
-    v = _object(value, fields)
-    _definition(v['definition'])
-    checked: dict[str, Any] = {key: v[key] if key == 'definition' else integer(v[key], key) for key in fields.split()}
-    return Capabilities(**checked)
-
-
-def _description(value: object, connection: Connection, principal: int) -> Description:
-    v = _object(value, 'configuration subject authorization_revision resource_revision')
-    c = _object(v['configuration'], 'scope owner administrator table_limits authority database_name')
-    limits = _object(c['table_limits'], 'record_bytes staging_bytes staging_records'); scope = _scope(c['scope'])
-    authority = AuthorityProfile(**_object(c['authority'], 'database_domain schema_domain table_domain database initial_schema initial_schema_authority'))
-    config = Configuration(scope, ProcessRef(scope.resource.realm, c['owner']), c['administrator'], TableLimits(limits['record_bytes'], _decimal(limits['staging_bytes']), limits['staging_records']), authority, c['database_name'])
-    raw = _object(v['subject'], 'principal login_role role credential_epoch audience context')
-    if not isinstance(raw['context'], list) or len(raw['context']) != 32: raise ValueError('Invalid subject context')
-    context = bytes(integer(byte, 'context byte', minimum=0, maximum=255) for byte in raw['context'])
-    subject = Subject(raw['principal'], raw['login_role'], raw['role'], raw['credential_epoch'], raw['audience'], context)
-    if config.scope != connection.scope or config.owner != connection.owner or subject.principal != principal or subject.audience != connection.owner.pid:
-        raise ValueError('Foreign catalog description')
-    if subject.role != (connection.role if connection.role is not None else subject.login_role): raise ValueError('Foreign selected role')
-    return Description(config, subject, integer(v['authorization_revision'], 'authorization revision', minimum=0), integer(v['resource_revision'], 'resource revision', minimum=0))
 
 
 def _assignments(values: tuple[Assignment, ...], budget: _WireBudget) -> object:
@@ -965,12 +474,642 @@ def _change(value: Change) -> object:
     raise TypeError('Expected typed schema change')
 
 
-def _operation(value: Operation) -> tuple[Kind, int, object]:
-    if isinstance(value, Create): return Kind.CREATE, value.schema.object_id, {'create': dict(schema=value.schema._wire(), if_not_exists=_boolean(value.if_not_exists))}
-    if isinstance(value, Drop): return Kind.DROP, value.basis.object_id if value.basis else 0, {'drop': dict(basis=None if value.basis is None else value.basis._wire(), if_exists=_boolean(value.if_exists))}
-    if isinstance(value, Rename): return Kind.RENAME, value.basis.object_id, {'rename': dict(basis=value.basis._wire(), name=_name(value.name))}
-    if isinstance(value, Alter): return Kind.ALTER, value.basis.object_id, {'alter': dict(basis=value.basis._wire(), change=_change(value.change))}
-    if isinstance(value, Mutate):
-        kind = Kind.INSERT if isinstance(value.mutation, Insert) else Kind.UPDATE if isinstance(value.mutation, Update) else Kind.DELETE
-        return kind, value.basis.object_id, {'mutate': dict(basis=value.basis._wire(), mutation=_mutation(value.mutation))}
+@dataclass(frozen=True, slots=True)
+class Connection:
+    scope: Scope
+    audience: int
+    branch: int = 1
+    role: int | None = None
+    def __post_init__(self) -> None:
+        if not isinstance(self.scope, Scope): raise TypeError('Expected catalog scope')
+        integer(self.audience, 'audience'); _wide(self.branch, 'branch')
+        if self.role is not None: integer(self.role, 'role', minimum=0)
+    def _wire(self, principal: int) -> dict[str, Any]:
+        return dict(scope=self.scope._wire(), branch=str(self.branch), audience=self.audience,
+                    principal=integer(principal, 'principal', minimum=0), role=self.role)
+
+
+def _connection(value: object) -> tuple[Connection, int]:
+    value = _object(value, 'scope branch audience principal role')
+    return (Connection(_scope(value['scope']), value['audience'], _decimal(value['branch']), value['role']),
+            integer(value['principal'], 'principal', minimum=0))
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectIdentity:
+    scope: Scope
+    branch: int
+    object_id: int
+    def __post_init__(self) -> None:
+        if not isinstance(self.scope, Scope): raise TypeError('Expected catalog scope')
+        _wide(self.branch); _wide(self.object_id)
+    def _wire(self) -> dict[str, Any]:
+        return dict(scope=self.scope._wire(), branch=str(self.branch), object=str(self.object_id))
+
+
+def _object_identity(value: object) -> ObjectIdentity:
+    value = _object(value, 'scope branch object')
+    return ObjectIdentity(_scope(value['scope']), _decimal(value['branch']), _decimal(value['object']))
+
+
+@dataclass(frozen=True, slots=True)
+class Position:
+    partition: int
+    next_lsn: int
+    def __post_init__(self) -> None: _wide(self.partition); _wide(self.next_lsn, minimum=0)
+    def _wire(self) -> dict[str, str]: return dict(partition=str(self.partition), next_lsn=str(self.next_lsn))
+
+
+def _position(value: object) -> Position:
+    value = _object(value, 'partition next_lsn')
+    return Position(_decimal(value['partition']), _decimal(value['next_lsn'], 0))
+
+
+@dataclass(frozen=True, slots=True)
+class Interpretation:
+    object: ObjectIdentity
+    revision: int
+    digest: str
+
+
+def _interpretation(value: object) -> Interpretation:
+    value = _object(value, 'object revision digest')
+    return Interpretation(_object_identity(value['object']), _decimal(value['revision']), _digest(value['digest']))
+
+
+@dataclass(frozen=True, slots=True)
+class Content:
+    bytes: int
+    sha256: str
+
+
+def _content(value: object) -> Content:
+    value = _object(value, 'bytes sha256')
+    return Content(_decimal(value['bytes']), _digest(value['sha256']))
+
+
+@dataclass(frozen=True, slots=True)
+class StoredDefinition:
+    interpretation: Interpretation
+    content: Content
+    schema_fingerprint: str
+    retired: bool
+
+
+def _stored(value: object) -> StoredDefinition:
+    value = _object(value, 'interpretation content schema_fingerprint retired')
+    result = StoredDefinition(_interpretation(value['interpretation']), _content(value['content']),
+                              _digest(value['schema_fingerprint']), _boolean(value['retired']))
+    if result.content.sha256 != result.interpretation.digest: raise ValueError('Changed stored interpretation')
+    return result
+
+
+def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, item in items:
+        if key in result: raise ValueError('Repeated saved field')
+        result[key] = item
+    return result
+
+
+def _saved(input: str) -> Any:
+    return json.loads(_text(input, LIMITS['catalog_action_bytes']), object_pairs_hook=_pairs)
+
+
+@dataclass(frozen=True, slots=True)
+class _Saved:
+    _data: str = field(repr=False)
+    def __post_init__(self) -> None: self._validate(self._wire())
+    def _validate(self, value: Any) -> None: raise NotImplementedError
+    def _wire(self) -> Any: return _saved(self._data)
+    def save(self) -> str: return self._data
+
+
+@dataclass(frozen=True, slots=True)
+class Basis(_Saved):
+    """Complete original name and interpretation binding; saving grants no rights."""
+    @classmethod
+    def restore(cls, saved: str) -> Basis: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition connection namespace name interpretation')
+        _definition(value['definition']); connection, _ = _connection(value['connection'])
+        integer(value['namespace'], 'namespace'); _name(value['name'])
+        stored = _stored(value['interpretation'])
+        if (stored.retired or stored.interpretation.object.scope != connection.scope or
+            stored.interpretation.object.branch != connection.branch): raise ValueError('Foreign prepared binding')
+    @property
+    def object_id(self) -> int: return self.interpretation.interpretation.object.object_id
+    @property
+    def interpretation(self) -> StoredDefinition: return _stored(self._wire()['interpretation'])
+    @property
+    def connection(self) -> Connection: return _connection(self._wire()['connection'])[0]
+    @property
+    def principal(self) -> int: return _connection(self._wire()['connection'])[1]
+    @property
+    def namespace(self) -> int: return integer(self._wire()['namespace'], 'namespace')
+    @property
+    def name(self) -> str: return _name(self._wire()['name'])
+
+
+@dataclass(frozen=True, slots=True)
+class Metadata:
+    basis: Basis
+    schema: Schema
+    authorization: int
+    position: Position
+    changed_lsn: int
+    row_count: int
+
+
+def _metadata(value: object) -> Metadata:
+    value = _object(value, 'binding schema authorization position changed_lsn row_count')
+    basis = Basis.restore(encode(value['binding']).decode()); schema = _schema(value['schema'])
+    if schema.object_id != basis.object_id: raise ValueError('Metadata schema changed its object')
+    return Metadata(basis, schema, integer(value['authorization'], 'authorization'), _position(value['position']),
+                    _decimal(value['changed_lsn'], 0), _decimal(value['row_count'], 0))
+
+
+@dataclass(frozen=True, slots=True)
+class Identity:
+    operation: int
+    namespace: int = 1
+    def __post_init__(self) -> None: _wide(self.operation); integer(self.namespace, 'namespace')
+
+
+class Kind(str, Enum):
+    CREATE = 'create'
+    ALTER = 'alter'
+    RENAME = 'rename'
+    DROP = 'drop'
+    INSERT = 'insert'
+    UPDATE = 'update'
+    DELETE = 'delete'
+
+
+def _binding(value: object) -> dict[str, Any]:
+    value = _object(value, 'definition identity target action expected_definition expected_data intent prerequisite')
+    _definition(value['definition']); _digest(value['intent']); action = Kind(value['action'])
+    identity = _object(value['identity'], 'scope principal operation'); scope = _scope(identity['scope'])
+    integer(identity['principal'], 'principal', minimum=0); _decimal(identity['operation'])
+    target = _object_identity(value['target'])
+    if target.scope != scope: raise ValueError('Foreign operation target')
+    expected = None if value['expected_definition'] is None else _interpretation(value['expected_definition'])
+    if (expected is None) != (action == Kind.CREATE) or (expected and expected.object != target): raise ValueError('Changed expected definition')
+    if value['expected_data'] is not None:
+        _position(value['expected_data'])
+        if action == Kind.CREATE: raise ValueError('CREATE has no previous data position')
+    if value['prerequisite'] is not None:
+        # This opaque native guard is retained exactly, never interpreted as authority
+        # by Python. The shared native owner validates its complete signed contract.
+        guard = _object(value['prerequisite'], 'subject requirements selectable')
+        if not isinstance(guard['subject'], dict) or not isinstance(guard['requirements'], list): raise ValueError('Invalid native guard')
+        if guard['selectable'] is not None: integer(guard['selectable'], 'selectable')
+    return value
+
+
+def _assertion(value: object) -> dict[str, Any]:
+    value = _object(value, 'definition connection operation namespace name action expected intent')
+    _definition(value['definition']); connection, _ = _connection(value['connection'])
+    _decimal(value['operation']); integer(value['namespace'], 'namespace'); _name(value['name']); _digest(value['intent'])
+    if value['action'] not in ('create_if_not_exists', 'drop_if_exists'): raise ValueError('Invalid assertion action')
+    expected = None if value['expected'] is None else _interpretation(value['expected'])
+    if (expected is None) != (value['action'] == 'drop_if_exists'): raise ValueError('Invalid name condition')
+    if expected and (expected.object.scope != connection.scope or expected.object.branch != connection.branch): raise ValueError('Foreign condition')
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class SavedIntent(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> SavedIntent: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        tag, payload = _variant(value)
+        if tag == 'name_assertion': _assertion(payload)
+        elif tag == 'table':
+            payload = _object(payload, 'definition namespace bytes'); _definition(payload['definition'])
+            integer(payload['namespace'], 'namespace'); _hex(payload['bytes'], LIMITS['catalog_intent_bytes'])
+        else: raise ValueError('Invalid saved Table work')
+
+
+@dataclass(frozen=True, slots=True)
+class Reference(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> Reference: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        tag, payload = _variant(value)
+        if tag == 'name_assertion': _assertion(payload)
+        elif tag == 'table':
+            payload = _object(payload, 'definition connection namespace binding content')
+            _definition(payload['definition']); connection, principal = _connection(payload['connection'])
+            integer(payload['namespace'], 'namespace'); _content(payload['content']); bound = _binding(payload['binding'])
+            target = _object_identity(bound['target'])
+            if (target.scope != connection.scope or target.branch != connection.branch or
+                bound['identity']['principal'] != principal): raise ValueError('Foreign recovery reference')
+        else: raise ValueError('Invalid recovery reference')
+    @property
+    def kind(self) -> str: return _variant(self._wire())[0]
+    @property
+    def operation(self) -> int:
+        kind, value = _variant(self._wire())
+        return _decimal(value['binding']['identity']['operation'] if kind == 'table' else value['operation'])
+    def _binding(self) -> dict[str, Any]:
+        kind, value = _variant(self._wire())
+        return _binding(value['binding']) if kind == 'table' else _assertion(value)
+
+
+@dataclass(frozen=True, slots=True)
+class Intent:
+    digest: str
+    namespace: int
+    operation: int
+    kind: str
+    saved: SavedIntent
+    _binding_data: str = field(repr=False)
+    def _id(self) -> object: return dict(definition=DEFINITION, digest=_digest(self.digest))
+    def _binding(self) -> Any: return _saved(self._binding_data)
+
+
+def _summary(value: object, saved: SavedIntent, connection: Connection, principal: int) -> Intent:
+    value = _object(value, 'id namespace binding'); identity = _object(value['id'], 'definition digest')
+    _definition(identity['definition']); namespace = integer(value['namespace'], 'namespace')
+    tag, bound = _variant(value['binding'])
+    if tag == 'table':
+        bound = _binding(bound); operation = _decimal(bound['identity']['operation']); target = _object_identity(bound['target'])
+        if target.scope != connection.scope or target.branch != connection.branch or bound['identity']['principal'] != principal: raise ValueError('Foreign loaded work')
+    elif tag == 'name_assertion':
+        bound = _assertion(bound); operation = _decimal(bound['operation'])
+        if bound['connection'] != connection._wire(principal) or bound['namespace'] != namespace: raise ValueError('Foreign assertion work')
+    else: raise ValueError('Unknown work kind')
+    saved_tag, original = _variant(saved._wire())
+    if saved_tag != tag or original['namespace'] != namespace or (tag == 'name_assertion' and original != bound): raise ValueError('Changed saved work')
+    return Intent(_digest(identity['digest']), namespace, operation, tag, saved, encode(bound).decode())
+
+
+@dataclass(frozen=True, slots=True)
+class Compiled:
+    intent: Intent
+    saved: SavedIntent
+
+
+def _compiled(value: object, connection: Connection, principal: int, identity: Identity) -> Compiled:
+    value = _object(value, 'summary saved'); saved = SavedIntent.restore(encode(value['saved']).decode())
+    intent = _summary(value['summary'], saved, connection, principal)
+    if intent.namespace != identity.namespace or intent.operation != identity.operation: raise ValueError('Changed compiled identity')
+    return Compiled(intent, saved)
+
+
+@dataclass(frozen=True, slots=True)
+class Commit:
+    definition: StoredDefinition
+    position: Position
+    matched: int
+    affected: int
+    live_rows: int
+
+
+@dataclass(frozen=True, slots=True)
+class Counts:
+    matched: int
+    changed: int
+    def __post_init__(self) -> None:
+        _wide(self.matched, minimum=0); _wide(self.changed, minimum=0)
+        if self.changed > self.matched: raise ValueError('Changed count exceeds matched count')
+
+
+@dataclass(frozen=True, slots=True)
+class Observation:
+    kind: str
+    state: str
+    reference: Reference
+    commit: Commit | None = None
+    phase: str | None = None
+    reason: str | None = None
+    position: Position | None = None
+
+
+_ddl_reasons = ('none', 'name_conflict', 'object_conflict', 'stale_definition', 'stale_data', 'dependency', 'constraint')
+_row_reasons = ('none', 'definition_changed', 'data_changed', 'duplicate_key', 'missing_row', 'invalid_rows', 'work_limit')
+
+
+def _one_of(value: object, options: tuple[str, ...]) -> str:
+    if not isinstance(value, str) or value not in options: raise ValueError('Unknown lifecycle variant')
+    return value
+
+
+def _observation(value: object, original: Reference) -> Observation:
+    kind, tagged = _variant(value); state, record = _variant(tagged); expected = original._binding()
+    expected_kind = 'name_assertion' if original.kind == 'name_assertion' else 'rows' if expected['action'] in ('insert', 'update', 'delete') else 'ddl'
+    if kind != expected_kind: raise ValueError('Changed observation kind')
+    if state == 'not_observed':
+        _object(record, ''); return Observation(original.kind, state, original)
+    if not isinstance(record, dict) or record.get('binding') != expected: raise ValueError('Changed original operation binding')
+    if kind == 'name_assertion':
+        if state != 'outcome': raise ValueError('Invalid name assertion state')
+        record = _object(record, 'binding position state reason')
+        state = _one_of(record['state'], ('unchanged', 'rejected', 'cancelled'))
+        reason = _one_of(record['reason'], ('none', 'condition_changed'))
+        if (state == 'rejected') != (reason != 'none'): raise ValueError('Inconsistent name outcome')
+        return Observation(original.kind, state, original, reason=reason, position=_position(record['position']))
+    if state == 'committed':
+        record = _object(record, 'binding resulting outcome'); outcome = _object(record['outcome'], 'position matched affected live_rows')
+        commit = Commit(_stored(record['resulting']), _position(outcome['position']), _decimal(outcome['matched'], 0),
+                        _decimal(outcome['affected'], 0), _decimal(outcome['live_rows'], 0))
+        if commit.affected > commit.matched or commit.definition.interpretation.object != _object_identity(expected['target']): raise ValueError('Changed commit evidence')
+        return Observation(original.kind, state, original, commit=commit)
+    _one_of(state, ('admitted', 'rejected', 'cancelled'))
+    record = _object(record, 'binding intent phase reason' + (' basis' if kind == 'rows' else '')); _content(record['intent'])
+    phase = _one_of(record['phase'], ('admitted', 'rejected', 'cancelled') if kind == 'rows' else ('admitted', 'ready', 'rejected', 'cancelled', 'settled'))
+    reason = _one_of(record['reason'], _row_reasons if kind == 'rows' else _ddl_reasons)
+    if (state == 'admitted' and phase not in ('admitted', 'ready', 'settled')) or (state != 'admitted' and state != phase): raise ValueError('Inconsistent operation phase')
+    if kind == 'rows':
+        basis = _object(record['basis'], 'interpretation position changed_lsn')
+        _interpretation(basis['interpretation']); _position(basis['position']); _decimal(basis['changed_lsn'], 0)
+    return Observation(original.kind, state, original, phase=phase, reason=reason)
+
+
+@dataclass(frozen=True, slots=True)
+class CurrentBasis:
+    definition: StoredDefinition
+    position: Position
+    changed_lsn: int
+    row_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class Preview:
+    kind: str
+    intent: Intent
+    position: Position
+    current: CurrentBasis | Interpretation | None
+    reason: str | None = None
+    work: str | None = None
+    rebuild_key: bool | None = None
+    schema_fingerprint: str | None = None
+    matches: bool | None = None
+
+
+def _preview(value: object, intent: Intent) -> Preview:
+    kind, raw = _variant(value)
+    if not isinstance(raw, dict) or raw.get('binding') != intent._binding(): raise ValueError('Changed preview binding')
+    if (kind == 'name_assertion') != (intent.kind == 'name_assertion'): raise ValueError('Changed preview kind')
+    if kind == 'name_assertion':
+        raw = _object(raw, 'binding position current matches')
+        return Preview(kind, intent, _position(raw['position']), None if raw['current'] is None else _interpretation(raw['current']), matches=_boolean(raw['matches']))
+    _one_of(kind, ('ddl', 'rows'))
+    raw = _object(raw, 'binding directory_position current reason' + (' work rebuild_key schema_fingerprint' if kind == 'ddl' else ''))
+    current = None
+    if raw['current'] is not None:
+        basis = _object(raw['current'], 'interpretation position changed_lsn row_count')
+        current = CurrentBasis(_stored(basis['interpretation']), _position(basis['position']), _decimal(basis['changed_lsn'], 0), _decimal(basis['row_count'], 0))
+    elif kind == 'rows': raise ValueError('Missing row preview basis')
+    reason = _one_of(raw['reason'], _ddl_reasons if kind == 'ddl' else ('none', 'stale_definition', 'stale_data', 'object_conflict'))
+    if kind == 'rows': return Preview(kind, intent, _position(raw['directory_position']), current, reason=reason)
+    return Preview(kind, intent, _position(raw['directory_position']), current, reason,
+                   None if raw['work'] is None else _one_of(raw['work'], ('metadata', 'validate_rows', 'rewrite_rows')),
+                   _boolean(raw['rebuild_key']), None if raw['schema_fingerprint'] is None else _digest(raw['schema_fingerprint']))
+
+
+def _operation(value: Operation) -> object:
+    if isinstance(value, Create): return {'create': dict(schema=value.schema._wire(), if_not_exists=_boolean(value.if_not_exists))}
+    if isinstance(value, Drop): return {'drop': dict(basis=None if value.basis is None else value.basis._wire(), if_exists=_boolean(value.if_exists))}
+    if isinstance(value, Rename): return {'rename': dict(basis=value.basis._wire(), name=_name(value.name))}
+    if isinstance(value, Alter): return {'alter': dict(basis=value.basis._wire(), change=_change(value.change))}
+    if isinstance(value, Mutate): return {'mutate': dict(basis=value.basis._wire(), mutation=_mutation(value.mutation), ingestion=_one_of(value.ingestion, ('point', 'bulk')))}
     raise TypeError('Expected typed catalog operation')
+
+
+@dataclass(frozen=True, slots=True)
+class Capabilities:
+    version: int
+    definition: str
+    max_columns: int
+    max_rows: int
+    max_sql_bytes: int
+    max_intent_bytes: int
+    max_action_bytes: int
+    metadata_page_entries: int
+    resident_intents: int
+
+
+def _capabilities(value: object) -> Capabilities:
+    value = _object(value, 'version definition max_columns max_rows max_sql_bytes max_intent_bytes max_action_bytes metadata_page_entries resident_intents')
+    checked: dict[str, Any] = {key: _definition(item) if key == 'definition' else integer(item, key) for key, item in value.items()}
+    return Capabilities(**checked)
+
+
+@dataclass(frozen=True, slots=True)
+class Configuration:
+    scope: Scope
+    branch: int
+    partition: int
+    audience: int
+    authority: AuthorityProfile
+    database_name: str
+    initial_schema_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class Description:
+    configuration: Configuration
+    subject: Subject
+    policy_revision: int
+
+
+def _description(value: object, connection: Connection, principal: int) -> Description:
+    value = _object(value, 'configuration subject policy_revision')
+    config = _object(value['configuration'], 'scope branch partition audience authority database_name initial_schema_name')
+    authority = AuthorityProfile(**_object(config['authority'], 'database_domain schema_domain table_domain database initial_schema initial_schema_authority'))
+    configuration = Configuration(_scope(config['scope']), _decimal(config['branch']), _decimal(config['partition']), integer(config['audience'], 'audience'),
+                                  authority, _text(config['database_name'], 63), _text(config['initial_schema_name'], 63))
+    raw = _object(value['subject'], 'principal login_role role credential_epoch audience context')
+    if not isinstance(raw['context'], list) or len(raw['context']) != 32: raise ValueError('Invalid subject context')
+    subject = Subject(raw['principal'], raw['login_role'], raw['role'], raw['credential_epoch'], raw['audience'],
+                      bytes(integer(byte, 'context byte', minimum=0, maximum=255) for byte in raw['context']))
+    if (configuration.scope != connection.scope or configuration.branch != connection.branch or configuration.audience != connection.audience or
+        subject.principal != principal or subject.audience != connection.audience or subject.role != (connection.role if connection.role is not None else subject.login_role)):
+        raise ValueError('Changed catalog connection or subject')
+    return Description(configuration, subject, integer(value['policy_revision'], 'policy revision', minimum=0))
+
+
+@dataclass(frozen=True, slots=True)
+class Namespace:
+    scope: Scope
+    id: int
+    authorization: int
+    name: str
+    revision: int
+    retired: bool
+
+
+def _namespace(value: object) -> Namespace:
+    value = _object(value, 'scope id authorization name revision retired')
+    return Namespace(_scope(value['scope']), integer(value['id'], 'namespace'), integer(value['authorization'], 'authorization'),
+                      _name(value['name']), integer(value['revision'], 'revision'), _boolean(value['retired']))
+
+
+@dataclass(frozen=True, slots=True)
+class Entry:
+    interpretation: Interpretation
+    namespace: int
+    name: str
+    position: Position
+    changed_lsn: int
+
+
+def _entry(value: object) -> Entry:
+    value = _object(value, 'interpretation namespace name position changed_lsn')
+    return Entry(_interpretation(value['interpretation']), integer(value['namespace'], 'namespace'), _name(value['name']),
+                 _position(value['position']), _decimal(value['changed_lsn'], 0))
+
+
+@dataclass(frozen=True, slots=True)
+class Cursor(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> Cursor: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition connection selection position after')
+        _definition(value['definition']); _connection(value['connection']); position = _position(value['position'])
+        after = _decimal(value['after']); kind, payload = _variant(value['selection'])
+        if kind == 'namespaces': _object(payload, ''); integer(after, 'after namespace')
+        elif kind in ('tables', 'resources'): integer(payload, 'namespace')
+        else: raise ValueError('Invalid directory selection')
+        if position.next_lsn == 0: raise ValueError('Invalid directory position')
+    def _check(self, connection: Connection, principal: int, selection: object) -> dict[str, Any]:
+        value = _object(self._wire(), 'definition connection selection position after')
+        if value['connection'] != connection._wire(principal) or value['selection'] != selection: raise ValueError('Foreign directory cursor')
+        return value
+
+
+@dataclass(frozen=True, slots=True)
+class Page(Generic[W]):
+    entries: tuple[W, ...]
+    next: Cursor | None
+    position: Position
+    consistency: Literal['independent'] | None = None
+
+
+def _page(value: object, connection: Connection, principal: int, namespace: int | None, previous: Cursor | None) -> Page[Namespace | Entry]:
+    value = _object(value, 'entries next position' + ('' if namespace is None else ' consistency'))
+    if not isinstance(value['entries'], list) or len(value['entries']) != 8: raise ValueError('Expected eight optional directory slots')
+    selection: dict[str, Any] = {'namespaces': {}} if namespace is None else {'tables': namespace}
+    prior = None if previous is None else previous._check(connection, principal, selection)
+    position = _position(value['position']); cursor = None if value['next'] is None else Cursor.restore(encode(value['next']).decode())
+    after = 0 if prior is None else _decimal(prior['after']); last = after; ended = False
+    entries: list[Namespace | Entry] = []
+    entry: Namespace | Entry
+    for item in value['entries']:
+        if item is None: ended = True; continue
+        if ended: raise ValueError('Directory page contains a hole')
+        if namespace is None:
+            entry = _namespace(item); identity = entry.id
+            if entry.scope != connection.scope: raise ValueError('Foreign namespace entry')
+        else:
+            entry = _entry(item); identity = entry.interpretation.object.object_id
+            if (entry.namespace != namespace or entry.interpretation.object.scope != connection.scope or
+                entry.interpretation.object.branch != connection.branch): raise ValueError('Foreign Table entry')
+        if identity <= last: raise ValueError('Directory ordering changed')
+        entries.append(entry)
+        last = identity
+    if prior is not None and prior['position'] != value['position']: raise ValueError('Directory continuation changed its cut')
+    if cursor:
+        tail = cursor._check(connection, principal, selection)
+        if tail['position'] != value['position'] or _decimal(tail['after']) < last or _decimal(tail['after']) <= after: raise ValueError('Invalid directory continuation')
+    consistency: Literal['independent'] | None = None
+    if namespace is not None:
+        _one_of(value['consistency'], ('independent',)); consistency = 'independent'
+    return Page(tuple(entries), cursor, position, consistency)
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotOwner(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> SnapshotOwner: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition connection object operation'); _definition(value['definition'])
+        connection, _ = _connection(value['connection']); object_id = _object_identity(value['object']); _decimal(value['operation'])
+        if object_id.scope != connection.scope or object_id.branch != connection.branch: raise ValueError('Foreign snapshot owner')
+    @property
+    def operation(self) -> int: return _decimal(self._wire()['operation'])
+    @property
+    def object(self) -> ObjectIdentity: return _object_identity(self._wire()['object'])
+    def _check(self, connection: Connection, principal: int) -> None:
+        if self._wire()['connection'] != connection._wire(principal): raise ValueError('Foreign snapshot connection')
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotAcquisition(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> SnapshotAcquisition: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'owner expected'); SnapshotOwner.restore(encode(value['owner']).decode())
+        if _position(value['expected']).next_lsn == 0: raise ValueError('Expected an accepted position')
+    @property
+    def owner(self) -> SnapshotOwner: return SnapshotOwner.restore(encode(self._wire()['owner']).decode())
+    @property
+    def expected(self) -> Position: return _position(self._wire()['expected'])
+
+
+@dataclass(frozen=True, slots=True)
+class Snapshot(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> Snapshot: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'owner content'); SnapshotOwner.restore(encode(value['owner']).decode()); _content(value['content'])
+    @property
+    def owner(self) -> SnapshotOwner: return SnapshotOwner.restore(encode(self._wire()['owner']).decode())
+    @property
+    def content(self) -> Content: return _content(self._wire()['content'])
+
+
+@dataclass(frozen=True, slots=True)
+class ReadAuthority:
+    database: int
+    schema: int
+    table: int
+
+
+def _authority(value: object) -> ReadAuthority:
+    value = _object(value, 'database schema table')
+    result = ReadAuthority(**{key: integer(item, key) for key, item in value.items()})
+    if len({result.database, result.schema, result.table}) != 3: raise ValueError('Invalid read authority')
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotStatus:
+    owner: SnapshotOwner
+    current_interpretation: Interpretation
+    current_position: Position
+    retired: bool
+    snapshot: Snapshot | None
+    released: bool
+    authority: ReadAuthority
+
+
+def _snapshot_status(value: object, owner: SnapshotOwner) -> SnapshotStatus:
+    value = _object(value, 'owner current_interpretation current_position retired snapshot released authority')
+    snapshot = None if value['snapshot'] is None else Snapshot.restore(encode(value['snapshot']).decode())
+    interpretation = _interpretation(value['current_interpretation'])
+    if value['owner'] != owner._wire() or interpretation.object != owner.object or (snapshot and snapshot.owner._wire() != owner._wire()): raise ValueError('Changed snapshot owner')
+    released = _boolean(value['released'])
+    if released and snapshot is None: raise ValueError('Release without snapshot evidence')
+    return SnapshotStatus(owner, interpretation, _position(value['current_position']), _boolean(value['retired']), snapshot, released, _authority(value['authority']))
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotMetadata:
+    snapshot: Snapshot
+    definition: StoredDefinition
+    accepted: Position
+    changed_lsn: int
+    row_count: int
+    schema: Schema
+    authority: ReadAuthority
+
+
+def _snapshot_metadata(value: object, snapshot: Snapshot) -> SnapshotMetadata:
+    value = _object(value, 'snapshot interpretation accepted changed_lsn row_count schema authority')
+    stored = _stored(value['interpretation']); schema = _schema(value['schema'])
+    if (value['snapshot'] != snapshot._wire() or stored.interpretation.object != snapshot.owner.object or
+        schema.object_id != snapshot.owner.object.object_id): raise ValueError('Changed retained source')
+    return SnapshotMetadata(snapshot, stored, _position(value['accepted']), _decimal(value['changed_lsn'], 0), _decimal(value['row_count'], 0), schema, _authority(value['authority']))

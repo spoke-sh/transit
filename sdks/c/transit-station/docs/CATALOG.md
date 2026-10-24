@@ -1,100 +1,91 @@
 # General Table callers
 
-Columns preserve orthogonal encoding and collation descriptors through creation,
-ADD COLUMN and metadata readback. New columns default to plain encoding and no
-declared collation. Wire schemas require both fields and reject unknown tags;
-missing fields never acquire defaults. `TRANSIT_CATALOG_PHYSICAL` selects physical descriptors
-for an existing column. Shared Zig validation owns supported combinations and
-exact conversion; carrying a collation does not establish SQL comparison support.
+Include `transit/catalog.h` for direct catalog inspection, Table DDL/DML and
+explicit snapshot retention. `transit_station_catalog_open` takes a client
+configuration, credential, connection and optional service URL. The connection
+identifies a catalog scope, branch, audience and optional role. Each operation
+selects its schema namespace. Shared Zig owns authorization, compilation,
+signing and storage publication; C owns bounded values and synchronous worker
+dispatch. The generated definition must match the installed native library.
 
-Include `transit/catalog.h` for catalog-based CREATE, ALTER, RENAME, DROP and
-typed INSERT/UPDATE/DELETE. Opening takes a configuration, credential and explicit
-realm-qualified catalog scope/owner. The native definition and capabilities must
-match. Shared Zig owns authorization, schema validation, signing, publication
-and recovery; C owns bounded values and synchronous worker dispatch.
+`describe`, `namespace_read`, `namespaces`, `tables` and `lookup` inspect the
+current catalog through its public owner. Descriptions include the configuration,
+authenticated subject and observed policy revision. Lookup returns an owned
+metadata handle or NULL. Its basis includes the complete connection, namespace,
+name, stable object, definition revision, content digest and schema fingerprint.
+Changing a definition makes the old basis stale; reusing a name cannot retarget
+saved work. Namespace administration, dependency controls and named KV/Document
+publication use their owning public interfaces and have no typed catalog wrappers
+in this package.
 
-`compile_sql` accepts a statement and operation/namespace identity. Supply a
-new object identity for CREATE. `prepare` accepts a typed request: CREATE carries
-a schema; ALTER/RENAME/DML carry an exact object/revision/fingerprint basis;
-DROP carries that basis or the explicit absent-name `IF EXISTS` case. Neither
-preparation operation submits work. Schemas admit 128 named columns, stable
-column IDs, [logical types and cells](LOGICAL.md), nullability, defaults,
-VARCHAR character limits and an explicit primary-key column list. An empty
-key list preserves duplicate rows using native row identities.
+`compile_sql` accepts SQL, an operation/namespace identity, dialect and ingestion
+mode. Supply a new stable object identity for CREATE. `prepare` accepts a typed
+request. CREATE carries a schema; ALTER, RENAME and DML carry an owned basis;
+DROP carries a basis or the explicit absent-name `IF EXISTS` case. These operations
+prepare work without publishing a change. `compiled_get` borrows the intent and
+saved-intent handles from their compiled owner.
 
-Construction views borrow their trees for the duration of a call. A NULL
-assignment pointer means DEFAULT; a logical NULL uses a non-NULL cell view.
-INSERT admits 1,024 rows with 128 assignments each. UPDATE/DELETE take an optional
-postfix predicate with at most 64 terms. Logical and complete action bounds
-still apply: the serializer stops at the aggregate bound before dispatch.
-ADD COLUMN uses a column specification; native admission assigns the new stable
-ID. ALTER also represents DROP/RENAME COLUMN, SET/DROP DEFAULT, nullability and
-qualified type changes. Type conversions and key restrictions remain native
-Table semantics, not C casts.
+Persist `saved_intent_export` before staging. `stage` returns a complete operation
+reference; persist `reference_export` before admission. `admit`, `inspect`,
+`execute` and `cancel` distinguish unobserved, admitted, rejected, cancelled,
+committed and unchanged outcomes. Committed row results distinguish matched,
+affected and live row counts. `execute` takes a positive, bounded step budget;
+callers inspect or advance the original reference explicitly. Closing the client
+does not cancel durable work.
 
-`compiled_get` copies the intent summary and borrows its saved-intent owner.
-Persist the saved definition and exact bytes before requesting progress.
-`saved_import` copies both; missing or foreign definitions reject. `load` binds
-the original intent to a fresh client. `next_read` returns running,
-upload-cancelled, terminal, or a prepared signed command. Persist each prepared
-command before `submit`. On `TRANSIT_SDK_UNKNOWN_OUTCOME`, keep those exact bytes
-for reconciliation. A position establishes admission; `observe` reports input
-progress; `input_disposition` reports controls/rejections; `progress_read` and
-`status_read` carry the original operation result. Only a terminal applied result
-establishes a committed change. DML counts distinguish matched and changed rows.
+`TRANSIT_SDK_UNKNOWN_OUTCOME` leaves all input handles intact and clears output
+pointers. Keep the original saved intent for staging uncertainty, reference for
+operation uncertainty, acquisition for pin uncertainty and snapshot for release
+uncertainty. Restore their complete JSON with the corresponding `*_restore`
+function; each restore copies and checks its mandatory definition and binding.
+Load a saved intent into a fresh client with `load`. Recovery never resolves an
+old operation through a current name, automatically retries it or changes its
+identity.
 
-Initialize, dependency, resume and cancellation/cleanup controls use
-their explicit preparation functions. Closing a client does not dispatch a
-durable cancellation. Current native roles and object grants govern operations and disclosures.
-CONNECT and schema USAGE precede Table privilege checks.
+`prepare_snapshot` constructs an explicit owner and expected data position from
+metadata. Persist its exported acquisition before `acquire_snapshot`. If the
+reply is lost, use `snapshot_status_read` with the same owner to discover its
+handle. `snapshot_metadata_read` returns the retained definition, schema and
+accepted position even after ALTER, DROP or name reuse. Every disclosure still
+checks current database, schema and Table authority. Persist the handle before
+`release_snapshot`; status distinguishes released ownership after an uncertain
+reply. Client destruction does not release a durable pin. This catalog interface
+reads retained metadata; interactive relational SQL has no C catalog wrapper.
 
-`lookup` returns an owned live definition or NULL. It includes metadata, head and
-the exact typed schema. `definition_read` returns a separate owned historical
-definition without a live head, using accepted historical evidence. DROP/name
-reuse cannot redirect it to a replacement object. Definition views borrow their
-opaque owner; destroy them with their matching function. Owners survive client
-closure. Outcome diagnostics own a validated, bounded diagnostic envelope.
+Metadata pages contain at most eight ordered entries. Preserve the complete
+cursor, including selection, connection and position. Empty pages can have a
+continuation. A changed directory cut conflicts; discard the partial listing
+before starting again. Table entries carry independent accepted data positions,
+so a directory page does not establish a common data snapshot.
 
-`list` returns at most eight ordered entries and an optional continuation. An
-empty page may still have a continuation. Preserve every cursor field, including
-the mandatory current definition, scope, resource revision and last object.
-The cursor may alias the output page's `next`. A changed cut returns a conflict;
-discard the partial listing before starting fresh. Metadata reads submit no
-command and still require current inspection authority. Cursors confer none.
+Schemas admit 128 columns with stable IDs, [logical types and cells](LOGICAL.md),
+nullability, defaults, character limits and primary keys. Encoding and collation
+are independent column descriptors. Creation, ADD and metadata preserve them;
+`TRANSIT_CATALOG_PHYSICAL` changes them through native validation. Missing or
+unknown wire descriptors reject. An empty primary-key list preserves duplicates
+using stable row identities. ADD obtains its column ID at native admission.
 
-Table/catalog/application identities use the full `uint64_t` range. Native
-realm/resource/process/principal/input identities retain their safe-integer
-bound. Names admit 255 UTF-8 bytes. SQL is bounded to 4,096 bytes, saved intents
-to 4,327,031 bytes, signed progress commands to 8,192 bytes and catalog actions
-to 16,777,216 bytes. Catalog responses admit 16,793,600 bytes. The native caller
-holds one installed intent. Other raw and Station routes keep their own bounds.
-Public definition-bound symbols reject incompatible installed artifacts.
+Construction views borrow input trees for the call. A NULL assignment value means
+DEFAULT; a non-NULL logical NULL means SQL NULL. INSERT admits 1,024 rows with
+128 assignments each. UPDATE/DELETE use optional postfix predicates of at most
+64 terms. Select `TRANSIT_CATALOG_POINT` or `TRANSIT_CATALOG_BULK` explicitly for
+typed DML. The serializer checks the complete action bound while appending values;
+finite row counts do not allow unbounded aggregate allocation.
 
-Imports copy inputs; byte getters borrow their owner. Opaque handles require
-their matching destroy function. Output pointers/structures clear on failure.
-One bounded worker owns each client. Calls block; overlap returns `BUSY`; close
-joins active work. POSIX thread cancellation is deferred until the owned call
-finishes. Join caller threads before destroying handles or borrowed inputs.
+Catalog, branch, object, operation and accepted positions use all 64 bits. Native
+realm/resource/principal/audience/namespace identities retain their safe-integer
+bound. Names admit 255 UTF-8 bytes; SQL admits 4,096 bytes. Native encoded intents
+admit 8,388,644 bytes, complete actions 16,793,672 bytes and responses 16,810,056
+bytes. One installed intent is resident per client. Other SDK routes retain their
+own limits.
 
-The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
+Opaque handles require their matching destroy function. Exports and typed views
+borrow from their owner; owners survive client closure. One bounded worker owns
+each client. Calls block, overlap returns `BUSY`, and close joins active work.
+Deferred POSIX cancellation stays masked through receipt publication. Join caller
+threads before destroying clients or their borrowed inputs. Definition-bound C
+symbols reject mismatched headers and installed libraries before ABI use.
+
+The [direct catalog contract](../../../../contracts/DIRECT_TABLE_V1.md) owns
 publication and authorization. The [proof ledger](../../../../tests/README.md)
-records installed lifecycle, receipt-loss and boundary checks.
-
-Metadata retains the immutable publication commitment: its byte length and
-32-byte digest. Lookup, listing and history reject missing or malformed
-commitments. C metadata copies this evidence inline; C++ metadata retains it
-in `MetadataCommitment` independently of its client lifetime.
-
-Connections select an optional native role and a positive schema namespace.
-C sets `has_role`, `role` and `namespace_id` explicitly; C++ defaults to the login
-role and namespace 1. `open` takes an optional Table-service URL (NULL in C,
-absent optional in C++ for direct infrastructure access). Mediation retains the
-caller's signing identity; the service's private resource identity is separate.
-
-Initialization requires the six-ID native authority profile and database name.
-Descriptions return the authenticated subject, credential epoch, selected role,
-audience, owned context digest and observed authorization revision. Returned
-subjects must match the connection. Live definitions include the native object
-identity; metadata includes its schema namespace and a commitment bounded to
-444 bytes. Lookup/list reject foreign namespaces. Historical definitions retain
-original object attribution and require its current disclosure privileges.
+records installed recovery and boundary evidence.

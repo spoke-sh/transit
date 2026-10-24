@@ -39,13 +39,13 @@ Unreferenced columns may use other valid stored types. Left joins make right
 projections nullable, including originally NOT NULL columns. Output names are
 explicit and unique. Storage support does not widen operator admission.
 
-| Dimension | Limit |
-| --- | --- |
-| Sources / joins | 1–2 / zero for one source, one for two |
-| Outputs / group columns | 1–128 / 0–128 |
-| Each source-local or joined predicate | 0–64 postfix instructions |
-| Names | 1–255 UTF-8 bytes, no NUL; 4096 output-name bytes total |
-| Prepared identity preimage | 8192 bytes |
+| Dimension                             | Limit                                                   |
+| ------------------------------------- | ------------------------------------------------------- |
+| Sources / joins                       | 1–2 / zero for one source, one for two                  |
+| Outputs / group columns               | 1–128 / 0–128                                           |
+| Each source-local or joined predicate | 0–64 postfix instructions                               |
+| Names                                 | 1–255 UTF-8 bytes, no NUL; 4096 output-name bytes total |
+| Prepared identity preimage            | 8192 bytes                                              |
 
 Table schemas retain their descriptor/default/key bounds. These limits bound
 plans, not retained collections. Budgets explicitly declare resident, spill and
@@ -467,7 +467,6 @@ ports, console and Flight routes have their own admitted profiles; the captured
 owner operations above do not implicitly enable those transports for relational
 plans. The maintained owner below uses a separate activation and revision ledger.
 
-
 ## Maintained Table owner operations
 
 `RelationalMaintenance` admits a bundle with lifetime `maintained`. The same
@@ -660,8 +659,7 @@ Closing a read releases its lease and does not stop maintenance.
 opened reference, current decimal ordinal and read flag. It checks current
 catalog metadata and active-source disclosure rights, advances no execution and
 opens no data snapshot. The returned reference resumes only this host's session.
-`query` wraps the exact `RelationalBridge` actions/results below. Board reflects
-these shared types in its separately configured relational route.
+`query` wraps the exact `RelationalBridge` actions/results below.
 
 `transit-query.RelationalBridge` owns the neutral interactive action/result types;
 Station's query ABI and port reflect them without another executor. See the
@@ -685,3 +683,41 @@ not discard its pending row. A semantic failure retains the original cause and
 cannot publish completion. Closing releases the interactive execution, and an
 exact retry of its last close succeeds. Host loss expires references; this
 interface neither persists interactive spill nor restarts SQL implicitly.
+
+## Service-owned interactive retention
+
+`RelationalWorkspace` owns the separately configured Board route. Its open is
+`{id, statement, sources}`: every source contains the complete prepared binding,
+alias and accepted position returned by explanation. It records that exact input
+and a unique original pin operation for each source before checking current
+metadata or dispatching acquisition. A changed source rejects without selecting
+newer data. Acquisition uses exact positions; the resulting handles feed the
+same `RelationalBridge.Session` executor. One active query admits no other ID or
+changed input. All disclosures retain the shared current-rights checks.
+
+The host serializes operations. A private recovery directory has one exclusive
+process owner and a journal bounded to 32 KiB. The journal requires the current
+shared definition, connection/endpoint fingerprint, complete original input,
+pin operations and optional received handles, optional query reference and
+`acquiring`, `active`, `closing` or `closed` state. Atomic replacement, file sync
+and directory sync precede dispatch or acknowledgment of the next transition.
+Missing compatibility fields and foreign or corrupt records reject; they are
+never defaulted, reset or interpreted as an empty directory.
+
+`describe` adds nullable recovery `{id, state, remaining_pins}`. Replacing the
+host loses its executor and durably changes unfinished work to `closing` before
+admitting requests. `recover: {id}` closes only that exact journal entry. Close
+records its decision before discarding execution, then reconciles each original
+pin: an accepted handle is released, while an absent acquisition is fenced by
+exact pin/release or proven permanently excluded by a later frontier/retirement.
+The service persists each completed closure before proceeding. A lost pin or
+release reply preserves the original identity and an unknown outcome, not a
+rejection. Cleanup retains the direct retention contract's current
+CONNECT/USAGE/SELECT checks, including release. A denied cleanup leaves the
+original journal pending until rights are restored. A closed entry makes the most recent close
+or recovery repeatable, and its ID cannot immediately reopen different work.
+
+Destruction closes local execution and files without network cleanup. The next
+owner exposes interrupted retention for explicit closure; new work waits until
+closure finishes. This journal does not resume query rows, extend the captured
+or maintained execution contracts, or introduce implicit retention expiry.

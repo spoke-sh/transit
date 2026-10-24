@@ -11,8 +11,6 @@ module Transit
       LIMITS = CONTRACT.fetch('limits').freeze
       ENCODINGS = %i[plain bitpacked rle dictionary fsst comp comp_3 zoned ibm_hfp ebcdic].freeze
       COLLATIONS = %i[none utf8_binary ascii_ci ebcdic_cp037 icu_root].freeze
-      KINDS = %i[create alter rename drop insert update delete].freeze
-      PHASES = %i[preparing delegated building applied unchanged rejected cancelled].freeze
       module Values
         class WireBudget
           def initialize(limit) = @remaining = limit
@@ -73,15 +71,11 @@ module Transit
         def initialize(resource:, catalog:) = super(resource: Values.typed(resource, ResourceRef), catalog: Values.wide(catalog))
         def wire = { 'realm' => resource.realm, 'resource' => resource.resource, 'catalog' => catalog.to_s }
       end
-      Connection = Data.define(:owner, :scope, :role, :namespace) do
-        def initialize(owner:, scope:, role: nil, namespace: 1)
-          Values.typed(owner, ProcessRef); Values.typed(scope, Scope)
-          raise ArgumentError, 'Catalog connection requires one realm' unless owner.realm == scope.resource.realm
-          Internal.integer(role, min: 0) unless role.nil?
-          Internal.integer(namespace)
-          super
+      Connection = Data.define(:scope, :audience, :branch, :role) do
+        def initialize(scope:, audience:, branch: 1, role: nil)
+          super(scope: Values.typed(scope, Scope), audience: Internal.integer(audience), branch: Values.wide(branch), role: role.nil? ? nil : Internal.integer(role, min: 0))
         end
-        def wire(principal) = { 'scope' => scope.wire, 'owner' => owner.pid, 'principal' => Internal.integer(principal, min: 0), 'role' => role, 'namespace' => namespace }
+        def wire(principal) = { 'scope' => scope.wire, 'branch' => branch.to_s, 'audience' => audience, 'principal' => Internal.integer(principal, min: 0), 'role' => role }
       end
       TableLimits = Data.define(:record_bytes, :staging_bytes, :staging_records) do
         def initialize(record_bytes:, staging_bytes:, staging_records:)
@@ -90,13 +84,6 @@ module Transit
           super
         end
         def wire = { 'record_bytes' => record_bytes, 'staging_bytes' => staging_bytes.to_s, 'staging_records' => staging_records }
-      end
-      Configuration = Data.define(:scope, :owner, :administrator, :table_limits, :authority, :database_name) do
-        def initialize(scope:, owner:, administrator:, table_limits:, authority:, database_name:)
-          Connection.new(owner: owner, scope: scope)
-          super(scope: scope, owner: owner, administrator: Internal.integer(administrator, min: 0), table_limits: Values.typed(table_limits, TableLimits), authority: Values.typed(authority, AuthorityProfile), database_name: Values.text(Values.name(database_name), 63))
-        end
-        def wire = { 'scope' => scope.wire, 'owner' => owner.pid, 'administrator' => administrator, 'table_limits' => table_limits.wire, 'authority' => authority.wire, 'database_name' => database_name }
       end
       # These opaque IDs are allocated by public native provisioning.
       AuthorityProfile = Data.define(:database_domain, :schema_domain, :table_domain, :database, :initial_schema, :initial_schema_authority) do
@@ -137,69 +124,8 @@ module Transit
         end
       end
       Identity = Data.define(:operation, :namespace) do
-        def initialize(operation:, namespace:) = super(operation: Values.wide(operation), namespace: Values.wide(namespace))
-        def wire = { 'operation' => operation.to_s, 'namespace' => namespace.to_s }
+        def initialize(operation:, namespace: 1) = super(operation: Values.wide(operation), namespace: Internal.integer(namespace))
       end
-      Basis = Data.define(:object, :revision, :schema_fingerprint) do
-        def initialize(object:, revision:, schema_fingerprint:) = super(object: Values.wide(object), revision: Values.wide(revision), schema_fingerprint: Values.digest(schema_fingerprint))
-        def wire = { 'object' => object.to_s, 'revision' => revision.to_s, 'schema_fingerprint' => schema_fingerprint.unpack1('H*') }
-      end
-      MetadataCommitment = Data.define(:bytes, :digest) do
-        def initialize(bytes:, digest:)
-          super(bytes: Internal.integer(bytes, min: 1, max: 444), digest: Values.digest(digest))
-        end
-        def wire = { 'format' => 0x54434d01, 'length' => bytes, 'digest' => digest.bytes }
-      end
-      Metadata = Data.define(:namespace, :scope, :object, :revision, :name, :schema_fingerprint, :principal, :operation, :admitted_input, :commitment) do
-        def initialize(namespace:, scope:, object:, revision:, name:, schema_fingerprint:, principal:, operation:, admitted_input:, commitment:)
-          super(namespace: Internal.integer(namespace), scope: Values.typed(scope, Scope), object: Values.wide(object), revision: Values.wide(revision), name: Values.name(name), schema_fingerprint: Values.digest(schema_fingerprint), principal: Internal.integer(principal, min: 0), operation: Values.wide(operation), admitted_input: Internal.integer(admitted_input), commitment: Values.typed(commitment, MetadataCommitment))
-        end
-        def basis = Basis.new(object: object, revision: revision, schema_fingerprint: schema_fingerprint)
-      end
-      Head = Data.define(:revision, :rows, :pending) do
-        def initialize(revision:, rows:, pending:) = super(revision: Values.wide(revision), rows: Values.wide(rows, min: 0), pending: Values.wide(pending, min: 0))
-      end
-      Entry = Data.define(:metadata, :head)
-      Definition = Data.define(:authorization, :metadata, :head, :schema)
-      HistoricalDefinition = Data.define(:metadata, :schema)
-      Cursor = Data.define(:definition, :scope, :resource_revision, :after_object) do
-        def initialize(definition:, scope:, resource_revision:, after_object:)
-          super(definition: Values.definition(definition), scope: Values.typed(scope, Scope), resource_revision: Internal.integer(resource_revision, min: 0), after_object: Values.wide(after_object))
-        end
-        def wire = { 'definition' => definition, 'scope' => scope.wire, 'resource_revision' => resource_revision, 'after_object' => after_object.to_s }
-      end
-      Page = Data.define(:resource_revision, :entries, :next) do
-        def initialize(resource_revision:, entries:, next:)
-          revision = Internal.integer(resource_revision, min: 0)
-          entries = Logical.collection(entries, Entry, 8)
-          raise ArgumentError, 'Unordered or foreign page entries' unless entries.each_cons(2).all? { |a, b| a.metadata.scope == b.metadata.scope && a.metadata.object < b.metadata.object }
-          cursor = binding.local_variable_get(:next)
-          if cursor
-            Values.typed(cursor, Cursor)
-            raise ArgumentError, 'Invalid page continuation' unless cursor.resource_revision == revision && (entries.empty? || (entries.last.metadata.scope == cursor.scope && entries.last.metadata.object <= cursor.after_object))
-          end
-          super(resource_revision: revision, entries: entries, next: cursor)
-        end
-      end
-      Reference = Data.define(:definition, :digest) do
-        def initialize(definition:, digest:) = super(definition: Values.definition(definition), digest: Values.digest(digest))
-        def wire = { 'definition' => definition, 'digest' => digest.unpack1('H*') }
-      end
-      SavedIntent = Data.define(:definition, :bytes) do
-        def initialize(definition:, bytes:)
-          bytes = Internal.bytes(bytes, LIMITS.fetch('catalog_intent_bytes')).freeze
-          raise ArgumentError, 'Empty saved intent' if bytes.empty?
-          super(definition: Values.definition(definition), bytes: bytes)
-        end
-        def wire = { 'definition' => definition, 'bytes' => bytes.unpack1('H*') }
-        def inspect = '#<Transit::Station::Catalog::SavedIntent owned recovery bytes>'
-      end
-      Prepared = Data.define(:data) do
-        def initialize(data:) = super(data: Values.text(data, LIMITS.fetch('catalog_prepared_bytes')))
-        def inspect = '#<Transit::Station::Catalog::Prepared owned signed command>'
-      end
-      Intent = Data.define(:reference, :scope, :owner, :principal, :identity, :object, :kind)
-      Compiled = Data.define(:intent, :saved)
       Counts = Data.define(:matched, :changed) do
         def initialize(matched:, changed:)
           Values.wide(matched, min: 0); Values.wide(changed, min: 0)
@@ -207,18 +133,6 @@ module Transit
           super
         end
       end
-      Outcome = Data.define(:kind, :operation, :object, :actual_object, :phase, :terminal, :counts, :admitted_input, :completed_input, :diagnostic)
-      Upload = Data.define(:phase, :received, :total)
-      State = Data.define(:outcome, :upload)
-      Disposition = Data.define(:input, :outcome, :diagnostic)
-      Next = Data.define(:kind, :prepared, :outcome) do
-        def initialize(kind:, prepared: nil, outcome: nil) = super
-      end
-      Progress = Data.define(:observation, :disposition, :outcome, :upload) do
-        def initialize(observation:, disposition: nil, outcome: nil, upload: nil) = super
-      end
-      Capabilities = Data.define(:version, :definition, :max_columns, :max_rows, :max_sql_bytes, :max_intent_bytes, :max_action_bytes, :max_prepared_bytes, :resident_intents)
-      Description = Data.define(:configuration, :subject, :authorization_revision, :resource_revision)
       Assignment = Data.define(:column, :value) do
         def initialize(column:, value:) = super(column: Values.wide(column), value: value == :default ? :default : Logical.cell(value))
         def wire = { 'column' => column.to_s, 'value' => value == :default ? { 'default' => {} } : { 'cell' => Logical.cell_wire(value) } }
@@ -343,40 +257,17 @@ module Transit
         def object = basis&.object || 0
         def wire = { 'drop' => { 'basis' => basis&.wire, 'if_exists' => if_exists } }
       end
-      Mutate = Data.define(:basis, :mutation) do
-        def initialize(basis:, mutation:)
+      Mutate = Data.define(:basis, :mutation, :ingestion) do
+        def initialize(basis:, mutation:, ingestion: :point)
           raise ArgumentError, 'Expected typed Table mutation' unless [Insert, Update, Delete].any? { |type| mutation.is_a?(type) }
-          super(basis: Values.typed(basis, Basis), mutation: mutation)
+          Values.symbol(ingestion, %i[point bulk]); super(basis: Values.typed(basis, Basis), mutation: mutation, ingestion: ingestion)
         end
         def kind = mutation.kind
         def object = basis.object
-        def wire = { 'mutate' => { 'basis' => basis.wire, 'mutation' => mutation.wire } }
-      end
-      Dependency = Data.define(:scope, :object, :identity, :owner, :kind) do
-        def initialize(scope:, object:, identity:, owner:, kind:)
-          Connection.new(owner: owner, scope: scope); Values.symbol(kind, %i[query_source writer watch maintained_relation history])
-          super(scope: scope, object: Values.wide(object), identity: Values.wide(identity), owner: owner, kind: kind)
-        end
-        def wire(present) = { 'scope' => scope.wire, 'object' => object.to_s, 'identity' => identity.to_s, 'owner' => owner.pid, 'kind' => kind.to_s, 'present' => Internal.boolean(present) }
+        def wire = { 'mutate' => { 'basis' => basis.wire, 'mutation' => mutation.wire, 'ingestion' => ingestion.to_s } }
       end
       module Values
         module_function
-        def configuration(value)
-          v = object(value, %w[scope owner administrator table_limits authority database_name]); s = scope(v.fetch('scope'))
-          limits = object(v.fetch('table_limits'), %w[record_bytes staging_bytes staging_records])
-          Configuration.new(authority: authority(v.fetch('authority')), database_name: v.fetch('database_name'), scope: s, owner: ProcessRef.new(realm: s.resource.realm, pid: v.fetch('owner')), administrator: v.fetch('administrator'), table_limits: TableLimits.new(record_bytes: limits.fetch('record_bytes'), staging_bytes: decimal(limits.fetch('staging_bytes')), staging_records: limits.fetch('staging_records')))
-        end
-        def authority(value)
-          v = object(value, AuthorityProfile.members.map(&:to_s))
-          AuthorityProfile.new(**v.transform_keys(&:to_sym))
-        end
-        def subject(value)
-          v = object(value, %w[principal login_role role credential_epoch audience context])
-          data = v.fetch('context')
-          raise IncompatibleNative, 'Invalid authenticated context' unless data.is_a?(Array) && data.length == 32
-          context = data.map { |byte| Internal.integer(byte, min: 0, max: 255) }.pack('C*')
-          Subject.new(**v.except('context').transform_keys(&:to_sym), context: context)
-        end
         def schema(value)
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
           raise IncompatibleNative, 'Invalid Table columns' unless v['columns'].is_a?(Array) && v['columns'].length.between?(1, 128) && v['primary_key'].is_a?(Array)
@@ -385,127 +276,336 @@ module Transit
           end
           Schema.new(object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), next_column: decimal(v.fetch('next_column')), columns: columns, primary_key: v.fetch('primary_key').map { |k| decimal(k) })
         end
-        def commitment(value)
-          v = object(value, %w[format length digest])
-          unless v.fetch('format') == 0x54434d01 && v.fetch('digest').is_a?(Array) && v.fetch('digest').length == 32
-            raise IncompatibleNative, 'Invalid Table metadata commitment'
-          end
-          digest = v.fetch('digest').map { |byte| Internal.integer(byte, min: 0, max: 255) }.pack('C*')
-          MetadataCommitment.new(bytes: v.fetch('length'), digest: digest)
-        end
-        def metadata(value)
-          v = object(value, %w[namespace scope object revision name schema_fingerprint principal operation admitted_input commitment])
-          Metadata.new(namespace: v.fetch('namespace'), scope: scope(v.fetch('scope')), object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), name: v.fetch('name'), schema_fingerprint: Internal.unhex(v.fetch('schema_fingerprint'), 32), principal: v.fetch('principal'), operation: decimal(v.fetch('operation')), admitted_input: v.fetch('admitted_input'), commitment: commitment(v.fetch('commitment')))
-        end
-        def head(value)
-          v = object(value, %w[revision rows pending]); Head.new(revision: decimal(v.fetch('revision')), rows: decimal(v.fetch('rows'), min: 0), pending: decimal(v.fetch('pending'), min: 0))
-        end
-        def resolved(value, scope, namespace, name)
-          optional(value) do |v|
-            object(v, %w[authorization metadata head schema]); result = Definition.new(authorization: Internal.integer(v.fetch('authorization')), metadata: metadata(v.fetch('metadata')), head: head(v.fetch('head')), schema: schema(v.fetch('schema')))
-            raise IncompatibleNative, 'Foreign Table definition' unless result.metadata.scope == scope && result.metadata.namespace == namespace && result.metadata.name == name && result.metadata.object == result.schema.object
-            result
+      end
+      # Local values preserve exact bindings. Shared Zig remains the authority
+      # for signatures, admission, result truth and current access.
+      module Values
+        SCHEMAS = JSON.parse(File.binread(File.join(__dir__, 'schemas.json'))).freeze
+        class UniqueObject < Hash
+          def []=(key, value)
+            raise ArgumentError, 'Duplicate saved field' if key?(key)
+            super
           end
         end
-        def historical(value, scope, object, revision)
-          optional(value) do |v|
-            object(v, %w[metadata schema]); result = HistoricalDefinition.new(metadata: metadata(v.fetch('metadata')), schema: schema(v.fetch('schema')))
-            raise IncompatibleNative, 'Foreign historical definition' unless result.metadata.scope == scope && result.metadata.object == object && result.metadata.revision == revision && result.schema.object == object
-            result
-          end
+        module_function
+        def parse(data)
+          JSON.parse(text(data, LIMITS.fetch('catalog_action_bytes')), object_class: UniqueObject, max_nesting: 96)
+        rescue JSON::ParserError, JSON::NestingError
+          raise ArgumentError, 'Invalid saved catalog value'
         end
-        def cursor(value)
-          optional(value) do |v|
-            object(v, %w[definition scope resource_revision after_object]); Cursor.new(definition: v.fetch('definition'), scope: scope(v.fetch('scope')), resource_revision: v.fetch('resource_revision'), after_object: decimal(v.fetch('after_object')))
-          end
+        def validate(name, value)
+          raise IncompatibleNative, 'Invalid current catalog contract' unless Internal.valid?(SCHEMAS.fetch(name), value)
+          value
         end
-        def page(value, scope, previous)
-          v = object(value, %w[resource_revision entries next]); slots = v.fetch('entries')
-          raise IncompatibleNative, 'Expected eight optional entry slots' unless slots.is_a?(Array) && slots.length == 8
-          ended = false; entries = []
-          slots.each do |slot|
-            if slot.nil? then ended = true
-            else
-              object(slot, %w[metadata head]); entry = Entry.new(metadata: metadata(slot.fetch('metadata')), head: head(slot.fetch('head')))
-              raise IncompatibleNative, 'Page has a hole or foreign scope' if ended || entry.metadata.scope != scope
-              entries << entry
-            end
-          end
-          result = Page.new(resource_revision: v.fetch('resource_revision'), entries: entries, next: cursor(v.fetch('next')))
-          raise IncompatibleNative, 'Foreign continuation scope' if result.next && result.next.scope != scope
-          if previous && (result.resource_revision != previous.resource_revision || (entries.first && entries.first.metadata.object <= previous.after_object) || (result.next && result.next.after_object <= previous.after_object))
-            raise IncompatibleNative, 'Response does not continue its requested page'
-          end
+        def action(value) = validate('CatalogAction', value)
+        def variant(value) = Logical.variant(value)
+        def digest_hex(value)
+          bytes = Internal.unhex(value, 32)
+          raise ArgumentError, 'Expected complete digest' unless bytes.bytesize == 32
+          bytes.freeze
+        end
+        def position(value) = Position.new(partition: decimal(value.fetch('partition')), next_lsn: decimal(value.fetch('next_lsn'), min: 0))
+        def connection(value)
+          Internal.integer(value.fetch('principal'), min: 0)
+          Connection.new(scope: scope(value.fetch('scope')), audience: value.fetch('audience'), branch: decimal(value.fetch('branch')), role: value.fetch('role'))
+        end
+        def object_identity(value)
+          ObjectIdentity.new(scope: scope(value.fetch('scope')), branch: decimal(value.fetch('branch')), object: decimal(value.fetch('object')))
+        end
+        def interpretation(value)
+          Interpretation.new(object: object_identity(value.fetch('object')), revision: decimal(value.fetch('revision')), digest: digest_hex(value.fetch('digest')))
+        end
+        def content(value) = Content.new(bytes: decimal(value.fetch('bytes')), sha256: digest_hex(value.fetch('sha256')))
+        def stored(value)
+          result = StoredDefinition.new(interpretation: interpretation(value.fetch('interpretation')), content: content(value.fetch('content')),
+            schema_fingerprint: digest_hex(value.fetch('schema_fingerprint')), retired: Internal.boolean(value.fetch('retired')))
+          raise ArgumentError, 'Stored definition digest changed' unless result.interpretation.digest == result.content.sha256
           result
         end
-        def intent(value, connection, principal)
-          v = object(value, %w[reference scope owner principal operation namespace object kind]); r = object(v.fetch('reference'), %w[definition digest]); s = scope(v.fetch('scope'))
-          result = Intent.new(reference: Reference.new(definition: r.fetch('definition'), digest: Internal.unhex(r.fetch('digest'), 32)), scope: s, owner: ProcessRef.new(realm: s.resource.realm, pid: v.fetch('owner')), principal: Internal.integer(v.fetch('principal'), min: 0), identity: Identity.new(operation: decimal(v.fetch('operation')), namespace: decimal(v.fetch('namespace'))), object: decimal(v.fetch('object'), min: 0), kind: enum(v.fetch('kind'), KINDS))
-          raise IncompatibleNative, 'Foreign intent connection' unless result.scope == connection.scope && result.owner == connection.owner && result.principal == principal
-          result
+        def owns(connection, target)
+          raise ArgumentError, 'Foreign catalog object' unless connection.scope == target.scope && connection.branch == target.branch
         end
-        def compiled(value, connection, principal, identity, kind = nil, object = nil)
-          v = self.object(value, %w[intent saved]); saved = self.object(v.fetch('saved'), %w[definition bytes])
-          result = Compiled.new(intent: intent(v.fetch('intent'), connection, principal), saved: SavedIntent.new(definition: saved.fetch('definition'), bytes: Internal.unhex(saved.fetch('bytes'), LIMITS.fetch('catalog_intent_bytes'))))
-          raise IncompatibleNative, 'Compiled intent differs from its request' unless result.intent.identity == identity && (kind.nil? || result.intent.kind == kind) && (object.nil? || result.intent.object == object)
-          result
-        end
-        def outcome(value)
-          optional(value) do |v|
-            object(v, %w[kind operation object actual_object phase terminal counts admitted_input completed_input diagnostic])
-            kind = enum(v.fetch('kind'), KINDS); phase = enum(v.fetch('phase'), PHASES); terminal = Internal.boolean(v.fetch('terminal'))
-            counts = optional(v.fetch('counts')) { |c| object(c, %w[matched changed]); Counts.new(matched: decimal(c.fetch('matched'), min: 0), changed: decimal(c.fetch('changed'), min: 0)) }
-            raise IncompatibleNative, 'Inconsistent terminal outcome' unless terminal == %i[applied unchanged rejected cancelled].include?(phase)
-            raise IncompatibleNative, 'Inconsistent mutation counts' unless !counts.nil? == (phase == :applied && %i[insert update delete].include?(kind))
-            Outcome.new(kind: kind, operation: decimal(v.fetch('operation')), object: decimal(v.fetch('object'), min: 0), actual_object: optional(v.fetch('actual_object')) { |id| decimal(id, min: 0) }, phase: phase, terminal: terminal, counts: counts, admitted_input: Internal.integer(v.fetch('admitted_input')), completed_input: optional(v.fetch('completed_input')) { |position| Internal.integer(position) }, diagnostic: Value.diagnostic(v.fetch('diagnostic')))
+        def binding(value)
+          definition(value.fetch('definition')); identity = value.fetch('identity')
+          original_scope = scope(identity.fetch('scope')); Internal.integer(identity.fetch('principal'), min: 0); decimal(identity.fetch('operation'))
+          target = object_identity(value.fetch('target')); digest_hex(value.fetch('intent'))
+          raise ArgumentError, 'Foreign operation target' unless target.scope == original_scope
+          expected = optional(value.fetch('expected_definition')) { |v| interpretation(v) }
+          raise ArgumentError, 'Foreign expected definition' if expected && expected.object != target
+          optional(value.fetch('expected_data')) { |v| position(v) }
+          if value.fetch('action') == 'create'
+            raise ArgumentError, 'CREATE has existing expectations' if expected || value['expected_data']
+          else
+            raise ArgumentError, 'Missing expected definition' unless expected
           end
+          value
         end
-        def upload(value)
-          optional(value) do |v|
-            object(v, %w[phase received total]); total = Internal.integer(v.fetch('total'), max: LIMITS.fetch('catalog_intent_bytes'))
-            Upload.new(phase: enum(v.fetch('phase'), %i[uploading sealed ready cancelled]), received: Internal.integer(v.fetch('received'), min: 0, max: total), total: total)
-          end
+        def assertion(value)
+          definition(value.fetch('definition')); c = connection(value.fetch('connection'))
+          Internal.integer(value.fetch('namespace')); name(value.fetch('name')); decimal(value.fetch('operation')); digest_hex(value.fetch('intent'))
+          expected = optional(value.fetch('expected')) { |v| interpretation(v) }
+          owns(c, expected.object) if expected
+          raise ArgumentError, 'Invalid conditional binding' unless (value.fetch('action') == 'create_if_not_exists') == !expected.nil?
+          value
         end
-        def state(value)
-          v = object(value, %w[outcome upload]); State.new(outcome: outcome(v.fetch('outcome')), upload: upload(v.fetch('upload')))
-        end
-        def disposition(value)
-          optional(value) do |v|
-            object(v, %w[input outcome diagnostic]); Disposition.new(input: Internal.integer(v.fetch('input')), outcome: enum(v.fetch('outcome'), %i[initialized policy_applied dependency_applied invalid_command blocked denied identity_conflict stale_policy]), diagnostic: Value.diagnostic(v.fetch('diagnostic')))
-          end
-        end
-        def next_step(value)
-          kind, payload = Logical.variant(value)
-          case kind
-          when 'send' then Next.new(kind: :send, prepared: Prepared.new(data: payload))
-          when 'terminal'
-            result = outcome(payload)
-            raise IncompatibleNative, 'Missing terminal outcome' unless result&.terminal
-            Next.new(kind: :terminal, outcome: result)
-          when 'running', 'upload_cancelled'
-            object(payload, []); Next.new(kind: kind.to_sym)
-          else raise IncompatibleNative, 'Unknown Table next step'
-          end
-        end
-        def progress(value)
-          kind, payload = Logical.variant(value)
-          return Progress.new(observation: :pending) if kind == 'pending' && object(payload, [])
-          raise IncompatibleNative, 'Unknown Table progress' unless kind == 'processed'
-          v = object(payload, %w[disposition outcome upload]); Progress.new(observation: :processed, disposition: disposition(v.fetch('disposition')), outcome: outcome(v.fetch('outcome')), upload: upload(v.fetch('upload')))
+        def check_binding(value, c, principal)
+          binding(value)
+          raise ArgumentError, 'Foreign original caller' unless value['identity']['principal'] == principal && scope(value['identity']['scope']) == c.scope
+          owns(c, object_identity(value.fetch('target')))
         end
         def capabilities(value)
-          fields = Capabilities.members.map(&:to_s); v = object(value, fields)
-          definition(v.fetch('definition')); Capabilities.new(**fields.to_h { |k| [k.to_sym, k == 'definition' ? DEFINITION : Internal.integer(v.fetch(k))] })
-        end
-        def supported?(caps)
-          caps.version == 1 && caps.max_columns == 128 && caps.max_rows == 1024 && caps.max_sql_bytes == 4096 && caps.max_intent_bytes == LIMITS.fetch('catalog_intent_bytes') && caps.max_action_bytes == LIMITS.fetch('catalog_action_bytes') && caps.max_prepared_bytes == LIMITS.fetch('catalog_prepared_bytes') && caps.resident_intents == 1
-        end
-        def description(value, connection, principal)
-          v = object(value, %w[configuration subject authorization_revision resource_revision]); result = Description.new(configuration: configuration(v.fetch('configuration')), subject: subject(v.fetch('subject')), authorization_revision: Internal.integer(v.fetch('authorization_revision'), min: 0), resource_revision: Internal.integer(v.fetch('resource_revision'), min: 0))
-          raise IncompatibleNative, 'Foreign catalog description' unless result.configuration.scope == connection.scope && result.configuration.owner == connection.owner && result.subject.principal == principal && result.subject.audience == connection.owner.pid && (connection.role.nil? || result.subject.role == connection.role)
+          definition(value.fetch('definition'))
+          result = Capabilities.new(**value.transform_keys(&:to_sym))
+          raise UnsupportedCapability, 'Native direct catalog capability mismatch' unless
+            result.version == 1 && result.max_columns == 128 && result.max_rows == 1024 && result.max_sql_bytes == 4096 &&
+            result.max_intent_bytes == LIMITS.fetch('catalog_intent_bytes') && result.max_action_bytes == LIMITS.fetch('catalog_action_bytes') &&
+            result.metadata_page_entries == 8 && result.resident_intents == 1
           result
         end
+        def description(value, c, principal)
+          raw = value.fetch('configuration'); verified = value.fetch('subject')
+          config = Configuration.new(scope: scope(raw.fetch('scope')), branch: decimal(raw.fetch('branch')), partition: decimal(raw.fetch('partition')),
+            audience: Internal.integer(raw.fetch('audience')), authority: AuthorityProfile.new(**raw.fetch('authority').transform_keys(&:to_sym)),
+            database_name: name(raw.fetch('database_name')), initial_schema_name: name(raw.fetch('initial_schema_name')))
+          context = verified.fetch('context').map { |byte| Internal.integer(byte, min: 0, max: 255) }.pack('C*')
+          subject = Subject.new(**verified.except('context').transform_keys(&:to_sym), context: context)
+          raise IncompatibleNative, 'Foreign catalog description' unless config.scope == c.scope && config.branch == c.branch && config.audience == c.audience &&
+            subject.principal == principal && subject.audience == c.audience && (c.role.nil? || subject.role == c.role)
+          Description.new(configuration: config, subject: subject, policy_revision: Internal.integer(value.fetch('policy_revision'), min: 0))
+        end
+        def metadata(value, c, principal, namespace, name)
+          return nil if value.nil?
+          basis = Basis.restore(JSON.generate(value.fetch('binding')))
+          raise IncompatibleNative, 'Foreign Table lookup' unless basis.connection == c && basis.principal == principal && basis.namespace == namespace && basis.name == name
+          schema = schema(value.fetch('schema'))
+          raise IncompatibleNative, 'Foreign Table schema' unless schema.object == basis.object
+          Metadata.new(basis: basis, authorization: Internal.integer(value.fetch('authorization')), position: position(value.fetch('position')),
+            changed_lsn: decimal(value.fetch('changed_lsn'), min: 0), row_count: decimal(value.fetch('row_count'), min: 0), schema: schema)
+        end
+        def summary(value, saved, c, principal, identity = nil)
+          id = value.fetch('id'); definition(id.fetch('definition')); digest_hex(id.fetch('digest'))
+          namespace = Internal.integer(value.fetch('namespace')); kind, b = variant(value.fetch('binding'))
+          if kind == 'table'
+            check_binding(b, c, principal); operation = decimal(b.fetch('identity').fetch('operation'))
+          else
+            assertion(b); operation = decimal(b.fetch('operation'))
+            raise IncompatibleNative, 'Foreign name binding' unless b.fetch('connection') == c.wire(principal) && b.fetch('namespace') == namespace
+          end
+          raise IncompatibleNative, 'Substituted prepared identity' if identity && (identity.operation != operation || identity.namespace != namespace)
+          saved_kind, saved_raw = variant(saved.wire)
+          raise IncompatibleNative, 'Changed saved work' unless saved_kind == kind && saved_raw.fetch('namespace') == namespace
+          raise IncompatibleNative, 'Changed name assertion' if kind == 'name_assertion' && saved_raw != b
+          Intent.new(id_data: JSON.generate(id).freeze, binding_data: JSON.generate(b).freeze, kind: kind.to_sym, namespace: namespace,
+            identity: Identity.new(operation: operation, namespace: namespace), saved: saved)
+        end
+        def observation(value, original)
+          kind, tagged = variant(value); state, raw = variant(tagged); b = original.binding
+          expected = original.kind == :name_assertion ? 'name_assertion' : (%w[insert update delete].include?(b.fetch('action')) ? 'rows' : 'ddl')
+          raise IncompatibleNative, 'Changed observation kind' unless kind == expected
+          return Observation.new(kind: kind.to_sym, state: :not_observed, reference: original) if state == 'not_observed'
+          raise IncompatibleNative, 'Changed original binding' unless raw.fetch('binding') == b
+          if kind == 'name_assertion'
+            return Observation.new(kind: :name_assertion, state: raw.fetch('state').to_sym, reference: original,
+              reason: raw.fetch('reason').to_sym, position: position(raw.fetch('position')))
+          end
+          if state == 'committed'
+            result = stored(raw.fetch('resulting')); outcome = raw.fetch('outcome')
+            matched = decimal(outcome.fetch('matched'), min: 0); affected = decimal(outcome.fetch('affected'), min: 0)
+            raise IncompatibleNative, 'Changed commit evidence' unless affected <= matched && result.interpretation.object == object_identity(b.fetch('target'))
+            commit = Commit.new(definition: result, position: position(outcome.fetch('position')), matched: matched, affected: affected, live_rows: decimal(outcome.fetch('live_rows'), min: 0))
+            return Observation.new(kind: kind.to_sym, state: :committed, reference: original, commit: commit)
+          end
+          content(raw.fetch('intent'))
+          phase = raw.fetch('phase'); reason = raw.fetch('reason')
+          raise IncompatibleNative, 'Inconsistent operation phase' unless state == 'admitted' ? %w[admitted ready settled].include?(phase) : state == phase
+          if kind == 'rows'
+            basis = raw.fetch('basis'); interpretation(basis.fetch('interpretation')); position(basis.fetch('position')); decimal(basis.fetch('changed_lsn'), min: 0)
+          end
+          Observation.new(kind: kind.to_sym, state: state.to_sym, reference: original, phase: phase.to_sym, reason: reason.to_sym)
+        end
+        def preview(value, intent)
+          kind, raw = variant(value)
+          expected = intent.kind == :name_assertion ? 'name_assertion' : (%w[insert update delete].include?(intent.binding.fetch('action')) ? 'rows' : 'ddl')
+          raise IncompatibleNative, 'Changed preview binding' unless kind == expected && raw.fetch('binding') == intent.binding
+          current = optional(raw.fetch('current')) do |v|
+            if kind == 'name_assertion' then interpretation(v)
+            else CurrentBasis.new(definition: stored(v.fetch('interpretation')), position: position(v.fetch('position')), changed_lsn: decimal(v.fetch('changed_lsn'), min: 0), row_count: decimal(v.fetch('row_count'), min: 0))
+            end
+          end
+          Preview.new(kind: kind.to_sym, intent: intent, position: position(raw.fetch(kind == 'name_assertion' ? 'position' : 'directory_position')),
+            current: current, reason: raw['reason']&.to_sym, work: raw['work']&.to_sym, rebuild_key: raw['rebuild_key'],
+            schema_fingerprint: optional(raw['schema_fingerprint']) { |v| digest_hex(v) }, matches: raw['matches'])
+        end
+        def namespace(value)
+          return nil if value.nil?
+          Namespace.new(scope: scope(value.fetch('scope')), id: Internal.integer(value.fetch('id')), name: name(value.fetch('name')), authorization: Internal.integer(value.fetch('authorization')), revision: Internal.integer(value.fetch('revision')), retired: Internal.boolean(value.fetch('retired')))
+        end
+        def page(value, c, principal, selection, previous)
+          position = position(value.fetch('position')); entries = []; ended = false
+          value.fetch('entries').each do |raw|
+            if raw.nil? then ended = true; next; end
+            raise IncompatibleNative, 'Hole in catalog page' if ended
+            entry = if selection.key?('namespaces')
+              found = namespace(raw)
+              raise IncompatibleNative, 'Foreign namespace page' unless found.scope == c.scope
+              found
+            else
+              interpretation = interpretation(raw.fetch('interpretation')); owns(c, interpretation.object)
+              raise IncompatibleNative, 'Foreign page namespace' unless raw.fetch('namespace') == selection.fetch('tables')
+              Entry.new(interpretation: interpretation, namespace: raw.fetch('namespace'), name: name(raw.fetch('name')), position: position(raw.fetch('position')), changed_lsn: decimal(raw.fetch('changed_lsn'), min: 0))
+            end
+            id = entry.is_a?(Namespace) ? entry.id : entry.interpretation.object.object
+            last = entries.last
+            prior = last ? (last.is_a?(Namespace) ? last.id : last.interpretation.object.object) : previous&.after || 0
+            raise IncompatibleNative, 'Unordered catalog page' unless id > prior
+            entries << entry
+          end
+          cursor = optional(value.fetch('next')) { |v| Cursor.restore(JSON.generate(v)) }
+          if cursor
+            cursor.check(c, principal, selection)
+            last = entries.last; last_id = last ? (last.is_a?(Namespace) ? last.id : last.interpretation.object.object) : 0
+            raise IncompatibleNative, 'Invalid continuation' unless cursor.position == position && cursor.after >= last_id && cursor.after > (previous&.after || 0)
+          end
+          raise IncompatibleNative, 'Changed directory position' if previous && previous.position != position
+          Page.new(position: position, entries: entries.freeze, next: cursor, consistency: selection.key?('tables') ? :independent : nil)
+        end
+        def read_authority(raw)
+          ids = %w[database schema table].map { |key| Internal.integer(raw.fetch(key)) }
+          raise IncompatibleNative, 'Conflicting read authority identities' unless ids.uniq.length == 3
+          ReadAuthority.new(database: ids[0], schema: ids[1], table: ids[2])
+        end
       end
+      Position = Data.define(:partition, :next_lsn) do
+        def initialize(partition:, next_lsn:) = super(partition: Values.wide(partition), next_lsn: Values.wide(next_lsn, min: 0))
+        def wire = { 'partition' => partition.to_s, 'next_lsn' => next_lsn.to_s }
+      end
+      ObjectIdentity = Data.define(:scope, :branch, :object) do
+        def initialize(scope:, branch:, object:) = super(scope: Values.typed(scope, Scope), branch: Values.wide(branch), object: Values.wide(object))
+        def wire = { 'scope' => scope.wire, 'branch' => branch.to_s, 'object' => object.to_s }
+      end
+      Interpretation = Data.define(:object, :revision, :digest)
+      Content = Data.define(:bytes, :sha256)
+      StoredDefinition = Data.define(:interpretation, :content, :schema_fingerprint, :retired)
+      Configuration = Data.define(:scope, :branch, :partition, :audience, :authority, :database_name, :initial_schema_name)
+      Description = Data.define(:configuration, :subject, :policy_revision)
+      Capabilities = Data.define(:version, :definition, :max_columns, :max_rows, :max_sql_bytes, :max_intent_bytes, :max_action_bytes, :metadata_page_entries, :resident_intents)
+      Metadata = Data.define(:basis, :authorization, :position, :changed_lsn, :row_count, :schema)
+      Namespace = Data.define(:scope, :id, :authorization, :name, :revision, :retired)
+      Entry = Data.define(:interpretation, :namespace, :name, :position, :changed_lsn)
+      Page = Data.define(:position, :entries, :next, :consistency)
+      Commit = Data.define(:definition, :position, :matched, :affected, :live_rows)
+      Observation = Data.define(:kind, :state, :reference, :commit, :phase, :reason, :position) do
+        def initialize(kind:, state:, reference:, commit: nil, phase: nil, reason: nil, position: nil) = super
+      end
+      CurrentBasis = Data.define(:definition, :position, :changed_lsn, :row_count)
+      Preview = Data.define(:kind, :intent, :position, :current, :reason, :work, :rebuild_key, :schema_fingerprint, :matches)
+      Compiled = Data.define(:intent, :saved)
+      Intent = Data.define(:id_data, :binding_data, :kind, :namespace, :identity, :saved) do
+        def id = JSON.parse(id_data)
+        def binding = JSON.parse(binding_data)
+      end
+      class Saved
+        def self.restore(data) = new(data)
+        def initialize(data)
+          raw = Values.parse(data)
+          validate(raw)
+          @data = JSON.generate(raw).freeze
+          freeze
+        end
+        def save = @data
+        def wire = JSON.parse(@data)
+        def inspect = "#<#{self.class.name} owned saved binding>"
+        def ==(other) = other.instance_of?(self.class) && wire == other.wire
+      end
+      private_constant :Saved
+      class Basis < Saved
+        def validate(raw)
+          Values.action({ 'prepare' => { 'definition' => DEFINITION, 'namespace' => 1, 'operation' => '1', 'name' => 'check', 'action' => { 'drop' => { 'basis' => raw, 'if_exists' => false } } } })
+          Values.definition(raw.fetch('definition')); Values.name(raw.fetch('name')); Internal.integer(raw.fetch('namespace'))
+          c = Values.connection(raw.fetch('connection')); stored = Values.stored(raw.fetch('interpretation')); Values.owns(c, stored.interpretation.object)
+          raise ArgumentError, 'Cannot prepare from a retired definition' if stored.retired
+        end
+        def connection = Values.connection(wire.fetch('connection'))
+        def principal = wire.fetch('connection').fetch('principal')
+        def namespace = wire.fetch('namespace')
+        def name = wire.fetch('name').freeze
+        def interpretation = Values.stored(wire.fetch('interpretation'))
+        def object = interpretation.interpretation.object.object
+        private :validate
+      end
+      class SavedIntent < Saved
+        def validate(raw)
+          Values.action({ 'load' => raw }); kind, value = Values.variant(raw)
+          if kind == 'table'
+            Values.definition(value.fetch('definition')); Internal.integer(value.fetch('namespace'))
+            raise ArgumentError, 'Empty saved intent' if Internal.unhex(value.fetch('bytes'), LIMITS.fetch('catalog_intent_bytes')).empty?
+          else Values.assertion(value)
+          end
+        end
+        private :validate
+      end
+      class Reference < Saved
+        def validate(raw)
+          Values.action({ 'admit' => raw }); kind, value = Values.variant(raw)
+          if kind == 'table'
+            Values.definition(value.fetch('definition')); c = Values.connection(value.fetch('connection')); Internal.integer(value.fetch('namespace'))
+            Values.check_binding(value.fetch('binding'), c, value.fetch('connection').fetch('principal')); content = Values.content(value.fetch('content'))
+            raise ArgumentError, 'Invalid saved intent length' unless content.bytes.between?(37, LIMITS.fetch('catalog_intent_bytes'))
+          else Values.assertion(value)
+          end
+        end
+        def kind = wire.keys.first.to_sym
+        def binding = kind == :table ? wire.fetch('table').fetch('binding') : wire.fetch('name_assertion')
+        def connection = Values.connection(wire.values.first.fetch('connection'))
+        def principal = wire.values.first.fetch('connection').fetch('principal')
+        private :validate
+      end
+      class Cursor < Saved
+        def validate(raw)
+          selection = raw.fetch('selection')
+          action = selection.key?('namespaces') ? { 'namespaces' => raw } : { 'tables' => { 'namespace' => selection.fetch('tables'), 'cursor' => raw } }
+          Values.action({ 'catalog' => action }); Values.definition(raw.fetch('definition')); Values.connection(raw.fetch('connection')); Values.position(raw.fetch('position'))
+          after = Values.decimal(raw.fetch('after')); Internal.integer(after) if selection.key?('namespaces')
+          raise ArgumentError, 'Invalid directory cut' if Values.position(raw.fetch('position')).next_lsn.zero?
+        end
+        def check(connection, principal, selection)
+          value = wire
+          raise ArgumentError, 'Foreign continuation' unless value.fetch('connection') == connection.wire(principal) && value.fetch('selection') == selection
+        end
+        def position = Values.position(wire.fetch('position'))
+        def after = Values.decimal(wire.fetch('after'))
+        private :validate
+      end
+      class SnapshotOwner < Saved
+        def validate(raw)
+          Values.action({ 'retention' => { 'status' => raw } }); Values.definition(raw.fetch('definition'))
+          Values.owns(Values.connection(raw.fetch('connection')), Values.object_identity(raw.fetch('object'))); Values.decimal(raw.fetch('operation'))
+        end
+        def connection = Values.connection(wire.fetch('connection'))
+        def principal = wire.fetch('connection').fetch('principal')
+        def object = Values.object_identity(wire.fetch('object'))
+        def operation = Values.decimal(wire.fetch('operation'))
+        private :validate
+      end
+      class SnapshotAcquisition < Saved
+        def validate(raw)
+          Values.action({ 'retention' => { 'acquire' => raw } }); SnapshotOwner.restore(JSON.generate(raw.fetch('owner'))); Values.position(raw.fetch('expected'))
+        end
+        def owner = SnapshotOwner.restore(JSON.generate(wire.fetch('owner')))
+        def expected = Values.position(wire.fetch('expected'))
+        private :validate
+      end
+      class Snapshot < Saved
+        def validate(raw)
+          Values.action({ 'retention' => { 'metadata' => raw } }); SnapshotOwner.restore(JSON.generate(raw.fetch('owner'))); Values.content(raw.fetch('content'))
+        end
+        def owner = SnapshotOwner.restore(JSON.generate(wire.fetch('owner')))
+        def content = Values.content(wire.fetch('content'))
+        private :validate
+      end
+      ReadAuthority = Data.define(:database, :schema, :table)
+      SnapshotStatus = Data.define(:owner, :current_interpretation, :current_position, :retired, :snapshot, :released, :authority)
+      SnapshotMetadata = Data.define(:snapshot, :interpretation, :accepted, :changed_lsn, :row_count, :schema, :authority)
     end
   end
 end

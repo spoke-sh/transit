@@ -505,6 +505,7 @@ export type Phase =
   | "uploading"
   | "sealed"
   | "admitted"
+  | "prepared"
   | "complete"
   | "cancelled"
   | "denied"
@@ -699,6 +700,15 @@ export interface Manifest {
   readonly sourceDigest: Uint8Array;
   readonly schemaDigest: Uint8Array;
   readonly planDigest: Uint8Array;
+  readonly tablePosition:
+    | Readonly<{
+        resource: ResourceRef;
+        partition: bigint;
+        accepted: bigint;
+        contract: Uint8Array;
+        schema: Uint8Array;
+      }>
+    | undefined;
   readonly pages: bigint;
   readonly scanned: bigint;
   readonly selected: bigint;
@@ -766,6 +776,26 @@ function page(value: WirePage, realm: number): Page {
       revision: integer(position.native_revision, "native resource revision", 0),
     });
   }
+  const tablePosition =
+    m.table_position === null
+      ? undefined
+      : Object.freeze({
+          resource: new ResourceRef(realm, m.table_position.resource),
+          partition: nativeWide(m.table_position.partition),
+          accepted: nativeWide(m.table_position.accepted),
+          contract: digest(m.table_position.contract),
+          schema: digest(m.table_position.schema),
+        });
+  if (
+    tablePosition !== undefined &&
+    (cut.kind !== "table" ||
+      tablePosition.resource.resource !== m.basis.cut.resource ||
+      tablePosition.partition === 0n ||
+      tablePosition.accepted === 0n ||
+      !tablePosition.contract.every((v, i) => v === m.basis.contract[i]) ||
+      !tablePosition.schema.every((v, i) => v === m.basis.schema[i]))
+  )
+    throw new IncompatibleNative("Invalid Table result position");
   const manifest: Manifest = Object.freeze({
     job: integer(m.job, "job"),
     source,
@@ -779,6 +809,7 @@ function page(value: WirePage, realm: number): Page {
     sourceDigest: digest(m.basis.contract),
     schemaDigest: digest(m.basis.schema),
     planDigest: digest(m.plan),
+    tablePosition,
     pages: nativeWide(m.pages),
     scanned: nativeWide(m.scanned),
     selected: nativeWide(m.selected),

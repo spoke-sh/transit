@@ -54,12 +54,12 @@ The deployment boundary controls who can reach Board.
 
 ## Source and API ownership
 
-| Source | Owns |
-| --- | --- |
-| [main.zig](main.zig) | Listener/origin checks, bounded upstream reads, API routing, static serving and diagnostics |
-| [embed_web.py](../../tasks/embed_web.py) | Isolated frontend build, bounded embedded asset manifest and OpenAPI bytes |
-| [transit-board-api](../../packages/zig/transit-board-api/README.md) | Typed evidence projections and generated OpenAPI |
-| [transit-board-web](../transit-board-web/README.md) | Routes, polling and presentation using the generated client |
+| Source                                                              | Owns                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [main.zig](main.zig)                                                | Listener/origin checks, bounded upstream reads, API routing, static serving and diagnostics |
+| [embed_web.py](../../tasks/embed_web.py)                            | Isolated frontend build, bounded embedded asset manifest and OpenAPI bytes                  |
+| [transit-board-api](../../packages/zig/transit-board-api/README.md) | Typed evidence projections and generated OpenAPI                                            |
+| [transit-board-web](../transit-board-web/README.md)                 | Routes, polling and presentation using the generated client                                 |
 
 The binary serves its contract at `/openapi/v1.json`. API shape belongs to the
 API package; routes must not expose raw upstream responses without checking the
@@ -72,9 +72,11 @@ The shared listener defaults to 16 accepted sockets, four data handlers and two
 reserved `/health` handlers. Headers have at most one second; the overall request
 deadline remains 100–5000 ms. Inspection handlers own their upstream client,
 arena and observation. The relational route retains one bounded upstream caller
-and session, with a fresh response arena and observation for each operation.
-Query operations are serialized within this Board instance; callers
-still preserve exact frozen tokens and coordinate their principal's sequence.
+and session, with a fresh response arena and observation for each operation. Its
+exclusive recovery directory journals original pin requests for explicit cleanup
+after service replacement. Query operations are serialized within this Board
+instance; native command callers preserve exact frozen tokens and coordinate
+their principal's sequence.
 Separate instances still coordinate shared principal sequences through exact retry.
 Upstream calls have a shorter timeout; no redirects or response cache. The minimum spacing
 between upstream reads is 100 ms by default (configurable up to 5000 ms), shared
