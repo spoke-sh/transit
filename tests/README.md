@@ -12,6 +12,19 @@ owner/error pairs**, with no exceptions in this boundary. The inventory records
 executable projection proof. This slice does not establish SDK/ABI migration or
 inject allocation failures into a real accepted request.
 
+## Explicit relational queries over retained definitions — 2026-10-24
+
+The ReleaseSafe `just test::direct-table-service` rerun passes **1,253 typed
+calls** and the original three-restart CRUD/DDL, retained-read, delegation and
+change-reader schedule. The added query explicitly supplies the original saved
+Table binding and pin after DROP/name reuse; COUNT reads the original two rows,
+then verifies terminal completion. A changed source name or a different retained
+interpretation is rejected. Source metadata and output disclosure use current
+snapshot rights rather than requiring the old interpretation to remain live.
+This run includes the ongoing SDK cutover's matching native binaries and fixtures;
+it qualifies the shared retained relational implementation, not completed
+interactive language bindings or a resumable cursor after host loss.
+
 ## Installed Work items direct lifecycle — 2026-10-24
 
 `nix develop -c just test::server-applications` passes on frozen source
