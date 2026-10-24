@@ -88,7 +88,7 @@ def run(cli, node, host, *application):
     repo = Path(__file__).resolve().parents[1]
     image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
     tools = {name: str(Path(shutil.which(name) or "missing").resolve(strict=True))
-             for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4", "patchelf")}
+             for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4", "patchelf") + (("openssl",) if application else ())}
     python = str(Path(sys.executable).resolve(strict=True))
     assert all(path.startswith("/nix/store/") for path in [*tools.values(), python])
     root = Path(tempfile.mkdtemp(prefix="transit-server-capacity-", dir="/var/tmp"))
@@ -125,6 +125,7 @@ trap '{q(tools['umount'])} /proof/mount' EXIT
     try:
         result = subprocess.run(["docker", "run", "--rm", "--name", name, "--privileged", "--user", "0:0",
             "--env", "PATH=/unavailable",
+            *(['--env', 'TEST_TRANSIT_OPENSSL=' + tools['openssl']] if application else []),
             "--mount", f"type=bind,src={root},dst=/proof",
             "--mount", f"type=bind,src={repo},dst={repo},readonly",
             "--mount", "type=bind,src=/nix/store,dst=/nix/store,readonly",

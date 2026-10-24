@@ -21,16 +21,17 @@ from serving import compact
 
 class ExistingKey:
     def __init__(self, directory, seed_file):
+        self.openssl = os.environ.get('TEST_TRANSIT_OPENSSL', 'openssl')
         self.path = directory / (Path(seed_file).stem + '-proof.der')
         self.path.write_bytes(bytes.fromhex('302e020100300506032b657004220420') + bytes.fromhex(Path(seed_file).read_text().strip()))
         self.path.chmod(0o600)
-        self.public = list(subprocess.check_output(['openssl', 'pkey', '-inform', 'DER', '-in', str(self.path), '-pubout', '-outform', 'DER'])[-32:])
+        self.public = list(subprocess.check_output([self.openssl, 'pkey', '-inform', 'DER', '-in', str(self.path), '-pubout', '-outform', 'DER'])[-32:])
 
     def sign(self, data):
         with tempfile.NamedTemporaryFile(dir=self.path.parent) as message:
             message.write(data)
             message.flush()
-            return list(subprocess.check_output(['openssl', 'pkeyutl', '-sign', '-rawin', '-inkey', str(self.path), '-keyform', 'DER', '-in', message.name]))
+            return list(subprocess.check_output([self.openssl, 'pkeyutl', '-sign', '-rawin', '-inkey', str(self.path), '-keyform', 'DER', '-in', message.name]))
 
 
 def native(key, realm, principal, value, sequence=None):
