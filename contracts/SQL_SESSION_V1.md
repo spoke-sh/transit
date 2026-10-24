@@ -85,6 +85,29 @@ after a session disappears. The client can retain preparation for reads without
 making it durable. Adapter-specific admission restrictions remain in the wire
 adapters; the native codec preserves Fuze logical types.
 
+Prepared descriptions always include `schema`. It is null when the statement
+returns no rows, including DML and schema commands; parameters and the mutation
+flag remain explicit. Row-returning statements have a logical schema even when
+execution returns zero rows. No empty logical structure stands in for command
+completion.
+
+The native profile accepts CREATE SCHEMA, ALTER SCHEMA ... RENAME and DROP SCHEMA
+RESTRICT through the direct catalog. Preparation freezes the expected schema and
+requested owner without allocating IDs or publishing work. The account ledger
+allocates the operation from its accepted input position; CREATE uses that same
+number as the new schema ID. Its `GIR1` reference carries the session's selected
+namespace separately from the changed namespace binding. Current database/schema
+ownership and requested-owner SET eligibility are checked by the existing native
+authority. Registration, direct acceptance and SQL ledger completion remain
+separate recoverable decisions. Namespace completion has zero matched/changed
+rows and a catalog position; the shared completion kinds are `create_schema`,
+`alter_schema` and `drop_schema`. Current rights govern all outcome disclosure,
+including retired schemas. A prepared schema cannot follow name replacement or
+definition drift. Rejected and cancelled schema outcomes include an owner-projected
+diagnostic; dependency rejection does not disclose the blocking object's identity.
+These forms do not execute through the PostgreSQL/MySQL profile
+and do not change a session's configured namespace.
+
 ## Logical results and fetch acknowledgement
 
 The selected encoding is `transit.logical.v1.hex`. Schema fields contain

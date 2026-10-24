@@ -8,7 +8,7 @@ const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const Self = @This();
 pub const magic = "GST1";
-kind: enum(u8) { ddl = 1, dml = 2, catalog_assertion = 3 },
+kind: enum(u8) { ddl = 1, dml = 2, catalog_assertion = 3, namespace_change = 4 },
 identity: [32]u8,
 resource: u64,
 principal: u64,
@@ -25,6 +25,10 @@ resulting_revision: u64 = 0,
 pub fn validate(self: Self) !void {
     if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or (self.object == 0 and self.kind != .catalog_assertion) or self.changed > self.matched or std.mem.allEqual(u8, &self.identity, 0)) return error.InvalidGatewayTerminal;
     if ((self.state == .rejected) != (self.reason != 0) or self.reason > 6) return error.InvalidGatewayTerminal;
+    if (self.kind == .namespace_change) {
+        if (self.state == .unchanged or self.reason > 4 or self.partition == 0 or self.next_lsn == 0 or (self.state == .applied) != (self.resulting_revision != 0) or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
+        return;
+    }
     if (self.kind == .catalog_assertion) {
         if (self.state == .applied or self.reason > 1 or self.partition == 0 or self.next_lsn == 0 or self.resulting_revision != 0 or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
         return;
@@ -38,6 +42,37 @@ pub fn validate(self: Self) !void {
 pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !?Self {
     try reference.validate();
     if (reference == .table) return fromResult(reference.table.binding, result);
+    if (reference == .namespace_change) {
+        if (result != .namespace_operation) return error.InvalidGatewayTerminal;
+        const evidence = switch (result.namespace_operation) {
+            .not_observed => return null,
+            .operation => |value| value,
+        };
+        try evidence.validate();
+        const binding = reference.namespace_change.binding;
+        try binding.requireSame(evidence.binding);
+        if (evidence.phase == .admitted) return null;
+        const value: Self = .{
+            .kind = .namespace_change,
+            .identity = try reference.digest(),
+            .resource = binding.connection.scope.resource,
+            .principal = binding.connection.principal,
+            .operation = binding.operation,
+            .object = binding.namespace,
+            .state = switch (evidence.phase) {
+                .applied => .applied,
+                .rejected => .rejected,
+                .cancelled => .cancelled,
+                .admitted => unreachable,
+            },
+            .reason = @backingInt(evidence.reason),
+            .partition = evidence.position.partition,
+            .next_lsn = evidence.position.next_lsn,
+            .resulting_revision = if (evidence.resulting) |schema| schema.revision else 0,
+        };
+        try value.validate();
+        return value;
+    }
     if (result != .name_assertion) return error.InvalidGatewayTerminal;
     const evidence = switch (result.name_assertion) {
         .not_observed => return null,

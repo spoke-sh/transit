@@ -95,8 +95,11 @@ and, for CREATE, a new namespace identity. It resolves and freezes the complete
 expected schema for changes and invokes read-only preview. Save the binding,
 then use `namespace_operation` to admit and explicitly execute it. The policy
 compiler remains separate because native grant publication and catalog namespace
-publication have different acceptance owners. The SQL console does not yet
-dispatch these administrative statements.
+publication have different acceptance owners. `prepareNamespace` freezes the
+same interpretation and owner without allocating IDs; its `bind` method supplies
+the explicit operation and new namespace IDs. The native SQL service uses this
+plan, retains the binding in its control ledger and dispatches through the same
+namespace owner. Role and grant publication stays with native administration.
 
 The namespace owner reserves names at admission, provisions native schema
 authority through the existing registrar and publishes through the catalog WAL.

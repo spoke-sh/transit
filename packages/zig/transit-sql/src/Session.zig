@@ -435,9 +435,9 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
         .insert => .insert,
         .update => .update,
         .delete => .delete,
-        .create => .create_table,
-        .alter => .alter_table,
-        .drop => .drop_table,
+        .create => if (prepared.native.plan == .namespace_change) .create_schema else .create_table,
+        .alter => if (prepared.native.plan == .namespace_change) .alter_schema else .alter_table,
+        .drop => if (prepared.native.plan == .namespace_change) .drop_schema else .drop_table,
         .select => return error.ExpectedGatewayWrite,
     }, .count = terminal.matched, .changed = terminal.changed };
 }
@@ -468,6 +468,12 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
             const terminal = self.terminal orelse break :blk .{ "XX000".*, "Missing terminal observation" };
             break :blk switch (terminal.kind) {
                 .catalog_assertion => .{ "40001".*, "Conditional Table name changed before acceptance" },
+                .namespace_change => switch (terminal.reason) {
+                    1 => .{ "42P06".*, "Schema name already exists" },
+                    2, 3 => .{ "40001".*, "Schema identity or definition changed" },
+                    4 => .{ "2BP01".*, "A registered dependency blocks the schema change" },
+                    else => .{ "55000".*, "Schema declaration rejected" },
+                },
                 .dml => switch (terminal.reason) {
                     1, 2 => .{ "40001".*, "Table definition or data changed" },
                     3 => .{ "23505".*, "Primary key already exists" },

@@ -375,3 +375,85 @@ test "conditional DDL retains catalog evidence without inventing a Table commit"
         try t.expectError(error.GatewayIdentityConflict, ledger.complete(&turn, item.id, 2, terminal_value));
     }
 }
+
+test "namespace dispatch retains selected context and exact catalog completion across replacement" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ledger: g.Ledger = .{ .configuration = configuration };
+    var turn = try store.capture();
+    try ledger.initialize(&turn);
+    try store.commit(turn);
+    store.origin = configuration.ingress;
+    turn = try store.capture();
+    const item = try ledger.begin(&turn, @splat(82), binding, @splat(0));
+    try store.commit(turn);
+    const ref: g.IntentReference.Reference = .{ .namespace_change = .{ .namespace = binding.namespace, .binding = .{
+        .definition = c.protocol.Growth.current_definition,
+        .connection = reference(item.id).connection(),
+        .operation = item.id,
+        .namespace = 101,
+        .expected = null,
+        .action = .{ .create = .{ .name = try .init("application_data"), .owner = 29 } },
+    } } };
+    try publish(&store, ledger, ref);
+    store.origin = configuration.coordinator;
+    turn = try store.capture();
+    try ledger.admitIntent(t.allocator, &turn, item.id, 1);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try ledger.activate(&turn, 1);
+    try store.commit(turn);
+    const result: c.DirectTableProtocol.Result = .{ .namespace_operation = .{ .operation = .{
+        .binding = ref.namespace_change.binding,
+        .position = .{ .partition = 1, .next_lsn = 31 },
+        .phase = .applied,
+        .reason = .none,
+        .after = null,
+        .resulting = .{ .scope = ref.connection().scope, .id = 101, .authorization = 201, .name = try .init("application_data"), .revision = 1 },
+    } } };
+    const outcome = (try g.Terminal.fromReference(ref, result)).?;
+    try t.expectEqual(.namespace_change, outcome.kind);
+    try t.expectEqual(null, try result.namespace_operation.operation.diagnostic());
+    try t.expectEqual(@as(u64, 101), outcome.object);
+    try t.expectEqual(@as(u64, 0), outcome.matched);
+    turn = try store.capture();
+    try t.expectError(error.GatewayUnresolvedStep, ledger.complete(&turn, item.id, 1, outcome));
+    try ledger.authorizeDispatch(&turn, item.id, 1);
+    try store.commit(turn);
+    store.generation = 2;
+    turn = try store.capture();
+    var committed = turn.committed();
+    try ref.requireSame(try ledger.readReference(t.allocator, &committed, try ledger.operation(&committed, item.id)));
+    try ledger.complete(&turn, item.id, 2, outcome);
+    try store.commit(turn);
+    turn = try store.capture();
+    try ledger.complete(&turn, item.id, 2, outcome);
+    var foreign = ref;
+    foreign.namespace_change.namespace += 1;
+    try t.expectError(error.GatewayIdentityConflict, ledger.checkReference(item, foreign));
+    var changed = result;
+    changed.namespace_operation.operation.binding.operation += 1;
+    try t.expectError(error.DataIdentityConflict, g.Terminal.fromReference(ref, changed));
+    try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromReference(ref, .{ .ddl = .not_observed }));
+    for ([_]@FieldType(c.DirectNamespace.Operation, "phase"){ .admitted, .rejected, .cancelled }) |phase| {
+        changed = result;
+        changed.namespace_operation.operation.phase = phase;
+        changed.namespace_operation.operation.reason = if (phase == .rejected) .dependency else .none;
+        changed.namespace_operation.operation.resulting = null;
+        const terminal_value = try g.Terminal.fromReference(ref, changed);
+        const diagnostic = try changed.namespace_operation.operation.diagnostic();
+        if (phase == .admitted) {
+            try t.expect(terminal_value == null);
+            try t.expectEqual(null, diagnostic);
+        } else {
+            try t.expectEqual(if (phase == .rejected) c.protocol.Diagnostic.Outcome.rejected else .cancelled, diagnostic.?.outcome);
+            try t.expectEqual(item.id, try diagnostic.?.identity.?.id.value());
+            if (phase == .rejected) {
+                try t.expectEqualStrings("schema.drop_restricted", diagnostic.?.code.slice());
+                try t.expectEqual(.withheld, diagnostic.?.facts[0].?.availability);
+            }
+            try t.expectEqualDeep(terminal_value.?, try g.LedgerRecords.decode(g.Terminal, try g.LedgerRecords.encode(terminal_value.?)));
+            try t.expectError(error.GatewayIdentityConflict, ledger.complete(&turn, item.id, 2, terminal_value.?));
+        }
+    }
+}

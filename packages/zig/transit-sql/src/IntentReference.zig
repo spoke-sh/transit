@@ -5,9 +5,19 @@ const g = @import("root.zig");
 const p = g.catalog.protocol;
 const c = g.catalog;
 const w = c.DirectTableProtocol;
+pub const NamespaceChange = struct {
+    /// SQL session's selected namespace, independently of the changed schema.
+    namespace: u64,
+    binding: c.DirectNamespace.Binding,
+    pub fn validate(self: NamespaceChange) !void {
+        try c.Model.nativeId(self.namespace);
+        try self.binding.validate();
+    }
+};
 pub const Reference = union(enum) {
     table: c.DirectTableIntent.Reference,
     name_assertion: c.NameAssertion.Binding,
+    namespace_change: NamespaceChange,
     pub fn validate(self: Reference) !void {
         switch (self) {
             inline else => |value| try value.validate(),
@@ -15,6 +25,7 @@ pub const Reference = union(enum) {
     }
     pub fn connection(self: Reference) w.Connection {
         return switch (self) {
+            .namespace_change => |value| value.binding.connection,
             inline else => |value| value.connection,
         };
     }
@@ -27,6 +38,7 @@ pub const Reference = union(enum) {
         return switch (self) {
             .table => |value| value.binding.identity,
             .name_assertion => |value| value.identity(),
+            .namespace_change => |value| value.binding.identity(),
         };
     }
     pub fn workBytes(self: Reference) !u64 {
@@ -38,6 +50,7 @@ pub const Reference = union(enum) {
         return switch (self) {
             .table => |value| bindingDigest(value.binding),
             .name_assertion => |value| assertionDigest(value),
+            .namespace_change => |value| namespaceDigest(value),
         };
     }
     pub fn requireSame(self: Reference, other: Reference) !void {
@@ -47,6 +60,11 @@ pub const Reference = union(enum) {
     }
     pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
         if (self == .table) return self.table.admit(client);
+        if (self == .namespace_change) {
+            try self.validate();
+            if (!std.meta.eql(self.connection(), client.connection)) return error.CatalogIdentityConflict;
+            return client.call(.{ .namespace_operation = .{ .binding = self.namespace_change.binding, .command = .admit, .steps = 1 } });
+        }
         return self.operation(client, .execute, 1);
     }
     pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !std.json.Parsed(w.Response) {
@@ -59,6 +77,11 @@ pub const Reference = union(enum) {
                 .execute => .accept,
                 .cancel => .cancel,
             } } }),
+            .namespace_change => |value| client.call(.{ .namespace_operation = .{ .binding = value.binding, .command = switch (command) {
+                .inspect => .inspect,
+                .execute => .execute,
+                .cancel => .cancel,
+            }, .steps = steps } }),
         };
     }
 };
@@ -104,6 +127,18 @@ pub fn assertionDigest(binding: c.NameAssertion.Binding) ![32]u8 {
     try p.Json.write(binding, &json);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.sql.catalog.assertion.binding.v1\x00");
+    hash.update(writer.buffered());
+    return hash.finalResult();
+}
+
+pub fn namespaceDigest(value: NamespaceChange) ![32]u8 {
+    try value.validate();
+    var buffer: [max_bytes]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buffer);
+    var json: std.json.Stringify = .{ .writer = &writer };
+    try p.Json.write(value, &json);
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.sql.namespace.binding.v1\x00");
     hash.update(writer.buffered());
     return hash.finalResult();
 }

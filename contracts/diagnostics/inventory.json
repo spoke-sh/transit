@@ -3076,9 +3076,13 @@
     "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig": {
       "errors": {
         "CatalogDatabaseMismatch": 1,
-        "CatalogDirectoryChanged": 2,
-        "CatalogSchemaMissing": 2,
-        "QueryPageBudget": 3,
+        "CatalogDefinitionChanged": 1,
+        "CatalogDirectoryChanged": 1,
+        "CatalogIdentityConflict": 1,
+        "CatalogSchemaMissing": 1,
+        "InvalidDirectCatalogOperation": 2,
+        "QueryPageBudget": 4,
+        "SchemaIdentityRequired": 1,
         "StaleAuthorizationCredential": 1,
         "StaleAuthorizationRevision": 1,
         "TableNotFound": 1,
@@ -3087,6 +3091,9 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "NamespacePlan.bind()": "<inferred>",
+        "NamespacePlan.require()": "<inferred>",
+        "NamespacePlan.validate()": "<inferred>",
         "Resolver.call()": "<inferred>",
         "Resolver.consume()": "<inferred>",
         "Resolver.init()": "<inferred>",
@@ -3097,11 +3104,12 @@
         "Resolver.role()": "<inferred>",
         "Resolver.select()": "<inferred>",
         "compile()": "<inferred>",
-        "compileNamespace()": "<inferred>"
+        "compileNamespace()": "<inferred>",
+        "prepareNamespace()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 53,
         "catch": 0
       },
       "imports": [
@@ -3441,11 +3449,12 @@
       "error_returns": {
         "Binding.requireSame()": "<inferred>",
         "Binding.validate()": "<inferred>",
+        "Operation.diagnostic()": "<inferred>",
         "Operation.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -12989,7 +12998,7 @@
           "deadline"
         ],
         "Definition": [
-          "f444c2a15245cf6a5852c727ebf3922f214a7fb8d3e078ea2d92b6b1eb668463"
+          "@\"819b12b133443f6c0a269c818da0698cb222ac4cad1d7010da3ac602000a0f55\""
         ],
         "Effect.phase": [
           "pending",
@@ -19041,6 +19050,9 @@
           "create_table",
           "alter_table",
           "drop_table",
+          "create_schema",
+          "alter_schema",
+          "drop_schema",
           "set",
           "show",
           "discard_all"
@@ -19219,7 +19231,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 81,
+        "try": 82,
         "catch": 16
       },
       "imports": [
@@ -19612,7 +19624,7 @@
     },
     "packages/zig/transit-sql/src/IntentReference.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "DataIdentityConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidGatewayIntent": 2
@@ -19620,11 +19632,13 @@
       "outcomes": {
         "Reference": [
           "table",
-          "name_assertion"
+          "name_assertion",
+          "namespace_change"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "NamespaceChange.validate()": "<inferred>",
         "Reference.admit()": "<inferred>",
         "Reference.digest()": "<inferred>",
         "Reference.operation()": "<inferred>",
@@ -19634,11 +19648,12 @@
         "assertionDigest()": "<inferred>",
         "bindingDigest()": "<inferred>",
         "decode()": "<inferred>",
-        "encode()": "<inferred>"
+        "encode()": "<inferred>",
+        "namespaceDigest()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 20,
         "catch": 0
       },
       "imports": [
@@ -20243,14 +20258,14 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 2,
+        "CatalogIdentityConflict": 3,
         "ExpectedGatewayWrite": 2,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
         "InvalidCatalogIdentity": 1,
         "TableDefinitionChanged": 1,
         "TableNotFound": 1,
-        "UnsupportedGatewayStatement": 3,
+        "UnsupportedGatewayStatement": 4,
         "WireParameterCountMismatch": 2
       },
       "outcomes": {
@@ -20269,14 +20284,16 @@
         ],
         "Write": [
           "table",
-          "name_assertion"
+          "name_assertion",
+          "namespace_change"
         ],
         "plan": [
           "select",
           "dml",
           "create",
           "ddl",
-          "relational"
+          "relational",
+          "namespace_change"
         ]
       },
       "error_sets": {},
@@ -20297,7 +20314,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 55,
         "catch": 1
       },
       "imports": [
@@ -20308,13 +20325,14 @@
     "packages/zig/transit-sql/src/Terminal.zig": {
       "errors": {
         "GatewayIdentityConflict": 1,
-        "InvalidGatewayTerminal": 14
+        "InvalidGatewayTerminal": 16
       },
       "outcomes": {
         "kind": [
           "ddl",
           "dml",
-          "catalog_assertion"
+          "catalog_assertion",
+          "namespace_change"
         ],
         "state": [
           "applied",
@@ -20333,7 +20351,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 20,
         "catch": 0
       },
       "imports": [

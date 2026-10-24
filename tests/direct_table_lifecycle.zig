@@ -2,6 +2,7 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const q = @import("transit_query");
+const sql_runtime = @import("transit_sql");
 const p = c.protocol;
 const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
@@ -9,7 +10,7 @@ const f = c.fuze;
 const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
 pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, staged: c.DirectTableIntent.Reference, prepared: c.DirectTableBinding, codecs: CodecState, namespaces: NamespaceState };
-const NamespaceState = struct { created: c.DirectNamespace.Operation, renamed: c.DirectNamespace.Operation, dropped: c.DirectNamespace.Operation, retained: w.Snapshot };
+const NamespaceState = struct { created: c.DirectNamespace.Operation, renamed: c.DirectNamespace.Operation, dropped: c.DirectNamespace.Operation, retained: w.Snapshot, statements: [5]c.DirectNamespace.Operation };
 const CodecState = struct { snapshots: [2]w.Snapshot, rejected: d.Binding };
 pub const OwnedState = struct {
     arena: std.heap.ArenaAllocator,
@@ -277,6 +278,54 @@ fn namespaceApply(client: c.DirectTableClient, binding_value: c.DirectNamespace.
     }
     return error.UnfinishedNamespaceOperation;
 }
+const sql_options: q.RelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+fn namespaceStatement(allocator: std.mem.Allocator, original: c.DirectTableClient, text: []const u8, operation: u64) !sql_runtime.IntentReference.Reference {
+    var client = original;
+    var statement = try sql_runtime.Statement.prepare(allocator, &client, 1, text, .transit, .native, sql_options);
+    defer statement.deinit();
+    var work = try statement.bindWrite(allocator, &client, &.{}, operation);
+    defer work.deinit();
+    const reference = try work.stage(client, 1);
+    try t.expectEqual(@as(u64, 1), reference.namespace());
+    const unseen = try reference.operation(client, .inspect, 1);
+    defer unseen.deinit();
+    try t.expect(unseen.value.result.namespace_operation == .not_observed);
+    var bytes: [sql_runtime.IntentReference.max_bytes]u8 = undefined;
+    return sql_runtime.IntentReference.decode(allocator, try sql_runtime.IntentReference.encode(reference, &bytes));
+}
+fn namespaceStatements(allocator: std.mem.Allocator, original: c.DirectTableClient) ![5]c.DirectNamespace.Operation {
+    var client = original;
+    const create = try namespaceStatement(allocator, client, "CREATE SCHEMA sql_namespace", 65100);
+    const created = try namespaceApply(client, create.namespace_change.binding);
+    try t.expectEqual(.applied, created.phase);
+    try t.expectEqual(@as(u64, 65100), created.resulting.?.id);
+    var prepared = try sql_runtime.Statement.prepare(allocator, &client, 1, "DROP SCHEMA sql_namespace", .transit, .native, sql_options);
+    defer prepared.deinit();
+    const stale = try namespaceStatement(allocator, client, "DROP SCHEMA sql_namespace", 65101);
+    const rename = try namespaceStatement(allocator, client, "ALTER SCHEMA sql_namespace RENAME TO sql_renamed", 65102);
+    const renamed = try namespaceApply(client, rename.namespace_change.binding);
+    try t.expectEqual(.applied, renamed.phase);
+    try t.expectError(error.CatalogDefinitionChanged, prepared.bindWrite(allocator, &client, &.{}, 65105));
+    const rejected = try namespaceApply(client, stale.namespace_change.binding);
+    try t.expectEqual(.stale_definition, rejected.reason);
+    const drop = try namespaceStatement(allocator, client, "DROP SCHEMA sql_renamed", 65103);
+    const dropped = try namespaceApply(client, drop.namespace_change.binding);
+    try t.expectEqual(.applied, dropped.phase);
+    const replace = try namespaceStatement(allocator, client, "CREATE SCHEMA sql_renamed", 65104);
+    const replaced = try namespaceApply(client, replace.namespace_change.binding);
+    try t.expectEqual(.applied, replaced.phase);
+    try t.expect(created.resulting.?.id != replaced.resulting.?.id);
+    const operations: [5]c.DirectNamespace.Operation = .{ created, renamed, rejected, dropped, replaced };
+    for (operations) |operation| {
+        const reference: sql_runtime.IntentReference.Reference = .{ .namespace_change = .{ .namespace = 1, .binding = operation.binding } };
+        const response = try reference.operation(client, .inspect, 1);
+        defer response.deinit();
+        const terminal = (try sql_runtime.Terminal.fromReference(reference, response.value.result)).?;
+        try t.expectEqual(.namespace_change, terminal.kind);
+        try t.expectEqual(operation.binding.namespace, terminal.object);
+    }
+    return operations;
+}
 fn namespaces(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64) !NamespaceState {
     const compiled = try c.DirectAuthorizationSql.compileNamespace(client, 1, "CREATE SCHEMA lifecycle_app", .{ .operation = 65000, .schema = 31 }, .{}, null);
     const unseen = try client.call(.{ .namespace_operation = .{ .binding = compiled, .command = .inspect, .steps = 1 } });
@@ -307,10 +356,10 @@ fn namespaces(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u
     try t.expectEqual(.applied, dropped.phase);
     const replacement = try namespaceApply(client, try c.DirectAuthorizationSql.compileNamespace(client, 1, "CREATE SCHEMA renamed_app", .{ .operation = 65007, .schema = 32 }, .{}, null));
     try t.expectEqual(@as(u64, 32), replacement.resulting.?.id);
-    return .{ .created = created, .renamed = renamed, .dropped = dropped, .retained = retained };
+    return .{ .created = created, .renamed = renamed, .dropped = dropped, .retained = retained, .statements = try namespaceStatements(allocator, client) };
 }
 fn verifyNamespaces(allocator: std.mem.Allocator, client: c.DirectTableClient, state: NamespaceState, release: bool) !void {
-    for ([_]c.DirectNamespace.Operation{ state.created, state.renamed, state.dropped }) |operation| {
+    for ([_]c.DirectNamespace.Operation{ state.created, state.renamed, state.dropped } ++ state.statements) |operation| {
         const response = try client.call(.{ .namespace_operation = .{ .binding = operation.binding, .command = .inspect, .steps = 1 } });
         defer response.deinit();
         try t.expectEqualDeep(operation, response.value.result.namespace_operation.operation);

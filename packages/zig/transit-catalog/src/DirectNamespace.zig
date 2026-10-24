@@ -60,6 +60,27 @@ pub const Operation = struct {
     /// retained. This cursor never certifies a complete catalog observation.
     after: ?u64,
     resulting: ?a.Schema,
+    /// Project an authorized observation; this value does not grant disclosure
+    /// rights or establish which dependent objects the caller may inspect.
+    pub fn diagnostic(self: Operation) !?p.Diagnostic {
+        try self.validate();
+        if (self.phase != .rejected and self.phase != .cancelled) return null;
+        const info: struct { []const u8, []const u8 } = if (self.phase == .cancelled)
+            .{ "schema.cancelled", "The schema change was cancelled before publication." }
+        else switch (self.reason) {
+            .name_conflict => .{ "schema.name_conflict", "The schema name is already in use. This change was not published." },
+            .object_conflict => .{ "schema.object_conflict", "The schema identity is already claimed. This change was not published." },
+            .stale_definition => .{ "schema.definition_changed", "The schema definition changed before acceptance. This change was not published." },
+            .dependency => .{ "schema.drop_restricted", "A live or pending Table dependency blocked this DROP. The schema was not retired." },
+            .none => unreachable,
+        };
+        var result = try p.Diagnostic.init(info[0], if (self.phase == .cancelled) .lifecycle else .conflict, if (self.phase == .cancelled) .control else .execute, if (self.phase == .cancelled) .cancelled else .rejected, .domain_status, info[1]);
+        result.identity = .{ .domain = .catalog, .id = .init(self.binding.operation), .realm = .init(self.binding.connection.scope.realm), .resource = .init(self.binding.connection.scope.resource) };
+        if (self.reason == .dependency) try result.absent(.dependency, .owner, .withheld);
+        if (self.phase == .rejected) try result.action(if (self.reason == .stale_definition) .recompile else .inspect_scope);
+        try result.validate();
+        return result;
+    }
     pub fn validate(self: Operation) !void {
         try self.binding.validate();
         try self.position.validate();

@@ -55,8 +55,10 @@ original caller's current rights. The default launcher and shared SQL runtime us
 this owner. `DirectAuthorizationSql` also resolves policy plans through this
 owner and publishes nothing during compilation; native authorization still owns
 their explicit publication. Captured and maintained query owners retain direct
-sources through original-caller grants. Direct namespace lifecycle, dependency
-RESTRICT and generic foreign-language Table CRUD adapters are not exposed.
+sources through original-caller grants. Direct namespace CREATE/RENAME/DROP use
+typed bindings and native SQL dispatch, with bounded RESTRICT over live/pending
+Tables. Broader dependency registration and generic foreign-language direct
+Table CRUD adapters remain separate work.
 
 `NameAssertion` represents conditional DDL requiring no Table mutation.
 `DirectCatalog.assertName` checks an exact existing definition or absent name,

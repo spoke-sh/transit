@@ -1,5 +1,41 @@
 # Validation and evidence
 
+## Native SQL namespace lifecycle — 2026-10-24
+
+The shared current-v1 definition is
+`819b12b133443f6c0a269c818da0698cb222ac4cad1d7010da3ac602000a0f55`.
+The previous definition rejects. Native SQL prepares CREATE/RENAME/DROP SCHEMA
+without publication, stores the original namespace binding in its operation
+ledger and dispatches to the direct catalog. Schema commands have a mandatory
+null prepared result schema. Row-returning statements retain their logical
+schema independently of whether execution returns any rows.
+
+In the pinned Nix shell, ReleaseSafe SQL tests pass **30/30**, protocol tests
+**51/51** and SQL protocol tests **7/7**. The ledger schedule preserves the
+selected session namespace separately from the changed schema, checks exact
+terminal evidence and replacement fencing, and validates rejection/cancellation
+diagnostics. `just test::direct-table-service` passes **705** typed HTTP calls,
+including the real SQL preparation/binding path, stale prepared and admitted
+schema rejection, lost replies, name reuse and exact outcomes after restart.
+
+`just test::server-direct-faults` passes Table and namespace operations under
+blocked direct execution, killed callers and abrupt server restart. Reads and
+control requests remain available; recovery uses the saved original intent,
+and cancellation leaves the unpublished namespace change unapplied. The fixture
+now sends the public cancellation wrapper instead of an invalid bare identity.
+
+The installed namespace schedule exposed two defects: command preparation tried
+to encode an invalid empty logical structure, and the console omitted the
+recorded dependency reason for a rejected DROP. Both are fixed. The subsequent
+installed run failed earlier, during Table DDL, while SQL readiness repeatedly
+reported `AuthorityTimeout`; the console correctly preserved an unknown outcome.
+That run is not passed. The repository-wide `just check` is running and is not
+yet counted as passed. Contract generation/checks, diagnostic inventory/mappings,
+inferred error boundaries and **3411** diagnostic outcome projections pass.
+The earlier documentation site check passes nine tests and its build, preceding
+the final nullable-schema and diagnostic prose updates. These scoped results do
+not close the milestone's remaining caller and provisioning gates.
+
 ## Work items result position display — 2026-10-24
 
 The repository `just check` completed its unit, CLI and console-history checks,

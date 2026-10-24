@@ -82,6 +82,7 @@ pub fn dispatch(self: *Self, action: Dispatch) !Result {
         .ddl => |value| value == .not_observed,
         .rows => |value| value == .not_observed,
         .name_assertion => |value| value == .not_observed,
+        .namespace_operation => |value| value == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
     const response = (if (absent and !(reference == .name_assertion and item.cancel != 0)) reference.admit(caller) else reference.operation(caller, if (item.cancel != 0) .cancel else .execute, 8)) catch |err| return .{ .data_blocked = try blockedData(item.id, err) };

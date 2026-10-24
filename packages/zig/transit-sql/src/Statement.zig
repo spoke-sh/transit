@@ -11,7 +11,7 @@ text: []const u8,
 connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
-plan: union(enum) { select: q.DirectTablePrepared, dml: c.DirectTablePreparedDml, create: f.TableDdl.Owned, ddl: Ddl, relational: *q.DirectRelationalCompilation },
+plan: union(enum) { select: q.DirectTablePrepared, dml: c.DirectTablePreparedDml, create: f.TableDdl.Owned, ddl: Ddl, relational: *q.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
 const Ddl = struct {
     compiled: f.TableDdl.Owned,
@@ -28,6 +28,11 @@ pub fn kind(self: *const Self) Kind {
         .select, .relational => .select,
         .create => .create,
         .ddl => |value| if (value.compiled.statement == .alter) .alter else .drop,
+        .namespace_change => |value| switch (value.action) {
+            .create => .create,
+            .rename => .alter,
+            .drop => .drop,
+        },
         .dml => |value| switch (value.template.syntax.subject.kind) {
             .insert => .insert,
             .update => .update,
@@ -96,7 +101,12 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     const owned = try allocator.dupe(u8, text);
     errdefer allocator.free(owned);
     var plan: @FieldType(Self, "plan") = undefined;
-    if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
+    var declaration = lexer;
+    const namespace_change = (std.ascii.eqlIgnoreCase(first.text, "CREATE") or std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")) and tokenIs(try declaration.next(), "SCHEMA");
+    if (namespace_change) {
+        if (profile != .native) return error.UnsupportedGatewayStatement;
+        plan = .{ .namespace_change = try c.DirectAuthorizationSql.prepareNamespace(client.*, namespace, text, .{}, location) };
+    } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         // Parameterized relational syntax is outside this profile. Parameter
         // tokens belong to the shared single-Table compiler; strings/comments
         // containing their spelling never change routing.
@@ -159,6 +169,9 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     };
     return result;
 }
+fn tokenIs(token: f.Sql.Token, word: []const u8) bool {
+    return token.tag == .word and std.ascii.eqlIgnoreCase(token.text, word);
+}
 /// Revalidate before disclosing cached descriptors. Data revisions can change;
 /// a replacement object, schema, name or connection cannot inherit this handle.
 pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
@@ -176,6 +189,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .select => |value| _ = try value.binding.require(client.*, right),
         .dml => |value| _ = try value.binding.require(client.*, right),
         .relational => |value| try value.validate(client.*),
+        .namespace_change => |value| try value.validate(client.*, self.namespace, .{}),
         .create => _ = try client.require(.{ .namespace = self.namespace, .target = null, .access = .create_table }),
         .ddl => |value| if (value.definition) |definition| {
             _ = try definition.require(client.*, right);
@@ -189,6 +203,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
 pub const Write = union(enum) {
     table: c.DirectTableIntent,
     name_assertion: c.NameAssertion.Binding,
+    namespace_change: g.IntentReference.NamespaceChange,
     pub fn deinit(self: *Write) void {
         if (self.* == .table) self.table.deinit();
         self.* = undefined;
@@ -197,6 +212,7 @@ pub const Write = union(enum) {
         return switch (self.*) {
             .table => |value| value.bytes.len,
             .name_assertion => |value| (g.IntentReference.Reference{ .name_assertion = value }).workBytes(),
+            .namespace_change => |value| (g.IntentReference.Reference{ .namespace_change = value }).workBytes(),
         };
     }
     /// Staging the inline assertion is pure. Only the coordinator may accept it
@@ -208,6 +224,11 @@ pub const Write = union(enum) {
                 try value.validate();
                 if (!std.meta.eql(value.connection, client.connection) or value.namespace != namespace) return error.CatalogIdentityConflict;
                 break :blk .{ .name_assertion = value };
+            },
+            .namespace_change => |value| blk: {
+                try value.validate();
+                if (!std.meta.eql(value.binding.connection, client.connection) or value.namespace != namespace) return error.CatalogIdentityConflict;
+                break :blk .{ .namespace_change = value };
             },
         };
     }
@@ -229,6 +250,7 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Dir
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
     if (self.plan == .dml) return .{ .table = try self.plan.dml.bind(allocator, client.*, operation, values, .point, null) };
     if (values.len != 0) return error.WireParameterCountMismatch;
+    if (self.plan == .namespace_change) return .{ .namespace_change = .{ .namespace = self.namespace, .binding = try self.plan.namespace_change.bind(operation, operation) } };
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -308,7 +330,7 @@ test "gateway statements reject transaction controls and multiple commands befor
     const t = std.testing;
     var client: c.DirectTableClient = undefined;
     const options: q.RelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
-    for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, 1, sql, .transit, .wire, options));
+    for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN", "CREATE SCHEMA app", "ALTER SCHEMA app RENAME TO archive", "DROP SCHEMA app" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, 1, sql, .transit, .wire, options));
     if (prepare(t.allocator, &client, 1, "CREATE TABLE t (id BIGINT); CREATE TABLE u (id BIGINT)", .transit, .wire, options)) |value| {
         var result = value;
         result.deinit();

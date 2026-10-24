@@ -9,7 +9,7 @@ import sys
 import time
 
 from server_direct_boundary import FaultFixture
-from table_console import atom
+from table_console import atom, records
 
 
 def terminal(fixture, identity):
@@ -23,12 +23,12 @@ def terminal(fixture, identity):
         time.sleep(.1)
 
 
-def pending(fixture, boundary, key):
+def pending(fixture, boundary, key=None, *, sql=None):
     boundary.pause()
     process = subprocess.Popen([fixture.cli, 'console', '--no-rc', '--format', 'json'],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=fixture.root, text=True, env={'PATH': '/unavailable'})
-    process.stdin.write(f'INSERT INTO items (id,value) VALUES ({key},100);\n')
+    process.stdin.write((sql or f'INSERT INTO items (id,value) VALUES ({key},100)') + ';\n')
     process.stdin.flush()
     try:
         deadline = time.monotonic() + 60
@@ -39,8 +39,8 @@ def pending(fixture, boundary, key):
         # Status remains available in a newly opened native session while execution
         # is refused. The durable ledger and Table binding name the same work.
         values = fixture.sql_operations()
-        matches = [entry for entry in values
-                   if int(entry['identity']['id']) == binding['identity']['operation']]
+        original = binding['identity']['operation'] if 'identity' in binding else binding['operation']
+        matches = [entry for entry in values if int(entry['identity']['id']) == original]
         assert len(matches) == 1 and matches[0]['phase'] != 'terminal', values
         return matches[0]['identity'], binding
     finally:
@@ -75,7 +75,7 @@ def run(cli, node, host, board, gateway):
         assert value['outcome'] == 'applied' and value['matched'] == value['changed'] == 1, value
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '1'
         identity, _ = pending(fixture, boundary, 2)
-        fixture.sql_session(dict(cancel=identity))
+        fixture.sql_session(dict(cancel=dict(operation=identity)))
         value = terminal(fixture, identity)
         assert value['outcome'] == 'cancelled' and value['matched'] == value['changed'] == 0, value
         boundary.resume()
@@ -84,9 +84,26 @@ def run(cli, node, host, board, gateway):
         fixture.ready(timeout=300)
         assert terminal(fixture, identity)['outcome'] == 'cancelled'
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '1'
+        schema_identity, schema_binding = pending(fixture, boundary, sql='CREATE SCHEMA recovered_namespace')
+        assert 'recovered_namespace' not in {row['schema'] for row in records(fixture.console('SHOW SCHEMAS;\n')[-1])}
+        fixture.stop(kill=True)
+        boundary.observed.unlink()
+        fixture.start()
+        fixture.ready(timeout=300)
+        assert json.loads(boundary.observed.read_text()) == schema_binding
+        boundary.resume()
+        fixture.sql_session(dict(resume=schema_identity))
+        value = terminal(fixture, schema_identity)
+        assert value['outcome'] == 'applied' and value['matched'] == value['changed'] == 0, value
+        assert 'recovered_namespace' in {row['schema'] for row in records(fixture.console('SHOW SCHEMAS;\n')[-1])}
+        cancelled_schema, _ = pending(fixture, boundary, sql='DROP SCHEMA recovered_namespace')
+        fixture.sql_session(dict(cancel=dict(operation=cancelled_schema)))
+        assert terminal(fixture, cancelled_schema)['outcome'] == 'cancelled'
+        boundary.resume()
+        assert 'recovered_namespace' in {row['schema'] for row in records(fixture.console('SHOW SCHEMAS;\n')[-1])}
         fixture.stop()
         success = True
-        print('Installed direct faults: control/read availability during blocked execution, killed caller, abrupt restart, exact recovery and durable cancellation passed.', flush=True)
+        print('Installed direct faults: Table and namespace control/read availability during blocked execution, killed caller, abrupt restart, exact recovery and durable cancellation passed.', flush=True)
     finally:
         boundary.resume()
         fixture.cleanup()
