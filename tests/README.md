@@ -1,5 +1,56 @@
 # Validation and evidence
 
+## Named native resource allocation and initialization — 2026-10-24
+
+Under shared current-v1 definition
+`c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf`,
+`zig build test-direct-named-resources` passes **71 typed catalog HTTP calls** in
+the pinned Nix shell. The public caller saves two declarations before admission.
+An independent proxy withholds valid observation evidence for all eight accepted
+CREATE stage replies by corrupting their context; nine abrupt node replacements
+separate allocation and initialization stages. Saved bindings remain byte-identical.
+This is an executed local native-disk schedule, not a Compose or Reference run.
+
+The proof uses actual original-caller native allocation, explicit metadata and
+native data permissions, public Station turns and current public readers. It
+checks inert preview, hidden pending names, one prepared allocation per principal,
+allocation accepted before a denied attachment, exact native receipt recovery,
+KV initialization and all three Document initialization stages. Typed KV
+put/get/delete, actual Document change staging/acceptance and current read denial
+after revocation pass. Metadata rename and logical DROP preserve the initial
+marker, original completion receipt and independently readable native data.
+The final resource listing excludes the retired catalog bindings.
+
+Focused catalog tests pass shared Table/name/operation conflicts, disk recovery
+after each lost stage acknowledgement, allocation-reservation recovery and
+release, final publication-fence denial, malformed wire response rejection,
+independent Python/OpenSSL intent/digest vectors and **25 live definitions plus
+11 cancelled claims with a one-page resident cache**. Filtered empty listing
+pages preserve continuation; native and metadata rights remain distinct.
+Framework tests pass discarded proposals between initialization steps, no
+adoption of populated or anonymous data, exact markers, typed value/key bounds,
+owned decoding, permission loss, partial-KV-marker rejection and preservation of
+private proposals on failure.
+
+Earlier integration attempts failed on reused fixture identities, missing native
+inspection/worker grants and absent clock configuration. They also exposed two
+implementation defects: simultaneous declarations froze the same caller sequence,
+and the emptiness scan rejected GenServer's private framework descriptor. The
+durable allocation index and explicit committed scan now have regression checks;
+private user mutations cannot hide populated data. Those failed attempts are not
+counted as passing evidence.
+
+The coordinated current-v1 cutover regenerates schemas, public bindings and
+independent signing fixtures. `just contract::check`, the complete catalog package
+tests, `zig build test-local-catalog`, focused framework initialization tests and
+documentation link checks pass against this definition. Diagnostic inventory/mapping checks pass; this
+records their declared scope and does not establish new diagnostic projections.
+This proof does not integrate named consumers with exact dependency registration,
+retire the remaining actor catalog implementation, expose executable KV/Document
+console SQL, establish automatic reconciliation, qualify arbitrary application
+writers or prove distributed transactions. Full repository and clean-checkout
+qualification of this cutover are still required before delivery.
+
 ## Direct definition dependencies and restricted retirement — 2026-10-24
 
 Under shared current-v1 definition

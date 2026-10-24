@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1"
+definition = "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -113,6 +113,19 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     assert len(edge_bytes) == 169
     edge_digest = hashlib.sha256(b"transit.catalog.dependency.v1\0" + edge_bytes).digest()
     dependency_fixture = {"request": dependency_request, "public_key": public_key, "edge_digest": list(edge_digest)}
+    resource_create = {"namespace": 1, "name": {"len": 6, "bytes": [*b"values", *([0] * 57)]}, "owner": 19, "writer": 17,
+                       "owned": False, "deadline_ms": None, "history_ms": None,
+                       "spec": {"kv": {"value_type": "int64", "nullable": False, "key_encoding": "native_bytes", "value_encoding": "fvl1"}}}
+    resource_binding = {"definition": definition, "connection": request_input["connection"], "operation": 2**64 - 1,
+                        "object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2},
+                        "expected": None, "action": {"create": resource_create}}
+    resource_input = {**request_input, "action": {"resource_operation": {"binding": resource_binding, "command": "admit", "steps": 1, "signed_allocation": None}}}
+    resource_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(resource_input)).digest())}
+    resource_request = {**resource_input, "proof": {"claim": resource_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(resource_claim)).digest())}}
+    resource_definition = {"object": resource_binding["object"], "revision": 1, "namespace": 1, "name": resource_create["name"], "authorization": 20,
+                           "resource": 21, "allocating_principal": 4, "allocation": {"sequence": 22}, "creation": resource_create}
+    resource_digest = hashlib.sha256(b"transit.catalog.native-resource.v1\0" + canonical(resource_definition)).digest()
+    resource_fixture = {"request": resource_request, "public_key": public_key, "resource": resource_definition, "digest": list(resource_digest)}
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -127,6 +140,15 @@ validator.validate(delegated_request)
 validator.validate(borrowed_request)
 validator.validate(current_request)
 validator.validate(dependency_request)
+validator.validate(resource_request)
+for field in ("definition", "connection", "operation", "object", "expected", "action"):
+    invalid = copy.deepcopy(resource_request)
+    del invalid["action"]["resource_operation"]["binding"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("owned", "deadline_ms", "history_ms", "spec"):
+    invalid = copy.deepcopy(resource_request)
+    del invalid["action"]["resource_operation"]["binding"]["action"]["create"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("definition", "connection", "operation", "edge", "action", "authority"):
     invalid = copy.deepcopy(dependency_request)
     del invalid["action"]["dependency_operation"]["binding"][field]
@@ -170,6 +192,8 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-current-r
         (json.dumps(current_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-dependency-v1.json",
         (json.dumps(dependency_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-resource-v1.json",
+        (json.dumps(resource_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 
 # The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
 # the saved envelope uses the public JSON writer's exact array representation.

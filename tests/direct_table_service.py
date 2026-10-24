@@ -13,7 +13,7 @@ from storage import free_port, wait_ready
 
 
 def run(node, caller, mode="tables"):
-    if mode not in ("tables", "dependencies"):
+    if mode not in ("tables", "dependencies", "resources"):
         raise ValueError("Unknown direct service proof mode")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-table-") as directory:
@@ -30,6 +30,8 @@ def run(node, caller, mode="tables"):
             "local_directory": str(root / "native"),
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
+        if mode == "resources":
+            settings["genesis"]["max_clock_error_ms"] = 10000
         config.write_text(json.dumps(settings))
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         log = (root / "node.log").open("w+")
@@ -58,6 +60,7 @@ def run(node, caller, mode="tables"):
         fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
+        resource_faults = set()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -77,6 +80,17 @@ def run(node, caller, mode="tables"):
                     data = response.read()
                     if self.path == "/table/v1":
                         fault["requests"] += 1
+                        resource = envelope["action"].get("resource_operation")
+                        if mode == "resources" and resource and resource["binding"]["operation"] in (80000, 80001) and resource["command"] != "inspect" and response.status == 200:
+                            parsed = json.loads(data)
+                            operation = parsed["result"]["resource_operation"]["operation"]
+                            identity = (resource["binding"]["operation"], operation["phase"])
+                            if identity not in resource_faults:
+                                assert operation["binding"] == resource["binding"]
+                                assert operation["phase"] in ("admitted", "prepared", "allocated", "complete")
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                resource_faults.add(identity)
                         dependency = envelope["action"].get("dependency_operation")
                         if (mode == "dependencies" and dependency and dependency["command"] == "accept"
                                 and dependency["binding"]["operation"] in (70001, 70002)
@@ -156,6 +170,22 @@ def run(node, caller, mode="tables"):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "resources":
+                subprocess.run([caller, endpoint, "resource-save", str(profile)], check=True, timeout=180)
+                saved = profile.read_bytes()
+                phases = ("admit", "prepare-0", "allocate-0", "prepare-1", "allocate-1", "initialize-0", "initialize-1", "initialize-2", "publish")
+                for phase in phases:
+                    subprocess.run([caller, endpoint, f"resource-{phase}", str(profile)], check=True, timeout=180)
+                    assert profile.read_bytes() == saved, "Recovery changed the original resource binding"
+                    authority.kill()
+                    authority.wait(timeout=15)
+                    authority = None
+                    authority = start()
+                subprocess.run([caller, endpoint, "resource-verify", str(profile)], check=True, timeout=240)
+                assert resource_faults == {(identity, phase) for identity in (80000, 80001) for phase in ("admitted", "prepared", "allocated", "complete")}, resource_faults
+                assert profile.read_bytes() == saved
+                print(f"Named resources: {fault['requests']} typed catalog calls, 8 withheld stage replies and 9 abrupt node replacements, unchanged saved declarations, serialized original caller allocation without data grants, actual Station KV/Document initialization, typed KV writes/deletes, Document publication and current data revocation passed.")
+                return
             if mode == "dependencies":
                 subprocess.run([caller, endpoint, "dependency-prepare", str(profile)], check=True, timeout=180)
                 saved = profile.read_bytes()

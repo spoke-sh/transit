@@ -35,7 +35,7 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     var catalog = try D.init(allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
     defer catalog.deinit();
     try catalog.recover();
-    const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace });
+    const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
     const observed = try policy.observation();
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, w.max_response_bytes)]);
     var encoder: std.json.Stringify = .{ .writer = &writer };
@@ -54,4 +54,10 @@ fn executeNamespace(raw: *anyopaque, catalog: *D, binding: c.DirectNamespace.Bin
     const self: *Self = @ptrCast(@alignCast(raw));
     var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
     return (try runner.runNamespace(catalog, binding, policy, steps)).observation;
+}
+
+fn executeResource(raw: *anyopaque, catalog: *D, binding: c.DirectResource.Binding, policy: D.Policy, command: c.DirectResource.Command, steps: u16, signed_allocation: ?c.DirectResource.SignedAllocation) !c.DirectResource.Observation {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
+    return (try runner.runResource(catalog, binding, policy, command, steps, signed_allocation)).observation;
 }

@@ -3,6 +3,7 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const backend = @import("transit_backend_local");
+const core = @import("transit_core");
 const p = c.protocol;
 const a = c.TableAuthority;
 const Self = @This();
@@ -32,7 +33,86 @@ pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalo
 }
 
 pub fn policy(self: *Self) c.DirectCatalog.Policy {
-    return .{ .context = self, .subject = .{ .signed = self.proof }, .make_guard = makeGuard, .registered = registered };
+    return .{ .context = self, .subject = .{ .signed = self.proof }, .make_guard = makeGuard, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareResource, .allocation = resourceAllocation, .make_guard = resourceGuard } };
+}
+
+fn allocationLocked(self: *Self, binding: c.DirectResource.Binding, allocation: c.DirectResource.Allocation) !?u64 {
+    try binding.validate();
+    if (!binding.connection.matches(self.configuration) or binding.connection.principal != self.proof.claim.principal) return error.CatalogDenied;
+    const request = try binding.allocation(allocation);
+    var state = try self.engine.state();
+    const receipt = try state.get(core.growing.Receipt, try core.catalog.key(.receipt, request.principal, request.sequence, "")) orelse {
+        if (request.sequence <= (try self.engine.principal(request.principal)).sequence) return error.MissingReceipt;
+        return null;
+    };
+    if (!std.mem.eql(u8, &receipt.digest, &try p.Growth.digest(request))) return error.ConflictingRetry;
+    return receipt.position;
+}
+
+fn prepareResource(raw: *anyopaque, binding: c.DirectResource.Binding) !c.DirectResource.Allocation {
+    const self = erased(raw);
+    try binding.validate();
+    if (!binding.connection.matches(self.configuration) or binding.connection.principal != self.proof.claim.principal) return error.CatalogDenied;
+    var checked = self.authority(try a.guard(.{ .signed = self.proof }, self.configuration.authority, null, null, .database), null);
+    const guard = checked.guard();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    const result: c.DirectResource.Allocation = .{ .sequence = try std.math.add(u64, (try self.engine.principal(binding.connection.principal)).sequence, 1) };
+    try result.validate();
+    return result;
+}
+
+fn resourceAllocation(raw: *anyopaque, binding: c.DirectResource.Binding, allocation: c.DirectResource.Allocation) !?u64 {
+    const self = erased(raw);
+    var checked = self.authority(try a.guard(.{ .signed = self.proof }, self.configuration.authority, null, null, .database), null);
+    const guard = checked.guard();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return self.allocationLocked(binding, allocation);
+}
+
+const ResourceGuard = struct {
+    policy: *Self,
+    underlying: c.storage.TablePartition.Guard,
+    condition: c.DirectResource.Condition,
+    fn acquire(raw: *anyopaque) !c.storage.TablePartition.Guard.Fence {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        const fence = try self.underlying.acquire(self.underlying.context);
+        errdefer self.underlying.release(self.underlying.context);
+        const policy_value = self.policy;
+        const condition = self.condition;
+        if (condition.resource == null) {
+            try condition.allocation.validate();
+            if (condition.initialization != null or (try policy_value.engine.principal(condition.binding.connection.principal)).sequence != condition.allocation.sequence - 1) return error.NativeAllocationSequenceChanged;
+            return fence;
+        }
+        const resource_id = condition.resource.?;
+        if (try policy_value.allocationLocked(condition.binding, condition.allocation) != resource_id) return error.NamedResourceAllocationMismatch;
+        var state = try policy_value.engine.state();
+        const resource = try state.get(p.Growth.Resource, core.growing.address(.resource, resource_id)) orelse return error.UnknownStateResource;
+        const declaration = condition.binding.action.create;
+        const expected_owner: ?u64 = if (declaration.owned) declaration.writer else null;
+        if (resource.id != resource_id or resource.writer != declaration.writer or resource.owner != expected_owner or resource.history_ms != declaration.history_ms) return error.NamedResourceAllocationMismatch;
+        if (condition.initialization) |expected| {
+            try policy_value.engine.requireResourceLifetime(resource_id);
+            const key = p.DataLifecycle.ResourceInitialization.key();
+            const entry = try state.get(p.Growth.Entry, try core.catalog.key(.entry, resource_id, 0, key.slice())) orelse return error.NamedResourceNotInitialized;
+            if (!entry.key.eql(key) or entry.revision == 0 or entry.revision > resource.revision) return error.InvalidHistory;
+            if (!std.meta.eql(expected, try p.DataLifecycle.ResourceInitialization.decode(entry.value))) return error.NamedResourceIdentityConflict;
+        }
+        return fence;
+    }
+    fn release(raw: *anyopaque) void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        self.underlying.release(self.underlying.context);
+    }
+};
+
+fn resourceGuard(raw: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard, condition: c.DirectResource.Condition) !c.storage.TablePartition.Guard {
+    const self = erased(raw);
+    const value = try allocator.create(ResourceGuard);
+    value.* = .{ .policy = self, .underlying = try makeGuard(raw, allocator, requested, null), .condition = condition };
+    return .{ .context = value, .acquire = ResourceGuard.acquire, .release = ResourceGuard.release };
 }
 
 fn erased(context: *anyopaque) *Self {

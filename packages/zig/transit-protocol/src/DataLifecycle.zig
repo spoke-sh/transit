@@ -39,6 +39,67 @@ pub const Definition = struct {
     }
 };
 
+/// The framework writes this binding only after kind-specific initialization.
+/// Catalog publication independently checks the native resource and this exact
+/// entry under current authority. It is not a resource grant or execution proof.
+pub const ResourceInitialization = struct {
+    definition: p.Growth.Definition,
+    interpretation: Definition,
+    kind: enum(u8) { kv = 1, document = 2 },
+    resource: u64,
+    pub const encoded_bytes = 125;
+
+    pub fn key() p.Value {
+        return p.Value.init("\x00NL") catch unreachable;
+    }
+
+    pub fn validate(self: ResourceInitialization) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try self.interpretation.validate();
+        if (self.interpretation.object.branch != 1 or self.interpretation.revision != 1 or
+            self.resource == 0 or self.resource > p.max_counter) return error.InvalidResourceInitialization;
+    }
+
+    pub fn encode(self: ResourceInitialization) !p.Value {
+        try self.validate();
+        var bytes: [encoded_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try writer.writeAll("NSI1");
+        try writer.writeAll(&p.Growth.definition_bytes);
+        const object = self.interpretation.object;
+        for ([_]u64{ object.scope.realm, object.scope.resource, object.scope.catalog, object.branch, object.object, self.interpretation.revision }) |field|
+            try writer.writeInt(u64, field, .big);
+        try writer.writeAll(&self.interpretation.digest);
+        try writer.writeByte(@backingInt(self.kind));
+        try writer.writeInt(u64, self.resource, .big);
+        return p.Value.init(writer.buffered());
+    }
+
+    pub fn decode(value: p.Value) !ResourceInitialization {
+        try value.validate();
+        if (value.len != encoded_bytes) return error.InvalidResourceInitialization;
+        var reader: std.Io.Reader = .fixed(value.slice());
+        if (!std.mem.eql(u8, try reader.take(4), "NSI1")) return error.InvalidResourceInitialization;
+        if (!std.mem.eql(u8, try reader.take(32), &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+        const result: ResourceInitialization = .{
+            .definition = p.Growth.current_definition,
+            .interpretation = .{
+                .object = .{
+                    .scope = .{ .realm = try reader.takeInt(u64, .big), .resource = try reader.takeInt(u64, .big), .catalog = try reader.takeInt(u64, .big) },
+                    .branch = try reader.takeInt(u64, .big),
+                    .object = try reader.takeInt(u64, .big),
+                },
+                .revision = try reader.takeInt(u64, .big),
+                .digest = (try reader.takeArray(32)).*,
+            },
+            .kind = std.enums.fromInt(@FieldType(ResourceInitialization, "kind"), try reader.takeByte()) orelse return error.InvalidResourceInitialization,
+            .resource = try reader.takeInt(u64, .big),
+        };
+        try result.validate();
+        return result;
+    }
+};
+
 pub const Operation = struct {
     scope: Scope,
     principal: u64,
@@ -246,6 +307,7 @@ pub const Observation = union(enum) {
 
 /// Schema roots, not a request envelope or a new service endpoint.
 pub const SchemaTypes = struct {
+    resource_initialization: ResourceInitialization,
     binding: Binding,
     commit: Commit,
     source_cut: SourceCut,

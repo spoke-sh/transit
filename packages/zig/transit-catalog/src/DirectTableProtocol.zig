@@ -243,6 +243,10 @@ pub const Action = union(enum) {
     namespace_operation: struct { binding: c.DirectNamespace.Binding, command: c.DirectNamespace.Command, steps: u16 },
     dependency_operation: struct { binding: c.DirectDependency.Binding, command: c.DirectDependency.Command },
     dependencies: struct { selection: c.DirectDependency.Selection, cursor: ?c.DirectDependency.Cursor, authority: c.DirectDependency.Authority },
+    resource_preview: c.DirectResource.Binding,
+    resource_operation: struct { binding: c.DirectResource.Binding, command: c.DirectResource.Command, steps: u16, signed_allocation: ?c.DirectResource.SignedAllocation },
+    resource_lookup: struct { namespace: u64, name: []const u8 },
+    resource_list: struct { namespace: u64, after: ?u64 },
     check: D.AccessRequest,
     /// All requirements are checked together before disclosing the response.
     check_set: []const ReadCheck,
@@ -303,9 +307,10 @@ pub const Request = struct {
             .name_assertion => |value| value.command != .inspect,
             .namespace_operation => |value| value.command != .inspect,
             .dependency_operation => |value| value.command != .inspect,
+            .resource_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -335,6 +340,19 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .resource_preview => |binding| {
+                try binding.validate();
+                if (!std.meta.eql(binding.connection, self.connection)) return error.CatalogIdentityConflict;
+            },
+            .resource_operation => |value| {
+                try value.binding.validate();
+                if (!std.meta.eql(value.binding.connection, connection)) return error.CatalogIdentityConflict;
+                if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
+                if (value.signed_allocation) |signed| {
+                    if (value.command != .execute or value.binding.action != .create) return error.InvalidNamedResourceOperation;
+                    try signed.allocation.validate();
+                }
+            },
             .dependency_operation => |value| {
                 try value.binding.validate();
                 if (!std.meta.eql(value.binding.connection, connection)) return error.CatalogIdentityConflict;
@@ -386,11 +404,11 @@ pub const Request = struct {
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
                 };
             },
-            .list => |value| {
+            inline .list, .resource_list => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (value.after) |after| if (after == 0) return error.InvalidCatalogCursor;
             },
-            .lookup => |value| {
+            inline .lookup, .resource_lookup => |value| {
                 try c.Model.nativeId(value.namespace);
                 _ = try c.TableAuthority.Name.init(value.name);
             },
@@ -563,6 +581,10 @@ pub const Result = union(enum) {
     namespace_operation: c.DirectNamespace.Observation,
     dependency_operation: c.DirectDependency.Observation,
     dependencies: c.DirectDependency.Page,
+    resource_preview: c.DirectResource.Preview,
+    resource_operation: c.DirectResource.Observation,
+    resource_lookup: ?D.ResourceView,
+    resource_list: struct { entries: [8]?D.ResourceView, next: ?u64, position: d.Position },
     checked,
     staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },

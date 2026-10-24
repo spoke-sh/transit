@@ -13,6 +13,11 @@ search/analytical projections are architectural priorities; arbitrary search is
 not part of the current Document interface. See [workloads](workloads.md) and
 [performance](performance.md) for the planned structures and measurement limits.
 
+The [named-resource lifecycle](state.md#state-and-higher-level-resources) binds a
+catalog identity to an actual initialized Document. Its explicit allocation,
+reservation, service creation and publication steps remain separately observable.
+The catalog marker does not replace current Document access or merge authority.
+
 ## Identities and merge rules
 
 Document identity, replica ID, operation ID, accepted revision and merge epoch are

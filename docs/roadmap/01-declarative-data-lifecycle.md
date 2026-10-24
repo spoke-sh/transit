@@ -300,11 +300,22 @@ graph indices through the coordinated current-v1 cutover. Named resource and
 computation publication still require integration; registration alone does not
 establish publication, usability, activation or data retention.
 
+The [named native resource evidence](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24)
+now covers real KV/Document allocation and initialization through the public
+catalog and Station owners. Saved original declarations survive withheld replies
+and abrupt node replacement at every catalog phase and between Document
+initialization turns. Typed KV writes/deletes, actual Document change acceptance,
+native data revocation, metadata rename/DROP and permanent original receipts pass.
+One prepared native allocation per caller is durably serialized within the
+catalog. This closes the metadata-only provisioning gap for that explicit typed
+profile; exact dependency integration, old owner retirement and broader physical
+placement qualification remain open.
+
 The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
 it does not complete named consumer integration with the dependency registry.
-Relational and remaining caller migration, named dependency integration, resource
-provisioning and computation evidence also remain unfinished. Automatic point
+Relational and remaining caller migration, named dependency integration and
+broader resource/computation qualification also remain unfinished. Automatic point
 flushing belongs to the following storage milestone. None of the
 completion matrix rows below is closed by this partial caller path.
 

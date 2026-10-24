@@ -792,6 +792,7 @@ test "local catalog checks real native registrations, current ownership and exac
     try prerequisiteDispatch(&engine, config, role);
     try namespaceDispatch(&engine, config, role);
     try dependencyDispatch(&engine, config, role);
+    try namedResourceDispatch(&engine, config, role);
     // The dispatch proof deliberately rotates the caller. Later independent
     // requests prepare a new proof; accepted delegated work keeps its old one.
     signed = try proof(&engine, request_digest);
@@ -945,4 +946,102 @@ test "local catalog checks real native registrations, current ownership and exac
     try t.expect(try authority.bound(table_domain, try c.TableAuthority.binding(scope, .table, 9)) == null);
     try t.expectError(error.Forbidden, catalog.status(request.binding, policy.policy()));
     try t.expectError(error.Forbidden, catalog.rowStatus(succeeding.binding, policy.policy()));
+}
+
+fn namedResourceDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
+    const R = c.DirectResource;
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    const writer = try command(engine, .{ .spawn = .{} });
+    const binding: R.Binding = .{ .definition = g.current_definition, .connection = .{ .scope = config.scope, .branch = 1, .audience = config.audience, .principal = 101, .role = null }, .operation = 12000, .object = .{ .scope = config.scope, .branch = 1, .object = 800 }, .expected = null, .action = .{ .create = .{
+        .namespace = 1,
+        .name = try .init("native_resource"),
+        .owner = owner_role,
+        .writer = writer,
+        .owned = false,
+        .deadline_ms = null,
+        .history_ms = null,
+        .spec = .{ .kv = .{ .value_type = .int64, .nullable = false, .key_encoding = .native_bytes, .value_encoding = .fvl1 } },
+    } } };
+    var action: c.DirectTableProtocol.Action = .{ .resource_operation = .{ .binding = binding, .command = .admit, .steps = 64, .signed_allocation = null } };
+    // Namespace and resource declarations share one operation identity space.
+    var reused = action;
+    reused.resource_operation.binding.operation = 800;
+    try t.expectError(error.DataIdentityConflict, dispatch(&service, reused));
+    (try dispatch(&service, action)).deinit();
+    action.resource_operation.command = .execute;
+    // Catalog CREATE and ownership do not grant native resource allocation.
+    try t.expectError(error.Forbidden, dispatch(&service, action));
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = owner_role, .privileges = p.permission(.admin) } });
+    const prepared = try dispatch(&service, action);
+    defer prepared.deinit();
+    const work = prepared.value.result.resource_operation.operation;
+    try t.expectEqual(.prepared, work.phase);
+    try t.expectEqual((try engine.principal(101)).sequence + 1, work.allocation.?.sequence);
+    const signed_allocation = try g.sign(try binding.allocation(work.allocation.?), try key(29));
+    action.resource_operation.signed_allocation = .{ .allocation = work.allocation.?, .signature = signed_allocation.signature };
+    // The native owner accepts allocation before any data grant exists. The
+    // denied attachment must retain its original sequence and recover receipt.
+    try t.expectError(error.Forbidden, dispatch(&service, action));
+    const receipt = (try engine.query(try g.signQuery(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .{ .receipt = signed_allocation.request } } } }, try key(29)))).body.authorization.body.receipt.?;
+    const resource = receipt.position;
+    try t.expectEqual(resource, try engine.submit(signed_allocation));
+    const hidden = try dispatch(&service, .{ .resource_lookup = .{ .namespace = 1, .name = "native_resource" } });
+    defer hidden.deinit();
+    try t.expectEqual(null, hidden.value.result.resource_lookup);
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .resource, .id = resource }, .grantee = owner_role, .privileges = p.State.permission(.inspect) | p.State.permission(.read) } });
+    const allocated = try dispatch(&service, action);
+    defer allocated.deinit();
+    try t.expectEqual(.allocated, allocated.value.result.resource_operation.operation.phase);
+    try t.expectEqual(resource, allocated.value.result.resource_operation.operation.resulting.?.resource);
+    try t.expectEqual(work.allocation, allocated.value.result.resource_operation.operation.allocation);
+    const native_head = engine.head.position;
+    const again = try dispatch(&service, action);
+    defer again.deinit();
+    try t.expectEqualDeep(allocated.value.result.resource_operation, again.value.result.resource_operation);
+    try t.expectEqual(native_head, engine.head.position);
+    _ = try command(engine, .{ .retire_resource = resource });
+    try t.expectError(error.StateResourceExpired, dispatch(&service, action));
+    action.resource_operation.command = .cancel;
+    action.resource_operation.signed_allocation = null;
+    const closed = try dispatch(&service, action);
+    defer closed.deinit();
+    try t.expectEqual(.cancelled, closed.value.result.resource_operation.operation.phase);
+    try t.expectEqual(resource, closed.value.result.resource_operation.operation.resulting.?.resource);
+
+    // A caller may also be the registrar. The native allocation sequence is
+    // chosen only after registration, then persisted before it is signed.
+    var root_binding = binding;
+    root_binding.connection.principal = 0;
+    root_binding.object.object = 801;
+    root_binding.operation = 12001;
+    root_binding.action.create.name = try .init("shared_sequence");
+    root_binding.action.create.owner = 0;
+    // Registrar/root native authority is not an implicit catalog data grant.
+    _ = try change(engine, .{ .grant = .{ .object = c.TableAuthority.reference(config.authority.database), .grantee = 0, .privileges = c.TableAuthority.connect } });
+    _ = try change(engine, .{ .grant = .{ .object = c.TableAuthority.reference(config.authority.initial_schema_authority), .grantee = 0, .privileges = c.TableAuthority.usage | c.TableAuthority.create } });
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = 0, .privileges = p.permission(.admin) } });
+    const digest: [32]u8 = @splat(18);
+    const signed_proof = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 0, .credential_epoch = (try engine.principal(0)).credential_epoch, .role = null, .audience = config.audience, .context = digest }, try key(17));
+    var policy = try Policy.init(engine, config, signed_proof, digest, null);
+    var control: backend.DataStore = .{ .backend = engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = engine.journal.backend };
+    var catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    try catalog.recover();
+    _ = try catalog.resourceOperation(root_binding, .admit, policy.policy());
+    var runner: @import("LocalCatalogRunner.zig") = .{ .engine = engine, .principal = 0, .key = try key(17) };
+    const before = (try engine.principal(0)).sequence;
+    const planned = (try runner.runResource(&catalog, root_binding, policy.policy(), .execute, 64, null)).observation.operation;
+    try t.expectEqual(.prepared, planned.phase);
+    try t.expect(planned.allocation.?.sequence > before + 1);
+    try t.expectEqual((try engine.principal(0)).sequence + 1, planned.allocation.?.sequence);
+    const signed = try g.sign(try root_binding.allocation(planned.allocation.?), try key(17));
+    try t.expectError(error.Forbidden, runner.runResource(&catalog, root_binding, policy.policy(), .execute, 64, .{ .allocation = planned.allocation.?, .signature = signed.signature }));
+    const root_resource = try engine.submit(signed);
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .resource, .id = root_resource }, .grantee = 0, .privileges = p.State.permission(.inspect) | p.State.permission(.read) } });
+    const actual = (try runner.runResource(&catalog, root_binding, policy.policy(), .execute, 64, .{ .allocation = planned.allocation.?, .signature = signed.signature })).observation.operation;
+    try t.expectEqual(.allocated, actual.phase);
+    try t.expectEqual(actual.resulting.?.resource, try engine.submit(signed));
+    _ = try runner.runResource(&catalog, root_binding, policy.policy(), .cancel, 1, null);
+    _ = try command(engine, .{ .retire_resource = actual.resulting.?.resource });
 }

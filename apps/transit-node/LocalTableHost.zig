@@ -43,6 +43,7 @@ fn exclusive(action: w.Action) bool {
         .initialize, .admit_ddl, .check_set, .name_assertion => true,
         .namespace_operation => |value| value.command != .inspect,
         .dependency_operation => |value| value.command != .inspect,
+        .resource_operation => |value| value.command != .inspect,
         .admit_saved => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => true,
             .insert, .update, .delete => false,

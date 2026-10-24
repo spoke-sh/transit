@@ -38,6 +38,34 @@ const snapshot: d.Snapshot = .{
     .consistency = .{ .single_partition = .{ .partition = 8, .next_lsn = 12 } },
 };
 
+test "named resource initialization preserves its original interpretation and rejects foreign artifacts" {
+    const value: d.ResourceInitialization = .{
+        .definition = p.Growth.current_definition,
+        .interpretation = .{ .object = object, .revision = 1, .digest = @splat(23) },
+        .kind = .document,
+        .resource = 321,
+    };
+    const encoded = try value.encode();
+    try t.expectEqualDeep(value, try d.ResourceInitialization.decode(encoded));
+    // Independent Python struct.pack(">6Q", ...) + 32 digest bytes, one kind
+    // byte and struct.pack(">Q", 321). The shared definition occupies [4,36).
+    var expected: [89]u8 = undefined;
+    const suffix = try std.fmt.hexToBytes(&expected, "00000000000000010000000000000007ffffffffffffffff0000000000000001000000000000002a00000000000000011717171717171717171717171717171717171717171717171717171717171717020000000000000141");
+    try t.expectEqualSlices(u8, suffix, encoded.slice()[36..]);
+    try t.expectEqualSlices(u8, "NSI1", encoded.slice()[0..4]);
+    try t.expectEqualSlices(u8, &p.Growth.definition_bytes, encoded.slice()[4..36]);
+    for (0..encoded.len) |length| try t.expectError(error.InvalidResourceInitialization, d.ResourceInitialization.decode(try p.Value.init(encoded.slice()[0..length])));
+    var foreign = encoded;
+    foreign.data[4] ^= 1;
+    try t.expectError(error.IncompatibleDefinition, d.ResourceInitialization.decode(foreign));
+    foreign = encoded;
+    foreign.data[116] = 0;
+    try t.expectError(error.InvalidResourceInitialization, d.ResourceInitialization.decode(foreign));
+    var renamed = value;
+    renamed.interpretation.revision = 2;
+    try t.expectError(error.InvalidResourceInitialization, renamed.encode());
+}
+
 test "a lost reply binds the original accepted operation despite later name or schema replacement" {
     try commit.requireBinding(binding);
     var replacement = binding;

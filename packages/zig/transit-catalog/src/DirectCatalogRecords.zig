@@ -62,8 +62,16 @@ pub const Entry = struct {
     object: u64,
     partition: u64,
     seed: ?storage.TableDeclaration.Stored,
+    /// Control-log record owning the latest named native-resource state.
+    /// Mandatory null for Tables; no second name or object directory exists.
+    resource: ?u64,
     pub fn validate(self: Entry, config: Configuration) !void {
-        if (self.partition <= config.partition or self.object == 0) return error.InvalidDirectCatalogEntry;
+        if (self.object == 0) return error.InvalidDirectCatalogEntry;
+        if (self.resource) |at| {
+            if (at == 0 or self.partition != 0 or self.seed != null) return error.InvalidDirectCatalogEntry;
+            return;
+        }
+        if (self.partition <= config.partition) return error.InvalidDirectCatalogEntry;
         if (self.seed) |seed| {
             try seed.validate();
             const id = seed.interpretation.object;
@@ -99,11 +107,12 @@ pub const Root = struct {
     names: ?pages.Reference,
     operations: ?pages.Reference,
     pending: ?pages.Reference,
+    native_allocations: ?pages.Reference,
     dependents: ?pages.Reference,
     dependencies: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .dependents = null, .dependencies = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
@@ -137,11 +146,15 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
         switch (self.action) {
+            .resource => |value| {
+                try value.validate();
+                if (position == 0 or !value.binding.connection.matches(self.root.configuration) or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
+            },
             .dependency => |value| {
                 try value.validate();
                 if (position == 0 or !value.binding.connection.matches(self.root.configuration) or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
@@ -182,6 +195,13 @@ pub fn operationKey(operation: d.Operation) !pages.Key {
     var bytes: [16]u8 = undefined;
     std.mem.writeInt(u64, bytes[0..8], operation.principal, .big);
     std.mem.writeInt(u64, bytes[8..16], operation.operation, .big);
+    return pages.Key.init(&bytes);
+}
+
+pub fn principalKey(principal: u64) !pages.Key {
+    if (principal > p.max_counter) return error.InvalidCatalogIdentity;
+    var bytes: [8]u8 = undefined;
+    std.mem.writeInt(u64, &bytes, principal, .big);
     return pages.Key.init(&bytes);
 }
 

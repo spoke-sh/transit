@@ -1,6 +1,6 @@
 {
   "binding": {
-    "definition": "876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1",
+    "definition": "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf",
     "identity": {
       "scope": {
         "realm": 1,
@@ -107,7 +107,7 @@
   },
   "commit": {
     "binding": {
-      "definition": "876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1",
+      "definition": "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf",
       "identity": {
         "scope": {
           "realm": 1,
@@ -392,7 +392,7 @@
     }
   },
   "snapshot": {
-    "definition": "876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1",
+    "definition": "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf",
     "owner": {
       "scope": {
         "realm": 1,
@@ -487,5 +487,56 @@
   },
   "observation": {
     "not_observed": {}
+  },
+  "resource_initialization": {
+    "definition": "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf",
+    "interpretation": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 42
+      },
+      "revision": 1,
+      "digest": [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23
+      ]
+    },
+    "kind": "document",
+    "resource": 321
   }
 }

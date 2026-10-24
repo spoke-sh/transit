@@ -4,6 +4,76 @@ const c = @import("root.zig");
 const w = c.DirectTableProtocol;
 const p = c.protocol;
 
+const ResourceFixture = struct { request: w.Request, public_key: [32]u8, resource: c.DirectResource.Definition, digest: [32]u8 };
+test "named resource consumes independent signed intent and exact definition digest" {
+    const parsed = try p.Json.parseFromSlice(ResourceFixture, t.allocator, @embedFile("fixtures/direct-resource-v1.json"));
+    defer parsed.deinit();
+    const fixture = parsed.value;
+    try fixture.request.validate(t.allocator);
+    try fixture.request.proof.verify(fixture.public_key);
+    try t.expectEqual(std.math.maxInt(u64), fixture.request.action.resource_operation.binding.operation);
+    try t.expectEqualDeep(fixture.digest, (try fixture.resource.interpretation(t.allocator)).digest);
+    const saved = try c.DirectResourceClient.save(t.allocator, fixture.request.action.resource_operation.binding);
+    defer t.allocator.free(saved);
+    try t.expectEqualDeep(fixture.request.action.resource_operation.binding, try c.DirectResourceClient.load(t.allocator, saved));
+    var changed = fixture.request;
+    changed.action.resource_operation.binding.action.create.owned = true;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = fixture.request;
+    changed.action.resource_operation.command = .cancel;
+    try t.expectEqualStrings("table", changed.transport().control.?);
+    try t.expect(changed.transport().mutation);
+    changed.action.resource_operation.command = .inspect;
+    try t.expectEqualStrings("table", changed.transport().control.?);
+    try t.expect(!changed.transport().mutation);
+}
+
+test "named resource responses reject substituted allocation and malformed listing coverage" {
+    const parsed = try p.Json.parseFromSlice(ResourceFixture, t.allocator, @embedFile("fixtures/direct-resource-v1.json"));
+    defer parsed.deinit();
+    var request = parsed.value.request;
+    const binding = request.action.resource_operation.binding;
+    const definition = parsed.value.resource;
+    const operation: c.DirectResource.Operation = .{ .binding = binding, .position = .{ .partition = 1, .next_lsn = 5 }, .phase = .complete, .reason = .none, .resulting = definition, .allocation = definition.allocation, .retired = false };
+    var response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .resource_operation = .{ .operation = operation } } };
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    var changed = response;
+    changed.result.resource_operation.operation.resulting.?.allocation.sequence += 1;
+    try t.expectError(error.InvalidNamedResourceOperation, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.resource_operation.operation.phase = .prepared;
+    try t.expectError(error.InvalidNamedResourceOperation, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    request.action = .{ .resource_list = .{ .namespace = 1, .after = null } };
+    request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
+    request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    response.context = request.proof.claim.context;
+    response.subject.context = request.proof.claim.context;
+    response.result = .{ .resource_list = .{ .entries = @splat(null), .next = null, .position = .{ .partition = 1, .next_lsn = 5 } } };
+    const view: c.DirectCatalog.ResourceView = .{ .definition = definition, .interpretation = try definition.interpretation(t.allocator), .position = operation.position };
+    response.result.resource_list.entries[0] = view;
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    changed = response;
+    changed.result.resource_list.entries[0].?.definition.resource += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.resource_list.entries[0].?.position.next_lsn += 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.resource_list.entries[1] = view;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.resource_list.entries[1] = view;
+    changed.result.resource_list.entries[0] = null;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    changed = response;
+    changed.result.resource_list.next = 0;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, changed));
+    // A filtered page can be empty while advancing through claimed identities.
+    changed.result.resource_list.entries = @splat(null);
+    changed.result.resource_list.next = definition.object.object;
+    try c.DirectTableClient.validateResponse(t.allocator, request, changed);
+}
+
 test "pin status binds mandatory current interpretation to the requested object" {
     const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .object = 7 };
     const owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 99 };

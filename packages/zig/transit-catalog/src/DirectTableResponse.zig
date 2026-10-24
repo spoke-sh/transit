@@ -36,6 +36,13 @@ fn metadata(allocator: std.mem.Allocator, value: w.Definition) !void {
     defer declaration.deinit();
     if (!std.meta.eql(value.interpretation, try declaration.stored())) return error.InvalidTableResponse;
 }
+
+fn resourceMetadata(allocator: std.mem.Allocator, connection: w.Connection, value: c.DirectCatalog.ResourceView) !void {
+    try value.definition.validate();
+    try connection.object(value.definition.object);
+    try value.position.validate();
+    if (value.position.next_lsn == 0 or !std.meta.eql(value.interpretation, try value.definition.interpretation(allocator))) return error.InvalidTableResponse;
+}
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);
     try value.resulting.validate();
@@ -109,6 +116,10 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .namespace_operation => .namespace_operation,
         .dependency_operation => .dependency_operation,
         .dependencies => .dependencies,
+        .resource_preview => .resource_preview,
+        .resource_operation => .resource_operation,
+        .resource_lookup => .resource_lookup,
+        .resource_list => .resource_list,
         .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
@@ -136,6 +147,47 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .resource_preview => |value| {
+            try request.action.resource_preview.requireSame(value.binding);
+            try value.position.validate();
+            if (value.position.next_lsn == 0) return error.InvalidTableResponse;
+            if (value.current) |current| {
+                try current.validate();
+                if (!std.meta.eql(current.object, value.binding.object)) return error.InvalidTableResponse;
+            }
+        },
+        .resource_operation => |value| switch (value) {
+            .not_observed => if (request.action.resource_operation.command != .inspect and request.action.resource_operation.command != .execute) return error.InvalidTableResponse,
+            .operation => |operation| {
+                try operation.validate();
+                try request.action.resource_operation.binding.requireSame(operation.binding);
+                if (request.action.resource_operation.signed_allocation) |signed| {
+                    if (operation.allocation) |allocation| if (!std.meta.eql(allocation, signed.allocation)) return error.InvalidTableResponse;
+                }
+            },
+        },
+        .resource_lookup => |maybe| if (maybe) |value| {
+            try resourceMetadata(allocator, request.connection, value);
+            const input = request.action.resource_lookup;
+            if (value.definition.namespace != input.namespace or !std.mem.eql(u8, value.definition.name.slice(), input.name)) return error.InvalidTableResponse;
+        },
+        .resource_list => |page| {
+            try page.position.validate();
+            if (page.position.next_lsn == 0) return error.InvalidTableResponse;
+            const input = request.action.resource_list;
+            var previous = input.after orelse 0;
+            var gap = false;
+            for (page.entries) |slot| {
+                const value = slot orelse {
+                    gap = true;
+                    continue;
+                };
+                try resourceMetadata(allocator, request.connection, value);
+                if (gap or value.definition.namespace != input.namespace or value.definition.object.object <= previous or value.position.partition != page.position.partition or value.position.next_lsn > page.position.next_lsn) return error.InvalidTableResponse;
+                previous = value.definition.object.object;
+            }
+            if (page.next) |next| if (next <= (input.after orelse 0) or next < previous) return error.InvalidTableResponse;
+        },
         .dependency_operation => |value| switch (value) {
             .not_observed => if (request.action.dependency_operation.command != .inspect) return error.InvalidTableResponse,
             .outcome => |outcome| {

@@ -322,7 +322,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     test_step.dependOn(&local_catalog_tests.step);
@@ -1194,6 +1194,14 @@ pub fn build(b: *std.Build) void {
     direct_dependencies.has_side_effects = true;
     direct_dependencies.stdio = .inherit;
     b.step("test-direct-dependencies", "Prove direct dependency registration, RESTRICT and exact recovery across node loss").dependOn(&direct_dependencies.step);
+    const named_resources = b.addSystemCommand(&.{ "python3", "-B" });
+    named_resources.addFileArg(b.path("tests/direct_table_service.py"));
+    named_resources.addArtifactArg(node_artifact);
+    named_resources.addArtifactArg(direct_table_client);
+    named_resources.addArg("resources");
+    named_resources.has_side_effects = true;
+    named_resources.stdio = .inherit;
+    b.step("test-direct-named-resources", "Prove named KV and Document initialization and original receipt recovery across node loss").dependOn(&named_resources.step);
     const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/direct_captured_query.py" });
     direct_captured_query.addArtifactArg(node_artifact);
     direct_captured_query.addArtifactArg(direct_table_client);
