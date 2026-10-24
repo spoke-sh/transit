@@ -315,7 +315,7 @@ const Editor = struct {
         defer fresh.deinit();
         if (try q.Assistance.local(fresh.allocator(), self.request())) |value| {
             const response: q.Assistance.Response = .{ .generation = self.state.generation, .coverage = value.coverage, .status = value.status, .resource = 0, .contract = @splat(0), .resource_revision = 0, .policy_revision = "", .range = value.range, .items = value.items };
-            try self.react(self.state.transition(.{ .local = value.coverage == .complete and value.items.len == 1 }), response, &fresh);
+            try self.react(self.state.transition(.{ .local = EditorState.unique(response) }), response, &fresh);
             return;
         }
         if (self.state.source == .local) self.visible_count = 0;
@@ -359,7 +359,7 @@ const Editor = struct {
             };
             const matches = if (self.assistance) |prior| (if (self.selection()) |selected| EditorState.matches(prior, current, selected) else false) else false;
             try self.react(self.state.transition(.{ .reply = .{
-                .unique = current.status == .ready and current.coverage == .complete and current.items.len == 1,
+                .unique = EditorState.unique(current),
                 .matches = matches,
             } }), current, &fresh);
             return true;
@@ -528,6 +528,10 @@ const Editor = struct {
     fn loop(self: *Editor) !void {
         try self.draw();
         while (true) {
+            // Cancellation joins and foreground execution finish before the
+            // next input boundary. The future is the sole physical borrower.
+            std.debug.assert(self.state.request != .cancelling and self.state.request != .executing);
+            std.debug.assert((self.acquisition.future != null) == (self.state.request != .idle));
             const event = self.pollByte(25) catch |err| {
                 if (err != error.ConsoleInterrupted or Signals.terminating()) return err;
                 Signals.clear();

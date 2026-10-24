@@ -1938,6 +1938,32 @@
       "limits": "Linux x86_64 process and disk-backed Ursula fixtures, independent Python HTTPS client and actual console/PG/MySQL clients. Source workers are selected within four native wait lanes; no claim of unbounded simultaneous source workers, exhaustive crash schedules, host power-loss recovery, browser admission, transactions or latency SLO. Fresh client home is not a separate security sandbox.",
       "model": null,
       "qualification": "Required current-v1 scenarios; tests/README.md records executed outcomes separately from the implementation and this inventory."
+    },
+    {
+      "id": "CONSOLE-EDITOR-01",
+      "claim": "Editor cancellation restores the saved draft; completion insertion requires current matching evidence and proved uniqueness for automatic acceptance; client borrowing is exclusive and protected failure clears private editor state",
+      "owner": "contracts/TRANSIT_CLI_V1.md",
+      "implementation": [
+        "apps/transit-cli/EditorState.zig",
+        "apps/transit-cli/Terminal.zig",
+        "apps/transit-cli/AssistanceRequest.zig",
+        "tests/console_state.zig",
+        "tests/verification/console_model.py"
+      ],
+      "profile": "Finite editor interaction/request model plus production Zig reducer and Linux PTY adapter",
+      "tasks": [
+        "test::console-model",
+        "test::unit",
+        "test::console-history"
+      ],
+      "scenarios": [
+        "Every exported model edge replayed from a shortest representative path against the production reducer; compare projected draft, cursor, filter, modes and effects",
+        "Six independently removed model guards expose restoration, stale/interrupted response, uniqueness, metadata basis, ownership and protected-failure violations; concrete replay takes the safe path",
+        "Borrower release under explicit weak fairness of response failure/timeout, cancellation join and foreground completion",
+        "Native units check metadata field comparisons and zeroed editor buffers; PTYs cover rendering, signals, history/undo and delayed completion"
+      ],
+      "limits": "Three draft classes, four filter classes, start/end cursors and one borrower. The graph abstracts generation counters, grammar, text algorithms, undo contents, I/O, allocation and terminal rendering. Edge replay uses representative paths, not every Zig history, and is not an unbounded refinement proof. Fairness is an environment assumption, not proof that transport cancellation terminates or a latency guarantee.",
+      "model": "tests/verification/models/Console.tla"
     }
   ]
 }

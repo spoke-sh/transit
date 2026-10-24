@@ -866,6 +866,25 @@ pub fn build(b: *std.Build) void {
     history_test.has_side_effects = true;
     history_test.stdio = .inherit;
     b.step("test-console-history", "Check real terminal history, persistence and external editing").dependOn(&history_test.step);
+    const console_editor = b.createModule(.{
+        .root_source_file = b.path("apps/transit-cli/EditorState.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+    });
+    const console_trace = b.addExecutable(.{ .name = "console-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/console_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "console_editor", .module = console_editor }},
+    }) });
+    const console_model = b.addSystemCommand(&.{ "python3", "-B" });
+    console_model.addFileArg(b.path("tests/verification/console_model.py"));
+    console_model.addArtifactArg(console_trace);
+    console_model.has_side_effects = true;
+    console_model.stdio = .inherit;
+    console_model.addPassthruArgs();
+    b.step("test-console-model", "Check the console model and replay transitions against its Zig owner").dependOn(&console_model.step);
     const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
     file_query_test.addArtifactArg(operations);

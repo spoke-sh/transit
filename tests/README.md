@@ -1,5 +1,35 @@
 # Validation and evidence
 
+## Console interaction state machine — 2026-10-24
+
+`nix develop --command just test::console-model` passes with 5,278 distinct
+states and all 91,198 exported edges replayed against the production Zig editor
+reducer. Each edge starts from a shortest representative path to its source;
+projected draft/cursor, saved draft, filter, history match/failure, modes and
+emitted effects agree. Six independently removed model guards expose the expected
+freshness/interruption, uniqueness, metadata-basis, restoration, ownership and
+protected-failure violations. The same schedules follow the safe graph in Zig.
+A separate fairness configuration passes eventual borrower release, conditional
+on request failure/timeout, cancellation join and foreground completion.
+
+`nix develop --command zig build test-cli-lifecycle test-console-history` passes
+for the initial extraction. It exercises the complete terminal suite, including
+multiline rendering, immediate completion refinement, quiet unique validation,
+space-aware insertion, seeded history, draft-preserving cancellation, signals,
+persistence and statement outcomes. Native units also check exact metadata-field
+comparisons, complete/ready uniqueness and protected-buffer clearing. Subsequent
+full-check and committed-source qualification are reported separately.
+
+The [model guide](verification/models/README.md#finite-console-interaction-model)
+and [mechanism account](../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)
+define the abstraction and adapter responsibilities. Logs, model/source/binary
+identities, graph and counterexamples are retained in
+`.cache/verification/console-model/`. The finite model uses three draft classes,
+four filter classes, start/end cursors and one borrower. This is bounded transition
+conformance, not an unbounded refinement proof, arbitrary-history/undo coverage,
+transport liveness, terminal rendering proof or a latency guarantee.
+
+
 ## Cancel interactions without clearing drafts — 2026-10-24
 
 `nix develop --command just check` passes for the accepted

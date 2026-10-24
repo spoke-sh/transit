@@ -13,7 +13,6 @@ done: std.atomic.Value(bool) = .init(false),
 bytes: [q.fuze.Sql.max_statement_bytes]u8 = undefined,
 length: usize = 0,
 cursor: u16 = 0,
-generation: u32 = 0,
 timeout: u32 = 0,
 
 pub fn start(self: *Self, request: q.Assistance.Request) !void {
@@ -21,7 +20,6 @@ pub fn start(self: *Self, request: q.Assistance.Request) !void {
     @memcpy(self.bytes[0..request.sql.len], request.sql);
     self.length = request.sql.len;
     self.cursor = request.cursor;
-    self.generation = request.generation;
     self.timeout = self.client.timeout_ms;
     self.client.timeout_ms = @min(1000, self.timeout);
     errdefer self.client.timeout_ms = self.timeout;

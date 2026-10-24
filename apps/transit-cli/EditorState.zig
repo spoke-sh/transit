@@ -107,12 +107,12 @@ pub fn transition(self: *Self, event: Event) Effects {
             return .{ .action = .acquire };
         },
         .remote => self.source = .remote,
-        .local => |unique| {
+        .local => |is_unique| {
             if (!self.completing() or self.request != .fetching) return .{};
             self.request = .idle;
             self.source = .local;
             self.freshness = .current;
-            const apply = self.intent == .unique and unique;
+            const apply = self.intent == .unique and is_unique;
             self.intent = .choose;
             return .{ .install = true, .action = if (apply) .apply else .none };
         },
@@ -283,6 +283,9 @@ pub fn erase(self: *Self) void {
 }
 
 /// Metadata comparison is independent of allocation, transport and rendering.
+pub fn unique(value: q.Assistance.Response) bool {
+    return value.status == .ready and value.coverage == .complete and value.items.len == 1;
+}
 pub fn matches(prior: q.Assistance.Response, current: q.Assistance.Response, selected: q.Assistance.Item) bool {
     if (current.generation != prior.generation or current.profile != prior.profile or
         current.resource != prior.resource or current.resource_revision != prior.resource_revision or
@@ -374,4 +377,39 @@ test "cancel joins before client reuse and obsolete access failure erases privat
     try t.expect(std.mem.allEqual(u8, &state.bytes, 0));
     try t.expect(std.mem.allEqual(u8, &state.draft, 0));
     try t.expect(std.mem.allEqual(u8, &state.search, 0));
+}
+
+test "acceptance compares every metadata basis and requires complete ready uniqueness" {
+    const t = std.testing;
+    const selected: q.Assistance.Item = .{ .text = "TABLE", .kind = .keyword, .detail = "" };
+    const prior: q.Assistance.Response = .{ .generation = 2, .coverage = .complete, .status = .ready, .resource = 1, .resource_revision = 3, .contract = @splat(4), .policy_revision = "policy", .range = .{ .start = 6, .end = 6 }, .items = &.{selected} };
+    try t.expect(matches(prior, prior, selected));
+    try t.expect(unique(prior));
+    for (0..9) |field| {
+        var changed = prior;
+        switch (field) {
+            0 => changed.generation += 1,
+            1 => changed.profile = .configuration_v1,
+            2 => changed.resource += 1,
+            3 => changed.resource_revision += 1,
+            4 => changed.contract[0] += 1,
+            5 => changed.policy_revision = "new policy",
+            6 => changed.range.?.start -= 1,
+            7 => changed.items = &.{.{ .text = "OTHER", .kind = .keyword, .detail = "" }},
+            8 => changed.items = &.{.{ .text = "TABLE", .kind = .source, .detail = "" }},
+            else => unreachable,
+        }
+        try t.expect(!matches(prior, changed, selected));
+    }
+    var changed = prior;
+    changed.coverage = .limited;
+    try t.expect(!unique(changed));
+    changed = prior;
+    changed.status = .unsupported;
+    try t.expect(!unique(changed));
+    changed = prior;
+    changed.items = &.{};
+    try t.expect(!unique(changed));
+    changed.items = &.{ selected, selected };
+    try t.expect(!unique(changed));
 }

@@ -448,6 +448,14 @@ safety and replays four removed-guard counterexamples against the real engine.
 `just test::model` is part of the bindings lane so ordinary core/frontend checks
 do not acquire a Java dependency. Its tools use the existing nixpkgs lock.
 
+`just test::console-model` checks the finite editor interaction/request model in
+the same bindings lane. Every exported edge is replayed against the production
+Zig reducer from a shortest representative path, with state and effect comparison.
+Six removed model guards must yield their specified violations and safe concrete
+replay. A separate fairness configuration checks borrower release. The
+[model guide](models/README.md#finite-console-interaction-model) defines payload
+classes, replay coverage, fairness assumptions and the separate PTY obligations.
+
 `just test::mutations` requires committed HEAD, clones it independently and removes
 one actual generation, revision, permission or captured-view deadline guard at a
 time. The unmodified
