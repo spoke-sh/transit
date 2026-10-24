@@ -66,6 +66,20 @@ pub fn authorizeBundle(self: *Self, bundle: q.Bundle) !q.Bundle {
 pub fn authorizeCapture(self: *Self, bundle: q.Bundle, capture: q.Bundle.Capture) !q.Bundle {
     return bundle.authorizeCapture(self.authorizationClient(), self.tables orelse return error.QuerySourceUnavailable, self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests, capture);
 }
+/// Explicit authorization of a new finite Table read. The current observation
+/// supplies only a minimum frontier; the first acquisition selects and retains
+/// one cut. Save the returned bundle before uploading any part of it.
+pub fn authorizeCurrent(self: *Self, bundle: q.Bundle, executor: u64, operation: u64) !q.Bundle {
+    try bundle.validate();
+    if (bundle.authorization != null or bundle.retention != null) return error.QueryAlreadyAuthorized;
+    if (bundle.source.source != .table) return error.QueryCaptureRequired;
+    const table = bundle.source.source.table;
+    const direct = self.tables orelse return error.QuerySourceUnavailable;
+    try table.requireConnection(direct);
+    const current = try direct.call(.{ .observe = .{ .namespace = table.namespace, .interpretation = table.interpretation.interpretation, .rows = null } });
+    defer current.deinit();
+    return self.authorizeCapture(bundle, .{ .executor = executor, .operation = operation, .expected = current.value.result.observation.definition.position, .selection = .current });
+}
 /// Explicitly authorize a NEW finite read of a verified completed template.
 /// The caller must retain the returned bytes; retrying an accepted upload never
 /// calls this operation or substitutes another capture identity.
@@ -79,14 +93,9 @@ pub fn authorizeRefresh(self: *Self, allocator: std.mem.Allocator, template: u64
     if (description.source.source != .table) return error.QueryCaptureRequired;
     const original = description.retention orelse return error.QueryCaptureRequired;
     if (operation == 0 or operation == original.binding.owner.operation) return error.QueryUploadIdentityConflict;
-    const table = description.source.source.table;
-    const direct = self.tables orelse return error.QuerySourceUnavailable;
-    try table.requireConnection(direct);
-    const current = try direct.call(.{ .observe = .{ .namespace = table.namespace, .interpretation = table.interpretation.interpretation, .rows = null } });
-    defer current.deinit();
     description.authorization = null;
     description.retention = null;
-    return self.authorizeCapture(description, .{ .executor = original.binding.executor, .operation = operation, .expected = current.value.result.observation.definition.position, .selection = .current });
+    return self.authorizeCurrent(description, original.binding.executor, operation);
 }
 /// Fresh permission closes the exact accepted pin; the original executable
 /// bundle and its credential epoch remain unchanged. Save/retry Prepared bytes.

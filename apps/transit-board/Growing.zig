@@ -20,13 +20,14 @@ pub fn unifiedQueryDiagnostic(wire: *client.Client, io: std.Io, config: UnifiedQ
     };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var caller: q.UnifiedClient = .{ .wire = wire, .connection = config.connection, .key = key };
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&caller.key));
+    caller.tables = try q.Workspace.directTables(allocator, &caller, config.workspace);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&caller));
     // Only the native capacity refusal is eligible here. Keep this list
     // exhaustive: a new operation must decide whether it may repeat. Preparing
     // a token does not dispatch it; an uncertain submit still needs exact,
     // explicit recovery by the caller.
     const read_only = switch (request) {
-        .describe, .sql_capabilities, .suggest, .assist, .compile, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
+        .describe, .sql_capabilities, .suggest, .assist, .compile, .capture, .refresh, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
         .submit => false,
     };
     var attempt: u2 = 0;

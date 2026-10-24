@@ -190,6 +190,17 @@ requires an explicit executor principal, pin-operation identity and expected
 partition/log frontier. Operation, partition and log position use decimal strings.
 Native KV/Document descriptions omit `capture`; the operation returns their
 unchanged peer-authorized bundle. A Table description without capture rejects.
+
+The scoped Workspace `capture` operation takes an unsigned hexadecimal `bundle`
+and a decimal-string pin `operation`. Its configured `executor` is a native
+principal, independent of the query PID. The owner requires the exact configured
+source and permitted budgets, observes the current Table interpretation/frontier,
+then signs a `current` capture whose lower bound is that frontier. It returns
+the same compiled metadata with the signed executable bundle. An already signed
+bundle rejects; accepted uploads and recovery never enter this operation.
+Compilation and capture authorization acquire no pin or native upload slot.
+The first worker acquisition selects one frontier and retains it durably.
+
 The [direct read delegation](DIRECT_TABLE_V1.md#delegated-retained-reads) binds this
 source, cut, original caller and executor. Its purpose hashes
 `transit.query.direct-retention.v1\0`, the worker PID/resource and requester

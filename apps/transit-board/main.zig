@@ -701,7 +701,11 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const config = parsed.value;
     if (config.principal == 0 or config.principal > client.protocol.max_counter or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;
     if (config.query) |query| {
-        if (config.profile != .native_v1 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0 or query.workspace.source.resource != query.connection.resource) return error.InvalidQueryConfiguration;
+        if (config.profile != .native_v1 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0) return error.InvalidQueryConfiguration;
+        if (query.workspace.source.source == .table) {
+            const executor = query.workspace.executor orelse return error.InvalidQueryConfiguration;
+            if (executor == 0 or executor > client.protocol.max_counter) return error.InvalidQueryConfiguration;
+        } else if (query.workspace.source.resource != query.connection.resource) return error.InvalidQueryConfiguration;
     }
     if (config.relational) |relational| {
         for (relational.query.catalogs) |connection| {

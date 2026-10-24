@@ -202,6 +202,14 @@ and installed caller migration remain under qualification; source observations
 and injected scheduler results alone do not close those execution gates. The refresh preparation owner now exports and validates exact saved recovery;
 Board still needs the corresponding save/restore integration.
 
+Explicit Workspace capture now supplies the caller-signed grant for fresh manual
+and Draft Table queries, while compilation remains inert. The
+[separate caller proof](../../tests/README.md#explicit-workspace-capture-and-separate-caller-recovery--2026-10-23)
+executes the real state-query example, preserves its saved capture across an
+OS-process restart and verifies the result. TypeScript recovery tests retain that
+grant after an uncertain upload. Installed browser, Compose and reference caller
+qualification remains separate.
+
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

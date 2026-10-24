@@ -13,12 +13,16 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False):
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False, example=None):
+    if example is not None and not follow_only:
+        raise ValueError("the example schedule requires --follow-only")
     if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only or follow_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
         raise ValueError("focused runs do not run installed captured consumers")
     if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only, follow_only)) > 1:
         raise ValueError("choose one focused schedule")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
+    if example is not None:
+        example = str(Path(example).resolve())
     with tempfile.TemporaryDirectory(prefix="transit-direct-capture-") as directory:
         root = Path(directory)
         installed = []
@@ -158,6 +162,38 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 authority = None
                 authority = start()
                 subprocess.run([caller, endpoint, "follow-resume", str(profile)], check=True, timeout=240)
+                if example is not None:
+                    saved = json.loads(profile.read_text())["follow"]
+                    example_seed = root / "example.seed"
+                    example_seed.write_text("1d" * 32)
+                    example_seed.chmod(0o600)
+                    recovery = root / "example-recovery.json"
+                    example_config = root / "example.json"
+                    settings = {"url": endpoint, "seed_file": str(example_seed),
+                                "connection": saved["connection"], "workspace": saved["workspace"],
+                                "namespace": 970, "sql": "SELECT SUM(value) AS total FROM follow_items",
+                                "recovery_file": str(recovery), "mode": "upload"}
+                    example_config.write_text(json.dumps(settings))
+                    uploader = subprocess.Popen([example, str(example_config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    try:
+                        subprocess.run([caller, endpoint, "follow-example", str(profile)], check=True, timeout=240)
+                        output, errors = uploader.communicate(timeout=30)
+                        assert uploader.returncode == 0, (output, errors)
+                    finally:
+                        if uploader.poll() is None:
+                            uploader.kill()
+                            uploader.communicate(timeout=15)
+                    original = recovery.read_bytes()
+                    # A new OS process recovers the saved signed capture rather
+                    # than compiling/authorizing another query under this name.
+                    subprocess.run([example, str(example_config)], check=True, timeout=60, capture_output=True)
+                    assert recovery.read_bytes() == original
+                    settings["mode"] = "read"
+                    example_config.write_text(json.dumps(settings))
+                    pages = [json.loads(line) for line in subprocess.check_output([example, str(example_config)], timeout=60).splitlines()]
+                    assert len(pages) == 1 and pages[0]["complete_coverage"]
+                    assert pages[0]["cells"] == [[{"value": {"atom": {"signed": "20"}}}]], pages
+                    print("Direct state-query example: separate caller compilation, capture authorization, saved upload, OS-process recovery and verified SUM=20 passed.", flush=True)
                 print("Direct Follow: prepared single-use captures, durable selection before node restart, native worker replacement, verified fresh result and bounded pause passed.", flush=True)
                 return
             if maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only:
@@ -239,6 +275,7 @@ if __name__ == "__main__":
     parser.add_argument("--unified-boundaries-only", action="store_true")
     parser.add_argument("--captured-only", action="store_true")
     parser.add_argument("--follow-only", action="store_true")
+    parser.add_argument("--example")
     parser.add_argument("--python-native")
     parser.add_argument("--ruby-host")
     parser.add_argument("--java-packages")

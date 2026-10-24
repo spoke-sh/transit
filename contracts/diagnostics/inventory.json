@@ -31,7 +31,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 30,
         "catch": 4
       },
       "imports": [
@@ -84,7 +84,7 @@
         "InvalidLocalhostAlias": 2,
         "InvalidOrigin": 2,
         "InvalidQuery": 57,
-        "InvalidQueryConfiguration": 3,
+        "InvalidQueryConfiguration": 6,
         "InvalidQueryOrdinal": 1,
         "InvalidReactiveConfiguration": 4,
         "InvalidSequence": 1,
@@ -16596,8 +16596,9 @@
         "InvalidQueryRequest": 4,
         "InvalidQueryUpload": 1,
         "InvalidResourceRead": 2,
+        "QueryAlreadyAuthorized": 1,
         "QueryBudgetExceeded": 3,
-        "QueryCaptureRequired": 5,
+        "QueryCaptureRequired": 6,
         "QueryDenied": 9,
         "QueryDraftClosed": 1,
         "QueryDraftConflict": 2,
@@ -16624,6 +16625,7 @@
         "authorize()": "<inferred>",
         "authorizeBundle()": "<inferred>",
         "authorizeCapture()": "<inferred>",
+        "authorizeCurrent()": "<inferred>",
         "authorizeRefresh()": "<inferred>",
         "batchSupport()": "<inferred>",
         "bindSql()": "<inferred>",
@@ -16657,7 +16659,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 75,
+        "try": 76,
         "catch": 4
       },
       "imports": [
@@ -17016,9 +17018,9 @@
     },
     "packages/zig/transit-query/src/Workspace.zig": {
       "errors": {
-        "QueryBudgetExceeded": 3,
-        "QueryIdentityMismatch": 4,
-        "QuerySourceUnavailable": 1
+        "QueryBudgetExceeded": 4,
+        "QueryIdentityMismatch": 6,
+        "QuerySourceUnavailable": 2
       },
       "outcomes": {
         "Request": [
@@ -17029,6 +17031,7 @@
           "compile",
           "inspect",
           "next",
+          "capture",
           "refresh",
           "next_draft",
           "draft_open",
@@ -17068,11 +17071,12 @@
         "applyStructured()": "<inferred>",
         "checkedConfig()": "<inferred>",
         "diagnostic()": "<inferred>",
+        "directTables()": "<inferred>",
         "prepareSubmission()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 63,
+        "try": 72,
         "catch": 7
       },
       "imports": [

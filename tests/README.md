@@ -185,6 +185,36 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Explicit Workspace capture and separate caller recovery — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+the native Follow schedule passes through `Workspace.compile`, `capture` and
+`refresh`. Compilation leaves the bundle unsigned; explicit capture requires a
+configured executor and rejects an already authorized bundle. Preparation neither
+acquires a Table pin nor advances the Table acceptance position.
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe -Ddirect-query-example=true --summary all -- --follow-only
+```
+
+This run also starts the actual `example-state-query` executable as a separate
+caller. It compiles and saves its capture before upload, recovers the same saved
+bundle in a new OS process without changing its recovery file, and reads verified
+complete coverage with SUM=20. The native worker runs under its own credential
+and independent progress resource. The Follow selection/restart/replacement
+schedule also passes. This additional example schedule does not inject a lost
+upload reply or qualify Compose/reference placement.
+
+The query package passes 142 tests; the TypeScript query client passes 55 tests,
+`vp check` and `vp exec tsc --noEmit`. Draft caller cases cover saved-grant reuse
+after a lost upload reply, independent grants for selected edits, capture denial
+before dispatch and changed-metadata rejection. Board's focused workspace/live
+state suites pass 23 tests; its type checks and actual binary/embedded frontend
+build pass. Generated Workspace/Board contracts and diagnostic mappings/inventory
+checks pass. Installed browser reload, remaining legacy callers, the full
+repository check and clean committed-HEAD gate remain outstanding.
+
 ## Current-capture cleanup after definition changes — 2026-10-23
 
 Under definition
