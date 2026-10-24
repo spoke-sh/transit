@@ -5,6 +5,13 @@ const sql = @import("transit_sql");
 const c = sql.catalog;
 const t = std.testing;
 const gateway: sql.ReadPins.Gateway = .{ .realm = 42, .owner = 100, .account = @splat(47) };
+pub fn exactClient(client: c.DirectTableClient, connection: c.DirectTableProtocol.Connection) !c.DirectTableClient {
+    if (!std.meta.eql(client.connection, connection)) return error.InvalidSqlReadRecovery;
+    return client;
+}
+fn deniedClient(_: c.DirectTableClient, _: c.DirectTableProtocol.Connection) !c.DirectTableClient {
+    return error.AccessDenied;
+}
 fn acquire(pins: *sql.ReadPins, client: c.DirectTableClient) !sql.ReadPins.Record {
     const response = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer response.deinit();
@@ -47,9 +54,21 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, directory: s
 pub fn recover(init: std.process.Init, client: c.DirectTableClient, directory: std.Io.Dir) !void {
     var previous = try sql.ReadPins.init(init.gpa, init.io, directory, gateway, 1);
     const records = try saved(init, &previous);
+    // Recovery cannot manufacture authority from a journal. A refused current
+    // credential lookup leaves both original pin requests available for retry.
+    var denied = false;
+    for (0..3) |_| {
+        _ = previous.tick(client, deniedClient) catch |err| {
+            if (err != error.AccessDenied) return err;
+            denied = true;
+            break;
+        };
+    }
+    try t.expect(denied);
+    _ = try saved(init, &previous);
     // Closing work is recoverable even in the current generation. Active
     // cursors in that generation remain protected from the cleanup worker.
-    for (0..3) |_| _ = try previous.tick(client.authority, client.key, client.connection.principal);
+    for (0..3) |_| _ = try previous.tick(client, exactClient);
     for (records) |record| {
         const response = try client.call(.{ .pin_status = .{ .object = record.table.interpretation.interpretation.object, .owner = record.owner() } });
         defer response.deinit();
@@ -58,7 +77,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, directory: s
     previous.deinit();
     var replacement = try sql.ReadPins.init(init.gpa, init.io, directory, gateway, 2);
     defer replacement.deinit();
-    for (0..3) |_| _ = try replacement.tick(client.authority, client.key, client.connection.principal);
+    for (0..3) |_| _ = try replacement.tick(client, exactClient);
     for (records) |record| {
         const response = try client.call(.{ .pin_status = .{ .object = record.table.interpretation.interpretation.object, .owner = record.owner() } });
         defer response.deinit();

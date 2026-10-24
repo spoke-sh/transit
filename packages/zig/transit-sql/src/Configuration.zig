@@ -144,6 +144,12 @@ pub fn validate(self: Self) !void {
             try path(source.key_file);
             const binding = try value.database(source.database);
             if (source.connection.realm != value.ledger.realm or source.connection.role != binding.role) return error.InvalidGatewayConfiguration;
+            if (source.workspace.source.source == .table) {
+                const table = source.workspace.source.source.table;
+                const scope = try table.scope.native();
+                const executor = source.workspace.executor orelse return error.InvalidGatewayConfiguration;
+                if (scope.realm != source.connection.realm or scope.resource != source.workspace.source.resource or executor == 0 or executor > p.max_counter) return error.InvalidGatewayConfiguration;
+            } else if (source.workspace.source.resource != source.connection.resource) return error.InvalidGatewayConfiguration;
             inline for (.{ "realm", "principal", "source", "resource", "requester", "requests" }) |field| {
                 const id = @field(source.connection, field);
                 if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
@@ -206,6 +212,34 @@ test "SQL mappings reject shared native sequence owners and mismatched catalogs"
     try t.expectError(error.InvalidAuthentication, config.account("other"));
     try t.expectEqualDeep(binding, try accounts[0].database("data"));
     try t.expectError(error.GatewayDatabaseDenied, accounts[0].database("other"));
+    var sources = [_]Source{.{
+        .name = "events",
+        .database = "data",
+        .key_file = "/private/source",
+        .connection = .{ .realm = 1, .principal = 12, .source = 13, .resource = 14, .requester = 15, .requests = 16, .role = null },
+        .workspace = .{
+            .name = "events",
+            .executor = 17,
+            .source = .{ .resource = 8, .source = .{ .table = .{
+                .scope = .{ .realm = 1, .resource = 8, .catalog = "1" },
+                .owner = 9,
+                .branch = "1",
+                .namespace = 1,
+                .object = "1",
+                .interpretation = .{ .revision = "1", .digest = @splat(1), .bytes = "1", .schema = @splat(2) },
+                .row_type = .{ .structure = &.{.{ .name = "id", .type = .int64 }} },
+            } } },
+            .limits = .{ .pages = "100", .segments = "10", .result_bytes = "65536" },
+        },
+    }};
+    accounts[0].sources = &sources;
+    try config.validate(); // Table data and native progress have different IDs.
+    sources[0].workspace.executor = null;
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    sources[0].workspace.executor = 17;
+    sources[0].workspace.source.resource = 14;
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    accounts[0].sources = &.{};
     var duplicated = [_]Account{ accounts[0], accounts[0] };
     duplicated[1].name = "different";
     duplicated[1].ledger.account = @splat(8);

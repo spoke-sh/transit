@@ -139,7 +139,7 @@ fn recover(self: *Self, client: c.DirectTableClient, record: Record) !void {
 /// Visits at most eight directory entries and reconciles at most one orphan.
 /// Failed cleanup retains the record and does not pin the directory cursor.
 /// The caller checks the current native coordinator generation before entry.
-pub fn tick(self: *Self, authority: *g.station.client.Client, key: p.Ed25519.KeyPair, principal: u64) !bool {
+pub fn tick(self: *Self, context: anytype, comptime resolve: anytype) !bool {
     if (!self.mutex.tryLock()) return false;
     defer self.mutex.unlock(self.io);
     for (0..8) |_| {
@@ -152,8 +152,10 @@ pub fn tick(self: *Self, authority: *g.station.client.Client, key: p.Ed25519.Key
         const record = self.read(operation) catch |err| if (err == error.FileNotFound) continue else return err;
         if (record.generation > self.generation) return error.StaleGatewayCoordinator;
         if (record.generation == self.generation and record.state == .active) continue;
-        if (record.table.connection.principal != principal) return error.InvalidSqlReadRecovery;
-        const client: c.DirectTableClient = .{ .allocator = self.allocator, .authority = authority, .service = authority, .connection = record.table.connection, .key = key };
+        // The hosting account resolves only explicitly configured principals
+        // and routes, using current credentials. A journal is never authority.
+        const client = try resolve(context, record.table.connection);
+        if (!std.meta.eql(client.connection, record.table.connection)) return error.InvalidSqlReadRecovery;
         try self.recover(client, record);
         return true;
     }

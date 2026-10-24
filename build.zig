@@ -1440,6 +1440,13 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    const sql_catalog_proof = b.addExecutable(.{ .name = "transit-sql-catalog-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_catalog_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_sql", .module = b.dependency("transit_sql", .{ .target = target, .optimize = optimize }).module("transit_sql") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
+    }) });
+    build_test_step.dependOn(&sql_catalog_proof.step);
     const sql_gateway_proof = b.addExecutable(.{ .name = "transit-sql-gateway-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_gateway_native.zig"),
         .target = target,
@@ -1450,7 +1457,7 @@ pub fn build(b: *std.Build) void {
     const sql_gateway_native = b.addSystemCommand(&.{ "python3", "-B" });
     sql_gateway_native.addFileArg(b.path("tests/sql_gateway_native.py"));
     sql_gateway_native.addArtifactArg(node_artifact);
-    sql_gateway_native.addArtifactArg(typed_table_proof);
+    sql_gateway_native.addArtifactArg(sql_catalog_proof);
     sql_gateway_native.addArtifactArg(sql_gateway_proof);
     sql_gateway_native.has_side_effects = true;
     sql_gateway_native.stdio = .inherit;
@@ -1476,7 +1483,7 @@ pub fn build(b: *std.Build) void {
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, transit_cli }) |artifact| {
+    for ([_]*std.Build.Step.Compile{ node_artifact, sql_catalog_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, transit_cli }) |artifact| {
         sql_wire_gateway.addArtifactArg(artifact);
         sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
     }

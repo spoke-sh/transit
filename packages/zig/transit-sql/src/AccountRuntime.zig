@@ -29,6 +29,7 @@ private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
 read_pins: ?g.ReadPins = null,
+read_sources: []const g.Configuration.Source = &.{},
 read_cleanup_failure: std.atomic.Value(u16) = .init(0),
 direct_work_failure: std.atomic.Value(u16) = .init(0),
 
@@ -122,10 +123,34 @@ pub fn deinit(self: *Self) void {
     std.crypto.secureZero(u8, std.mem.asBytes(self));
     allocator.destroy(self);
 }
-pub fn attachReadPins(self: *Self, directory: std.Io.Dir) !void {
+pub fn attachReadPins(self: *Self, directory: std.Io.Dir, sources: []const g.Configuration.Source) !void {
     if (self.read_pins != null) return error.InvalidSqlReadRecovery;
     const config = self.ledger.configuration;
     self.read_pins = try g.ReadPins.init(self.allocator, self.io, directory, .{ .realm = config.realm, .owner = config.owner, .account = config.account }, self.coordinator.generation);
+    self.read_sources = sources;
+}
+fn readClient(self: *Self, connection: c.DirectTableProtocol.Connection) !c.DirectTableClient {
+    const config = self.ledger.configuration;
+    if (connection.principal == config.table_principal) {
+        if (connection.scope.realm != config.realm or connection.branch != 1) return error.InvalidSqlReadRecovery;
+        for (config.bindings) |binding| {
+            if (binding.resource != connection.scope.resource or binding.catalog != connection.scope.catalog or binding.owner != connection.audience or binding.role != connection.role) continue;
+            return .{ .allocator = self.allocator, .authority = &self.background, .service = &self.background, .connection = connection, .key = self.coordinator.table_key };
+        }
+        return error.InvalidSqlReadRecovery;
+    }
+    for (self.read_sources) |source| {
+        if (source.connection.principal != connection.principal) continue;
+        const key = try g.query.wire.readKey(self.allocator, self.io, source.key_file);
+        var caller: g.query.UnifiedClient = .{ .wire = &self.background, .connection = source.connection, .key = key };
+        var arena: std.heap.ArenaAllocator = .init(self.allocator);
+        defer arena.deinit();
+        var client = (try g.query.Workspace.directTables(arena.allocator(), &caller, source.workspace)) orelse return error.InvalidSqlReadRecovery;
+        if (!std.meta.eql(connection, client.connection)) return error.InvalidSqlReadRecovery;
+        client.allocator = self.allocator;
+        return client;
+    }
+    return error.InvalidSqlReadRecovery;
 }
 fn advancePrivate(self: *Self) !bool {
     if (self.private_lane.pending == null) return false;
@@ -219,7 +244,7 @@ pub fn tick(self: *Self) !bool {
     }
     if (self.read_pins) |*pins| {
         try self.coordinator.fence();
-        const cleaned = pins.tick(&self.background, self.coordinator.table_key, self.ledger.configuration.table_principal) catch |err| blk: {
+        const cleaned = pins.tick(self, readClient) catch |err| blk: {
             if (err == error.StaleGatewayCoordinator) return err;
             // Cleanup denial/unavailability retains its durable record. It
             // must not stall unrelated accepted mutations or new sessions.

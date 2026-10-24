@@ -65,6 +65,9 @@ batch repeats its retained bytes after a current authorization check; requesting
 the next number acknowledges it and advances the iterator. Gaps reject. The
 final batch remains repeatable until closure or expiry. A lost session reports
 an incomplete result; opening another session does not resume that SELECT.
+Configured Table sources keep their data resource separate from native query
+progress. Interactive Table pins use the account's durable cleanup journal;
+captured Table queries retain their original authorized cut and pin identity.
 
 Source-basis metadata distinguishes a Table cut, an explicit source cut or an
 ordered vector of resource snapshots. It does not imply one atomic snapshot

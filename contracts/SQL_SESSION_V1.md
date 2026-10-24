@@ -188,6 +188,13 @@ published bytes. An incomplete, unpublished step can be abandoned and prepared
 again; a published request cannot. An incomplete initial bundle is reported as
 blocked and can be cancelled, never recompiled from token reuse.
 
+A captured Table bundle freezes its direct data interpretation, expected cut,
+executor and pin operation before ledger publication. The native source resource
+holds computation progress independently of the catalog's data resource. Recovery
+uses the published delegation; observing or resuming an operation does not capture
+current data again. Interactive Table sources use journaled direct pins whose
+original connection and current configured credential govern cleanup.
+
 `result` opens a new temporary result cursor for a complete captured operation in
 the selected source binding. Current Query-owner authorization and its complete
 manifest determine disclosure and coverage. Fetch acknowledgements are identical

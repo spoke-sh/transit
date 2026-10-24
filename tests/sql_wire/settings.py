@@ -11,7 +11,7 @@ def start_configuration(root, binary, port, upstream, binding, start):
     source = root / 'transit.yaml'
     # Only the gateway and configuration owner run in this placement. Executable
     # paths are validated inputs; this proof never launches the other services.
-    source.write_text(json.dumps(dict(installation=str(root),realm=46,ports=dict(gateway=port),executables={name:binary for name in ('minio','ursula','node','query_host','board','sql_gateway')})))
+    source.write_text(json.dumps(dict(installation=str(root),realm=46,ports=dict(gateway=port),executables={name:binary for name in ('node','query_host','board','sql_gateway')})))
     deployment = root / 'configuration-deployment.json'
     deployment.write_text(json.dumps(dict(source=str(source),checkpoint=str(root/'configuration.json'),gateway=str(root/'configuration-gateway.json'),binding=binding,upstream=upstream,port=port)))
     child = start(binary,deployment)
