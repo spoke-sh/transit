@@ -1,4 +1,4 @@
-# 8. Service and SDK coverage
+# 9. Service and SDK coverage
 
 [Roadmap](README.md) · **Status:** In Progress
 
@@ -70,12 +70,22 @@ The raw slice does not complete this milestone or establish those profiles.
   remain separate responsibilities.
 
 Enterprise identity/delegation is owned by the
-[Control & Policy Plane milestone](09-control-and-policy-plane.md).
-The [published-resource milestone](10-published-resources-and-investigations.md)
-owns shared result/investigation semantics; [MCP and Apps](12-mcp-service-and-apps.md)
+[Control & Policy Plane milestone](10-control-and-policy-plane.md).
+The earlier [statement-result milestone](04-statement-results-and-consumption.md)
+owns shared command completion, bounded result readers and terminal evidence;
+this milestone extends qualified service/language coverage over that contract.
+The [published-resource milestone](11-published-resources-and-investigations.md)
+owns publication/disclosure and retained investigations; [MCP and Apps](13-mcp-service-and-apps.md)
 adapt them to selected hosts. This milestone's existing native adapter work may
 proceed independently; it must not imply those new access or collaboration
 profiles are already supported. Extend parity only after each owner qualifies it.
+
+[Programming model and mixed composition](16-programming-model.md) owns the
+coherent direct-client/Station experience, reusable package boundaries and
+idiomatic application patterns. Coordinate public API contracts as coverage
+lands; this milestone's operation/platform promises and delivered slices remain
+here. A larger adapter matrix alone does not establish that ordinary data
+applications and Station behaviors compose naturally.
 
 ## Completion evidence
 

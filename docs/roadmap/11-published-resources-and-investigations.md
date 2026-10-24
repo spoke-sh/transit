@@ -1,4 +1,4 @@
-# 10. Published business resources and consistent investigations
+# 11. Published business resources and consistent investigations
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,11 +10,12 @@ separately maintained business semantics.
 
 ## Prerequisites and scope
 
-Consume [historical interpretation](04-standards-and-catalogs.md),
-[managed computations](05-sql-and-dataflows.md), the selected
-[foreign sources](06-multi-model-and-foreign-relations.md),
-[branches](07-branches-merges-and-restore.md) and the
-[access plane](09-control-and-policy-plane.md). Finite resources can be qualified
+Consume [statement results and client consumption](04-statement-results-and-consumption.md),
+[historical interpretation](05-standards-and-catalogs.md),
+[managed computations](06-sql-and-dataflows.md), the selected
+[foreign sources](07-multi-model-and-foreign-relations.md),
+[branches](08-branches-merges-and-restore.md) and the
+[access plane](10-control-and-policy-plane.md). Finite resources can be qualified
 before maintained activation or every foreign format is implemented. Current
 application bindings and named queries are foundations, not an implemented
 publication/disclosure contract for enriched resources.
@@ -36,12 +37,14 @@ publication/disclosure contract for enriched resources.
    stronger service credential cannot silently supply missing source permission.
    Define how source revocation, publication withdrawal and independently owned
    published copies affect later reads; caching must preserve these distinctions.
-3. **Formalize shared statement and result ownership.** Supply schema, typed
-   batches, command completion, continuation lifetime and terminal coverage for
-   console, SDK, reports and MCP. Preserve five-state values and lossless wide
-   integers/decimals. Display limits differ from query limits and completeness;
-   interruption is not an empty successful result. Bound materialization and
-   release readers explicitly; large transfers use qualified data interfaces.
+3. **Bind published resources to the shared result contract.** Reuse the earlier
+   statement/result schema, typed batches, command completion, continuation
+   lifetime and terminal coverage for console, SDK, reports and MCP. Add resource
+   identity, publication revision and disclosure policy without creating another
+   result protocol. Preserve five-state values, lossless wide integers/decimals,
+   bounded materialization and explicit reader release. Display limits and
+   interruption retain the shared completeness rules; large transfers use
+   qualified data interfaces.
 4. **Bind an investigation to a retained source basis.** Multiple related calls
    select exact object/definition/branch versions and captured external inputs.
    Define the selected atomic domain or explicit multi-source basis vector;

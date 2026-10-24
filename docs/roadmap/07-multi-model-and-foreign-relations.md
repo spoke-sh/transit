@@ -1,11 +1,11 @@
-# 6. Multi-model and multi-format foreign relations
+# 7. Multi-model and multi-format foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Compose KV, Table, Document, Graph and external dataset formats using the
 [`.tseg` codec and collation architecture](02-storage-and-query-performance.md),
-[standards/semantic contracts](04-standards-and-catalogs.md) and
-[declaration/dataflow lifecycle](05-sql-and-dataflows.md).
+[standards/semantic contracts](05-standards-and-catalogs.md) and
+[declaration/dataflow lifecycle](06-sql-and-dataflows.md).
 
 Use the shared object/definition identities, policy references and inspection
 model from the [data lifecycle](01-declarative-data-lifecycle.md). Every
@@ -16,7 +16,7 @@ reader/column-array boundary specified in
 belongs to [#118](https://github.com/spoke-sh/transit/issues/118); native
 KV/Document persistence belongs to [#126](https://github.com/spoke-sh/transit/issues/126).
 This milestone adds projections and actual foreign adapters, not another native
-storage engine. Typed import/export operations are owned by milestone 5; each
+storage engine. Typed import/export operations are owned by milestone 6; each
 format becomes executable only when its adapter and caller path are qualified.
 
 ## Delivery sequence

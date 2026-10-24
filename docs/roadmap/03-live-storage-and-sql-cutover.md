@@ -15,6 +15,13 @@ Extend the [declarative data lifecycle](01-declarative-data-lifecycle.md) and
 [storage internals](../handbook/internals/storage-runtime.md) document the
 live execution profile and measured latency bounds.
 
+The next [statement-result milestone](04-statement-results-and-consumption.md)
+owns the shared command/result lifecycle, client readers and bounded console
+presentation. Coordinate its batch ownership and disclosure contracts with this
+cutover; existing safe bounded-read and performance gates remain here. Replication
+and operational recovery precede later automatic placement and do not replace
+this milestone's installed restart and accepted-operation recovery evidence.
+
 ## Reopened assessment — 2026-10-22
 
 Source review of local snapshot `a0a8a3ed`
@@ -125,7 +132,8 @@ bottlenecks keeping interactive SQL and server workflows slow:
    writer/isolation profiles and real distributed providers from #117/#121.
    Qualify current-policy enforcement, point/bulk conflicts, source snapshots,
    failures and complete logical history using the same public contracts.
-   Automatic clustered placement remains milestone 9.
+   Replicated failover belongs to [replication](17-replication-and-failover.md);
+   automatic placement remains [clustered execution](19-clustered-execution.md).
 6. **Preserve latency improvements and qualify the final cutover.** Retain
    validated cache visibility/sharing, batched reads, gateway wakeups and
    shorter readiness paths where their owners remain applicable. Complete or

@@ -53,7 +53,7 @@ to partition heads, and supported atomic domains/isolation. A catalog-wide root
 must not recreate a global realm CAS for every independent data/process write.
 Deliver the complete single-owner Table statement/batch slice first. Specify
 the catalog-scoped transaction extension now; its interactive sessions belong
-to [managed computations and SQL](05-sql-and-dataflows.md). Arbitrary distributed
+to [managed computations and SQL](06-sql-and-dataflows.md). Arbitrary distributed
 cross-owner transactions are not implied, and native turns retain their current
 one-KV-resource atomicity limit.
 
@@ -68,7 +68,7 @@ Named KV/Document provisioning consumes the actual native persistence cutover in
 [#126](https://github.com/spoke-sh/transit/issues/126); a resource metadata record
 does not establish storage migration or usability. Computation evidence consumes
 the snapshot and logical-change contracts, while automatic activation remains
-milestone 5.
+milestone 6.
 
 ## Baseline, bottleneck diagnosis and scope
 
@@ -180,7 +180,7 @@ This milestone does not add automatic maintained-query scheduling, arbitrary
 cross-resource transactions, historical SQL, branches or a universal health
 boolean. [Storage hierarchy and `.tseg` segments](02-storage-and-query-performance.md)
 replace the underlying B-tree page store and single-sequencer bottleneck;
-[managed computations](05-sql-and-dataflows.md) add WAL-driven activation and
-service-owned maintenance; [historical catalogs](04-standards-and-catalogs.md)
+[managed computations](06-sql-and-dataflows.md) add WAL-driven activation and
+service-owned maintenance; [historical catalogs](05-standards-and-catalogs.md)
 extend the same identities and interpretation model. The kernel stays generic.
 Definitions and reads never grant rights or dispatch external effects.

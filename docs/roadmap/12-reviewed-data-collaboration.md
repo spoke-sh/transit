@@ -1,4 +1,4 @@
-# 11. Versioned proposals and reviewed publication
+# 12. Versioned proposals and reviewed publication
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,9 +9,9 @@ sharing do not require merging.
 
 ## Prerequisites and scope
 
-Use [branch and merge primitives](07-branches-merges-and-restore.md),
-[actor/delegation policy](09-control-and-policy-plane.md) and
-[published resources/investigation bases](10-published-resources-and-investigations.md).
+Use [branch and merge primitives](08-branches-merges-and-restore.md),
+[actor/delegation policy](10-control-and-policy-plane.md) and
+[published resources/investigation bases](11-published-resources-and-investigations.md).
 Branching is the underlying data primitive. A higher-level project/application
 fork relationship, independent export and cross-realm collaboration require
 separate contracts and are excluded from this milestone.

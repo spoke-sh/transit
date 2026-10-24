@@ -1,4 +1,4 @@
-# 5. Managed computations and WAL-activated dataflows
+# 6. Managed computations and WAL-activated dataflows
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -28,6 +28,9 @@ subscriptions and history preservation belong to milestone 2; this milestone
 owns service scheduling, consumer-specific activation and observable freshness.
 Connections/sources/sinks remain separate declarations whose publication does
 not authorize external work.
+Consume [statement results](04-statement-results-and-consumption.md) for finite
+reads, explanation and command outcomes; continuous/maintained computation keeps
+its own activation, progress and revision lifecycle.
 
 1. **Bind computation declarations to catalog and storage watermarks:** define a
    computation declaration's bound inputs (`CatalogId`, `DefinitionId`), lifetime,
@@ -76,7 +79,7 @@ not authorize external work.
   deletion vectors) and prepared-plan lifetime. Implement explicit transaction
   sessions against #125's selected atomic domain, isolation and snapshot contract;
   manifest CAS alone does not provide transaction semantics. This milestone owns
-  typed import/export operations; milestone 6 supplies the actual foreign-format
+  typed import/export operations; milestone 7 supplies the actual foreign-format
   adapters, with capability reporting per qualified combination.
 - Extend the common dependency lifecycle to connections, sources and sinks,
   including conditional alteration and retirement. SQL, SDK and Board use the
@@ -90,13 +93,13 @@ not authorize external work.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](13-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](14-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot
 establish that an agent ran or a business action completed.
 
-Historical operations consume [catalog contracts](04-standards-and-catalogs.md).
+Historical operations consume [catalog contracts](05-standards-and-catalogs.md).
 Branch merge and SQL `MERGE` remain distinct. Fuze owns relational and incremental
 vector computation; Station and application owners coordinate stateful workflows
 and external effects above a generic kernel.

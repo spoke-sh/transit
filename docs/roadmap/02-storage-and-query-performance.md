@@ -269,8 +269,12 @@ loss, network partition and WAL/object-store outages. A remote object store
 cannot recover acknowledged data left only in a lost local WAL before flush.
 Deliver the native local profile first, then the Ursula/S3 reference, retaining
 the other explicitly planned provider profiles until qualified or explicitly
-rescoped. Distinguish provider implementation from distributed placement in
-milestone 9.
+rescoped. [Replication](17-replication-and-failover.md) qualifies complete
+replicated recovery and failover over these provider contracts;
+[operations](18-operations-and-recovery.md) owns backup/restore and upgrades.
+[Clustered execution](19-clustered-execution.md) adds distributed placement.
+These later outcomes do not absorb this milestone's provider durability,
+fencing or retained-history obligations.
 
 ## Delivery sequence
 

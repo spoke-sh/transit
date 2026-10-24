@@ -1,4 +1,4 @@
-# 13. Reactive context, subscriptions and agent activation
+# 14. Reactive context, subscriptions and agent activation
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,10 +9,10 @@ the same versioned event without an open MCP connection owning the application.
 
 ## Prerequisites and scope
 
-Extend [managed computation scheduling](05-sql-and-dataflows.md),
-[published resources](10-published-resources-and-investigations.md),
-[proposal lifecycle](11-reviewed-data-collaboration.md) and the
-[MCP service](12-mcp-service-and-apps.md). Durable source/change semantics stay
+Extend [managed computation scheduling](06-sql-and-dataflows.md),
+[published resources](11-published-resources-and-investigations.md),
+[proposal lifecycle](12-reviewed-data-collaboration.md) and the
+[MCP service](13-mcp-service-and-apps.md). Durable source/change semantics stay
 with their current owners; this milestone supplies consumer-specific conditions,
 context delivery and protocol projections. Reasoning loops remain applications.
 
@@ -63,7 +63,7 @@ Extend that journey through an authorized action and a later business observatio
 Bind the initial assessment, original action identity and subsequent observation
 without replacing the original prediction. Exercise delayed, missing and
 contradictory feedback as well as known success and failure. Use the
-[observation measures](16-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[observation measures](20-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 to qualify both sides of the loop; a notification or completed tool call alone
 does not establish the application's business consequence.
 
