@@ -1,5 +1,43 @@
 # Validation and evidence
 
+## Named publication recovery with current credentials — 2026-10-24
+
+Under the `b840e71b` current-v1 definition, both focused direct-service schedules
+pass in the pinned Nix shell:
+
+```sh
+just test::direct-named-query
+zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --maintained-only
+```
+
+Each schedule covers a self-join and two independent Tables. The fixture saves
+each exact native naming/policy proposal to a synced private file before dispatch.
+For each worker, the proxy loses the first accepted `NRD1` publication reply and
+`NRP1` authorization reply and abruptly replaces the node. Eight injected reply
+losses across the two schedules then rotate the corresponding worker key and
+generation before reconstructing its host.
+
+The initial attempt to recover by resubmitting the retired signature correctly
+failed. The final fixture verifies that denial, then uses the existing current-
+credential receipt query for the exact original request. The proxy independently
+compares the returned receipt with the original accepted response and verifies
+that the saved proposal bytes never change. Altered request content rejects with
+`ConflictingRetry`; the prior worker generation cannot resume. The fixture retires
+each saved proposal only after observing its receipt.
+
+Publication and authorization leave execution absent until explicit activation.
+Captured output, original named attribution after later publication and current
+disclosure denial/restoration pass. The maintained schedule also passes node
+restart during acquisition and physical history traversal, backfill, complete
+successor revisions/deltas, original lease cleanup and retirement. Its complete
+run takes approximately **10 minutes**. Current keys authorize recovery; they do
+not replace the original caller's query grants or source cuts.
+
+Documentation links and the site check pass, including nine tests and its build.
+These schedules qualify naming/policy reply recovery. They do not close shared
+dependency registration, migration of the older actor fixtures, broader activation
+and failure fault schedules, or final committed-HEAD/installed qualification.
+
 ## CLI actor Table helper retirement — 2026-10-24
 
 The console already executes through the shared SQL service. Its unreferenced

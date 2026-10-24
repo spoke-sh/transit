@@ -572,6 +572,7 @@ pub const RelationalHost = struct {
     workspace: []u8,
     exchanged: bool = false,
     named: ?app.NamedRelational = null,
+    recovery_seed: ?u8 = null,
     pub const correlation_key = p.Value.init("direct-relational-correlation") catch unreachable;
     pub const wake_key = p.Value.init("direct-relational-wake") catch unreachable;
     pub const collected_key = p.Value.init("direct-relational-collected") catch unreachable;
@@ -668,9 +669,86 @@ pub fn namedRelational(init: std.process.Init, client: c.DirectTableClient, admi
     try relationalCase(init, client, admin, true, true);
 }
 fn relationalStep(init: std.process.Init, client: c.DirectTableClient, admin: anytype, host: *s.GenServer, behavior: *RelationalHost) !void {
-    if (try host.step(behavior.interface(), @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30000)) == .blocked) return host.handler_error orelse error.Blocked;
+    if (try namedStep(init, host, behavior, admin) == .blocked) return host.handler_error orelse error.Blocked;
     const delivery = try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try key(17));
     if (delivery.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
+}
+/// Persist the exact proposal before dispatch. The HTTP fixture loses the
+/// accepted naming reply and replaces the node; recovery then rotates the
+/// worker and reconstructs its host, without running the naming handler again.
+pub fn namedStep(init: std.process.Init, host: *s.GenServer, behavior: *RelationalHost, admin: anytype) !s.GenServer.Step {
+    const Saved = struct { definition: g.Definition, pending: s.client.Session.Pending };
+    var seed: ?u8 = null;
+    if (behavior.named != null and host.pending_kind == .commit) if (host.pending) |pending| {
+        const turn = switch (pending.signed.request.command) {
+            .turn => |value| value,
+            .turn_with_versions => |value| value.turn,
+            else => return error.InvalidNamedRecovery,
+        };
+        for (turn.mutations) |slot| if (slot) |mutation| if (mutation.value) |value| {
+            if (std.mem.startsWith(u8, value.slice(), "NRD1")) seed = 201;
+            if (std.mem.startsWith(u8, value.slice(), "NRP1")) seed = 202;
+        };
+    };
+    const alloc = init.arena.allocator();
+    const path = if (seed != null) path: {
+        const args = try init.minimal.args.toSlice(alloc);
+        const name = try std.fmt.allocPrint(alloc, "{s}/named-pending-{d}.json", .{ std.fs.path.dirname(args[3]) orelse ".", host.session.principal });
+        var atomic = try std.Io.Dir.cwd().createFileAtomic(init.io, name, .{ .replace = true, .permissions = .fromMode(0o600) });
+        defer atomic.deinit(init.io);
+        var buffer: [4096]u8 = undefined;
+        var output = atomic.file.writerStreaming(init.io, &buffer);
+        var encoder: std.json.Stringify = .{ .writer = &output.interface };
+        try p.Json.write(Saved{ .definition = g.current_definition, .pending = host.pending.? }, &encoder);
+        try output.interface.flush();
+        try atomic.file.sync(init.io);
+        try atomic.replace(init.io);
+        break :path name;
+    } else null;
+    const result = host.step(behavior.interface(), @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30000)) catch |err| recovery: {
+        if (err != error.InvalidAuthorityResponse or seed == null) return err;
+        const before = try std.Io.Dir.cwd().readFileAlloc(init.io, path.?, alloc, .limited(1024 * 1024));
+        const saved = try p.Json.parseFromSlice(Saved, alloc, before);
+        defer saved.deinit();
+        try t.expectEqual(g.current_definition, saved.value.definition);
+        try t.expectEqualDeep(host.pending.?, saved.value.pending);
+        const fresh = try key(seed.?);
+        const old = host.session;
+        _ = try admin.submit(.{ .rotate_worker = .{ .pid = old.pid, .worker = old.principal, .expected_generation = old.generation, .expected_public_key = old.key.public_key.toBytes(), .expected_permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .public_key = fresh.public_key.toBytes() } });
+        var stale = old;
+        stale.key = fresh;
+        try t.expectError(error.StaleActivation, stale.receive());
+        // Rotation denies the old signature even for accepted work. Current
+        // authority observes the exact old request; it must not re-sign it as
+        // another mutation or infer acceptance from the published name.
+        try t.expectError(error.AccessDenied, saved.value.pending.submit(old.client));
+        const authority: s.client.AuthorizationClient = .{ .transport = old.client, .realm = old.realm, .principal = old.principal, .key = fresh };
+        const receipt_observation = try authority.read(.{ .receipt = saved.value.pending.signed.request });
+        try t.expect(receipt_observation.body.authorization.body.receipt != null);
+        var altered = saved.value.pending.signed.request;
+        switch (altered.command) {
+            .turn => |*turn| turn.input += 1,
+            .turn_with_versions => |*value| value.turn.input += 1,
+            else => unreachable,
+        }
+        try t.expectError(error.Rejected, authority.read(.{ .receipt = altered }));
+        try t.expectEqual(.ConflictingRetry, old.client.last_rejection.?);
+        const after = try std.Io.Dir.cwd().readFileAlloc(init.io, path.?, alloc, .limited(1024 * 1024));
+        try t.expectEqualStrings(before, after);
+        const clients = try alloc.dupe(c.DirectTableClient, behavior.clients);
+        for (clients) |*client| client.key = fresh;
+        behavior.clients = clients;
+        behavior.recovery_seed = seed;
+        var session = old;
+        session.key = fresh;
+        session.generation += 1;
+        host.* = try s.GenServer.init(session, "state");
+        host.failure_policy = .stop;
+        std.debug.print("Direct named recovery: principal={d} generation={d} original proposal recovered after node replacement and key rotation\n", .{ session.principal, session.generation });
+        break :recovery .committed;
+    };
+    if (path) |name| try std.Io.Dir.cwd().deleteFile(init.io, name);
+    return result;
 }
 fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: anytype, independent: bool, named: bool) !void {
     const alloc = init.arena.allocator();
@@ -784,6 +862,8 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
                 const stored = try q.RelationalCapture.job(&reader, job_id);
                 if (attempt % 100 == 0) std.debug.print("Direct relational capture: independent={} attempt={d} phase={s} acquired={d} checkpoint={d} outputs={d}\n", .{ independent, attempt, @tagName(stored.phase), stored.acquired, stored.checkpoint, stored.outputs });
                 if (!replaced and stored.phase == .acquiring and stored.acquired == @as(u8, if (independent) 1 else 0)) {
+                    worker.generation = host.session.generation;
+                    executor.key = host.session.key;
                     _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = principal } });
                     worker.generation += 1;
                     host = try s.GenServer.init(.{ .client = client.authority, .realm = 42, .principal = principal, .pid = worker.pid, .generation = worker.generation, .key = executor.key }, "state");
@@ -846,7 +926,7 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     defer restored.close() catch {};
     try t.expectEqual(@as(u128, 1), (try restored.next()).?.cells[0].value.atom.unsigned);
     try t.expect(try restored.next() == null);
-    try t.expectError(error.AccessDenied, executor.call(.{ .lookup = .{ .namespace = 1, .name = right_name } }));
+    try t.expectError(error.AccessDenied, behavior.clients[0].call(.{ .lookup = .{ .namespace = 1, .name = right_name } }));
 }
 
 fn freshnessProof(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, independent: bool, name: []const u8, result: *q.RelationalResult) !void {

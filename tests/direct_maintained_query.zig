@@ -33,7 +33,7 @@ pub fn host(client: c.DirectTableClient, state: State) !s.GenServer {
     return result;
 }
 fn step(init: std.process.Init, owner: *s.GenServer, behavior: *support.RelationalHost, admin: anytype) !void {
-    if (try owner.step(behavior.interface(), @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30000)) == .blocked) return owner.handler_error orelse error.Blocked;
+    if (try support.namedStep(init, owner, behavior, admin) == .blocked) return owner.handler_error orelse error.Blocked;
     const pending = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try support.key(17));
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
 }
@@ -138,12 +138,14 @@ pub fn prepareWithExchange(init: std.process.Init, client: c.DirectTableClient, 
             if (head.phase == .acquiring) {
                 state.job = head.id;
                 const grant = bundle.retention[0];
-                const delegated = try q.CapturedTablePin.delegatedClient(client_set[0], grant);
+                const delegated = try q.CapturedTablePin.delegatedClient(behavior.clients[0], grant);
                 const acquired = try delegated.call(.{ .retain_history = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected } });
                 acquired.deinit();
                 // The remote lease exists; its native handle commit is absent.
                 // The runner replaces the node before continuing this input.
                 try t.expectError(error.IncompleteSource, q.CapturedTablePin.source(alloc, &reader, .{ .job = head.id, .source = 0 }, worker.pid));
+                state.worker.generation = running.session.generation;
+                state.seed = behavior.recovery_seed orelse state.seed;
                 return state;
             }
         }
