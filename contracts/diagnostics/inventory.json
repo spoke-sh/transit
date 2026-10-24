@@ -7634,7 +7634,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 95,
+        "try": 96,
         "catch": 18
       },
       "imports": [
@@ -17314,7 +17314,7 @@
         "QueryComplete": 1,
         "SourceChanged": 4,
         "SourceDefinitionTooLarge": 1,
-        "TableSchemaChanged": 2
+        "TableSchemaChanged": 3
       },
       "outcomes": {},
       "error_sets": {},
@@ -17337,7 +17337,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 73,
         "catch": 6
       },
       "imports": [

@@ -54,6 +54,17 @@ engineering decisions that must precede dependent implementation.
 
 ## Implementation in progress
 
+Flight and the public captured-query fixtures now use the direct Table owner
+with independent native progress storage. Their
+[native consumer evidence](../../tests/README.md#direct-flight-and-captured-query-consumers--2026-10-24)
+covers exact capture retry across row changes, failure/restart recovery, current
+denial and stored-schema validation. Board's captured-query API uses explicit
+capture; its browser now qualifies navigation, lost submission, current denial
+and restored access with independent data/progress identities. Flight's Compose
+placement also passes physical recovery. Reference qualification and removal of
+the remaining actor-Table consumers remain open; this does not close the
+coordinated cutover gate.
+
 The serving counter now uses an installer-published direct Table and retains an
 exact intent before dispatch. Its separate data receipt and native progress/reply
 commit have [component, HTTP and TLS refresh recovery evidence](../../tests/README.md#direct-serving-counter-acceptance--2026-10-24).

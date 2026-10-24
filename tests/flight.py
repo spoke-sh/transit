@@ -28,7 +28,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
         port, flight_port = free_port(), free_port()
         url = f'http://127.0.0.1:{port}'
         config = fixture.root / 'node.json'
-        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='flight', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
+        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), local_directory=str(fixture.root / 'authority'), port=port, resident_pages=8, request_timeout_ms=10000)))
         processes, logs, hosts = [], [], {}
         def start(name, command):
             log = (fixture.root / f'{name}.log').open('w+')
@@ -48,6 +48,14 @@ def run(node, host, gateway, proof, mode=None, board=None):
             subprocess.run([node, str(config), '--initialize'], check=True, capture_output=True, timeout=30)
             authority = start('node', [node, str(config)])
             wait_ready(fixture.http, authority, url + '/health')
+            subprocess.run([proof, url, 'catalog-bootstrap', str(fixture.root)], check=True, capture_output=True, timeout=300)
+            authority.terminate(); authority.wait(timeout=10)
+            settings = json.loads(config.read_text())
+            settings['table'] = json.loads((fixture.root / 'catalog-node.json').read_text())
+            config.write_text(json.dumps(settings))
+            authority = start('node-catalog', [node, str(config)])
+            hosts['node'] = authority
+            wait_ready(fixture.http, authority, url + '/health')
             subprocess.run([proof, url, 'provision-flight-overflow' if mode == 'diagnostics' else 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=300)
             start_workers(fixture.root)
             caller = json.loads((fixture.root / 'cli.json').read_text())
@@ -58,14 +66,15 @@ def run(node, host, gateway, proof, mode=None, board=None):
             (fixture.root / 'ticket.seed').write_text('2a' * 32)
             boundary = owned.enter_context(NativeBoundary(url)) if faults else None
             options = dict(url=boundary.url if boundary else url, inspector=55, inspector_seed_file=str(fixture.root / 'inspector.seed'), ticket_seed_file=str(fixture.root / 'ticket.seed'), port=flight_port, ticket_ttl_ms=120000,
-                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=connection(caller), service=1, binding_revision=1, definition=caller['workspace']['source'])])
+                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=connection(caller), service=1, binding_revision=1, definition=caller['workspace']['source'], capture=json.loads((fixture.root / 'flight-capture.json').read_text()))])
             if faults:
                 options['native_timeout_ms'] = 15000
                 second = fixture.root / 'second'; second.mkdir(mode=0o700)
+                (second / 'catalog-profile.json').write_bytes((fixture.root / 'catalog-profile.json').read_bytes())
                 subprocess.run([proof, url, 'provision-flight-second', str(second)], check=True, capture_output=True, timeout=300)
                 (second / 'credential').write_text('b' * 64)
                 other = json.loads((second / 'cli.json').read_text())
-                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=connection(other), service=1, binding_revision=1, definition=other['workspace']['source']))
+                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=connection(other), service=1, binding_revision=1, definition=other['workspace']['source'], capture=json.loads((second / 'flight-capture.json').read_text())))
                 start_workers(second, 'second-')
             gateway_config = fixture.root / 'gateway.json'
             gateway_config.write_text(json.dumps(options))
@@ -194,8 +203,17 @@ def run(node, host, gateway, proof, mode=None, board=None):
             expected = [dict(id=i, value=None if i % 5 == 0 else 9007199254740993+i) for i in range(41)]
             assert table.to_pylist() == expected
             assert available(lambda: client.do_get(info.endpoints[0].ticket, call_options()).read_all()).equals(table)
+            # Direct data changes after completion cannot replace an original
+            # upload's capture, including when the gateway reconstructs it.
+            subprocess.run([proof, url, 'mutate-source', str(fixture.root / 'cli.json')], check=True, capture_output=True, timeout=60)
             retry = retained_info(2)
             assert available(lambda: client.do_get(retry.endpoints[0].ticket, call_options()).read_all()).equals(table)
+            fresh_sequence = json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30))
+            fresh = retained_info(fresh_sequence)
+            changed = [dict(row) for row in expected]
+            changed[1]['value'] = 42
+            assert available(lambda: client.do_get(fresh.endpoints[0].ticket, call_options()).read_all()).to_pylist() == changed
+            subprocess.run([proof, url, 'restore-source', str(fixture.root / 'cli.json')], check=True, capture_output=True, timeout=60)
             print(f'Flight actual finite statement, full-width/null rows, schema, metadata and exact retry passed in {time.monotonic()-started:.2f}s', flush=True)
             if faults:
                 assert boundary.retries >= 2
@@ -210,7 +228,9 @@ def run(node, host, gateway, proof, mode=None, board=None):
             from flight_adbc import verify
             verify(uri, edge.root / 'certificate.pem', fixture.root, token, schema, expected, lambda: json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)))
 
-        except BaseException:
+        except BaseException as error:
+            if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+                print(error.stderr.decode()[-5000:], file=sys.stderr)
             for log in logs:
                 log.flush(); log.seek(0)
                 print(log.read()[-16000:], file=sys.stderr)

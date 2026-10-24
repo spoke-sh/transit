@@ -332,7 +332,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const compiled = value.compiled,
       plan = compiled.plan;
     if (
-      !hex(compiled.bundle, 25255) ||
+      !hex(compiled.bundle, 25615) ||
       compiled.bundle.length === 0 ||
       plan.version !== 1 ||
       (plan.limit !== null && !unsigned(plan.limit)) ||

@@ -56,6 +56,8 @@ test("tab recovery imports without starting, closing or displaying rows", async 
       bytes = value;
     },
   }));
+  store.save(fixture());
+  expect(bytes).toBeNull(); // Pausing an unused owner creates no stored record.
   store.save(original);
   const recovered = fixture();
   store.restore(recovered, noQuery);
@@ -64,6 +66,12 @@ test("tab recovery imports without starting, closing or displaying rows", async 
   expect(recovered.view.recoveryIdentity).toEqual(original.view.recoveryIdentity);
   expect(recovered.view.getSnapshot()).toMatchObject({ phase: "paused", snapshot: null });
   expect(recovered.view.following).toBe(false);
+  // An explicit reset must replace an existing record rather than resurrect
+  // the previously saved intent on the next tab load.
+  store.save(fixture());
+  const cleared = fixture();
+  store.restore(cleared, noQuery);
+  expect(cleared.view.recoveryIdentity).toBeNull();
 });
 
 test("a malformed composite leaves all operational owners and stored bytes untouched", () => {

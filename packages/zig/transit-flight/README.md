@@ -41,6 +41,12 @@ The configured caller carries an optional selected native role. Statement bundle
 freeze that caller's signed authority; SEND and current metadata/result checks
 use the same role. Tickets bind the role as part of their scope. The inspection
 identity reads service configuration and does not replace caller authorization.
+The direct Table catalog and native query progress resources have independent
+identities. Each configured capture binds a source executor and fixed minimum
+Table frontier; its first sequence supplies the pin operation identity. Exact
+reconstruction preserves that grant, while the first acquisition selects one
+current cut. The result reader uses the direct Table transport for current
+CONNECT, USAGE and SELECT checks after source cleanup.
 This adapter uses the explicit infrastructure-reader profile: the dedicated
 caller needs native read access to its source and request resources. Restricted
 Table clients use the [Table service](../transit-catalog/README.md) boundary.

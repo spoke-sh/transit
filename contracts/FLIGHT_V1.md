@@ -58,7 +58,16 @@ A statement GetFlightInfo requires the decimal `x-transit-request-sequence`
 header. It selects the first native sequence and the immutable upload namespace.
 The configured published schema, SQL and budgets produce one canonical request
 bundle, including a proof of the original principal, selected role, credential
-epoch, query bytes and intended recipient. The gateway signs `begin`, bounded `part` commands, `seal` and `submit`
+epoch, query bytes and intended recipient. The mapping also fixes the capture
+executor and minimum direct Table position. The first sequence is the capture
+operation ID; the signed grant selects a current cut at or beyond that minimum.
+The source worker acquires the pin once and retains its selected cut independently
+of its native progress resource. Reconstruction uses the original configured
+minimum, never a new current observation. Altering the minimum or executor changes
+the bundle and conflicts at the original first sequence. Neither configuration
+nor the pin grants CONNECT, USAGE or SELECT rights.
+
+The gateway signs `begin`, bounded `part` commands, `seal` and `submit`
 with consecutive native sequences, waiting for each recorded requester outcome
 before sending the next command. The namespace is the first sequence. The
 principal must be dedicated to this admission stream; concurrent requests must

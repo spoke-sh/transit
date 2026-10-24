@@ -62,6 +62,11 @@ const retained = {
   binding: null as string | null,
   release: null as (() => void) | null,
 };
+function retainProgressResource(resource: number) {
+  if (retained.resource !== 0 && retained.resource !== resource)
+    throw new BoardError(409, "QueryConflict");
+  retained.resource = resource;
+}
 function freshNamespace() {
   const bytes = crypto.getRandomValues(new Uint32Array(2));
   return ((BigInt(bytes[0]! & 0x7fffffff) << 32n) | BigInt(bytes[1]!) | 1n).toString();
@@ -96,6 +101,7 @@ export function UnifiedWorkspace({
   onBack: () => void;
 }) {
   const [source, setSource] = useState<Description | null>(null);
+  const sourceResource = source?.source.source.resource;
   const draftBinding = binding ? JSON.stringify(binding) : `resource/${resource}`;
   const [draft, updateDraft] = useState(() => {
     if (retained.draftBinding !== draftBinding) {
@@ -139,7 +145,6 @@ export function UnifiedWorkspace({
   const draftLive = useSyncExternalStore(liveDraft.subscribe, liveDraft.getSnapshot);
   const work = retained.work;
   const bindingId = binding ? JSON.stringify(binding) : null;
-  if (retained.resource === 0) retained.resource = resource;
   const verified = useRef<string | null>(null);
   const alive = useRef(true);
   const visibleNow = useRef(visible);
@@ -175,7 +180,6 @@ export function UnifiedWorkspace({
       const signal = abort.current.signal;
       setWorking(true);
       try {
-        if (retained.resource !== resource) throw new BoardError(409, "QueryConflict");
         await operation(signal);
       } catch (cause) {
         if (alive.current && !signal.aborted) {
@@ -203,7 +207,7 @@ export function UnifiedWorkspace({
         }
       }
     },
-    [clear, resource],
+    [clear],
   );
   useEffect(() => {
     alive.current = true;
@@ -230,6 +234,7 @@ export function UnifiedWorkspace({
     if (retained.release) return;
     const response = await query({ describe: {} }, signal);
     if (!("description" in response)) throw new BoardError(0, "InvalidResponse");
+    retainProgressResource(response.description.connection.resource);
     retained.release = await acquireCaller(response.description.connection, signal);
   };
   const advance = useCallback(
@@ -288,9 +293,12 @@ export function UnifiedWorkspace({
         const response = await query({ describe: {} }, signal);
         if (
           !("description" in response) ||
-          response.description.source.source.resource !== resource
+          (binding
+            ? response.description.source.source.resource
+            : response.description.connection.resource) !== resource
         )
           throw new BoardError(0, "InvalidResponse");
+        retainProgressResource(response.description.connection.resource);
         if (disposed || signal.aborted) return;
         if (binding) {
           if (response.description.name !== binding.name) mismatch();
@@ -396,10 +404,14 @@ export function UnifiedWorkspace({
       setError(draftLive.detail);
       return;
     }
+  }, [draftLive.phase, draftLive.detail, clear]);
+  useEffect(() => {
+    // Current metadata can be refreshed after denial. Rebinding a result to
+    // that metadata must not replay the previous denial and abort the refresh.
     const result = draftLive.result;
-    if (!result || !visible || document.hidden) return;
+    if (!result || !visible || document.hidden || sourceResource === undefined) return;
     try {
-      if (result.page.evidence.manifest.basis.cut.resource !== resource) mismatch();
+      if (result.page.evidence.manifest.basis.cut.resource !== sourceResource) mismatch();
       if (binding) unifiedPage(binding, result.page);
     } catch (cause) {
       setPage(null);
@@ -424,6 +436,7 @@ export function UnifiedWorkspace({
     draftLive.detail,
     visible,
     resource,
+    sourceResource,
     binding,
     bindingId,
     clear,
@@ -460,7 +473,7 @@ export function UnifiedWorkspace({
       const response = await query({ inspect: { sql: draft } }, signal);
       if (
         !("inspection" in response) ||
-        response.inspection.resource !== resource ||
+        response.inspection.resource !== sourceResource ||
         response.inspection.name !== source?.name
       )
         throw new BoardError(0, "InvalidResponse");
@@ -756,12 +769,16 @@ export function UnifiedWorkspace({
             </ol>
           )}
           <div className="query-composer">
-            <QueryCandidates resource={resource} select={setDraft} denied={clear} />
+            <QueryCandidates
+              resource={source.source.source.resource}
+              select={setDraft}
+              denied={clear}
+            />
             <label htmlFor="unified-sql">SQL draft</label>
             <SqlEditor
               value={draft}
               change={setDraft}
-              resource={resource}
+              resource={source.source.source.resource}
               scope={JSON.stringify([
                 source.connection,
                 source.source.source,

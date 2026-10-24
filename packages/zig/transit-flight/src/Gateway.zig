@@ -15,6 +15,9 @@ pub const max_callers = 8;
 pub const request_bytes = 8 * 1024 * 1024;
 pub const arrow_bytes = root.Metadata.working_bytes;
 pub const Connection = struct { realm: u64, principal: u64, role: ?u64 = null, source: u64, resource: u64, name: []const u8, requester: u64, requests: u64 };
+/// Stable deployment input to deterministic retry. Acquisition chooses one
+/// current Table cut at or beyond this frontier and retains it for that query.
+pub const Capture = struct { executor: u64, minimum: p.DataLifecycle.Position };
 pub const Caller = struct {
     /// Hash of a private high-entropy Bearer credential; raw tokens never persist
     /// in gateway state, telemetry or durable query payloads.
@@ -25,6 +28,7 @@ pub const Caller = struct {
     ingress_resource: u64,
     binding_revision: u64,
     table: q.TableSource,
+    capture: Capture,
     pub fn scope(self: Caller) !root.Ticket.Scope {
         const c = self.connection;
         return .{ .realm = c.realm, .principal = c.principal, .role = c.role, .service = self.service, .binding_revision = self.binding_revision, .ingress = c.requester, .requests = c.requests, .source = c.source, .resource = c.resource, .declaration = try self.table.fingerprint() };
@@ -44,7 +48,8 @@ pub const Configuration = struct {
         for (self.callers, 0..) |caller, index| {
             try caller.table.validate();
             _ = try f.Sql.Binding.Name.init(caller.connection.name);
-            if (caller.table.scope.realm != caller.connection.realm or caller.table.scope.resource != caller.connection.resource or caller.table.owner != caller.connection.source or caller.ingress_resource != caller.connection.requests) return error.InvalidFlightConfiguration;
+            try caller.capture.minimum.validate();
+            if (caller.capture.executor == 0 or caller.capture.executor > p.max_counter or caller.table.scope.realm != caller.connection.realm or caller.ingress_resource != caller.connection.requests) return error.InvalidFlightConfiguration;
             try (try caller.scope()).validate();
             for (self.callers[0..index]) |previous| if (std.mem.eql(u8, &caller.credential, &previous.credential) or caller.connection.principal == previous.connection.principal or caller.connection.requester == previous.connection.requester) return error.InvalidFlightConfiguration;
         }
@@ -149,6 +154,7 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     wire.observer = self.diagnostics;
     const caller = self.config.callers[index];
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .role = caller.connection.role, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
+    client.tables = .{ .allocator = alloc, .authority = &wire, .service = &wire, .connection = .{ .scope = caller.table.scope, .branch = caller.table.branch, .audience = caller.table.owner, .principal = caller.connection.principal, .role = caller.connection.role }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
     var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic, .query_diagnostic = query_diagnostic, .attempt_diagnostic = attempt_diagnostic };
     return call.run(request) catch |err| {
@@ -323,7 +329,7 @@ const Call = struct {
         try self.send(w.FlightInfo{ .app_metadata = metadata, .schema = schema, .flight_descriptor = descriptor, .endpoint = &.{endpoint}, .total_records = @intCast(rows), .total_bytes = @intCast(total_bytes), .ordered = true });
     }
     fn definition(self: *Call) q.SourceDefinition {
-        return .{ .resource = self.caller.connection.resource, .source = .{ .table = self.caller.table } };
+        return .{ .resource = self.caller.table.scope.resource, .source = .{ .table = self.caller.table } };
     }
     fn manifestDigest(manifest: q.UnifiedRecords.Manifest) ![32]u8 {
         var bytes: [q.UnifiedRecords.Manifest.max_bytes]u8 = undefined;
@@ -346,7 +352,9 @@ const Call = struct {
             return err;
         };
         _ = try root.TableResult.init(bundle.plan);
-        bundle = try self.client.authorizeBundle(bundle);
+        // Reconstruct the same signed grant from fixed deployment inputs. A
+        // retry never observes a new minimum or acquires a replacement pin.
+        bundle = try self.client.authorizeCapture(bundle, .{ .executor = self.caller.capture.executor, .operation = first, .expected = self.caller.capture.minimum, .selection = .current });
         const reference = try bundle.reference(self.caller.connection.requests, first);
         var encoded: [q.Bundle.max_bytes]u8 = undefined;
         const bytes = try bundle.encode(&encoded);

@@ -22,7 +22,7 @@ def run(node, host, cli, proof):
         config = fixture.root / "node.json"
         config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 45, "root_key": public, "max_clock_error_ms": 10000},
-            "ursula_url": fixture.url, "bucket": "public-query", "journal": "authority",
+            "local_directory": str(fixture.root / "authority"),
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         processes, logs = [], []
         fault = {"lost": None, "retry": False, "startup": set(), "stage": threading.Event(), "pause": threading.Event(), "wait_headers": 0}
@@ -97,17 +97,26 @@ def run(node, host, cli, proof):
             subprocess.run([node, str(config), "--initialize"], check=True, capture_output=True, timeout=30)
             authority = start("node", [node, str(config)])
             wait_ready(fixture.http, authority, url + "/health")
+            subprocess.run([proof, url, "catalog-bootstrap", str(fixture.root)], check=True, capture_output=True, timeout=300)
+            authority.terminate(); authority.wait(timeout=10)
+            settings = json.loads(config.read_text())
+            settings['table'] = json.loads((fixture.root / 'catalog-node.json').read_text())
+            config.write_text(json.dumps(settings))
+            authority = start('node-catalog', [node, str(config)])
+            wait_ready(fixture.http, authority, url + '/health')
             provision("provision")
             for name in ("cli", "source", "requester", "courier", "inspector"):
                 path = fixture.root / f"{name}.json"
                 options = json.loads(path.read_text())
                 options["url"] = proxy_url
+                if options.get("tables"): options["tables"]["url"] = proxy_url
                 path.write_text(json.dumps(options))
             requester = start("requester", [host, str(fixture.root / "requester.json")])
             source = start("source", [host, str(fixture.root / "source.json")])
             courier = start("courier", [host, str(fixture.root / "courier.json")])
             inspector = subprocess.run([cli, "query", str(fixture.root / "inspector.json")], input=".schema\n.quit\n", text=True, capture_output=True, timeout=15)
-            assert "QueryDenied" in inspector.stdout, (inspector.stdout, inspector.stderr)
+            # Read-only inspection cannot impersonate the dedicated requester.
+            assert "QueryConfigurationChanged" in inspector.stdout, (inspector.stdout, inspector.stderr)
             (fixture.root / "shell.json").write_text((fixture.root / "cli.json").read_text())
             shell = Shell(cli, fixture.root)
             processes.append(shell.process)
@@ -240,7 +249,9 @@ def run(node, host, cli, proof):
             assert fault["wait_headers"] > 0, "native wait hints were not exercised"
             shell.close()
             print("public query: transient startup reads, real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
-        except BaseException:
+        except BaseException as error:
+            if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+                print(error.stderr.decode()[-5000:], file=sys.stderr)
             for log in logs:
                 log.flush(); log.seek(0)
                 content = log.read()

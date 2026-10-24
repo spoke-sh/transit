@@ -1049,7 +1049,7 @@ pub fn build(b: *std.Build) void {
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, operations, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
-    b.step("test-public-query", "Qualify public query hosts and native callers over disk Ursula").dependOn(&public_query_test.step);
+    b.step("test-public-query", "Qualify public query hosts and native callers over local direct Tables").dependOn(&public_query_test.step);
     const unified_query = b.addExecutable(.{ .name = "transit-unified-query-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/unified_query.zig"),
         .target = target,
