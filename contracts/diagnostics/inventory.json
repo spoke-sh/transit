@@ -3056,27 +3056,29 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 31,
-        "CatalogIdentityConflict": 4,
+        "CatalogDenied": 35,
+        "CatalogIdentityConflict": 6,
+        "CatalogKindMismatch": 1,
         "CatalogNameHashCollision": 1,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,
         "CatalogObjectBusy": 1,
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
-        "CatalogRegistrationRequired": 4,
+        "CatalogRegistrationRequired": 6,
+        "ConflictingRetry": 1,
         "DataIdentityConflict": 3,
         "DuplicatePrimaryKey": 1,
-        "Forbidden": 3,
+        "Forbidden": 4,
         "IbmHfpOverflow": 1,
         "IbmHfpUnderflow": 1,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 2,
         "InvalidCatalogDependency": 5,
         "InvalidDirectCatalogCompletion": 1,
-        "InvalidDirectCatalogEntry": 5,
+        "InvalidDirectCatalogEntry": 8,
         "InvalidDirectCatalogName": 2,
-        "InvalidDirectCatalogOperation": 16,
+        "InvalidDirectCatalogOperation": 20,
         "InvalidDirectCatalogTransition": 1,
         "InvalidPartitionLease": 2,
         "InvalidStorageBudget": 1,
@@ -3084,6 +3086,10 @@
         "InvalidTableBasis": 1,
         "InvalidTableKey": 1,
         "MissingRequiredField": 1,
+        "NamedResourceAllocationUnreconciled": 1,
+        "NamedResourceNativeUnavailable": 4,
+        "NamedResourceNotAdmitted": 1,
+        "NativeAllocationBusy": 1,
         "NullNotAllowed": 1,
         "Overflow": 1,
         "TableDataChanged": 2,
@@ -3126,6 +3132,7 @@
         "applyRows()": "<inferred>",
         "assertName()": "<inferred>",
         "attachRegistration()": "<inferred>",
+        "attachResource()": "<inferred>",
         "authorizationSchema()": "<inferred>",
         "available()": "<inferred>",
         "cancel()": "<inferred>",
@@ -3153,7 +3160,9 @@
         "inspectNamespace()": "<inferred>",
         "list()": "<inferred>",
         "listNamespaces()": "<inferred>",
+        "listResources()": "<inferred>",
         "loadRequest()": "<inferred>",
+        "namedRecord()": "<inferred>",
         "namespaceDependencies()": "<inferred>",
         "namespaceGuard()": "<inferred>",
         "namespaceNameAvailable()": "<inferred>",
@@ -3171,14 +3180,17 @@
         "pinRowsChecked()": "<inferred>",
         "pinRowsDefined()": "<inferred>",
         "pinState()": "<inferred>",
+        "prepareResourceAllocation()": "<inferred>",
         "preview()": "<inferred>",
         "previewNamespace()": "<inferred>",
+        "previewResource()": "<inferred>",
         "readAccess()": "<inferred>",
         "readAuthority()": "<inferred>",
         "readCurrent()": "<inferred>",
         "readRow()": "<inferred>",
         "record()": "<inferred>",
         "recordNamespace()": "<inferred>",
+        "recordResource()": "<inferred>",
         "recover()": "<inferred>",
         "registration()": "<inferred>",
         "releaseRows()": "<inferred>",
@@ -3186,6 +3198,13 @@
         "requireInitialized()": "<inferred>",
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
+        "resolveResource()": "<inferred>",
+        "resourceAllocation()": "<inferred>",
+        "resourceAllocationRequirements()": "<inferred>",
+        "resourceOperation()": "<inferred>",
+        "resourceReason()": "<inferred>",
+        "resourceRegistration()": "<inferred>",
+        "resourceRequirements()": "<inferred>",
         "retainHistory()": "<inferred>",
         "rowOperation()": "<inferred>",
         "rowStatus()": "<inferred>",
@@ -3202,8 +3221,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 494,
-        "catch": 5
+        "try": 631,
+        "catch": 7
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -3240,10 +3259,10 @@
     "packages/zig/transit-catalog/src/DirectCatalogRecords.zig": {
       "errors": {
         "DataIdentityConflict": 1,
-        "InvalidCatalogIdentity": 2,
+        "InvalidCatalogIdentity": 3,
         "InvalidDirectCatalogConfiguration": 1,
-        "InvalidDirectCatalogEntry": 2,
-        "InvalidDirectCatalogHistory": 6,
+        "InvalidDirectCatalogEntry": 4,
+        "InvalidDirectCatalogHistory": 7,
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
@@ -3277,7 +3296,8 @@
           "operation",
           "assertion",
           "namespace",
-          "dependency"
+          "dependency",
+          "resource"
         ]
       },
       "error_sets": {},
@@ -3299,11 +3319,12 @@
         "idKey()": "<inferred>",
         "nameKey()": "<inferred>",
         "operationKey()": "<inferred>",
-        "pageValue()": "<inferred>"
+        "pageValue()": "<inferred>",
+        "principalKey()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 41,
         "catch": 0
       },
       "imports": [
@@ -3313,14 +3334,14 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
-        "CatalogHistoryMissing": 6,
+        "CatalogHistoryMissing": 7,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
-        "DataIdentityConflict": 8,
+        "DataIdentityConflict": 10,
         "IncompatibleDefinition": 1,
         "InvalidDirectCatalogHistory": 4,
-        "InvalidDirectCatalogOperation": 12,
-        "InvalidDirectCatalogTransition": 40,
+        "InvalidDirectCatalogOperation": 15,
+        "InvalidDirectCatalogTransition": 72,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
       },
@@ -3347,11 +3368,16 @@
         "receiptIdentity()": "<inferred>",
         "recover()": "<inferred>",
         "refresh()": "<inferred>",
+        "resourceAt()": "<inferred>",
+        "resourceOperation()": "<inferred>",
+        "resourceRecord()": "<inferred>",
+        "resourceRecordAt()": "<inferred>",
+        "resourceTransition()": "<inferred>",
         "successor()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 92,
+        "try": 125,
         "catch": 1
       },
       "imports": [
@@ -3568,6 +3594,109 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectResource.zig": {
+      "errors": {
+        "DataIdentityConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidNamedResource": 7,
+        "InvalidNamedResourceOperation": 5
+      },
+      "outcomes": {
+        "Binding.action": [
+          "create",
+          "rename",
+          "drop"
+        ],
+        "Command": [
+          "inspect",
+          "admit",
+          "execute",
+          "cancel"
+        ],
+        "Observation": [
+          "not_observed",
+          "operation"
+        ],
+        "Operation.phase": [
+          "admitted",
+          "prepared",
+          "allocated",
+          "complete",
+          "rejected",
+          "cancelled"
+        ],
+        "Reason": [
+          "none",
+          "name_conflict",
+          "object_conflict",
+          "stale_definition",
+          "dependency"
+        ],
+        "Spec": [
+          "kv",
+          "document"
+        ],
+        "Spec.kv.key_encoding": [
+          "native_bytes"
+        ],
+        "Spec.kv.value_encoding": [
+          "fvl1"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Allocation.validate()": "<inferred>",
+        "Binding.allocation()": "<inferred>",
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Create.validate()": "<inferred>",
+        "Definition.initial()": "<inferred>",
+        "Definition.initialization()": "<inferred>",
+        "Definition.interpretation()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Native.allocation()": "anyerror",
+        "Native.make_guard()": "anyerror",
+        "Native.prepare()": "anyerror",
+        "Operation.validate()": "<inferred>",
+        "Spec.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 33,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectResourceClient.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "InvalidCatalogStepBudget": 1,
+        "InvalidNamedResourceOperation": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "list()": "<inferred>",
+        "load()": "<inferred>",
+        "lookup()": "<inferred>",
+        "operation()": "<inferred>",
+        "preview()": "<inferred>",
+        "request()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableBinding.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
@@ -3621,7 +3750,8 @@
     },
     "packages/zig/transit-catalog/src/DirectTableDispatch.zig": {
       "errors": {
-        "InvalidCatalogCursor": 2,
+        "InvalidCatalogCursor": 3,
+        "NamedResourceNativeUnavailable": 1,
         "TableDelegationDenied": 1
       },
       "outcomes": {},
@@ -3629,15 +3759,16 @@
       "error_returns": {
         "Execution.ddl()": "anyerror",
         "Execution.namespace()": "anyerror",
+        "Execution.resource()": "anyerror",
         "apply()": "anyerror",
         "encodeDefinition()": "<inferred>",
         "historySource()": "<inferred>",
         "requireSource()": "<inferred>",
         "schema()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 4,
       "propagation": {
-        "try": 109,
+        "try": 116,
         "catch": 0
       },
       "imports": [
@@ -3736,13 +3867,14 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 4,
-        "CatalogIdentityConflict": 6,
+        "CatalogIdentityConflict": 8,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
         "InvalidCatalogCursor": 3,
-        "InvalidCatalogStepBudget": 2,
+        "InvalidCatalogStepBudget": 3,
         "InvalidDirectCatalogOperation": 1,
+        "InvalidNamedResourceOperation": 1,
         "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
@@ -3764,6 +3896,10 @@
           "namespace_operation",
           "dependency_operation",
           "dependencies",
+          "resource_preview",
+          "resource_operation",
+          "resource_lookup",
+          "resource_list",
           "check",
           "check_set",
           "list",
@@ -3836,6 +3972,10 @@
           "namespace_operation",
           "dependency_operation",
           "dependencies",
+          "resource_preview",
+          "resource_operation",
+          "resource_lookup",
+          "resource_list",
           "checked",
           "staged",
           "list",
@@ -3892,7 +4032,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 116,
+        "try": 119,
         "catch": 2
       },
       "imports": [
@@ -3944,7 +4084,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 82
+        "InvalidTableResponse": 91
       },
       "outcomes": {},
       "error_sets": {},
@@ -3954,6 +4094,7 @@
         "evidence()": "<inferred>",
         "frontier()": "<inferred>",
         "metadata()": "<inferred>",
+        "resourceMetadata()": "<inferred>",
         "rows()": "<inferred>",
         "schema()": "<inferred>",
         "validate()": "<inferred>",
@@ -3961,7 +4102,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 122,
+        "try": 134,
         "catch": 7
       },
       "imports": [
@@ -4056,7 +4197,7 @@
     },
     "packages/zig/transit-catalog/src/OperationBinding.zig": {
       "errors": {
-        "DataIdentityConflict": 5,
+        "DataIdentityConflict": 6,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidOperationBinding": 6
@@ -4066,7 +4207,8 @@
           "data",
           "name_assertion",
           "namespace",
-          "dependency"
+          "dependency",
+          "resource"
         ]
       },
       "error_sets": {},
@@ -4077,17 +4219,19 @@
         "claimAssertion()": "<inferred>",
         "claimDependency()": "<inferred>",
         "claimNamespace()": "<inferred>",
+        "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
         "key()": "<inferred>",
         "lookup()": "<inferred>",
         "lookupAssertion()": "<inferred>",
         "lookupDependency()": "<inferred>",
         "lookupNamespace()": "<inferred>",
+        "lookupResource()": "<inferred>",
         "lookupStored()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 20,
         "catch": 1
       },
       "imports": [
@@ -5492,6 +5636,8 @@
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",
         "DirectReadDelegation.zig",
+        "DirectResource.zig",
+        "DirectResourceClient.zig",
         "DirectTableBinding.zig",
         "DirectTableClient.zig",
         "DirectTableDispatch.zig",
@@ -12619,6 +12765,7 @@
     "packages/zig/transit-protocol/src/DataLifecycle.zig": {
       "errors": {
         "DataIdentityConflict": 6,
+        "IncompatibleDefinition": 2,
         "InconsistentSnapshot": 1,
         "InvalidCatalogIdentity": 1,
         "InvalidDataContent": 1,
@@ -12626,6 +12773,7 @@
         "InvalidDataIdentity": 2,
         "InvalidDataOperation": 1,
         "InvalidDataPosition": 4,
+        "InvalidResourceInitialization": 4,
         "InvalidSnapshotCoverage": 2
       },
       "outcomes": {
@@ -12654,6 +12802,10 @@
           "committed",
           "rejected",
           "cancelled"
+        ],
+        "ResourceInitialization.kind": [
+          "kv",
+          "document"
         ]
       },
       "error_sets": {},
@@ -12668,6 +12820,9 @@
         "Observation.validate()": "<inferred>",
         "Operation.validate()": "<inferred>",
         "Position.validate()": "<inferred>",
+        "ResourceInitialization.decode()": "<inferred>",
+        "ResourceInitialization.encode()": "<inferred>",
+        "ResourceInitialization.validate()": "<inferred>",
         "Scope.validate()": "<inferred>",
         "Snapshot.requireSource()": "<inferred>",
         "Snapshot.validate()": "<inferred>",
@@ -12676,8 +12831,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
-        "catch": 0
+        "try": 49,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -13025,7 +13180,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1\""
+          "c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf"
         ],
         "Effect.phase": [
           "pending",
@@ -21069,6 +21224,50 @@
         "std"
       ]
     },
+    "packages/zig/transit-station-app/src/NamedResource.zig": {
+      "errors": {
+        "DocumentRetired": 1,
+        "InvalidNamedResourceKey": 1,
+        "InvalidNamedResourceValue": 2,
+        "NamedResourceIdentityConflict": 7,
+        "NamedResourceIncomplete": 1,
+        "NamedResourceKindMismatch": 2,
+        "NamedResourceNotEmpty": 5,
+        "NamedResourceNotInitialized": 4,
+        "PublicationNamespaceNotFound": 1
+      },
+      "outcomes": {
+        "Step": [
+          "reserved",
+          "initialized",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "document()": "<inferred>",
+        "documentHead()": "<inferred>",
+        "field()": "<inferred>",
+        "get()": "<inferred>",
+        "initialize()": "<inferred>",
+        "inspect()": "<inferred>",
+        "key()": "<inferred>",
+        "marker()": "<inferred>",
+        "put()": "<inferred>",
+        "remove()": "<inferred>",
+        "requireSame()": "<inferred>",
+        "rights()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 59,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-station-app/src/Native.zig": {
       "errors": {
         "ApplicationDigestMismatch": 2,
@@ -21443,6 +21642,7 @@
         "Model.zig",
         "NamedRelational.zig",
         "NamedRelationalRecords.zig",
+        "NamedResource.zig",
         "Native.zig",
         "Publication.zig",
         "PublicationDiagnostic.zig",

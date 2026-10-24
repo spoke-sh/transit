@@ -4,6 +4,10 @@
 names, separate current authorization and explicit captured/maintained activation.
 Their application-owned namespace is separate from UI interface definitions.
 
+[Named KV and Document resources](docs/named-resources.md) combine the direct
+catalog's explicit provisioning stages with actual native writer initialization,
+typed KV values and the existing Document service.
+
 M23's shared declarative application owner, above Station and serving. The
 [application contract](../../../contracts/APPLICATION_V1.md) owns neutral values,
 publication and migration boundaries. Implementation is in progress; package

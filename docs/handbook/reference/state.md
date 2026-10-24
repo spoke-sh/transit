@@ -16,14 +16,26 @@ partition. Table acceptance and native input progress are separate decisions.
 Station Documents add accepted structured/text changes and immutable indexes
 within the native resource boundary.
 
-`Declaration.compile` validates `CREATE KV` and `CREATE DOCUMENT` definitions.
-`DeclarativeCatalog` records their metadata through an `initializing` reservation
-followed by a `live` binding to a supplied resource ID. These transitions neither
-provision the resource nor verify its initialization. Resource creation and
-kind-specific initialization require their existing public owners; a live
-catalog record alone does not establish a usable KV or Document.
-The metadata owner supports rename, registered-dependency `DROP RESTRICT`,
-permanent object-ID retirement and `inspectLifecycle` / `policyReferences`.
+Named KV and Document declarations use `DirectResourceClient` and the shared
+direct catalog. Save the complete declaration before admission. Its observable
+phases separate name reservation, preparation of the original caller's native
+allocation, accepted allocation and completed initialization/publication. The
+caller supplies an existing writer, explicit lifetime policy and kind-specific
+configuration. Preview and inspection publish nothing.
+
+`transit-station-app.NamedResource` initializes the actual resource through
+private Station turns. The catalog exposes the name after checking that accepted
+initialization against the original allocation and current native lifetime.
+Rename preserves object identity. Logical DROP removes the binding while native
+data retirement remains a separate authorized operation. Cancelling partial
+creation retains any allocated resource ID for cleanup; it does not undo native
+acceptance. See the [named resource API](../../../packages/zig/transit-station-app/docs/named-resources.md)
+for the sequence, permissions, recovery and bounds.
+
+A completed definition is publication evidence, not a continuing data-access
+grant. Current reads still enforce native rights, retirement and expiry.
+`Declaration.compile` validates offline `CREATE KV` and `CREATE DOCUMENT` syntax;
+console SQL does not execute these named-resource lifecycle operations.
 
 ## Identity, access and ownership
 

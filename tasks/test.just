@@ -29,6 +29,9 @@ direct-table-service:
 direct-dependencies:
     zig build test-direct-dependencies -Doptimize=ReleaseSafe
 
+direct-named-resources:
+    zig build test-direct-named-resources -Doptimize=ReleaseSafe
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe

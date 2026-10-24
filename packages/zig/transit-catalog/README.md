@@ -12,6 +12,12 @@ validate one inline command or one upload part without reloading a whole intent.
 The owner must establish the complete canonical intent before retaining that
 binding; this interface performs no authorization or signing.
 
+`DirectResourceClient` uses the same directory for named native KV and Document
+declarations. Its saved bindings separate admission, original caller allocation,
+writer initialization and completed publication. See the
+[named resource guide](../transit-station-app/docs/named-resources.md) for explicit
+permissions, typed values, recovery and cleanup.
+
 ## Schema, lifecycle and authorization
 
 `TableCatalog` resolves live names and immutable historical definitions in an

@@ -17,6 +17,7 @@ pub const Execution = struct {
     context: *anyopaque,
     ddl: *const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!D.Observation,
     namespace: *const fn (*anyopaque, *D, c.DirectNamespace.Binding, D.Policy, u16) anyerror!c.DirectNamespace.Observation,
+    resource: ?*const fn (*anyopaque, *D, c.DirectResource.Binding, D.Policy, c.DirectResource.Command, u16, ?c.DirectResource.SignedAllocation) anyerror!c.DirectResource.Observation = null,
 };
 
 fn schema(allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Binary {
@@ -75,6 +76,26 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
         .dependency_operation => |value| return .{ .dependency_operation = try catalog.dependencyOperation(value.binding, value.command, policy) },
         .dependencies => |value| return .{ .dependencies = try catalog.dependencyPage(value.selection, value.cursor, value.authority, policy) },
+        .resource_preview => |binding| return .{ .resource_preview = try catalog.previewResource(binding, policy) },
+        .resource_operation => |value| {
+            if (value.command == .inspect or value.command == .admit) return .{ .resource_operation = try catalog.resourceOperation(value.binding, value.command, policy) };
+            const run = execution.resource orelse return error.NamedResourceNativeUnavailable;
+            return .{ .resource_operation = try run(execution.context, catalog, value.binding, policy, value.command, value.steps, value.signed_allocation) };
+        },
+        .resource_lookup => |value| return .{ .resource_lookup = try catalog.resolveResource(value.namespace, try .init(value.name), policy) },
+        .resource_list => |value| {
+            var bytes: [8]u8 = undefined;
+            const after = if (value.after) |id| blk: {
+                std.mem.writeInt(u64, &bytes, id, .big);
+                break :blk try c.storage.TreeStore.pages.Key.init(&bytes);
+            } else null;
+            const page = try catalog.listResources(value.namespace, after, policy);
+            const next = if (page.next) |cursor| blk: {
+                if (cursor.len != 8) return error.InvalidCatalogCursor;
+                break :blk std.mem.readInt(u64, cursor.data[0..8], .big);
+            } else null;
+            return .{ .resource_list = .{ .entries = page.entries, .next = next, .position = page.position } };
+        },
         .namespace_preview => |binding| return .{ .namespace_preview = try catalog.previewNamespace(binding, policy) },
         .namespace_operation => |value| {
             if (value.command != .execute) return .{ .namespace_operation = try catalog.namespaceOperation(value.binding, value.command, policy) };

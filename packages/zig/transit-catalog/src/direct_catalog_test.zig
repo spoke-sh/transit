@@ -18,6 +18,13 @@ const Access = struct {
     missing_table: bool = false,
     missing_schema: bool = false,
     denied_resource: ?u64 = null,
+    denied_metadata: ?u64 = null,
+    allocation_binding: ?c.DirectResource.Binding = null,
+    allocation_id: ?u64 = null,
+    initialization: ?p.DataLifecycle.ResourceInitialization = null,
+    native_checks: usize = 0,
+    native_deny_at: usize = std.math.maxInt(usize),
+    native_retired: bool = false,
     const Context = struct { access: *Access, requested: p.Authorization.Guard };
     fn erased(context: *anyopaque) *Access {
         return @ptrCast(@alignCast(context));
@@ -35,6 +42,7 @@ const Access = struct {
         if (value.access.calls >= value.access.deny_at) return error.CatalogDenied;
         for (value.requested.requirements) |slot| if (slot) |requirement| {
             if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
+            if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
         };
         if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
         return .{ .writer_epoch = 1, .policy_epoch = 1 };
@@ -55,7 +63,36 @@ const Access = struct {
         }, .revision = 1 };
     }
     fn policy(self: *Access) D.Policy {
-        return .{ .context = self, .subject = .{ .accepted = .{ .pid = 3, .input = 1, .principal = 1 } }, .make_guard = make, .registered = registered };
+        return .{ .context = self, .subject = .{ .accepted = .{ .pid = 3, .input = 1, .principal = 1 } }, .make_guard = make, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareAllocation, .allocation = allocation, .make_guard = nativeGuard } };
+    }
+    fn prepareAllocation(_: *anyopaque, binding_value: c.DirectResource.Binding) !c.DirectResource.Allocation {
+        return .{ .sequence = binding_value.operation + 50 };
+    }
+    fn allocation(context: *anyopaque, binding_value: c.DirectResource.Binding, _: c.DirectResource.Allocation) !?u64 {
+        const self = erased(context);
+        if (self.allocation_binding) |expected| try expected.requireSame(binding_value);
+        return self.allocation_id;
+    }
+    const NativeContext = struct { access: *Access, underlying: P.Guard, condition: c.DirectResource.Condition };
+    fn nativeGuard(context: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard, condition: c.DirectResource.Condition) !P.Guard {
+        const value = try allocator.create(NativeContext);
+        value.* = .{ .access = erased(context), .underlying = try make(context, allocator, requested, null), .condition = condition };
+        return .{ .context = value, .acquire = nativeAcquire, .release = release };
+    }
+    fn nativeAcquire(context: *anyopaque) !P.Guard.Fence {
+        const value: *NativeContext = @ptrCast(@alignCast(context));
+        const fence = try value.underlying.acquire(value.underlying.context);
+        const self = value.access;
+        self.native_checks += 1;
+        if (self.native_checks >= self.native_deny_at) return error.CatalogDenied;
+        if (value.condition.resource == null) return fence;
+        if (try allocation(self, value.condition.binding, value.condition.allocation) != value.condition.resource) return error.NamedResourceAllocationMismatch;
+        if (value.condition.initialization) |expected| {
+            if (self.native_retired) return error.RetiredResource;
+            if (self.initialization == null) return error.NamedResourceNotInitialized;
+            if (!std.meta.eql(expected, self.initialization.?)) return error.NamedResourceIdentityConflict;
+        }
+        return fence;
     }
     fn dataGuard(self: *Access, allocator: std.mem.Allocator, properties: D.Properties, object: u64) !P.Guard {
         const namespace: a.Schema = .{ .scope = scope, .id = 1, .authorization = profile.initial_schema_authority, .name = try a.Name.init("public"), .revision = 1 };
@@ -1113,4 +1150,271 @@ test "namespace dependency progress is paged recoverable and independent of resi
         try t.expect(pages_scanned < 10);
     }
     try t.expect(pages_scanned > 1);
+}
+
+fn namedCreation(object: u64, operation: u64, name: []const u8) !c.DirectResource.Binding {
+    return .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .object = .{ .scope = scope, .branch = 1, .object = object }, .operation = operation, .expected = null, .action = .{ .create = .{
+        .namespace = 1,
+        .name = try a.Name.init(name),
+        .owner = 0,
+        .writer = 3,
+        .owned = false,
+        .deadline_ms = null,
+        .history_ms = null,
+        .spec = .{ .kv = .{ .value_type = .int64, .nullable = false, .key_encoding = .native_bytes, .value_encoding = .fvl1 } },
+    } } };
+}
+
+fn namedAllocation(catalog: *D, access: *Access, binding: c.DirectResource.Binding, resource: u64) !c.DirectResource.Definition {
+    _ = try catalog.prepareResourceAllocation(binding, access.policy());
+    access.allocation_binding = binding;
+    access.allocation_id = resource;
+    return (try catalog.attachResource(binding, resource, access.policy())).operation.resulting.?;
+}
+
+test "named resource catalog reserves shared names and requires actual initialization before visibility" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try namedCreation(101, 201, "objects");
+    const before = catalog.store.root;
+    const puts = objects.puts;
+    const preview = try catalog.previewResource(create, access.policy());
+    try t.expectEqual(.none, preview.reason);
+    try t.expectEqual(null, preview.current);
+    try t.expectEqual(.not_observed, try catalog.resourceOperation(create, .inspect, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqual(@as(usize, 0), access.native_checks);
+    try t.expectEqual(.admitted, (try catalog.resourceOperation(create, .admit, access.policy())).operation.phase);
+    try t.expectEqual(null, try catalog.resolveResource(1, create.action.create.name, access.policy()));
+    // The Table path shares the exact same name and permanent identity claims.
+    const table = try creation(102, 202, "objects");
+    try t.expectEqual(.name_conflict, (try catalog.admit(table, access.policy())).reason);
+    const same_object = try creation(101, 203, "other");
+    try t.expectEqual(.object_conflict, (try catalog.admit(same_object, access.policy())).reason);
+    const absent = try nameAssertion(204, "objects", null);
+    try t.expectEqual(.rejected, (try catalog.assertName(absent, .accept, access.policy())).outcome.state);
+    const prepared_allocation = (try catalog.prepareResourceAllocation(create, access.policy())).operation.allocation.?;
+    try t.expectEqualDeep(try create.allocation(prepared_allocation), (try catalog.resourceAllocation(create, access.policy())).?);
+    try t.expectError(error.NamedResourceAllocationMismatch, catalog.attachResource(create, 700, access.policy()));
+    const value = try namedAllocation(&catalog, &access, create, 700);
+    try t.expectEqual(.allocated, (try catalog.resourceOperation(create, .inspect, access.policy())).operation.phase);
+    try t.expectEqual(null, try catalog.resolveResource(1, create.action.create.name, access.policy()));
+    try t.expectError(error.NamedResourceNotInitialized, catalog.resourceOperation(create, .execute, access.policy()));
+    access.initialization = try value.initialization(t.allocator);
+    access.initialization.?.interpretation.object.object += 1;
+    try t.expectError(error.NamedResourceIdentityConflict, catalog.resourceOperation(create, .execute, access.policy()));
+    access.initialization = try value.initialization(t.allocator);
+    access.native_deny_at = access.native_checks + 2;
+    try t.expectError(error.CatalogDenied, catalog.resourceOperation(create, .execute, access.policy()));
+    access.native_deny_at = std.math.maxInt(usize);
+    try t.expectEqual(.allocated, (try catalog.resourceOperation(create, .inspect, access.policy())).operation.phase);
+    const complete = (try catalog.resourceOperation(create, .execute, access.policy())).operation;
+    try t.expectEqual(.complete, complete.phase);
+    try t.expectEqualDeep(value, (try catalog.resolveResource(1, create.action.create.name, access.policy())).?.definition);
+    try t.expectEqual(null, try catalog.resolve(t.allocator, 1, create.action.create.name, access.policy()));
+    var renamed = create;
+    renamed.operation = 205;
+    renamed.expected = try value.interpretation(t.allocator);
+    renamed.action = .{ .rename = try a.Name.init("renamed") };
+    _ = try catalog.resourceOperation(renamed, .admit, access.policy());
+    const new_value = (try catalog.resourceOperation(renamed, .execute, access.policy())).operation.resulting.?;
+    try t.expectEqual(@as(u64, 2), new_value.revision);
+    try t.expectEqual(value.resource, new_value.resource);
+    try t.expectEqual(null, try catalog.resolveResource(1, create.action.create.name, access.policy()));
+    try t.expectEqualDeep(complete, (try catalog.resourceOperation(create, .execute, access.policy())).operation);
+    var drop = renamed;
+    drop.operation = 206;
+    drop.expected = try new_value.interpretation(t.allocator);
+    drop.action = .drop;
+    _ = try catalog.resourceOperation(drop, .admit, access.policy());
+    try t.expect((try catalog.resourceOperation(drop, .execute, access.policy())).operation.retired);
+    try t.expectEqual(null, try catalog.resolveResource(1, renamed.action.rename, access.policy()));
+    try t.expect(!access.native_retired); // Logical retirement never deletes data.
+    const replacement = try creation(103, 207, "renamed");
+    _ = try catalog.admit(replacement, access.policy());
+    try t.expect((try catalog.perform(replacement.binding, access.policy())) == .committed);
+    var stale = create;
+    stale.operation = 208;
+    try t.expectEqual(.object_conflict, (try catalog.resourceOperation(stale, .admit, access.policy())).operation.reason);
+    var changed = create;
+    changed.action.create.history_ms = 0;
+    try t.expectError(error.DataIdentityConflict, catalog.resourceOperation(changed, .inspect, access.policy()));
+}
+
+test "named resource catalog disk recovery preserves allocation after every lost stage reply" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    const create = try namedCreation(111, 211, "durable");
+    var value: c.DirectResource.Definition = undefined;
+    for (0..4) |phase| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        if (phase == 2) {
+            try t.expectEqual(.prepared, (try catalog.resourceOperation(create, .inspect, access.policy())).operation.phase);
+            access.allocation_binding = create;
+            access.allocation_id = 701;
+        }
+        if (phase == 3) {
+            const recovered = (try catalog.resourceOperation(create, .inspect, access.policy())).operation;
+            try t.expectEqual(.allocated, recovered.phase);
+            value = recovered.resulting.?;
+            access.initialization = try value.initialization(t.allocator);
+        }
+        catalog.store.lose_reply = true;
+        if (phase == 0) try t.expectError(error.LostAcknowledgement, catalog.resourceOperation(create, .admit, access.policy())) else if (phase == 1) try t.expectError(error.LostAcknowledgement, catalog.prepareResourceAllocation(create, access.policy())) else if (phase == 2) try t.expectError(error.LostAcknowledgement, catalog.attachResource(create, 701, access.policy())) else try t.expectError(error.LostAcknowledgement, catalog.resourceOperation(create, .execute, access.policy()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    try t.expectEqualDeep(value, (try catalog.resolveResource(1, create.action.create.name, access.policy())).?.definition);
+    try t.expectEqual(.complete, (try catalog.resourceOperation(create, .execute, access.policy())).operation.phase);
+    try t.expectEqual(@as(u64, 5), catalog.store.root.next_lsn);
+}
+
+test "named resource cancellation retains physical cleanup evidence and blocks unreconciled allocation" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try namedCreation(112, 212, "partial");
+    _ = try catalog.resourceOperation(create, .admit, access.policy());
+    access.allocation_binding = create;
+    access.allocation_id = 702;
+    _ = try catalog.prepareResourceAllocation(create, access.policy());
+    try t.expectError(error.NamedResourceAllocationUnreconciled, catalog.resourceOperation(create, .cancel, access.policy()));
+    access.native_retired = true;
+    const allocated = try namedAllocation(&catalog, &access, create, 702);
+    access.initialization = try allocated.initialization(t.allocator);
+    try t.expectError(error.RetiredResource, catalog.resourceOperation(create, .execute, access.policy()));
+    const closed = (try catalog.resourceOperation(create, .cancel, access.policy())).operation;
+    try t.expectEqual(.cancelled, closed.phase);
+    try t.expectEqual(@as(u64, 702), closed.resulting.?.resource);
+    try t.expectEqualDeep(closed, (try catalog.resourceOperation(create, .admit, access.policy())).operation);
+    try t.expectEqual(null, try catalog.resolveResource(1, create.action.create.name, access.policy()));
+    const table = try creation(113, 213, "partial");
+    try t.expectEqual(.admitted, (try catalog.admit(table, access.policy())).phase);
+}
+
+test "named resource pages grow beyond the resident cache and namespace retirement respects pending data" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const namespace = (try catalog.inspectNamespace(1, access.policy())).?;
+    const pending = try namedCreation(100, 1000, "pending");
+    _ = try catalog.resourceOperation(pending, .admit, access.policy());
+    const drop = namespaceChange(namespace, 2000, .drop);
+    _ = try catalog.namespaceOperation(drop, .admit, access.policy());
+    const blocked = try namedCreation(101, 1001, "blocked");
+    try t.expectEqual(.object_conflict, (try catalog.resourceOperation(blocked, .admit, access.policy())).operation.reason);
+    try t.expectEqual(.dependency, (try catalog.namespaceOperation(drop, .execute, access.policy())).operation.reason);
+    _ = try catalog.resourceOperation(pending, .cancel, access.policy());
+    // Cancelled definitions occupy permanent IDs, so the first listing page
+    // can contain no visible entries and still have a required continuation.
+    for (101..111) |id| {
+        var buffer: [30]u8 = undefined;
+        const create = try namedCreation(id, 3000 + id, try std.fmt.bufPrint(&buffer, "cancelled_{d}", .{id}));
+        _ = try catalog.resourceOperation(create, .admit, access.policy());
+        _ = try catalog.resourceOperation(create, .cancel, access.policy());
+    }
+    for (111..136) |id| {
+        var buffer: [30]u8 = undefined;
+        const create = try namedCreation(id, 3000 + id, try std.fmt.bufPrint(&buffer, "value_{d}", .{id}));
+        _ = try catalog.resourceOperation(create, .admit, access.policy());
+        const value = try namedAllocation(&catalog, &access, create, 5000 + id);
+        access.initialization = try value.initialization(t.allocator);
+        _ = try catalog.resourceOperation(create, .execute, access.policy());
+    }
+    try catalog.recover();
+    const first = try catalog.listResources(1, null, access.policy());
+    try t.expect(first.next != null);
+    for (first.entries) |entry| try t.expectEqual(null, entry);
+    access.denied_metadata = 100 + 120;
+    var after = first.next;
+    var count: usize = 0;
+    var page_count: usize = 1;
+    var previous: u64 = 0;
+    while (after != null) {
+        const page = try catalog.listResources(1, after, access.policy());
+        for (page.entries) |entry| if (entry) |value| {
+            const id = value.definition.object.object;
+            try t.expect(id > previous and id >= 111 and id < 136 and id != 120);
+            try t.expectEqualDeep(try value.definition.interpretation(t.allocator), value.interpretation);
+            previous = id;
+            count += 1;
+        };
+        if (page.next) |next| try t.expect(!std.meta.eql(after.?, next));
+        after = page.next;
+        page_count += 1;
+        try t.expect(page_count < 12);
+    }
+    try t.expectEqual(@as(usize, 24), count);
+    try t.expect(page_count > 3);
+    access.denied_metadata = null;
+    const live_drop = namespaceChange(namespace, 2001, .drop);
+    _ = try catalog.namespaceOperation(live_drop, .admit, access.policy());
+    while (true) {
+        const status = (try catalog.namespaceOperation(live_drop, .execute, access.policy())).operation;
+        if (status.phase != .admitted) {
+            try t.expectEqual(.dependency, status.reason);
+            break;
+        }
+    }
+}
+
+test "named resource allocation reservations survive recovery and release only on reconciliation or cancellation" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const first = try namedCreation(100, 1000, "first");
+    const second = try namedCreation(101, 1001, "second");
+    const third = try namedCreation(102, 1002, "third");
+    for ([_]c.DirectResource.Binding{ first, second, third }) |binding| _ = try catalog.resourceOperation(binding, .admit, access.policy());
+    const prepared = (try catalog.prepareResourceAllocation(first, access.policy())).operation;
+    try catalog.recover();
+    const before = catalog.store.root;
+    try t.expectError(error.NativeAllocationBusy, catalog.prepareResourceAllocation(second, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    try t.expectEqualDeep(prepared, (try catalog.prepareResourceAllocation(first, access.policy())).operation);
+    _ = try catalog.resourceOperation(first, .cancel, access.policy());
+    try catalog.recover();
+    try t.expectEqual(.prepared, (try catalog.prepareResourceAllocation(second, access.policy())).operation.phase);
+    access.allocation_binding = second;
+    access.allocation_id = 777;
+    try t.expectError(error.NativeAllocationBusy, catalog.prepareResourceAllocation(third, access.policy()));
+    _ = try catalog.attachResource(second, 777, access.policy());
+    try catalog.recover();
+    // Initialization can continue independently once the exact native receipt
+    // has been reconciled. It does not hold the caller's next sequence hostage.
+    try t.expectEqual(.prepared, (try catalog.prepareResourceAllocation(third, access.policy())).operation.phase);
+    try t.expectEqual(.allocated, (try catalog.resourceOperation(second, .inspect, access.policy())).operation.phase);
 }

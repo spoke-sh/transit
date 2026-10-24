@@ -13,6 +13,7 @@ const Store = @import("DirectCatalogStore.zig");
 const IntentStore = @import("DirectCatalogIntent.zig");
 const N = c.DirectNamespace;
 const Dependency = c.DirectDependency;
+const Resource = c.DirectResource;
 const P = s.TablePartition;
 const pages = s.TreeStore.pages;
 const Self = @This();
@@ -34,6 +35,7 @@ pub const Policy = struct {
     subject: p.Authorization.Subject,
     make_guard: *const fn (*anyopaque, std.mem.Allocator, p.Authorization.Guard, ?p.Authorization.Guard) anyerror!P.Guard,
     registered: *const fn (*anyopaque, a.Kind, u64) anyerror!?p.Authorization.Object,
+    native_resource: ?Resource.Native = null,
 };
 pub const View = struct {
     table: P,
@@ -108,6 +110,320 @@ pub fn deinit(self: *Self) void {
 }
 pub fn recover(self: *Self) !void {
     try self.store.recover();
+}
+
+fn namedRecord(self: *Self, object: u64) !?Resource.Operation {
+    const target = try self.entry(object) orelse return null;
+    const at = target.resource orelse return null;
+    const value = try self.store.resourceRecord(at);
+    if (value.binding.object.object != object) return error.InvalidDirectCatalogEntry;
+    return value;
+}
+
+fn resourceRequirements(self: *Self, policy: Policy, binding: Resource.Binding, value: ?Resource.Definition, write: bool) !p.Authorization.Guard {
+    const namespace = try self.authorizationSchema(if (value) |known| known.namespace else if (binding.action == .create) binding.action.create.namespace else return error.CatalogDenied);
+    const target: ?a.Table = if (value) |known| .{ .id = known.object.object, .schema = known.namespace, .authorization = known.authorization } else null;
+    const access: a.Access = if (binding.action == .create and (write or value == null)) .create_table else if (write) .alter else .inspect;
+    var required = try self.requirements(policy, namespace, target, access);
+    if (binding.action == .create and (write or value == null)) required.selectable = binding.action.create.owner;
+    return required;
+}
+
+fn resourceReason(self: *Self, binding: Resource.Binding, current: P.Guard) !Resource.Reason {
+    if (binding.action == .create) {
+        const proposed = binding.action.create;
+        if (try self.namespacePending(proposed.namespace) != null or try self.entry(binding.object.object) != null) return .object_conflict;
+        _ = try self.schema(proposed.namespace);
+        if (!try self.available(proposed.namespace, proposed.name, binding.object.object, current)) return .name_conflict;
+        return .none;
+    }
+    const known = try self.namedRecord(binding.object.object) orelse return .object_conflict;
+    if (known.phase != .complete or known.retired) return .object_conflict;
+    const value = known.resulting.?;
+    if (try self.namespacePending(value.namespace) != null or try self.pending(binding.object.object, current)) return .object_conflict;
+    if (!std.meta.eql(binding.expected.?, try value.interpretation(self.allocator))) return .stale_definition;
+    if (binding.action == .drop and try self.hasDependents(binding.object.object)) return .dependency;
+    if (binding.action == .rename and !try self.available(value.namespace, binding.action.rename, binding.object.object, current)) return .name_conflict;
+    return .none;
+}
+
+fn recordResource(self: *Self, operation_input: Resource.Operation, previous: ?Resource.Operation, current: P.Guard) !Resource.Operation {
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    var operation = operation_input;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    operation.position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    try operation.validate();
+    const binding = operation.binding;
+    const id = try r.idKey(binding.object.object);
+    const updates_object = if (binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
+    if (updates_object) {
+        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn };
+        next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
+    }
+    if (operation.phase == .admitted and binding.action != .drop) {
+        const namespace = if (binding.action == .create) binding.action.create.namespace else operation.resulting.?.namespace;
+        const name = if (binding.action == .create) binding.action.create.name else binding.action.rename;
+        const candidate_name: r.Name = .{ .namespace = namespace, .name = name, .object = binding.object.object, .reservation = binding.identity() };
+        next.names = try self.store.tree().put(next.names, try r.nameKey(namespace, name), try r.pageValue(candidate_name));
+    }
+    if (operation.pending()) {
+        next.pending = try self.store.tree().put(next.pending, id, try r.pageValue(binding.identity()));
+    } else if (previous != null) next.pending = try self.store.tree().remove(next.pending, id);
+    if (operation.phase == .prepared) {
+        next.native_allocations = try self.store.tree().put(next.native_allocations, try r.principalKey(binding.connection.principal), try r.pageValue(binding.identity()));
+    } else if (previous != null and previous.?.phase == .prepared) {
+        next.native_allocations = try self.store.tree().remove(next.native_allocations, try r.principalKey(binding.connection.principal));
+    }
+    try self.store.receiptIdentity(&next, binding.identity());
+    try self.store.publish(next, .{ .resource = operation }, current);
+    return operation;
+}
+
+/// Admission and metadata control share the Table directory and native role
+/// authority. They do not allocate, initialize, retire or delete native data.
+pub fn previewResource(self: *Self, binding: Resource.Binding, policy: Policy) !Resource.Preview {
+    try self.requireInitialized();
+    try binding.validate();
+    if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const known = try self.namedRecord(binding.object.object);
+    const value = if (known) |operation| operation.resulting else null;
+    const required = try self.resourceRequirements(policy, binding, value, true);
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, null);
+    try check(current);
+    if (try c.OperationBinding.lookupResource(self.allocator, self.store.objects, binding.identity())) |claimed| try binding.requireSame(claimed);
+    const result: Resource.Preview = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = value, .reason = try self.resourceReason(binding, current) };
+    try check(current);
+    return result;
+}
+
+pub fn resourceOperation(self: *Self, binding: Resource.Binding, command: Resource.Command, policy: Policy) !Resource.Observation {
+    try self.requireInitialized();
+    try binding.validate();
+    if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const known = try self.namedRecord(binding.object.object);
+    const definition = if (known) |value| value.resulting else null;
+    const required = try self.resourceRequirements(policy, binding, definition, command != .inspect);
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, null);
+    try check(current);
+    if (try c.OperationBinding.lookupResource(self.allocator, self.store.objects, binding.identity())) |claimed| try binding.requireSame(claimed);
+    const previous = try self.store.resourceOperation(binding);
+    if (command == .inspect or (previous != null and !previous.?.pending())) {
+        try check(current);
+        return if (previous) |value| .{ .operation = value } else .not_observed;
+    }
+    if (command == .execute and previous == null) return error.NamedResourceNotAdmitted;
+    if (command == .admit and previous != null) {
+        try check(current);
+        return .{ .operation = previous.? };
+    }
+    var operation = previous orelse Resource.Operation{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = .admitted, .reason = .none, .allocation = null, .resulting = if (binding.action == .create) null else definition, .retired = false };
+    var publication_guard = current;
+    switch (command) {
+        .inspect => unreachable,
+        .admit => {
+            operation.reason = try self.resourceReason(binding, current);
+            if (operation.reason != .none) operation.phase = .rejected;
+        },
+        .cancel => {
+            // The service first reconciles an accepted native allocation, even
+            // if its reply was lost before the catalog recorded the resource.
+            if (binding.action == .create and operation.allocation != null and operation.resulting == null) {
+                const native = policy.native_resource orelse return error.NamedResourceNativeUnavailable;
+                const allocation_id = native.allocation(native.context, binding, operation.allocation.?) catch |err| if (err == error.ConflictingRetry) null else return err;
+                if (allocation_id != null) return error.NamedResourceAllocationUnreconciled;
+            }
+            operation.phase = .cancelled;
+        },
+        .execute => if (binding.action == .create) {
+            if (operation.phase != .allocated) return .{ .operation = operation };
+            const native = policy.native_resource orelse return error.NamedResourceNativeUnavailable;
+            const value = operation.resulting.?;
+            var native_required = required;
+            const metadata: p.Authorization.Guard = .{ .subject = policy.subject, .requirements = blk: {
+                var requirements_value: [p.Authorization.max_requirements]?p.Authorization.Requirement = @splat(null);
+                requirements_value[0] = .{ .object = .{ .kind = .resource, .id = value.resource }, .privileges = p.State.permission(.inspect) | p.State.permission(.read) };
+                break :blk requirements_value;
+            } };
+            native_required = try native_required.merge(metadata);
+            publication_guard = try native.make_guard(native.context, arena.allocator(), native_required, .{ .binding = binding, .allocation = operation.allocation.?, .resource = value.resource, .initialization = try value.initialization(self.allocator) });
+            try check(publication_guard);
+            operation.phase = .complete;
+        } else {
+            if (binding.action == .drop and try self.hasDependents(binding.object.object)) {
+                operation.phase = .rejected;
+                operation.reason = .dependency;
+            } else {
+                var result = operation.resulting.?;
+                result.revision = try std.math.add(u64, result.revision, 1);
+                if (binding.action == .rename) result.name = binding.action.rename;
+                operation.resulting = result;
+                operation.retired = binding.action == .drop;
+                operation.phase = .complete;
+            }
+        },
+    }
+    try c.OperationBinding.claimResource(self.allocator, self.store.objects, binding);
+    return .{ .operation = try self.recordResource(operation, previous, publication_guard) };
+}
+
+/// A recorded allocation is partial progress, including when the resource has
+/// since retired. The provider checks its original receipt under the same fence
+/// as catalog publication; a caller-supplied numeric ID cannot pass this step.
+pub fn attachResource(self: *Self, binding: Resource.Binding, resource: u64, policy: Policy) !Resource.Observation {
+    const observed = try self.resourceOperation(binding, .inspect, policy);
+    if (observed != .operation or observed.operation.phase != .prepared or binding.action != .create) return observed;
+    try c.Model.nativeId(resource);
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const proposed = binding.action.create;
+    const namespace = try self.schema(proposed.namespace);
+    const registration_value = try policy.registered(policy.context, .table, binding.object.object) orelse return error.CatalogRegistrationRequired;
+    try a.validateObject(self.config().authority, self.config().scope, .table, binding.object.object, a.reference(namespace.authorization), registration_value);
+    if (registration_value.owner != proposed.owner) return error.CatalogIdentityConflict;
+    const result: Resource.Definition = .{ .object = binding.object, .revision = 1, .namespace = proposed.namespace, .name = proposed.name, .authorization = registration_value.reference.id, .resource = resource, .allocating_principal = binding.connection.principal, .allocation = observed.operation.allocation.?, .creation = proposed };
+    var required = try self.resourceRequirements(policy, binding, result, true);
+    var native_required: p.Authorization.Guard = .{ .subject = policy.subject, .requirements = @splat(null) };
+    native_required.requirements[0] = .{ .object = .{ .kind = .resource, .id = resource }, .privileges = p.State.permission(.inspect) };
+    required = try required.merge(native_required);
+    const native = policy.native_resource orelse return error.NamedResourceNativeUnavailable;
+    const current = try native.make_guard(native.context, arena.allocator(), required, .{ .binding = binding, .allocation = observed.operation.allocation.?, .resource = resource, .initialization = null });
+    try check(current);
+    var operation = observed.operation;
+    operation.phase = .allocated;
+    operation.resulting = result;
+    return .{ .operation = try self.recordResource(operation, observed.operation, current) };
+}
+
+pub fn resourceRegistration(self: *Self, binding: Resource.Binding, policy: Policy) !?Registration {
+    const observed = try self.resourceOperation(binding, .inspect, policy);
+    if (observed != .operation or observed.operation.phase != .admitted or binding.action != .create) return null;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const required = try self.resourceRequirements(policy, binding, null, true);
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, null);
+    const namespace = try self.schema(binding.action.create.namespace);
+    const registered_value = try policy.registered(policy.context, .table, binding.object.object);
+    const fence = try current.acquire(current.context);
+    defer current.release(current.context);
+    if (registered_value != null) return null;
+    return .{ .action = .{ .domain = self.config().authority.table_domain, .owner = binding.action.create.owner, .schema = a.reference(namespace.authorization), .binding = try a.binding(self.config().scope, .table, binding.object.object) }, .authorization_revision = fence.policy_epoch - 1 };
+}
+
+/// Rechecked before the service accepts the frozen signed native request. The
+/// native authority separately enforces the caller's ADMIN right on its writer.
+pub fn resourceAllocation(self: *Self, binding: Resource.Binding, policy: Policy) !?p.Growth.Request {
+    const observed = try self.resourceOperation(binding, .inspect, policy);
+    if (observed != .operation or observed.operation.phase != .prepared or binding.action != .create) return null;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const required = try self.resourceAllocationRequirements(binding, policy);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    return try binding.allocation(observed.operation.allocation.?);
+}
+
+fn resourceAllocationRequirements(self: *Self, binding: Resource.Binding, policy: Policy) !p.Authorization.Guard {
+    const namespace = try self.schema(binding.action.create.namespace);
+    const registered_value = try policy.registered(policy.context, .table, binding.object.object) orelse return error.CatalogRegistrationRequired;
+    try a.validateObject(self.config().authority, self.config().scope, .table, binding.object.object, a.reference(namespace.authorization), registered_value);
+    if (registered_value.owner != binding.action.create.owner) return error.CatalogIdentityConflict;
+    var required = try self.resourceRequirements(policy, binding, null, true);
+    var native_required: p.Authorization.Guard = .{ .subject = policy.subject, .requirements = @splat(null) };
+    native_required.requirements[0] = .{ .object = .{ .kind = .process, .id = binding.action.create.writer }, .privileges = p.permission(.admin) };
+    required = try required.merge(native_required);
+    return required;
+}
+
+pub fn prepareResourceAllocation(self: *Self, binding: Resource.Binding, policy: Policy) !Resource.Observation {
+    const observed = try self.resourceOperation(binding, .inspect, policy);
+    if (observed != .operation or observed.operation.phase != .admitted or binding.action != .create) return observed;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const required = try self.resourceAllocationRequirements(binding, policy);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    // The native sequence belongs to the original caller. Only one declaration
+    // in this catalog may hold its next allocation at a time. Other native
+    // commands can still race; the native receipt/CAS remains authoritative.
+    if (try self.store.tree().get(self.store.root.native_allocations, try r.principalKey(binding.connection.principal)) != null) return error.NativeAllocationBusy;
+    const native = policy.native_resource orelse return error.NamedResourceNativeUnavailable;
+    const allocation = try native.prepare(native.context, binding);
+    const current = try native.make_guard(native.context, arena.allocator(), required, .{ .binding = binding, .allocation = allocation, .resource = null, .initialization = null });
+    try check(current);
+    var operation = observed.operation;
+    operation.allocation = allocation;
+    operation.phase = .prepared;
+    return .{ .operation = try self.recordResource(operation, observed.operation, current) };
+}
+
+pub const ResourceView = struct { definition: Resource.Definition, interpretation: d.Definition, position: d.Position };
+pub fn resolveResource(self: *Self, namespace_id: u64, name: a.Name, policy: Policy) !?ResourceView {
+    try self.requireInitialized();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.schema(namespace_id);
+    const initial = try self.guard(arena.allocator(), policy, namespace, null, .schema);
+    try check(initial);
+    const candidate_name = try self.candidate(namespace_id, name) orelse {
+        try check(initial);
+        return null;
+    };
+    const known = try self.namedRecord(candidate_name.object) orelse {
+        try check(initial);
+        return null;
+    };
+    if (known.phase != .complete or known.retired) {
+        try check(initial);
+        return null;
+    }
+    const value = known.resulting.?;
+    if (value.namespace != namespace_id or !std.meta.eql(value.name, name)) {
+        try check(initial);
+        return null;
+    }
+    try check(try self.guard(arena.allocator(), policy, namespace, .{ .id = value.object.object, .schema = namespace_id, .authorization = value.authorization }, .inspect));
+    return .{ .definition = value, .interpretation = try value.interpretation(self.allocator), .position = known.position };
+}
+
+pub const ResourcePage = struct { entries: [pages.page_entries]?ResourceView = @splat(null), next: ?pages.Key, position: d.Position };
+/// One bounded page of catalog metadata. Every accepted definition retains its
+/// publication evidence; this read does not certify current native data access
+/// or resource lifetime. Empty filtered pages still advance their continuation.
+pub fn listResources(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !ResourcePage {
+    try self.requireInitialized();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.schema(namespace_id);
+    var combined = try self.requirements(policy, namespace, null, .schema);
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined, null));
+    const batch = try self.store.tree().scan(self.store.root.objects, after);
+    var result: ResourcePage = .{ .next = batch.next, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
+    var count: usize = 0;
+    for (batch.entries) |slot| if (slot) |item| {
+        const target = try r.fromValue(r.Entry, self.allocator, item.value);
+        try target.validate(self.config());
+        if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        const at = target.resource orelse continue;
+        const known = try self.store.resourceRecord(at);
+        if (known.binding.object.object != target.object) return error.InvalidDirectCatalogEntry;
+        if (known.phase != .complete or known.retired) continue;
+        const value = known.resulting.?;
+        if (value.namespace != namespace_id) continue;
+        const required = try self.requirements(policy, namespace, .{ .id = target.object, .schema = namespace_id, .authorization = value.authorization }, .inspect);
+        check(try policy.make_guard(policy.context, arena.allocator(), required, null)) catch |err| {
+            if (err == error.CatalogDenied or err == error.Forbidden) continue;
+            return err;
+        };
+        combined = try combined.merge(required);
+        result.entries[count] = .{ .definition = value, .interpretation = try value.interpretation(self.allocator), .position = known.position };
+        count += 1;
+    };
+    try check(try policy.make_guard(policy.context, arena.allocator(), combined, null));
+    return result;
 }
 
 fn config(self: *Self) Configuration {
@@ -333,11 +649,12 @@ fn entry(self: *Self, object: u64) !?r.Entry {
     const value = try self.store.tree().get(self.store.root.objects, try r.idKey(object)) orelse return null;
     const result = try r.fromValue(r.Entry, self.allocator, value);
     try result.validate(self.config());
-    if (result.object != object or result.partition >= self.store.root.next_partition) return error.InvalidDirectCatalogEntry;
+    if (result.object != object or result.partition >= self.store.root.next_partition or (result.resource orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
     return result;
 }
 
 fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool) !View {
+    if (target.resource != null) return error.CatalogKindMismatch;
     var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed orelse return error.CatalogRegistrationRequired);
     defer seed.deinit();
     var options = self.options.table;
@@ -594,6 +911,12 @@ fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P
         const target = try r.fromValue(r.Entry, self.allocator, item.value);
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        if (target.resource) |at| {
+            const named = try self.store.resourceRecord(at);
+            const named_namespace = if (named.resulting) |value| value.namespace else named.binding.action.create.namespace;
+            if (named_namespace == namespace_id and (named.pending() or (named.phase == .complete and !named.retired))) return .{ .blocked = true, .after = null };
+            continue;
+        }
         if (target.seed != null) {
             var view = try self.open(self.allocator, target, true);
             defer view.deinit();
@@ -665,7 +988,7 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
         if (current) |view| {
             required = try required.merge(try self.requirements(policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .inspect));
             matches = if (binding.expected) |expected| std.meta.eql(expected, view.table.root.interpretation) else false;
-        } else matches = binding.expected == null;
+        } else matches = binding.expected == null and try self.available(binding.namespace, binding.name, 0, try policy.make_guard(policy.context, arena.allocator(), required, null));
     }
     const current_guard = try policy.make_guard(policy.context, arena.allocator(), required, null);
     try check(current_guard);
@@ -704,10 +1027,14 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
 fn pending(self: *Self, object: u64, current: P.Guard) !bool {
     const value = try self.store.tree().get(self.store.root.pending, try r.idKey(object)) orelse return false;
     const operation = try r.fromValue(d.Operation, self.allocator, value);
+    const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
+    if (target.resource != null) {
+        const binding = try c.OperationBinding.lookupResource(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
+        return (try self.store.resourceOperation(binding) orelse return error.InvalidDirectCatalogOperation).pending();
+    }
     const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
     const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
     if (!observed.pending()) return false;
-    const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
     if (target.seed == null) return true;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
@@ -717,6 +1044,15 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
 fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.Guard) !bool {
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
+    if (target.resource) |at| {
+        const named = try self.store.resourceRecord(at);
+        if (named.phase == .complete and !named.retired) {
+            const value = named.resulting.?;
+            if (value.namespace == namespace and std.meta.eql(value.name, name)) return proposed.object == object;
+        }
+        const binding = try c.OperationBinding.lookupResource(self.allocator, self.store.objects, proposed.reservation) orelse return error.InvalidDirectCatalogOperation;
+        return !(try self.store.resourceOperation(binding) orelse return error.InvalidDirectCatalogOperation).pending();
+    }
     var view: ?View = null;
     defer if (view) |*value| value.deinit();
     if (target.seed != null) {
@@ -833,7 +1169,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
         }

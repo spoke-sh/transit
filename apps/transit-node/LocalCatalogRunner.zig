@@ -28,6 +28,89 @@ const Transport = struct {
 };
 pub const Result = struct { observation: D.Observation, native_steps: u16 };
 pub const NamespaceResult = struct { observation: c.DirectNamespace.Observation, native_steps: u16 };
+pub const ResourceResult = struct { observation: c.DirectResource.Observation, native_steps: u16 };
+
+/// The original caller signs its frozen native allocation. Registrar credentials
+/// only create catalog permission objects; they never grant data or allocate a
+/// caller's resource. Kind-specific initialization remains its framework owner.
+pub fn runResource(self: *Self, catalog: *D, binding: c.DirectResource.Binding, policy: D.Policy, command: c.DirectResource.Command, step_limit: u16, signed_allocation: ?c.DirectResource.SignedAllocation) !ResourceResult {
+    if (step_limit == 0 or step_limit > 256 or (command != .execute and command != .cancel)) return error.InvalidCatalogStepBudget;
+    var native_steps: u16 = 0;
+    var attempts: u16 = 0;
+    var transport: Transport = .{ .engine = self.engine };
+    const registrar: client.AuthorizationClientWithTransport(Transport) = .{ .transport = &transport, .realm = self.engine.genesis.realm, .principal = self.principal, .key = self.key, .role = self.role };
+    while (true) {
+        const observed = try catalog.resourceOperation(binding, .inspect, policy);
+        if (observed != .operation or !observed.operation.pending()) return .{ .observation = observed, .native_steps = native_steps };
+        if (binding.action != .create) return .{ .observation = try catalog.resourceOperation(binding, command, policy), .native_steps = native_steps };
+        if (observed.operation.phase == .allocated) {
+            const result = catalog.resourceOperation(binding, command, policy) catch |err| {
+                if (err == error.NamedResourceNotInitialized) return .{ .observation = observed, .native_steps = native_steps };
+                return err;
+            };
+            return .{ .observation = result, .native_steps = native_steps };
+        }
+        if (observed.operation.phase == .prepared) {
+            const native = policy.native_resource orelse return error.NamedResourceNativeUnavailable;
+            const allocated = native.allocation(native.context, binding, observed.operation.allocation.?) catch |err| {
+                if (err == error.ConflictingRetry and command == .cancel) return .{ .observation = try catalog.resourceOperation(binding, .cancel, policy), .native_steps = native_steps };
+                return err;
+            };
+            if (allocated) |resource| {
+                _ = try catalog.attachResource(binding, resource, policy);
+                continue;
+            }
+            if (command == .cancel) return .{ .observation = try catalog.resourceOperation(binding, .cancel, policy), .native_steps = native_steps };
+            if (attempts == step_limit) return .{ .observation = observed, .native_steps = native_steps };
+            attempts += 1;
+            const signed = signed_allocation orelse return .{ .observation = observed, .native_steps = native_steps };
+            if (!std.meta.eql(signed.allocation, observed.operation.allocation.?)) return error.DataIdentityConflict;
+            const request = try catalog.resourceAllocation(binding, policy) orelse continue;
+            const prepared = self.engine.prepare(.{ .request = request, .signature = signed.signature }) catch |err| {
+                if (err == error.AlreadyCommitted) continue;
+                return err;
+            };
+            if (self.after_prepare) |inject| try inject.run(inject.context, self.engine);
+            const checked = try catalog.resourceAllocation(binding, policy) orelse continue;
+            if (!std.meta.eql(checked, request)) return error.DataIdentityConflict;
+            _ = self.engine.commit(prepared) catch |err| {
+                if (err == error.Conflict) continue;
+                return err;
+            };
+            native_steps += 1;
+            continue;
+        }
+        if (command == .cancel) return .{ .observation = try catalog.resourceOperation(binding, .cancel, policy), .native_steps = native_steps };
+        if (attempts == step_limit) return .{ .observation = observed, .native_steps = native_steps };
+        attempts += 1;
+        if (try catalog.resourceRegistration(binding, policy)) |plan| {
+            const next = registrar.registrationAt(plan.action, plan.authorization_revision) catch |err| {
+                if (err == error.StaleAuthorizationRevision) return .{ .observation = try catalog.resourceOperation(binding, .inspect, policy), .native_steps = native_steps };
+                return err;
+            };
+            switch (next) {
+                .ready => continue,
+                .submit => |signed| {
+                    const prepared = self.engine.prepare(signed) catch |err| {
+                        if (err == error.AlreadyCommitted or err == error.StaleAuthorizationRevision) continue;
+                        return err;
+                    };
+                    if (self.after_prepare) |inject| try inject.run(inject.context, self.engine);
+                    const checked = try catalog.resourceRegistration(binding, policy) orelse continue;
+                    if (!std.meta.eql(checked.action, plan.action)) return error.CatalogIdentityConflict;
+                    if (checked.authorization_revision != plan.authorization_revision) continue;
+                    _ = self.engine.commit(prepared) catch |err| {
+                        if (err == error.Conflict) continue;
+                        return err;
+                    };
+                    native_steps += 1;
+                    continue;
+                },
+            }
+        }
+        return .{ .observation = try catalog.prepareResourceAllocation(binding, policy), .native_steps = native_steps };
+    }
+}
 
 /// The step bound limits one request's work, not total registration progress.
 /// A later explicit call resumes the same operation and native change record.

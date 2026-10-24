@@ -59,6 +59,89 @@ original schema, advances only after fully decoding a valid page and verifies
 the complete row count. Its explicit `check` revalidates current rights before
 disclosure from cached data. Local destruction does not release the durable pin.
 
+### Named native resources
+
+`resource_preview`, `resource_operation`, `resource_lookup` and `resource_list`
+share the direct catalog's object IDs, names, namespace ownership and operation
+identity space. `DirectResourceClient` exposes these typed operations. They do
+not add executable `CREATE KV` or `CREATE DOCUMENT` SQL syntax.
+
+`DirectResource.Binding` contains the mandatory shared definition, complete
+connection, operation, target object, nullable expected interpretation and
+CREATE, RENAME or DROP action. CREATE has no expectation. RENAME/DROP bind an
+exact definition revision and digest. CREATE freezes namespace/name, owner role,
+an existing writer PID, explicit lifetime ownership, nullable deadline/history
+policies and a kind-specific specification. KV specifies a scalar logical type,
+nullability, native byte keys and FVL1 values. Document specifies its identity,
+type revision and publication limits. Null retention settings remain unlimited.
+The service does not choose application behavior, grant data access or create a
+writer process.
+
+Preview is read-only. Admission reserves the shared name and permanently claims
+the object identity without exposing a live definition. An operation records its
+original binding, catalog WAL position, phase, reason, nullable native allocation,
+nullable resulting definition and logical retirement. The phases are `admitted`,
+`prepared`, `allocated`, `complete`, `rejected` and `cancelled`.
+
+CREATE execution first registers the metadata permission object using the existing
+catalog registrar. It then persists the original caller's next native sequence as
+`prepared`, before any allocation dispatch. One prepared allocation per principal
+can occupy this catalog's durable reservation index. A second preparation returns
+Conflict until the first is reconciled or cancelled. This index does not reserve
+the principal against independent native commands or another catalog authority.
+A native sequence conflict must be reconciled; it never authorizes silently
+choosing a replacement sequence.
+
+The caller signs the exact frozen native `create_resource` request. The typed
+client reads the prepared record before signing; an execution attempt uses at
+most two catalog exchanges. The service checks current catalog CREATE/owner
+eligibility and native ADMIN on the writer before submission. Registrar keys
+never sign this allocation on the caller's behalf. Accepted native allocation
+and its original receipt can outlive a denied or lost response. Attachment checks
+the actual receipt, resource properties and current native INSPECT permission,
+then records `allocated` and releases the sequence reservation. A submitted ID
+is never allocation evidence.
+
+Initialization belongs to `transit-station-app.NamedResource`, using the existing
+native resource writer and private Station turns. KV initialization reserves and
+completes its marker atomically. Document initialization reserves the exact initial
+interpretation, runs `Document.Service.create`, verifies the empty accepted head,
+then completes its marker in a later turn. Application associations, worker
+ownership and current native data grants must already authorize those turns.
+Neither a populated KV nor an existing anonymous Document is adopted implicitly.
+
+Catalog completion verifies the actual current native resource lifetime and the
+exact [initialization marker](DATA_LIFECYCLE_V1.md#native-resource-initialization)
+under the same native fence as publication. Only then does lookup/list disclose
+the named definition. This verifies accepted writer evidence, not honest
+application computation. A completed catalog receipt describes that publication;
+it is not a continuing guarantee that the resource remains available. Current
+data reads independently check grants, retirement and expiry.
+
+A definition's digest is SHA-256 of `transit.catalog.native-resource.v1`, one zero
+byte and canonical public JSON of `DirectResource.Definition` in declared field
+order. It includes the allocated resource, original caller/sequence, metadata
+authority, immutable creation specification, name and revision. RENAME changes
+the name/revision while retaining the initial marker identity. Logical DROP
+retires the catalog binding and does not retire native data. Namespace DROP also
+restricts pending or live named resources. Object IDs and original terminal
+receipts never rebind when a name is reused.
+
+Cancellation reconciles an already accepted allocation before recording its
+resource ID for separate physical cleanup. It neither deletes data nor cancels
+an independently submitted native request. Inspect/cancel use reserved control
+admission. A failed execution attempt leaves its last accepted phase available;
+transport failure is not rejection, cancellation or rollback. Missing initialization
+returns the retained `allocated` state. Other current-authority, identity,
+lifetime or storage failures remain explicit errors.
+
+Listings scan at most eight directory entries per call and filter current
+metadata rights. Empty filtered pages may carry a continuation. Each result has
+its exact interpretation and publication position; the page has a catalog
+observation position. A listing does not establish a multi-resource data cut or
+permission to read values. Shared metadata permission registration reuses the
+catalog's Table domain; native resource grants remain the data authority.
+
 ### Namespace lifecycle
 
 `namespace_preview` and `namespace_operation` use `DirectNamespace.Binding`:
