@@ -29,7 +29,7 @@ def run(node, worker_binary, caller, query_host):
             resident_pages=16, request_timeout_ms=10000)
         config.write_text(json.dumps(settings))
         faults, retries, failures = {}, set(), []
-        observed = dict(turns=0, max_mutations=0, max_value_bytes=0, pages=0, transport_disconnects=0)
+        observed = dict(turns=0, max_mutations=0, max_value_bytes=0, pages=0, transport_disconnects=0, direct_acceptance_losses=0)
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -41,6 +41,14 @@ def run(node, worker_binary, caller, query_host):
                     upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = upstream.getresponse()
                     data = response.read()
+                    status = response.status
+                    if self.path == '/table/v1' and status == 200:
+                        saved = envelope['action'].get('admit_saved')
+                        if saved and saved['binding']['action'] == 'insert' and observed['direct_acceptance_losses'] == 0:
+                            # Admission may have succeeded. The original native
+                            # input and direct reference must survive this fault.
+                            observed['direct_acceptance_losses'] += 1
+                            status, data = 503, b'{"err":"AuthorityUnavailable"}'
                     if self.path == '/v1/query' and response.status == 200:
                         query = envelope['query']['kind']
                         if 'entries' in query and query['entries'].get('key') is None:
@@ -53,6 +61,7 @@ def run(node, worker_binary, caller, query_host):
                             if b'WI1i\x04' in payload: selected = 'operator-step'
                         turn = command.get('turn', command.get('turn_with_versions', {}).get('turn', {}))
                         if turn:
+                            assert not turn.get('failed'), 'Data transport failure became a durable failed input'
                             changes = [item for item in turn['mutations'] if item]
                             observed['turns'] += 1
                             observed['max_mutations'] = max(observed['max_mutations'], len(changes))
@@ -71,7 +80,7 @@ def run(node, worker_binary, caller, query_host):
                         if selected and selected not in faults:
                             faults[selected] = (body, data)
                             data = b'{"position":0}'
-                    self.send_response(response.status)
+                    self.send_response(status)
                     self.send_header('Content-Type', 'application/json')
                     self.send_header('Content-Length', str(len(data)))
                     self.end_headers()
@@ -117,6 +126,7 @@ def run(node, worker_binary, caller, query_host):
             current_worker = worker('worker-first')
             courier = spawn('courier', [query_host, str(fixture.root/'courier.json')])
             invoke('seed')
+            assert observed['direct_acceptance_losses'] == 1
             invoke('step')
             until = time.monotonic()+10
             while 'worker-copy' not in retries:

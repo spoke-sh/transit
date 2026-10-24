@@ -26,8 +26,10 @@ data service and namespace. Native application state retains that binding,
 dispatch references and migration progress; Table rows belong to the data owner.
 The [local workflow](docs/local.md) grants access through recoverable public
 authorization changes. Startup never recreates grants or a private catalog.
-Worker diagnostics exclude data and keys. Current read failures leave the input
-unresolved; malformed/denied commands have retained dispositions.
+Worker diagnostics exclude data and keys. Native reads and direct data-call
+failures discard the private turn and leave the input unresolved. Temporary
+unavailability retries the original dispatch; other unexpected errors stop the
+worker. Malformed/denied commands have retained dispositions.
 The initial ownership read retries temporary unavailability within
 `request_timeout_ms` before writing its activation marker. Authority denial and
 stale ownership still stop startup.
