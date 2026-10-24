@@ -1,6 +1,7 @@
 { pkgs }:
 {
   packages = with pkgs; [
+    go
     rustc
     cargo
     rustfmt
