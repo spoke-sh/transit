@@ -10,42 +10,46 @@ just examples::serving-compose
 just examples::serving-reference
 ```
 
-The first command runs native processes and disk Ursula. Compose builds static
+The first command runs native processes with a local directory containing native
+history and direct Table logs/objects. Compose builds static
 images from the checked-out sources and isolates client traffic from storage.
 The reference command requires the existing Kind/Substrate infrastructure and
 matching runtime image described in the [reference launcher guide](../../../launchers/README.md#run-the-reference-installation).
-It creates a new `transit-serving-*` namespace, a separate worker pool, disk store
-and cold-store fixture. It never adopts or updates the default installation.
-The physical fixtures bind pinned native MinIO to the selected private storage
-bridge, with a fresh port and temporary credentials. Caller/gateway egress probes
-include that exact endpoint; a host-side cold process grants no Transit access.
+It creates a new `transit-serving-*` namespace, a separate worker pool and a
+persistent volume for the native and direct Table owners. It never adopts or updates the default installation.
+The physical fixtures also start isolated Ursula and pinned native MinIO targets
+for storage-network denial probes. Those targets do not store this example's
+Table or native history. Caller/gateway egress probes include their exact
+endpoints; those processes grant no Transit access.
 Each command runs the demonstration and recovery assertions, then removes only
 its own processes, containers, namespace and temporary credentials.
 
 The examples provision an administrator, authenticated timer observer, two Station
 owners, a separately read-authorized gateway and an explicit service caller.
-They initialize the ingress and application privately, create the counter Table,
-and wait for authorized catalog discovery before publishing its service binding
-and listeners. The initializer has an ordinary LOGIN owner role. Reactive callers
+They create the counter Table through the direct catalog client, wait for
+authorized discovery, then initialize the ingress and application privately before
+publishing the service binding and listeners. The initializer has an ordinary LOGIN owner role. Reactive callers
 receive native CONNECT, USAGE and SELECT grants, with creator-scoped defaults
-applied when the Table is published. Bootstrap delivery runs before this readiness check; the
-physical recovery schedule stops delivery again before accepting its test call. The Table is a non-trading integer counter; there
+applied when the Table is published. The application worker receives SET-only
+membership in the owner role. The physical recovery schedule stops delivery
+before accepting its test call. The Table is a non-trading integer counter; there
 are no external effects or callback destinations.
 
 The fixtures configure a native admission ceiling of 50,000 positions with 2,000
 reserved for control/recovery, in addition to the service's active-operation and
 per-caller limits. Capacity pressure refuses work and never expires history.
-These are demonstration budgets; deployment operators must size disk/cold storage
+These are demonstration budgets; deployment operators must size disk storage
 and explicit admission headroom for their own retained workload.
 
 Two independent gateways expose the same service. The caller prepares and retains
 one signed native send, races it through both gateways, and saves its ingress
 receipt. The runner stops before outbox delivery, replaces physical workers,
-gateways, node and store process, then retries the original bytes and resumes
+gateways and node while preserving its local files, then retries the original bytes and resumes
 public outbox delivery. It checks the exact once-only counter result, unchanged
 recovery after publication retirement, and denial after current policy revocation.
-The [proof ledger](../../../tests/README.md#m19-qualification) records the
-executed placements and costs; running native tests does not qualify Substrate.
+The [proof ledger](../../../tests/README.md) records the executed profiles and
+costs. Evidence from the earlier actor Table owner does not qualify this direct
+Table configuration; each physical placement must be run against the current artifacts.
 
 Compose workers preserve activation markers and receive a fresh ownership
 generation on replacement. Substrate workers generate fresh in-memory keys and

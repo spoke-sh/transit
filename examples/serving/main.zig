@@ -13,6 +13,8 @@ pub const Config = struct {
     principal: u64,
     seed_file: ?[]const u8 = null,
     counter_view: bool = false,
+    /// Separate read-only native identity bound to this worker's current key.
+    inspection_principal: ?u64 = null,
     pid: u64 = 0,
     generation: u64 = 0,
     activation_directory: ?[]const u8 = null,
@@ -38,6 +40,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     const config = parsed.value;
     if (config.realm == 0 or config.principal == 0 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
+    const inspector: ?u64 = if (config.role == .live_ingress) inspector: {
+        const value = config.inspection_principal orelse return error.MissingInspectionPrincipal;
+        if (value == 0 or value == config.principal or value > p.max_counter) return error.InvalidInspectionPrincipal;
+        break :inspector value;
+    } else if (config.inspection_principal != null) return error.UnexpectedInspectionPrincipal else null;
+    if (config.role == .application) {
+        _ = try config.role.application.data.connection(config.principal);
+        if (config.role.application.data.scope.realm != config.realm) return error.CounterDataBindingChanged;
+    }
     var key = if (bootstrap) key: {
         if (config.seed_file != null or (config.role == .gateway or config.role == .clock_observer)) return error.InvalidBootstrap;
         var seed: [32]u8 = undefined;
@@ -89,15 +100,31 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const live_scratch: []u8 = if (config.role == .live_ingress) try init.gpa.alloc(u8, 1024 * 1024) else &.{};
     defer if (live_scratch.len != 0) init.gpa.free(live_scratch);
     const resources: s.client.ResourceReader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key };
-    var live: serving.LiveService = .{ .configuration = if (config.role == .live_ingress) config.role.live_ingress else undefined, .resources = resources, .scratch = live_scratch, .upper_ms = 0 };
-    var application: Application = .{ .allocator = init.gpa, .configuration = if (config.role == .application) config.role.application else undefined };
+    var live_resources = resources;
+    if (inspector) |principal| live_resources.principal = principal;
+    var live: serving.LiveService = .{ .configuration = if (config.role == .live_ingress) config.role.live_ingress else undefined, .resources = live_resources, .scratch = live_scratch, .upper_ms = 0 };
+    var direct: serving.query.catalog.DirectTableClient = if (config.role == .application) .{
+        .allocator = init.gpa,
+        .authority = &wire,
+        .service = &wire,
+        .connection = try config.role.application.data.connection(config.principal),
+        .key = key,
+    } else undefined;
+    defer if (config.role == .application) std.crypto.secureZero(u8, std.mem.asBytes(&direct.key));
+    var application: Application = .{ .allocator = init.gpa, .configuration = if (config.role == .application) config.role.application else undefined, .data = if (config.role == .application) @import("CounterData.zig").Client.direct(&direct) else undefined };
     const queries = config.role == .application and config.role.application.queries;
     const adapter: []u8 = if (queries) try init.gpa.alloc(u8, serving.query.UnifiedBehavior.adapter_bytes) else &.{};
     defer if (adapter.len != 0) init.gpa.free(adapter);
     const workspace: []u8 = if (queries) try init.gpa.alloc(u8, serving.query.fuze.Unified.Arrow.working_bytes) else &.{};
     defer if (workspace.len != 0) init.gpa.free(workspace);
     const cancellation = serving.query.fuze.execution.Cancellation.init(false);
-    if (queries) application.query = .{ .peer = application.configuration.ingress, .initializer = application.configuration.initializer, .resources = resources, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
+    if (queries) {
+        // The counter writes as its selected data owner. Captures authenticate
+        // this executor under its own credential and retain caller delegation.
+        var capture = direct;
+        capture.connection.role = null;
+        application.query = .{ .peer = application.configuration.ingress, .initializer = application.configuration.initializer, .resources = resources, .tables = capture, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
+    }
     const handler = switch (config.role) {
         .ingress => blk: {
             host.input_guard = service.guard();
@@ -116,22 +143,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         live.upper_ms = try std.math.add(u64, now, 1000);
         const step = host.step(handler, now + 30000) catch |err| {
             diagnostics.event(.{ .name = "serving.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (err == error.CatalogRegistrationRequired and config.role == .application and host.pending == null) {
-                const action = application.registration orelse return err;
-                if (action != .register_object) return error.InvalidAuthorizationObject;
-                const registrar: s.client.AuthorizationClient = .{ .transport = &wire, .realm = config.realm, .principal = config.principal, .key = key };
-                const registration = registrar.registration(action.register_object) catch |failure| {
-                    if (!s.client.Client.unavailable(failure)) return failure;
-                    try init.io.sleep(.fromMilliseconds(10), .awake);
-                    continue;
-                };
-                if (registration == .submit) _ = wire.submit(registration.submit) catch |failure| {
-                    if (!s.client.Client.unavailable(failure) and failure != error.Conflict) return failure;
-                    try init.io.sleep(.fromMilliseconds(10), .awake);
-                    continue;
-                };
-                continue;
-            }
             if (s.client.Client.unavailable(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {

@@ -252,7 +252,7 @@ pub fn build(b: *std.Build) void {
     }) });
     const counter_test = b.addRunArtifact(counter_tests);
     test_step.dependOn(&counter_test.step);
-    b.step("test-serving-counter", "Check staged typed counter writes and original replies").dependOn(&counter_test.step);
+    b.step("test-serving-counter", "Check direct counter acceptance and original native progress").dependOn(&counter_test.step);
 
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
     const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = exampleModule(b, sdk, "transit_station_app", target, optimize) }, .{ .name = "transit_query", .module = exampleModule(b, sdk, "transit_query", target, optimize) } } });
@@ -991,7 +991,7 @@ pub fn build(b: *std.Build) void {
     }
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, transit_cli }) |artifact| serving_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, station_host }) |artifact| serving_test.addArtifactArg(artifact);
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
@@ -1007,7 +1007,6 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");
     if (b.option(bool, "serving-reactive-limits", "Qualify reactive capacity, cursor and expiry limits") orelse false) serving_test.addArg("--reactive-limits");
     if (b.option(bool, "serving-reactive-browser", "Qualify the real browser reactive bootstrap and transports") orelse false) serving_test.addArg("--reactive-browser");
-    serving_test.step.dependOn(&operation_install.step);
     serving_test.has_side_effects = true;
     serving_test.stdio = .inherit;
     b.step("test-serving", "Qualify durable HTTP service admission and recovery").dependOn(&serving_test.step);
