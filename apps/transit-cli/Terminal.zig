@@ -39,7 +39,7 @@ pub fn run(console: *Console.Console) !void {
         editor.arena.deinit();
     }
     editor.history.open(console.init.environ_map.get("HOME")) catch |err| try editor.historyFailure(err);
-    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nTab completes; Ctrl-R searches history; Esc clears; Ctrl-Z undoes.\n\x1b[?2004h");
+    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nTab completes; Ctrl-R searches; Esc dismisses; Ctrl-C clears; Ctrl-Z undoes.\n\x1b[?2004h");
     try Output.write(console.init, &output.interface, "");
     defer {
         Signals.clear(); // Restore display modes even after the handled signal.
@@ -496,7 +496,7 @@ const Editor = struct {
             self.history_position = null;
             const more = if (std.mem.eql(u8, std.mem.trim(u8, statement, " \t\r\n"), ".edit")) try self.editExternal() else try self.console.execute(statement);
             if (!more) return false;
-            // A bare Esc typed during execution must not clear the next draft.
+            // Esc typed during execution must not dismiss the next interaction.
             // Count queued bytes instead of draining typeahead or interpreting
             // keys inside SQL settlement. All input decoding decrements this cut.
             var queued: c_int = 0;
@@ -790,7 +790,7 @@ const Editor = struct {
         }
         if (length == 0) {
             if (queued_during_execution) return;
-            self.clearDraft();
+            if (self.searching) self.finishSearch(false) else self.dismiss();
             return;
         }
         const up = std.mem.eql(u8, code, "[A") or std.mem.eql(u8, code, "OA");
@@ -816,7 +816,7 @@ const Editor = struct {
         } else if (std.mem.eql(u8, code, "[3~")) {
             if (self.cursor < self.length) self.remove(self.cursor, self.cursor + try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor]));
         }
-        // Unknown/truncated escape sequences never become a clear action.
+        // Unknown/truncated escape sequences never become a cancel action.
     }
     fn select(self: *Editor, up: bool) void {
         self.detail_page = 0;

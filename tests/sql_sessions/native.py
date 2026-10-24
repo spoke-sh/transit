@@ -349,11 +349,11 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             assert b'\n> ' not in ANSI.sub(b'', terminal.screen), terminal.screen
             terminal.send('\x1a')
             terminal.expect('transit> ' + before)
-            terminal.send('\x1b')
+            terminal.send('\x03')
             terminal.expect('transit> ')
         terminal.send('SELECT va FROM native_sessions\x01' + '\x1b[C' * 9 + '\t')
         terminal.expect('transit> SELECT "value" FROM native_sessions', timeout=10)
-        terminal.send('\x1b')
+        terminal.send('\x03')
         terminal.expect('transit> ')
         terminal.send('SET query.statement_t\t')
         terminal.expect('transit> SET query.statement_timeout', timeout=10)

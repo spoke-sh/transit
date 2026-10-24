@@ -31,7 +31,9 @@ def check(binary):
         insert = invoke('.help INSERT').stdout
         assert 'INSERT INTO' in insert and 'UPDATE people' not in insert and 'DELETE FROM' not in insert
         assert 'ALTER TABLE' in invoke('.help ALTER TABLE').stdout
-        assert 'Ctrl-R' in invoke('.help shortcuts').stdout
+        shortcuts = invoke('.help shortcuts').stdout
+        assert 'Ctrl-R' in shortcuts and 'Esc / Ctrl-G' in shortcuts and 'Ctrl-C' in shortcuts
+        assert 'Restore the original draft' in shortcuts and 'Clear the unsubmitted draft' in shortcuts
         assert 'SET query.statement_timeout' in invoke('.help settings').stdout
         assert 'SELECT COUNT' in invoke('.help sql').stdout
         assert 'Edit the latest SQL' in invoke('.help\tedit').stdout

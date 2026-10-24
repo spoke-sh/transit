@@ -53,11 +53,11 @@ def check(binary):
             draft(['original'])
             terminal.send('\x12\x15old')
             terminal.expect('>\r\n.old')
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft([''])
             terminal.send('\x1a')
             draft(['original'])
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft([''])
             terminal.send('\x12select * from')
             terminal.expect('>\r\nSELECT *\r\nFROM items;')
@@ -91,26 +91,26 @@ def check(binary):
             draft(['one', '', 'two', 'three'], (1, 9))
             terminal.send('\x1a')
             draft(['one', 'two', 'three'], (0, 12))
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft([''])
             terminal.send('kept\x1b[')
-            time.sleep(.3)  # Truncated CSI must not turn into bare Esc clear.
+            time.sleep(.3)  # Truncated CSI must not consume later ordinary typing.
             terminal.send('x')
             draft(['keptx'])
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft([''])
             terminal.send('.mo\x00')
             draft(['.mode'])  # Proven unique static completion: no network.
             terminal.send('\x1a')
             draft(['.mo'])
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft([''])
             terminal.send('.qui\x1b[Z')
             terminal.expect('> .quit')
             terminal.send('\r')
             draft(['.quit'])
             assert terminal.process.poll() is None, 'completion Enter executed .quit'
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft([''])
             terminal.send('.timer o\t')
             terminal.expect('> off')
@@ -139,6 +139,7 @@ def check(binary):
         finally:
             terminal.close()
     seeded_search(binary)
+    cancel_modes(binary)
     delayed(binary)
     responsive(binary)
     spacing(binary)
@@ -185,17 +186,17 @@ def seeded_search(binary):
                 draft(match)
                 terminal.send('\x1a')
                 draft(seed, at_start=True)
-                terminal.send('\x1b')
+                terminal.send('\x03')
                 draft('')
             terminal.send('absent draft\x12')
             terminal.expect('search absent draft >\r\n(no match)')
             terminal.send('\r')
             terminal.expect('(no match)')
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft('')
             terminal.send('\x1a')
             draft('absent draft')
-            terminal.send('\x1b')
+            terminal.send('\x03')
             draft('')
             terminal.send('.t\t')
             terminal.expect('> .tables')
@@ -208,6 +209,67 @@ def seeded_search(binary):
         finally:
             terminal.close()
     print('Console history seeding: draft filters, immediate/older matches, full multiline content, cursor restore, query undo, acceptance undo, no match and completion-menu entry passed.')
+
+
+def cancel_modes(binary):
+    original = 'CREATE TABLE'
+    matched = 'CREATE TABLE saved (id INT64);'
+    with tempfile.TemporaryDirectory(prefix='transit-cancel-') as directory, peer() as (endpoint, actions):
+        root = Path(directory)
+        config = root / 'connection.json'
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+        (root / '.transit_history').write_text(json.dumps(matched) + '\n' + json.dumps('SELECT 1;') + '\n')
+        terminal = Terminal(binary, config, home=root)
+        terminal.display = Screen()
+        terminal.display.feed(terminal.screen)
+        def draft(text, cursor=None):
+            expect_draft(terminal, [('transit> ' + text).rstrip()], (0, 9+(len(text) if cursor is None else cursor)))
+        try:
+            terminal.send(original + '\x01' + '\x1b[C' * 6)
+            draft(original, 6)
+            terminal.send('\x12')
+            terminal.expect('search CREATE TABLE >\r\n' + matched)
+            terminal.send('\x1b')
+            draft(original, 6)
+            for query, preview in (('SELECT', 'SELECT 1;'), ('missing', '(no match)')):
+                terminal.send('\x12\x15' + query)
+                terminal.expect('search ' + query + ' >\r\n' + preview)
+                terminal.send('\x1b')
+                draft(original, 6)
+            terminal.send('\x12\t')
+            draft(matched)
+            terminal.send('\x1b')  # accepted history is now ordinary draft text
+            terminal.expect('transit> ' + matched)  # wait for bare-Esc decoding even though text is unchanged
+            draft(matched)
+            terminal.send('\x1a')
+            draft(original, 6)
+            terminal.send('\x12')
+            terminal.expect('>\r\n' + matched)
+            terminal.send('\x03')
+            draft('')
+            terminal.send('\x1a')  # clear restores the original, not the preview
+            draft(original, 6)
+            terminal.send('\x03')
+            draft('')
+            terminal.send('\x12CREATE')
+            terminal.expect('search CREATE >\r\n' + matched)
+            terminal.send('\x1b')
+            draft('')  # a filter typed from an empty prompt is discarded
+            terminal.send('.timer o\t')
+            terminal.expect('> off')
+            terminal.send('\x1b')
+            draft('.timer o')
+            terminal.send('\x1b')
+            terminal.expect('transit> .timer o')
+            draft('.timer o')  # Esc in ordinary editing preserves the draft
+            terminal.send('\x03')
+            draft('')
+            terminal.send('\x1a')
+            draft('.timer o')
+            assert all(action in ('hello', 'open', 'touch') for action, _ in actions), actions
+        finally:
+            terminal.close()
+    print('Console cancellation: Esc restores seeded/edited history drafts and cursors, discards filters from empty drafts, dismisses completion and preserves accepted text; Ctrl-C clear remains undoable.')
 
 
 def delayed(binary):
@@ -265,7 +327,7 @@ def delayed(binary):
             assert began.wait(3)
             terminal.send('L')
             terminal.expect('transit> SEL', timeout=.6)
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             release.set()
             time.sleep(.1)
@@ -273,7 +335,7 @@ def delayed(binary):
             expect_draft(terminal, ['transit> new'], (0, 12))
             release.clear()
             began.clear()
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             terminal.send('SE\t')
             assert began.wait(3)
@@ -282,7 +344,7 @@ def delayed(binary):
             terminal.expect('transit> SEL')
             release.set()
             state['delay'] = False
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             terminal.send('SE\t')
             terminal.expect('> SELECT')
@@ -293,7 +355,7 @@ def delayed(binary):
             expect_draft(terminal, ['transit> SE'], (0, 11))
             terminal.send('\t')
             terminal.expect('> SELECT')
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             state['candidate'] = '"' + 'a' * 120 + 'tail"'
             terminal.resize(20, 6)
@@ -302,7 +364,7 @@ def delayed(binary):
             terminal.expect('> "aaaa')
             terminal.send('\x1b[6~' * 6)
             terminal.expect('tail"')  # full selected spelling remains accessible
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             terminal.resize(80)
             terminal.display.resize(80)
@@ -401,7 +463,7 @@ def responsive(binary):
             release.set()
             expect_draft(terminal, ['transit> SET'], (0, 12))
 
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             terminal.send('SE\t')
             terminal.expect('> SELECT')
@@ -420,7 +482,7 @@ def responsive(binary):
             terminal.send('\x07')
             expect_draft(terminal, ['transit> SELE'], (0, 13))
 
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
             terminal.send('SE\t')
             terminal.expect('> SELECT')
@@ -494,7 +556,7 @@ def unique(binary):
                 assert state['calls'] == 2, state
                 terminal.send('\x1a')
                 expect_draft(terminal, [('transit> ' + text).rstrip()], (0, 9+len(text)))
-                terminal.send('\x1b')
+                terminal.send('\x03')
                 expect_draft(terminal, ['transit>'], (0, 9))
             # Losing uniqueness during validation displays the current choices.
             state.update(text='CREATE', cursor=6, start=6, candidate='TABLE', calls=0, ambiguous=True)
@@ -507,9 +569,9 @@ def unique(binary):
             terminal.expect('> TABLE')
             terminal.expect('TABLESPACE')
             assert 'transit> CREATE' in terminal.display.text(), terminal.display.text()
-            terminal.send('\x1b')
+            terminal.send('\x03')
             expect_draft(terminal, ['transit>'], (0, 9))
-            # Clearing during hidden validation cancels the pending insertion.
+            # Esc during hidden validation cancels insertion and preserves text.
             state.update(calls=0, ambiguous=False)
             validating.clear()
             release.clear()
@@ -518,13 +580,13 @@ def unique(binary):
             quiet(terminal)
             terminal.send('\x1b')
             release.set()
-            expect_draft(terminal, ['transit>'], (0, 9))
+            expect_draft(terminal, ['transit> CREATE'], (0, 15))
             quiet(terminal)
             assert not [a for a, _ in actions if a == 'execute'], actions
         finally:
             release.set()
             terminal.close()
-    print('Console unique completion: no menu frames during validation, atomic undo, changed uniqueness and clear cancellation passed.')
+    print('Console unique completion: no menu frames during validation, atomic undo, changed uniqueness and Esc cancellation passed.')
 
 
 def spacing(binary):
@@ -571,7 +633,7 @@ def spacing(binary):
                 draft(terminal, expected.replace('|', ''), expected.index('|'))
                 terminal.send('\x1a')
                 draft(terminal, text, cursor)  # separator and candidate undo together
-                terminal.send('\x1b')
+                terminal.send('\x03')
                 draft(terminal, '', 0)
             assert len([a for a, _ in actions if a == 'assist']) == 24, actions
             assert not [a for a, _ in actions if a == 'execute'], actions

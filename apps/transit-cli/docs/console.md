@@ -255,7 +255,8 @@ Bracketed paste preserves newlines, normalizes CRLF and never submits.
 | Up/Down | Move rows, then browse history | Select previous/next item | Select older/newer match |
 | Shift-Tab | Open suggestions without insertion | Select previous item | No action |
 | Ctrl-R | Search using the current draft | Search using the current draft | Find older match |
-| Esc / Ctrl-C | Clear draft | Clear draft and suggestions | Clear search and original draft |
+| Esc | Leave draft unchanged | Dismiss suggestions | Restore original draft and cursor |
+| Ctrl-C | Clear draft | Clear draft and suggestions | Clear search and original draft |
 | Ctrl-G | Keep draft | Dismiss suggestions | Restore original draft and cursor |
 | Ctrl-Z / Ctrl-_ | Undo | Undo and close suggestions | Undo query editing |
 
@@ -313,9 +314,13 @@ filter. Further Ctrl-R presses find older matches using the same filter; Ctrl-U
 clears the filter without changing the saved draft.
 History search matches literal substrings with ASCII case folding and collapsed
 whitespace runs, so a single-line query can match multiline SQL. Previews retain
-original spelling and newlines. Navigation skips duplicate text. Ctrl-G restores
-the saved draft; Esc clears it. Undo after Esc restores that original draft, not
-an unaccepted search preview. Browsing history also preserves the original draft
+original spelling and newlines. Navigation skips duplicate text. Esc or Ctrl-G
+restores the saved draft and cursor, even after changing the filter. A filter
+typed after entering search from an empty prompt is discarded on cancellation.
+Tab or Enter accepts the selected history entry into the draft; Esc then leaves
+that accepted text intact, and undo restores the prior draft. Ctrl-C clears the
+search and original draft; undo restores the original, not an unaccepted preview.
+Browsing history also preserves the original draft
 when moving past the newest entry.
 
 Undo retains at most 128 edit groups and 256 KiB of snapshot bytes shared by the

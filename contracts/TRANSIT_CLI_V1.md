@@ -250,16 +250,19 @@ error. Dot commands start an empty input statement; slash commands are rejected.
 TTY editing supports movement, deletion, multiline vertical navigation before
 history, direct Ctrl-P/Ctrl-N recall, Ctrl-R search, completion and bounded undo.
 Tab opens completion or accepts a displayed suggestion/history match; acceptance
-never submits. Esc and Ctrl-C clear the entire unsubmitted draft in every editing
-mode. Ctrl-G dismisses suggestions or restores the original draft from search.
+never submits. Esc and Ctrl-G dismiss suggestions or restore the original draft
+and cursor from search; they leave ordinary draft text unchanged. Ctrl-C clears
+the entire unsubmitted draft in every editing mode.
 Ctrl-Z, Ctrl-_ and Ctrl-X Ctrl-U undo draft/query edits, including clearing.
 The combined volatile journal retains 128 groups and 256 KiB of snapshot bytes;
 submission resets it and access loss erases protected copies. Search folds ASCII
 case and whitespace runs and skips duplicate command text, preserving original
 bytes for preview and insertion. Entering search copies the entire current draft
 into the filter and previews its newest match; an empty draft opens an empty
-filter. Repeated Ctrl-R searches older matches. Ctrl-U clears the filter, and
-Ctrl-G restores the saved draft and cursor. Incomplete Enter inserts at the cursor.
+filter. Repeated Ctrl-R searches older matches. Ctrl-U clears only the filter.
+Canceling search discards filter edits: a filter typed from an empty prompt
+returns to an empty draft. Accepting a match installs it as draft text, preserved
+by Esc and undoable to the saved draft. Incomplete Enter inserts at the cursor.
 Draft newlines render as separate rows with continuation text aligned after the
 primary prompt. Long lines wrap within the display width, and a bounded viewport
 keeps the cursor visible when a draft exceeds the terminal height. Clearing or

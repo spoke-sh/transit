@@ -195,8 +195,9 @@ punctuation. The completion and any added separator undo together. Acceptance
 never executes a statement.
 Ctrl-R uses the whole current draft as its history filter and previews the newest
 match; press it again for older matches or Ctrl-U to clear the filter.
-Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
-the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,
+Esc or Ctrl-G dismisses suggestions or restores the original draft and cursor
+from history search, discarding filter edits. They leave ordinary draft text
+unchanged. Ctrl-C clears the whole unsubmitted draft. Ctrl-Z undoes ordinary edits, paste,
 completion and clearing. Up/Down moves between multiline rows before browsing
 history; Ctrl-P/Ctrl-N always browses history. The
 [terminal key map and limits](../../../apps/transit-cli/docs/console.md#terminal-editing-and-history)

@@ -1,5 +1,25 @@
 # Validation and evidence
 
+## Cancel interactions without clearing drafts — 2026-10-24
+
+`nix develop --command just check` passes for the accepted
+[cancellation interaction](../docs/design/transit-cli/D5.md), including native
+tests, CLI diagnostics, the complete PTY suite, frontend checks and documentation
+build. The focused cancellation regression fails against the preceding
+implementation because Esc removes `CREATE TABLE` instead of restoring it.
+
+Real PTYs prove that Esc restores the draft and cursor saved before history
+search, even after replacing the seeded filter or finding no match. A filter
+typed from an empty draft is discarded. Accepted history remains ordinary draft
+text on Esc and is undoable to the original. Esc dismisses completion and cancels
+hidden unique-candidate validation without changing the draft or inserting a
+late response. Ctrl-C clears draft/search state, and undo restores the original
+draft rather than an unaccepted preview. Existing input framing, signals,
+history persistence, completion refinement and query-outcome checks pass.
+Public shortcut help reflects the selected key meanings. These are editor
+checks over synthetic history and controlled metadata; clean-checkout and
+native-session qualification are reported separately.
+
 ## History search starts from the draft — 2026-10-24
 
 `nix develop --command just check` passes, including the complete PTY suite,
