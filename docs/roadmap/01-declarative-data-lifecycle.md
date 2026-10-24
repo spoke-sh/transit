@@ -251,6 +251,14 @@ interactive administrative dispatch and application catalog setup still need
 migration. Namespace membership checks cover live/pending Tables; broader
 registered dependency kinds remain part of the shared lifecycle work.
 
+The [optimistic current-read evidence](../../tests/README.md#optimistic-current-table-reads--2026-10-23)
+adds conditional point reads and bounded ordered suffixes under the original
+logical basis. These reads avoid transient retention work for application
+read/modify/write preparation and migrations that require an unchanged source.
+They reject logical drift and recheck disclosure rights, including empty output.
+Work items still needs its direct catalog binding and durable dispatch/progress
+flow; this primitive alone does not complete that consumer migration.
+
 Interactive namespace administration, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

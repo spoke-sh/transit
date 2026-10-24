@@ -52,6 +52,18 @@ pub const Current = struct {
         self.* = undefined;
     }
 };
+pub const CurrentRead = struct {
+    current: Current,
+    selection: union(enum) { key: ?P.OwnedRow, rows: P.RowPage },
+    pub fn deinit(self: *CurrentRead) void {
+        switch (self.selection) {
+            .key => |*maybe| if (maybe.*) |*row| row.deinit(),
+            .rows => |*page| page.deinit(),
+        }
+        self.current.deinit();
+        self.* = undefined;
+    }
+};
 pub const Observation = union(enum) {
     not_observed,
     admitted: r.Operation,
@@ -242,6 +254,26 @@ pub fn observe(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, exp
     try authority.validate();
     try check(current);
     return .{ .view = view, .authority = authority, .page = page };
+}
+
+/// Optimistic point/suffix reads share current observation's exact definition
+/// and authority checks, with a logical-change fence on all row disclosure.
+pub fn readCurrent(self: *Self, allocator: std.mem.Allocator, request: c.DirectTableProtocol.CurrentRead, policy: Policy) !CurrentRead {
+    var current = try self.observe(allocator, request.namespace, request.interpretation, null, policy);
+    errdefer current.deinit();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const required = try self.guard(arena.allocator(), policy, try self.schema(request.namespace), current.view.properties.target(request.interpretation.object.object), .read);
+    const selection: @FieldType(CurrentRead, "selection") = switch (request.selection) {
+        .key => |binary| blk: {
+            const key = try binary.decode(allocator, c.fuze.Collation.max_sort_key_bytes);
+            defer allocator.free(key);
+            if (key.len == 0) return error.InvalidTableKey;
+            break :blk .{ .key = try current.view.table.readCurrent(allocator, request.expected, key, required) };
+        },
+        .rows => |value| .{ .rows = try current.view.table.scanCurrent(allocator, request.expected, value.after, value.limits, required) },
+    };
+    return .{ .current = current, .selection = selection };
 }
 
 /// Current action rights for frozen operation work, including a retired target.

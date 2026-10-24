@@ -128,8 +128,43 @@ the client validates row encodings, count, byte budget and ordered identities.
 This operation writes no log record, pin, intent or publication. It returns no
 continuation or durable snapshot handle. `more` means the bounded observation
 does not contain the complete Table; a later observation can see another root.
-Consumers needing resumable traversal must explicitly acquire a durable pin.
+Consumers needing retained traversal must explicitly acquire a durable pin.
 Retained-read delegations and borrowed-read grants do not authorize `observe`.
+
+`read_current` supplies an optimistic point lookup or ordered suffix without a
+retention owner. Its mandatory fields are `namespace`, exact `interpretation`,
+original `expected` Table position and `selection`: a canonical encoded `key`,
+or `rows` with a nullable stable row identity `after` and explicit limits. The
+expected position must be nonzero. Suffix budgets are 1–8 rows and 1–8 MiB of
+encoded rows. An absent cursor starts at the beginning; a supplied cursor must
+identify a currently live row, and the result starts strictly after it.
+
+Every read requires the same current CONNECT/USAGE/SELECT checks as `observe`.
+The original position must belong to the current partition, be no later than
+its accepted frontier, and be at or after its latest logical-change frontier.
+Thus no-op acceptance, pins and physical flushes may advance the current root;
+an intervening row change rejects with `TableDataChanged`, even if later writes
+restore the same values. Definition changes and retirement reject with
+`TableDefinitionChanged`. A request cannot substitute a newer expectation and
+claim that it continues the original read.
+
+The result includes the current definition/schema, position, logical-change
+frontier, total row count and native read-authority references. A key selection
+returns one encoded row or null; it proves only that key's presence or absence.
+A row selection returns encoded rows, byte count and a nullable next row
+identity. A continuation equals the last returned row and requires another
+request with the original interpretation and expectation. An empty terminal
+suffix proves exhaustion after its seek key, not prior coverage. A consumer
+claiming complete traversal must start at null, consume strictly ordered pages,
+retain the original row count and reject the whole traversal if any page fails
+or the final consumed count differs. Transport EOF is not exhaustion.
+
+The owner serializes each call with Table changes and checks current authority
+after buffering, including absence and empty suffixes. The client checks exact
+definition and logical-basis attribution, schema, key equality, ordered row
+identities, continuation and budgets. These reads create no log record, pin or
+publication; the descriptor preserves no data after a change. Retained-read,
+closure and borrowed-read grants do not authorize `read_current`.
 
 `read_authority` accepts a stable object identity and checks its current
 CONNECT/USAGE/SELECT requirements. It returns only the corresponding native

@@ -111,6 +111,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .list => .list,
         .lookup => .lookup,
         .observe => .observation,
+        .read_current => .current_read,
         .read_authority => .read_authority,
         .name_assertion => .name_assertion,
         .preview => .preview,
@@ -257,6 +258,58 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     bytes += encoded.len;
                 }
                 if (bytes != page.encoded_bytes) return error.InvalidTableResponse;
+            }
+        },
+        .current_read => |value| {
+            const input = request.action.read_current;
+            const found = value.definition;
+            try definition(request.connection, found.interpretation);
+            try found.name.validate();
+            try frontier(found.position, found.changed_lsn);
+            try value.authority.validate();
+            if (found.interpretation.retired or found.namespace != input.namespace or
+                !std.meta.eql(found.interpretation.interpretation, input.interpretation) or
+                found.authorization != value.authority.table or
+                !input.expected.unchangedAt(found.position, found.changed_lsn) or
+                !std.mem.eql(u8, @tagName(input.selection), @tagName(value.selection))) return error.InvalidTableResponse;
+            try metadata(allocator, found);
+            const encoded_schema = try found.schema.decode(allocator, c.fuze.TableSchema.max_bytes);
+            defer allocator.free(encoded_schema);
+            var declared = try c.fuze.TableSchema.decode(allocator, encoded_schema);
+            defer declared.deinit();
+            switch (value.selection) {
+                .key => |maybe| if (maybe) |row| {
+                    if (found.row_count == 0) return error.InvalidTableResponse;
+                    const key = try input.selection.key.decode(allocator, c.fuze.Collation.max_sort_key_bytes);
+                    defer allocator.free(key);
+                    const encoded = try row.decode(allocator, c.fuze.TableRow.max_bytes);
+                    defer allocator.free(encoded);
+                    var decoded = try c.fuze.TableRow.decode(allocator, declared.schema, encoded);
+                    defer decoded.deinit();
+                    var actual: [c.fuze.Collation.max_sort_key_bytes]u8 = undefined;
+                    if (!std.mem.eql(u8, key, try decoded.row().storageKey(declared.schema, &actual))) return error.InvalidTableResponse;
+                },
+                .rows => |page| {
+                    const selected = input.selection.rows;
+                    if (page.rows.len > selected.limits.rows or page.encoded_bytes > selected.limits.encoded_bytes or page.rows.len > found.row_count or
+                        (page.next != null and (page.rows.len == 0 or page.rows.len >= found.row_count)) or
+                        (selected.after == null and page.next == null and page.rows.len != found.row_count) or
+                        (selected.after != null and page.rows.len >= found.row_count)) return error.InvalidTableResponse;
+                    var bytes: u64 = 0;
+                    var previous: ?[c.fuze.TableRow.Identity.encoded_bytes]u8 = if (selected.after) |after| try after.encode() else null;
+                    for (page.rows) |row| {
+                        const encoded = try row.decode(allocator, c.fuze.TableRow.max_bytes);
+                        defer allocator.free(encoded);
+                        var decoded = try c.fuze.TableRow.decode(allocator, declared.schema, encoded);
+                        defer decoded.deinit();
+                        const identity = try decoded.identity.encode();
+                        if (previous) |before| if (std.mem.order(u8, &before, &identity) != .lt) return error.InvalidTableResponse;
+                        previous = identity;
+                        bytes += encoded.len;
+                    }
+                    if (bytes != page.encoded_bytes) return error.InvalidTableResponse;
+                    if (page.next) |next| if (previous == null or !std.mem.eql(u8, &try next.encode(), &previous.?)) return error.InvalidTableResponse;
+                },
             }
         },
         .list => |value| {

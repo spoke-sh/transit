@@ -208,3 +208,123 @@ test "current Table observations are bounded owned read-only pages with final au
         try t.expectEqualStrings("observed bytes", row.?.row().cells[1].value.atom.bytes);
     }
 }
+
+test "current Table point and suffix reads keep a logical basis across physical progress and disk reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var expected: d.Position = undefined;
+    var first: P.RowPage = undefined;
+    const body: [2048]u8 = @splat('b');
+    var key_bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    var key_len: usize = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var cells: [33][2]f.Types.Values.Cell = undefined;
+        var changes: [33]P.Change = undefined;
+        for (&cells, &changes, 0..) |*values, *change, i| {
+            values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(i) } } }, .{ .value = .{ .atom = .{ .bytes = &body } } } };
+            change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = values }, .expect = .absent } };
+        }
+        _ = try table.apply(binding(&table, 1, .create), changes[0..17], .bulk, access.guard());
+        _ = try table.apply(binding(&table, 2, .insert), changes[17..], .point, access.guard());
+        expected = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        key_len = (try changes[32].put.row.storageKey(definition.schema, &key_bytes)).len;
+        const before = table.root;
+        const puts = objects.puts;
+        var found = (try table.readCurrent(t.allocator, expected, key_bytes[0..key_len], access.guard())).?;
+        defer found.deinit();
+        try t.expectEqual(@as(u32, 32), found.row().identity.ordinal);
+        first = try table.scanCurrent(t.allocator, expected, null, .{ .rows = 3 }, access.guard());
+        errdefer first.deinit();
+        try t.expectEqual(@as(u8, 3), first.count);
+        try t.expectEqualDeep(before, table.root);
+        try t.expectEqual(puts, objects.puts);
+        // No-op acceptance, read retention and physical flush do not invalidate
+        // the logical basis or stable identity order.
+        _ = try table.apply(binding(&table, 3, .insert), &.{}, .point, access.guard());
+        const temporary = try pin(&table, 80, &access);
+        try table.releaseSnapshot(temporary, access.guard());
+        _ = try table.flush(access.guard());
+        try t.expectEqual(before.changed_lsn, table.root.changed_lsn);
+        try t.expect(table.root.next_lsn > expected.next_lsn);
+    }
+    defer first.deinit();
+    var after = try f.TableRow.Identity.decode(&first.next.?);
+    var count: usize = first.count;
+    while (true) {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var page = try table.scanCurrent(t.allocator, expected, after, .{ .rows = 8, .encoded_bytes = 4096 }, access.guard());
+        defer page.deinit();
+        try t.expectEqual(@as(u8, 1), page.count);
+        try t.expectEqual(count, page.rows[0].?.row().identity.ordinal);
+        try t.expectEqualStrings(&body, page.rows[0].?.row().cells[1].value.atom.bytes);
+        count += page.count;
+        if (page.next) |next| {
+            after = try f.TableRow.Identity.decode(&next);
+            continue;
+        }
+        try t.expectEqual(@as(usize, 33), count);
+        const before = table.root;
+        try t.expectError(error.InvalidTableSnapshotCursor, table.scanCurrent(t.allocator, expected, .{ .origin = 7, .operation = 1, .ordinal = 99 }, .{}, access.guard()));
+        try t.expectError(error.TableReadBudgetTooSmall, table.scanCurrent(t.allocator, expected, null, .{ .encoded_bytes = 1 }, access.guard()));
+        try t.expectError(error.TableDataChanged, table.readCurrent(t.allocator, .{ .partition = 18, .next_lsn = expected.next_lsn }, key_bytes[0..key_len], access.guard()));
+        try t.expectError(error.TableDataChanged, table.readCurrent(t.allocator, .{ .partition = 17, .next_lsn = before.next_lsn + 1 }, key_bytes[0..key_len], access.guard()));
+        try t.expectEqualDeep(before, table.root);
+        _ = try table.apply(binding(&table, 4, .delete), &.{.{ .remove = key_bytes[0..key_len] }}, .point, access.guard());
+        try t.expectError(error.TableDataChanged, table.readCurrent(t.allocator, expected, key_bytes[0..key_len], access.guard()));
+        try t.expectError(error.TableDataChanged, table.scanCurrent(t.allocator, expected, after, .{}, access.guard()));
+        const newer: d.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        try t.expect(try table.readCurrent(t.allocator, newer, key_bytes[0..key_len], access.guard()) == null);
+        break;
+    }
+    // Earlier owned bytes remain valid despite owner replacement and deletion.
+    for (first.rows[0..first.count]) |row| try t.expectEqualStrings(&body, row.?.row().cells[1].value.atom.bytes);
+}
+
+test "current Table reads recheck disclosure for buffered rows absence and empty suffixes" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .bytes = "current" } } } };
+    const row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &cells };
+    var key_bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    const key = try row.storageKey(definition.schema, &key_bytes);
+    _ = try table.apply(binding(&table, 1, .create), &.{}, .point, access.guard());
+    const empty: d.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.readCurrent(t.allocator, empty, key, access.guard()));
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.scanCurrent(t.allocator, empty, null, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    _ = try table.apply(binding(&table, 2, .insert), &.{.{ .put = .{ .row = row, .expect = .absent } }}, .point, access.guard());
+    const expected: d.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    const before = table.root;
+    const puts = objects.puts;
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.readCurrent(t.allocator, expected, key, access.guard()));
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.scanCurrent(t.allocator, expected, null, .{}, access.guard()));
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.scanCurrent(t.allocator, expected, row.identity, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expectEqualDeep(before, table.root);
+    try t.expectEqual(puts, objects.puts);
+    _ = try table.changeDefinition(binding(&table, 3, .drop), .{ .drop = "" }, access.guard());
+    try t.expectError(error.TableRetired, table.readCurrent(t.allocator, expected, key, access.guard()));
+    try t.expectError(error.TableRetired, table.scanCurrent(t.allocator, expected, null, .{}, access.guard()));
+}

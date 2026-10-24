@@ -33,9 +33,19 @@ first bounded row page. It returns definition, data position, row count and
 checked native authority references together. It requires current SELECT even
 without rows. `DirectCatalog.observe` and `TablePartition.observeRows` write no
 operation or pin; returned rows own their memory. A partial page has `more`,
-without a continuation. Use a durable pin for a traversal spanning requests.
+without a continuation. Use a durable pin to preserve a cut through later writes.
 The [current-observation contract](../../../../contracts/DIRECT_TABLE_V1.md#current-observations)
 defines budgets, rejection and disclosure checks.
+
+`read_current` performs a point lookup or bounded identity-ordered suffix under
+the original exact interpretation and Table position. `DirectCatalog.readCurrent`
+returns owned rows from the same authorized current root as its metadata.
+`TablePartition.readCurrent` and `scanCurrent` permit physical/no-op progress
+but reject an intervening logical change. Every continuation keeps the original
+expectation; the returned current position does not renew it. A seek key alone
+proves no prior coverage. Applications completing a scan must begin at null,
+check strictly increasing identities and the original total row count, and
+reject the traversal on any failed page. These reads publish no retention state.
 
 `read_authority` checks current source rights by stable object identity and
 returns their native references. `DirectCatalog.currentReadAuthority` also works

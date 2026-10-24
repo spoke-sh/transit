@@ -191,6 +191,21 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
         service.before_reply = null;
         _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
     }
+    const selections = [_]@FieldType(w.CurrentRead, "selection"){
+        .{ .key = present_key },
+        .{ .key = absent_key },
+        .{ .rows = .{ .after = null, .limits = .{} } },
+        .{ .rows = .{ .after = row.identity, .limits = .{} } },
+    };
+    for (selections) |selection| {
+        const action: w.Action = .{ .read_current = .{ .namespace = 1, .interpretation = selected.interpretation.interpretation, .expected = historical.value.result.snapshot.accepted, .selection = selection } };
+        // Pins and the accepted no-op above preserve this earlier logical basis.
+        (try dispatch(&service, action)).deinit();
+        service.before_reply = .{ .context = &revoke_id, .run = Revoke.run };
+        try t.expectError(error.Forbidden, dispatch(&service, action));
+        service.before_reply = null;
+        _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
+    }
     const released = try dispatch(&service, .{ .release = snapshot });
     defer released.deinit();
     try t.expect(released.value.result == .released);
@@ -266,6 +281,7 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     try t.expectEqualStrings(read.value.result.page.rows[0].base64, point.value.result.point.row.?.base64);
     try t.expectEqualDeep(grant.proof.claim.context, point.value.subject.context);
     try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .describe, grant));
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .read_current = .{ .namespace = 1, .interpretation = source.interpretation.interpretation, .expected = source.accepted, .selection = .{ .key = point_key } } }, grant));
 
     const current = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "through_dispatch" } });
     defer current.deinit();
