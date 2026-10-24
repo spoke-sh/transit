@@ -115,7 +115,7 @@ class Reference(Compose):
                        "ursula": {"nameOverride": "ursula", "image": self.env["EXCHANGE_URSULA_IMAGE"]},
                        "workerPool": {"nameOverride": "caller", "enabled": True, "labels": {"transit.dev/exchange-example": self.namespace},
                            "spec": {"replicas": 2, "workerImage": self.runtime["image"], "template": {
-                               "nodeSelector": {"ate.dev/substrate-version": self.pins["substrate"][:7]},
+                               "nodeSelector": {"ate.dev/substrate-version": self.pins["substrate"][:8]},
                                "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}}}
         self.deploy()
         self.ate("create", "atespace", self.namespace)
