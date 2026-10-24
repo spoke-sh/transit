@@ -82,5 +82,5 @@ signed native request. A name can be reused with a new object ID; the original I
 and terminal receipt remain permanent. Current failures leave the last accepted
 stage observable. Resolve that original stage before creating replacement work.
 
-Run `just test::direct-named-resources` for the public caller/node fault schedule.
-The [proof ledger](../../../../tests/README.md) records executed coverage and limits.
+The [proof ledger](../../../../tests/README.md) records reproduction commands,
+executed coverage and limits for the public caller/node fault schedule.
