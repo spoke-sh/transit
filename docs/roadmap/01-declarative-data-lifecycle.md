@@ -68,8 +68,8 @@ covers exact capture retry across row changes, failure/restart recovery, current
 denial and stored-schema validation. Board's captured-query API uses explicit
 capture; its browser now qualifies navigation, lost submission, current denial
 and restored access with independent data/progress identities. Flight's Compose
-placement also passes physical recovery. Reference qualification and removal of
-the remaining actor-Table consumers remain open; this does not close the
+and reference placements also pass physical recovery with PyArrow and both ADBC
+consumers. Removal of the remaining actor-Table consumers remains open; this does not close the
 coordinated cutover gate.
 
 The serving counter now uses an installer-published direct Table and retains an
