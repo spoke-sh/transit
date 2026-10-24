@@ -95,6 +95,44 @@ pub fn callers(allocator: std.mem.Allocator, client: c.DirectTableClient) !void 
     try sharedPreparation(allocator, client);
     try sharedHost(allocator, client);
     try sharedTypedHost(allocator, client);
+    try sharedAdministration(allocator, client);
+}
+
+fn hostNamespace(arena: *std.heap.ArenaAllocator, session: *c.DirectTableBridge.Session, client: c.DirectTableClient, binding: c.DirectCatalogAdministration.NamespaceBinding) !c.DirectCatalogAdministration.NamespaceOperation {
+    _ = try session.apply(arena, client, .{ .administration = .{ .namespace_operation = .{ .binding = binding, .command = .admit, .steps = 1 } } }, null);
+    for (0..64) |_| {
+        const result = (try session.apply(arena, client, .{ .administration = .{ .namespace_operation = .{ .binding = binding, .command = .execute, .steps = 32 } } }, null)).administration.namespace_observation.operation;
+        if (result.phase != .admitted) return result;
+    }
+    return error.TableOperationPending;
+}
+fn sharedAdministration(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const Host = c.DirectTableBridge;
+    var session: Host.Session = .{ .allocator = allocator };
+    defer session.deinit();
+    const binding = (try session.apply(&arena, client, .{ .administration = .{ .compile_namespace = .{ .namespace = 1, .operation = "530", .create_namespace = 43, .sql = "CREATE SCHEMA host_namespace" } } }, null)).administration.namespace_binding;
+    const preview = (try session.apply(&arena, client, .{ .administration = .{ .preview_namespace = binding } }, null)).administration.namespace_preview;
+    try t.expectEqual(.none, preview.reason);
+    const action: Host.Action = .{ .administration = .{ .namespace_operation = .{ .binding = binding, .command = .inspect, .steps = 1 } } };
+    const bytes = try c.protocol.Json.valueAlloc(arena.allocator(), action);
+    const restored = try Host.parse(allocator, bytes);
+    defer restored.deinit();
+    try t.expect((try session.apply(&arena, client, restored.value, null)).administration.namespace_observation == .not_observed);
+    const created = try hostNamespace(&arena, &session, client, restored.value.administration.namespace_operation.binding);
+    try t.expectEqual(.applied, created.phase);
+    try t.expectEqual(@as(u64, 43), created.resulting.?.id);
+    const rename = (try session.apply(&arena, client, .{ .administration = .{ .compile_namespace = .{ .namespace = 1, .operation = "531", .create_namespace = null, .sql = "ALTER SCHEMA host_namespace RENAME TO host_renamed" } } }, null)).administration.namespace_binding;
+    try t.expectEqual(.applied, (try hostNamespace(&arena, &session, client, rename)).phase);
+    var stale = rename;
+    stale.operation = "532";
+    stale.action = .drop;
+    try t.expectEqual(.stale_definition, (try session.apply(&arena, client, .{ .administration = .{ .preview_namespace = stale } }, null)).administration.namespace_preview.reason);
+    const drop = (try session.apply(&arena, client, .{ .administration = .{ .compile_namespace = .{ .namespace = 1, .operation = "532", .create_namespace = null, .sql = "DROP SCHEMA host_renamed" } } }, null)).administration.namespace_binding;
+    try t.expectEqual(.applied, (try hostNamespace(&arena, &session, client, drop)).phase);
+    try t.expectEqualDeep(created, (try session.apply(&arena, client, restored.value, null)).administration.namespace_observation.operation);
+    try t.expect(session.active == null);
 }
 
 fn applyHost(arena: *std.heap.ArenaAllocator, session: *c.DirectTableBridge.Session, client: c.DirectTableClient, compiled: c.DirectTableBridge.Compiled) !c.DirectTableValues.Observation {
@@ -235,6 +273,13 @@ fn sharedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
         if (cursor == null) break;
     }
     try t.expect(listed and cursor == null);
+    const policy = (try recovered.apply(&output, client, .{ .administration = .{ .compile_policy = .{ .namespace = 1, .sql = "GRANT SELECT ON TABLE public.host_prepared TO PUBLIC" } } }, null)).administration.policy_plan;
+    try t.expectEqual(metadata.authorization, policy.action.authorization.grant.object.id);
+    const prepared_policy = (try recovered.apply(&output, client, .{ .administration = .{ .prepare_policy = policy } }, null)).administration.policy_prepared;
+    try t.expect(prepared_policy.record.change == null and prepared_policy.record.pending != null);
+    try t.expectEqualDeep(policy.action.authorization, prepared_policy.record.begin.signed.request.command.authorization.begin.action);
+    const policy_after = (try recovered.apply(&output, client, .{ .catalog = .describe }, null)).catalog.description;
+    try t.expectEqual(policy.expected_revision, policy_after.policy_revision);
     const conditional = (try recovered.apply(&output, client, .{ .compile = .{ .namespace = 1, .operation = "514", .create_object = "1514", .sql = "CREATE TABLE IF NOT EXISTS host_prepared (ignored TEXT)", .dialect = .transit, .ingestion = .point } }, null)).compiled;
     try t.expect((try recovered.apply(&output, client, .{ .preview = conditional.summary.id }, null)).preview.name_assertion.matches);
     const condition = (try recovered.apply(&output, client, .{ .stage = conditional.summary.id }, null)).staged;

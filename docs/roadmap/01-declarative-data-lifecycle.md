@@ -105,8 +105,12 @@ reports current DDL, row and conditional-name checks without staging, claims or
 acceptance, including stale data/definitions and native revocation.
 [Host catalog inspection](../../tests/README.md#direct-host-catalog-inspection--2026-10-24)
 also supplies capabilities, descriptions and bounded namespace/Table pages with
-exact connection/selection cursors and changed-directory rejection. Catalog
-administration and language/ABI adapters remain unfinished.
+exact connection/selection cursors and changed-directory rejection.
+[Host namespace and policy preparation](../../tests/README.md#direct-host-namespace-and-policy-preparation--2026-10-24)
+now preserves saved namespace bindings through explicit execution and returns
+the native authorization owner's signed policy record without submission.
+Dependency/resource host adapters and general language/ABI integration remain
+unfinished.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step

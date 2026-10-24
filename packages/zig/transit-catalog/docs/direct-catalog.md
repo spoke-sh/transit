@@ -50,6 +50,14 @@ binds the connection, selection and directory position; a directory change
 rejects continuation instead of combining observations. Table positions remain
 independently observed, and a directory cursor retains no Table data. Inspection
 does not replace loaded work or initialize a catalog.
+The `administration` actions use `DirectCatalogAdministration` for namespace SQL
+preparation, preview and explicit admission/execution/recovery. Save the complete
+returned binding before admission; stale namespace definitions reject without
+resolving a replacement. Policy SQL returns the exact native action, policy
+revision and selected role. `prepare_policy` returns the existing native
+`AuthorizationChange` preview and signed record; save it before using that
+owner's submission/recovery operations. Preparation changes no policy. SET ROLE
+plans describe connection selection and are not policy-publication requests.
 An uncertain response requires observation of that original reference. The
 shared caller currently supports lookup, unparameterized DDL/DML compilation and
 those recovery operations. Its `prepare` action also accepts typed declarations,

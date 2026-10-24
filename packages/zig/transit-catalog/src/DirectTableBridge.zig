@@ -27,6 +27,7 @@ pub const Summary = struct {
 pub const Compiled = struct { summary: Summary, saved: Saved };
 pub const Action = union(enum) {
     catalog: c.DirectCatalogInspection.Action,
+    administration: c.DirectCatalogAdministration.Action,
     lookup: struct { namespace: u64, name: []const u8 },
     compile: struct {
         pub const json_schema_text_bounds = .{ .sql = 4096 };
@@ -47,6 +48,7 @@ pub const Action = union(enum) {
 };
 pub const Result = union(enum) {
     catalog: c.DirectCatalogInspection.Result,
+    administration: c.DirectCatalogAdministration.Result,
     metadata: ?h.Metadata,
     compiled: Compiled,
     loaded: Summary,
@@ -139,6 +141,7 @@ pub const Session = struct {
         const allocator = arena.allocator();
         switch (action) {
             .catalog => |input| return .{ .catalog = try c.DirectCatalogInspection.apply(allocator, client, input) },
+            .administration => |input| return .{ .administration = try c.DirectCatalogAdministration.apply(allocator, client, input, location) },
             .lookup => |input| {
                 const response = try client.call(.{ .lookup = .{ .namespace = input.namespace, .name = input.name } });
                 defer response.deinit();

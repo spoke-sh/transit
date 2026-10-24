@@ -1,5 +1,28 @@
 # Validation and evidence
 
+## Direct host namespace and policy preparation — 2026-10-24
+
+`just test::direct-table-callers` passes **150 typed HTTP calls**, including
+saved namespace-binding restoration, read-only preview, explicit CREATE/RENAME/
+DROP, stale-definition rejection and original CREATE receipt recovery after
+retirement. Policy compilation binds the exact native Table reference; preparing
+its signed native authorization record leaves the policy revision unchanged.
+The complete `just test::direct-table-service` regression passes **1239 typed
+HTTP calls**, including retained history, lost replies and three restarts.
+
+All 151 catalog package tests pass. The new binding test restores the maximum
+operation/catalog IDs after freeing its source arena and rejects a different
+caller. Its first run incorrectly used the borrowing JSON parser and crashed
+after freeing that input; the corrected fixture uses the owned parser and the
+complete rerun passes. Independent generated-contract fixtures reject missing
+namespace-binding definitions and numeric full-width operation IDs. Diagnostics,
+formatting and documentation links pass.
+
+These are shared host adapters over the existing namespace and native policy
+owners. Preparation does not publish a policy change. General SDK/ABI integration,
+dependency/resource host adapters and final integrated/clean-checkout checks
+remain separate delivery gates.
+
 ## Direct host catalog inspection — 2026-10-24
 
 `just test::direct-table-callers` passes **129 typed HTTP calls** with the host

@@ -244,6 +244,16 @@ host_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Hos
 host_validator.validate(host_reference)
 host_action_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostAction"})
 host_action_validator.validate({"admit": {"table": host_reference}})
+host_namespace = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
+                  "namespace": 43, "expected": None, "action": {"create": {"name": "host_namespace", "owner": 1}}}
+host_namespace_action = {"administration": {"preview_namespace": host_namespace}}
+host_action_validator.validate(host_namespace_action)
+missing_namespace_definition = copy.deepcopy(host_namespace_action)
+del missing_namespace_definition["administration"]["preview_namespace"]["definition"]
+assert not host_action_validator.is_valid(missing_namespace_definition)
+numeric_namespace_operation = copy.deepcopy(host_namespace_action)
+numeric_namespace_operation["administration"]["preview_namespace"]["operation"] = 2**64 - 1
+assert not host_action_validator.is_valid(numeric_namespace_operation)
 host_cursor = {"definition": definition, "connection": host_reference["connection"], "selection": {"tables": 1},
                "position": {"partition": "9", "next_lsn": str(2**64 - 1)}, "after": str(2**64 - 1)}
 host_listing = {"catalog": {"tables": {"namespace": 1, "cursor": host_cursor}}}
