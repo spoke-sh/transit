@@ -24,6 +24,7 @@ pub const TablePosition = @import("TablePosition.zig");
 pub const CapturedTablePin = @import("CapturedTablePin.zig");
 pub const RelationalRevision = @import("RelationalRevision.zig");
 pub const RelationalResult = @import("RelationalResult.zig");
+pub const RelationalFreshness = @import("RelationalFreshness.zig");
 pub const RelationalCapture = @import("RelationalCapture.zig");
 pub const RelationalRecords = @import("RelationalRecords.zig");
 pub const RelationalBundle = @import("RelationalBundle.zig");

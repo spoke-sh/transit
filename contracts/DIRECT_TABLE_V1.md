@@ -60,7 +60,9 @@ row that cannot fit the byte budget rejects; there is no truncated row.
 The Table owner serializes this observation with writes and definition changes;
 all returned metadata and rows describe that one root. Current rights are
 rechecked after buffering, including empty pages. A changed definition or retired
-Table rejects. The response preserves exact row types and physical identity order;
+Table rejects with HTTP 409 and `TableDefinitionChanged`, after current source
+authorization. A generic `Conflict` does not establish definition drift. The
+response preserves exact row types and physical identity order;
 the client validates row encodings, count, byte budget and ordered identities.
 
 This operation writes no log record, pin, intent or publication. It returns no

@@ -185,6 +185,44 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Result source freshness and named attribution — 2026-10-23
+
+Under definition
+`312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0`,
+these native local-persistence schedules pass:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --named-only
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --maintained-only
+nix develop -c zig build test-direct-table-service -Doptimize=ReleaseSafe --summary all
+```
+
+Captured self-join and two-Table results compare their actual retained cuts with
+current logical-change positions. Pin progress and accepted no-ops remain fresh;
+DELETE without a schema change reports stale. Same-Table aliases agree, while an
+unchanged independent Table stays fresh. The HTTP fault peer injects a generic
+conflict and unavailable response; neither becomes definition-change evidence.
+Current revocation denies inspection. RENAME reports `definition_changed` through
+the specific wire rejection, and the original result still verifies COUNT=1 and
+complete coverage. Exhausted readers reject further freshness inspection.
+
+`NamedRelational.capturedDefinition` resolves original attribution through the
+result reader's retained snapshot, even after a later name revision. A foreign
+computation scope rejects; inspection consumes no output and uses the reader's
+request budget. Maintained revisions report the original backfill stale after a
+row change and the latest completed revision fresh after restart and catch-up.
+Inspection leaves the maintenance head unchanged and cannot produce a consumer
+checkpoint before output verification. The direct Table suite passes 549 typed
+exchanges, including explicit `TableDefinitionChanged` after DROP/name reuse.
+
+Package suites pass 143 query, 45 application, 50 protocol and 51 serving tests.
+Reflected contracts, generated bindings, independent signing fixtures and
+diagnostic inventory/mapping checks pass. The shared current-v1 identifier is
+replaced for the distinct wire rejection; the prior definition rejects. These
+checks do not complete generic catalog computation replacement, direct dependency
+registration, named-maintenance inspection, full repository qualification or the
+committed-HEAD clean gate.
+
 ## Named captured definitions over the direct service — 2026-10-23
 
 Under definition

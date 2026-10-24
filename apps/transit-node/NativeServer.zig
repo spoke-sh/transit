@@ -233,7 +233,8 @@ pub fn Host(comptime Provider: type) type {
                     };
                     const response = executed catch |err| switch (err) {
                         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
-                        error.DataIdentityConflict, error.CatalogObjectBusy, error.TableDefinitionChanged, error.TableDataChanged, error.TableHistoryConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
+                        error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
+                        error.DataIdentityConflict, error.CatalogObjectBusy, error.TableDataChanged, error.TableHistoryConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
                         error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
                         error.TableHistoryMissing, error.WalHistoryMissing, error.WalHistoryTrimmed => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .HistoryReclaimed }),
                         error.InvalidTableBasis, error.TableHistoryRetentionRequired, error.IncompatibleColumnEncoding, error.IncompatibleColumnCollation, error.UnsupportedColumnCollation, error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
@@ -258,7 +259,7 @@ pub fn Host(comptime Provider: type) type {
                 self.work_failure = @errorName(err);
                 const code = std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable;
                 const status: std.http.Status = switch (code) {
-                    .Conflict, .QueryExpired, .HistoryReclaimed, .StaleAuthorizationRevision, .StaleAuthorizationCredential, .AuthorizationSubjectDenied => .conflict,
+                    .Conflict, .TableDefinitionChanged, .QueryExpired, .HistoryReclaimed, .StaleAuthorizationRevision, .StaleAuthorizationCredential, .AuthorizationSubjectDenied => .conflict,
                     .AuthorityUnavailable, .ClockRollback, .ClockUnavailable, .DeadlineUncertain, .UntrustedTime, .AdmissionClosed, .ControlCapacity, .StorageQuota => .service_unavailable,
                     else => .unprocessable_entity,
                 };

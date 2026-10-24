@@ -274,6 +274,15 @@ pub fn next(self: *Self) !?Event {
     self.last = identity;
     return event;
 }
+/// Observe freshness for this exact complete revision without waking maintenance.
+/// Output/delta coverage remains incomplete until next() reaches its checked end.
+pub fn freshness(self: *Self, clients: []const q.catalog.DirectTableClient) !q.RelationalFreshness {
+    if (self.failed or self.complete or self.closed) return error.QueryClosed;
+    try self.authorize(false);
+    const result = try q.RelationalFreshness.maintained(self.bundle, self.manifest.vector, clients, self.disclosure);
+    try self.authorize(false);
+    return result;
+}
 pub fn checkpoint(self: *const Self) !Position {
     if (!self.complete or self.failed) return error.IncompleteResult;
     const position: Position = .{ .version = 1, .definition = g.current_definition, .owner = self.options.owner, .identity = self.stored.identity(), .id = self.stored.id, .revision = self.manifest.work.revision, .reference = self.reference, .request = try self.bundle.fingerprint() };

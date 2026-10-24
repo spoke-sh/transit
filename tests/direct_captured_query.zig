@@ -824,9 +824,20 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
     var result = try q.RelationalResult.open(resources, bundle, options, disclosure, @splat(67));
     defer result.close() catch {};
+    if (behavior.named) |naming| {
+        const retained_definition = try naming.capturedDefinition(&result);
+        try t.expectEqualDeep(named_reference.?, try retained_definition.reference());
+        try t.expectEqual(@as(u64, 0), result.ordinal);
+        var foreign = naming;
+        foreign.configuration.scope.resource += 1;
+        try t.expectError(error.NamedQueryChanged, foreign.capturedDefinition(&result));
+    }
+    if (named) try freshnessProof(init, client, admin, role, independent, left_name, &result);
     const row = (try result.next()).?;
     try t.expectEqual(@as(u128, 1), row.cells[0].value.atom.unsigned);
     try t.expect(try result.next() == null);
+    if (named) try t.expectError(error.QueryClosed, result.freshness(&.{ client, client }));
+    if (behavior.named) |naming| try t.expectError(error.QueryClosed, naming.capturedDefinition(&result));
     const retained = try q.CapturedTablePin.source(alloc, &reader, .{ .job = job_id, .source = if (independent) 1 else 0 }, worker.pid);
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(retained.authority.table), .owner = 0 } });
     try t.expectError(error.CatalogDenied, q.RelationalResult.open(resources, bundle, options, disclosure, @splat(68)));
@@ -836,4 +847,48 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     try t.expectEqual(@as(u128, 1), (try restored.next()).?.cells[0].value.atom.unsigned);
     try t.expect(try restored.next() == null);
     try t.expectError(error.AccessDenied, executor.call(.{ .lookup = .{ .namespace = 1, .name = right_name } }));
+}
+
+fn freshnessProof(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, independent: bool, name: []const u8, result: *q.RelationalResult) !void {
+    // The HTTP fault peer rejects two otherwise successful observations. Neither
+    // generic conflict nor unavailability proves definition drift or freshness.
+    try t.expectError(error.Conflict, result.freshness(&.{ client, client }));
+    try t.expectEqual(p.ErrorCode.Conflict, client.service.last_rejection.?);
+    try t.expectError(error.AuthorityUnavailable, result.freshness(&.{ client, client }));
+    const first = try result.freshness(&.{ client, client });
+    try t.expect(first.fresh());
+    try t.expect(first.entries[0].current.?.accepted.next_lsn > first.entries[0].captured.next_lsn);
+    const operation: u64 = if (independent) 1800 else 1700;
+    const mutations = @import("direct_maintained_query.zig");
+    // Accepted no-ops advance the log but not the source's logical-change mark.
+    try mutations.mutation(init, client, name, operation, 999, false);
+    const noop = try result.freshness(&.{ client, client });
+    try t.expect(noop.fresh());
+    try t.expect(noop.entries[0].current.?.accepted.next_lsn > first.entries[0].current.?.accepted.next_lsn);
+    try t.expectEqual(first.entries[0].current.?.changed_lsn, noop.entries[0].current.?.changed_lsn);
+    try mutations.mutation(init, client, name, operation + 1, 1, false);
+    const changed = try result.freshness(&.{ client, client });
+    try t.expect(!changed.fresh());
+    try t.expectEqual(q.RelationalFreshness.State.stale, changed.entries[0].state);
+    try t.expectEqual(if (independent) q.RelationalFreshness.State.fresh else .stale, changed.entries[1].state);
+    try t.expectEqualDeep(first.entries[0].interpretation, changed.entries[0].interpretation);
+
+    const found = try client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
+    defer found.deinit();
+    const definition = found.value.result.lookup.?;
+    _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(definition.authorization), .owner = 0 } });
+    try t.expectError(error.CatalogDenied, result.freshness(&.{ client, client }));
+    _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(definition.authorization), .owner = role } });
+    var rename: w.Ddl = .{ .binding = .{ .definition = g.current_definition, .identity = .{ .scope = client.connection.scope, .principal = 101, .operation = operation + 2 }, .target = definition.interpretation.interpretation.object, .action = .rename, .expected_definition = definition.interpretation.interpretation, .expected_data = definition.position, .intent = @splat(0) }, .namespace = 1, .name = name, .action = .{ .rename = if (independent) "freshness_independent" else "freshness_alias" } };
+    rename.binding.intent = try rename.digest(init.arena.allocator());
+    (try client.call(.{ .admit_ddl = rename })).deinit();
+    const renamed = try client.call(.{ .operation = .{ .binding = rename.binding, .command = .execute, .steps = 8 } });
+    defer renamed.deinit();
+    try t.expect(renamed.value.result.ddl == .committed);
+    const rebound = try result.freshness(&.{ client, client });
+    try t.expect(!rebound.fresh());
+    try t.expectEqual(q.RelationalFreshness.State.definition_changed, rebound.entries[0].state);
+    try t.expect(rebound.entries[0].current == null);
+    try t.expectEqualDeep(first.entries[0].interpretation, rebound.entries[0].interpretation);
+    // The caller still verifies the original result under its retained cuts.
 }

@@ -144,6 +144,7 @@ pub const ErrorCode = enum {
     FreshKeyRequired,
     HistoryPinned,
     HistoryReclaimed,
+    TableDefinitionChanged,
     QueryExpired,
     IdentityElement,
     InvalidAttempt,
