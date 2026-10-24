@@ -67,6 +67,13 @@ several ordinary data/query APIs are packaged with Station and expose protocol
 orchestration to applications. The new milestone separates those concerns and
 qualifies idiomatic use in each supported language.
 
+The Gemini Argon transcript review makes mixed composition concrete: standalone
+recorded effects, durable change consumers and typed calls into Station are all
+required. The milestone also covers reusable data-package ownership, shared
+bounded client infrastructure, recovery/staging helpers and side-by-side language
+examples. Checkpoint progress, turn commits and remote outcomes retain their
+separate contracts; an operation key does not establish remote idempotency.
+
 This is distinct from [service/SDK coverage](09-service-and-sdk-coverage.md),
 which retains its existing operation and platform obligations. Shared result
 semantics remain with [statement results](04-statement-results-and-consumption.md).
