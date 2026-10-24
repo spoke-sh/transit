@@ -14804,22 +14804,25 @@
     "packages/zig/transit-query/src/DirectRelationalCompilation.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
-        "InvalidQueryBudget": 1,
-        "InvalidRelationalSources": 1,
-        "RelationalCallerChanged": 1,
-        "RelationalResidentBudget": 1,
+        "InvalidQueryBudget": 2,
+        "InvalidRelationalSources": 3,
+        "RelationalCallerChanged": 2,
+        "RelationalResidentBudget": 2,
+        "RelationalSourceChanged": 2,
         "TableNotFound": 1,
-        "UnsupportedRelationalConsistency": 1
+        "UnsupportedRelationalConsistency": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "fromRetained()": "<inferred>",
         "prepare()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateBindings()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 23,
         "catch": 0
       },
       "imports": [
