@@ -16,6 +16,19 @@ authorization and loss/error representation; transport convenience cannot
 silently downgrade complete changes to refresh notifications or five-state
 values to ordinary NULLs.
 
+## Console assistance slice
+
+The accepted [console interaction](../design/transit-cli/D3.md) extends the
+existing grammar/catalog assistance operation with typed coverage and context
+status, cursor-local statement scope and settings routing. It retains eight
+candidates and the 128-page metadata acquisition budget. Partial scans are
+reported as limited; no new catalog authority or full resident catalog is added.
+This slice is implemented independently of broader service/SDK parity. Its
+current-v1 cutover migrates the native session and shared query consumers together.
+[Executed evidence](../../tests/README.md#console-completion-and-editing--2026-10-24)
+covers native units, terminal peers and actual TLS session completion. Manual
+terminal/SSH delivery and broader service/SDK parity are not established by it.
+
 ## Remaining work
 
 - Expose the qualified data/computation lifecycle through each selected SDK and

@@ -35,7 +35,7 @@ def check(binary, config, home, library):
 
                 if scenario == 'interrupt-flushed':
                     terminal.send('\x12signal_schedule')
-                    terminal.expect(' > .signal_schedule')
+                    terminal.expect('>\r\n.signal_schedule')
                 elif scenario == 'empty-read':
                     terminal.send('kept')
                     terminal.expect('transit> kept')

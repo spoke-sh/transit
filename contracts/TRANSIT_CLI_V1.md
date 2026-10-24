@@ -247,8 +247,16 @@ stdin stream semicolon-delimited statements and dot command lines. A complete
 final statement runs at EOF; an unclosed literal/comment fails. `-c` and `-f`
 are mutually exclusive and do not read stdin. Batch execution stops on the first
 error. Dot commands start an empty input statement; slash commands are rejected.
-TTY editing supports movement, deletion, Up/Down recall, Ctrl-R reverse substring
-history search, completion accept/dismiss/undo, resize and Ctrl-C draft clearing.
+TTY editing supports movement, deletion, multiline vertical navigation before
+history, direct Ctrl-P/Ctrl-N recall, Ctrl-R search, completion and bounded undo.
+Tab opens completion or accepts a displayed suggestion/history match; acceptance
+never submits. Esc and Ctrl-C clear the entire unsubmitted draft in every editing
+mode. Ctrl-G dismisses suggestions or restores the original draft from search.
+Ctrl-Z, Ctrl-_ and Ctrl-X Ctrl-U undo draft/query edits, including clearing.
+The combined volatile journal retains 128 groups and 256 KiB of snapshot bytes;
+submission resets it and access loss erases protected copies. Search folds ASCII
+case and whitespace runs and skips duplicate command text, preserving original
+bytes for preview and insertion. Incomplete Enter inserts at the cursor.
 Draft newlines render as separate rows with continuation text aligned after the
 primary prompt. Long lines wrap within the display width, and a bounded viewport
 keeps the cursor visible when a draft exceeds the terminal height. Clearing or
@@ -387,7 +395,25 @@ The native grammar owner supplies a versioned bounded assistance result for a
 UTF-8 statement plus byte cursor. Board converts its UTF-16 selection to validated
 UTF-8 offsets; the terminal uses the same native result. Each result carries
 the exact input generation, replacement range, executable capability profile
-and current authorized source contract. It grants no access and does not compile,
+and current authorized source contract. Required typed `coverage` distinguishes
+`complete` from `limited`; `status` distinguishes `ready`, `inside_text` and
+`unsupported`. Empty limited scans do not prove absence, and one item does not
+prove uniqueness unless coverage is complete. The owner resolves the active
+statement around the cursor without discarding its suffix. Acquisition retains
+eight ranked candidates and scans at most 128 catalog pages; it never samples
+row values. Settings assistance uses the actual configuration route. The current
+shared definition rejects missing coverage/status fields.
+
+The terminal keeps one cancellable metadata borrower and one latest draft,
+refreshes open suggestions after 75 ms of idle editing, displays loading after
+150 ms and limits an acquisition to one second or the smaller connection budget.
+It joins cancelled I/O before reusing the session client. Acceptance re-acquires
+current evidence and compares generation, cursor/range, profile, source, contract,
+resource revision and policy revision before one atomic text replacement.
+Changed metadata refreshes suggestions without replaying acceptance. Static dot
+vocabulary completes locally. PgUp/PgDn exposes clipped selected-item details.
+
+Assistance grants no access and does not compile,
 submit or execute a candidate on acceptance.
 
 Candidates distinguish keywords, source/column identifiers and supported meta

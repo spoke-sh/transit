@@ -1,6 +1,7 @@
 //! Application-owned process mechanics, independent of native protocol tests.
 test {
     _ = @import("Options.zig");
+    _ = @import("Undo.zig");
     _ = @import("SqlInput.zig");
     _ = @import("Settings.zig");
     _ = @import("Show.zig");

@@ -7,6 +7,8 @@ const Output = @import("Output.zig");
 const History = @import("History.zig");
 const ExternalEditor = @import("ExternalEditor.zig");
 const Style = @import("Style.zig");
+const Undo = @import("Undo.zig");
+const AssistanceRequest = @import("AssistanceRequest.zig");
 const input = q.fuze.SqlInput;
 const max_bytes = q.fuze.Sql.max_statement_bytes;
 const prompt = "transit> ";
@@ -24,20 +26,20 @@ pub fn run(console: *Console.Console) !void {
     // an empty read must return so normal code can handle the signal.
     raw.cc[@backingInt(std.c.V.MIN)] = 0;
     raw.cc[@backingInt(std.c.V.TIME)] = 0;
-    raw.cc[@backingInt(std.c.V.SUSP)] = 0; // Ctrl-Z belongs to completion undo.
+    raw.cc[@backingInt(std.c.V.SUSP)] = 0; // Ctrl-Z belongs to draft undo.
     raw.cc[@backingInt(std.c.V.QUIT)] = 0;
     if (std.c.tcsetattr(0, .NOW, &raw) != 0) return error.TerminalSetupFailed;
     defer _ = std.c.tcsetattr(0, .NOW, &original);
     var output_buffer: [2048]u8 = undefined;
     var output = std.Io.File.stderr().writerStreaming(console.init.io, &output_buffer);
-    var editor: Editor = .{ .console = console, .out = &output.interface, .arena = .init(console.init.gpa), .history = .{ .io = console.init.io, .allocator = console.init.gpa }, .cooked = original };
+    var editor: Editor = .{ .console = console, .out = &output.interface, .arena = .init(console.init.gpa), .history = .{ .io = console.init.io, .allocator = console.init.gpa }, .cooked = original, .acquisition = .{ .client = console.client, .io = console.init.io } };
     defer {
         editor.erasePrivate();
         editor.history.close();
         editor.arena.deinit();
     }
     editor.history.open(console.init.environ_map.get("HOME")) catch |err| try editor.historyFailure(err);
-    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nCtrl-R searches history; Ctrl-Space completes; Tab accepts; Ctrl-Z undoes.\n\x1b[?2004h");
+    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nTab completes; Ctrl-R searches history; Esc clears; Ctrl-Z undoes.\n\x1b[?2004h");
     try Output.write(console.init, &output.interface, "");
     defer {
         Signals.clear(); // Restore display modes even after the handled signal.
@@ -54,9 +56,12 @@ const Editor = struct {
     length: usize = 0,
     cursor: usize = 0,
     generation: u32 = 0,
-    undo: [max_bytes]u8 = undefined,
-    undo_length: ?usize = null,
-    undo_cursor: usize = 0,
+    journal: Undo = .{},
+    undo_chord: bool = false,
+    vertical_column: ?usize = null,
+    paste_cr: bool = false,
+    queued_before_prompt: usize = 0,
+    input_was_queued: bool = false,
     history: History,
     cooked: std.c.termios,
     history_position: ?u64 = null,
@@ -68,8 +73,17 @@ const Editor = struct {
     search_length: usize = 0,
     search_failed: bool = false,
     arena: std.heap.ArenaAllocator,
+    acquisition: AssistanceRequest,
     assistance: ?q.Assistance.Response = null,
+    completing: bool = false,
+    local_completion: bool = false,
+    unavailable: bool = false,
+    accepting: bool = false,
+    auto_unique: bool = false,
+    refresh_at: i64 = 0,
+    started_at: i64 = 0,
     selected: usize = 0,
+    detail_page: usize = 0,
     expires: i64 = 0,
     pasting: bool = false,
     columns: usize = 80,
@@ -81,45 +95,91 @@ const Editor = struct {
     fn now(self: *Editor) i64 {
         return std.Io.Clock.boot.now(self.console.init.io).toMilliseconds();
     }
-    fn dismiss(self: *Editor) void {
+    fn invalidate(self: *Editor) void {
         self.assistance = null;
         _ = self.arena.reset(.free_all);
         self.selected = 0;
+        self.detail_page = 0;
+        self.accepting = false;
+        self.unavailable = false;
+    }
+    fn dismiss(self: *Editor) void {
+        self.acquisition.cancel();
+        self.invalidate();
+        self.completing = false;
+        self.auto_unique = false;
+        self.journal.boundary();
     }
     fn changed(self: *Editor) void {
-        self.dismiss();
+        self.invalidate();
         self.generation +%= 1;
+        self.auto_unique = false;
+        if (self.completing) self.refresh_at = self.now() + 75;
     }
     fn erasePrivate(self: *Editor) void {
         self.dismiss();
         std.crypto.secureZero(u8, &self.bytes);
-        std.crypto.secureZero(u8, &self.undo);
+        self.journal.clear();
         std.crypto.secureZero(u8, &self.draft);
         std.crypto.secureZero(u8, &self.search);
         self.history.clear();
         self.length = 0;
         self.cursor = 0;
-        self.undo_length = null;
         self.history_position = null;
         self.draft_length = 0;
         self.searching = false;
         self.search_length = 0;
         self.generation +%= 1;
     }
+    fn checkpoint(self: *Editor, group: Undo.Group) void {
+        if (self.pasting) return;
+        if (self.searching) {
+            self.journal.save(self.search[0..self.search_length], self.search_length, .search, group);
+            return;
+        }
+        self.installPreview();
+        self.journal.save(self.text(), self.cursor, .draft, group);
+    }
+    fn installPreview(self: *Editor) void {
+        if (self.history_position != null and !self.searching) {
+            self.journal.save(self.draft[0..self.draft_length], self.draft_cursor, .draft, .atomic);
+            self.history_position = null;
+        }
+    }
+    fn undoEdit(self: *Editor) !void {
+        self.dismiss();
+        self.vertical_column = null;
+        if (self.searching) {
+            if (self.journal.restore(.search, &self.search)) |value| {
+                self.search_length = value.length;
+                try self.searchHistory(false);
+            }
+        } else {
+            self.installPreview();
+            if (self.journal.restore(.draft, &self.bytes)) |value| {
+                self.length = value.length;
+                self.cursor = value.cursor;
+                self.changed();
+            }
+        }
+    }
     fn insert(self: *Editor, bytes: []const u8) !void {
         if (self.length + bytes.len > max_bytes) return error.StatementTooLarge;
+        self.checkpoint(if (word(bytes)) .typing else .atomic);
+        self.vertical_column = null;
         std.mem.copyBackwards(u8, self.bytes[self.cursor + bytes.len .. self.length + bytes.len], self.bytes[self.cursor..self.length]);
         @memcpy(self.bytes[self.cursor..][0..bytes.len], bytes);
         self.cursor += bytes.len;
         self.length += bytes.len;
-        self.undo_length = null;
         self.changed();
     }
     fn remove(self: *Editor, start: usize, end: usize) void {
+        if (start == end) return;
+        self.checkpoint(if (word(self.bytes[start..end])) (if (start < self.cursor) .backspace else .delete) else .atomic);
+        self.vertical_column = null;
         std.mem.copyForwards(u8, self.bytes[start..], self.bytes[end..self.length]);
         self.length -= end - start;
         self.cursor = start;
-        self.undo_length = null;
         self.changed();
     }
     fn historyFailure(self: *Editor, err: anyerror) !void {
@@ -141,6 +201,9 @@ const Editor = struct {
         self.changed();
     }
     fn recall(self: *Editor, up: bool) !void {
+        self.dismiss();
+        self.journal.boundary();
+        self.vertical_column = null;
         if (self.history_position == null) {
             if (!up) return;
             self.saveDraft();
@@ -157,7 +220,6 @@ const Editor = struct {
             return;
         }
         self.cursor = self.length;
-        self.undo_length = null;
         self.changed();
     }
     fn searchHistory(self: *Editor, older: bool) !void {
@@ -166,7 +228,7 @@ const Editor = struct {
         defer std.crypto.secureZero(u8, &candidate);
         while (try self.history.previous(before, &candidate)) |entry| {
             if (Signals.interrupted()) return error.ConsoleInterrupted;
-            if (std.mem.indexOf(u8, candidate[0..entry.length], self.search[0..self.search_length]) != null) {
+            if (History.matches(candidate[0..entry.length], self.search[0..self.search_length]) and try self.history.newestOccurrence(entry.position, candidate[0..entry.length])) {
                 @memcpy(self.bytes[0..entry.length], candidate[0..entry.length]);
                 self.length = entry.length;
                 self.cursor = self.length;
@@ -179,92 +241,212 @@ const Editor = struct {
         }
         self.search_failed = true;
     }
+    fn searchNewer(self: *Editor) !void {
+        var after = self.history_position orelse return;
+        var candidate: [max_bytes]u8 = undefined;
+        defer std.crypto.secureZero(u8, &candidate);
+        while (try self.history.next(after, &candidate)) |entry| {
+            if (History.matches(candidate[0..entry.length], self.search[0..self.search_length]) and try self.history.newestOccurrence(entry.position, candidate[0..entry.length])) {
+                @memcpy(self.bytes[0..entry.length], candidate[0..entry.length]);
+                self.length = entry.length;
+                self.cursor = self.length;
+                self.history_position = entry.position;
+                self.search_failed = false;
+                self.changed();
+                return;
+            }
+            after = entry.position;
+        }
+    }
     fn beginSearch(self: *Editor) !void {
         if (!self.searching) {
+            self.dismiss();
+            self.installPreview();
+            self.journal.boundary();
             self.saveDraft();
             self.searching = true;
             self.search_length = 0;
             self.search_failed = false;
             self.history_position = null;
-            self.undo_length = null;
             self.changed();
             return;
         }
         try self.searchHistory(true);
     }
     fn finishSearch(self: *Editor, accept_match: bool) void {
-        if (!accept_match or self.search_failed or self.history_position == null) self.restoreDraft();
+        if (accept_match and (self.search_failed or self.history_position == null)) return;
+        self.journal.discardSearch();
+        if (accept_match) {
+            self.journal.save(self.draft[0..self.draft_length], self.draft_cursor, .draft, .atomic);
+        } else self.restoreDraft();
+        self.history_position = null;
         self.searching = false;
         self.search_length = 0;
         self.search_failed = false;
         self.changed();
     }
     fn clearDraft(self: *Editor) void {
+        self.dismiss();
+        if (self.searching) self.finishSearch(false);
+        if (self.length > 0) self.checkpoint(.atomic);
         self.length = 0;
         self.cursor = 0;
-        self.undo_length = null;
         self.searching = false;
         self.search_length = 0;
         self.search_failed = false;
         self.history_position = null;
         self.pasting = false;
+        self.undo_chord = false;
+        self.queued_before_prompt = 0;
+        self.vertical_column = null;
+        self.journal.boundary();
         self.changed();
     }
-    fn complete(self: *Editor) !void {
+    fn request(self: *Editor) q.Assistance.Request {
+        return .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console };
+    }
+    fn complete(self: *Editor, unique: bool) !void {
+        if (self.acquisition.future != null) return;
         self.dismiss();
-        const response = (self.console.assist(self.arena.allocator(), .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console }) catch |err| {
-            if (Console.denied(err)) self.erasePrivate();
-            return err;
-        });
-        if (Signals.interrupted()) return error.ConsoleInterrupted;
-        // Input accumulated while a metadata read waited is a newer generation.
-        // Process it before ever presenting/accepting the old response.
-        if (Signals.pending()) {
-            self.dismiss();
+        self.completing = true;
+        self.auto_unique = unique;
+        self.refresh_at = self.now();
+        try self.acquire();
+    }
+    fn acquire(self: *Editor) !void {
+        self.started_at = self.now();
+        if (try q.Assistance.local(self.arena.allocator(), self.request())) |value| {
+            self.local_completion = true;
+            self.assistance = .{ .generation = self.generation, .coverage = value.coverage, .status = value.status, .resource = 0, .contract = @splat(0), .resource_revision = 0, .policy_revision = "", .range = value.range, .items = value.items };
+            self.expires = self.now() + 5000;
+            if (self.auto_unique and value.coverage == .complete and value.items.len == 1) try self.apply();
             return;
         }
-        self.assistance = response;
-        self.expires = self.now() + 5000;
+        self.local_completion = false;
+        try self.acquisition.start(self.request());
+    }
+    fn assistanceFailure(self: *Editor, err: anyerror) void {
+        self.auto_unique = false;
+        if (self.protectedFailure(err)) {
+            self.console.access_lost = false;
+            self.erasePrivate();
+        } else {
+            self.invalidate();
+            self.unavailable = true;
+        }
+    }
+    fn protectedFailure(self: *Editor, err: anyerror) bool {
+        return self.console.access_lost or Console.denied(err) or err == error.SqlInstanceChanged or err == error.SqlSessionExpired;
+    }
+    fn tick(self: *Editor) !bool {
+        if (!self.completing) return false;
+        if (self.acquisition.future != null) {
+            const reply = self.acquisition.ready() catch |err| {
+                if (self.protectedFailure(err) or self.acquisition.generation == self.generation) self.assistanceFailure(err);
+                return true;
+            } orelse return self.now() - self.started_at >= 150;
+            defer reply.deinit();
+            // Do not disclose or insert a response while a newer key is queued.
+            if (reply.value.result == .err) {
+                _ = self.console.decodeAssistance(self.arena.allocator(), reply.value, self.request()) catch |err| {
+                    if (self.protectedFailure(err) or self.acquisition.generation == self.generation) self.assistanceFailure(err);
+                    return true;
+                };
+            }
+            if (Signals.pending() or self.acquisition.generation != self.generation) {
+                self.invalidate();
+                self.auto_unique = false;
+                self.refresh_at = self.now() + 75;
+                return true;
+            }
+            var fresh: std.heap.ArenaAllocator = .init(self.console.init.gpa);
+            defer fresh.deinit();
+            const current = self.console.decodeAssistance(fresh.allocator(), reply.value, self.request()) catch |err| {
+                self.assistanceFailure(err);
+                return true;
+            };
+            if (self.accepting) {
+                const prior = self.assistance orelse return false;
+                const same = current.generation == prior.generation and current.profile == prior.profile and current.resource == prior.resource and current.resource_revision == prior.resource_revision and std.meta.eql(current.range, prior.range) and std.mem.eql(u8, &current.contract, &prior.contract) and std.mem.eql(u8, current.policy_revision, prior.policy_revision);
+                const selected = prior.items[self.selected];
+                const found = for (current.items) |candidate| {
+                    if (std.mem.eql(u8, candidate.text, selected.text) and candidate.kind == selected.kind) break true;
+                } else false;
+                if (same and found) {
+                    try self.apply();
+                    return true;
+                }
+                self.auto_unique = false;
+            }
+            self.invalidate();
+            // Move the whole owned arena only after the old selection is gone.
+            self.arena.deinit();
+            self.arena = fresh;
+            fresh = .init(self.console.init.gpa);
+            self.assistance = current;
+            self.expires = self.now() + 5000;
+            if (self.auto_unique and current.status == .ready and current.coverage == .complete and current.items.len == 1) {
+                self.auto_unique = false;
+                try self.accept();
+            }
+            return true;
+        }
+        if (self.assistance != null and self.now() >= self.expires) {
+            self.invalidate();
+            self.auto_unique = false;
+            self.refresh_at = self.now();
+        }
+        if (self.assistance == null and !self.unavailable and self.now() >= self.refresh_at) {
+            try self.acquire();
+            return true;
+        }
+        return false;
     }
     fn accept(self: *Editor) !void {
-        const prior = self.assistance orelse return self.complete();
-        if (prior.items.len == 0) return;
+        if (!self.completing) return self.complete(true);
+        if (self.unavailable) return self.complete(false);
+        if (self.acquisition.future != null or self.accepting) return;
+        const prior = self.assistance orelse return;
+        if (prior.items.len == 0 or prior.range == null) {
+            self.dismiss();
+            return;
+        }
+        self.journal.boundary();
+        if (self.local_completion) return self.apply();
+        self.accepting = true;
+        try self.acquisition.start(self.request());
+    }
+    fn apply(self: *Editor) !void {
+        const prior = self.assistance orelse return;
         const range = prior.range orelse return;
         const selected = prior.items[self.selected];
-        var arena: std.heap.ArenaAllocator = .init(self.console.init.gpa);
-        defer arena.deinit();
-        const current = (self.console.assist(arena.allocator(), .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console }) catch |err| {
-            if (Console.denied(err)) self.erasePrivate() else self.dismiss();
-            return err;
-        });
-        if (Signals.interrupted()) return error.ConsoleInterrupted;
-        if (Signals.pending() or current.generation != prior.generation or !std.meta.eql(current.range, prior.range) or !std.mem.eql(u8, &current.contract, &prior.contract) or !std.mem.eql(u8, current.policy_revision, prior.policy_revision)) {
-            self.dismiss();
-            return;
-        }
-        var found = false;
-        for (current.items) |candidate| if (std.mem.eql(u8, candidate.text, selected.text)) {
-            found = true;
-            break;
-        };
-        if (!found) {
-            self.dismiss();
-            return;
-        }
+        if (range.start > range.end or range.end > self.length or !std.unicode.utf8ValidateSlice(self.text()[0..range.start]) or !std.unicode.utf8ValidateSlice(self.text()[0..range.end]) or !std.unicode.utf8ValidateSlice(selected.text)) return error.InvalidSqlResponse;
         const length = self.length - (range.end - range.start) + selected.text.len;
         if (length > max_bytes) return error.StatementTooLarge;
-        @memcpy(self.undo[0..self.length], self.text());
-        self.undo_length = self.length;
-        self.undo_cursor = self.cursor;
-        const suffix = self.undo[range.end..self.length];
+        if (self.cursor == range.end and std.mem.eql(u8, self.bytes[range.start..range.end], selected.text)) {
+            self.dismiss();
+            return;
+        }
+        self.checkpoint(.atomic);
+        var original: [max_bytes]u8 = undefined;
+        defer std.crypto.secureZero(u8, &original);
+        @memcpy(original[0..self.length], self.text());
+        const suffix = original[range.end..self.length];
         @memcpy(self.bytes[range.start..][0..selected.text.len], selected.text);
         @memcpy(self.bytes[range.start + selected.text.len ..][0..suffix.len], suffix);
         self.length = length;
         self.cursor = range.start + selected.text.len;
+        self.dismiss();
         self.changed();
     }
     fn submit(self: *Editor) !bool {
         self.dismiss();
+        if (!Console.isMeta(std.mem.trimStart(u8, self.text(), " \t\r\n")) and try input.terminator(self.text()) == null) {
+            if (self.length > 0) try self.insert("\n");
+            return true;
+        }
+        self.installPreview();
+        self.journal.clear();
         var consumed: usize = 0;
         while (consumed < self.length) {
             const rest = std.mem.trimStart(u8, self.bytes[consumed..self.length], " \t\r\n");
@@ -281,13 +463,21 @@ const Editor = struct {
             self.history_position = null;
             const more = if (std.mem.eql(u8, std.mem.trim(u8, statement, " \t\r\n"), ".edit")) try self.editExternal() else try self.console.execute(statement);
             if (!more) return false;
+            // A bare Esc typed during execution must not clear the next draft.
+            // Count queued bytes instead of draining typeahead or interpreting
+            // keys inside SQL settlement. All input decoding decrements this cut.
+            var queued: c_int = 0;
+            if (std.os.linux.ioctl(0, std.os.linux.T.FIONREAD, @intFromPtr(&queued)) == 0) self.queued_before_prompt = @intCast(@max(0, queued));
             if (self.console.query_interrupted) {
                 // Ctrl-C cancels the submitted draft, including any remaining
                 // pasted statements. They must not become a background queue.
                 if (self.console.access_lost) {
                     self.console.access_lost = false;
                     self.erasePrivate();
-                } else self.remove(0, self.length);
+                } else {
+                    self.clearDraft();
+                    self.journal.clear();
+                }
                 self.pasting = false;
                 return true;
             }
@@ -298,15 +488,23 @@ const Editor = struct {
             }
             consumed = start + count;
         }
-        if (consumed > 0) self.remove(0, consumed);
-        self.cursor = self.length;
+        if (consumed > 0) {
+            std.mem.copyForwards(u8, &self.bytes, self.bytes[consumed..self.length]);
+            self.length -= consumed;
+            self.cursor = self.length;
+            self.changed();
+        }
+        self.journal.clear();
         if (self.length > 0) try self.insert("\n");
         return true;
     }
     fn editExternal(self: *Editor) !bool {
         // A failed editor must not leave an already submitted pasted prefix in
         // the draft, where the next Enter could repeat accepted work.
-        errdefer self.clearDraft();
+        errdefer {
+            self.clearDraft();
+            self.journal.clear();
+        }
         self.console.query_interrupted = false;
         var bytes: [max_bytes]u8 = undefined;
         defer std.crypto.secureZero(u8, &bytes);
@@ -374,7 +572,7 @@ const Editor = struct {
     fn loop(self: *Editor) !void {
         try self.draw();
         while (true) {
-            const event = Signals.pollByte(100, .raw_terminal) catch |err| {
+            const event = self.pollByte(25) catch |err| {
                 if (err != error.ConsoleInterrupted or Signals.terminating()) return err;
                 Signals.clear();
                 self.clearDraft();
@@ -382,12 +580,16 @@ const Editor = struct {
                 continue;
             };
             if (event == .timeout) {
-                try self.console.keepalive();
+                const redraw = self.tick() catch |err| blk: {
+                    self.assistanceFailure(err);
+                    break :blk true;
+                };
+                if (self.acquisition.future == null) self.console.keepalive() catch |err| {
+                    self.erasePrivate();
+                    return err;
+                };
                 const size = dimensions();
-                if ((self.assistance != null and self.now() >= self.expires) or size.columns != self.columns or size.rows != self.rows) {
-                    self.dismiss();
-                    try self.draw();
-                }
+                if (redraw or size.columns != self.columns or size.rows != self.rows) try self.draw();
                 continue;
             }
             if (event == .eof) {
@@ -396,7 +598,7 @@ const Editor = struct {
             }
             self.key(event.byte) catch |err| {
                 if (err == error.ConsoleQuit) return;
-                if (err == error.ConsoleInterrupted and self.searching and !Signals.terminating()) {
+                if (err == error.ConsoleInterrupted and !Signals.terminating()) {
                     Signals.clear();
                     self.clearDraft();
                     try self.draw();
@@ -413,22 +615,55 @@ const Editor = struct {
             if (!Signals.pending()) try self.draw();
         }
     }
+    fn pollByte(self: *Editor, timeout: c_int) !Signals.Input {
+        const event = try Signals.pollByte(timeout, .raw_terminal);
+        if (event == .byte) {
+            self.input_was_queued = self.queued_before_prompt > 0;
+            self.queued_before_prompt -|= 1;
+        }
+        return event;
+    }
+    fn readByte(self: *Editor) !?u8 {
+        while (true) switch (try self.pollByte(100)) {
+            .byte => |byte| return byte,
+            .eof => return null,
+            .timeout => {},
+        };
+    }
     fn key(self: *Editor, byte: u8) !void {
         if (byte == 27) return self.escape();
         if (self.pasting) {
-            if (byte == '\r') return if (self.searching) self.character('\n') else self.insert("\n");
+            if (byte == '\n' and self.paste_cr) {
+                self.paste_cr = false;
+                return;
+            }
+            self.paste_cr = byte == '\r';
+            if (byte == '\r') return self.character('\n');
             if (byte < 32 and byte != '\n' and byte != '\t') return error.InvalidSqlEncoding;
             return self.character(byte);
         }
+        const chord = self.undo_chord;
+        self.undo_chord = false;
+        if (chord and byte == 21) return self.undoEdit();
+        if (byte == 24) {
+            self.undo_chord = true;
+            self.journal.boundary();
+            return;
+        }
+        if (byte == 26 or byte == 31) return self.undoEdit();
         if (self.searching) switch (byte) {
-            18 => return self.beginSearch(),
+            18, 16 => return self.beginSearch(),
+            14 => return self.searchNewer(),
             9, 10, 13 => return self.finishSearch(true),
             7 => return self.finishSearch(false),
             21 => {
+                self.checkpoint(.atomic);
                 self.search_length = 0;
                 return self.searchHistory(false);
             },
             8, 127 => {
+                if (self.search_length == 0) return;
+                self.checkpoint(.backspace);
                 self.search_length = previous(self.search[0..self.search_length], self.search_length);
                 return self.searchHistory(false);
             },
@@ -438,31 +673,30 @@ const Editor = struct {
             },
         };
         switch (byte) {
-            0 => try self.complete(), // Ctrl-Space
-            18 => try self.beginSearch(), // Ctrl-R
+            0 => try self.complete(true),
+            18 => try self.beginSearch(),
+            16 => try self.recall(true),
+            14 => try self.recall(false),
+            7 => {
+                self.dismiss();
+                self.journal.boundary();
+            },
             4 => {
                 if (self.length == 0) return error.ConsoleQuit;
                 return error.IncompleteSqlStatement;
             },
             9 => try self.accept(),
             10, 13 => {
-                if (self.assistance != null) try self.accept() else if (!try self.submit()) return error.ConsoleQuit;
+                if (self.completing) {
+                    if (self.assistance != null and self.acquisition.future == null) try self.accept() else self.dismiss();
+                } else if (!try self.submit()) return error.ConsoleQuit;
             },
-            1 => {
-                self.cursor = 0;
-                self.changed();
-            },
-            5 => {
-                self.cursor = self.length;
-                self.changed();
-            },
-            21 => self.remove(0, self.cursor),
-            26 => if (self.undo_length) |length| {
-                @memcpy(self.bytes[0..length], self.undo[0..length]);
-                self.length = length;
-                self.cursor = self.undo_cursor;
-                self.undo_length = null;
-                self.changed();
+            1 => self.move(0),
+            5 => self.move(self.length),
+            21 => {
+                self.journal.boundary();
+                self.remove(0, self.cursor);
+                self.journal.boundary();
             },
             8, 127 => if (self.cursor > 0) self.remove(previous(self.text(), self.cursor), self.cursor),
             else => {
@@ -471,14 +705,21 @@ const Editor = struct {
             },
         }
     }
+    fn move(self: *Editor, cursor: usize) void {
+        self.cursor = cursor;
+        self.vertical_column = null;
+        self.journal.boundary();
+        self.changed();
+    }
     fn character(self: *Editor, byte: u8) !void {
         const length = std.unicode.utf8ByteSequenceLength(byte) catch return error.InvalidSqlEncoding;
         var bytes: [4]u8 = undefined;
         bytes[0] = byte;
-        for (bytes[1..length]) |*next| next.* = try Signals.readByte(.raw_terminal) orelse return error.InvalidSqlEncoding;
+        for (bytes[1..length]) |*next| next.* = try self.readByte() orelse return error.InvalidSqlEncoding;
         if (!std.unicode.utf8ValidateSlice(bytes[0..length])) return error.InvalidSqlEncoding;
         if (self.searching) {
             if (self.search_length + length > max_bytes) return error.StatementTooLarge;
+            self.checkpoint(if (word(bytes[0..length])) .typing else .atomic);
             @memcpy(self.search[self.search_length..][0..length], bytes[0..length]);
             self.search_length += length;
             return self.searchHistory(false);
@@ -486,59 +727,108 @@ const Editor = struct {
         try self.insert(bytes[0..length]);
     }
     fn escape(self: *Editor) !void {
-        var sequence: [12]u8 = undefined;
+        const queued_during_execution = self.input_was_queued;
+        self.undo_chord = false;
+        self.journal.boundary();
+        var sequence: [32]u8 = undefined;
         var length: usize = 0;
         while (length < sequence.len) {
-            const event = try Signals.pollByte(25, .raw_terminal);
+            const event = try self.pollByte(if (length == 0) 50 else 250);
             if (event != .byte) break;
             sequence[length] = event.byte;
             length += 1;
-            if (length == 1 and event.byte != '[' and event.byte != 'O') {
-                if (self.searching) self.finishSearch(false);
-                self.dismiss();
-                return self.character(event.byte);
-            }
-            if (length > 1 and (std.ascii.isAlphabetic(event.byte) or event.byte == '~')) break;
+            if (length == 1 and event.byte != '[' and event.byte != 'O') return;
+            if (length > 1 and event.byte >= 0x40 and event.byte <= 0x7e) break;
         }
         const code = sequence[0..length];
-        if (std.mem.eql(u8, code, "[200~")) {
-            self.pasting = true;
-            self.dismiss();
-            return;
-        }
         if (std.mem.eql(u8, code, "[201~")) {
             self.pasting = false;
+            self.paste_cr = false;
+            self.journal.boundary();
             return;
         }
         if (self.pasting) return error.InvalidSqlEncoding;
-        if (self.searching) {
-            self.finishSearch(length != 0);
-            if (length == 0) return;
+        if (std.mem.eql(u8, code, "[200~")) {
+            self.checkpoint(.atomic);
+            self.pasting = true;
+            self.paste_cr = false;
+            self.dismiss();
+            return;
         }
-        if (std.mem.eql(u8, code, "[A") or std.mem.eql(u8, code, "[B")) {
-            const up = code[1] == 'A';
-            if (self.assistance) |assistance| {
-                if (assistance.items.len > 0) self.selected = if (up) (self.selected + assistance.items.len - 1) % assistance.items.len else (self.selected + 1) % assistance.items.len;
-            } else self.recall(up) catch |err| {
-                if (err != error.ConsoleInterrupted or Signals.terminating()) return err;
-                Signals.clear();
-                self.clearDraft();
-            };
-        } else if (std.mem.eql(u8, code, "[D")) {
-            self.cursor = previous(self.text(), self.cursor);
-            self.changed();
-        } else if (std.mem.eql(u8, code, "[C")) {
-            if (self.cursor < self.length) self.cursor += try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor]);
-            self.changed();
-        } else if (std.mem.eql(u8, code, "[H") or std.mem.eql(u8, code, "OH")) {
-            self.cursor = 0;
-            self.changed();
-        } else if (std.mem.eql(u8, code, "[F") or std.mem.eql(u8, code, "OF")) {
-            self.cursor = self.length;
-            self.changed();
+        if (length == 0) {
+            if (queued_during_execution) return;
+            self.clearDraft();
+            return;
+        }
+        const up = std.mem.eql(u8, code, "[A") or std.mem.eql(u8, code, "OA");
+        const down = std.mem.eql(u8, code, "[B") or std.mem.eql(u8, code, "OB");
+        if (self.searching) {
+            if (up) try self.searchHistory(true) else if (down) try self.searchNewer();
+            return;
+        }
+        if (self.completing and (std.mem.eql(u8, code, "[5~") or std.mem.eql(u8, code, "[6~"))) {
+            self.detail_page = if (code[1] == '5') self.detail_page -| 1 else @min(2048, self.detail_page + 1);
+        } else if (std.mem.eql(u8, code, "[Z")) {
+            if (!self.completing) try self.complete(false) else self.select(true);
+        } else if (up or down) {
+            if (self.completing) self.select(up) else try self.vertical(up);
+        } else if (std.mem.eql(u8, code, "[D") or std.mem.eql(u8, code, "OD")) {
+            self.move(previous(self.text(), self.cursor));
+        } else if (std.mem.eql(u8, code, "[C") or std.mem.eql(u8, code, "OC")) {
+            if (self.cursor < self.length) self.move(self.cursor + try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor]));
+        } else if (std.mem.eql(u8, code, "[H") or std.mem.eql(u8, code, "OH") or std.mem.eql(u8, code, "[1~")) {
+            self.move(0);
+        } else if (std.mem.eql(u8, code, "[F") or std.mem.eql(u8, code, "OF") or std.mem.eql(u8, code, "[4~")) {
+            self.move(self.length);
         } else if (std.mem.eql(u8, code, "[3~")) {
-            if (self.cursor < self.length) self.remove(self.cursor, self.cursor + (try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor])));
-        } else self.dismiss();
+            if (self.cursor < self.length) self.remove(self.cursor, self.cursor + try std.unicode.utf8ByteSequenceLength(self.bytes[self.cursor]));
+        }
+        // Unknown/truncated escape sequences never become a clear action.
+    }
+    fn select(self: *Editor, up: bool) void {
+        self.detail_page = 0;
+        if (self.accepting) return;
+        const assistance = self.assistance orelse return;
+        if (assistance.items.len > 0) self.selected = if (up) (self.selected + assistance.items.len - 1) % assistance.items.len else (self.selected + 1) % assistance.items.len;
+    }
+    fn vertical(self: *Editor, up: bool) !void {
+        const size = dimensions();
+        const available = size.columns - @min(prompt.len, size.columns / 2) - 1;
+        var positions: [max_bytes + 1]struct { row: usize, column: usize } = undefined;
+        var row: usize = 0;
+        var column: usize = 0;
+        var offset: usize = 0;
+        var buffer: [16]u8 = undefined;
+        while (offset < self.length) {
+            const length = try std.unicode.utf8ByteSequenceLength(self.bytes[offset]);
+            const visible = try displayCharacter(self.bytes[offset..][0..length], &buffer, available);
+            const newline = self.bytes[offset] == '\n';
+            if (!newline and column + visible.len > available) {
+                row += 1;
+                column = 0;
+            }
+            positions[offset] = .{ .row = row, .column = column };
+            if (newline) {
+                row += 1;
+                column = 0;
+            } else column += visible.len;
+            offset += length;
+        }
+        positions[self.length] = .{ .row = row, .column = column };
+        const at = positions[self.cursor];
+        if (up and at.row == 0 or !up and at.row == row) return self.recall(up);
+        const target = if (up) at.row - 1 else at.row + 1;
+        const goal = self.vertical_column orelse at.column;
+        var chosen = self.cursor;
+        offset = 0;
+        while (offset <= self.length) {
+            const position = positions[offset];
+            if (position.row == target and position.column <= goal) chosen = offset;
+            if (offset == self.length) break;
+            offset += try std.unicode.utf8ByteSequenceLength(self.bytes[offset]);
+        }
+        self.move(chosen);
+        self.vertical_column = goal;
     }
     fn dimensions() struct { columns: usize, rows: usize } {
         var size: std.c.winsize = .{ .row = 0, .col = 0, .xpixel = 0, .ypixel = 0 };
@@ -564,8 +854,7 @@ const Editor = struct {
         try frame.flush();
     }
     fn drawDraft(self: *Editor, out: *std.Io.Writer) !void {
-        var prefix_buffer: [160]u8 = undefined;
-        const prefix = if (self.assistance) |assistance| if (assistance.items.len == 0) "[no completion] > " else try std.fmt.bufPrint(&prefix_buffer, "[{d}/{d} {s}] > ", .{ self.selected + 1, assistance.items.len, assistance.items[self.selected].text }) else prompt;
+        const prefix = prompt;
         const prefix_length = @min(prefix.len, self.columns / 2);
         // Explicit row breaks avoid terminal autowrap and leave a cursor cell
         // at the right edge. Layout is bounded by the existing statement limit.
@@ -608,7 +897,8 @@ const Editor = struct {
         count += 1;
         // Keep the cursor visible even when the draft exceeds the screen.
         // One spare terminal row lets redraws scroll without losing the origin.
-        const visible_rows = @min(count, @max(1, self.rows -| 1));
+        const menu_rows = self.menuRows();
+        const visible_rows = @min(count, @max(1, self.rows -| (1 + menu_rows)));
         const first = @min(cursor_row -| (visible_rows / 2), count - visible_rows);
         var syntax = Style.Syntax.init(self.text());
         var active: Style.Color = .plain;
@@ -637,15 +927,74 @@ const Editor = struct {
         }
         try out.writeAll(style.code(.plain));
         self.display_cursor_row = cursor_row - first;
-        const up = visible_rows - 1 - self.display_cursor_row;
+        const below = try self.drawMenu(out, menu_rows);
+        const up = visible_rows - 1 + below - self.display_cursor_row;
         if (up > 0) try out.print("\x1b[{d}A", .{up});
         try out.print("\r\x1b[{d}C", .{prefix_length + cursor_column});
+    }
+    fn menuRows(self: *Editor) usize {
+        if (!self.completing or self.rows < 3) return 0;
+        const count = if (self.assistance) |value| value.items.len else 0;
+        return @min(@max(1, count + 2), @max(1, self.rows / 2));
+    }
+    fn clipped(out: *std.Io.Writer, text_value: []const u8, width: usize) !void {
+        var used: usize = 0;
+        var offset: usize = 0;
+        var buffer: [16]u8 = undefined;
+        while (offset < text_value.len) {
+            const size = try std.unicode.utf8ByteSequenceLength(text_value[offset]);
+            const visible = try displayCharacter(text_value[offset..][0..size], &buffer, width);
+            if (used + visible.len > width) break;
+            try out.writeAll(visible);
+            used += visible.len;
+            offset += size;
+        }
+    }
+    fn drawMenu(self: *Editor, out: *std.Io.Writer, rows: usize) !usize {
+        if (rows == 0) return 0;
+        const assistance = self.assistance;
+        const message: ?[]const u8 = if (self.unavailable) "Completion unavailable; Tab retries" else if (self.accepting) "Checking suggestion..." else if (assistance == null) (if (self.now() - self.started_at >= 150) "Loading suggestions..." else "Suggestions") else if (assistance.?.status == .inside_text) "No completion inside this text" else if (assistance.?.status == .unsupported) "No suggestions for this SQL context" else if (assistance.?.items.len == 0) (if (assistance.?.coverage == .limited) "Limited search; type more to narrow" else "No matching suggestions") else null;
+        if (message) |value| {
+            try out.writeAll("\r\n");
+            try clipped(out, value, self.columns - 1);
+            return 1;
+        }
+        const value = assistance.?;
+        var detail_storage: [8192]u8 = undefined;
+        var detail: std.Io.Writer = .fixed(&detail_storage);
+        const selected = value.items[self.selected];
+        try clipped(&detail, selected.text, detail_storage.len);
+        try detail.print("  [{s}] ", .{@tagName(selected.kind)});
+        try clipped(&detail, selected.detail, detail_storage.len - detail.end);
+        const width = self.columns - 1;
+        const pages = (detail.end + width - 1) / width;
+        self.detail_page = @min(self.detail_page, pages -| 1);
+        const part = detail.buffered()[@min(detail.end, self.detail_page * width)..];
+        const count = @min(value.items.len, @max(1, rows -| 2));
+        const first = @min(self.selected -| (count / 2), value.items.len - count);
+        var used: usize = 0;
+        for (value.items[first..][0..count], first..) |item, index| {
+            try out.writeAll(if (index == self.selected) "\r\n> " else "\r\n  ");
+            if (rows == 1 and self.detail_page > 0 and index == self.selected) try out.writeAll(part[0..@min(part.len, self.columns - 3)]) else try clipped(out, item.text, self.columns - 3);
+            used += 1;
+        }
+        if (used < rows) {
+            try out.writeAll("\r\n");
+            try out.writeAll(part[0..@min(part.len, width)]);
+            used += 1;
+        }
+        if (used < rows) {
+            try out.writeAll("\r\n");
+            try clipped(out, if (value.coverage == .limited) "Limited list; type more to narrow" else if (pages > 1) "PgUp/PgDn details; Tab/Enter accepts" else "Tab/Enter accepts; Ctrl-G dismisses", width);
+            used += 1;
+        }
+        return used;
     }
     fn drawSearch(self: *Editor, out: *std.Io.Writer) !void {
         const label = if (self.columns < 24) "/" else "search ";
         try out.writeAll(self.console.diagnostic.style.code(.plain));
         try out.writeAll(label);
-        var used: usize = label.len;
+        const used: usize = label.len;
         var buffer: [16]u8 = undefined;
         var offset: usize = 0;
         // Show the end of a long search term, keeping all display bytes safe.
@@ -665,19 +1014,31 @@ const Editor = struct {
             try out.writeAll(try printable(query[offset..][0..size], &buffer));
             offset += size;
         }
-        used += query_width;
-        const caret = used;
-        try out.writeAll(" > ");
-        used += 3;
+        const caret = used + query_width;
         const result = if (self.search_failed) "(no match)" else if (self.history_position == null) "(type to search)" else self.text();
-        offset = 0;
-        while (offset < result.len) {
-            const size = try std.unicode.utf8ByteSequenceLength(result[offset]);
-            const visible = try printable(result[offset..][0..size], &buffer);
-            if (used + visible.len >= self.columns) break;
-            try out.writeAll(visible);
-            used += visible.len;
-            offset += size;
+        if (self.rows >= 3) {
+            try out.writeAll(" >");
+            try out.writeAll("\r\n");
+            var preview_rows: usize = 1;
+            var width: usize = 0;
+            offset = 0;
+            while (offset < result.len) {
+                const size = try std.unicode.utf8ByteSequenceLength(result[offset]);
+                const visible = try displayCharacter(result[offset..][0..size], &buffer, self.columns - 1);
+                const newline = result[offset] == '\n';
+                if (newline or width + visible.len >= self.columns) {
+                    if (preview_rows >= self.rows - 2) break;
+                    try out.writeAll("\r\n");
+                    preview_rows += 1;
+                    width = 0;
+                }
+                if (!newline) {
+                    try out.writeAll(visible);
+                    width += visible.len;
+                }
+                offset += size;
+            }
+            try out.print("\x1b[{d}A", .{preview_rows});
         }
         try out.print("\r\x1b[{d}C", .{caret});
     }
@@ -703,4 +1064,9 @@ fn displayCharacter(bytes: []const u8, buffer: []u8, available: usize) ![]const 
     // Very narrow terminals may not fit one escaped Unicode scalar. Preserve
     // its input bytes and cursor boundary while displaying a single safe cell.
     return if (visible.len > available) "?" else visible;
+}
+
+fn word(bytes: []const u8) bool {
+    for (bytes) |byte| if (byte < 128 and !std.ascii.isAlphanumeric(byte) and byte != '_') return false;
+    return bytes.len > 0;
 }

@@ -181,6 +181,15 @@ configuration and terminal keys. Statement topics such as `.help INSERT` and
 `.help ALTER TABLE` describe only the selected statement. Help always prints
 text, including in JSON result mode, and submits no SQL.
 
+In the interactive editor, Tab requests grammar/catalog completion and accepts
+selected suggestions or history matches. Acceptance never executes a statement.
+Esc clears the whole unsubmitted draft; Ctrl-G dismisses suggestions or restores
+the original draft from Ctrl-R search. Ctrl-Z undoes ordinary edits, paste,
+completion and clearing. Up/Down moves between multiline rows before browsing
+history; Ctrl-P/Ctrl-N always browses history. The
+[terminal key map and limits](../../../apps/transit-cli/docs/console.md#terminal-editing-and-history)
+cover search matching, bounded undo, metadata refresh and terminal key delivery.
+
 SELECT uses a fresh leased snapshot in the shared SQL service. Table writes and
 configuration reloads remain owned by the service. The console waits for their
 outcome and exposes no operation-management commands. The

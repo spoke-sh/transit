@@ -158,12 +158,26 @@ pub const Console = struct {
     pub fn assist(self: *Console, allocator: std.mem.Allocator, request: q.Assistance.Request) !q.Assistance.Response {
         const reply = try self.client.call(.{ .assist = .{ .text = request.sql, .cursor = request.cursor } });
         defer reply.deinit();
-        try self.checked(reply.value);
-        if (reply.value.result != .assistance) return error.InvalidSqlResponse;
-        const value = reply.value.result.assistance;
+        return self.decodeAssistance(allocator, reply.value, request);
+    }
+    pub fn decodeAssistance(self: *Console, allocator: std.mem.Allocator, reply: api.Response, request: q.Assistance.Request) !q.Assistance.Response {
+        self.checked(reply) catch |err| {
+            if (reply.result == .err and std.mem.eql(u8, reply.result.err.code, "SqlSessionExpired")) {
+                self.session_lost = true;
+                return error.SqlSessionExpired;
+            }
+            return err;
+        };
+        if (reply.result != .assistance) return error.InvalidSqlResponse;
+        const value = reply.result.assistance;
+        if (value.items.len > q.Assistance.max_items or (value.status != .ready and value.items.len != 0)) return error.InvalidSqlResponse;
+        if (value.range) |range| {
+            if (range.start > range.end or range.end > request.sql.len or !std.unicode.utf8ValidateSlice(request.sql[0..range.start]) or !std.unicode.utf8ValidateSlice(request.sql[0..range.end])) return error.InvalidSqlResponse;
+        } else if (value.items.len != 0) return error.InvalidSqlResponse;
+        for (value.items) |item| if (item.text.len == 0 or item.text.len > 1030 or item.detail.len > 256 or !std.unicode.utf8ValidateSlice(item.text) or !std.unicode.utf8ValidateSlice(item.detail)) return error.InvalidSqlResponse;
         const items = try allocator.alloc(q.Assistance.Item, value.items.len);
         for (value.items, items) |item, *out| out.* = .{ .text = try allocator.dupe(u8, item.text), .kind = @fromBackingInt(@intCast(@backingInt(item.kind))), .detail = try allocator.dupe(u8, item.detail) };
-        return .{ .generation = request.generation, .profile = @fromBackingInt(@intCast(@backingInt(value.profile))), .resource = value.resource, .contract = value.contract, .resource_revision = value.resource_revision, .policy_revision = try allocator.dupe(u8, value.policy_revision), .range = value.range, .items = items };
+        return .{ .generation = request.generation, .coverage = @fromBackingInt(@intCast(@backingInt(value.coverage))), .status = @fromBackingInt(@intCast(@backingInt(value.status))), .profile = @fromBackingInt(@intCast(@backingInt(value.profile))), .resource = value.resource, .contract = value.contract, .resource_revision = value.resource_revision, .policy_revision = try allocator.dupe(u8, value.policy_revision), .range = value.range, .items = items };
     }
     pub fn execute(self: *Console, raw: []const u8) !bool {
         return self.executeWithParameters(raw, null);
@@ -508,5 +522,5 @@ pub const Console = struct {
     }
 };
 pub fn denied(err: anyerror) bool {
-    return err == error.AccessDenied or err == error.AuthenticationFailed or err == error.SqlServiceError;
+    return err == error.AccessDenied or err == error.AuthenticationFailed;
 }

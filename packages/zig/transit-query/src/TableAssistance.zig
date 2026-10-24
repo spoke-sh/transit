@@ -13,12 +13,14 @@ const Builder = struct {
     prefix: []const u8,
     quoted: bool,
     items: [a.max_items]a.Item = undefined,
+    exact: [a.max_items]bool = undefined,
     count: usize = 0,
+    limited: bool = false,
     fn add(self: *Builder, raw: []const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
         return self.addQualified(raw, null, kind, detail);
     }
     fn addQualified(self: *Builder, raw: []const u8, qualifier: ?[]const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
-        if (self.count == self.items.len or raw.len < self.prefix.len) return;
+        if (raw.len < self.prefix.len) return;
         const identifier = kind == .source or kind == .column;
         if (self.quoted) {
             if (!identifier or !std.mem.startsWith(u8, raw, self.prefix)) return;
@@ -36,9 +38,7 @@ const Builder = struct {
             }
             try quotedName(&writer, raw);
         } else try writer.writeAll(raw);
-        for (self.items[0..self.count]) |item| if (std.mem.eql(u8, item.text, writer.buffered())) return;
-        self.items[self.count] = .{ .text = try self.allocator.dupe(u8, writer.buffered()), .kind = kind, .detail = detail };
-        self.count += 1;
+        try a.offer(self.allocator, &self.items, &self.exact, &self.count, &self.limited, self.prefix, raw, writer.buffered(), kind, detail);
     }
     fn clear(self: *Builder) void {
         for (self.items[0..self.count]) |item| self.allocator.free(item.text);
@@ -170,7 +170,7 @@ fn suggestions(builder: *Builder, editor: Parser.Editor, definition: ?Source, qu
             .comma => ",",
             .dot => ".",
             .star => "*",
-            .semi => ";",
+            .semi => null,
             .eq => "=",
             .ne => "<>",
             .lt => "<",
@@ -230,6 +230,15 @@ fn relationalSuggestions(builder: *Builder, editor: Parser.Editor, sources: []co
     try suggestions(builder, admitted, null, null);
 }
 pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a.Request) !a.Response {
+    const span = try f.SqlInput.active(request.sql, request.cursor, request.mode == .console);
+    var result = try completeStatement(allocator, client, .{ .sql = request.sql[span.start..span.end], .cursor = request.cursor - span.start, .generation = request.generation, .mode = request.mode });
+    if (result.range) |*range| {
+        range.start += span.start;
+        range.end += span.start;
+    }
+    return result;
+}
+fn completeStatement(allocator: std.mem.Allocator, client: *c.TableClient, request: a.Request) !a.Response {
     const range = try f.SqlInput.replacement(request.sql, request.cursor);
     const initial = try client.describe();
     var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
@@ -239,15 +248,18 @@ pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a
         std.mem.writeInt(u64, &bytes, id, .little);
         hash.update(&bytes);
     }
-    var response: a.Response = .{ .generation = request.generation, .profile = .catalog_v1, .resource = client.connection.scope.resource, .contract = hash.finalResult(), .resource_revision = initial.resource_revision, .policy_revision = try std.fmt.allocPrint(allocator, "{d}", .{initial.authorization_revision}), .range = range, .items = &.{} };
+    var response: a.Response = .{ .generation = request.generation, .coverage = .complete, .status = if (range == null) .inside_text else .ready, .profile = .catalog_v1, .resource = client.connection.scope.resource, .contract = hash.finalResult(), .resource_revision = initial.resource_revision, .policy_revision = try std.fmt.allocPrint(allocator, "{d}", .{initial.authorization_revision}), .range = range, .items = &.{} };
     errdefer allocator.free(response.policy_revision);
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
-    const schema_command = request.mode == .console and request.cursor >= 8 and std.mem.startsWith(u8, request.sql, ".schema ");
+    const command_end = std.mem.indexOfAny(u8, request.sql, " \t\r\n") orelse request.sql.len;
+    const schema_command = request.mode == .console and request.cursor > command_end and std.mem.eql(u8, request.sql[0..command_end], ".schema");
     if (request.mode == .console and std.mem.startsWith(u8, request.sql, ".") and !schema_command) {
         const result = try a.meta(allocator, request);
         response.range = result.range;
         response.items = result.items;
+        response.coverage = result.coverage;
+        response.status = result.status;
     } else if (range) |selected| {
         var prefix = request.sql[selected.start..request.cursor];
         if (selected.quoted and prefix.len != 0) {
@@ -299,9 +311,17 @@ pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a
                 if (page.resource_revision != initial.resource_revision) return error.CatalogCursorChanged;
                 for (page.entries) |entry| if (entry) |value| try builder.add(value.metadata.name.slice(), .source, "Authorized Table");
                 cursor = page.next;
-                if (cursor == null or builder.count == builder.items.len) break;
+                if (cursor == null) break;
             }
+            if (cursor != null) builder.limited = true;
         }
+        if (name != null and definition == null and editor.name_role != .source) {
+            builder.clear();
+            builder.count = 0;
+            response.status = .unsupported;
+        }
+        response.coverage = if (builder.limited) .limited else .complete;
+        if (editor.name_role == null and editor.value_type == null and editor.words[0] == null and editor.symbols[0] == null) response.status = .unsupported;
         response.items = try allocator.dupe(a.Item, builder.items[0..builder.count]);
     }
     errdefer (a.Completion{ .range = response.range, .items = response.items }).deinit(allocator);
@@ -366,8 +386,8 @@ test "identifier suggestions retain long Unicode and quoted names without termin
     try builder.add("a\"🌱", .column, "utf8");
     try builder.add("private\x1b[2J", .column, "utf8");
     try std.testing.expectEqual(2, builder.count);
-    try std.testing.expectEqual(257, builder.items[0].text.len);
-    try std.testing.expectEqualStrings("\"a\"\"🌱\"", builder.items[1].text);
+    try std.testing.expectEqual(257, builder.items[1].text.len);
+    try std.testing.expectEqualStrings("\"a\"\"🌱\"", builder.items[0].text);
 }
 test "completion owns strings and cleans up at every allocation failure" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
@@ -411,4 +431,14 @@ test "relational completion qualifies aliases and limits columns to the admitted
     try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE l.key = ", &.{"0"}, &.{ "TRUE", "FALSE", "''", "NULL" });
     try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE key ", &.{}, &.{ "IS", "=", "<>" });
     try std.testing.checkAllAllocationFailures(std.testing.allocator, relationalFixture, .{ "SELECT l.va", &.{"\"value\""}, &.{"\"label\""} });
+}
+
+test "qualified identifier ranking uses the typed column spelling before quoting" {
+    const t = std.testing;
+    var builder: Builder = .{ .allocator = t.allocator, .prefix = "v", .quoted = false };
+    defer builder.clear();
+    try builder.addQualified("Value", "a", .column, "int64");
+    try builder.addQualified("value", "z", .column, "int64");
+    try t.expectEqualStrings("\"z\".\"value\"", builder.items[0].text);
+    try t.expectEqualStrings("\"a\".\"Value\"", builder.items[1].text);
 }

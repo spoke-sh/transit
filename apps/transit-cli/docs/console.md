@@ -234,22 +234,69 @@ text preferences even in JSON mode.
 
 ## Terminal editing and history
 
-The editor supports cursor movement, Home/End, deletion, Ctrl-U, undo, multiline
-input and bracketed paste. Enter before a statement's terminating semicolon adds
-a real display line. Continuation rows align with the SQL after the first prompt:
+Enter submits SQL ending in a semicolon or a dot command. Otherwise it inserts
+a newline at the cursor. Continuation rows align with the first row's SQL:
 
 ```text
 transit> SELECT *
     ...> FROM items;
 ```
 
-Long lines wrap within the terminal width. Drafts taller than the terminal show
-a window around the cursor; moving the cursor reveals the other rows. Paste and
-history recall retain their line breaks. Ctrl-C clears an unsubmitted draft.
-Up/Down recalls commands. Ctrl-R searches history; Enter accepts a match for
-editing and does not execute it. Completion requests authorized metadata from the service;
-acceptance checks that the draft and source basis still match. Typing, history
-search and completion do not submit SQL or apply administrative changes.
+Long lines wrap within the terminal width. A viewport keeps the cursor visible
+in tall drafts. Up/Down moves between display rows before recalling history at
+the first/last row; Ctrl-P/Ctrl-N recalls history from any row. Home/End and
+Ctrl-A/Ctrl-E move to the draft boundaries. Ctrl-U deletes before the cursor.
+Bracketed paste preserves newlines, normalizes CRLF and never submits.
+
+| Key | Draft | Suggestions | History search |
+| --- | --- | --- | --- |
+| Tab | Request completion; insert a proven unique match | Accept selection | Accept match for editing |
+| Enter | Submit or insert newline | Accept selection; dismiss if still loading | Accept match for editing |
+| Up/Down | Move rows, then browse history | Select previous/next item | Select older/newer match |
+| Shift-Tab | Open suggestions without insertion | Select previous item | No action |
+| Ctrl-R | Begin an empty search | Begin an empty search | Find older match |
+| Esc / Ctrl-C | Clear draft | Clear draft and suggestions | Clear search and original draft |
+| Ctrl-G | Keep draft | Dismiss suggestions | Restore original draft and cursor |
+| Ctrl-Z / Ctrl-_ | Undo | Undo and close suggestions | Undo query editing |
+
+Ctrl-X then Ctrl-U also undoes. Ctrl-Space requests completion when the terminal
+delivers NUL; Tab is the primary binding. The raw editor consumes Ctrl-Z rather
+than suspending. External editors retain their own key bindings. A bare Esc is
+recognized after 50 ms; started escape sequences have a 250 ms inter-byte budget.
+Unknown/truncated control sequences do not clear the draft. Terminal or SSH
+interception can prevent a shortcut from reaching Transit.
+
+Completion uses production grammar and currently authorized metadata for the
+statement around the cursor, including suffix sources and aliases. Static dot
+commands, `.help`, `.mode` and `.timer` complete locally; `.schema` uses the
+service. A list has at most eight candidates, displayed below the unchanged
+prompt. Type while it is open to refine it. PgUp/PgDn pages through the selected
+candidate's full spelling and details when clipped. A limited result says so;
+a single candidate inserts automatically only with complete matching coverage.
+No automatic semicolon or generated statement is added.
+
+Metadata acquisition has one active request and one latest draft, a 75 ms
+refinement delay and a one-second timeout (or the smaller connection timeout).
+Typing, clearing and dismissing remain available during acquisition. Acceptance
+rechecks the current source, profile, revisions and authorization through the
+service. A changed basis refreshes the list without accepting a replacement.
+Loading, unsupported context, literal/comment context, no matches and unavailable
+service have separate messages. Completion never samples row values or executes
+SQL. Enter/Tab acceptance consumes that key; execution requires another Enter.
+
+History search matches literal substrings with ASCII case folding and collapsed
+whitespace runs, so a single-line query can match multiline SQL. Previews retain
+original spelling and newlines. Navigation skips duplicate text. Ctrl-G restores
+the saved draft; Esc clears it. Undo after Esc restores that original draft, not
+an unaccepted search preview. Browsing history also preserves the original draft
+when moving past the newest entry.
+
+Undo retains at most 128 edit groups and 256 KiB of snapshot bytes shared by the
+draft and search query. Typing/deletion runs group between boundaries; paste,
+completion, accepted history and clearing are atomic edits. Old groups are
+evicted when either budget is reached. Submission resets undo; access loss
+clears protected drafts, undo, search and assistance. Undo is volatile and does
+not change persisted command history.
 
 Interactive submissions append to `$HOME/.transit_history` as owner-only JSON
 lines under a short lock. Concurrent consoles preserve each other's entries.

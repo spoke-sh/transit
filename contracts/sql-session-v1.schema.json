@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
+  "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+          "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
         ]
       },
       "T3": {
@@ -583,7 +583,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+          "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
         ]
       },
       "T3": {
@@ -724,7 +724,7 @@
             ],
             "properties": {
               "closed": {
-                "$ref": "#/$defs/T90"
+                "$ref": "#/$defs/T92"
               }
             }
           },
@@ -736,7 +736,7 @@
             ],
             "properties": {
               "err": {
-                "$ref": "#/$defs/T91"
+                "$ref": "#/$defs/T93"
               }
             }
           }
@@ -2031,8 +2031,14 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "profile": {
+          "coverage": {
             "$ref": "#/$defs/T84"
+          },
+          "status": {
+            "$ref": "#/$defs/T85"
+          },
+          "profile": {
+            "$ref": "#/$defs/T86"
           },
           "resource": {
             "$ref": "#/$defs/T17"
@@ -2047,13 +2053,15 @@
             "$ref": "#/$defs/T6"
           },
           "range": {
-            "$ref": "#/$defs/T85"
+            "$ref": "#/$defs/T87"
           },
           "items": {
-            "$ref": "#/$defs/T87"
+            "$ref": "#/$defs/T89"
           }
         },
         "required": [
+          "coverage",
+          "status",
           "profile",
           "resource",
           "contract",
@@ -2066,22 +2074,37 @@
       "T84": {
         "type": "string",
         "enum": [
+          "complete",
+          "limited"
+        ]
+      },
+      "T85": {
+        "type": "string",
+        "enum": [
+          "ready",
+          "inside_text",
+          "unsupported"
+        ]
+      },
+      "T86": {
+        "type": "string",
+        "enum": [
           "unified_v1",
           "catalog_v1",
           "configuration_v1"
         ]
       },
-      "T85": {
+      "T87": {
         "anyOf": [
           {
-            "$ref": "#/$defs/T86"
+            "$ref": "#/$defs/T88"
           },
           {
             "type": "null"
           }
         ]
       },
-      "T86": {
+      "T88": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -2100,14 +2123,14 @@
           "end"
         ]
       },
-      "T87": {
+      "T89": {
         "type": "array",
         "maxItems": 65536,
         "items": {
-          "$ref": "#/$defs/T88"
+          "$ref": "#/$defs/T90"
         }
       },
-      "T88": {
+      "T90": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -2115,7 +2138,7 @@
             "$ref": "#/$defs/T6"
           },
           "kind": {
-            "$ref": "#/$defs/T89"
+            "$ref": "#/$defs/T91"
           },
           "detail": {
             "$ref": "#/$defs/T6"
@@ -2127,7 +2150,7 @@
           "detail"
         ]
       },
-      "T89": {
+      "T91": {
         "type": "string",
         "enum": [
           "keyword",
@@ -2138,11 +2161,11 @@
           "meta"
         ]
       },
-      "T90": {
+      "T92": {
         "type": "object",
         "maxProperties": 0
       },
-      "T91": {
+      "T93": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -2150,16 +2173,16 @@
             "$ref": "#/$defs/T6"
           },
           "sqlstate": {
-            "$ref": "#/$defs/T92"
+            "$ref": "#/$defs/T94"
           },
           "message": {
             "$ref": "#/$defs/T6"
           },
           "retry": {
-            "$ref": "#/$defs/T93"
+            "$ref": "#/$defs/T95"
           },
           "operation": {
-            "$ref": "#/$defs/T94"
+            "$ref": "#/$defs/T96"
           },
           "diagnostic": {
             "$ref": "#/$defs/T38"
@@ -2172,7 +2195,7 @@
           "retry"
         ]
       },
-      "T92": {
+      "T94": {
         "type": "array",
         "minItems": 5,
         "maxItems": 5,
@@ -2180,7 +2203,7 @@
           "$ref": "#/$defs/T1"
         }
       },
-      "T93": {
+      "T95": {
         "type": "string",
         "enum": [
           "never",
@@ -2189,7 +2212,7 @@
           "same_batch"
         ]
       },
-      "T94": {
+      "T96": {
         "anyOf": [
           {
             "$ref": "#/$defs/T29"

@@ -140,6 +140,8 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const assistance = value.assistance;
     return (
       assistance.version === 1 &&
+      ["complete", "limited"].includes(assistance.coverage) &&
+      ["ready", "inside_text", "unsupported"].includes(assistance.status) &&
       assistance.profile === "unified_v1" &&
       assistance.resource > 0 &&
       unsigned(assistance.policy_revision, false) &&

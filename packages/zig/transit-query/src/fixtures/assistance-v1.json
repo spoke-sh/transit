@@ -121,10 +121,10 @@
       "end": 31,
       "items": [
         "IS",
-        "=",
-        "<>",
         "<",
         "<=",
+        "<>",
+        "=",
         ">",
         ">="
       ]
@@ -153,8 +153,8 @@
       "start": 11,
       "end": 11,
       "items": [
-        "\"id\"",
         "\"Value\"",
+        "\"id\"",
         "\"select\"",
         "\"items\""
       ]
@@ -220,8 +220,8 @@
       "end": 8,
       "mode": "console",
       "items": [
-        "on",
-        "off"
+        "off",
+        "on"
       ]
     },
     {
@@ -246,12 +246,12 @@
       "start": 34,
       "end": 34,
       "items": [
+        "CONFLICT",
+        "MISSING",
         "NOT",
         "NULL",
-        "MISSING",
         "TYPE_ERROR",
-        "VALUE",
-        "CONFLICT"
+        "VALUE"
       ]
     },
     {
@@ -301,12 +301,12 @@
       "start": 41,
       "end": 41,
       "items": [
+        "CONFLICT",
+        "MISSING",
         "NOT",
         "NULL",
-        "MISSING",
         "TYPE_ERROR",
-        "VALUE",
-        "CONFLICT"
+        "VALUE"
       ]
     },
     {
@@ -372,10 +372,10 @@
       "items": [
         "IS",
         ".",
-        "=",
-        "<>",
         "<",
         "<=",
+        "<>",
+        "=",
         ">",
         ">="
       ]
@@ -387,10 +387,10 @@
       "end": 38,
       "items": [
         "IS",
-        "=",
-        "<>",
         "<",
         "<=",
+        "<>",
+        "=",
         ">",
         ">="
       ]
@@ -419,8 +419,8 @@
       "items": [
         "AS",
         "FROM",
-        ".",
-        ","
+        ",",
+        "."
       ]
     },
     {
@@ -597,8 +597,8 @@
       "end": 8,
       "mode": "console",
       "items": [
-        "info",
-        "INSERT"
+        "INSERT",
+        "info"
       ]
     },
     {
@@ -642,8 +642,8 @@
       "end": 8,
       "mode": "console",
       "items": [
-        "show",
-        "shortcuts"
+        "shortcuts",
+        "show"
       ]
     },
     {

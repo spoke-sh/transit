@@ -184,3 +184,39 @@ pub fn next(self: *Self, after: u64, output: []u8) !?Entry {
     }
     return null;
 }
+
+/// Literal substring matching with ASCII case folding and whitespace runs.
+/// Original history bytes are never normalized for display or acceptance.
+pub fn matches(candidate: []const u8, query: []const u8) bool {
+    var haystack: [max_bytes]u8 = undefined;
+    var needle: [max_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &haystack);
+    defer std.crypto.secureZero(u8, &needle);
+    return std.mem.indexOf(u8, normalize(candidate, &haystack), normalize(query, &needle)) != null;
+}
+fn normalize(text: []const u8, storage: []u8) []const u8 {
+    var count: usize = 0;
+    var space = false;
+    for (text) |byte| {
+        const whitespace = std.mem.indexOfScalar(u8, " \t\r\n", byte) != null;
+        if (!whitespace or !space) {
+            storage[count] = if (whitespace) ' ' else std.ascii.toLower(byte);
+            count += 1;
+        }
+        space = whitespace;
+    }
+    return storage[0..count];
+}
+/// Deduplicate navigation against newer records using bounded disk scans,
+/// rather than retaining a set proportional to the durable history size.
+pub fn newestOccurrence(self: *Self, position: u64, text: []const u8) !bool {
+    var before = try self.end();
+    var candidate: [max_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &candidate);
+    while (try self.previous(before, &candidate)) |entry| {
+        if (entry.position <= position) return true;
+        if (std.mem.eql(u8, candidate[0..entry.length], text)) return false;
+        before = entry.position;
+    }
+    return true;
+}

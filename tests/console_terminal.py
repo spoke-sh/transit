@@ -51,9 +51,9 @@ class Terminal(Shell):
     def expect(self, text, timeout=15):
         until = time.monotonic()+timeout
         expected = text.encode()
-        while expected not in ANSI.sub(b'', self.screen):
+        while expected not in ANSI.sub(b'', self.screen).replace(b'\r\r\n', b'\r\n'):
             assert self.process.poll() is None, ('terminal exited', self.process.returncode, self.screen)
-            assert time.monotonic() < until, (text, ANSI.sub(b'', self.screen)[-4000:])
+            assert time.monotonic() < until, (text, ANSI.sub(b'', self.screen).replace(b'\r\r\n', b'\r\n')[-4000:])
             if select.select([self.master], [], [], .1)[0]:
                 self.record_display(os.read(self.master, 65536))
             assert len(self.screen) <= 1048576, 'terminal rendering bound'
@@ -68,7 +68,7 @@ class Terminal(Shell):
         # accidental backpressure fault.
         until = time.monotonic()+timeout
         while b'\n' not in self.buffer:
-            assert time.monotonic() < until, ('terminal response deadline', ANSI.sub(b'', self.screen)[-1000:])
+            assert time.monotonic() < until, ('terminal response deadline', ANSI.sub(b'', self.screen).replace(b'\r\r\n', b'\r\n')[-1000:])
             for source in select.select([self.process.stdout, self.master], [], [], .1)[0]:
                 block = os.read(source if isinstance(source, int) else source.fileno(), 65536)
                 assert block, ('terminal exited', self.process.poll(), self.screen[-1000:])
@@ -85,7 +85,7 @@ class Terminal(Shell):
                 # signal here can interrupt metadata (correctly exiting 130),
                 # and an unread prompt cannot acknowledge that signal. Clear
                 # any remaining draft with editor keys before submitting quit.
-                self.send('\x05\x15.quit\r')
+                self.send('\x07\x05\x15.quit\r')
                 assert self.process.wait(timeout=10) == 0
             assert termios.tcgetattr(self.slave) == self.original, 'terminal attributes were not restored'
         except (AssertionError, subprocess.TimeoutExpired) as error:

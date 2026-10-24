@@ -4492,7 +4492,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+                        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
                       ]
                     },
                     "code": {
@@ -6570,7 +6570,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+                      "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
                     ]
                   },
                   "code": {
@@ -13488,7 +13488,7 @@
                 ],
                 "properties": {
                   "compiled": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T72"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T74"
                   }
                 }
               },
@@ -13500,7 +13500,7 @@
                 ],
                 "properties": {
                   "inspection": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T100"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T102"
                   }
                 }
               },
@@ -13512,7 +13512,7 @@
                 ],
                 "properties": {
                   "prepared": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T127"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T129"
                   }
                 }
               },
@@ -13524,7 +13524,7 @@
                 ],
                 "properties": {
                   "receipt": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T129"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T131"
                   }
                 }
               },
@@ -13536,7 +13536,7 @@
                 ],
                 "properties": {
                   "observation": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T130"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T132"
                   }
                 }
               },
@@ -13548,7 +13548,7 @@
                 ],
                 "properties": {
                   "status": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T132"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T134"
                   }
                 }
               },
@@ -13560,7 +13560,7 @@
                 ],
                 "properties": {
                   "page": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T175"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T177"
                   }
                 }
               },
@@ -13572,7 +13572,7 @@
                 ],
                 "properties": {
                   "draft": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T207"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T209"
                   }
                 }
               }
@@ -15460,6 +15460,8 @@
             "x-transit-field-order": [
               "version",
               "generation",
+              "coverage",
+              "status",
               "profile",
               "resource",
               "contract",
@@ -15475,8 +15477,14 @@
               "generation": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T9"
               },
-              "profile": {
+              "coverage": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T66"
+              },
+              "status": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T67"
+              },
+              "profile": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T68"
               },
               "resource": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T3"
@@ -15491,15 +15499,17 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
               },
               "range": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T67"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T69"
               },
               "items": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T69"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T71"
               }
             },
             "required": [
               "version",
               "generation",
+              "coverage",
+              "status",
               "profile",
               "resource",
               "contract",
@@ -15516,22 +15526,37 @@
           "T66": {
             "type": "string",
             "enum": [
+              "complete",
+              "limited"
+            ]
+          },
+          "T67": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "inside_text",
+              "unsupported"
+            ]
+          },
+          "T68": {
+            "type": "string",
+            "enum": [
               "unified_v1",
               "catalog_v1",
               "configuration_v1"
             ]
           },
-          "T67": {
+          "T69": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T68"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T70"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T68": {
+          "T70": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -15559,14 +15584,14 @@
               "quoted": false
             }
           },
-          "T69": {
+          "T71": {
             "type": "array",
             "maxItems": 128,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T70"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T72"
             }
           },
-          "T70": {
+          "T72": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -15579,7 +15604,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
               },
               "kind": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T71"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T73"
               },
               "detail": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
@@ -15592,7 +15617,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T71": {
+          "T73": {
             "type": "string",
             "enum": [
               "keyword",
@@ -15603,7 +15628,7 @@
               "meta"
             ]
           },
-          "T72": {
+          "T74": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -15622,7 +15647,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T12"
               },
               "plan": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T73"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T75"
               },
               "limits": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T56"
@@ -15644,7 +15669,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T73": {
+          "T75": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -15660,19 +15685,19 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T8"
               },
               "projection": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T74"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T76"
               },
               "output_names": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T75"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T77"
               },
               "limit": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T57"
               },
               "aggregate": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T77"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T79"
               },
               "predicate": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T78"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T80"
               }
             },
             "required": [
@@ -15693,31 +15718,31 @@
               }
             }
           },
-          "T74": {
+          "T76": {
             "type": "array",
             "maxItems": 128,
             "items": {
               "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T9"
             }
           },
-          "T75": {
+          "T77": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T76"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T78"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T76": {
+          "T78": {
             "type": "array",
             "maxItems": 128,
             "items": {
               "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T57"
             }
           },
-          "T77": {
+          "T79": {
             "type": "string",
             "enum": [
               "rows",
@@ -15726,7 +15751,7 @@
               "count_values"
             ]
           },
-          "T78": {
+          "T80": {
             "oneOf": [
               {
                 "type": "object",
@@ -15748,7 +15773,7 @@
                 ],
                 "properties": {
                   "state": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T79"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T81"
                   }
                 }
               },
@@ -15760,7 +15785,7 @@
                 ],
                 "properties": {
                   "compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T81"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T83"
                   }
                 }
               },
@@ -15772,7 +15797,7 @@
                 ],
                 "properties": {
                   "null_compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T85"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T87"
                   }
                 }
               },
@@ -15784,13 +15809,13 @@
                 ],
                 "properties": {
                   "program": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T86"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T88"
                   }
                 }
               }
             ]
           },
-          "T79": {
+          "T81": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -15802,7 +15827,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T8"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T80"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T82"
               }
             },
             "required": [
@@ -15811,7 +15836,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T80": {
+          "T82": {
             "type": "string",
             "enum": [
               "missing",
@@ -15821,7 +15846,7 @@
               "conflict"
             ]
           },
-          "T81": {
+          "T83": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -15834,10 +15859,10 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T8"
               },
               "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T82"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T84"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T83"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T85"
               }
             },
             "required": [
@@ -15847,7 +15872,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T82": {
+          "T84": {
             "type": "string",
             "enum": [
               "eq",
@@ -15858,7 +15883,7 @@
               "ge"
             ]
           },
-          "T83": {
+          "T85": {
             "oneOf": [
               {
                 "type": "object",
@@ -15988,7 +16013,7 @@
                 ],
                 "properties": {
                   "interval": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T84"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T86"
                   }
                 }
               },
@@ -16006,7 +16031,7 @@
               }
             ]
           },
-          "T84": {
+          "T86": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16032,7 +16057,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T85": {
+          "T87": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16044,7 +16069,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T8"
               },
               "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T82"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T84"
               }
             },
             "required": [
@@ -16053,14 +16078,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T86": {
+          "T88": {
             "type": "array",
             "maxItems": 64,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T87"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
             }
           },
-          "T87": {
+          "T89": {
             "oneOf": [
               {
                 "type": "object",
@@ -16070,7 +16095,7 @@
                 ],
                 "properties": {
                   "atom": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T88"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T90"
                   }
                 }
               },
@@ -16082,7 +16107,7 @@
                 ],
                 "properties": {
                   "negate": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16094,7 +16119,7 @@
                 ],
                 "properties": {
                   "conjunction": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16106,13 +16131,13 @@
                 ],
                 "properties": {
                   "disjunction": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               }
             ]
           },
-          "T88": {
+          "T90": {
             "oneOf": [
               {
                 "type": "object",
@@ -16122,7 +16147,7 @@
                 ],
                 "properties": {
                   "all": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16134,7 +16159,7 @@
                 ],
                 "properties": {
                   "state": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T90"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T92"
                   }
                 }
               },
@@ -16146,7 +16171,7 @@
                 ],
                 "properties": {
                   "compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T93"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T95"
                   }
                 }
               },
@@ -16158,17 +16183,17 @@
                 ],
                 "properties": {
                   "null_compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T99"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T101"
                   }
                 }
               }
             ]
           },
-          "T89": {
+          "T91": {
             "type": "object",
             "maxProperties": 0
           },
-          "T90": {
+          "T92": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16177,10 +16202,10 @@
             ],
             "properties": {
               "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T93"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T92"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T94"
               }
             },
             "required": [
@@ -16189,14 +16214,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T91": {
+          "T93": {
             "type": "integer",
             "minimum": 0,
             "maximum": 255,
             "x-transit-bits": 8,
             "x-transit-signed": false
           },
-          "T92": {
+          "T94": {
             "type": "string",
             "enum": [
               "missing",
@@ -16206,7 +16231,7 @@
               "conflict"
             ]
           },
-          "T93": {
+          "T95": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16216,13 +16241,13 @@
             ],
             "properties": {
               "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T93"
               },
               "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T94"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T95"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T97"
               }
             },
             "required": [
@@ -16232,7 +16257,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T94": {
+          "T96": {
             "type": "string",
             "enum": [
               "eq",
@@ -16243,7 +16268,7 @@
               "ge"
             ]
           },
-          "T95": {
+          "T97": {
             "oneOf": [
               {
                 "type": "object",
@@ -16253,7 +16278,7 @@
                 ],
                 "properties": {
                   "signed": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16265,7 +16290,7 @@
                 ],
                 "properties": {
                   "unsigned": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16277,7 +16302,7 @@
                 ],
                 "properties": {
                   "decimal": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16289,7 +16314,7 @@
                 ],
                 "properties": {
                   "float_bits": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16301,7 +16326,7 @@
                 ],
                 "properties": {
                   "boolean": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T97"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T99"
                   }
                 }
               },
@@ -16313,7 +16338,7 @@
                 ],
                 "properties": {
                   "utf8": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16325,7 +16350,7 @@
                 ],
                 "properties": {
                   "binary": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16337,7 +16362,7 @@
                 ],
                 "properties": {
                   "date_days": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16349,7 +16374,7 @@
                 ],
                 "properties": {
                   "time_nanos": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16361,7 +16386,7 @@
                 ],
                 "properties": {
                   "timestamp_micros": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               },
@@ -16373,7 +16398,7 @@
                 ],
                 "properties": {
                   "interval": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T100"
                   }
                 }
               },
@@ -16385,20 +16410,20 @@
                 ],
                 "properties": {
                   "uuid": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
                   }
                 }
               }
             ]
           },
-          "T96": {
+          "T98": {
             "type": "string",
             "maxLength": 131072
           },
-          "T97": {
+          "T99": {
             "type": "boolean"
           },
-          "T98": {
+          "T100": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16408,13 +16433,13 @@
             ],
             "properties": {
               "months": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
               },
               "days": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
               },
               "nanos": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
               }
             },
             "required": [
@@ -16424,7 +16449,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T99": {
+          "T101": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16433,10 +16458,10 @@
             ],
             "properties": {
               "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T93"
               },
               "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T94"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
               }
             },
             "required": [
@@ -16445,7 +16470,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T100": {
+          "T102": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16465,7 +16490,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T8"
               },
               "scope": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T101"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T103"
               },
               "name": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
@@ -16474,7 +16499,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T3"
               },
               "source_kind": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T102"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T104"
               },
               "contract": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T21"
@@ -16489,7 +16514,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
               },
               "details": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T103"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T105"
               }
             },
             "required": [
@@ -16509,13 +16534,13 @@
               "scope": "configured_source"
             }
           },
-          "T101": {
+          "T103": {
             "type": "string",
             "enum": [
               "configured_source"
             ]
           },
-          "T102": {
+          "T104": {
             "type": "string",
             "enum": [
               "kv",
@@ -16523,7 +16548,7 @@
               "document"
             ]
           },
-          "T103": {
+          "T105": {
             "oneOf": [
               {
                 "type": "object",
@@ -16533,7 +16558,7 @@
                 ],
                 "properties": {
                   "description": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T104"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T106"
                   }
                 }
               },
@@ -16545,7 +16570,7 @@
                 ],
                 "properties": {
                   "tables": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T105"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T107"
                   }
                 }
               },
@@ -16557,13 +16582,13 @@
                 ],
                 "properties": {
                   "explanation": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T106"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T108"
                   }
                 }
               }
             ]
           },
-          "T104": {
+          "T106": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16579,14 +16604,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T105": {
+          "T107": {
             "type": "array",
             "maxItems": 128,
             "items": {
               "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
             }
           },
-          "T106": {
+          "T108": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16600,19 +16625,19 @@
             ],
             "properties": {
               "operators": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T107"
-              },
-              "predicate": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T109"
               },
+              "predicate": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T111"
+              },
               "projection": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T105"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T107"
               },
               "limit": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T57"
               },
               "aggregate": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T77"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T79"
               },
               "columns": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T59"
@@ -16632,14 +16657,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T107": {
+          "T109": {
             "type": "array",
             "maxItems": 128,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T108"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T110"
             }
           },
-          "T108": {
+          "T110": {
             "type": "string",
             "enum": [
               "scan",
@@ -16651,7 +16676,7 @@
               "count_values"
             ]
           },
-          "T109": {
+          "T111": {
             "oneOf": [
               {
                 "type": "object",
@@ -16673,7 +16698,7 @@
                 ],
                 "properties": {
                   "state": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T110"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T112"
                   }
                 }
               },
@@ -16685,7 +16710,7 @@
                 ],
                 "properties": {
                   "compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T111"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T113"
                   }
                 }
               },
@@ -16697,7 +16722,7 @@
                 ],
                 "properties": {
                   "null_compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T112"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T114"
                   }
                 }
               },
@@ -16709,13 +16734,13 @@
                 ],
                 "properties": {
                   "program": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T113"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T115"
                   }
                 }
               }
             ]
           },
-          "T110": {
+          "T112": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16727,7 +16752,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T80"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T82"
               }
             },
             "required": [
@@ -16736,66 +16761,66 @@
             ],
             "x-transit-defaults": {}
           },
-          "T111": {
-            "type": "object",
-            "additionalProperties": false,
-            "x-transit-field-order": [
-              "column",
-              "op",
-              "type"
-            ],
-            "properties": {
-              "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
-              },
-              "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T82"
-              },
-              "type": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T22"
-              }
-            },
-            "required": [
-              "column",
-              "op",
-              "type"
-            ],
-            "x-transit-defaults": {}
-          },
-          "T112": {
-            "type": "object",
-            "additionalProperties": false,
-            "x-transit-field-order": [
-              "column",
-              "op",
-              "type"
-            ],
-            "properties": {
-              "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
-              },
-              "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T82"
-              },
-              "type": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T22"
-              }
-            },
-            "required": [
-              "column",
-              "op",
-              "type"
-            ],
-            "x-transit-defaults": {}
-          },
           "T113": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "column",
+              "op",
+              "type"
+            ],
+            "properties": {
+              "column": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
+              },
+              "op": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T84"
+              },
+              "type": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T22"
+              }
+            },
+            "required": [
+              "column",
+              "op",
+              "type"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T114": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "column",
+              "op",
+              "type"
+            ],
+            "properties": {
+              "column": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
+              },
+              "op": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T84"
+              },
+              "type": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T22"
+              }
+            },
+            "required": [
+              "column",
+              "op",
+              "type"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T115": {
             "type": "array",
             "maxItems": 64,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T114"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T116"
             }
           },
-          "T114": {
+          "T116": {
             "oneOf": [
               {
                 "type": "object",
@@ -16805,7 +16830,7 @@
                 ],
                 "properties": {
                   "atom": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T115"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T117"
                   }
                 }
               },
@@ -16817,7 +16842,7 @@
                 ],
                 "properties": {
                   "negate": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16829,7 +16854,7 @@
                 ],
                 "properties": {
                   "conjunction": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16841,13 +16866,13 @@
                 ],
                 "properties": {
                   "disjunction": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               }
             ]
           },
-          "T115": {
+          "T117": {
             "oneOf": [
               {
                 "type": "object",
@@ -16857,7 +16882,7 @@
                 ],
                 "properties": {
                   "all": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16869,7 +16894,7 @@
                 ],
                 "properties": {
                   "state": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T116"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T118"
                   }
                 }
               },
@@ -16881,7 +16906,7 @@
                 ],
                 "properties": {
                   "compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T117"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T119"
                   }
                 }
               },
@@ -16893,13 +16918,13 @@
                 ],
                 "properties": {
                   "null_compare": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T126"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T128"
                   }
                 }
               }
             ]
           },
-          "T116": {
+          "T118": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16908,10 +16933,10 @@
             ],
             "properties": {
               "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T92"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T94"
               }
             },
             "required": [
@@ -16920,7 +16945,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T117": {
+          "T119": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -16930,13 +16955,13 @@
             ],
             "properties": {
               "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
               },
               "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T94"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
               },
               "type": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T118"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T120"
               }
             },
             "required": [
@@ -16946,7 +16971,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T118": {
+          "T120": {
             "oneOf": [
               {
                 "type": "object",
@@ -16956,7 +16981,7 @@
                 ],
                 "properties": {
                   "int64": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16968,7 +16993,7 @@
                 ],
                 "properties": {
                   "uint64": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16980,7 +17005,7 @@
                 ],
                 "properties": {
                   "float64": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -16992,7 +17017,7 @@
                 ],
                 "properties": {
                   "boolean": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17004,7 +17029,7 @@
                 ],
                 "properties": {
                   "utf8": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17016,7 +17041,7 @@
                 ],
                 "properties": {
                   "binary": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17028,7 +17053,7 @@
                 ],
                 "properties": {
                   "int8": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17040,7 +17065,7 @@
                 ],
                 "properties": {
                   "int16": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17052,7 +17077,7 @@
                 ],
                 "properties": {
                   "int32": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17064,7 +17089,7 @@
                 ],
                 "properties": {
                   "int128": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17076,7 +17101,7 @@
                 ],
                 "properties": {
                   "uint8": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17088,7 +17113,7 @@
                 ],
                 "properties": {
                   "uint16": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17100,7 +17125,7 @@
                 ],
                 "properties": {
                   "uint32": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17112,7 +17137,7 @@
                 ],
                 "properties": {
                   "uint128": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17124,7 +17149,7 @@
                 ],
                 "properties": {
                   "float32": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17136,7 +17161,7 @@
                 ],
                 "properties": {
                   "decimal": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T119"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T121"
                   }
                 }
               },
@@ -17148,7 +17173,7 @@
                 ],
                 "properties": {
                   "date": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17160,7 +17185,7 @@
                 ],
                 "properties": {
                   "time": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17172,7 +17197,7 @@
                 ],
                 "properties": {
                   "timestamp": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T120"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T122"
                   }
                 }
               },
@@ -17184,7 +17209,7 @@
                 ],
                 "properties": {
                   "interval": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17196,7 +17221,7 @@
                 ],
                 "properties": {
                   "uuid": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               },
@@ -17220,7 +17245,7 @@
                 ],
                 "properties": {
                   "list": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T121"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T123"
                   }
                 }
               },
@@ -17232,7 +17257,7 @@
                 ],
                 "properties": {
                   "array": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T123"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T125"
                   }
                 }
               },
@@ -17244,7 +17269,7 @@
                 ],
                 "properties": {
                   "map": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T125"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T127"
                   }
                 }
               },
@@ -17268,13 +17293,13 @@
                 ],
                 "properties": {
                   "json": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T89"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
                   }
                 }
               }
             ]
           },
-          "T119": {
+          "T121": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17283,10 +17308,10 @@
             ],
             "properties": {
               "precision": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T93"
               },
               "scale": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T91"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T93"
               }
             },
             "required": [
@@ -17295,14 +17320,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T120": {
+          "T122": {
             "type": "string",
             "enum": [
               "civil",
               "utc"
             ]
           },
-          "T121": {
+          "T123": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17311,10 +17336,10 @@
             ],
             "properties": {
               "type": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T122"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T124"
               },
               "nullable": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T97"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T99"
               }
             },
             "required": [
@@ -17325,10 +17350,10 @@
               "nullable": false
             }
           },
-          "T122": {
-            "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T118"
+          "T124": {
+            "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T120"
           },
-          "T123": {
+          "T125": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17337,10 +17362,10 @@
             ],
             "properties": {
               "element": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T121"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T123"
               },
               "length": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T124"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T126"
               }
             },
             "required": [
@@ -17349,14 +17374,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T124": {
+          "T126": {
             "type": "integer",
             "minimum": 0,
             "maximum": 4294967295,
             "x-transit-bits": 32,
             "x-transit-signed": false
           },
-          "T125": {
+          "T127": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17365,10 +17390,10 @@
             ],
             "properties": {
               "key": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T122"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T124"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T121"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T123"
               }
             },
             "required": [
@@ -17377,7 +17402,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T126": {
+          "T128": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17387,13 +17412,13 @@
             ],
             "properties": {
               "column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T98"
               },
               "op": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T94"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T96"
               },
               "type": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T118"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T120"
               }
             },
             "required": [
@@ -17403,17 +17428,17 @@
             ],
             "x-transit-defaults": {}
           },
-          "T127": {
+          "T129": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T128"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T130"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T128": {
+          "T130": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17429,7 +17454,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T129": {
+          "T131": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17445,7 +17470,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T130": {
+          "T132": {
             "oneOf": [
               {
                 "type": "object",
@@ -17479,29 +17504,29 @@
                 ],
                 "properties": {
                   "rejected": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T131"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T133"
                   }
                 }
               }
             ]
           },
-          "T131": {
+          "T133": {
             "type": "string",
             "pattern": "^(?:[0-9a-f]{2})*$",
             "maxLength": 512,
             "x-transit-encoding": "lowercase-hex"
           },
-          "T132": {
+          "T134": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T133"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T135"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T133": {
+          "T135": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17515,25 +17540,25 @@
             ],
             "properties": {
               "reference": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T131"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T133"
               },
               "phase": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T134"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T136"
               },
               "correlation": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
               },
               "manifest": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T135"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T137"
               },
               "collected": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T11"
               },
               "failure": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T136"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T138"
               },
               "diagnostic": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T141"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T143"
               }
             },
             "required": [
@@ -17547,7 +17572,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T134": {
+          "T136": {
             "type": "string",
             "enum": [
               "uploading",
@@ -17560,27 +17585,27 @@
               "retired"
             ]
           },
-          "T135": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T131"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "T136": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T137"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "T137": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T133"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T138": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T139"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T139": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17592,13 +17617,13 @@
             ],
             "properties": {
               "code": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T138"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T140"
               },
               "stage": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T139"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T141"
               },
               "dimension": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T140"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T142"
               },
               "limit": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
@@ -17616,7 +17641,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T138": {
+          "T140": {
             "type": "string",
             "enum": [
               "policy_denied",
@@ -17693,14 +17718,14 @@
               "arrow_workspace_budget"
             ]
           },
-          "T139": {
+          "T141": {
             "type": "string",
             "enum": [
               "admission",
               "execution"
             ]
           },
-          "T140": {
+          "T142": {
             "type": "string",
             "enum": [
               "none",
@@ -17709,17 +17734,17 @@
               "result_bytes"
             ]
           },
-          "T141": {
+          "T143": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T142"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T144"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T142": {
+          "T144": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17742,40 +17767,40 @@
                 "const": 1
               },
               "definition": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T143"
-              },
-              "code": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T144"
-              },
-              "category": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T145"
               },
-              "stage": {
+              "code": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T146"
               },
-              "outcome": {
+              "category": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T147"
               },
-              "evidence": {
+              "stage": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T148"
               },
-              "message": {
+              "outcome": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T149"
               },
-              "cause": {
+              "evidence": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T150"
               },
-              "identity": {
+              "message": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T151"
               },
+              "cause": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T152"
+              },
+              "identity": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T153"
+              },
               "location": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T158"
               },
               "facts": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T161"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T163"
               },
               "actions": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T171"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T173"
               }
             },
             "required": [
@@ -17823,18 +17848,18 @@
               ]
             }
           },
-          "T143": {
+          "T145": {
             "type": "string",
             "enum": [
-              "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+              "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
             ]
           },
-          "T144": {
+          "T146": {
             "type": "string",
             "maxLength": 96,
             "x-transit-max-utf8-bytes": 96
           },
-          "T145": {
+          "T147": {
             "type": "string",
             "enum": [
               "syntax",
@@ -17850,7 +17875,7 @@
               "internal"
             ]
           },
-          "T146": {
+          "T148": {
             "type": "string",
             "enum": [
               "input",
@@ -17869,7 +17894,7 @@
               "control"
             ]
           },
-          "T147": {
+          "T149": {
             "type": "string",
             "enum": [
               "not_applicable",
@@ -17888,7 +17913,7 @@
               "closed_unknown"
             ]
           },
-          "T148": {
+          "T150": {
             "type": "string",
             "enum": [
               "none",
@@ -17898,32 +17923,32 @@
               "domain_status"
             ]
           },
-          "T149": {
+          "T151": {
             "type": "string",
             "maxLength": 384,
             "x-transit-max-utf8-bytes": 384
           },
-          "T150": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T144"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "T151": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T152"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "T152": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T146"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T153": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T154": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -17935,19 +17960,19 @@
             ],
             "properties": {
               "domain": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T153"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T155"
               },
               "id": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
               },
               "realm": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T155"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T157"
               },
               "resource": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T155"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T157"
               },
               "sequence": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T155"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T157"
               }
             },
             "required": [
@@ -17963,7 +17988,7 @@
               "sequence": null
             }
           },
-          "T153": {
+          "T155": {
             "type": "string",
             "enum": [
               "sql",
@@ -17981,32 +18006,32 @@
               "internal"
             ]
           },
-          "T154": {
+          "T156": {
             "type": "string",
             "maxLength": 20,
             "pattern": "^(0|[1-9][0-9]*)$"
           },
-          "T155": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "T156": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T157"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "T157": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T158": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T159"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T159": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18021,28 +18046,28 @@
             ],
             "properties": {
               "source": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T158"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T160"
               },
               "source_encoding": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T160"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T162"
               },
               "source_truncated": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T11"
               },
               "statement": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T155"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T157"
               },
               "offset": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
               },
               "length": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
               },
               "line": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
               },
               "byte_column": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
               }
             },
             "required": [
@@ -18062,47 +18087,47 @@
               "statement": null
             }
           },
-          "T158": {
+          "T160": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T159"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T161"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T159": {
+          "T161": {
             "type": "string",
             "maxLength": 512,
             "x-transit-max-utf8-bytes": 512
           },
-          "T160": {
+          "T162": {
             "type": "string",
             "enum": [
               "utf8",
               "escaped_bytes"
             ]
           },
-          "T161": {
+          "T163": {
             "type": "array",
             "minItems": 16,
             "maxItems": 16,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T162"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T164"
             }
           },
-          "T162": {
+          "T164": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T163"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T165"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T163": {
+          "T165": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18113,16 +18138,16 @@
             ],
             "properties": {
               "field": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T164"
-              },
-              "origin": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T165"
-              },
-              "availability": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T166"
               },
-              "value": {
+              "origin": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T167"
+              },
+              "availability": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T168"
+              },
+              "value": {
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T169"
               }
             },
             "required": [
@@ -18133,7 +18158,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T164": {
+          "T166": {
             "type": "string",
             "enum": [
               "object",
@@ -18216,7 +18241,7 @@
               "dependency_owner"
             ]
           },
-          "T165": {
+          "T167": {
             "type": "string",
             "enum": [
               "caller",
@@ -18226,7 +18251,7 @@
               "owner"
             ]
           },
-          "T166": {
+          "T168": {
             "type": "string",
             "enum": [
               "provided",
@@ -18237,17 +18262,17 @@
               "inapplicable"
             ]
           },
-          "T167": {
+          "T169": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T168"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T170"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T168": {
+          "T170": {
             "oneOf": [
               {
                 "type": "object",
@@ -18257,7 +18282,7 @@
                 ],
                 "properties": {
                   "text": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T169"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T171"
                   }
                 }
               },
@@ -18269,7 +18294,7 @@
                 ],
                 "properties": {
                   "signed": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T170"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T172"
                   }
                 }
               },
@@ -18281,7 +18306,7 @@
                 ],
                 "properties": {
                   "unsigned": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T154"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T156"
                   }
                 }
               },
@@ -18317,41 +18342,41 @@
                 ],
                 "properties": {
                   "location": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T157"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T159"
                   }
                 }
               }
             ]
           },
-          "T169": {
+          "T171": {
             "type": "string",
             "maxLength": 256,
             "x-transit-max-utf8-bytes": 256
           },
-          "T170": {
+          "T172": {
             "type": "string",
             "maxLength": 20,
             "pattern": "^(0|-?[1-9][0-9]*)$"
           },
-          "T171": {
+          "T173": {
             "type": "array",
             "minItems": 4,
             "maxItems": 4,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T172"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T174"
             }
           },
-          "T172": {
+          "T174": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T173"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T175"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T173": {
+          "T175": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18360,10 +18385,10 @@
             ],
             "properties": {
               "kind": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T174"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T176"
               },
               "target": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T151"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T153"
               }
             },
             "required": [
@@ -18374,7 +18399,7 @@
               "target": null
             }
           },
-          "T174": {
+          "T176": {
             "type": "string",
             "enum": [
               "correct_input",
@@ -18390,7 +18415,7 @@
               "contact_operator"
             ]
           },
-          "T175": {
+          "T177": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18399,10 +18424,10 @@
             ],
             "properties": {
               "evidence": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T176"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T178"
               },
               "cells": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T183"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T185"
               }
             },
             "required": [
@@ -18411,7 +18436,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T176": {
+          "T178": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18424,7 +18449,7 @@
             ],
             "properties": {
               "manifest": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T177"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T179"
               },
               "columns": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T59"
@@ -18452,7 +18477,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T177": {
+          "T179": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18480,7 +18505,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T3"
               },
               "source": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T178"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T180"
               },
               "requester": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T3"
@@ -18492,10 +18517,10 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T5"
               },
               "request": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T131"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T133"
               },
               "basis": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T179"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T181"
               },
               "plan": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T21"
@@ -18525,7 +18550,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T57"
               },
               "finished": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T181"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T183"
               },
               "chain": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T21"
@@ -18553,7 +18578,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T178": {
+          "T180": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18579,7 +18604,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T179": {
+          "T181": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18589,7 +18614,7 @@
             ],
             "properties": {
               "cut": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T180"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T182"
               },
               "contract": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T21"
@@ -18605,7 +18630,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T180": {
+          "T182": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -18616,7 +18641,7 @@
             ],
             "properties": {
               "kind": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T102"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T104"
               },
               "resource": {
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T3"
@@ -18638,38 +18663,38 @@
               "head": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
             }
           },
-          "T181": {
+          "T183": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T182"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T184"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T182": {
+          "T184": {
             "type": "string",
             "enum": [
               "source_end",
               "limit"
             ]
           },
-          "T183": {
+          "T185": {
             "type": "array",
             "maxItems": 8,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T184"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T186"
             }
           },
-          "T184": {
+          "T186": {
             "type": "array",
             "maxItems": 128,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T185"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T187"
             }
           },
-          "T185": {
+          "T187": {
             "oneOf": [
               {
                 "type": "object",
@@ -18703,7 +18728,7 @@
                 ],
                 "properties": {
                   "type_error": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T186"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
                   }
                 }
               },
@@ -18715,7 +18740,7 @@
                 ],
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T187"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T189"
                   }
                 }
               },
@@ -18727,13 +18752,13 @@
                 ],
                 "properties": {
                   "conflict": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T202"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T204"
                   }
                 }
               }
             ]
           },
-          "T186": {
+          "T188": {
             "type": "string",
             "enum": [
               "unknown",
@@ -18769,7 +18794,7 @@
               "character"
             ]
           },
-          "T187": {
+          "T189": {
             "oneOf": [
               {
                 "type": "object",
@@ -18779,7 +18804,7 @@
                 ],
                 "properties": {
                   "atom": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T83"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T85"
                   }
                 }
               },
@@ -18791,7 +18816,7 @@
                 ],
                 "properties": {
                   "structure": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
                   }
                 }
               },
@@ -18803,7 +18828,7 @@
                 ],
                 "properties": {
                   "list": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
                   }
                 }
               },
@@ -18815,7 +18840,7 @@
                 ],
                 "properties": {
                   "array": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
                   }
                 }
               },
@@ -18827,7 +18852,7 @@
                 ],
                 "properties": {
                   "map": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T197"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T199"
                   }
                 }
               },
@@ -18839,7 +18864,7 @@
                 ],
                 "properties": {
                   "tagged_union": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T205"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T207"
                   }
                 }
               },
@@ -18857,14 +18882,14 @@
               }
             ]
           },
-          "T188": {
+          "T190": {
             "type": "array",
             "maxItems": 65536,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T189"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T191"
             }
           },
-          "T189": {
+          "T191": {
             "oneOf": [
               {
                 "type": "object",
@@ -18874,7 +18899,7 @@
                 ],
                 "properties": {
                   "missing": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T192"
                   }
                 }
               },
@@ -18886,7 +18911,7 @@
                 ],
                 "properties": {
                   "null": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T192"
                   }
                 }
               },
@@ -18898,7 +18923,7 @@
                 ],
                 "properties": {
                   "type_error": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T191"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T193"
                   }
                 }
               },
@@ -18910,7 +18935,7 @@
                 ],
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T192"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
                   }
                 }
               },
@@ -18922,17 +18947,17 @@
                 ],
                 "properties": {
                   "conflict": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T202"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T204"
                   }
                 }
               }
             ]
           },
-          "T190": {
+          "T192": {
             "type": "object",
             "maxProperties": 0
           },
-          "T191": {
+          "T193": {
             "type": "string",
             "enum": [
               "unknown",
@@ -18968,7 +18993,7 @@
               "character"
             ]
           },
-          "T192": {
+          "T194": {
             "oneOf": [
               {
                 "type": "object",
@@ -18978,7 +19003,7 @@
                 ],
                 "properties": {
                   "atom": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T193"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T195"
                   }
                 }
               },
@@ -18990,7 +19015,7 @@
                 ],
                 "properties": {
                   "structure": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
                   }
                 }
               },
@@ -19002,7 +19027,7 @@
                 ],
                 "properties": {
                   "list": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
                   }
                 }
               },
@@ -19014,7 +19039,7 @@
                 ],
                 "properties": {
                   "array": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T188"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
                   }
                 }
               },
@@ -19026,7 +19051,7 @@
                 ],
                 "properties": {
                   "map": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T197"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T199"
                   }
                 }
               },
@@ -19038,7 +19063,7 @@
                 ],
                 "properties": {
                   "tagged_union": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T199"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T201"
                   }
                 }
               },
@@ -19050,13 +19075,13 @@
                 ],
                 "properties": {
                   "json": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               }
             ]
           },
-          "T193": {
+          "T195": {
             "oneOf": [
               {
                 "type": "object",
@@ -19066,7 +19091,7 @@
                 ],
                 "properties": {
                   "signed": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19078,7 +19103,7 @@
                 ],
                 "properties": {
                   "unsigned": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19090,7 +19115,7 @@
                 ],
                 "properties": {
                   "decimal": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19102,7 +19127,7 @@
                 ],
                 "properties": {
                   "float_bits": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19114,7 +19139,7 @@
                 ],
                 "properties": {
                   "boolean": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T195"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T197"
                   }
                 }
               },
@@ -19126,7 +19151,7 @@
                 ],
                 "properties": {
                   "utf8": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19138,7 +19163,7 @@
                 ],
                 "properties": {
                   "binary": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19150,7 +19175,7 @@
                 ],
                 "properties": {
                   "date_days": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19162,7 +19187,7 @@
                 ],
                 "properties": {
                   "time_nanos": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19174,7 +19199,7 @@
                 ],
                 "properties": {
                   "timestamp_micros": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               },
@@ -19186,7 +19211,7 @@
                 ],
                 "properties": {
                   "interval": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T198"
                   }
                 }
               },
@@ -19198,20 +19223,20 @@
                 ],
                 "properties": {
                   "uuid": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
                   }
                 }
               }
             ]
           },
-          "T194": {
+          "T196": {
             "type": "string",
             "maxLength": 131072
           },
-          "T195": {
+          "T197": {
             "type": "boolean"
           },
-          "T196": {
+          "T198": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19221,13 +19246,13 @@
             ],
             "properties": {
               "months": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
               },
               "days": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
               },
               "nanos": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
               }
             },
             "required": [
@@ -19237,14 +19262,14 @@
             ],
             "x-transit-defaults": {}
           },
-          "T197": {
+          "T199": {
             "type": "array",
             "maxItems": 65536,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T198"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T200"
             }
           },
-          "T198": {
+          "T200": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19253,10 +19278,10 @@
             ],
             "properties": {
               "key": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T193"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T195"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T189"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T191"
               }
             },
             "required": [
@@ -19265,7 +19290,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T199": {
+          "T201": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19274,10 +19299,10 @@
             ],
             "properties": {
               "index": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T200"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T202"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T201"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T203"
               }
             },
             "required": [
@@ -19286,24 +19311,24 @@
             ],
             "x-transit-defaults": {}
           },
-          "T200": {
+          "T202": {
             "type": "integer",
             "minimum": 0,
             "maximum": 255,
             "x-transit-bits": 8,
             "x-transit-signed": false
           },
-          "T201": {
-            "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T189"
+          "T203": {
+            "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T191"
           },
-          "T202": {
+          "T204": {
             "type": "array",
             "maxItems": 65536,
             "items": {
-              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T203"
+              "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T205"
             }
           },
-          "T203": {
+          "T205": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19313,13 +19338,13 @@
             ],
             "properties": {
               "counter": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
               },
               "replica": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T196"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T204"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T206"
               }
             },
             "required": [
@@ -19329,7 +19354,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T204": {
+          "T206": {
             "oneOf": [
               {
                 "type": "object",
@@ -19339,7 +19364,7 @@
                 ],
                 "properties": {
                   "null": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T190"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T192"
                   }
                 }
               },
@@ -19351,7 +19376,7 @@
                 ],
                 "properties": {
                   "type_error": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T191"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T193"
                   }
                 }
               },
@@ -19363,13 +19388,13 @@
                 ],
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T192"
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T194"
                   }
                 }
               }
             ]
           },
-          "T205": {
+          "T207": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19381,7 +19406,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T8"
               },
               "value": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T206"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T208"
               }
             },
             "required": [
@@ -19390,20 +19415,20 @@
             ],
             "x-transit-defaults": {}
           },
-          "T206": {
-            "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T185"
+          "T208": {
+            "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T187"
           },
-          "T207": {
+          "T209": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T208"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T210"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T208": {
+          "T210": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -19435,7 +19460,7 @@
                 "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T56"
               },
               "namespaces": {
-                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T209"
+                "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T211"
               }
             },
             "required": [
@@ -19449,7 +19474,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T209": {
+          "T211": {
             "type": "array",
             "minItems": 8,
             "maxItems": 8,
@@ -19673,7 +19698,7 @@
           "T10": {
             "type": "string",
             "enum": [
-              "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+              "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
             ]
           }
         }
@@ -19735,7 +19760,7 @@
             ],
             "x-transit-defaults": {
               "capabilities": {
-                "definition": "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
+                "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b",
                 "sources": 2,
                 "active_queries": 1,
                 "page_rows": 1,
@@ -19796,7 +19821,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
+              "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -19809,7 +19834,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a"
+              "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
             ]
           },
           "T4": {
@@ -20097,7 +20122,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
+              "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b",
               "executed": false
             }
           },

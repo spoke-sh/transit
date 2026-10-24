@@ -406,22 +406,20 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             return .closed;
         },
         .assist => |value| {
-            if (host.source) |source| {
-                const result = (try g.query.Workspace.apply(allocator, &source.client, source.configuration.workspace, .{ .assist = .{ .sql = value.text, .cursor = std.math.cast(u16, value.cursor) orelse return error.InvalidSqlCursor, .generation = 0, .mode = .console } })).assistance;
-                const T = @FieldType(@FieldType(api.Response, "result"), "assistance");
-                const items = try allocator.alloc(std.meta.Elem(@FieldType(T, "items")), result.items.len);
-                for (result.items, items) |item, *out| out.* = .{ .text = item.text, .kind = switch (item.kind) {
-                    inline else => |kind| @field(@FieldType(std.meta.Elem(@FieldType(T, "items")), "kind"), @tagName(kind)),
-                }, .detail = item.detail };
-                return .{ .assistance = .{ .profile = .unified_v1, .resource = result.resource, .contract = result.contract, .resource_revision = result.resource_revision, .policy_revision = result.policy_revision, .range = result.range, .items = items } };
-            }
-            const result = try g.query.TableAssistance.complete(allocator, &host.table, .{ .sql = value.text, .cursor = std.math.cast(u16, value.cursor) orelse return error.InvalidSqlCursor, .generation = 0, .mode = .console });
+            const assistance_request: g.query.Assistance.Request = .{ .sql = value.text, .cursor = std.math.cast(u16, value.cursor) orelse return error.InvalidSqlCursor, .generation = 0, .mode = .console };
+            const result = result: {
+                if (host.config.settings != null) {
+                    if (try g.query.SettingsAssistance.complete(allocator, try @import("SessionSettings.zig").client(host), assistance_request)) |settings| break :result settings;
+                }
+                if (host.source) |source| break :result (try g.query.Workspace.apply(allocator, &source.client, source.configuration.workspace, .{ .assist = assistance_request })).assistance;
+                break :result try g.query.TableAssistance.complete(allocator, &host.table, assistance_request);
+            };
             const T = @FieldType(@FieldType(api.Response, "result"), "assistance");
             const items = try allocator.alloc(std.meta.Elem(@FieldType(T, "items")), result.items.len);
             for (result.items, items) |item, *out| out.* = .{ .text = item.text, .kind = switch (item.kind) {
                 inline else => |kind| @field(@FieldType(std.meta.Elem(@FieldType(T, "items")), "kind"), @tagName(kind)),
             }, .detail = item.detail };
-            return .{ .assistance = .{ .profile = @fromBackingInt(@intCast(@backingInt(result.profile))), .resource = result.resource, .contract = result.contract, .resource_revision = result.resource_revision, .policy_revision = result.policy_revision, .range = result.range, .items = items } };
+            return .{ .assistance = .{ .coverage = @fromBackingInt(@intCast(@backingInt(result.coverage))), .status = @fromBackingInt(@intCast(@backingInt(result.status))), .profile = @fromBackingInt(@intCast(@backingInt(result.profile))), .resource = result.resource, .contract = result.contract, .resource_revision = result.resource_revision, .policy_revision = result.policy_revision, .range = result.range, .items = items } };
         },
         else => return error.InvalidSqlAction,
     }
