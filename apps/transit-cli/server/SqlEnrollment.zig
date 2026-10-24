@@ -141,7 +141,7 @@ pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, 
 /// proposal for catalog discovery; only an explicit operator apply grants it.
 pub fn catalogAccess(installation: *Installation, allocator: std.mem.Allocator) !void {
     const revision = (try installation.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision;
-    const catalog = Installation.catalogFor(installation.connection(), installation.record);
+    const catalog = installation.directCatalog();
     const objects = [_]p.Authorization.ObjectRef{ .{ .kind = .domain, .id = catalog.authority.database }, .{ .kind = .domain, .id = catalog.authority.initial_schema_authority } };
     const intents = [_]q.wire.AuthorizationSet.Intent{
         .{ .grant = .{ .object = objects[0], .grantee = p.Authorization.root_role, .privileges = q.catalog.TableAuthority.connect } },
@@ -231,7 +231,7 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
         try Journal.save(installation, try accountPath(installation, allocator, record.name, "account.json"), record);
     }
     const binding = try Installation.settingsBinding(installation.record, installation.config.realm);
-    const catalog = Installation.catalogFor(installation.connection(), installation.record);
+    const catalog = installation.directCatalog();
     const objects = [_]p.Authorization.ObjectRef{ .{ .kind = .process, .id = record.binding.owner }, binding.object, .{ .kind = .domain, .id = catalog.authority.database }, .{ .kind = .domain, .id = catalog.authority.initial_schema_authority } };
     const privileges = [_]u64{ p.permission(.inspect) | p.permission(.send), q.settings.Contract.inspect, q.catalog.TableAuthority.connect, q.catalog.TableAuthority.usage };
     var intents: [objects.len]q.wire.AuthorizationSet.Intent = undefined;

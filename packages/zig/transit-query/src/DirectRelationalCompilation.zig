@@ -17,7 +17,7 @@ sources: [r.max_sources]r.Source = undefined,
 plan: r.Plan,
 pub const resident_base = @sizeOf(Self) + r.max_sources * f.TableSchema.max_bytes;
 
-pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.RelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
+pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
     if (options.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests == 0 or options.spill_work == 0) return error.InvalidQueryBudget;
@@ -69,7 +69,7 @@ pub fn validateBindings(self: *const Self, client: c.DirectTableClient) !void {
 /// Bind an explicitly requested query to original saved interpretations and
 /// retained schemas. This does not resolve live names, acquire or release pins,
 /// or resume the row cursor of a lost interactive executor.
-pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, bindings: []const c.DirectTableBinding, snapshots: []const c.DirectTableProtocol.Snapshot, options: q.RelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
+pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, bindings: []const c.DirectTableBinding, snapshots: []const c.DirectTableProtocol.Snapshot, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
     if (options.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests == 0 or options.spill_work == 0) return error.InvalidQueryBudget;

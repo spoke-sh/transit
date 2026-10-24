@@ -148,12 +148,25 @@ pub fn connectionFrom(record: Record, realm: u64) q.UnifiedClient.Connection {
     const done = record.provision;
     return .{ .realm = realm, .principal = caller, .requester = done[0].?, .requests = done[1].?, .source = done[4].?, .resource = done[5].? };
 }
-pub fn catalogFor(c: q.UnifiedClient.Connection, record: Record) q.catalog.TableCatalogRecords.Configuration {
-    return .{ .scope = .{ .realm = c.realm, .resource = c.resource, .catalog = 1 }, .owner = c.source, .administrator = caller, .database_name = q.catalog.TableAuthority.Name.init("transit") catch unreachable, .authority = .{ .database_domain = record.authorization_steps[3].?, .schema_domain = record.authorization_steps[4].?, .table_domain = record.authorization_steps[5].?, .database = record.authorization_steps[6].?, .initial_schema = 1, .initial_schema_authority = record.authorization_steps[7].? }, .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
-}
 pub fn directCatalog(self: *Self) q.catalog.DirectCatalog.Configuration {
-    const configuration = catalogFor(self.connection(), self.record);
-    return .{ .scope = configuration.scope, .branch = 1, .partition = 1, .audience = configuration.owner, .authority = configuration.authority, .database_name = configuration.database_name, .initial_schema_name = q.catalog.TableAuthority.Name.init("public") catch unreachable };
+    const installed = self.connection();
+    const authority = self.record.authorization_steps;
+    return .{
+        .scope = .{ .realm = installed.realm, .resource = installed.resource, .catalog = 1 },
+        .branch = 1,
+        .partition = 1,
+        .audience = installed.source,
+        .authority = .{
+            .database_domain = authority[3].?,
+            .schema_domain = authority[4].?,
+            .table_domain = authority[5].?,
+            .database = authority[6].?,
+            .initial_schema = 1,
+            .initial_schema_authority = authority[7].?,
+        },
+        .database_name = q.catalog.TableAuthority.Name.init("transit") catch unreachable,
+        .initial_schema_name = q.catalog.TableAuthority.Name.init("public") catch unreachable,
+    };
 }
 pub fn provision(self: *Self) !void {
     try self.flush();
