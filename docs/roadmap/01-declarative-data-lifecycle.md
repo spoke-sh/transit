@@ -54,6 +54,14 @@ engineering decisions that must precede dependent implementation.
 
 ## Implementation in progress
 
+The serving counter now uses an installer-published direct Table and retains an
+exact intent before dispatch. Its separate data receipt and native progress/reply
+commit have [component, HTTP and TLS refresh recovery evidence](../../tests/README.md#direct-serving-counter-acceptance--2026-10-24).
+The refresh proof uses separately prepared direct captures, retains the original
+request through worker replacement and enforces current Table SELECT. Browser,
+capacity and placement qualification remains open; this does not close the
+coordinated consumer cutover gate.
+
 The feature branch supplies the neutral data operation/snapshot contract, local
 native persistence and a default local launcher backed by the native local
 owner. Its direct Table storage component has atomic point/bulk acceptance,

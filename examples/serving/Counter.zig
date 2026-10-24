@@ -5,6 +5,7 @@ const serving = @import("transit_serving");
 const s = serving.station;
 const p = s.protocol;
 const f = s.fuze;
+pub const Data = @import("CounterData.zig");
 pub const object = 1;
 pub const schema: f.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 3, .columns = &.{
     .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
@@ -122,44 +123,42 @@ fn finish(turn: *s.Turn, pending: Pending, value: p.Value, applied: bool) !void 
     try turn.send(pending.origin, .{ .kind = .reply, .correlation = pending.correlation, .payload = value });
     try wake(turn);
 }
-pub fn drive(allocator: std.mem.Allocator, turn: *s.Turn) !void {
+pub fn drive(allocator: std.mem.Allocator, turn: *s.Turn, client: Data.Client, binding: Data.Binding) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
     if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.AccessDenied;
     var pending = (try first(turn)) orelse return;
+    var declared = schema;
+    declared.object = binding.object;
     if (pending.prepared == null) {
-        const head = try s.TableHead.load(turn, object);
-        var stored = try head.readSchema(allocator, turn);
-        defer stored.deinit();
-        if (head.retired or !std.mem.eql(u8, &try stored.schema.fingerprint(), &try schema.fingerprint())) return error.CounterSchemaChanged;
-        if (head.pending != 0) return error.TableBusy;
-        var reader: s.TablePages.Reader(*s.Turn) = .{ .pages = .{ .resource = turn.view.resource, .object = object }, .source = turn };
-        const data: s.TableData = .{ .schema = schema, .index = head.index };
-        const selected = try data.findKey(allocator, &reader, &.{.{ .value = .{ .atom = .{ .signed = pending.key } } }});
-        var previous: i64 = 0;
-        if (selected) |identity| {
-            var row = (try data.get(allocator, &reader, identity)) orelse return error.InvalidTableIndex;
-            defer row.deinit();
-            const cell = row.row().cells[1];
-            if (cell != .value or cell.value != .atom or cell.value.atom != .signed) return error.InvalidCounterValue;
-            previous = @intCast(cell.value.atom.signed);
-        }
-        const next = std.math.add(i64, previous, pending.delta) catch return finish(turn, pending, try p.Value.init("CounterOverflow"), false);
-        pending.prepared = .{ .identity = selected orelse .{ .origin = pending.principal + 1, .operation = pending.input, .ordinal = 0 }, .value = next, .insert = selected == null };
+        var metadata = try Data.definition(client, binding, declared);
+        defer metadata.deinit();
+        const selected = try Data.get(allocator, client, metadata.value, declared, pending.key);
+        const next = std.math.add(i64, if (selected) |row| row.value else 0, pending.delta) catch return finish(turn, pending, try p.Value.init("CounterOverflow"), false);
+        pending.prepared = .{
+            .identity = if (selected) |row| row.identity else try serving.query.catalog.DirectTableProtocol.Rows.insertIdentity(.{ .scope = binding.scope, .principal = client.connection.principal, .operation = pending.input }, 0),
+            .value = next,
+            .insert = selected == null,
+        };
+        const prepared = pending.prepared.?;
+        var intent = try Data.mutation(allocator, client, metadata.value, declared, pending.input, .{ .identity = prepared.identity, .key = pending.key, .value = next }, prepared.insert);
+        defer intent.deinit();
+        // Staging carries no admission. Commit eligibility and the exact frozen
+        // row before a subsequent continuation can contact the acceptance owner.
+        const reference = try Data.stage(client, &intent, binding.namespace);
+        try Data.prepare(allocator, turn, .{ .resource = turn.view.resource, .worker = turn.delivery.pid, .input = pending.input, .invocation = pending.intent, .reference = reference });
         try turn.write(Pending.keyFor(pending.input), try pending.encode());
-        // Publication cursors read a committed cut. Persist the frozen command
-        // before acquiring any chunked index/value pages for its Table write.
         return wake(turn);
     }
     const prepared = pending.prepared.?;
-    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = pending.key } } }, .{ .value = .{ .atom = .{ .signed = prepared.value } } } };
-    const row: f.TableRow.Row = .{ .identity = prepared.identity, .cells = &cells };
-    const request: s.TableWrite.Request = .{ .resource = turn.view.resource, .principal = pending.principal, .operation = pending.input, .schema = schema, .change = if (prepared.insert) .{ .insert = row } else .{ .update = row }, .owner_binding = pending.intent };
-    const status = try s.TableWrite.stepWithReserve(allocator, turn, request, 2);
-    if (status.state == .building) return wake(turn);
-    if (status.state != .applied) return finish(turn, pending, try p.Value.init("CounterMutationRejected"), false);
-    if (status.matched != 1) return error.CounterRowChanged;
+    switch (try Data.advance(allocator, turn, client, pending.input, pending.intent)) {
+        .pending => return wake(turn),
+        .committed => |evidence| if (evidence.outcome.matched != 1) return error.CounterRowChanged,
+        .rejected, .cancelled => return finish(turn, pending, try p.Value.init("CounterMutationRejected"), false),
+    }
     var result: [8]u8 = undefined;
     std.mem.writeInt(i64, &result, prepared.value, .little);
+    // Only original accepted data evidence permits progress and reply. A lost
+    // native turn repeats receipt inspection without applying the delta again.
     try finish(turn, pending, try p.Value.init(&result), true);
 }

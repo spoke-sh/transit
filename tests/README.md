@@ -1,5 +1,47 @@
 # Validation and evidence
 
+## Direct serving counter acceptance — 2026-10-24
+
+`nix develop --command zig build test-serving-counter -Doptimize=ReleaseSafe`
+passes **8 component tests** composing the real direct catalog dispatcher and
+Table storage with an independent native private-turn reference store. The
+example executable also builds in ReleaseSafe. These in-memory tests establish
+uncommitted preparation refusal, exact receipt recovery after a lost data reply,
+frozen-write rejection after a competing mutation, unchanged configuration
+binding, queued growth, overflow, no-op updates and native output-budget rollback.
+They do not establish physical durability.
+
+`nix develop --command zig build test-serving -Doptimize=ReleaseSafe` passes the
+independent Python/OpenSSL HTTP fixture in **9.70 seconds**, with eight resident
+native authority pages. The installer explicitly initializes the direct catalog
+and creates the Table through the public host port before application activation.
+An injected lost Table commit reply is recovered by inspecting its original
+receipt; the counter result and separate native progress both equal one.
+Lost ingress, application and outbox-delivery receipts preserve original native
+commands. Two gateways, conflicting retries, physical worker/gateway/node
+replacement over retained local files, publication retirement, current service
+policy denial and replay of pre-revocation signed reads all pass.
+
+`nix develop --command just test::reactive-refresh` passes the independent TLS
+refresh schedule in **93.33 seconds**. Two views sharing one caller retain
+distinct explicitly prepared captures, recover the exact lost Follow receipt,
+admit one query at a time and select a fair successor. Worker replacement keeps
+the original active namespace. Raw resource-read permission and current Table
+SELECT are checked independently; revocation blocks disclosure and refresh,
+while explicit control preserves the original stop and query diagnostics.
+Temporary unavailable observations retry only the same read when its diagnostic
+permits that retry. The source executor authenticates without a selected owner
+role; the live requester uses a separate read-only inspection identity.
+
+The Table mutation receipt precedes the separate native progress/reply commit.
+This does not establish a transaction across those owners. The native fixture
+uses local logs and objects; it does not qualify Ursula or cold storage.
+Capacity, lifetime, growth, reactive browser and physical placement reruns are
+still open for the changed example. Failed attempts exposed fixture
+provisioning/SQL/decoding errors, invalid post-revocation signing, mismatched
+executor/inspection identities and temporary upstream admission pressure; those
+attempts are not passed evidence. Final repository gates remain separate.
+
 ## Retained relational caller conformance — 2026-10-24
 
 `nix develop .#bindings -c zig build test-relational-callers

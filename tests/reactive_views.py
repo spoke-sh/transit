@@ -22,7 +22,8 @@ def run(env, tls):
     cast(application, query_policy(env['counter_definition'], application, ingress, requests, 65536, struct.pack('<QQQ', 64, 64, 1048576)))
     cast(ingress, policy(33))
     drained(application); drained(ingress)
-    env['grant'](33, 20, ingress)
+    # The installer already has native send/inspect through its SQL login role.
+    # A native-principal grant cannot replace that catalog-owned credential.
     env['grant'](34, 20, ingress)
     env['resource_grant'](requests, 34, 3)
     # Abandoned leases must release bounded live capacity without a browser
@@ -58,7 +59,18 @@ def run(env, tls):
         # this identified operation, never for global quiescence.
         until = time.monotonic() + 30
         while time.monotonic() < until:
-            status, current = post(env['gateway_ports'][1], '/serving/v1/read', signed_read(keys[33], 33, ingress, 'status', operation), counter_host, None)
+            try:
+                signed = signed_read(keys[33], 33, ingress, 'status', operation)
+            except AssertionError as error:
+                failure = error.args[0]
+                if (isinstance(failure, tuple) and failure[:2] == ('/v1/query', 503)
+                        and json.loads(failure[2]) == {'err': 'HttpCapacity'}):
+                    # Signing first reads the current credential epoch. This
+                    # observation can retry without resubmitting the mutation.
+                    time.sleep(.05)
+                    continue
+                raise
+            status, current = post(env['gateway_ports'][1], '/serving/v1/read', signed, counter_host, None)
             assert status in (200, 404, 409, 429, 503, 504), (status, current)
             if status == 200 and current['stage'] == 'completed':
                 expected = counts.get(row, 0) + delta
@@ -80,7 +92,7 @@ def run(env, tls):
         viewer=dict(principal=65536, seed_file=str(keys[65536].seed), refresh=True))
     board_config = dict(upstream=env['worker_url'], realm=49, principal=79, seed_file=str(keys[79].seed), profile='native_v1', public_origin=gateway['public_origin'], port=gateway['port'], request_timeout_ms=5000, upstream_timeout_ms=3500,
         query=dict(seed_file=str(keys[65536].seed), connection=dict(realm=49, principal=65536, source=application, resource=resource, requester=ingress, requests=requests),
-            workspace=dict(name='counter', source=source_value(env['counter_definition'], application), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
+            workspace=dict(name='counter', executor=78, source=source_value(env['counter_definition'], application), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
         reactive=dict(principal=79, seed_file=str(keys[79].seed), gateway=gateway))
     board = env['start']('board-live', env['board'], board_config)
     pins = []

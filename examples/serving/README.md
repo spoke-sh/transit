@@ -12,9 +12,9 @@ non-root `principal`, a private `seed_file` and a `role`. Ingress/application
 workers additionally require exact `pid`, `generation` and a preserved
 `activation_directory`. Restart requires fresh fenced ownership. The ingress
 role contains service/administrator/observer identities; the application role
-contains its trusted ingress PID, initializer principal, native catalog `authority`
-binding, `database_name` and explicit `table_limits`
-(`record_bytes`, `staging_bytes`, `staging_records`). The gateway role
+contains its trusted ingress PID, initializer principal and a `data` binding:
+current contract `definition`, catalog `scope`, `branch`, Table `audience`,
+`namespace`, stable `object` and selected `role`. The gateway role
 contains service/ingress/resource identities, port, exact public host/HTTPS origin,
 and up to 32 explicitly provisioned caller public keys. Private seeds are files,
 never command arguments. Public registration bootstrap is available only for
@@ -31,30 +31,46 @@ four data handlers, two per caller and two reserved health handlers are separate
 service quota. The owning resource retains terminal operations with no implicit
 expiry. Read diagnostics contain finite error categories, not request data.
 
-The application owns a catalog Table named `counter` with an `INT64` primary
-key `id` and nullable `INT64 count`. The initializer first sends an empty cast,
-then `create-counter`; the owner completes schema publication through authenticated
-self continuations. Authorized catalog lookup returning the definition is the
-readiness gate before publishing the service binding. The supplied runners admit
-4 KiB records and at most eight staged records totaling 32 KiB. These staging
-quotas do not cap durable row or operation cardinality.
+The installer creates a catalog Table named `counter` with an `INT64` primary
+key `id` and nullable `INT64 count` through the direct catalog client. Authorized
+lookup confirms its exact identity and schema before the initializer sends an
+empty cast. Initialization persists the configured binding in private native
+state; replacing the name or changing the binding cannot redirect pending work.
+The Table service and native application share a deployment but have independent
+acceptance logs. The supplied local runner preserves both under its node directory.
 
 Each accepted call is saved in paged state with its original ingress and reply
-correlation. The owner commits the selected row identity and computed increment
-before a later turn reads immutable Table pages and stages the typed row without exposing a partial update. The final turn
-publishes the Table head, exact mutation receipt, application progress and reply
-together within the native four-write budget. Lost turns reuse the frozen delta.
+correlation. The application reads the current row and stages an immutable intent
+containing the selected row identity, computed increment and exact definition/data
+expectations. Staging does not accept the write. A native turn saves that reference
+and dispatch eligibility; only a later committed continuation can admit it.
+The Table owner records the mutation and its receipt first. A separate native turn
+records application progress and the reply. This is not an atomic transaction
+across those owners. A lost reply or native proposal recovers the original receipt
+without applying the increment again. A competing data change rejects the frozen
+write and replies `CounterMutationRejected`; the application does not recompute it.
+
 Only the configured ingress's process origin can enqueue a counter call; only
-the owner's process origin can drive its pending queue.
+the application's process origin can drive its pending queue. Service command
+policy authorizes the business operation. The worker separately needs current
+Table write rights through its selected role. The node checks those rights, but
+does not prove that the worker computed an honest increment. Queue and receipt
+cardinality do not become resident work lists.
 
 Payload codec 1 is an i64 row ID followed by an i64 delta, little-endian; the exact
 result is the resulting i64. Overflow replies `CounterOverflow` without changing
 the row or progress. Socket retries never invoke the application directly.
 Query/read bookkeeping cannot alter data progress. Reactive watches observe the
-Table head; a head reservation can notify possible change before row publication.
+direct Table data watermark; query bookkeeping does not advance that watermark.
 
 The optional `live_ingress` role adds `query_principal` and `source` alongside
-the nested `service` configuration. It composes sessions and the v1 requester
+the nested `service` configuration. The worker also requires an
+`inspection_principal` distinct from its execution principal. The operator binds
+that read-only identity to the worker's current public key, with unrestricted
+inspection scope, read grants on both resources and Table SELECT. This reader
+can authenticate each source/requester audience; the execution credential keeps
+its PID scope. Replacement rebinds both identities to the fresh worker key.
+It composes sessions and the v1 requester
 in one resource. Application `queries: true` enables existing v1 capture and
 initializer-only `UQA1` query policy publication. Native database CONNECT,
 schema USAGE and Table SELECT grants authorize each query or watch caller; the
@@ -73,7 +89,7 @@ remains disabled by default.
 Build with `nix develop --command zig build serving-example -Doptimize=ReleaseSafe`.
 Run `nix develop --command just test::serving-counter` for queue, overflow and
 lost-turn checks. Run `nix develop --command just test::serving` for the independent Python/OpenSSL
-caller proof with owned disk Ursula, real workers and two gateway instances. It
+caller proof with an owned local node directory, real workers and two gateway instances. It
 provisions its own keys/rights and leaves existing launcher deployments alone.
 `just test::serving-lifetimes` adds real cancel/timeout ordering and finite
 process/resource expiry. Clock uncertainty returns temporary unavailability until
