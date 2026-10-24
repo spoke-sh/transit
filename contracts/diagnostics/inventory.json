@@ -3161,6 +3161,61 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectCatalogAdministration.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorizationPlan": 2,
+        "InvalidDirectCatalogOperation": 1,
+        "UnsupportedDirectSchemaAdministration": 1
+      },
+      "outcomes": {
+        "Action": [
+          "compile_namespace",
+          "preview_namespace",
+          "namespace_operation",
+          "compile_policy",
+          "prepare_policy"
+        ],
+        "NamespaceBinding.action": [
+          "create",
+          "rename",
+          "drop"
+        ],
+        "PolicyPlan.action": [
+          "authorization",
+          "set_role"
+        ],
+        "Result": [
+          "namespace_binding",
+          "namespace_preview",
+          "namespace_observation",
+          "policy_plan",
+          "policy_prepared"
+        ],
+        "Result.namespace_observation": [
+          "not_observed",
+          "operation"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "NamespaceBinding.check()": "<inferred>",
+        "NamespaceBinding.foreign()": "<inferred>",
+        "NamespaceBinding.native()": "<inferred>",
+        "PolicyPlan.validate()": "<inferred>",
+        "apply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 35,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectCatalogInspection.zig": {
       "errors": {
         "CatalogObservationChanged": 1,
@@ -3710,6 +3765,7 @@
       "outcomes": {
         "Action": [
           "catalog",
+          "administration",
           "lookup",
           "compile",
           "load",
@@ -3731,6 +3787,7 @@
         ],
         "Result": [
           "catalog",
+          "administration",
           "metadata",
           "compiled",
           "loaded",
@@ -3767,7 +3824,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 46,
         "catch": 1
       },
       "imports": [
@@ -5836,6 +5893,7 @@
         "AuthorizationSql.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
+        "DirectCatalogAdministration.zig",
         "DirectCatalogInspection.zig",
         "DirectDependency.zig",
         "DirectNamespace.zig",

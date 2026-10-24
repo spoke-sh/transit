@@ -547,6 +547,26 @@ commitments. It does not resolve names, acquire rights or admit work. These valu
 contracts do not themselves expose a catalog ABI or migrate a language SDK.
 
 `DirectTableBridge.Session` owns one loaded intent for serialized host calls.
+Its `administration` actions compile namespace SQL into a complete saved
+`NamespaceBinding`, preview that binding and explicitly inspect/admit/execute/
+cancel it through `DirectNamespace`. The binding requires the current definition,
+exact connection, full-width operation string, namespace identity, complete
+expected namespace record and typed action. CREATE requires a new namespace ID;
+RENAME/DROP require null for that compilation argument and freeze the resolved
+original definition. Results retain original bindings, catalog positions,
+admitted/applied/rejected/cancelled phases, reasons and resulting definitions.
+These actions do not replace the handle's loaded Table work.
+
+`compile_policy` resolves supported policy SQL through `DirectAuthorizationSql`.
+Its plan binds the connection, originally selected role, current policy revision
+and native action. `prepare_policy` checks that binding and calls the existing
+native `AuthorizationChange.prepare`, returning its preview and exact signed
+record without submission. Save that record and use the native authorization
+change lifecycle for explicit submission, recovery and publication. The original
+selected role and current selection eligibility remain authoritative. SET ROLE
+compiles to a connection-selection plan; `prepare_policy` rejects it. Selecting
+a new connection role is separate from publishing policy or namespace work.
+
 The host `catalog` action dispatches `capabilities`, `describe`, `namespace`,
 `namespaces` and `tables` to `DirectCatalogInspection`. Capabilities are local;
 the other actions make one public catalog request each. Directory pages contain
