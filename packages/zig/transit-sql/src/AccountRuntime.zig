@@ -418,13 +418,19 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     if (item.resource != connection.scope.resource or item.catalog != connection.scope.catalog or item.owner != connection.audience or item.namespace != namespace or item.selectedRole() != connection.role) return error.GatewayCatalogDenied;
     _ = try table.require(.{ .namespace = null, .target = null, .access = .database });
     var outcome: ?g.Terminal = null;
+    var diagnostic: ?p.Diagnostic = null;
     if (item.phase == .ready or item.phase == .active or item.phase == .terminal) {
         const bytes = try g.Upload.read(allocator, self.ledger.publication(id), &source, 1, g.IntentReference.max_bytes);
         defer allocator.free(bytes);
         const intent = try g.IntentReference.decode(allocator, bytes);
         const observed = try intent.operation(table.*, .inspect, 1);
         defer observed.deinit();
-        if (item.phase == .terminal) outcome = try self.observe(observer, table, intent, id);
+        if (item.phase == .terminal) {
+            outcome = try self.observe(observer, table, intent, id);
+            if (outcome != null and observed.value.result == .namespace_operation) {
+                if (observed.value.result.namespace_operation == .operation) diagnostic = try observed.value.result.namespace_operation.operation.diagnostic();
+            }
+        }
     }
     return .{
         .identity = .{ .account = self.ledger.configuration.account, .id = id },
@@ -442,6 +448,7 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
         } else null,
         .matched = if (outcome) |terminal| terminal.matched else 0,
         .changed = if (outcome) |terminal| terminal.changed else 0,
+        .diagnostic = diagnostic,
     };
 }
 

@@ -109,7 +109,7 @@ def run_node(binary, directory, upstream_port):
                 assert len(body) == count
                 if self.path == '/table/v1':
                     request = json.loads(body)
-                    operation = request['action'].get('operation')
+                    operation = request['action'].get('operation') or request['action'].get('namespace_operation')
                     if operation and operation['command'] == 'execute' and (directory / 'block-execute').exists():
                         # Record only the exact operation binding, never signing
                         # material, credentials or a Table's row payload.

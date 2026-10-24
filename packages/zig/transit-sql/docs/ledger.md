@@ -45,6 +45,13 @@ inline `NameAssertion.Binding`. It freezes the original name condition and
 complete proposed declaration commitment. Publishing this reference does not
 admit the assertion or reserve its name.
 
+Namespace changes carry `NamespaceChange`: the SQL session's selected namespace
+and an exact `DirectNamespace.Binding` for the schema being changed. Those
+identities are distinct. CREATE uses the accepted operation ID as its new schema
+ID; RENAME/DROP retain the original schema record and identity. The complete
+wrapper participates in the ledger commitment. Publication starts no namespace
+registration or catalog acceptance.
+
 `admitIntent` validates the complete committed reference, its publication digest,
 operation identity and configured scope. It retains a commitment to the full
 binding and adds the operation to the ready index. All ledger transitions obey
@@ -78,6 +85,14 @@ name assertions. Their retained position belongs to the catalog, their row
 counts are zero, and they carry no resulting Table revision. Dispatch may cancel
 an unobserved assertion directly. Lost replies and changed names cannot replace
 the original condition or turn its outcome into a Table commit.
+
+Namespace terminal evidence retains the catalog position for applied, rejected
+and cancelled outcomes, with the resulting schema revision only when applied.
+Its object is the schema identity and its row counts are zero. Pending bounded
+RESTRICT progress is never projected as completion. Inspection after restart or
+name reuse rechecks the original binding and current namespace rights.
+The authorized namespace observation also supplies rejection/cancellation
+diagnostics; the ledger never invents a reason from a transport failure.
 
 Status and SQL outcome disclosure reobserve the direct owner under current
 rights. A private summary is insufficient. Unknown remote outcomes remain

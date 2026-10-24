@@ -5,7 +5,7 @@ pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
 pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
-pub const Completion = enum { select, insert, update, delete, create_table, alter_table, drop_table, set, show, discard_all };
+pub const Completion = enum { select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all };
 pub const Id = [32]u8;
 pub const Instance = [16]u8;
 pub const Token = [16]u8;
@@ -93,7 +93,9 @@ pub const Operation = struct {
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
 };
-pub const Description = struct { statement: Id, schema: []const u8, parameters: []const []const u8, mutation: bool };
+/// A command without returned rows has no result schema. The field is required;
+/// null is distinct from a row-returning statement with an empty result.
+pub const Description = struct { statement: Id, schema: ?[]const u8, parameters: []const []const u8, mutation: bool };
 pub const Basis = union(enum) {
     source: struct { kind: fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
     table: struct { object: @import("transit_protocol").DataLifecycle.Object, interpretation: @import("transit_protocol").DataLifecycle.Definition, accepted: @import("transit_protocol").DataLifecycle.Position, changed_lsn: u64, pin: @import("transit_protocol").DataLifecycle.Content, commitment: [32]u8, schema: [32]u8 },

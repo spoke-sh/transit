@@ -61,6 +61,13 @@ or cancelled under the frozen condition and current rights. These outcomes carry
 a catalog acceptance position and zero row counts. Preparation and binding do
 not admit them; a changed condition rejects instead of selecting a new target.
 
+Native SQL CREATE SCHEMA, ALTER SCHEMA ... RENAME and DROP SCHEMA retain a
+namespace binding in the same ledger. Preparation freezes the exact schema and
+owner without allocating IDs; CREATE uses the accepted operation ID for its new
+namespace. Schema acceptance, cancellation and bounded RESTRICT belong to the
+direct catalog. Completion carries the catalog position and zero row counts.
+The PostgreSQL/MySQL profiles do not execute these schema statements.
+
 `AccountRuntime` composes that worker and coordinator with one bounded
 `ControlLane` per sequenced role. Connection cancellation releases its wait while
 the account retains and polls the exact pending ingress request. Concurrent ledger

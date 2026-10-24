@@ -3,13 +3,16 @@
 The dedicated authorization compiler resolves SQL to a reviewable typed plan.
 The Table bridge/service `compile_authorization` operation uses this compiler. Native policy changes use
 the explicit [administration lifecycle](../../../../packages/zig/transit-client/docs/authorization.md);
-schema changes use the catalog owner. The query console, Board query worksheet
-and Flight SQL retain their separate query interfaces.
+schema changes use the catalog owner. The native SQL service and query console
+execute CREATE, RENAME and DROP SCHEMA through that direct owner. Board's query
+worksheet, Flight SQL and the PostgreSQL/MySQL profiles keep their existing
+statement boundaries.
 
 Names resolve within one configured database/catalog binding. Schema and Table
-names bind stable IDs before preparation. Plans include the original principal,
-active role and policy revision. Preparation rejects a stale policy basis;
-publication and disclosure still require current rights.
+names bind stable IDs before preparation. Native policy plans include the
+original principal, active role and policy revision. Schema plans retain the
+original caller and exact schema definition. Preparation rejects a changing
+policy basis; publication and disclosure still require current rights.
 
 The local installation's direct catalog uses `DirectAuthorizationSql` for
 role, membership, grant/revoke, default-privilege and ownership plans. It resolves
@@ -19,8 +22,12 @@ for an administrator. The result uses the same native administration lifecycle;
 compiling it starts no Table work or policy publication. SET/RESET ROLE returns
 an explicitly checked selection without applying it to a session. Its default
 read budget is 128 operations, with one namespace page resident at a time.
-CREATE, RENAME and DROP SCHEMA are unavailable on this direct path. The schema
-lifecycle forms below belong to the existing typed catalog owner.
+`prepareNamespace` freezes the original schema and requested owner without
+allocating an identity or starting work. `compileNamespace` binds explicit
+operation and namespace identities for typed callers. The native SQL service
+allocates them through its existing durable operation ledger, then dispatches
+the same direct namespace binding. Role and grant statements still use explicit
+native administration; they do not execute in the console.
 
 | Object | Privileges |
 | --- | --- |
@@ -70,12 +77,25 @@ policy mutation or a change automatically applied by compiling a file. RESET
 ROLE and SET ROLE NONE select the login role. Owner assignment requires SET
 eligibility; inherited data access alone is insufficient.
 
-CREATE SCHEMA uses an explicit new schema ID and operation ID supplied alongside
-SQL. Initial catalog configuration explicitly creates `public`; there are no
-automatic PUBLIC access grants. Schema rename retains IDs. DROP SCHEMA RESTRICT
-rejects a schema with a live or initializing Table. Its bounded scan detects
-concurrent Table creation using the schema revision. Name reuse allocates a new
-schema identity and does not restore earlier grants.
+CREATE SCHEMA requires database ownership and current SET eligibility for the
+requested owner. Typed callers supply a new schema ID and operation ID; native
+SQL uses its accepted input position for both. Initial catalog configuration
+explicitly creates `public`; there are no automatic PUBLIC access grants.
+Rename and DROP require current schema ownership. Rename retains IDs. DROP
+SCHEMA RESTRICT rejects a schema with a live or pending Table declaration. Its
+bounded dependency scan fences concurrent Table DDL and resumes after restart.
+Name reuse allocates a new schema identity and does not restore earlier grants.
+
+Preparation and repeated inspection start no work. Execution retains the exact
+expected schema revision and complete original binding before direct admission.
+Lost replies, cancellation and restart follow the existing SQL operation
+lifecycle; sending SQL again with a new token creates new work. Completed schema
+operations carry a catalog acceptance position and zero matched/changed rows.
+Current namespace permissions still govern result disclosure after retirement.
+Rejected schema operations report their recorded reason, including a Table
+dependency that blocks DROP, without disclosing the blocking object's identity.
+Schema changes do not switch the session's configured namespace or create an
+atomic transaction with native registration or Table writes.
 
 ## Default privileges
 

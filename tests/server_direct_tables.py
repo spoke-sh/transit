@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from server import Fixture, children, command
-from table_console import atom
+from table_console import atom, records
 from server_application_faults import ExistingKey, native, post
 from serving import compact
 
@@ -47,6 +47,10 @@ def run(cli, node, host, board, gateway):
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     print(f'Direct installed SQL proof: {fixture.root}', flush=True)
+
+    def schemas():
+        return {row['schema'] for row in records(fixture.console('SHOW SCHEMAS;\n')[-1])}
+
     try:
         fixture.start()
         fixture.ready(timeout=300)
@@ -76,12 +80,34 @@ def run(cli, node, host, board, gateway):
                                      'SELECT COUNT(*) FROM items;\n')
             assert atom(values[-1], 'unsigned') == '2', values
             try:
-                fixture.console('CREATE TABLE IF NOT EXISTS items (ignored TEXT);\n'
-                                'DROP TABLE IF EXISTS absent_name;\n'
-                                'CREATE TABLE other (id BIGINT PRIMARY KEY);\n'
-                                'ALTER TABLE other ADD COLUMN label TEXT;\n'
-                                'ALTER TABLE other RENAME TO renamed;\n'
-                                'DROP TABLE renamed;\n')
+                for statement in (
+                        'CREATE TABLE IF NOT EXISTS items (ignored TEXT)',
+                        'DROP TABLE IF EXISTS absent_name',
+                        'CREATE TABLE other (id BIGINT PRIMARY KEY)',
+                        'ALTER TABLE other ADD COLUMN label TEXT',
+                        'ALTER TABLE other RENAME TO renamed',
+                        'DROP TABLE renamed'):
+                    fixture.console(statement + ';\n')
+                from sql_sessions.local import Client
+                peer = Client(fixture.console_config(), before['definition']).open()
+                try:
+                    existing_schemas = schemas()
+                    prepared = peer.call(dict(prepare=dict(sql='CREATE SCHEMA application_data')))['described']
+                    assert prepared['mutation'] and prepared['schema'] is None and prepared['parameters'] == []
+                    assert schemas() == existing_schemas
+                    created_schema = peer.execute('CREATE SCHEMA application_data', list(os.urandom(16)))['operation']
+                    peer.terminal(created_schema)
+                    assert schemas() == existing_schemas | {'application_data'}
+                    stale_drop = peer.call(dict(prepare=dict(sql='DROP SCHEMA application_data')))['described']
+                    fixture.console('ALTER SCHEMA application_data RENAME TO application_archive;\n')
+                    peer.call(dict(describe=stale_drop['statement']), error='CatalogDefinitionChanged')
+                    assert schemas() == existing_schemas | {'application_archive'}
+                    fixture.console('DROP SCHEMA application_archive;\nCREATE SCHEMA application_archive;\n')
+                    assert schemas() == existing_schemas | {'application_archive'}
+                    blocked = fixture.console('DROP SCHEMA public;\n', expected=1)
+                    assert 'dependency' in blocked.stderr, blocked
+                finally:
+                    peer.close()
             except subprocess.TimeoutExpired as error:
                 print('Timed-out DDL batch stdout:', error.stdout, file=sys.stderr)
                 print('Timed-out DDL batch stderr:', error.stderr, file=sys.stderr)
@@ -94,6 +120,9 @@ def run(cli, node, host, board, gateway):
         after = fixture.record()
         for name in ('default_table', 'table_registrar_receipt', 'provision', 'authorization_steps'):
             assert before[name] == after[name], name
+        assert 'application_archive' in schemas()
+        original_schema = fixture.sql_session(dict(status=dict(operation=created_schema['identity'])))['operation']
+        assert original_schema['outcome'] == 'applied' and original_schema['matched'] == original_schema['changed'] == 0
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '2'
         fixture.console('DELETE FROM items WHERE id = 2;\nDROP TABLE items;\n')
         fixture.stop()
@@ -104,7 +133,7 @@ def run(cli, node, host, board, gateway):
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '1'
         fixture.stop()
         success = True
-        print('Direct installed SQL: default Table, CRUD/DDL while query worker is stopped, conditional outcomes, abrupt restart, no bootstrap recreation and name reuse passed.', flush=True)
+        print('Direct installed SQL: default Table, CRUD/DDL and namespace lifecycle while query worker is stopped, inert preparation, stale schema rejection, RESTRICT, conditional outcomes, abrupt restart, no bootstrap recreation and name reuse passed.', flush=True)
     finally:
         fixture.cleanup()
         if success:

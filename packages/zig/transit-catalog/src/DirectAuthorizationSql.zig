@@ -128,11 +128,50 @@ pub fn compile(client: c.DirectTableClient, namespace_id: u64, text: []const u8,
     return plan;
 }
 
-/// Lower namespace SQL to the direct owner, with the complete original schema
-/// revision and stable operation identity. The returned binding is inert: save
-/// it before admission, then explicitly inspect/execute that same binding.
-/// This helper does not turn a native authorization plan into a namespace write.
-pub fn compileNamespace(client: c.DirectTableClient, namespace_id: u64, text: []const u8, identity: c.AuthorizationSql.Identity, limits: Limits, location: ?*c.fuze.Sql.Location) !c.DirectNamespace.Binding {
+/// Preparation freezes names and ownership without allocating operation or
+/// namespace identities. Binding cannot resolve a replacement name later.
+pub const NamespacePlan = struct {
+    connection: w.Connection,
+    expected: ?c.TableAuthority.Schema,
+    action: @FieldType(c.DirectNamespace.Binding, "action"),
+
+    pub fn deinit(_: *NamespacePlan) void {}
+    pub fn bind(self: NamespacePlan, operation: u64, created_namespace: ?u64) !c.DirectNamespace.Binding {
+        const binding: c.DirectNamespace.Binding = .{ .definition = p.Growth.current_definition, .connection = self.connection, .operation = operation, .namespace = if (self.expected) |expected| expected.id else created_namespace orelse return error.SchemaIdentityRequired, .expected = self.expected, .action = self.action };
+        try binding.validate();
+        return binding;
+    }
+    pub fn validate(self: NamespacePlan, client: c.DirectTableClient, namespace_id: u64, limits: Limits) !void {
+        if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+        var resolver = try Resolver.init(client, namespace_id, limits);
+        try self.require(&resolver);
+    }
+    fn require(self: NamespacePlan, resolver: *Resolver) !void {
+        try self.connection.validate();
+        if ((self.action == .create) != (self.expected == null)) return error.InvalidDirectCatalogOperation;
+        if (self.expected) |expected| {
+            try expected.validate();
+            if (expected.retired or !std.meta.eql(expected.scope, self.connection.scope)) return error.InvalidDirectCatalogOperation;
+            const response = try resolver.call(.{ .namespace = expected.id });
+            defer response.deinit();
+            if (!std.meta.eql(response.value.result.namespace, self.expected)) return error.CatalogDefinitionChanged;
+        }
+        try resolver.consume();
+        const subject = try resolver.authority.proof(self.connection.audience, try c.TableAuthority.binding(self.connection.scope, .database, 0));
+        var guard = try c.TableAuthority.guard(subject, resolver.description.configuration.authority, null, null, if (self.action == .create) .create_schema else .database);
+        if (self.action == .create) {
+            try self.action.create.name.validate();
+            try a.roleId(self.action.create.owner);
+            guard.selectable = self.action.create.owner;
+        } else {
+            if (self.action == .rename) try self.action.rename.validate();
+            guard.requirements[1] = .{ .object = c.TableAuthority.reference(self.expected.?.authorization), .access = .ownership };
+        }
+        _ = try resolver.read(.{ .check = guard });
+    }
+};
+
+pub fn prepareNamespace(client: c.DirectTableClient, namespace_id: u64, text: []const u8, limits: Limits, location: ?*c.fuze.Sql.Location) !NamespacePlan {
     var parsed = try syntax.compile(client.allocator, text, location);
     defer parsed.deinit();
     switch (parsed.statement) {
@@ -140,21 +179,22 @@ pub fn compileNamespace(client: c.DirectTableClient, namespace_id: u64, text: []
         else => return error.UnsupportedDirectSchemaAdministration,
     }
     var resolver = try Resolver.init(client, namespace_id, limits);
-    const lowered = (try c.AuthorizationSql.lower(parsed.statement, &resolver, identity)).schema;
-    const expected = if (lowered.action == .create) null else value: {
-        const response = try resolver.call(.{ .namespace = lowered.schema });
-        defer response.deinit();
-        const found = response.value.result.namespace orelse return error.CatalogSchemaMissing;
-        if (found.revision != lowered.expected_revision) return error.CatalogDirectoryChanged;
-        break :value found;
+    const plan: NamespacePlan = switch (parsed.statement) {
+        .create_schema => |value| .{ .connection = client.connection, .expected = null, .action = .{ .create = .{ .name = try .init(value.name), .owner = try resolver.role(value.owner) } } },
+        .rename_schema => |value| .{ .connection = client.connection, .expected = try resolver.namespace(value.name), .action = .{ .rename = try .init(value.to) } },
+        .drop_schema => |name| .{ .connection = client.connection, .expected = try resolver.namespace(name), .action = .drop },
+        else => unreachable,
     };
-    const binding: c.DirectNamespace.Binding = .{ .definition = p.Growth.current_definition, .connection = client.connection, .operation = identity.operation, .namespace = lowered.schema, .expected = expected, .action = switch (lowered.action) {
-        .create => |value| .{ .create = .{ .name = value.name, .owner = value.owner } },
-        .rename => |value| .{ .rename = value },
-        .drop => .drop,
-    } };
-    try binding.validate();
-    const preview = try resolver.call(.{ .namespace_preview = binding });
+    try plan.require(&resolver);
+    return plan;
+}
+
+/// Save the complete binding before explicit admission; this function is inert.
+pub fn compileNamespace(client: c.DirectTableClient, namespace_id: u64, text: []const u8, identity: c.AuthorizationSql.Identity, limits: Limits, location: ?*c.fuze.Sql.Location) !c.DirectNamespace.Binding {
+    if (limits.requests <= 1) return error.QueryPageBudget;
+    const plan = try prepareNamespace(client, namespace_id, text, .{ .requests = limits.requests - 1 }, location);
+    const binding = try plan.bind(identity.operation, identity.schema);
+    const preview = try client.call(.{ .namespace_preview = binding });
     defer preview.deinit();
     return binding;
 }
