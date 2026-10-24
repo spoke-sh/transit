@@ -210,6 +210,13 @@ OS-process restart and verifies the result. TypeScript recovery tests retain tha
 grant after an uncertain upload. Installed browser, Compose and reference caller
 qualification remains separate.
 
+Named captured definitions now have a
+[direct-service execution proof](../../tests/README.md#named-captured-definitions-over-the-direct-service--2026-10-23)
+for self-joins and independent Tables. Publication, authorization and activation
+remain separate; original named attribution survives worker replacement and a
+later definition publication. This does not close computation freshness, named
+maintenance recovery or the older generic catalog's unverified completion path.
+
 Direct namespace lifecycle, relational and remaining caller migration,
 dependency contracts, automatic point flushing, named resource
 provisioning and computation evidence also remain unfinished. None of the

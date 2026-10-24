@@ -185,6 +185,32 @@ columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
 
+## Named captured definitions over the direct service — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+the following native local-persistence schedule passes:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --named-only
+```
+
+The equivalent task is `just test::direct-named-query`. Both a self-join and two
+independent Tables use separate computation resources. Upload and named
+publication leave query policy, activation and direct pins absent. Explicit
+authorization still starts no work; the publishing peer's separate activation
+executes the frozen bundle. Worker replacement during acquisition preserves its
+original grants and named attribution. Later named publication advances the
+definition without changing the completed query's original policy or attribution.
+Result readback verifies COUNT=1 and complete coverage after pin cleanup; current
+source revocation denies disclosure and restoration permits it. The executor
+still cannot independently look up the Table.
+
+This schedule does not inject node restart or lost native replies into the naming
+layer, and does not replace the older named-maintenance native fixture. Result
+freshness and the generic catalog computation-completion path remain separate
+open work. Full repository and committed-HEAD clean qualification are outstanding.
+
 ## Named definition fixtures with direct Table grants — 2026-10-23
 
 Under definition

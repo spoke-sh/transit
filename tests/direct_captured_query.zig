@@ -1,6 +1,7 @@
 //! Public direct Table capture with native progress in an independent resource.
 const std = @import("std");
 const q = @import("transit_query");
+const app = @import("transit_station_app");
 const c = q.catalog;
 const s = q.station;
 const p = q.protocol;
@@ -570,6 +571,7 @@ pub const RelationalHost = struct {
     clients: []const c.DirectTableClient,
     workspace: []u8,
     exchanged: bool = false,
+    named: ?app.NamedRelational = null,
     pub const correlation_key = p.Value.init("direct-relational-correlation") catch unreachable;
     pub const wake_key = p.Value.init("direct-relational-wake") catch unreachable;
     pub const collected_key = p.Value.init("direct-relational-collected") catch unreachable;
@@ -583,14 +585,34 @@ pub const RelationalHost = struct {
         if (frame.kind == .reply) return;
         if (frame.kind == .call) {
             if (!local) return error.AccessDenied;
+            if (self.named) |named| {
+                _ = try named.activate(turn, try app.NamedRelationalRecords.Activation.decode(frame.payload), self.clients, self.workspace);
+                return;
+            }
             if (self.bundle.plan.lifetime == .maintained) {
                 _ = try q.RelationalMaintenance.start(turn, try s.PublicationReference.decode(frame.payload), self.clients, self.workspace);
             } else _ = try q.RelationalCapture.start(turn, try s.PublicationReference.decode(frame.payload), self.clients, self.workspace);
             return;
         }
         if (frame.kind != .cast) return error.InvalidProofFrame;
+        if (std.mem.eql(u8, frame.payload.slice(), "prime")) {
+            if (!external) return error.AccessDenied;
+            return; // Commit the GenServer's initial framework state separately.
+        }
+        if (self.named) |named| {
+            const payload = frame.payload.slice();
+            if (std.mem.startsWith(u8, payload, "NRI1") or std.mem.startsWith(u8, payload, "NRU1") or std.mem.startsWith(u8, payload, "NRG1")) return named.control(turn, self.workspace);
+            if (std.mem.startsWith(u8, payload, "NRA1")) {
+                if (!external) return error.AccessDenied;
+                _ = try app.NamedRelationalRecords.Activation.decode(frame.payload);
+                const correlation = try turn.call(turn.delivery.pid, frame.payload, null);
+                try turn.write(correlation_key, q.UnifiedRecords.identityValue(correlation));
+                return;
+            }
+        }
         if (std.mem.eql(u8, frame.payload.slice(), "configure")) {
             if (!external) return error.AccessDenied;
+            if (self.named) |named| return named.initialize(turn);
             try q.RelationalCapture.setPolicy(turn, .{ .peer = turn.delivery.pid, .requests = turn.view.resource, .principal = 101, .revision = 1, .request = try self.bundle.fingerprint(), .allow = true });
             return;
         }
@@ -598,6 +620,7 @@ pub const RelationalHost = struct {
             if (!local and !external) return error.AccessDenied;
             const ready = try s.PublicationUpload.step(turn, .{ .domain = .query_request, .namespace = self.reference.namespace, .identity_key = q.RelationalRecords.key('u', self.reference.namespace, 0), .identity = try self.reference.encode(), .limits = .{ .record_bytes = q.RelationalBundle.max_bytes, .staging_bytes = q.RelationalBundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = self.reference.spec, .bytes = self.bytes }} });
             if (ready) {
+                if (self.named != null) return;
                 const correlation = try turn.call(turn.delivery.pid, try self.reference.encode(), null);
                 try turn.write(correlation_key, q.UnifiedRecords.identityValue(correlation));
                 if (self.exchanged) try q.RelationalMaintenance.selectExchanges(turn, .{ .peer = turn.delivery.pid, .correlation = correlation }, self.reference);
@@ -637,19 +660,29 @@ pub const RelationalHost = struct {
     }
 };
 pub fn relational(init: std.process.Init, client: c.DirectTableClient, admin: anytype) !void {
-    try relationalCase(init, client, admin, false);
-    try relationalCase(init, client, admin, true);
+    try relationalCase(init, client, admin, false, false);
+    try relationalCase(init, client, admin, true, false);
 }
-fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: anytype, independent: bool) !void {
+pub fn namedRelational(init: std.process.Init, client: c.DirectTableClient, admin: anytype) !void {
+    try relationalCase(init, client, admin, false, true);
+    try relationalCase(init, client, admin, true, true);
+}
+fn relationalStep(init: std.process.Init, client: c.DirectTableClient, admin: anytype, host: *s.GenServer, behavior: *RelationalHost) !void {
+    if (try host.step(behavior.interface(), @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30000)) == .blocked) return host.handler_error orelse error.Blocked;
+    const delivery = try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try key(17));
+    if (delivery.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
+}
+fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: anytype, independent: bool, named: bool) !void {
     const alloc = init.arena.allocator();
-    const principal: u64 = if (independent) 106 else 105;
+    const principal: u64 = if (named) (if (independent) 152 else 151) else if (independent) 106 else 105;
     const seed: u8 = if (independent) 71 else 61;
     var worker = try provision(admin, principal, seed);
     const role = (try (s.client.AuthorizationClient{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }).read(.identity)).body.authorization.body.identity.login_role;
-    const left_name = if (independent) "captured_left" else "captured_join";
-    const right_name = if (independent) "captured_right" else left_name;
-    try table(alloc, client, role, if (independent) 63 else 62, left_name, if (independent) 619 else 617, 2);
-    if (independent) try table(alloc, client, role, 64, right_name, 621, 2);
+    const left_name = if (named) (if (independent) "named_left" else "named_join") else if (independent) "captured_left" else "captured_join";
+    const right_name = if (independent) (if (named) "named_right" else "captured_right") else left_name;
+    const offset: u64 = if (named) 1000 else 0;
+    try table(alloc, client, role, (if (independent) @as(u64, 63) else 62) + offset, left_name, (if (independent) @as(u64, 619) else 617) + offset, 2);
+    if (independent) try table(alloc, client, role, 64 + offset, right_name, 621 + offset, 2);
     _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
     worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try key(17))).body.process.process.generation;
     _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = principal } });
@@ -675,8 +708,8 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     var syntax = try q.fuze.RelationalSql.parse(alloc, try std.fmt.allocPrint(alloc, "SELECT COUNT(*) AS n FROM {s} a JOIN {s} b ON a.id = b.id WHERE a.id = 0 AND b.id = 0", .{ left_name, right_name }), null);
     defer syntax.deinit();
     const description: q.RelationalBundle = .{ .plan = try syntax.bind(&declarations, .captured, .{ .resident_bytes = q.RelationalCapture.resident_base + 8 * 1024 * 1024, .spill_bytes = 8 * 1024 * 1024, .result_bytes = 1024, .output_rows = 10, .work_steps = 10000, .source_pins = if (independent) 2 else 1 }, null), .sources = &.{ source.source, right_source.source } };
-    const capture: q.Bundle.Capture = .{ .executor = principal, .operation = if (independent) 623 else 616, .expected = definition.position };
-    const right_capture: q.Bundle.Capture = .{ .executor = principal, .operation = if (independent) 624 else 616, .expected = right_definition.position };
+    const capture: q.Bundle.Capture = .{ .executor = principal, .operation = (if (independent) @as(u64, 623) else 616) + offset, .expected = definition.position };
+    const right_capture: q.Bundle.Capture = .{ .executor = principal, .operation = (if (independent) @as(u64, 624) else 616) + offset, .expected = right_definition.position };
     const bundle = try description.authorizeCapture(alloc, .{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, &.{ client, client }, worker.pid, worker.resource, worker.pid, worker.resource, &.{ capture, right_capture });
     var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
     var executor = client;
@@ -684,18 +717,65 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     executor.key = try key(seed);
     const clients = [_]c.DirectTableClient{ executor, executor };
     var behavior: RelationalHost = .{ .bundle = bundle, .bytes = try bundle.encode(&bytes), .reference = try bundle.reference(worker.resource, 1), .clients = &clients, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024) };
+    if (named) behavior.named = .{ .configuration = .{ .scope = .{ .realm = 42, .resource = worker.resource, .owner = worker.pid, .namespace = 55 }, .administrator = 101, .records = 4096, .bytes = 32 * 1024 * 1024 } };
     var host = try s.GenServer.init(.{ .client = client.authority, .realm = 42, .principal = principal, .pid = worker.pid, .generation = worker.generation, .key = executor.key }, "state");
     host.failure_policy = .stop;
+    if (named) try send(client, worker.pid, try p.Value.init("prime"));
     try send(client, worker.pid, try p.Value.init("configure"));
     try send(client, worker.pid, try p.Value.init("upload"));
     const resources: s.client.ResourceReader = .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key };
+    var named_reference: ?app.NamedRelationalRecords.Reference = null;
+    if (behavior.named) |naming| {
+        for (0..1000) |_| {
+            try relationalStep(init, client, admin, &host, &behavior);
+            var reader = try resources.open(worker.resource);
+            const descriptor = behavior.reference.publication().inspect(&reader, behavior.reference.record) catch |err| {
+                if (err == error.PublicationNotFound or err == error.PublicationUninitialized or err == error.RecordNotFound) continue;
+                return err;
+            };
+            if (descriptor.state == .published) break;
+        } else return error.NamedUploadPending;
+        var reader = try resources.open(worker.resource);
+        const name = try app.NamedRelationalRecords.Name.init("totals");
+        try t.expect(try naming.lookup(&reader, name) == null);
+        try t.expect(try q.RelationalCapture.policy(&reader, worker.pid) == null);
+        const proposal: app.NamedRelational.Proposal = .{ .name = name, .object = 1001, .expected = 0, .peer = worker.pid, .request = behavior.reference };
+        const control = try (app.NamedRelationalRecords.Control{ .publish = proposal }).encode();
+        try send(client, worker.pid, control);
+        for (0..1000) |_| {
+            try relationalStep(init, client, admin, &host, &behavior);
+            reader = try resources.open(worker.resource);
+            named_reference = try naming.lookup(&reader, name);
+            if (named_reference != null) break;
+        } else return error.NamedPublicationPending;
+        try t.expect(try q.RelationalCapture.policy(&reader, worker.pid) == null);
+        try t.expect(try reader.read(RelationalHost.correlation_key) == null);
+        // Repeated definition reads do not activate or acquire source pins.
+        const first = try naming.definition(&reader, named_reference.?);
+        try t.expectEqualDeep(first, try naming.definition(&reader, named_reference.?));
+        for (bundle.retention, 0..) |grant, i| {
+            if (try bundle.sourceOrdinal(i) != i) continue;
+            const status = try client.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
+            defer status.deinit();
+            try t.expect(status.value.result.pin_state.handle == null);
+        }
+        try send(client, worker.pid, control);
+        try send(client, worker.pid, try (app.NamedRelationalRecords.Control{ .authorize = .{ .reference = named_reference.?, .expected = 0, .principal = 101, .allow = true } }).encode());
+        for (0..1000) |_| {
+            try relationalStep(init, client, admin, &host, &behavior);
+            reader = try resources.open(worker.resource);
+            if (try q.RelationalCapture.policy(&reader, worker.pid)) |policy| {
+                try t.expectEqual(@as(u64, 1), policy.revision);
+                break;
+            }
+        } else return error.NamedAuthorizationPending;
+        try t.expect(try reader.read(RelationalHost.correlation_key) == null);
+        try send(client, worker.pid, try (app.NamedRelationalRecords.Activation{ .reference = named_reference.?, .policy_revision = 1 }).encode());
+    }
     var replaced = false;
     var job_id: u64 = 0;
     for (0..10000) |attempt| {
-        const step = try host.step(behavior.interface(), @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30000));
-        if (step == .blocked) return host.handler_error orelse error.Blocked;
-        const delivery = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try key(17));
-        if (delivery.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
+        try relationalStep(init, client, admin, &host, &behavior);
         var reader = try resources.open(worker.resource);
         if (try reader.read(RelationalHost.correlation_key)) |value| {
             const correlation = try q.UnifiedRecords.readIdentity(value);
@@ -721,6 +801,22 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     } else return error.RelationalQueryPending;
     try t.expect(replaced);
     var reader = try resources.open(worker.resource);
+    if (behavior.named) |naming| {
+        const stored = try q.RelationalCapture.job(&reader, job_id);
+        try t.expectEqualDeep(named_reference.?, try naming.attribution(&reader, stored.destination, stored.policy_revision));
+        try t.expectEqualDeep(behavior.reference, (try naming.definition(&reader, named_reference.?)).request);
+        // A later named revision cannot relabel an already completed result or
+        // silently replace its execution policy and original source grants.
+        try send(client, worker.pid, try (app.NamedRelationalRecords.Control{ .publish = .{ .name = named_reference.?.identity.name, .object = named_reference.?.identity.object, .expected = 1, .peer = worker.pid, .request = behavior.reference } }).encode());
+        for (0..1000) |_| {
+            try relationalStep(init, client, admin, &host, &behavior);
+            reader = try resources.open(worker.resource);
+            const current = (try naming.lookup(&reader, named_reference.?.identity.name)).?;
+            if (current.identity.revision == 2) break;
+        } else return error.NamedPublicationPending;
+        try t.expectEqualDeep(named_reference.?, try naming.attribution(&reader, stored.destination, stored.policy_revision));
+        try t.expectEqual(@as(u64, 1), (try q.RelationalCapture.policy(&reader, worker.pid)).?.revision);
+    }
     try t.expectEqual(independent, try q.CapturedTablePin.observe(alloc, &reader, .{ .job = job_id, .source = 1 }, worker.pid) != null);
     const vector = try q.RelationalCaptured.Vector.decode(bundle, (try reader.read(q.RelationalRecords.key('v', job_id, 0))).?);
     try t.expectEqual(independent, vector.entries[0].partition != vector.entries[1].partition);

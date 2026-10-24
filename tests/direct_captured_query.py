@@ -13,12 +13,12 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False, example=None):
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False, named_only=False, example=None):
     if example is not None and not follow_only:
         raise ValueError("the example schedule requires --follow-only")
-    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only or follow_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
+    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only or follow_only or named_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
         raise ValueError("focused runs do not run installed captured consumers")
-    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only, follow_only)) > 1:
+    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only, follow_only, named_only)) > 1:
         raise ValueError("choose one focused schedule")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     if example is not None:
@@ -97,7 +97,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                         assert status == 200, data
                         status, data = 409, json.dumps({"err": "HistoryReclaimed"}).encode()
                         history_gap = True
-                    if self.path == "/table/v1" and envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "snapshot" and not relational_failures_only and not unified_boundaries_only and not follow_only:
+                    if self.path == "/table/v1" and envelope["delegation"] and envelope["delegation"]["binding"]["retention"] == "snapshot" and not relational_failures_only and not unified_boundaries_only and not follow_only and not named_only:
                         action = next(iter(envelope["action"]))
                         fault = "cleanup_release" if action == "release" and envelope.get("closure") else action
                         if fault in faults and not faults[fault]:
@@ -155,6 +155,11 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if named_only:
+                subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
+                subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=600)
+                print("Direct named queries: publication without execution, explicit authorization/activation, original attribution across worker replacement, verified independent Table cuts and current disclosure denial passed.", flush=True)
+                return
             if follow_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
                 subprocess.run([caller, endpoint, "follow-prepare", str(profile)], check=True, timeout=240)
@@ -215,6 +220,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 if not captured_only:
                     subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                     subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)
+                    subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=600)
             if exchanges_only:
                 subprocess.run([caller, endpoint, "capture-exchanges", str(profile)], check=True, timeout=900)
                 print("Direct exchanges: independent receiver/worker placement, exact borrowed history cuts, one/seven-partition successor attachments, retained request retirement, host reconstruction and lease cleanup passed.", flush=True)
@@ -275,6 +281,7 @@ if __name__ == "__main__":
     parser.add_argument("--unified-boundaries-only", action="store_true")
     parser.add_argument("--captured-only", action="store_true")
     parser.add_argument("--follow-only", action="store_true")
+    parser.add_argument("--named-only", action="store_true")
     parser.add_argument("--example")
     parser.add_argument("--python-native")
     parser.add_argument("--ruby-host")

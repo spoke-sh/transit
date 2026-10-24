@@ -335,6 +335,10 @@ pub fn main(init: std.process.Init) !void {
             var fresh = client;
             fresh.key = try key(59);
             try Captured.relational(init, fresh, &admin);
+        } else if (std.mem.eql(u8, args[2], "capture-named")) {
+            var fresh = client;
+            if (profile.captured != null) fresh.key = try key(59);
+            try Captured.namedRelational(init, fresh, &admin);
         } else if (std.mem.eql(u8, args[2], "maintained-initialize")) {
             (try client.call(.initialize)).deinit();
             _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = profile.role, .privileges = p.permission(.inspect) } });
