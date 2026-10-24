@@ -2969,6 +2969,43 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectCallerCodes.zig": {
+      "errors": {
+        "CatalogDirectoryChanged": 1,
+        "CatalogObservationChanged": 1,
+        "DataIdentityConflict": 1,
+        "InvalidCatalogAssertion": 1,
+        "InvalidCatalogCursor": 1,
+        "InvalidCatalogStepBudget": 1,
+        "InvalidDataIdentity": 1,
+        "InvalidDataOperation": 1,
+        "InvalidDirectCatalogOperation": 1,
+        "InvalidNamedResource": 1,
+        "InvalidNamedResourceOperation": 1,
+        "InvalidTableBasis": 1,
+        "InvalidTableDelegation": 1,
+        "InvalidTableResponse": 1,
+        "InvalidTableSchema": 1,
+        "QueryPageBudget": 1,
+        "StaleAuthorizationCredential": 1,
+        "TableBatchTooLarge": 1,
+        "TableDefinitionChanged": 1,
+        "TablePayloadTooLarge": 1,
+        "TableSnapshotReleased": 1,
+        "UnsupportedDirectSchemaAdministration": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "CallerCodes.zig"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
         "CatalogDenied": 39,
@@ -3971,6 +4008,28 @@
       },
       "imports": [
         "DirectTableResponse.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig": {
+      "errors": {
+        "OutOfMemory": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "failure()": "<inferred>",
+        "invalidEnvelope()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 10,
+        "catch": 8
+      },
+      "imports": [
+        "CallerCodes.zig",
+        "DirectCallerCodes.zig",
         "root.zig",
         "std"
       ]
@@ -6023,6 +6082,7 @@
         "DirectTableBinding.zig",
         "DirectTableBridge.zig",
         "DirectTableClient.zig",
+        "DirectTableDiagnostic.zig",
         "DirectTableDispatch.zig",
         "DirectTableIntent.zig",
         "DirectTableIntentStore.zig",
