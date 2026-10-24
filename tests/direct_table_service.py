@@ -151,6 +151,31 @@ def run(node, caller):
             authority = None
             authority = start()
             subprocess.run([caller, endpoint, "recover", str(profile)], check=True, timeout=180)
+            saved = profile.read_bytes()
+            checkpoint = json.loads(saved)['history']['checkpoint']
+            assert checkpoint['version'] == 1 and checkpoint['definition'] == json.loads(saved)['definition']
+            assert checkpoint['source']['point']['lease']['owner']['operation'] == 8300
+            assert checkpoint['source']['object']['object'] == 7
+            subprocess.run([caller, endpoint, "history-position", str(profile)], check=True, timeout=30)
+            try:
+                for missing in ('version', 'definition'):
+                    malformed = json.loads(saved)
+                    del malformed['history']['checkpoint'][missing]
+                    profile.write_text(json.dumps(malformed))
+                    rejected = subprocess.run([caller, endpoint, "history-position", str(profile)], capture_output=True, text=True, timeout=30)
+                    assert rejected.returncode != 0 and 'MissingField' in rejected.stderr
+                malformed = json.loads(saved)
+                malformed['history']['checkpoint']['definition'] = 'foreign-definition'
+                profile.write_text(json.dumps(malformed))
+                rejected = subprocess.run([caller, endpoint, "history-position", str(profile)], capture_output=True, text=True, timeout=30)
+                assert rejected.returncode != 0 and 'InvalidJsonShape' in rejected.stderr
+                malformed = json.loads(saved)
+                malformed['history']['checkpoint']['source']['point']['commitment'][0] ^= 1
+                profile.write_text(json.dumps(malformed))
+                rejected = subprocess.run([caller, endpoint, "history-position", str(profile)], capture_output=True, text=True, timeout=30)
+                assert rejected.returncode != 0 and 'Conflict' in rejected.stderr
+            finally:
+                profile.write_bytes(saved)
             stop(authority)
             authority = None
             authority = start()
@@ -168,7 +193,7 @@ def run(node, caller):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
-            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL namespace lifecycle with lost-reply recovery and retained reads after namespace retirement, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, retained logical history with accepted no-ops and original schemas through DROP/recreation, current revocation and reserved-control rejection passed.")
+            print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL namespace lifecycle with lost-reply recovery and retained reads after namespace retirement, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, saved direct change-reader checkpoints, paused backfill, paired changes, complete no-op/schema transactions, partial-delivery replay and original schemas through DROP/recreation, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()
             log.seek(0)

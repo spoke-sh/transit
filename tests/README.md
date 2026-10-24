@@ -1,5 +1,41 @@
 # Validation and evidence
 
+## Direct Table change-reader checkpoints — 2026-10-24
+
+The shared current-v1 definition is
+`b840e71bde2e36fc2c83d773e3bb13bbf9c44c15d3d46b955beed1f8fda84a00`.
+`TableChangeReader` now traverses an explicitly acquired direct history lease.
+Its mandatory versioned position binds the original connection, object, lease
+and exact logical history record. It replaces the actor Table journal reader;
+local closure does not release or reacquire the durable lease.
+
+In the pinned Nix shell, `just test::direct-table-service` passes **1090** typed
+HTTP calls. The fixture saves the position to disk, rejects missing/foreign
+definitions and altered record commitments, and reopens it after process/node
+replacement. Writes accepted during paused backfill leave its original rows
+unchanged. Two replays verify eight complete transactions: a no-op, insert,
+delete, update, delete, column addition, rename and DROP. Insert/delete cursors
+advance independently in the before/after sources; the first implementation
+incorrectly shared one cursor and failed the owner's source-membership check.
+The corrected run passes without weakening that check.
+
+The schedule also verifies incomplete-transaction checkpoint rejection,
+allocation failure without cursor advancement, request exhaustion, cancellation,
+current denial/restoration, original schemas after name reuse and rejection after
+explicit lease closure. Row changes retain the original acceptance receipt and
+both source bases; physical-only pages create no logical transaction. The old
+actor change-reader fixture is removed; other actor Table consumers still need
+migration.
+
+Query package tests pass **152/152** and native protocol tests **51/51**. Generated
+contracts/bindings, diagnostic inventory, Board contracts and documentation links
+pass. The documentation site passes nine tests and its production build. Query
+unit and site runs precede the final independent-cursor correction and proof
+prose; the HTTP run includes that correction. The repository-wide check began
+before this cutover and cannot establish final committed-HEAD qualification.
+Shared dependency registration, named resource provisioning and the remaining
+caller/installed gates stay open.
+
 ## Native SQL namespace lifecycle — 2026-10-24
 
 The shared current-v1 definition is

@@ -488,6 +488,25 @@ An explicit missing/trimmed required WAL interval returns HTTP 409 with
 An I/O or storage-availability failure remains an unavailable attempt. The
 Table owner does not currently perform physical history reclamation.
 
+The typed change reader's saved JSON position has mandatory `version` (1),
+`definition` (the current shared definition), `connection` and `source` fields.
+`source` is the exact `Historical` object/point binding above. Missing or foreign
+definitions reject; the former native resource/head cursor is not accepted.
+The position grants no authority and acquires no retention. Delegated consumers
+retain their original grant separately. Reopening uses the same live history
+lease and revalidates its exact record under current rights. Each tail supplies
+a fixed exclusive upper position independently of the saved checkpoint.
+
+The reader emits a complete transaction boundary for every accepted logical
+record, including no-ops, with its original receipt and before/after source
+bases. Its physical scan cursor can advance across maintenance independently.
+Paired row changes retain stable row identities and their original schema;
+canonical equality preserves distinctions such as floating signed zero. Only a
+complete snapshot or transaction permits a checkpoint. A partially consumed
+transaction replays from its beginning. Local closure/destruction performs no
+remote release; the caller explicitly closes its original acquisition when its
+durable history requirement ends.
+
 `check_set` accepts 1–16 tagged `access` or `snapshot` checks. Access checks use
 the same exact-definition/action requirements as `check`; snapshot checks verify
 the original live pin. The local owner excludes Table mutations during the set

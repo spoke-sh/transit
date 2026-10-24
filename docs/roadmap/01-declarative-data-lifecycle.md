@@ -144,6 +144,11 @@ The direct storage/service boundary now has explicit history leases, fixed-bound
 logical acceptance pages and exact historical reads. Its
 [storage and native-policy evidence](../../tests/README.md#direct-table-history-retention--2026-10-23)
 covers restart, no-ops, retention-kind separation and current revocation.
+The public `TableChangeReader` now uses the same direct history owner. Its
+[checkpoint and replay proof](../../tests/README.md#direct-table-change-reader-checkpoints--2026-10-24)
+covers paused backfill, saved original leases across restart, complete no-op and
+schema transactions, partial-delivery replay, insert/delete scan cursors and
+current denial. Local reader closure remains separate from durable release.
 The maintained-query adapter now uses those direct history leases and stores a
 separate bounded physical scan cursor. Its [public recovery evidence](../../tests/README.md#maintained-direct-table-queries--2026-10-23)
 covers original acquisition recovery, restart inside a physical-only prefix,
