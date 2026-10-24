@@ -244,6 +244,34 @@ host_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Hos
 host_validator.validate(host_reference)
 host_action_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/HostAction"})
 host_action_validator.validate({"admit": {"table": host_reference}})
+def host_interpretation(value):
+    result = copy.deepcopy(value)
+    result["object"]["scope"]["catalog"] = str(result["object"]["scope"]["catalog"])
+    for field in ("branch", "object"):
+        result["object"][field] = str(result["object"][field])
+    result["revision"] = str(result["revision"])
+    result["digest"] = bytes(result["digest"]).hex()
+    return result
+
+
+host_edge = {"source": host_interpretation(source_definition),
+             "dependent": {"kind": "captured", "interpretation": host_interpretation(dependent_definition)}, "privileges": 1}
+host_dependency = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
+                   "edge": host_edge, "action": "register", "authority": "dependent"}
+host_dependency_action = {"dependencies": {"operation": {"binding": host_dependency, "command": "accept"}}}
+host_action_validator.validate(host_dependency_action)
+for field in ("definition", "connection", "operation", "edge", "action", "authority"):
+    missing = copy.deepcopy(host_dependency_action)
+    del missing["dependencies"]["operation"]["binding"][field]
+    assert not host_action_validator.is_valid(missing), field
+numeric_dependency_operation = copy.deepcopy(host_dependency_action)
+numeric_dependency_operation["dependencies"]["operation"]["binding"]["operation"] = 2**64 - 1
+assert not host_action_validator.is_valid(numeric_dependency_operation)
+dependency_cursor = {"definition": definition, "connection": host_reference["connection"],
+                     "selection": {"dependents": host_edge["source"]["object"]}, "authority": "dependent",
+                     "position": {"partition": str(2**64 - 1), "next_lsn": str(2**64 - 1)}, "after": edge_digest.hex()}
+host_action_validator.validate({"dependencies": {"page": {"selection": dependency_cursor["selection"],
+                                                         "authority": "dependent", "cursor": dependency_cursor}}})
 host_namespace = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
                   "namespace": 43, "expected": None, "action": {"create": {"name": "host_namespace", "owner": 1}}}
 host_namespace_action = {"administration": {"preview_namespace": host_namespace}}

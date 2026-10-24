@@ -164,6 +164,12 @@ their original exact definitions. Registration is a separate conservative step
 before dependent publication; it does not publish a consumer or acquire a pin.
 The [dependency contract](../../../../contracts/DIRECT_TABLE_V1.md#explicit-definition-dependencies)
 defines source/metadata rights, explicit administrator cleanup and recovery.
+The shared bridge's `dependencies` action exposes this owner through
+`DirectCatalogDependencies`, with lossless saved bindings and four-edge pages.
+Its `state` action observes current membership separately from a retained
+registration receipt. Cursor connection, selection, authority and position stay
+fixed; current authorization still governs every operation and disclosure.
+This adapter neither publishes a dependent nor replaces the session's loaded work.
 
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.

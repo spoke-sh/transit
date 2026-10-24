@@ -109,8 +109,11 @@ exact connection/selection cursors and changed-directory rejection.
 [Host namespace and policy preparation](../../tests/README.md#direct-host-namespace-and-policy-preparation--2026-10-24)
 now preserves saved namespace bindings through explicit execution and returns
 the native authorization owner's signed policy record without submission.
-Dependency/resource host adapters and general language/ABI integration remain
-unfinished.
+[Host dependency recovery](../../tests/README.md#direct-host-dependency-recovery--2026-10-24)
+now preserves original saved bindings across corrupted replies and restart,
+distinguishes current graph membership from old receipts, and shares the native
+bounded inspection and current-rights checks. Resource host adapters and general
+language/ABI integration remain unfinished.
 
 SQL's control ledger now publishes exact intent references and commits dispatch
 eligibility before direct admission, replacing its actor row-upload/saved-step

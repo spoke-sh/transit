@@ -410,14 +410,18 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "resource-verify")) {
             try NamedResources.verify(init.io, client, &admin, profile.named_resources.?);
         } else if (std.mem.eql(u8, args[2], "dependency-prepare")) {
-            profile.dependencies = try Dependencies.prepare(client, &admin, profile.role);
+            var prepared_arena = std.heap.ArenaAllocator.init(init.gpa);
+            defer prepared_arena.deinit();
+            var preparing = client;
+            preparing.allocator = prepared_arena.allocator();
+            profile.dependencies = try Dependencies.prepare(preparing, &admin, profile.role);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "dependency-register")) {
-            try Dependencies.uncertain(client, profile.dependencies.?.registration);
+            try Dependencies.uncertain(client, profile.dependencies.?.host_registration);
         } else if (std.mem.eql(u8, args[2], "dependency-recover")) {
             try Dependencies.recover(client, &admin, profile.dependencies.?);
         } else if (std.mem.eql(u8, args[2], "dependency-remove")) {
-            try Dependencies.uncertain(client, profile.dependencies.?.removal);
+            try Dependencies.uncertain(client, profile.dependencies.?.host_removal);
         } else if (std.mem.eql(u8, args[2], "dependency-final")) {
             try Dependencies.finish(client, profile.dependencies.?);
         } else if (std.mem.eql(u8, args[2], "write")) {

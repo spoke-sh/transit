@@ -1,5 +1,19 @@
 # Validation and evidence
 
+## Direct host dependency recovery — 2026-10-24
+
+`just test::direct-dependencies` passes **32 typed HTTP calls** through the shared
+host adapter. The original host bindings remain byte-for-byte unchanged across
+corrupted registration/removal replies and abrupt node replacement. Recovery
+returns the exact terminal receipts; current membership becomes absent after
+removal even when the original registration receipt is replayed. Both graph
+directions, current metadata revocation, redacted DROP blockers, altered-binding
+rejection and DROP/name replacement pass.
+
+Independent generated-contract checks require complete saved host bindings and
+decimal full-width operation identities. This is shared caller qualification;
+general SDK/ABI migration and final integrated/clean-checkout gates remain open.
+
 ## Direct host namespace and policy preparation — 2026-10-24
 
 `just test::direct-table-callers` passes **150 typed HTTP calls**, including
