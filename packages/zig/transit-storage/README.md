@@ -49,6 +49,11 @@ collector races, policy-authorized trimming or multi-process Table commits.
   contains at most 4,096 pages (zero disables caching); private mutation work has
   a separate encoded-byte budget. Staging never publishes a root. The owning
   acceptance log must publish it and establish retention before collection.
+- `OrderedKeyIndex.zig`: Full ordered keys up to 4 KiB, mapped to row hashes
+  through immutable 64-byte key chunks over `TreeStore`. Point lookup and
+  inclusive/exclusive range seeking use bounded paths; mutation candidates share
+  the owner's staging budget. This component preserves earlier roots but does
+  not yet participate in the live Table acceptance root.
 - `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
   record for rows, paged indexes and exact operation receipts. It supports point
   WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
