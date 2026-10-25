@@ -49,7 +49,9 @@ application operation; the owning acceptance record supplies that binding.
 `TablePartition` is a single-owner storage component. Its
 [caller contract](../packages/zig/transit-storage/docs/table-partitions.md) requires
 serialization and a service-owned current-policy fence; these stored bytes do
-not grant authority. Installed SQL does not use this component yet.
+not grant authority. The installed local SQL service uses this component through
+the [direct Table owner](DIRECT_TABLE_V1.md), which supplies catalog publication,
+current authorization and exact operation recovery.
 
 `TablePartitionRecord` owns its typed metadata. An acceptance payload contains
 `TACCEPT1` at `0..8`, mandatory shared definition bytes at `8..40`, a little-endian

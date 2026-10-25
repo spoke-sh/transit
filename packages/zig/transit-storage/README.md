@@ -1,9 +1,11 @@
 # `transit-storage`
 
-`transit-storage` supplies components for Transit's tiered storage boundary (`TransitLog` and
-`TransitObjectStore`), the Tier 0 MVCC `TableMemtable`, the Tier 2 content-verified
-`NvmeCache`, versioned immutable `TableManifest` (`"TMAN"` v1) artifacts, and the
-lock-free multi-writer OCC coordinator (`PartitionLease.OccCoordinator`).
+`transit-storage` supplies the log and object primitives (`TransitLog` and
+`TransitObjectStore`) used by the local native backend and direct Table owner.
+`TablePartition` owns atomic Table statements, retained reads and paged data
+indexes. Separate components include the MVCC `TableMemtable`, content-verified
+`NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
+manifest rebasing (`PartitionLease.OccCoordinator`).
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
@@ -34,8 +36,9 @@ collector races, policy-authorized trimming or multi-process Table commits.
 - `TableManifest.zig`: Immutable versioned `"TMAN"` v1 table manifests referencing
   `.tseg` hybrid columnar segments and `.tdel` deletion vectors.
 - `PartitionLease.zig`: Control & Policy Log (`partition_id = 0`) vs. data partition
-  separation, epoch-fenced `PartitionLease` records, and lock-free multi-writer OCC
-  manifest rebasing.
+  separation, epoch-fenced `PartitionLease` records and optimistic manifest
+  rebasing. This component does not implement the installed Table writer profile;
+  conditional provider operations can use locks and blocking I/O.
 - `TableMemtable.zig`: Tier 0 MVCC Memtable with direct data-plane WAL ingestion,
   read-your-writes snapshot queries, `.tseg`/`.tdel` segment flushing, and crash recovery.
 - `TreeStore.zig`: Immutable data-index pages backed by `TransitObjectStore`,
@@ -73,12 +76,14 @@ The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.
 
-Table recovery consumes every bounded WAL page through its captured frontier and
+Standalone `TableMemtable` recovery consumes every bounded WAL page through its captured frontier and
 checks contiguous history and schema identity. An incomplete recovery blocks
 reads and mutations until successful recovery. The component owns its schema
 and reserves row-visibility allocations before attempting a durable append.
-The active memtable and manifest still require separate growth and snapshot
-work; paging WAL reads does not bound the full resident row set.
+Its active memtable and manifest still require separate growth and snapshot
+work; paging WAL reads does not bound its full resident row set. The installed
+`TablePartition` owner instead uses the paged indexes and durable read pins
+described above.
 
 Keyless rows use stable `TableRow.Identity` storage keys and support identity
 point reads/deletes. Equal cell values do not collapse distinct rows. Reads before
