@@ -13,6 +13,10 @@ own scheme, hostname and port. Other hostnames and forwarded headers reject.
 
 ## Start from an identity and an observed cut
 
+Use **Process directory** or **Resource directory** to return to the atlas from
+an open workspace. Selecting the directory already shown in the URL also returns
+to its object list, where you can select and enter another resource.
+
 1. Find the process/resource and confirm its realm and logical identity.
 2. Inspect lifecycle, ownership generation and committed progress.
 3. Follow input, turn, output or attempt references to their source evidence.
