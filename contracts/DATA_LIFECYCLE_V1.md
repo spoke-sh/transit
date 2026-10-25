@@ -20,6 +20,11 @@ The separate [direct Table request contract](DIRECT_TABLE_V1.md) supplies signed
 envelopes and binary schema/row payloads for the internal node dispatcher. It
 reuses these identities and the current native authorization proof.
 
+The [index lifecycle contract](INDEX_LIFECYCLE_V1.md) reuses the same object,
+definition, operation, source-cut and snapshot types for offline index metadata.
+It separates declaration, maintenance progress and exact published coverage;
+its validation does not acquire pins or establish a usable index.
+
 ## Identity and interpretation
 
 | Type | Meaning |

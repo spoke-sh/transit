@@ -26783,3 +26783,34 @@ replacement deny the original retired identity, fresh lookup of the absent name
 reports a missing Table, and fresh preparation binds the empty replacement.
 The default full wire schedule is unchanged; its remaining qualification is
 still required.
+
+## Neutral index contracts — 2026-10-25
+
+The [index lifecycle contract](../contracts/INDEX_LIFECYCLE_V1.md) and protocol
+`IndexLifecycle` module implement offline declaration commitments, exact
+source/column/constraint bindings, build generations, maintenance observations
+and conditional coverage publication. They add no installed index operation,
+secondary structure, online build or planner eligibility decision.
+
+With the pinned Nix shell, `just contract::generate`, `just contract::check` and
+`zig build test` in `packages/zig/transit-protocol` pass. The new schema is
+reflected from the public types. An independent Python SHA-256 fixture agrees
+with Zig for ordinary and constraint-owned declarations, including full-width
+identities. Existing generated request/ABI schemas and signing fixtures remain
+unchanged; this additive descriptor family does not change an existing request
+or stored format.
+
+Six protocol tests cover declaration tampering, key order/NULL policy, source
+interpretation and constraint changes, cross-branch/self dependencies, empty
+and duplicate columns, the combined 128-column boundary, WAL-only bases and
+incomplete checkpoint refusal, backward/cross-partition progress, exact old/new
+query-cut mismatch, physically different checkpoints at the same logical cut,
+snapshot consistency and immutable publication retries. Missing/foreign shared
+definitions reject. Schema checks also reject unsupported key comparisons and
+undeclared predicate/collation/encoding extensions.
+
+These are deterministic contract checks. They do not prove that a claimed
+index root exists, contains every visible row, is retained or is authorized.
+The future catalog/query owner must establish those facts separately. Complete
+build progress does not publish coverage or enable a query. The repository and
+committed-checkout qualification review remains a separate gate.

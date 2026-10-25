@@ -39,3 +39,13 @@ upstream protocol pins remain in the [contract directory](../../../contracts).
 The [interface map](interfaces.md) connects each public surface to its usage
 reference and internals. Generated files are updated by their owners; the site
 does not maintain an independent protocol definition.
+
+## Neutral catalog descriptors
+
+| Description | Download | Exact contract |
+| --- | --- | --- |
+| Data identities and snapshot coverage | [data-lifecycle-v1.schema.json](../../../contracts/data-lifecycle-v1.schema.json) | [Data lifecycle](../../../contracts/DATA_LIFECYCLE_V1.md) |
+| Index definitions, build progress and coverage | [index-lifecycle-v1.schema.json](../../../contracts/index-lifecycle-v1.schema.json) | [Index lifecycle](../../../contracts/INDEX_LIFECYCLE_V1.md) |
+
+These descriptor groups are offline type schemas, not service requests. They
+establish no accepted publication, execution capability or current authority.

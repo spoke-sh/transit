@@ -61,11 +61,12 @@ then-open work.
 
 | Obligation | Implemented outcome and executed evidence | Open qualification |
 | --- | --- | --- |
-| Direct Table lifecycle (#111) | One direct owner accepts point/batch CRUD and DDL, with current policy, exact retry bindings and retained reads. [Public CRUD/DDL](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23), [selected-role/default-grant checks](../../tests/README.md#direct-table-selected-role-boundary--2026-10-24), [SQL recovery](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) and [139-Table growth](../../tests/README.md#direct-catalog-growth-and-retained-rows--2026-10-24) pass. | Final combined clean-checkout suite. Provider/concurrent-writer expansion stays with milestone 12. |
+| Direct Table lifecycle (#111) | One direct owner accepts point/batch CRUD and DDL, with current policy, exact retry bindings and retained reads. [Public CRUD/DDL](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23), [selected-role/default-grant checks](../../tests/README.md#direct-table-selected-role-boundary--2026-10-24), [SQL recovery](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) and [139-Table growth](../../tests/README.md#direct-catalog-growth-and-retained-rows--2026-10-24) pass. | Final combined clean-checkout suite. Provider/concurrent-writer expansion stays with milestone 14. |
 | Named usable KV/Document resources (#119) | [Allocation and initialization](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24), [dependency/lifetime recovery](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared host recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24) use real native resources and current rights. The [public 139-edge dependency schedule](../../tests/README.md#public-dependency-graph-growth-and-restart--2026-10-24) and [139 initialized resource growth/restart schedule](../../tests/README.md#public-named-resource-growth-and-restart--2026-10-25) pass. | Final combined clean-checkout suite and linked issue review. |
-| Actual computation evidence (#120) | [Result/source attribution](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23), [named publication](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24), captured and maintained recovery, and current disclosure denial pass. [Reference Follow](../../tests/README.md#direct-follow-reference-recovery-and-disclosure--2026-10-25) passes with an explicit six-minute correctness wait. Inspection does not activate execution. | Final combined clean-checkout suite. Earlier reference latency failures remain recorded. Automatic scheduling remains milestone 8. |
+| Actual computation evidence (#120) | [Result/source attribution](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23), [named publication](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24), captured and maintained recovery, and current disclosure denial pass. [Reference Follow](../../tests/README.md#direct-follow-reference-recovery-and-disclosure--2026-10-25) passes with an explicit six-minute correctness wait. Inspection does not activate execution. | Final combined clean-checkout suite. Earlier reference latency failures remain recorded. Automatic scheduling remains milestone 9. |
 | Coordinated current-v1 cutover (#112) | The [superseded actor Table owner is removed](../../tests/README.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24); current consumers, bindings and fixtures use the shared definition. [Installed SDK selected-role checks](../../tests/README.md#direct-catalog-sdk-selected-roles--2026-10-24) and [nine compiling mutation probes](../../tests/README.md#direct-catalog-mutation-checks--2026-10-24) pass. | Final combined clean-checkout suite. Existing data still requires its matching build; there is no fallback decoder or automatic reset. |
 | Identity, atomicity and snapshots (#125) | The executable domain is one Table statement/batch with retained WAL-inclusive cuts and explicit independent source vectors. [Competing checkpoint/pin evidence](../../tests/README.md#snapshot-pins-against-competing-checkpoints--2026-10-24) passes. The [selected transaction extension](#selected-transaction-session-extension) specifies the later consistent-cut and multi-Table decision protocol. | Transaction-session implementation and anomaly/failure histories belong to milestone 5; this design decision does not qualify them. |
+| Neutral index contract foundation (#108) | [Index declarations and coverage](../../contracts/INDEX_LIFECYCLE_V1.md) bind immutable source/key/constraint semantics, build generations and exact snapshots. [Independent commitments and protocol checks](../../tests/README.md#neutral-index-contracts--2026-10-25) pass, including WAL-only coverage and stale-cut refusal. | Final repository and committed-checkout qualification. Installed index operations, secondary structures and online lifecycle remain milestone 8. |
 
 The earlier combined repository check passes with the client fix for opaque upstream
 503 responses and ordinary native-contention recovery in application workers,
@@ -645,13 +646,15 @@ executed evidence for this foundation decision.
 
 ## Baseline, bottleneck diagnosis and scope
 
-Include neutral index identities and immutable definitions in the catalog
-contract before dependent formats. Bind source/column identities, comparison
-and collation semantics, constraint dependencies, build generations and exact
-coverage to the existing snapshot/publication model. Separate declaration,
-maintenance progress and query eligibility. The
-[indexing owner](08-indexing-and-access-paths.md) delivers secondary access paths
-and online lifecycle; this contract work grants no new executable index syntax.
+The [neutral index contract](../../contracts/INDEX_LIFECYCLE_V1.md) supplies stable
+index identities and immutable definitions before dependent formats. It binds
+source/column identities, declared comparison/collation semantics, constraint
+dependencies, build generations and exact coverage to the existing
+snapshot/publication model. Declaration, maintenance progress and conditional
+coverage publication have distinct types and validation. The
+[indexing owner](08-indexing-and-access-paths.md) still delivers secondary access
+paths, online lifecycle and planner eligibility; this foundation adds no
+executable index syntax or catalog operation.
 
 This diagnosis describes the reopened `a0a8a3ed` baseline. The direct owner and
 consumer cutover in the current implementation review replace that data path;

@@ -12,6 +12,8 @@ export const downloads = [
     "configuration-settings-v1.json",
     "diagnostic-v1.schema.json",
     "application-installation-v1.schema.json",
+    "data-lifecycle-v1.schema.json",
+    "index-lifecycle-v1.schema.json",
   ].map((name) => ({
     source: `contracts/${name}`,
     name,

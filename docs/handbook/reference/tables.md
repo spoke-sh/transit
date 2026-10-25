@@ -73,6 +73,14 @@ plans, saved operations and retained readers to their original meaning.
 Unsupported or incompatible definitions reject before execution; stored data
 and accepted work are never silently reset or decoded as another profile.
 
+The protocol package also validates offline index declarations and coverage
+descriptors. They bind stable index/source/column identities, comparison and
+constraint semantics, build generations and exact source cuts. Definition,
+maintenance progress and published coverage are distinct; none grants access.
+The [index contract](../../../contracts/INDEX_LIFECYCLE_V1.md) owns their bounds
+and comparison rules. The installed catalog exposes no secondary-index
+declaration or build operation, and SQL has no executable `CREATE INDEX` form.
+
 Defaults apply to omitted INSERT fields and explicit DEFAULT assignments.
 Explicit NULL stays NULL and must satisfy nullability. Ordinary Table cells
 store values or SQL NULL. Nested optional members may be missing; stored type

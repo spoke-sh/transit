@@ -20,6 +20,11 @@ transaction-domain and acceptance definitions. Catalog records, Table logs and
 native process progress retain distinct positions; they do not imply an atomic
 cross-owner transaction or a common cross-Table snapshot.
 
+The separate [index lifecycle contract](INDEX_LIFECYCLE_V1.md) defines offline
+index identities, immutable key/constraint bindings, build generations and exact
+coverage publication. Its validators reuse these catalog/source identities;
+they do not add an executable catalog operation or prove query eligibility.
+
 ## Initialization and authorization
 
 A configured local node opens and recovers catalog and Table storage. Explicit

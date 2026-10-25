@@ -12680,6 +12680,75 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/IndexLifecycle.zig": {
+      "errors": {
+        "IncompatibleDefinition": 4,
+        "IndexCoverageMismatch": 1,
+        "IndexDefinitionMismatch": 3,
+        "IndexPublicationConflict": 1,
+        "InvalidIndexColumns": 6,
+        "InvalidIndexConstraint": 1,
+        "InvalidIndexDependency": 5,
+        "InvalidIndexGeneration": 1,
+        "InvalidIndexProgress": 3
+      },
+      "outcomes": {
+        "Constraint.kind": [
+          "primary_key",
+          "unique"
+        ],
+        "Constraint.nulls": [
+          "forbidden",
+          "distinct",
+          "equal"
+        ],
+        "Key.comparison": [
+          "declared_column"
+        ],
+        "Key.direction": [
+          "ascending",
+          "descending"
+        ],
+        "Key.nulls": [
+          "first",
+          "last"
+        ],
+        "Progress.phase": [
+          "backfill",
+          "catch_up",
+          "validating",
+          "complete"
+        ],
+        "Purpose": [
+          "acceleration",
+          "constraint"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Coverage.requireBasis()": "<inferred>",
+        "Coverage.validate()": "<inferred>",
+        "Declaration.fingerprint()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Declaration.validateFields()": "<inferred>",
+        "Generation.requireDeclaration()": "<inferred>",
+        "Generation.validate()": "<inferred>",
+        "Progress.validate()": "<inferred>",
+        "Publication.requireSame()": "<inferred>",
+        "Publication.validate()": "<inferred>",
+        "advancing()": "<inferred>",
+        "sameCatalog()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 28,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Json.zig": {
       "errors": {
         "InvalidJsonConstant": 1,
@@ -12962,7 +13031,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -13146,6 +13215,7 @@
         "Diagnostic.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",
+        "IndexLifecycle.zig",
         "Json.zig",
         "Lifecycle.zig",
         "Runtime.zig",
