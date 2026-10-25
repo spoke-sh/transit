@@ -201,6 +201,9 @@ The frame's complete durable presence can precede acknowledgement: an error or
 lost reply requires reconciliation of the original application operation.
 Any uncertain disk mutation makes that open owner return `WalRecoveryRequired`;
 it cannot continue from a guessed frontier.
+Cancellation while loading an uncached partition before a disk mutation publishes
+no cached descriptor and leaves the owner usable. Cancellation after recovery
+starts truncating an incomplete tail still requires reopening the owner.
 
 Recovery checks contiguous LSNs, frame integrity and the persisted frontier.
 It reads one bounded frame at a time. Only an incomplete frame in the final

@@ -264,8 +264,17 @@ fn recover(self: *Self, state: *State) !void {
 
 fn load(self: *Self, id: u64) !*State {
     try self.usable();
-    errdefer self.poisoned = true;
     for (&self.cache) |*slot| if (slot.*) |*state| if (state.partition == id) return state;
+    return self.loadCold(id) catch |err| {
+        // An interrupted observation publishes no descriptor or disk change.
+        // Recovery's truncation path separately poisons an uncertain mutation.
+        // Keep corruption and other storage failures fail-closed as before.
+        if (err != error.Canceled) self.poisoned = true;
+        return err;
+    };
+}
+
+fn loadCold(self: *Self, id: u64) !*State {
     var state = (try self.metadata(id)) orelse blk: {
         if (try self.nextSegment(id, null) != null) return error.WalMetadataMissing;
         break :blk State{ .partition = id };

@@ -26814,3 +26814,51 @@ index root exists, contains every visible row, is retained or is authorized.
 The future catalog/query owner must establish those facts separately. Complete
 build progress does not publish coverage or enable a query. The repository and
 committed-checkout qualification review remains a separate gate.
+
+## Installed lifecycle statement budgets — 2026-10-25
+
+The final clean experience lane at `4dc0d3ba01497e4cac9929e0817ce4bc221fde92`
+fails `test::server-direct-tables` after 174.99 seconds: namespace rename reports
+`SqlOutcomeUnknown`, followed by expiry of the separate prepared session during
+cleanup. Inspecting that retained installation after restart finds all ten
+original operations terminal, including applied rename operation 483, and the
+renamed schema. No SQL statement is resubmitted during that inspection.
+An unchanged rerun also fails while observing an UPDATE. These attempts do not
+count as passing the task or lane.
+
+A diagnostic Unix-socket proxy using the same installed binaries observes an
+INSERT invocation end after 30,162.491 ms; the execute response arrives after
+30,304.430 ms with its original operation still uploading. The proxy run is
+diagnostic evidence, not the unmodified integration proof. The console's default
+30-second admission-discovery budget is shorter than this fixture's configured
+120-second server command budget. The unknown outcome is correct; neither a
+client deadline nor session expiry establishes rollback.
+
+The lifecycle fixture now explicitly selects that same 120-second client budget
+and a 180-second subprocess cap. During independent CLI statements it renews the
+existing prepared peer's lease, preserving that peer and its original prepared
+statement for the stale-definition assertion. Default client/server budgets,
+expiry behavior, runtime implementation, request identities and retry semantics
+are unchanged. This is a correctness schedule with explicit waits; the failures
+remain evidence that these local operations can exceed the default client
+budget. The separate session-lifetime proofs retain their short expiry bounds.
+A complete committed-source rerun is still required for acceptance.
+
+## Local WAL observation cancellation — 2026-10-25
+
+A focused disk test cancels opening the metadata for an accepted partition after
+nine partitions evict it from the eight-slot cache. Before the fix, that canceled
+read makes even a different cached partition return `WalRecoveryRequired`.
+The interrupted load publishes no descriptor and has not changed a disk file.
+It now leaves the owner usable; corruption and other storage failures retain
+their existing recovery gate.
+
+`nix develop --command zig build test -Dtest-filter=canceling` in
+`packages/zig/transit-storage` passes. The first schedule verifies the unrelated
+partition, original payload and a subsequent append after cancellation. The
+second cancels sync after recovery truncates an incomplete unacknowledged tail:
+the owner must refuse further work until reopened, then preserve the accepted
+frontier and accept its successor. The first schedule failed against the prior
+implementation with `WalRecoveryRequired` as expected. These component results
+do not establish the cause of every installed request timeout or replace the
+remaining clean installed lifecycle qualification.

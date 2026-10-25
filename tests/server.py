@@ -184,9 +184,16 @@ class Fixture:
         return dict(version=1, endpoint='unix:'+rendezvous['socket'],
                     account=rendezvous['account'], database=rendezvous['database'], authentication='peer')
 
-    def console(self, text, expected=0):
-        result = subprocess.run([self.cli, "console", "--no-rc", "--format", "json"],
-            input=text, text=True, capture_output=True, timeout=80, cwd=self.root, env={"PATH": "/unavailable"})
+    def console(self, text, expected=0, *, request_timeout_ms=None, timeout=80):
+        args = [self.cli, "console", "--no-rc", "--format", "json"]
+        if request_timeout_ms is not None:
+            connection = self.console_config()
+            connection['request_timeout_ms'] = request_timeout_ms
+            path = self.root / 'console-connection.json'
+            path.write_text(json.dumps(connection))
+            args.extend(['--config', str(path)])
+        result = subprocess.run(args,
+            input=text, text=True, capture_output=True, timeout=timeout, cwd=self.root, env={"PATH": "/unavailable"})
         assert result.returncode == expected, result
         if expected:
             return result
