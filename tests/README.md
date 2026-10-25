@@ -26562,3 +26562,34 @@ The failed clean runs retain their incomplete reports and checkouts. Neither is
 a completed core lane. The other isolated lanes continue qualifying the recorded
 revision; complete ordinary qualification still requires all six lane reports at
 one committed revision.
+
+## Launcher and SQL logging acceptance — 2026-10-25
+
+At `46d42df84`, the clean launcher lane builds successfully and passes installed
+persistence, exact retry, fencing, retirement, replacement, direct access and
+foreground control schedules. Its missing-WAL startup case then fails an obsolete
+`error:` assertion: the node correctly emits `service.failed` with `NotFound`,
+exits nonzero, and the manager preserves the installation. The clean experience
+lane passes Board, handbook, Node static and observability checks, then fails a
+blanket assertion forbidding SQL `unavailable` during startup. The retained log
+shows an actual `AuthorityTimeout`, followed by recovery of the same installation
+through `initializing`, `starting` and `accepting`. Neither lane is a pass.
+
+`7b48509ee` updates these fixture assertions to the existing operational logging
+contract. The launcher requires a structured `service.failed`/`NotFound` event
+and the manager's failure summary, retaining nonzero exit, owned cleanup and
+saved-state checks. The SQL proof still rejects an unexplained initial
+`unavailable` observation; a reported failure must carry a cause, and the final
+status must be `accepting` with its error cleared. Runtime behavior and deadlines
+are unchanged. The server guide distinguishes a pending first health check from
+an actual failed authority observation during startup.
+
+Both complete focused commands pass: `just launchers::local::test` covers the
+installed and foreground schedules, including streamed failures and termination
+cleanup; `just test::server-logging` covers text/JSON/off, terminal versus machine
+stdout, SHOW and environment precedence, admission pressure without role
+replacement, and gateway failure/recovery. An earlier standalone foreground
+invocation omitted its build preparation and timed out while building before
+reaching the repaired assertion; it is not a qualified run. The remaining
+experience tasks and the other clean lanes continue separately; their completion
+must be recorded before ordinary-suite acceptance.
