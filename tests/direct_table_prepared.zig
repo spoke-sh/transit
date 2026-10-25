@@ -53,7 +53,9 @@ fn read(self: *Self, prepared: *const q.DirectTablePrepared, value: ?f.Types.Val
     defer pinned.deinit();
     const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = metadata.interpretation.interpretation.object, .handle = pinned.value.result.pin };
     defer (self.client.call(.{ .release = snapshot }) catch unreachable).deinit();
-    var query = try q.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, prepared, &.{value}, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    // Seventeen rows require three scan pages. A complete key equality instead
+    // fits one point call plus preparation/opening and final disclosure checks.
+    var query = try q.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, prepared, &.{value}, .{ .requests = if (value != null) 10 else 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
     defer query.deinit();
     var batch = try query.nextBatch(8);
     defer batch.deinit();
@@ -64,6 +66,77 @@ fn read(self: *Self, prepared: *const q.DirectTablePrepared, value: ?f.Types.Val
     try t.expectEqual(@as(i128, 1), cells[0].value.atom.signed);
     if (expected) |text| try t.expectEqualStrings(text, cells[1].value.atom.bytes) else try t.expect(cells[1] == .null);
     try t.expectEqual(@as(u128, std.math.maxInt(u64)), cells[2].value.atom.unsigned);
+}
+fn finiteReads(self: *Self) !void {
+    const response = try self.client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
+    defer response.deinit();
+    const metadata = response.value.result.lookup.?;
+    self.pin_operation += 1;
+    const pinned = try self.client.call(.{ .pin = .{ .object = metadata.interpretation.interpretation.object, .owner = .{ .scope = self.client.connection.scope, .principal = self.client.connection.principal, .operation = self.pin_operation }, .expected = metadata.position } });
+    defer pinned.deinit();
+    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = metadata.interpretation.interpretation.object, .handle = pinned.value.result.pin };
+    defer (self.client.call(.{ .release = snapshot }) catch unreachable).deinit();
+    const Case = struct { sql: []const u8, requests: u64, expected: ?f.Types.Values.Cell };
+    // Each tight-budget equality must finish before even two source-page calls
+    // are possible. General predicates use the same retained source as controls.
+    for ([_]Case{
+        .{ .sql = "SELECT k FROM prepared_rows WHERE k = 17", .requests = 8, .expected = .{ .value = .{ .atom = .{ .signed = 17 } } } },
+        .{ .sql = "SELECT COUNT(*) FROM prepared_rows WHERE k = 1000", .requests = 8, .expected = .{ .value = .{ .atom = .{ .unsigned = 0 } } } },
+        .{ .sql = "SELECT SUM(k) FROM prepared_rows WHERE k = 1000", .requests = 8, .expected = .null },
+        .{ .sql = "SELECT k FROM prepared_rows WHERE k = 17 LIMIT 0", .requests = 6, .expected = null },
+        .{ .sql = "SELECT k FROM prepared_rows WHERE k >= 17", .requests = 100, .expected = .{ .value = .{ .atom = .{ .signed = 17 } } } },
+        .{ .sql = "SELECT COUNT(*) FROM prepared_rows WHERE k = 1 OR k = 17", .requests = 100, .expected = .{ .value = .{ .atom = .{ .unsigned = 2 } } } },
+        .{ .sql = "SELECT COUNT(*) FROM prepared_rows", .requests = 100, .expected = .{ .value = .{ .atom = .{ .unsigned = 17 } } } },
+    }) |case| {
+        var query = try q.DirectTableQuery.openRetained(self.allocator, self.client, snapshot, name, case.sql, .{ .requests = case.requests, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        defer query.deinit();
+        var batch = try query.nextBatch(8);
+        defer batch.deinit();
+        try t.expect(batch.complete);
+        try t.expectEqual(@as(u8, if (case.expected != null) 1 else 0), batch.len);
+        if (case.expected) |expected| try t.expectEqualDeep(expected, batch.rows[0].?.cells[0]);
+        try t.expectEqualDeep(snapshot, query.source().snapshot);
+    }
+    var scan = try q.DirectTableQuery.openRetained(self.allocator, self.client, snapshot, name, "SELECT k FROM prepared_rows WHERE k = 17 AND n = 7", .{ .requests = 8, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    defer scan.deinit();
+    try t.expectError(error.QueryPageBudget, scan.nextBatch(8));
+    try t.expectError(error.FailedQuery, scan.nextBatch(8));
+}
+fn compositeReads(self: *Self) !void {
+    try self.ddl("CREATE TABLE prepared_keys (tag VARCHAR(8), longtag UTF8, k BIGINT, PRIMARY KEY(tag, longtag, k))", 92020, 9902);
+    var insert = try c.DirectTablePreparedDml.prepare(self.allocator, self.client, 1, "INSERT INTO prepared_keys VALUES ('東京', 'x', -3)", .transit, null);
+    defer insert.deinit();
+    var work = try insert.bind(self.allocator, self.client, 92021, &.{}, .point, null);
+    defer work.deinit();
+    try self.execute(&work);
+    var select = try q.DirectTablePrepared.prepare(self.allocator, self.client, 1, "SELECT k FROM prepared_keys WHERE k = $1 AND longtag = $2 AND tag = $3", .transit, null);
+    defer select.deinit();
+    const response = try self.client.call(.{ .lookup = .{ .namespace = 1, .name = "prepared_keys" } });
+    defer response.deinit();
+    const metadata = response.value.result.lookup.?;
+    self.pin_operation += 1;
+    const pinned = try self.client.call(.{ .pin = .{ .object = metadata.interpretation.interpretation.object, .owner = .{ .scope = self.client.connection.scope, .principal = self.client.connection.principal, .operation = self.pin_operation }, .expected = metadata.position } });
+    defer pinned.deinit();
+    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = metadata.interpretation.interpretation.object, .handle = pinned.value.result.pin };
+    defer (self.client.call(.{ .release = snapshot }) catch unreachable).deinit();
+    const wide: [4096]u8 = @splat('x');
+    const Case = struct { tag: []const u8, longtag: []const u8, count: u8 };
+    for ([_]Case{
+        .{ .tag = "東京", .longtag = "x", .count = 1 },
+        .{ .tag = "absent", .longtag = "x", .count = 0 },
+        // Comparisons may use values which cannot be stored as this key. Both
+        // remain valid empty queries, not character-limit or key-encoding errors.
+        .{ .tag = "123456789", .longtag = "x", .count = 0 },
+        .{ .tag = "東京", .longtag = &wide, .count = 0 },
+    }) |case| {
+        var query = try q.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, &select, &.{ .{ .signed = -3 }, .{ .bytes = case.longtag }, .{ .bytes = case.tag } }, .{ .requests = 10, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        defer query.deinit();
+        var batch = try query.nextBatch(8);
+        defer batch.deinit();
+        try t.expect(batch.complete);
+        try t.expectEqual(case.count, batch.len);
+        if (case.count == 1) try t.expectEqual(@as(i128, -3), batch.rows[0].?.cells[0].value.atom.signed);
+    }
 }
 pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: anytype, role: u64) !void {
     var self: Self = .{ .allocator = allocator, .client = client };
@@ -83,7 +156,20 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     var inserted = try self.bind(&insert, 92001, &.{ .{ .signed = 1 }, .{ .bytes = text }, .{ .unsigned = std.math.maxInt(u64) } });
     defer inserted.deinit();
     try self.execute(&inserted);
+    var filler = try c.DirectTablePreparedDml.prepare(allocator, client, 1,
+        \\INSERT INTO prepared_rows (k, v, n) VALUES
+        \\(2, 'other', 7), (3, 'other', 7), (4, 'other', 7), (5, 'other', 7),
+        \\(6, 'other', 7), (7, 'other', 7), (8, 'other', 7), (9, 'other', 7),
+        \\(10, 'other', 7), (11, 'other', 7), (12, 'other', 7), (13, 'other', 7),
+        \\(14, 'other', 7), (15, 'other', 7), (16, 'other', 7), (17, 'other', 7)
+    , .transit, null);
+    defer filler.deinit();
+    var filled = try self.bind(&filler, 92010, &.{});
+    defer filled.deinit();
+    try self.execute(&filled);
+    try self.finiteReads();
     try self.read(&select, .{ .signed = 1 }, text, 1);
+    try self.read(&select, .{ .signed = 1000 }, null, 0);
     try self.read(&select, null, null, 0);
     try t.expectError(error.NullNotAllowed, self.bind(&insert, 92002, &.{ null, null, null }));
     try t.expectError(error.ParameterCountMismatch, self.bind(&insert, 92002, &.{}));
@@ -107,4 +193,5 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     try self.ddl(create, 92008, 903);
     try t.expectError(error.TableDefinitionChanged, self.read(&select, .{ .signed = 1 }, null, 0));
     try t.expectError(error.TableDefinitionChanged, self.bind(&insert, 92009, &.{ .{ .signed = 2 }, null, null }));
+    try self.compositeReads();
 }

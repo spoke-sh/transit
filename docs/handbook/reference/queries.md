@@ -344,10 +344,14 @@ must be specified together when extending this boundary.
 
 ## Interactive sessions
 
-Selective Table queries use the ordered primary-key index: equality reads one
-key, lower bounds seek, and upper bounds stop the scan. The original Fuze
-predicate still determines matching rows. Comparisons on the value column and
-`!=` and compound native predicates retain the general bounded scan. Persistent Arrow storage blocks are
+Native key/value Table queries use their ordered primary-key index: equality
+reads one key, lower bounds seek, and upper bounds stop the scan. General catalog
+Table SELECTs use a collision-safe point lookup for a conjunction containing
+exactly one equality per declared primary-key column. Partial keys, inequalities
+and additional predicates retain identity-ordered bounded scans. The original
+Fuze predicate still determines matching rows, and empty selections require
+current rights. The direct retained key-range API does not itself enable SQL
+inequality pushdown. Persistent Arrow storage blocks are
 separate from the native Arrow batches used for execution and presentation.
 
 The [interactive query contract](../../../contracts/INTERACTIVE_QUERY_V1.md) defines
