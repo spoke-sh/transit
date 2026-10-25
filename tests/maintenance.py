@@ -41,7 +41,11 @@ def run(node, cli):
         def start(*args):
             log = (store.root / f"maintenance-child-{len(logs)}.log").open("w+")
             logs.append(log)
-            child = subprocess.Popen([str(node), str(config), *args], stdout=log, stderr=subprocess.STDOUT)
+            # Timeout assertions below inspect JSON fields independently of the
+            # caller's logging defaults or suppression settings.
+            child = subprocess.Popen([str(node), str(config), *args], stdout=log,
+                                     stderr=subprocess.STDOUT,
+                                     env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "info"})
             children.append(child)
             return child
 
