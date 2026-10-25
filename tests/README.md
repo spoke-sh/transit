@@ -26490,3 +26490,36 @@ Setup has a 3,600-second aggregate budget; each complete readback has 900 second
 with the original per-request bounds unchanged. This is local process-recovery
 and bounded-cache evidence, not a host-loss, distributed-writer or latency result.
 Reference Follow and committed-HEAD clean-checkout qualification remain open.
+
+## Direct Follow reference recovery and disclosure — 2026-10-25
+
+`nix develop .#serving --command just test::reactive-views-placement reference`
+passes with the browser/client and fixture source at `c305cf405`. The retained
+log is `/var/tmp/transit-direct-follow-reference-16.log`. Browser qualification
+takes 823.88 seconds; deployment, qualification and recovery report 949.60 seconds
+in total. The enclosing command exits successfully after joined cleanup.
+
+The real browser verifies the initial 20-row query after a lost submission reply,
+navigation and explicit exact retry. Physical worker, gateway, node and store
+replacement preserves the same query namespace, displayed values and result
+identity over the retained local native and Table logs. Follow prepares all
+eight finite captures, then a committed mutation produces a distinct verified
+result with the same Table/schema binding and a later accepted data position.
+A further mutation checks current denial between full-result verification and
+the visible reread; protected rows are cleared. Pause, cookie/local-storage
+absence, bounded session recovery and both browser heap bounds also pass.
+
+Single-run observations are 25,652 ms for counter mutation visibility, 67,916 ms
+for the initial query including exact submission recovery, 54,029 ms for physical
+recovery, 160,025 ms for Follow preparation, and 205,614 ms for a verified refreshed
+result. Observed Board/counter heaps are 11,436,668/4,259,492 bytes. These are raw
+observations, not a distribution or matched performance comparison.
+
+This run uses the documented six-minute aggregate query/result-denial wait,
+25-minute browser budget and 30-minute fixture publication. The three-minute
+preparation budget, per-request deadlines, 30-second session leases, native/direct
+cache bounds and all recovery/authorization assertions remain unchanged. The
+205,614 ms refresh exceeds the earlier three-minute window: this correctness pass
+does not qualify that latency window or close broader performance obligations.
+The earlier failed schedules remain recorded above. Latest combined repository
+and committed-HEAD clean-checkout qualification remain open.
