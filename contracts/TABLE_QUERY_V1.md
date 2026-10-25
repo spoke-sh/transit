@@ -175,46 +175,13 @@ a completed direct read alone cannot authorize a later native commit. The page's
 provides no page. Completed results retain source evidence after pin release and
 require separate current disclosure authorization.
 
-`transit-query.TableQuery` composes this compiler and executor with the general
-catalog's signed connection and native leased snapshots. It resolves the supplied
-Table name inside one captured resource cut, validates the catalog's exact owner
-and configuration, and checks both inspect and read rights. Its binding commits
-the current shared definition, realm/resource/catalog/owner, captured resource
-revision, stable Table object, metadata commitment and complete Table head.
+The installed finite reader is `DirectTableQuery.openRetained`, described above.
+Its retained Table basis is separate from native computation progress. The SQL
+session owner acquires and journals its pins explicitly and closes them through
+its original identities. The public pull reader borrows its supplied pin; closing
+that reader does not release the durable pin.
 
-`next()` returns one independently owned row. `nextBatch(maximum)` returns an
-owned batch of at most the requested one to eight rows and 16 MiB of canonical
-cells. Release every returned row or batch with `deinit`. The query rechecks
-current native authorization and scoped catalog policy after computation and
-before returning the entire batch or successful completion. This observation
-authorizes that bounded disclosure; a later call performs a fresh observation.
-The same gate applies to cached data, empty results, aggregates and LIMIT 0.
-Byte-bound lookahead remains private, is included in query-wide accounting, and
-requires another current check before disclosure. Failure releases the proposed
-batch and poisons the query. Sixty-four cached native
-entries belong exclusively to the captured cut; they never establish current
-permission. Complete primary-key equality uses the typed key index and still
-evaluates the predicate. Other predicates scan stable row identities.
-
-Schema evolution and DROP do not rewrite an already captured reader's identity.
-It may finish against its original schema and row root after a name is reused,
-subject to current read permission and native resource lifetime. A new name lookup
-selects the replacement object. This does not supply general historical AS OF
-queries, a cross-resource snapshot or authority to read a retired resource.
-
-Every query supplies positive limits for native snapshot requests, returned rows
-and canonical result bytes. The request budget includes acquisition, data reads
-and final policy validation; capability negotiation and explicit cleanup are
-outside it. Result bytes count the output descriptor and length-prefixed bound
-logical cells. Transport/Arrow/JSON framing has its own additional bounds. A query
-holds its two bounded schema owners, fixed cache, bounded index traversal and one
-decoded row; it does not materialize the Table. Returned row ownership belongs to
-the caller, which must release rows instead of retaining an unbounded result.
-
-Final validation releases the native snapshot. Close/deinit, cancellation, expiry
-and authority replacement preserve incomplete-output truth; no path silently
-opens a replacement cut. A failed handle cannot continue. The native rejection
-from a failed fetch is retained before cleanup can issue another native operation.
-The public Zig adapter is separate from the configured console, durable query and
-foreign-language integrations; their enabled capabilities are owned by those
-interfaces.
+The [direct request contract](DIRECT_TABLE_V1.md) owns retention and current
+policy checks. The [SQL session contract](SQL_SESSION_V1.md) owns statement,
+result-reader and session lifecycle. Neither reader silently opens a replacement
+cut after a failure or treats incomplete output as complete.

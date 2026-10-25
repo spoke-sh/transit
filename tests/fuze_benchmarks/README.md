@@ -219,10 +219,11 @@ python3 -B tests/fuze_benchmarks/vector_gates.py \
 
 A semantically successful report can fail its performance gates. These gates
 cover the first int64 experiment and do not replace the existing file budgets,
-eight native controls or integrated qualification. General Table measurements
-and buffered current-denial checks run in `just test::typed-tables`; that proof
-records three paired native samples per selected query, including process and
-transport costs. It makes no percentile or native speedup claim. See the
+eight native controls or integrated qualification. The recorded general Table
+measurements used the former actor-backed fixture and do not measure the current
+direct Table path. Current buffered disclosure checks run in
+`just test::direct-catalog-abi`; those checks make no percentile or native speedup
+claim. See the
 [physical batch guide](../../packages/zig/transit-fuze/docs/batches.md) for ownership,
 validation boundaries and the separate decoder/output memory owners.
 

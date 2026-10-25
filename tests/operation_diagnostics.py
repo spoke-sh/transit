@@ -45,116 +45,6 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
 
 
 
-with tempfile.TemporaryDirectory(prefix='transit-native-artifacts-') as directory:
-    root = Path(directory)
-    catalog_config = root / 'catalog.json'
-    catalog_values = dict(version=1, connection=dict(scope=dict(realm=46, resource=2, catalog='18446744073709551615'), owner=1, principal=1234))
-    sql = root / 'create.sql'
-    sql.write_text('CREATE TABLE items (id INT64 NOT NULL, value UTF8 NULL)')
-    compiled_path = root / 'compiled.json'
-    compile_args = ['catalog', 'compile', '--config', catalog_config, '--operation', '18446744073709551615', '--object', '18446744073709551615', '--namespace', '18446744073709551615', '--file', sql, '--output', compiled_path]
-    catalog_config.write_text(json.dumps(catalog_values))
-    compiled = json.loads(invoke(compile_args, 0).stdout)
-    assert json.loads(compiled_path.read_bytes()) == compiled
-    assert compiled_path.stat().st_mode & 0o777 == 0o600
-    assert compiled['compiled']['intent']['operation'] == '18446744073709551615'
-    original = compiled_path.read_bytes()
-    invoke(compile_args, 1, ('PathAlreadyExists',))
-    assert compiled_path.read_bytes() == original
-    invoke(['catalog', 'describe', '--config', catalog_config], contains=('url', 'is required'))
-    for field, value in [('version', 2), ('url', 'http://private-must-not-appear@127.0.0.1:1'), ('request_timeout_ms', 60001)]:
-        catalog_config.write_text(json.dumps(dict(catalog_values, **{field:value})))
-        invoke(compile_args, contains=(field,))
-    invalid_values = copy.deepcopy(catalog_values)
-    invalid_values['connection']['scope']['catalog'] = 18446744073709551615
-    catalog_config.write_text(json.dumps(invalid_values))
-    invoke(compile_args, contains=('configuration', 'invalid or missing field'))
-    invalid_values['connection']['scope']['catalog'] = '01'
-    catalog_config.write_text(json.dumps(invalid_values))
-    invoke(compile_args, contains=('connection', 'canonical positive catalog ID string'))
-    invalid_values['connection']['scope']['catalog'] = '1'
-    invalid_values['connection']['scope']['realm'] = '46'
-    catalog_config.write_text(json.dumps(invalid_values))
-    invoke(compile_args, contains=('configuration', 'invalid or missing field'))
-    catalog_config.write_text(json.dumps(dict(catalog_values, url='http://127.0.0.1:1')))
-    invoke(['catalog', 'describe', '--config', catalog_config], contains=('seed_file', 'is required'))
-    catalog_config.write_text(json.dumps(dict(catalog_values, url='http://127.0.0.1:1', seed_file='missing.seed')))
-    bad_compiled = root / 'bad-compiled.json'
-    invalid_compiled = copy.deepcopy(compiled)
-    invalid_compiled['compiled']['intent']['object'] = '12'
-    bad_compiled.write_text(json.dumps(invalid_compiled))
-    for mode in ('next', 'status'):
-        args = ['catalog', mode, '--config', catalog_config, '--file', bad_compiled]
-        if mode == 'next': args += ['--output', root / 'must-not-exist.json']
-        invoke(args, 1, ('CatalogArtifactMismatch',))
-    invalid_compiled = copy.deepcopy(compiled)
-    canonical = bytearray.fromhex(invalid_compiled['compiled']['saved']['bytes'])
-    canonical[5] ^= 1  # Foreign current-definition bytes must never be adopted.
-    invalid_compiled['compiled']['saved']['bytes'] = canonical.hex()
-    bad_compiled.write_text(json.dumps(invalid_compiled))
-    invoke(['catalog', 'status', '--config', catalog_config, '--file', bad_compiled], 1, ('IncompatibleDefinition',))
-    invalid_compiled = copy.deepcopy(compiled)
-    del invalid_compiled['compiled']['saved']['definition']
-    bad_compiled.write_text(json.dumps(invalid_compiled))
-    invoke(['catalog', 'status', '--config', catalog_config, '--file', bad_compiled], contains=('artifact', 'invalid or missing field'))
-    bad_prepared = root / 'bad-catalog-prepared.json'
-    bad_prepared.write_text('{"prepared":null}')
-    invoke(['catalog', 'submit', '--config', catalog_config, '--file', bad_prepared], contains=('artifact', 'invalid or missing field'))
-    bad_prepared.write_text('{"prepared":"{}"}')
-    invoke(['catalog', 'submit', '--config', catalog_config, '--file', bad_prepared], 1, ('InvalidCatalogPrepared',))
-    # Entire saved pages, including mandatory definition and continuation
-    # consistency, validate before reading the missing signing credential.
-    # A complete current-format neutral page, with independently selected IDs.
-    page_scope = dict(realm=46, resource=2, catalog='42')
-    page = dict(resource_revision=20, entries=[dict(
-        metadata=dict(scope=page_scope, namespace=1, object='81', revision='1', name='東京 people',
-            schema_fingerprint='11'*32, principal=1234, operation='71', admitted_input=17,
-            commitment=dict(format=0x54434d01, length=200, digest=[2]*32)),
-        head=dict(revision='1', rows='0', pending='0'))] + [None]*7,
-        next=dict(definition=compiled['compiled']['saved']['definition'], scope=page_scope,
-            resource_revision=20, after_object='81'))
-    page_path = root / 'catalog-page.json'
-    page_args = ['catalog', 'list', '--config', catalog_config, '--file', page_path]
-    for foreign in (None, '0' * 64):
-        invalid_page = copy.deepcopy(page)
-        if foreign is None: del invalid_page['next']['definition']
-        else: invalid_page['next']['definition'] = foreign
-        page_path.write_text(json.dumps(dict(page=invalid_page)))
-        invoke(page_args, contains=('artifact', 'invalid or missing field'))
-    invalid_page = copy.deepcopy(page)
-    invalid_page['next'] = None
-    page_path.write_text(json.dumps(dict(page=invalid_page)))
-    invoke(page_args, contains=('page.next', 'saved page has no continuation'))
-    for malformed in ('hole', 'scope', 'revision', 'object'):
-        invalid_page = copy.deepcopy(page)
-        if malformed == 'hole': invalid_page['entries'][1], invalid_page['entries'][0] = invalid_page['entries'][0], None
-        elif malformed == 'scope': invalid_page['next']['scope'] = dict(invalid_page['next']['scope'], catalog='1')
-        elif malformed == 'revision': invalid_page['next']['resource_revision'] += 1
-        else: invalid_page['next']['after_object'] = '80'
-        page_path.write_text(json.dumps(dict(page=invalid_page)))
-        invoke(page_args, 1, ('InvalidCatalogPage',))
-    invalid_page = copy.deepcopy(page)
-    invalid_page['entries'][0]['metadata']['object'] = '01'
-    page_path.write_text(json.dumps(dict(page=invalid_page)))
-    invoke(page_args, 1, ('InvalidCatalogInteger',))
-    # Native root zero is a valid author, while resource/input identities remain
-    # positive. Passing local metadata validation does not supply a credential.
-    for principal in (0, 1234, 2**53 - 1):
-        authored_page = copy.deepcopy(page)
-        authored_page['entries'][0]['metadata']['principal'] = principal
-        page_path.write_text(json.dumps(dict(page=authored_page)))
-        invoke(page_args, contains=('cannot load the catalog signing credential',))
-    invalid_page = copy.deepcopy(page)
-    invalid_page['entries'][0]['metadata']['principal'] = 2**53
-    page_path.write_text(json.dumps(dict(page=invalid_page)))
-    invoke(page_args, 1, ('InvalidCatalogPage',))
-    yaml_config = root / 'catalog.yaml'
-    yaml_config.write_text("version: 1\nconnection:\n  scope:\n    realm: 46\n    resource: 2\n    catalog: '18446744073709551615'\n  owner: 1\n  principal: 1234\n")
-    yaml_args = list(compile_args)
-    yaml_args[3] = yaml_config
-    yaml_args[-1] = root / 'yaml-compiled.json'
-    assert json.loads(invoke(yaml_args, 0).stdout) == compiled
-
 definition = json.loads((Path(__file__).resolve().parents[1] / "contracts/transit-v1.schema.json").read_text())["x-transit"]["definition"]
 def machine(args, expected=1, data=b'', env=None, out=None):
     global CASES
@@ -180,14 +70,6 @@ def facts(diagnostic):
 
 with tempfile.TemporaryDirectory(prefix='transit-file-evidence-') as directory:
     root = Path(directory)
-    for ddl,code,offset in [('CREATE TABLE items (id JSON PRIMARY KEY,value UTF8)','sql.unsupported_primary_key_type',51),
-                            ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)','sql.duplicate_column',51)]:
-        sql = root/'create.sql'; sql.write_text(ddl)
-        catalog = root/'catalog.json'; catalog.write_text(json.dumps(catalog_values))
-        output = root/'must-not-exist.json'
-        _,detail,_ = machine(['catalog','compile','--config',catalog,'--operation','1','--object','1','--namespace','1','--file',sql,'--output',output])
-        assert detail['code'] == code and detail['location']['offset'] == str(offset), detail
-        assert detail['location']['source'] == str(sql) and not output.exists()
     csv = root/'late.csv'; csv.write_text('id,value\n1,100\n2,bad\n')
     for limit in ('',' LIMIT 0',' LIMIT 1'):
         result,detail,_ = machine(['file-query','--format','csv','--sample-records','1','-c','SELECT * FROM input'+limit,csv])

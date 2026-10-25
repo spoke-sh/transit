@@ -73,8 +73,8 @@ revisions. Earlier roots missing these fields reject without a default or reset.
 foreign artifact definitions before interpretation. The local disk owner rejects its earlier unmarked layout and missing
 or foreign definitions. It does not convert old logs. Preserve them with their
 matching build before an explicitly chosen fresh installation or a separately
-qualified converter. This storage-component cutover does not change the installed
-service's backend selection.
+qualified converter. The default local installation uses the native local owner;
+backend selection does not establish compatibility with an earlier definition.
 
 The current definition uses Transit domains for immutable payload locations and
 Substrate resource/workload identities. It requires matching node, client, SDK,
@@ -111,13 +111,18 @@ Authorization operation records retain the original admission public key and
 canonical request digest. Recovery requires both fields; records from earlier
 definitions cannot acquire admission identity from the current credential.
 
-The current definition includes general typed Tables, immutable schema and
+The current definition includes direct Table acceptance, immutable schema and
 metadata identities, CREATE/ALTER/DROP lifecycle, exact typed DML recovery,
-compact immutable index nodes and schema-bound catalog command payloads. The
-previous fixed key/value Table representation is incompatible. Matching node,
-worker, CLI and SDK builds are required. No automatic converter, fallback
-decoder or installation reset is supplied. Recover earlier pending work with
-its matching build before an explicit cutover.
+compact immutable index nodes and saved direct intents. It binds retained query
+sources to independent Table cuts and native computation progress. General
+catalog callers use the direct owner; the former actor-backed catalog service,
+query-host catalog role and mediation schema are removed. Private Station Table
+helpers keep their separate native-turn semantics.
+
+Matching node, worker, CLI and SDK builds are required. Earlier actor-backed
+catalogs, saved commands and retained query bundles are incompatible. No automatic
+converter, fallback decoder or installation reset is supplied. Recover earlier
+pending work with its matching build before an explicit cutover.
 
 The local configuration checkpoint also includes the startup policy registry.
 Installations from before this definition are rejected; automatic first startup

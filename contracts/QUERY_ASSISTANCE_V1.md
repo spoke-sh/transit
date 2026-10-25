@@ -66,12 +66,12 @@ Report measured latency and actual source sizes separately from these bounds.
 
 ## Catalog and relational assistance
 
-The catalog console uses `TableAssistance` and reports `catalog_v1`. Its response
-identifies the configured resource, current resource/policy revisions and a
-commitment to the native definition, catalog connection, caller and those
-revisions. It shares the request, replacement-range and eight-item bounds above.
-It reads catalog metadata through `TableClient`; it does not open data snapshots
-or prepare a mutation. Source search reads at most 128 catalog pages.
+The catalog uses `DirectTableAssistance` and reports `direct_table_v1`. Its
+response identifies the catalog lifetime resource, a null native resource
+revision, current policy revision and a commitment to the exact definitions
+checked for disclosure. It shares the request, replacement-range and eight-item
+bounds above. It reads metadata through `DirectTableClient`; it opens no data
+snapshots and prepares no mutation. Source search reads at most 128 catalog pages.
 
 General Table DDL, DML and SELECT use their production parser and current schema.
 Names support up to 255 UTF-8 bytes and inserted identifiers are quoted with

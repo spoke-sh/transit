@@ -26,44 +26,18 @@ durable work is noticed; interactive reads do not wait for these workers.
 | Role | Configuration | Provisioning |
 | --- | --- | --- |
 | Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v1 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
-| Catalog | `{"catalog":{"scope":{"realm":REALM,"resource":RESOURCE,"catalog":CATALOG_ID},"owner":PID,"administrator":ADMIN,"table_limits":{"record_bytes":2097152,"staging_bytes":4194304,"staging_records":2},"authority":{"database_domain":DB_DOMAIN,"schema_domain":SCHEMA_DOMAIN,"table_domain":TABLE_DOMAIN,"database":DATABASE_AUTHORITY,"initial_schema":1,"initial_schema_authority":SCHEMA_AUTHORITY}}}` | Existing resource and required association; realm/PID match the activation. Exact administrator initialization publishes framework/configuration/schema/disposition in one turn. Explicit limits must admit the selected row/schema sizes |
 | Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI1` cast, authenticating the configured principal |
 | Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | Composition with current service policy/publication and one active finite query |
-| Courier | `{"courier":{"destinations":[CATALOG_PID]}}` | One through sixteen distinct nonzero destination PIDs; dedicated unscoped inspect/delivery/send principal, with no execution/storage credentials |
+| Courier | `{"courier":{"destinations":[DESTINATION_PID]}}` | One through sixteen distinct nonzero destination PIDs; dedicated unscoped inspect/delivery/send principal, with no execution/storage credentials |
 | Realm courier | `{"courier":{"all_destinations":true}}` | All pending recorded outputs in the configured realm; the explicit destination list must be empty; the same native grants remain mandatory |
 
-The `catalog` role composes `CatalogQueryOwner` with general Table lifecycle
-operations. After catalog initialization, the administrator installs each
-requester's `CatalogQueryOwner.PolicyChange`, mapping it to one explicit catalog
-principal and finite result budgets. Query callers can select authorized Tables
-in that scope without a worker per Table. Current catalog read permissions and
-native grants apply independently of mutation permissions. The local server
-records these initialization operations and does not reissue them on restart.
-See the [catalog query owner contract](../../contracts/CATALOG_QUERY_OWNER_V1.md).
-
-The `catalog` role uses [transit-catalog](../../packages/zig/transit-catalog/README.md)
-and its [declarative catalog contract](../../contracts/DECLARATIVE_CATALOG_V1.md).
-Use `TableClient.prepareControl(.{ .initialize = configuration })`, save the
-returned exact command and submit it from the configured administrator before
-allowing untrusted ingress. `TableBehavior` routes general typed CREATE, ALTER,
-DROP and DML through one owner and resource. Each Table has a stable opaque native
-authorization object and role owner. Provision database/schema/Table domains with
-this worker's principal as registrar; root bootstrap may register the database
-and initial schema while preserving that registrar. The worker publishes each
-Table binding through staged native authorization before catalog publication,
-then retries the exact admitted input. It retains candidate identity across
-lost replies and replacement. Creating another Table requires no worker or
-private host configuration edit. Native role/grant operations own permissions;
-repeating initialization never restores revoked rights.
-
-`TableClient` compiles schema-bound SQL intent, uploads larger commands, observes
-original input dispositions and reads retained outcomes. Staged work emits
-recorded self continuations; configure a courier for this catalog PID. Each
-publication uses at most four native mutations. `TableQuery` performs authorized
-SQL reads on leased snapshots independently of this worker. The catalog role also allocates the bounded query workspace and source adapter
-for durable finite requests. Fresh activations
-preserve the immutable configuration and accepted work. The catalog metadata
-guide lists the exact [general Table contracts](../../packages/zig/transit-catalog/docs/table-metadata.md).
+Direct Table definitions and row mutations use the node's signed `/table/v1`
+owner. This host runs computation and requester/courier roles over independently
+provisioned native progress resources. A direct Table source requires its explicit
+`tables` connection and original-caller capture delegation; process ownership
+alone grants no source access. See the
+[direct catalog guide](../../packages/zig/transit-catalog/docs/direct-catalog.md)
+and [query source contract](../../contracts/TABLE_QUERY_V1.md).
 
 Each OS worker owns one activation. Query execution uses a 4 MiB Arrow
 workspace; the source adds a 1 MiB adapter arena. The

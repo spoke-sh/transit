@@ -555,8 +555,9 @@ generated lockfile, including under CI's frozen-lock default. Repository locks
 are unchanged. Failed installations report the exit status and package-manager
 error codes without dumping package-manager output.
 
-General Table mutation callers use the Catalog APIs and
-`test::typed-tables --sdk LANGUAGE`. The [fixed-writer record](../../docs/history/fixed-table-mutations.md)
+General Table mutation callers use the direct Catalog APIs and
+`bindings::direct-catalog-LANGUAGE` (the C and BEAM tasks each cover two languages).
+The [fixed-writer record](../../docs/history/fixed-table-mutations.md)
 preserves the superseded SDK qualification; it does not qualify the replacement
 callers. Executed general schedules and pending cutover checks remain in the
 [proof ledger](../README.md).

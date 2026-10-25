@@ -733,20 +733,14 @@ staging pipeline:
   primary-key ranges automatically rebase onto `v{N+1}.tman` via
   `PartitionLease.OccCoordinator` without rewriting `.tseg` objects, while
   overlapping primary keys fail closed with `WriteWriteConflict`.
-- **Live catalog/query segment wiring and execution-path latency cutover:**
-  [`TableStorageEngine`](../../../packages/zig/transit-catalog/src/TableStorageEngine.zig)
-  connects `TableBehavior` directly to `TableMemtable`, `LocalWal`,
-  `LocalSegmentStore`, `TableManifest`, `PartitionLease.OccCoordinator` and
-  `NvmeCache`, while [`TableSegmentScan`](../../../packages/zig/transit-query/src/TableSegmentScan.zig)
-  executes collation-aware Zone-Map and 64-bit Bloom-filter row-group pruning and
-  streams `.tseg` + `.tdel` + Memtable deltas directly into `Fuze` `VectorBatch`
-  and `LogicalQuery.Execution` pipelines. On the authority and SQL gateway paths,
-  `PackedPageStore.finish` populates the verified page cache immediately upon
-  candidate segment seal, `NativeServer.zig` shares verified pages and journal heads
-  across all 10 request lanes using epoch-tracked incremental synchronization, and
-  `AccountRuntime` wakes immediately on condition variables while draining ready
-  `GenServer` sub-steps within a single tick. On the 33-operation, 217-turn
-  `native_gateway_ledger` end-to-end proof
-  ([executed evidence](../../../tests/README.md#live-storage-engine-and-sql-execution-cutover)),
-  wall-clock execution drops from **122.759 seconds** to **55.770 seconds** (a
-  **2.20x** speedup) with identical durable turn and send counts.
+- **Installed direct Table acceptance:**
+  The local runtime uses `DirectCatalog` and `TablePartition`, with direct retained
+  readers in Fuze consumers. Point acceptance can remain WAL-backed; bulk writes
+  and explicit bounded flushes publish `.tseg` objects. `TableStorageEngine` and
+  `TableSegmentScan` remain separately tested helpers and do not establish the
+  installed path's pruning, provider or concurrent-writer performance.
+  The earlier 33-operation, 217-turn gateway run measured 122.759 seconds before
+  and 55.770 seconds after cache/wakeup changes on its recorded actor/native path
+  ([executed evidence](../../../tests/README.md#live-storage-engine-and-sql-execution-cutover)).
+  That result does not measure the current direct storage path. Matched workloads,
+  toolchains, storage and failure conditions are required for a new comparison.

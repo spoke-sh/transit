@@ -1,4 +1,4 @@
-//! Declarative metadata and conditional state creation above Station.
+//! Declarative identities, direct Table operations and named resource lifecycles.
 pub const station = @import("transit_station");
 pub const storage = @import("transit_storage");
 pub const protocol = station.protocol;
@@ -37,29 +37,10 @@ pub const DirectResourceClient = @import("DirectResourceClient.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");
-pub const SchemaCatalog = @import("SchemaCatalog.zig");
 pub const AuthorizationLowering = @import("AuthorizationLowering.zig");
-pub const AuthorizationSql = @import("AuthorizationSql.zig");
-pub const TableMetadataStore = @import("TableMetadataStore.zig");
-pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
-pub const TableCatalog = @import("TableCatalog.zig");
 pub const TableStorageEngine = @import("TableStorageEngine.zig");
-pub const TableDdlRequest = @import("TableDdlRequest.zig");
-pub const TableDmlRequest = @import("TableDmlRequest.zig");
-pub const TableCommand = @import("TableCommand.zig");
-pub const TableUpload = @import("TableUpload.zig");
-pub const TableControl = @import("TableControl.zig");
-pub const TableBehavior = @import("TableBehavior.zig");
-pub const TableIntent = @import("TableIntent.zig");
-pub const TableClient = @import("TableClient.zig");
-pub const TableBinding = @import("TableBinding.zig");
-pub const TablePreparedDml = @import("TablePreparedDml.zig");
-pub const TableDiagnostic = @import("TableDiagnostic.zig");
 pub const TableValues = @import("TableValues.zig");
 pub const TableLowering = @import("TableLowering.zig");
-pub const TableTyped = @import("TableTyped.zig");
-pub const TableBridge = @import("TableBridge.zig");
-pub const TableAttempt = @import("TableAttempt.zig");
 test {
     _ = DirectTableClient;
     _ = DirectTableDiagnostic;
@@ -80,20 +61,8 @@ test {
     _ = DirectDependency;
     _ = @import("direct_catalog_test.zig");
     _ = AuthorizationLowering;
-    _ = AuthorizationSql;
     _ = TableAuthority;
-    _ = TableAttempt;
     _ = TableStorageEngine;
-    _ = @import("table_bridge_test.zig");
-    _ = @import("table_values_test.zig");
-    _ = @import("table_client_test.zig");
-    _ = @import("table_intent_test.zig");
-    _ = @import("table_behavior_test.zig");
-    _ = @import("table_upload_test.zig");
-    _ = @import("table_command_test.zig");
-    _ = @import("table_metadata_test.zig");
-    _ = @import("table_catalog_test.zig");
-    _ = @import("simulation_test.zig");
 }
 
 pub const testing = if (@import("builtin").is_test) struct {

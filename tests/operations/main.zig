@@ -29,7 +29,6 @@ fn run(init: std.process.Init, diagnostic: *Diagnostic, structured: *bool, sourc
     if (args.len < 2) return error.InvalidInvocation;
     if (std.mem.eql(u8, args[1], "app")) return @import("Application.zig").run(init, args[2..], diagnostic);
     if (std.mem.eql(u8, args[1], "auth")) return @import("Authorization.zig").run(init, args[2..], diagnostic);
-    if (std.mem.eql(u8, args[1], "catalog")) return @import("Catalog.zig").run(init, args[2..], diagnostic);
     if (std.mem.eql(u8, args[1], "direct-catalog")) return @import("DirectAuthorization.zig").run(init, args[2..], diagnostic);
     if (std.mem.eql(u8, args[1], "file-query")) return @import("FileQuery.zig").run(init, args[2..], diagnostic, source);
     if (args.len == 3 and std.mem.eql(u8, args[1], "query")) {

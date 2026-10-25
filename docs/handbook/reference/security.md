@@ -117,14 +117,13 @@ publication checks the source lifetime even when the query runs in a different
 state resource. Native transitions use their recorded time sample and existing
 commit fence; see the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
 
-The [Table service](../../../apps/transit-table-service/README.md) lets a restricted
-caller use one Table without raw access to the shared catalog resource. Its
-private storage identity reads bytes while a separate, action-bound caller proof
-supplies the credential epoch and selected role for authorization. It checks all
-observed requirements before returning a complete response. Metadata is filtered
-by current visibility. Historical definitions use the original Table's authority,
-including after DROP or name reuse. Direct raw-resource grants deliberately allow
-broader inspection and are not a Table isolation mechanism.
+The [direct Table owner](../../../contracts/DIRECT_TABLE_V1.md) lets a caller
+use an authorized Table without raw access to the catalog lifetime resource.
+Each signed action binds the original credential epoch, selected role and
+connection. The node checks all accumulated requirements before disclosing a
+response. Metadata is filtered by current visibility. Retained metadata and rows
+use the original Table's authority after DROP or name reuse. Native raw-resource
+grants are separate permissions; they do not authorize a direct Table operation.
 
 Saved authorization changesets bind their reviewed scope and unsent intents to
 an original signature. Before recovery signs a continuation, it verifies that

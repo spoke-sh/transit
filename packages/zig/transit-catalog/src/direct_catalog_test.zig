@@ -19,6 +19,7 @@ const Access = struct {
     missing_schema: bool = false,
     denied_resource: ?u64 = null,
     denied_metadata: ?u64 = null,
+    deny_create: bool = false,
     allocation_binding: ?c.DirectResource.Binding = null,
     allocation_id: ?u64 = null,
     initialization: ?p.DataLifecycle.ResourceInitialization = null,
@@ -41,6 +42,7 @@ const Access = struct {
         value.access.calls += 1;
         if (value.access.calls >= value.access.deny_at) return error.CatalogDenied;
         for (value.requested.requirements) |slot| if (slot) |requirement| {
+            if (value.access.deny_create and std.meta.eql(requirement.object, a.reference(profile.initial_schema_authority)) and requirement.privileges & a.create != 0) return error.CatalogDenied;
             if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
             if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
         };
@@ -293,6 +295,126 @@ fn edit(view: *D.View, operation: u64, action: @FieldType(D.Intent, "action")) !
 }
 fn resolve(catalog: *D, access: *Access, name: []const u8) !?D.View {
     return catalog.resolve(t.allocator, 1, try a.Name.init(name), access.policy());
+}
+
+// This seeded schedule uses volatile log/object adapters. It exercises the real
+// catalog state machine and reconstruction, not disk or provider durability.
+test "simulation: direct catalog admission, publication and original receipts under current policy" {
+    var random = std.Random.DefaultPrng.init(t.random_seed);
+    const rng = random.random();
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const Accepted = struct { request: D.Request, outcome: D.Observation };
+    var accepted: std.ArrayList(Accepted) = .empty;
+    defer accepted.deinit(t.allocator);
+    for (0..40) |round| {
+        var name_buffer: [32]u8 = undefined;
+        const name = try std.fmt.bufPrint(&name_buffer, "item-{d}", .{round});
+        const prior = if (round % 4 == 0) null else accepted.items[4 * rng.uintLessThan(usize, (round + 3) / 4)].request;
+        const request = try creation(if (round % 4 == 2) prior.?.binding.target.object else 100 + round, 1000 + round, if (round % 4 == 1) prior.?.intent.name.slice() else name);
+        const before = catalog.store.root;
+        const appends = wal.appends;
+        const puts = objects.puts;
+        access.deny_create = true;
+        try t.expectError(error.CatalogDenied, catalog.admit(request, access.policy()));
+        try t.expectEqualDeep(before, catalog.store.root);
+        try t.expectEqual(appends, wal.appends);
+        try t.expectEqual(puts, objects.puts);
+        access.deny_create = false;
+
+        const lost_admission = rng.boolean();
+        catalog.store.lose_reply = lost_admission;
+        if (lost_admission) try t.expectError(error.LostAcknowledgement, catalog.admit(request, access.policy())) else _ = try catalog.admit(request, access.policy());
+        catalog.store.lose_reply = false;
+        const replace = rng.boolean();
+        if (replace) {
+            catalog.deinit();
+            catalog = try owner(&wal, &objects);
+        }
+        var outcome = try catalog.status(request.binding, access.policy());
+        const lost_publication = rng.boolean();
+        if (round % 4 == 0 or round % 4 == 3) {
+            try t.expect(outcome == .admitted);
+            try t.expect(try resolve(&catalog, &access, name) == null);
+            const admitted_at = catalog.store.root.next_lsn;
+            _ = try catalog.admit(request, access.policy());
+            try t.expectEqual(admitted_at, catalog.store.root.next_lsn);
+            access.deny_create = true;
+            try t.expectError(error.CatalogDenied, catalog.perform(request.binding, access.policy()));
+            try t.expectEqual(admitted_at, catalog.store.root.next_lsn);
+            access.deny_create = false;
+            if (round % 4 == 3) {
+                outcome = try catalog.cancel(request.binding, access.policy());
+                try t.expect(outcome == .cancelled);
+                try t.expect(try resolve(&catalog, &access, name) == null);
+            } else {
+                catalog.lose_table_reply = lost_publication;
+                if (lost_publication) try t.expectError(error.LostAcknowledgement, catalog.perform(request.binding, access.policy())) else _ = try catalog.perform(request.binding, access.policy());
+                catalog.lose_table_reply = false;
+                outcome = try catalog.status(request.binding, access.policy());
+                try t.expect(outcome == .committed);
+                try t.expectEqual(@as(u64, 1), outcome.committed.outcome.position.next_lsn);
+                try t.expectEqual(@as(u64, 1), outcome.committed.resulting.interpretation.revision);
+                try t.expectEqualDeep(outcome, try catalog.settle(request.binding, access.policy()));
+                access.denied_metadata = 100 + request.binding.target.object;
+                try t.expectError(error.CatalogDenied, resolve(&catalog, &access, name));
+                access.denied_metadata = null;
+            }
+        } else {
+            try t.expect(outcome == .rejected);
+            const reason: @TypeOf(outcome.rejected.reason) = if (round % 4 == 1) .name_conflict else .object_conflict;
+            try t.expectEqual(reason, outcome.rejected.reason);
+        }
+        try accepted.append(t.allocator, .{ .request = request, .outcome = outcome });
+        const replay = accepted.items[rng.uintLessThan(usize, accepted.items.len)];
+        access.deny_create = true;
+        try t.expectError(error.CatalogDenied, catalog.status(replay.request.binding, access.policy()));
+        access.deny_create = false;
+        catalog.deinit();
+        catalog = try owner(&wal, &objects);
+        const replay_at = catalog.store.root.next_lsn;
+        try t.expectEqualDeep(replay.outcome, try catalog.status(replay.request.binding, access.policy()));
+        try t.expectEqualDeep(replay.outcome, try catalog.perform(replay.request.binding, access.policy()));
+        try t.expectEqual(replay_at, catalog.store.root.next_lsn);
+        var altered = replay.request;
+        altered.intent.name = try a.Name.init("changed");
+        altered.binding.intent = try altered.intent.digest(t.allocator);
+        try t.expectError(error.DataIdentityConflict, catalog.admit(altered, access.policy()));
+        var after: ?s.TreeStore.pages.Key = null;
+        var count: usize = 0;
+        while (true) {
+            const page = try catalog.list(1, after, access.policy());
+            try t.expectEqual(.independent, page.consistency);
+            try t.expectEqual(replay_at, page.directory_position.next_lsn);
+            for (page.entries) |slot| if (slot) |item| {
+                const expected = accepted.items[count * 4].request;
+                try t.expectEqual(expected.binding.target.object, item.interpretation.object.object);
+                try t.expectEqualStrings(expected.intent.name.slice(), item.name.slice());
+                count += 1;
+            };
+            after = page.next orelse break;
+        }
+        try t.expectEqual((round / 4) + 1, count);
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"catalog\",\"round\":{d},\"outcome\":\"{s}\",\"lost_admission\":{},\"lost_publication\":{},\"replacement\":{},\"visible\":{d},\"directory_lsn\":{d}}}\n", .{ round, @tagName(outcome), lost_admission, lost_publication, replace, count, replay_at });
+    }
+    // A real continuation cannot combine pages across catalog publication.
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const inspection = c.DirectCatalogInspection;
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    const first = try catalog.list(1, null, access.policy());
+    const key = first.next orelse return error.TestUnexpectedResult;
+    const cursor = (try inspection.continuation(arena.allocator(), connection, .{ .tables = 1 }, null, first.directory_position, std.mem.readInt(u64, key.data[0..8], .big))).?;
+    const more = try creation(999, 9999, "additional");
+    _ = try catalog.admit(more, access.policy());
+    const next = try catalog.list(1, key, access.policy());
+    try t.expectError(error.CatalogObservationChanged, inspection.continuation(arena.allocator(), connection, .{ .tables = 1 }, cursor, next.directory_position, null));
 }
 
 fn dependencyBinding(source: p.DataLifecycle.Definition, operation: u64, dependent: u64) c.DirectDependency.Binding {

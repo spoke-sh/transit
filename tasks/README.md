@@ -49,10 +49,10 @@ directory. Recipes work from repository subdirectories after entering the dev
 shell. `just ci` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
-`just test::catalog` and `just test::typed-tables` use disk-backed cold storage
-with bounded hot storage and caches. Their retained authorization and Table
-histories can exceed a hot-only store's finite capacity; the proof does not
-raise that capacity or discard history to complete.
+`just test::catalog` qualifies direct dependencies and named native resources;
+`just test::direct-table-service` qualifies direct Table operations. Their local durable
+owners retain history on disk with bounded metadata/data caches. Growth schedules
+retain more objects and rows than those caches without discarding accepted work.
 
 | Command | What it does today |
 | --- | --- |
@@ -68,7 +68,7 @@ raise that capacity or discard history to complete.
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all six lane reports at the same committed revision |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
-| `just bindings::authorization` | Build all ten SDKs and run installed grant/use/revoke lifecycles through the private Table service without raw resource access |
+| `just bindings::authorization` | Build all ten SDKs and run installed direct catalog lifecycles with explicit selected roles, current revocation and denied raw resource access |
 | `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
 | `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |

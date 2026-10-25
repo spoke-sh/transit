@@ -2168,382 +2168,6 @@
       ]
     },
     {
-      "id": "catalog-caller",
-      "owners": [
-        "packages/zig/transit-catalog/src/TableBridge.zig",
-        "packages/zig/transit-catalog/src/TableClient.zig",
-        "packages/zig/transit-catalog/src/TableIntent.zig",
-        "packages/zig/transit-catalog/src/TableValues.zig",
-        "packages/zig/transit-catalog/src/TableTyped.zig",
-        "packages/zig/transit-catalog/src/Model.zig",
-        "packages/zig/transit-catalog/src/Records.zig",
-        "packages/zig/transit-catalog/src/Inspection.zig",
-        "packages/zig/transit-catalog/src/AuthorizationSql.zig",
-        "packages/zig/transit-catalog/src/SchemaCatalog.zig"
-      ],
-      "exclude": [],
-      "registry": "packages/zig/transit-catalog/src/CallerCodes.zig",
-      "projection": "packages/zig/transit-catalog/src/TableAttempt.zig",
-      "shared_codes": true,
-      "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
-      "stage": "Compile/prepare/read/submit at the actual dispatch boundary",
-      "outcome": "No-send attempts are not_submitted; failed reads are not_applicable; unconfirmed sends are unknown; native rejection is not a terminal domain outcome",
-      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
-      "context": "Exact saved general Table intent and connection; name lookup has no selected operation identity",
-      "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
-      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
-      "propagation": "Original SQL compiler evidence wins. Native transport, record and frame failures are explicit; remaining unexpected implementation errors preserve outcome uncertainty as internal failures.",
-      "codes": {
-        "InvalidCatalogObject": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "StaleAuthorizationRevision": {
-          "code": "catalog.authorization_changed",
-          "category": "conflict"
-        },
-        "InvalidAuthorizationPlan": {
-          "code": "catalog.invalid_authorization_plan",
-          "category": "binding"
-        },
-        "CatalogDatabaseMismatch": {
-          "code": "catalog.database_mismatch",
-          "category": "binding"
-        },
-        "SchemaIdentityRequired": {
-          "code": "catalog.schema_identity_required",
-          "category": "binding"
-        },
-        "CatalogSchemaMissing": {
-          "code": "catalog.schema_missing",
-          "category": "binding"
-        },
-        "CatalogSchemaNameExists": {
-          "code": "catalog.schema_name_exists",
-          "category": "conflict"
-        },
-        "InvalidSchemaCommand": {
-          "code": "catalog.invalid_schema_command",
-          "category": "binding"
-        },
-        "InvalidSchemaOutcome": {
-          "code": "catalog.invalid_schema_outcome",
-          "category": "integrity"
-        },
-        "AuthorizationBudgetExceeded": {
-          "code": "catalog.authorization_budget",
-          "category": "limit"
-        },
-        "CatalogCapacity": {
-          "code": "catalog.capacity",
-          "category": "limit"
-        },
-        "CatalogRegistrationRequired": {
-          "code": "catalog.registration_pending",
-          "category": "lifecycle"
-        },
-        "CatalogSigningUnavailable": {
-          "code": "catalog.signing_unavailable",
-          "category": "unsupported"
-        },
-        "TableIntentNotLoaded": {
-          "code": "table.intent_not_loaded",
-          "category": "lifecycle"
-        },
-        "InvalidTableIntent": {
-          "code": "table.invalid_intent",
-          "category": "binding"
-        },
-        "TableNotFound": {
-          "code": "table.not_found",
-          "category": "binding"
-        },
-        "TableUploadClosed": {
-          "code": "table.upload_state",
-          "category": "lifecycle"
-        },
-        "TableUploadNotFound": {
-          "code": "table.upload_state",
-          "category": "lifecycle"
-        },
-        "TableUploadNotReady": {
-          "code": "table.upload_state",
-          "category": "lifecycle"
-        },
-        "InvalidCatalogReceipt": {
-          "code": "table.invalid_evidence",
-          "category": "integrity"
-        },
-        "InvalidTableHead": {
-          "code": "table.invalid_evidence",
-          "category": "integrity"
-        },
-        "InvalidTableStatus": {
-          "code": "table.invalid_evidence",
-          "category": "integrity"
-        },
-        "CatalogOperationNotFound": {
-          "code": "catalog.operation_not_found",
-          "category": "lifecycle"
-        },
-        "TableWriteNotFound": {
-          "code": "table.operation_not_found",
-          "category": "lifecycle"
-        },
-        "MessageTooLarge": {
-          "code": "table.command_too_large",
-          "category": "limit"
-        },
-        "UnsupportedStatement": {
-          "code": "table.unsupported_statement",
-          "category": "unsupported"
-        },
-        "InvalidMutationColumns": {
-          "code": "table.invalid_columns",
-          "category": "binding"
-        },
-        "InvalidMutationPlan": {
-          "code": "table.invalid_plan",
-          "category": "binding"
-        },
-        "MutationBatchTooLarge": {
-          "code": "table.batch_too_large",
-          "category": "limit"
-        },
-        "PredicateTooLarge": {
-          "code": "table.predicate_too_large",
-          "category": "limit"
-        },
-        "AuthorityTransportDenied": {
-          "code": "catalog.transport_denied",
-          "category": "unavailable"
-        },
-        "CatalogDenied": {
-          "code": "catalog.access_denied",
-          "category": "access"
-        },
-        "AccessDenied": {
-          "code": "catalog.access_denied",
-          "category": "access"
-        },
-        "CatalogOwnerUnavailable": {
-          "code": "catalog.owner_unavailable",
-          "category": "unavailable"
-        },
-        "ResourceUnavailable": {
-          "code": "catalog.owner_unavailable",
-          "category": "unavailable"
-        },
-        "CatalogNotInitialized": {
-          "code": "catalog.not_initialized",
-          "category": "lifecycle"
-        },
-        "CatalogIdentityConflict": {
-          "code": "catalog.identity_conflict",
-          "category": "conflict"
-        },
-        "CatalogScopeChanged": {
-          "code": "catalog.scope_changed",
-          "category": "conflict"
-        },
-        "CatalogOwnerChanged": {
-          "code": "catalog.scope_changed",
-          "category": "conflict"
-        },
-        "CatalogConfigurationChanged": {
-          "code": "catalog.scope_changed",
-          "category": "conflict"
-        },
-        "CatalogPolicyConflict": {
-          "code": "catalog.policy_changed",
-          "category": "conflict"
-        },
-        "CatalogCursorChanged": {
-          "code": "catalog.cursor_changed",
-          "category": "conflict"
-        },
-        "CatalogDefinitionChanged": {
-          "code": "catalog.definition_changed",
-          "category": "conflict"
-        },
-        "CatalogSourceChanged": {
-          "code": "catalog.definition_changed",
-          "category": "conflict"
-        },
-        "InvalidCatalogIdentity": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogPrepared": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogInteger": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogPolicy": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogBinding": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidColumnName": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogPage": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "InvalidCatalogDefinition": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "InvalidCatalogDisposition": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "SignatureVerificationFailed": {
-          "code": "catalog.invalid_signature",
-          "category": "integrity"
-        },
-        "IncompatibleDefinition": {
-          "code": "catalog.incompatible_definition",
-          "category": "integrity"
-        },
-        "OutOfMemory": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "Unavailable": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "ConnectionRefused": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "ConnectionResetByPeer": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "ConnectionTimedOut": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "Timeout": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "Canceled": {
-          "code": "catalog.unavailable",
-          "category": "unavailable"
-        },
-        "Conflict": {
-          "code": "catalog.authority_conflict",
-          "category": "conflict"
-        },
-        "Rejected": {
-          "code": "catalog.authority_rejected",
-          "category": "conflict"
-        },
-        "AuthorityTimeout": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "AuthorityUnavailable": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "NameServerFailure": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "NetworkUnreachable": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "HostUnreachable": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "HttpConnectionClosing": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "ReadFailed": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "WriteFailed": {
-          "code": "catalog.transport_unavailable",
-          "category": "unavailable"
-        },
-        "EndOfStream": {
-          "code": "catalog.read_truncated",
-          "category": "unavailable"
-        },
-        "InvalidResourceRead": {
-          "code": "catalog.invalid_resource_read",
-          "category": "integrity"
-        },
-        "InvalidAuthorityResponse": {
-          "code": "catalog.invalid_authority_response",
-          "category": "integrity"
-        },
-        "InvalidFrame": {
-          "code": "catalog.invalid_frame",
-          "category": "integrity"
-        },
-        "InvalidCatalogCommand": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidTableId": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogRecord": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "CatalogDefinitionMissing": {
-          "code": "catalog.definition_missing",
-          "category": "integrity"
-        },
-        "InvalidTableServiceResponse": {
-          "code": "catalog.invalid_service_response",
-          "category": "integrity"
-        },
-        "UnsupportedTableServiceAction": {
-          "code": "catalog.unsupported_service_action",
-          "category": "unsupported"
-        },
-        "InvalidHttpBudget": {
-          "code": "catalog.invalid_http_budget",
-          "category": "binding"
-        },
-        "HttpRequestBudget": {
-          "code": "catalog.http_request_budget",
-          "category": "limit"
-        }
-      },
-      "exceptions": [],
-      "tests": [
-        {
-          "source": "packages/zig/transit-catalog/src/TableAttempt.zig",
-          "name": "general caller failures retain read and dispatch evidence"
-        },
-        {
-          "source": "packages/zig/transit-catalog/src/TableAttempt.zig",
-          "name": "exact historical inconsistencies require integrity inspection without new declaration advice"
-        }
-      ]
-    },
-    {
       "id": "board-inspection",
       "owners": [
         "packages/zig/transit-board-api/src/Document.zig",
@@ -4848,14 +4472,6 @@
           "code": "catalog.payload_limit",
           "category": "limit"
         },
-        "InvalidTableServiceResponse": {
-          "code": "catalog.invalid_service_response",
-          "category": "integrity"
-        },
-        "UnsupportedTableServiceAction": {
-          "code": "catalog.unsupported_service_action",
-          "category": "unsupported"
-        },
         "InvalidHttpBudget": {
           "code": "catalog.invalid_http_budget",
           "category": "binding"
@@ -4863,10 +4479,6 @@
         "HttpRequestBudget": {
           "code": "catalog.http_request_budget",
           "category": "limit"
-        },
-        "InvalidCatalogObject": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
         },
         "StaleAuthorizationRevision": {
           "code": "catalog.authorization_changed",
@@ -4888,33 +4500,17 @@
           "code": "catalog.schema_missing",
           "category": "binding"
         },
-        "CatalogSchemaNameExists": {
-          "code": "catalog.schema_name_exists",
-          "category": "conflict"
-        },
         "InvalidSchemaCommand": {
           "code": "catalog.invalid_schema_command",
           "category": "binding"
-        },
-        "InvalidSchemaOutcome": {
-          "code": "catalog.invalid_schema_outcome",
-          "category": "integrity"
         },
         "AuthorizationBudgetExceeded": {
           "code": "catalog.authorization_budget",
           "category": "limit"
         },
-        "CatalogCapacity": {
-          "code": "catalog.capacity",
-          "category": "limit"
-        },
         "CatalogRegistrationRequired": {
           "code": "catalog.registration_pending",
           "category": "lifecycle"
-        },
-        "CatalogSigningUnavailable": {
-          "code": "catalog.signing_unavailable",
-          "category": "unsupported"
         },
         "TableIntentNotLoaded": {
           "code": "table.intent_not_loaded",
@@ -4928,33 +4524,9 @@
           "code": "table.not_found",
           "category": "binding"
         },
-        "TableUploadClosed": {
-          "code": "table.upload_state",
-          "category": "lifecycle"
-        },
-        "TableUploadNotFound": {
-          "code": "table.upload_state",
-          "category": "lifecycle"
-        },
-        "TableUploadNotReady": {
-          "code": "table.upload_state",
-          "category": "lifecycle"
-        },
-        "InvalidCatalogReceipt": {
-          "code": "table.invalid_evidence",
-          "category": "integrity"
-        },
         "InvalidTableHead": {
           "code": "table.invalid_evidence",
           "category": "integrity"
-        },
-        "InvalidTableStatus": {
-          "code": "table.invalid_evidence",
-          "category": "integrity"
-        },
-        "CatalogOperationNotFound": {
-          "code": "catalog.operation_not_found",
-          "category": "lifecycle"
         },
         "TableWriteNotFound": {
           "code": "table.operation_not_found",
@@ -4996,10 +4568,6 @@
           "code": "catalog.access_denied",
           "category": "access"
         },
-        "CatalogOwnerUnavailable": {
-          "code": "catalog.owner_unavailable",
-          "category": "unavailable"
-        },
         "ResourceUnavailable": {
           "code": "catalog.owner_unavailable",
           "category": "unavailable"
@@ -5024,19 +4592,11 @@
           "code": "catalog.scope_changed",
           "category": "conflict"
         },
-        "CatalogPolicyConflict": {
-          "code": "catalog.policy_changed",
-          "category": "conflict"
-        },
         "CatalogCursorChanged": {
           "code": "catalog.cursor_changed",
           "category": "conflict"
         },
         "CatalogDefinitionChanged": {
-          "code": "catalog.definition_changed",
-          "category": "conflict"
-        },
-        "CatalogSourceChanged": {
           "code": "catalog.definition_changed",
           "category": "conflict"
         },
@@ -5052,27 +4612,11 @@
           "code": "catalog.invalid_command",
           "category": "binding"
         },
-        "InvalidCatalogPolicy": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidCatalogBinding": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
         "InvalidColumnName": {
           "code": "catalog.invalid_command",
           "category": "binding"
         },
         "InvalidCatalogPage": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "InvalidCatalogDefinition": {
-          "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "InvalidCatalogDisposition": {
           "code": "catalog.invalid_record",
           "category": "integrity"
         },
@@ -5168,20 +4712,8 @@
           "code": "catalog.invalid_frame",
           "category": "integrity"
         },
-        "InvalidCatalogCommand": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
-        "InvalidTableId": {
-          "code": "catalog.invalid_command",
-          "category": "binding"
-        },
         "InvalidCatalogRecord": {
           "code": "catalog.invalid_record",
-          "category": "integrity"
-        },
-        "CatalogDefinitionMissing": {
-          "code": "catalog.definition_missing",
           "category": "integrity"
         }
       },
