@@ -61,8 +61,9 @@ With Ursula storage, run `--maintain` separately for authorized lifetime,
 collection and checkpoint work. With local storage, the `maintenance` setting
 runs lifecycle scans and accepted-floor trimming inside the node's exclusive
 owner; a separate `--maintain` process rejects. Local immutable objects remain
-retained. The local launcher selects this backend. Table operations still use
-their existing native resource owner. The
+retained. The local launcher selects this backend. Configured Table operations
+use the separate direct Table owner; native process, KV and Document state retain
+their paged native commit boundary. The
 [courier](../transit-delivery/README.md) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
 reconciles physical placement through Substrate. Workers need neither Ursula
@@ -83,8 +84,10 @@ binary row writes, retained reads and release through its serialized envelopes.
 The dispatcher checks current rights after buffering the response; a concurrent
 revocation suppresses disclosure. The local `table` setting exposes this dispatcher
 at `/table/v1`. The local launcher configures this owner for its default Tables;
-the shared SQL session uses the same signed direct operations. Captured-query
-and language SDK migration remains incomplete.
+the shared SQL session, captured queries and direct catalog SDK adapters use
+the same signed direct operations. The [catalog caller guide](../../packages/zig/transit-catalog/README.md)
+describes the typed operations and host boundary; the [SDK reference](../../docs/handbook/reference/sdks.md)
+owns language coverage.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
