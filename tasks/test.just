@@ -17,7 +17,7 @@ storage-segments:
 
 # Full-key pages, retained intervals, collation order, signing and owned decoding.
 storage-key-ranges:
-    cd packages/zig/transit-storage && zig build test -Dtest-filter="ordered full keys" -Dtest-filter="retained Table key ranges" -Dtest-filter="Table recovery" -Dtest-filter="Table segment ranges" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="ordered full key" -Dtest-filter="Table index batches" -Dtest-filter="retained Table key ranges" -Dtest-filter="Table recovery" -Dtest-filter="Table segment ranges" --summary all
     cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained key range" -Dtest-filter="retained reader binds" --summary all
 
 # Independent provider stalls, exact publication races and current revocation.
