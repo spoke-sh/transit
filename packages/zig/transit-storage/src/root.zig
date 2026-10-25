@@ -1,6 +1,6 @@
 //! `transit_storage`: Tiered storage runtime for Transit (`TransitLog` write-ahead
 //! logs, `TransitObjectStore` segment/manifest stores, Tier 0 `TableMemtable`,
-//! Tier 2 `NvmeCache`, S3 SigV4 adapter, and lock-free multi-writer OCC coordinator).
+//! Tier 2 `NvmeCache`, S3 SigV4 adapter, and optimistic manifest rebasing).
 pub const TransitLog = @import("TransitLog.zig");
 pub const TransitObjectStore = @import("TransitObjectStore.zig");
 pub const LocalWal = @import("LocalWal.zig");

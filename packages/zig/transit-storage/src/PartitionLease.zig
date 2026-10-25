@@ -1,5 +1,6 @@
 //! Partitioned Control vs. Data Log separation, Epoch-Fenced `PartitionLease`
-//! records, and Lock-Free Multi-Writer OCC Manifest Rebase Coordinator.
+//! records, and optimistic manifest rebasing as separate storage components.
+//! Conditional provider I/O may block; this is not the installed Table owner.
 const std = @import("std");
 const TransitLog = @import("TransitLog.zig");
 const TransitObjectStore = @import("TransitObjectStore.zig");
@@ -7,8 +8,9 @@ const TableManifest = @import("TableManifest.zig");
 const fuze = @import("transit_fuze");
 const TSeg = fuze.TSeg;
 
-/// Partition 0 is reserved exclusively for the Control & Policy Log (catalog mutations,
-/// policy epoch advancements, and partition lease assignments). Data-plane partitions use >= 1.
+/// This lease component reserves partition 0 for its control records and uses
+/// partitions >= 1 for data. The installed native backend separately uses
+/// partition 0 for its complete native history, including process/resource work.
 pub const control_partition_id: u64 = 0;
 
 pub const PartitionLease = struct {

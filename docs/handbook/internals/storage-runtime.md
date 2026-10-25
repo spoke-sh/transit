@@ -304,65 +304,45 @@ flowchart TB
 
 ### De-monolithing authority: partitioned logs, fenced leases and multi-writer OCC
 
-To eliminate the single global realm B-tree sequencer without losing immediate
-permission revocation or conflict detection, concurrency progresses through three
-composable levels:
+The question is how separate writers can preserve one acceptance boundary and
+current permissions. The installed answer is the exclusive local owner described
+above; distributed leases and optimistic manifest rebasing are separate component
+experiments. Their records do not establish a distributed authorization service.
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant Policy as Control & Policy Log<br/>(transit-node)
-  participant W1 as Data Writer A<br/>(Partition Lease / OCC)
-  participant W2 as Data Writer B<br/>(Concurrent OCC Writer)
-  participant Log as TransitLog Partition<br/>(LocalWal / Ursula / Kafka)
-  participant Obj as TransitObjectStore<br/>(S3 / LocalSegmentStore)
+| Boundary | Implemented model | Limit of the inference |
+| --- | --- | --- |
+| Native authority | Partition zero preserves native history, including control, process and resource transitions. Immutable roots and bounded caches serve current authorization. | The entire policy graph need not fit in RAM. Separate Table partitions do not remove the native journal's serialization point. |
+| Direct Table acceptance | The owner stages immutable bytes, validates the original expected definition/head and current native fence, then conditionally appends the Table acceptance record. Point and bulk writes use that same authority. | A staged `.tseg` or component manifest is not an accepted Table operation. The local host serializes publication; this does not qualify independent distributed writers. |
+| Lease and manifest components | `PartitionLease` encodes epoch/expiry fields; `OccCoordinator` retries conditional manifest publication and checks overlapping primary keys. | Those mechanisms do not establish current grants, immediate revoke/append ordering, predicate isolation or native turn atomicity. |
 
-  Policy->>W1: Issue Lease (partition_id, writer_epoch=4, policy_epoch=12)
-  W1->>Log: Append TWAL1 batch (writer_epoch=4, policy_epoch=12)
-  W1->>Obj: put_immutable(seg_uuid_A.tseg, sha256)
-  W2->>Obj: put_immutable(seg_uuid_B.tseg, sha256)
-  W1->>Obj: put_conditional(manifest/v10, If-None-Match) -> 200 OK
-  W2->>Obj: put_conditional(manifest/v10, If-None-Match) -> 412 Precondition Failed
-  W2->>Obj: Read manifest/v10 & check PK overlap (seg_A vs seg_B)
-  Note over W2,Obj: Disjoint PK ranges / append-only: O(1) manifest rebase
-  W2->>Obj: put_conditional(manifest/v11 = v10 + seg_B, If-None-Match) -> 200 OK
-```
+The [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md) and
+[partition caller contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
+identify the acceptance and recovery transitions. A future independent-writer
+profile must retain one decision that governs visibility and exact outcomes.
+Treating both a WAL append and a later competing manifest CAS as independent
+acceptance points would leave conflict and crash recovery ambiguous. Broadcasting
+a new policy epoch alone is also insufficient: a disconnected writer must not
+continue accepting under an obsolete grant. The acceptance owner needs an
+explicit current-authority fence or a separately specified revocation protocol.
 
-1. **Level 1 — Partitioned Authority (Control Log vs. Data/Process Partitions):**
-   - The **Control & Policy Log** holds only principals, role memberships, grants,
-     the monotonic `policy_epoch` counter, the catalog directory (`CatalogId`,
-     `DefinitionId`), and partition lease assignments. Because control plane
-     mutations (`GRANT`, `REVOKE`, `CREATE TABLE`) are low-frequency and small,
-     the entire policy graph stays pinned in Tier 0 RAM on every node.
-   - Each Table partition and each `Station` process group owns an independent
-     **`TransitLog` partition** and **`Manifest` chain**. Writes to Table A and
-     Table B never contend on a shared B-tree root.
-2. **Level 2 — Epoch-Fenced Partition Leases for Direct Data-Plane Writes:**
-   - `transit-node` issues a scoped **Partition Lease**
-     `(partition_id, writer_epoch, policy_epoch)` to an authorized writer.
-   - While `policy_epoch` remains current, the writer appends `TWAL1` batches
-     directly to the partition's `TransitLog` and flushes `.tseg` segments and
-     `manifest/v{N}` directly to `TransitObjectStore` without proxying row bytes
-     through `transit-node`.
-   - If a privilege is revoked (`REVOKE`), the Control Log increments
-     `policy_epoch` and broadcasts the invalidation; any in-flight write or
-     manifest commit carrying a stale `policy_epoch` or superseded `writer_epoch`
-     is rejected before acceptance.
-3. **Level 3 — Lock-Free Multi-Writer Optimistic Concurrency Control (OCC):**
-   - Multiple writers on the same table stage immutable `.tseg` files in parallel
-     to `TransitObjectStore` under collision-free UUIDv7 keys (`put_immutable`).
-   - Each writer attempts to publish `manifest/v{N+1}` via conditional CAS
-     (`If-None-Match` on `manifest/v{N+1}`).
-   - If Writer B loses the CAS race to `manifest/v{N+1}` committed by Writer A:
-     - **Pure append or disjoint primary-key ranges:** Writer B verifies via the
-       manifest's segment PK `min`/`max` bounds and embedded B-tree footer
-       indexes that $\text{keys}(\text{seg}_A) \cap \text{keys}(\text{seg}_B) = \emptyset$,
-       and rebases its manifest commit to `manifest/v{N+2}` in $O(1)$ metadata
-       work without rewriting `.tseg` data bytes.
-     - **Overlapping primary-key mutation / serializable conflict:** Writer B
-       detects the intersecting key in $\text{seg}_A$'s PK B-tree index and
-       either regenerates its `.tdel` bitmap against `v{N+1}` or returns a
-       deterministic serialization conflict.
+The [manifest coordinator](../../../packages/zig/transit-storage/src/PartitionLease.zig)
+is an alternative component path, not that installed protocol. It copies the
+manifest's segment descriptors and can read complete overlapping segments to
+compare primary keys. Rebase work therefore depends on manifest and conflict
+size; avoiding a rewrite of immutable segments does not make metadata work
+constant-time. It bounds retries at eight, but neither bounded retries nor an
+optimistic algorithm establishes lock-free progress when provider operations
+use locks or blocking I/O. Read-set, predicate and absence conflicts require
+additional transaction semantics beyond disjoint write keys.
+
+These deductions follow from the component's allocation, object-read and
+conditional-publication paths. Its unit checks and the separate local public
+[CRUD/DDL recovery schedule](../../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+are reproducible through the pinned tasks recorded in the proof ledger. They
+qualify their respective component and local failure domains. No independent
+writer, distributed revocation, fairness or throughput result follows from
+those passes; such claims require an implemented protocol and adversarial
+concurrent-provider histories.
 
 ### Live catalog, query and authority cache integration
 
