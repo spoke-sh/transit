@@ -26133,3 +26133,19 @@ current denial before cached or terminal result disclosure. The other language
 schedules verified retained metadata under current access; those runs do not
 establish equivalent retained SQL coverage. These are finite native-local
 schedules, not qualification of other storage providers.
+
+## Direct mutation measurement driver — 2026-10-24
+
+The persistent mutation measurement client now retains its exact direct Table
+intent and reference before staging/admission. It drives the direct owner and
+reports that owner's committed row counts. Independent SQL-session reads check
+the resulting values outside the timed interval.
+
+`just test::mutation-latency --output REPORT --repeat 1 --client CLIENT` passed
+all seven mutation cases against native local storage with the ReleaseSafe
+client (`transit-direct-mutation-client-smoke-2.json`). The first migrated attempt
+failed because its verifier supplied the removed console `execution` setting;
+it supplies no complete-run evidence. The corrected smoke run observed no unknown
+outcomes. One sample per case verifies the driver and oracle only: it does not
+establish percentiles, a comparative speedup, sustained load or instrumented
+native completion timelines. The four measurement-helper tests also passed.

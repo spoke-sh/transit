@@ -289,8 +289,7 @@ def main():
         gate = fixture.root / 'probe-gate' if args.instrument else None
         if args.instrument:
             real_port = free_port()
-            probes['provider'] = Probe(f"http://127.0.0.1:{fixture.config['ports']['store']}")
-            fields.update(port=real_port, ursula_url=probes['provider'].url)
+            fields.update(port=real_port)
             if args.native_metrics:
                 fields['request_metrics'] = True
         override(fixture, 'node', fields, gate)
@@ -308,14 +307,14 @@ def main():
             Path(str(gate) + '.ready').touch()
         fixture.ready()
         config = fixture.root / 'reader.json'
-        config.write_text(json.dumps(dict(fixture.console_config(), execution='interactive')))
+        config.write_text(json.dumps(fixture.console_config()))
         verifier = Console(fixture, config)
         shells.append(verifier)
         writer_config = None
         if args.client:
             writer_config = fixture.root / 'client.json'
             writer_config.write_text(json.dumps({'url': fixture.url, 'seed_file': str(fixture.installation / 'caller.seed'),
-                'connection': dict(scope=dict(realm=fixture.config['realm'], resource=fixture.record()['provision'][5], catalog=1), owner=fixture.record()['provision'][4], principal=10)}))
+                'connection': fixture.record()['default_table']['connection']}))
         writer = Console(fixture, writer_config, args.client)
         shells.append(writer)
         creation, expected_extra = schema_profile(args.schema_profile)
@@ -329,7 +328,7 @@ def main():
                     report['unknown_outcomes'] += 1
                     report['failed_sample'] = {'case': 'schema_setup', **writer.last_measurement}
                     raise
-                assert result['table_operation']['phase'] == 'applied', result
+                assert result['operation']['phase'] == 'terminal' and result['operation']['outcome'] in ('applied', 'unchanged'), result
                 report['schema_profile']['setup'].append(measurement)
                 save()
 
@@ -348,9 +347,8 @@ def main():
             completed = time.monotonic_ns() - native.started_ns if native else None
             changed = 0 if case == 'update_same' else affected
             if args.client:
-                outcome = result['table_operation']
-                assert outcome['phase'] == 'applied' and outcome['diagnostic']['outcome'] == 'applied', result
-                assert outcome['counts'] == dict(matched=str(affected), changed=str(changed)), result
+                outcome = result['direct_table']['rows']['committed']['outcome']
+                assert (outcome['matched'], outcome['affected']) == (str(affected), str(changed)), result
             else:
                 outcome = result['operation']
                 assert outcome['phase'] == 'terminal' and outcome['outcome'] in ('applied', 'unchanged'), result
@@ -378,9 +376,8 @@ def main():
             shell = None
             try:
                 path = fixture.root / f'reader-{index}.json'
-                # Catalog reads are interactive and retain no durable query
-                # recovery file. Each reader still owns its console process.
-                path.write_text(json.dumps(dict(fixture.console_config(), execution='interactive')))
+                # Each reader owns its console process and server SQL session.
+                path.write_text(json.dumps(fixture.console_config()))
                 shell = Console(fixture, path)
                 while not stop.is_set():
                     value, _ = shell.call('SELECT COUNT(*) FROM items;')
