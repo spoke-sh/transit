@@ -375,7 +375,18 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
         try self.io.sleep(.fromMilliseconds(1), .awake);
     }
     defer self.admission_mutex.unlock(self.io);
-    if (try self.lookup(observer, nonce, fingerprint)) |existing| {
+    // The background worker may advance the current resource revision during
+    // this lookup too. Reopen only the observation, retaining the caller's
+    // nonce/fingerprint and deadline before any admission is published.
+    const previous = while (true) {
+        try deadline.check(self.io);
+        break self.lookup(observer, nonce, fingerprint) catch |err| {
+            if (!retryObservation(observer.transport, err)) return err;
+            try self.io.sleep(.fromMilliseconds(5), .awake);
+            continue;
+        };
+    };
+    if (previous) |existing| {
         operation.* = existing.id;
         return existing;
     }
