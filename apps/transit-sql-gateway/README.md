@@ -35,6 +35,17 @@ Other projected types reject without opening a result stream.
 Each UTF-8 or binary bound parameter is limited to 4096 bytes. SQL text, complete
 intent size and session budgets have separate limits in the wire contract.
 
+Prepared handles retain the original Table identity. ALTER invalidates its
+definition and reports PostgreSQL SQLSTATE `55000` or MySQL error `1105` with
+"Prepared source changed; prepare again". A handle targeting a retired Table
+receives current-access denial (`42501` / `1142`), including after same-name
+replacement. A fresh preparation of an absent name reports `42P01` / `1146`.
+Neither failure automatically recompiles or retargets the old handle.
+Ordinary current-state contention also reports `55000` / `1105`, retaining any
+accepted operation identity and requiring inspection before repeating a write.
+A caller can start a new read after failure before its first batch; it cannot
+splice that read onto an earlier result prefix.
+
 For PostgreSQL/MySQL, transactions, multi-statement requests, savepoints, autocommit-off, ALTER/DROP,
 RETURNING, COPY, bulk/long-data uploads, cursors, replication and arbitrary system
 catalog emulation are unsupported. PostgreSQL extended writes require exactly

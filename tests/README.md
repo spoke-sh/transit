@@ -26753,3 +26753,33 @@ The workload takes 26.014 seconds, excluding compilation. The runtime's
 60-second deadline, native four-mutation/256-byte turn limits and existing
 receipt assertions are unchanged. This focused pass does not complete the
 remaining ordinary CI tasks.
+
+## Direct Table SQL wire diagnostics and current authority — 2026-10-25
+
+At `341365c62f8710e69c2949b792c3d991e420478f`, the fresh committed-source
+`just test::sql-gateway` completes in 287.34 seconds, including compilation.
+The following wire schedule fails because its revocation fixture inspects an
+arbitrary old operation and assumes SELECT controls mutation receipts. The
+direct Table owner instead checks CONNECT, USAGE and the original mutation
+privilege. The corrected fixture identifies the exact detached INSERT, checks
+its one matched/changed row, retains its receipt under SELECT revocation,
+suppresses it under INSERT revocation, and recovers the same receipt after
+restoration. Row and metadata disclosure remain denied without SELECT. These
+assertions complete in the subsequent wire run, which then fails at schema
+invalidation; neither invocation is a complete wire pass.
+
+That failure exposes a diagnostic gap: the HTTP client returns a status-class
+error while retaining the verified Table definition rejection separately.
+The SQL adapter now maps that verified cause to the prepared-source diagnostic.
+Ordinary current-state contention receives its own prerequisite-state diagnostic
+while preserving any admitted operation identity. Neither classification retries
+a write, retargets a prepared handle, or joins a new read to an earlier prefix.
+Unit assertions cover both remote status classes, retained operation details,
+denial precedence, unrelated failures and immediate stale-definition rejection.
+
+The focused wire schema schedule subsequently completes its assertions through
+both PostgreSQL and MySQL: ALTER invalidates the definition, DROP and same-name
+replacement deny the original retired identity, fresh lookup of the absent name
+reports a missing Table, and fresh preparation binds the empty replacement.
+The default full wire schedule is unchanged; its remaining qualification is
+still required.
