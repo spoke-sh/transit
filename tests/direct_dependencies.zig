@@ -19,6 +19,79 @@ pub const State = struct {
 };
 const name = "dependency_source";
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+pub const GrowthState = struct { original: dep.Outcome, blocked_drop: d.Binding };
+const growth_count = 139;
+
+pub fn growthWrite(client: c.DirectTableClient, admin: anytype, role: u64) !GrowthState {
+    var arena = std.heap.ArenaAllocator.init(client.allocator);
+    defer arena.deinit();
+    var preparing = client;
+    preparing.allocator = arena.allocator();
+    const plan = try prepare(preparing, admin, role);
+    const original = (try operation(client, plan.registration, .accept)).outcome;
+    try t.expect(original.phase == .applied and original.changed);
+    for (1..growth_count) |i| {
+        var binding = plan.registration;
+        binding.operation = 900000 + i;
+        binding.edge.dependent.interpretation.object.object += i;
+        const result = (try operation(client, binding, .accept)).outcome;
+        try t.expect(result.phase == .applied and result.changed);
+        try t.expectEqualDeep(binding, result.binding);
+    }
+    const state: GrowthState = .{ .original = original, .blocked_drop = plan.blocked_drop };
+    try growthRecover(client, admin, state);
+    return state;
+}
+
+pub fn growthRecover(client: c.DirectTableClient, admin: anytype, state: GrowthState) !void {
+    const registration = state.original.binding;
+    const expected = registration.edge;
+    var cursor: ?dep.Cursor = null;
+    var position: ?d.Position = null;
+    var previous: ?[32]u8 = null;
+    var seen: usize = 0;
+    // Keep one four-edge page and one reverse lookup resident. Strict digest
+    // ordering plus the exact identity range proves completeness without a set.
+    for (0..256) |_| {
+        const current = try pageAt(client, .{ .dependents = expected.source.object }, cursor);
+        if (position) |first| try t.expectEqualDeep(first, current.position);
+        position = current.position;
+        for (current.entries) |slot| if (slot) |edge| {
+            try t.expectEqualDeep(expected.source, edge.source);
+            const object = edge.dependent.interpretation.object.object;
+            const first = expected.dependent.interpretation.object.object;
+            try t.expect(object >= first and object - first < growth_count);
+            var exact = expected;
+            exact.dependent.interpretation.object.object = object;
+            try t.expectEqualDeep(exact, edge);
+            const digest = try edge.digest();
+            if (previous) |prior| try t.expect(std.mem.order(u8, &prior, &digest) == .lt);
+            previous = digest;
+            const reverse = try page(client, .{ .dependencies = edge.dependent.interpretation.object });
+            try t.expectEqualDeep(edge, reverse.entries[0].?);
+            try t.expectEqual(null, reverse.entries[1]);
+            try t.expectEqual(null, reverse.next);
+            seen += 1;
+        };
+        cursor = current.next orelse break;
+    } else return error.DependencyPageBudget;
+    try t.expectEqual(@as(usize, growth_count), seen);
+    try t.expectEqualDeep(state.original, (try operation(client, registration, .inspect)).outcome);
+    try t.expectEqualDeep(state.original, (try operation(client, registration, .accept)).outcome);
+    try restrictedBinding(client, state.blocked_drop);
+    const resource = expected.dependent.interpretation.object.scope.resource;
+    _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = client.connection.principal, .permissions = 0 } });
+    try t.expectError(error.AccessDenied, operation(client, registration, .inspect));
+    cursor = null;
+    for (0..256) |_| {
+        const hidden = try pageAt(client, .{ .dependents = expected.source.object }, cursor);
+        for (hidden.entries) |entry| try t.expectEqual(null, entry);
+        cursor = hidden.next orelse break;
+    } else return error.DependencyPageBudget;
+    try restrictedBinding(client, state.blocked_drop);
+    _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = client.connection.principal, .permissions = 5 } });
+    try t.expectEqualDeep(state.original, (try operation(client, registration, .inspect)).outcome);
+}
 
 fn create(client: c.DirectTableClient, role: u64, object: u64, operation_id: u64) !d.Definition {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
@@ -105,10 +178,21 @@ pub fn uncertain(client: c.DirectTableClient, binding: host.Binding) !void {
 }
 
 fn page(client: c.DirectTableClient, selection: dep.Selection) !dep.Page {
+    return pageAt(client, selection, null);
+}
+fn pageAt(client: c.DirectTableClient, selection: dep.Selection, cursor: ?dep.Cursor) !dep.Page {
     var arena = std.heap.ArenaAllocator.init(client.allocator);
     defer arena.deinit();
-    const value = (try host.apply(arena.allocator(), client, .{ .page = .{ .selection = try host.Selection.foreign(arena.allocator(), selection), .cursor = null, .authority = .dependent } })).page;
-    var result: dep.Page = .{ .position = try value.position.native(), .next = if (value.next) |cursor| try cursor.native(client.connection) else null };
+    const saved_cursor: ?host.Cursor = if (cursor) |value| .{
+        .definition = p.Growth.current_definition,
+        .connection = try c.DirectTableValues.Connection.foreign(arena.allocator(), client.connection),
+        .selection = try host.Selection.foreign(arena.allocator(), value.selection),
+        .authority = value.authority,
+        .position = try c.DirectTableValues.Position.foreign(arena.allocator(), value.position),
+        .after = try c.TableValues.hex(arena.allocator(), &value.after),
+    } else null;
+    const value = (try host.apply(arena.allocator(), client, .{ .page = .{ .selection = try host.Selection.foreign(arena.allocator(), selection), .cursor = saved_cursor, .authority = .dependent } })).page;
+    var result: dep.Page = .{ .position = try value.position.native(), .next = if (value.next) |next| try next.native(client.connection) else null };
     for (value.entries, &result.entries) |slot, *entry| if (slot) |edge| {
         entry.* = try edge.native();
     };
@@ -123,10 +207,13 @@ fn present(client: c.DirectTableClient, edge: dep.Edge) !bool {
 }
 
 fn restricted(client: c.DirectTableClient, state: State) !void {
-    const preview = try client.call(.{ .preview = .{ .binding = state.blocked_drop, .namespace = 1, .name = name, .action = .drop } });
+    return restrictedBinding(client, state.blocked_drop);
+}
+fn restrictedBinding(client: c.DirectTableClient, binding: d.Binding) !void {
+    const preview = try client.call(.{ .preview = .{ .binding = binding, .namespace = 1, .name = name, .action = .drop } });
     defer preview.deinit();
     try t.expectEqual(.dependency, preview.value.result.preview.reason);
-    const rejected = try client.call(.{ .admit_ddl = .{ .binding = state.blocked_drop, .namespace = 1, .name = name, .action = .drop } });
+    const rejected = try client.call(.{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = name, .action = .drop } });
     defer rejected.deinit();
     try t.expectEqual(.dependency, rejected.value.result.ddl.rejected.reason);
 }

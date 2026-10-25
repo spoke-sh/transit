@@ -26257,3 +26257,33 @@ pass. Diagnostic inventory, semantic mappings, inferred error boundaries and
 3,401 outcome projections pass; documentation checks cover 5,995 local links.
 The reference-placement rerun and final repository/clean-checkout gates remain
 separate from this focused client evidence.
+
+The subsequent `nix develop --command just check` run also passes with the client
+fix, including contracts and independent fixtures, core units, CLI/console
+checks, frontend validation and the handbook build. This working-tree result
+does not establish the separately running growth/reference schedules or clean
+CI against committed HEAD.
+
+## Public dependency graph growth and restart — 2026-10-24
+
+`just test::direct-table-service dependency-growth` passes 577 typed calls with
+139 retained dependency edges, one native resident page and the direct catalog's
+16-page cache. The shared host boundary registers distinct captured-definition
+identities under one explicitly authorized native metadata resource. Four-edge
+forward pages and single-dependent reverse pages verify every identity and exact
+interpretation without accumulating the graph. Strict digest order, a fixed
+observation position and the exact identity range establish completeness.
+
+After node SIGKILL and disk restart, both graph directions, the byte-identical
+saved plan and original first receipt remain valid. Current metadata revocation
+redacts all pages and denies receipt inspection while DROP RESTRICT still holds;
+restored rights recover the same receipt. These are dependency metadata owners,
+not 139 executed captured queries or a distributed-provider test.
+
+The first attempt failed compilation because a cursor capture shadowed a
+parameter. The next functional run passed but reported temporary fixture string
+leaks. The corrected fixture owns those strings in a bounded preparation arena,
+retains only native fixed-size evidence, and passes the full run without allocator
+errors. The ordinary catalog task now includes this schedule and the separate
+139-resource growth/restart schedule; the latter has no completed run at this
+checkpoint.
