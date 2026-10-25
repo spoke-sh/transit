@@ -3,6 +3,11 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
 const expect = baseExpect.configure({ timeout: 30000 });
 const config = JSON.parse(readFileSync(process.argv[2], "utf8"));
+// Reference storage/worker progress has a separate aggregate correctness budget.
+// HTTP deadlines, session leases, result assertions and native/Compose budgets
+// are unchanged. This does not qualify the failed three-minute reference runs.
+const queryTimeout = config.profile === "reference" ? 360000 : 180000;
+console.log("Live-view finite query budget:", config.profile, queryTimeout, "ms");
 const browser = await chromium.launch({
   headless: true,
   args: [`--ignore-certificate-errors-spki-list=${config.spki}`],
@@ -208,6 +213,7 @@ try {
   await board.getByRole("button", { name: "Enter resource", exact: true }).click();
   await expect(board.getByLabel("SQL draft", { exact: true })).toBeVisible();
   await board.getByLabel("SQL draft", { exact: true }).fill("SELECT * FROM counter");
+  const initialQueryStart = performance.now();
   await board.getByRole("button", { name: "Run query", exact: true }).click();
   await expect(
     board.getByRole("button", { name: "Retry exact submission", exact: true }),
@@ -233,7 +239,8 @@ try {
   ).toBeVisible();
   assert(!exact, "navigation must not retry an uncertain mutation");
   await board.getByRole("button", { name: "Retry exact submission", exact: true }).click();
-  await expect(board.getByLabel("Verified query result")).toBeVisible({ timeout: 180000 });
+  await expect(board.getByLabel("Verified query result")).toBeVisible({ timeout: queryTimeout });
+  timings.initialQueryWithRecoveryToVerifiedMs = Math.round(performance.now() - initialQueryStart);
   assert(exact);
   await expect(board.getByLabel("Verified query result")).toContainText("20 total rows");
   const original = await board.getByLabel("Verified query result").textContent();
@@ -267,19 +274,21 @@ try {
     assert.equal(displayedNamespace, namespace);
     timings.physicalRecoveryMs = Math.round(performance.now() - recoveryStart);
   }
+  const followStart = performance.now();
   await board.getByRole("button", { name: "Follow changes", exact: true }).click();
-  // Follow first prepares eight independently authorized finite captures. Allow
-  // the same bounded execution deadline as a query, including exact recovery.
+  // Follow first prepares eight independently authorized finite captures under
+  // its separate three-minute preparation deadline, including exact recovery.
   await expect(board.getByLabel("Query follow controls").getByRole("status")).toContainText(
     "current",
     { timeout: 180000 },
   );
+  timings.followPreparationToCurrentMs = Math.round(performance.now() - followStart);
   await stage("ready");
   const queryStart = performance.now();
   // Another committed mutation while following admits a distinct finite query.
   writeFileSync(config.marker, "mutate");
   await expect(board.getByLabel("Verified query result")).not.toHaveText(original, {
-    timeout: 180000,
+    timeout: queryTimeout,
   });
   await expect(board.getByLabel("Query follow controls").getByRole("status")).toContainText(
     "current",
@@ -320,7 +329,7 @@ try {
   await stage("mutate-again");
   await expect(
     board.getByText("Query access denied. Protected workspace data cleared.", { exact: true }),
-  ).toBeVisible({ timeout: 180000 });
+  ).toBeVisible({ timeout: queryTimeout });
   assert(deniedBetweenReads, "denial must occur between complete coverage and the visible reread");
   await expect(board.getByLabel("Verified query result")).toHaveCount(0);
   assert.deepEqual(errors, []);

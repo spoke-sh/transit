@@ -26442,3 +26442,21 @@ are 16,956 ms for counter visibility and 41,416 ms for verified refresh; observe
 Board/counter heaps are 9,747,044/3,745,728 bytes. These values establish no matched
 performance comparison. The new client path still requires the separate reference
 deployment run and final combined repository/clean-checkout qualification.
+
+Reference attempt 15 includes the client fix and still exceeds the three-minute
+refresh deadline. Its post-failure query read observes `admitted`, with continued
+application input progress and capacity refusals. The failed run's counter and
+physical-recovery observations are 20,915 ms and 58,156 ms. The client regression
+fix therefore does not establish that the reference latency problem is resolved.
+
+The next reference correctness schedule permits six minutes for each finite
+query/result-denial observation and 25 minutes for the enclosing browser run.
+Its fixture service publication lasts 30 minutes so it contains that schedule.
+Eight-capture preparation retains its three-minute deadline; native and Compose
+query waits retain theirs. Per-request deadlines, 30-second session leases,
+native/direct cache sizes, current authorization, exact retry, full coverage,
+result identity, physical recovery and denial assertions are unchanged.
+Initial query/recovery and Follow preparation times are now observed separately.
+This longer aggregate observation tests eventual completion under the same bounded
+deployment, not compliance with the failed three-minute latency window. No pass
+is established by changing the fixture budget.

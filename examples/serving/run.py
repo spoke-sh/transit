@@ -318,7 +318,10 @@ def run(profile, reactive=False, views=False):
             if not views:
                 if profile == 'reference': delivery.kill(); delivery.wait(timeout=10)
                 else: placement.stop_for_recovery('courier', delivery)
-            deadline = int(time.time() * 1000) + 900000
+            # The reference browser's longer finite-query observation must fit
+            # inside this fixture publication's declared lifetime. Session
+            # leases and individual request deadlines are independent.
+            deadline = int(time.time() * 1000) + (1800000 if views and profile == 'reference' else 900000)
             cast(ingress, publication(1, application, deadline)); cast(ingress, policy(65536)); drained(ingress)
             if views:
                 for resource in (ingress_resource, application_resource): resource_grant(resource, 65536, 3)
