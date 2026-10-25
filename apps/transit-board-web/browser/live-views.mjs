@@ -229,6 +229,7 @@ try {
     // services restart. Re-enter the retained workspace explicitly, with the
     // listener installed first; background polling may finish before stage ack.
     await board.getByRole("link", { name: "Resource directory", exact: true }).click();
+    await expect(board.getByRole("heading", { name: "Relief atlas", exact: true })).toBeVisible();
     await board
       .getByRole("button", { name: `Select resource ${config.resource}`, exact: true })
       .click();
