@@ -1,5 +1,17 @@
 # Validation and evidence
 
+## Direct catalog growth and retained rows — 2026-10-24
+
+`just test::direct-table-service growth` passes 366 public typed calls with 139
+Tables and 139 rows retained before catalog growth. Ordered metadata traverses
+eight-entry pages; row reads use seven-row batches. The native owner uses one
+resident page and the direct catalog/Table indexes retain their default
+16-page caches. The fixture does not collect either durable sequence in memory.
+After node SIGKILL and disk restart, every name and row remains readable under
+the original saved pin and exact source basis, followed by explicit pin cleanup.
+The data path issues no native actor data commands. This qualifies local disk
+growth and recovery, not cold-provider placement or total process RSS.
+
 ## Direct catalog diagnostic boundaries — 2026-10-24
 
 `just test::diagnostic-errors` and `just test::diagnostic-outcomes` pass after
