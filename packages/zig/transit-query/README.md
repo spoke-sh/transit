@@ -77,6 +77,8 @@ retained source, verifies the original interpretation and uses the same finite
 executor and disclosure checks. It charges the additional current-definition
 check to the request budget. A released pin fails; failed opening cannot replace
 it. Template destruction and local query cleanup do not release the durable pin.
+See the [Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
+for fresh execution, current policy and definition-change rules.
 
 This direct caller accepts the finite Transit SELECT profile over one explicit
 retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
@@ -305,12 +307,6 @@ mutations. See the [service guide](../../../apps/transit-table-service/README.md
 for configuration, limits, trust and recovery.
 Configured relational spill enables the same bounded joins and aggregates as
 `RelationalQuery`, with the original subject checked across every source.
-
-`TablePrepared.prepare` resolves an authorized catalog Table and owns SELECT
-parameter/result metadata. `TableQuery.openPrepared` opens a new cut and checks
-that immutable identity for every execution. `LogicalPrepared.instantiate`
-binds that new cut without rebinding a saved plan. See the
-[Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation).
 
 `SqlTemplate` owns a typed parameter template and commits to the full source
 definition, including resource, decoders, paths and accepted Document revision.

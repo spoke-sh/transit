@@ -1,5 +1,20 @@
 # Validation and evidence
 
+## Direct prepared Table lifetime — 2026-10-24
+
+`nix develop --command just test::direct-table-service prepared` passes against
+the public direct owner. The same SELECT, INSERT and MySQL UPDATE preparations
+survive successive data changes. Preparation and DML binding leave the Table
+frontier unchanged and the new operation unadmitted. Explicit execution preserves
+Unicode and SQL-like text as values, full-width unsigned values, nullable updates
+and bound-NULL comparisons. Fresh SELECTs use independent explicit pins.
+
+Current ownership removal denies the old preparation; restoring it permits a
+fresh read. ALTER and DROP/recreate invalidate the unchanged prepared objects,
+including when their selected column types still match. The complete direct
+Table schedule includes this slice; this focused pass does not qualify its
+separate recovery faults or replace the whole older typed-Table schedule.
+
 ## Direct exchange worker handoff — 2026-10-24
 
 `nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe

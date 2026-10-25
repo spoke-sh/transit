@@ -23,8 +23,8 @@ local-catalog:
     zig build test-local-catalog
 
 # Real direct Table HTTP owner, typed caller, disk restart and uncertain replies.
-direct-table-service:
-    zig build test-direct-table-service -Doptimize=ReleaseSafe
+direct-table-service *args:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- {{args}}
 
 # Focused shared host preparation, saved work and explicit direct operations.
 direct-table-callers:

@@ -1182,6 +1182,7 @@ pub fn build(b: *std.Build) void {
     direct_table_service.addFileArg(b.path("tests/direct_table_service.py"));
     direct_table_service.addArtifactArg(node_artifact);
     direct_table_service.addArtifactArg(direct_table_client);
+    direct_table_service.addPassthruArgs();
     direct_table_service.has_side_effects = true;
     direct_table_service.stdio = .inherit;
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
