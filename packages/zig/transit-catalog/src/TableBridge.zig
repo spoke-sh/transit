@@ -44,7 +44,7 @@ pub const Action = union(enum) {
     schema_status: v.SchemaRequest,
     prepare_schema: v.SchemaRequest,
     prepare_schema_plan: v.AuthorizationPlan,
-    compile_authorization: struct { sql: []const u8, identity: c.AuthorizationSql.Identity = .{} },
+    compile_authorization: struct { sql: []const u8, identity: c.AuthorizationLowering.Identity = .{} },
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
     lifecycle: []const u8,

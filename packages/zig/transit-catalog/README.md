@@ -145,8 +145,13 @@ and clears the local result. Effects use ordinary current checks. Both wrappers
 forward supported batch prefetch and immutable-node caching without retaining
 permissions across calls.
 
-`TableTyped` lowers complete neutral schemas, assignments, predicates and
-lifecycle requests into the same immutable intent. `TableBridge.Session` owns
+`TableLowering` converts typed assignments, predicates and schema changes using
+an explicit schema. It performs no lookup, storage access or admission;
+`DirectTableTyped` and the private Station Table binding share that conversion.
+`AuthorizationLowering` similarly builds policy plans through a supplied scope
+resolver, while `SchemaCommand` owns neutral schema-command validation.
+
+`TableTyped` binds typed lifecycle requests to an immutable intent. `TableBridge.Session` owns
 one intent at a time; small content references identify it for progress calls.
 `Compiled` exports its full summary and mandatory-definition saved bytes.
 `load` verifies those bytes and connection without admitting work. Replacing or

@@ -151,8 +151,8 @@ pub const SchemaRequest = struct {
     schema: u64,
     expected_revision: u64,
     action: union(enum) { create: struct { name: []const u8, owner: u64 }, rename: []const u8, drop },
-    pub fn native(self: SchemaRequest) !c.SchemaCatalog.Request {
-        const value: c.SchemaCatalog.Request = .{ .scope = try self.scope.native(), .principal = self.principal, .operation = self.operation, .schema = self.schema, .expected_revision = self.expected_revision, .action = switch (self.action) {
+    pub fn native(self: SchemaRequest) !c.SchemaCommand {
+        const value: c.SchemaCommand = .{ .scope = try self.scope.native(), .principal = self.principal, .operation = self.operation, .schema = self.schema, .expected_revision = self.expected_revision, .action = switch (self.action) {
             .create => |creation| .{ .create = .{ .name = try .init(creation.name), .owner = creation.owner } },
             .rename => |name| .{ .rename = try .init(name) },
             .drop => .drop,
@@ -160,7 +160,7 @@ pub const SchemaRequest = struct {
         try value.validate();
         return value;
     }
-    pub fn foreign(allocator: Allocator, value: c.SchemaCatalog.Request) !SchemaRequest {
+    pub fn foreign(allocator: Allocator, value: c.SchemaCommand) !SchemaRequest {
         try value.validate();
         return .{ .scope = try Scope.foreign(allocator, value.scope), .principal = value.principal, .operation = value.operation, .schema = value.schema, .expected_revision = value.expected_revision, .action = switch (value.action) {
             .create => |creation| .{ .create = .{ .name = try allocator.dupe(u8, creation.name.slice()), .owner = creation.owner } },
@@ -192,8 +192,8 @@ pub const AuthorizationPlan = struct {
     role: u64,
     expected_revision: u64,
     action: union(enum) { authorization: c.protocol.Authorization.Action, schema: SchemaRequest, set_role: ?u64 },
-    pub fn native(self: AuthorizationPlan) !c.AuthorizationSql.Plan {
-        const plan: c.AuthorizationSql.Plan = .{ .definition = self.definition, .scope = try self.scope.native(), .principal = self.principal, .role = self.role, .expected_revision = self.expected_revision, .action = switch (self.action) {
+    pub fn native(self: AuthorizationPlan) !c.AuthorizationLowering.Plan {
+        const plan: c.AuthorizationLowering.Plan = .{ .definition = self.definition, .scope = try self.scope.native(), .principal = self.principal, .role = self.role, .expected_revision = self.expected_revision, .action = switch (self.action) {
             .authorization => |value| .{ .authorization = value },
             .schema => |value| .{ .schema = try value.native() },
             .set_role => |value| .{ .set_role = value },
@@ -201,7 +201,7 @@ pub const AuthorizationPlan = struct {
         try plan.validate();
         return plan;
     }
-    pub fn foreign(allocator: Allocator, value: c.AuthorizationSql.Plan) !AuthorizationPlan {
+    pub fn foreign(allocator: Allocator, value: c.AuthorizationLowering.Plan) !AuthorizationPlan {
         try value.validate();
         return .{ .definition = value.definition, .scope = try Scope.foreign(allocator, value.scope), .principal = value.principal, .role = value.role, .expected_revision = value.expected_revision, .action = switch (value.action) {
             .authorization => |action| .{ .authorization = action },
