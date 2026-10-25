@@ -17,17 +17,20 @@ def fixtures():
     identity = scope + name + struct.pack('<2Q', (1 << 64)-2, (1 << 64)-3)
     request = b'SPF1' + struct.pack('<QIQQII', 7, 2, 9, 1, 0x31425152, 100) + bytes([17])*32
     body = b'NRD1' + contract + identity + struct.pack('<Q', 3) + request + struct.pack('<QQB', 3, 99, 0) + bytes([23])*32 + b'\2'
-    digest = hashlib.sha256(b'transit.application.named-relational.v1\0' + body).digest()
+    logical = b'NRL1' + contract + identity + struct.pack('<Q', 3) + request + bytes([23])*32 + b'\2'
+    digest = hashlib.sha256(b'transit.application.named-relational.v1\0' + logical).digest()
     ref = b'NRR1' + contract + identity + digest
+    retire = b'NRT1' + contract + identity + digest
+    assert len(logical) == 219 and len(retire) == 138
     policy = struct.pack('<4Q', 3, 7, 17, 19) + bytes([23])*32 + b'\1'
     archive = b'NRP1' + contract + identity + digest + policy
     activation = b'NRA1' + contract + identity + digest + struct.pack('<Q', 19)
     configuration = b'NRC1' + contract + scope + struct.pack('<3Q', 17, 4096, 33554432)
     budget = b'NRB1' + contract + struct.pack('<2Q', 2, 144)
-    publish = b'NRU1' + contract + name + struct.pack('<3Q', (1 << 64)-2, (1 << 64)-4, 3) + request
+    publish = b'NRU1' + contract + name + struct.pack('<3Q', (1 << 64)-2, (1 << 64)-4, 3) + request + digest
     authorize = b'NRG1' + contract + identity + digest + struct.pack('<2Q', 18, 17) + b'\1'
-    assert tuple(map(len, (body, ref, archive, activation, configuration, budget, publish, authorize))) == (236, 138, 203, 146, 92, 52, 154, 155)
-    return dict(definition=definition, record=body.hex(), reference=ref.hex(), digest=digest.hex(), archive=archive.hex(), activation=activation.hex(), configuration=configuration.hex(), budget=budget.hex(), initialize=(b'NRI1'+contract).hex(), publish=publish.hex(), authorize=authorize.hex(), name_key=(b'\0Nn'+struct.pack('>Q', (1 << 64)-1)+b'totals').hex(), definition_key=(b'\0Nd'+struct.pack('>3Q', (1 << 64)-1, (1 << 64)-2, (1 << 64)-3)).hex(), authorization_key=(b'\0Na'+struct.pack('>2Q', 3, 19)).hex())
+    assert tuple(map(len, (body, ref, archive, activation, configuration, budget, publish, authorize))) == (236, 138, 203, 146, 92, 52, 186, 155)
+    return dict(definition=definition, logical=logical.hex(), retire=retire.hex(), record=body.hex(), reference=ref.hex(), digest=digest.hex(), archive=archive.hex(), activation=activation.hex(), configuration=configuration.hex(), budget=budget.hex(), initialize=(b'NRI1'+contract).hex(), publish=publish.hex(), authorize=authorize.hex(), name_key=(b'\0Nn'+struct.pack('>Q', (1 << 64)-1)+b'totals').hex(), definition_key=(b'\0Nd'+struct.pack('>3Q', (1 << 64)-1, (1 << 64)-2, (1 << 64)-3)).hex(), authorization_key=(b'\0Na'+struct.pack('>2Q', 3, 19)).hex(), retirement_key=(b'\0Nt'+struct.pack('>3Q', (1 << 64)-1, (1 << 64)-2, (1 << 64)-3)).hex())
 
 
 if __name__ == '__main__':

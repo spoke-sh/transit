@@ -1,5 +1,5 @@
 {
-  "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b",
+  "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
   "settings": [
     {
       "name": "version",
@@ -251,54 +251,6 @@
       "items_schema": null
     },
     {
-      "name": "ports.cold",
-      "description": "Loopback TCP port",
-      "owner": "cold",
-      "kind": "unsigned",
-      "scope": "component",
-      "change": "restart",
-      "default_json": "19101",
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 1024,
-      "maximum": 65535,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "ports.cold_console",
-      "description": "Loopback TCP port",
-      "owner": "cold",
-      "kind": "unsigned",
-      "scope": "component",
-      "change": "restart",
-      "default_json": "19102",
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 1024,
-      "maximum": 65535,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "ports.store",
-      "description": "Loopback TCP port",
-      "owner": "store",
-      "kind": "unsigned",
-      "scope": "component",
-      "change": "restart",
-      "default_json": "19103",
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 1024,
-      "maximum": 65535,
-      "values": [],
-      "items_schema": null
-    },
-    {
       "name": "ports.node",
       "description": "Loopback TCP port",
       "owner": "node",
@@ -327,38 +279,6 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "executables.minio",
-      "description": "Matching executable path",
-      "owner": "cold",
-      "kind": "string",
-      "scope": "component",
-      "change": "restart",
-      "default_json": null,
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "executables.ursula",
-      "description": "Matching executable path",
-      "owner": "store",
-      "kind": "string",
-      "scope": "component",
-      "change": "restart",
-      "default_json": null,
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
       "values": [],
       "items_schema": null
     },
@@ -1242,33 +1162,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "cold": {
-            "type": "integer",
-            "minimum": 1024,
-            "maximum": 65535,
-            "description": "Loopback TCP port",
-            "x-transit-owner": "cold",
-            "x-transit-change": "restart",
-            "default": 19101
-          },
-          "cold_console": {
-            "type": "integer",
-            "minimum": 1024,
-            "maximum": 65535,
-            "description": "Loopback TCP port",
-            "x-transit-owner": "cold",
-            "x-transit-change": "restart",
-            "default": 19102
-          },
-          "store": {
-            "type": "integer",
-            "minimum": 1024,
-            "maximum": 65535,
-            "description": "Loopback TCP port",
-            "x-transit-owner": "store",
-            "x-transit-change": "restart",
-            "default": 19103
-          },
           "node": {
             "type": "integer",
             "minimum": 1024,
@@ -1293,18 +1186,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "minio": {
-            "type": "string",
-            "description": "Matching executable path",
-            "x-transit-owner": "cold",
-            "x-transit-change": "restart"
-          },
-          "ursula": {
-            "type": "string",
-            "description": "Matching executable path",
-            "x-transit-owner": "store",
-            "x-transit-change": "restart"
-          },
           "node": {
             "type": "string",
             "description": "Matching executable path",

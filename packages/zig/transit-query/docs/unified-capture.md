@@ -29,6 +29,11 @@ a 4 MiB Arrow workspace and a cancellation flag. A local cancellation flag abort
 unsent work; it does not close accepted work. The returned private decision is
 not durable until the host confirms its exact signed commit.
 
+The source host preserves the native batch-read interface when combining native
+request resources with direct Tables. Request materialization reads a publication
+descriptor and up to seven chunks in each authorized observation, then checks
+current access and publication disposition again before using the complete bytes.
+
 Each segment begins a Publication with frozen metadata. Later turns recompute
 that same page and stage at most two chunks plus the next self-input. The publish
 turn atomically writes the Publication descriptor/budget, checkpoint and job:
@@ -74,21 +79,19 @@ decoding and invalidate the candidate. No whole-result allocation or new source 
 
 ## Catalog ownership
 
-`CatalogQueryOwner` composes `TableBehavior` with the same durable query engine.
-Register the native database/schema/Table domains and stable database/schema
-objects, with an ordinary owner role and the catalog worker as registrar.
-Initialize the catalog using that exact configuration, then install a
-`PolicyChange` for each requester process. These are separate bounded decisions;
-initialization does not grant query delegation. One owner routes queries and DML
-for all authorized Tables in its namespace. The caller additionally needs current
-CONNECT, USAGE and Table SELECT; DML privileges remain independent. Explicit
-creator/schema defaults cover future Tables only. Recoverable native object
-registration completes before a new Table becomes visible.
+The direct catalog owns Table lifecycle independently of query progress. Its
+native database/schema/Table domains bind stable objects and current role owners.
+Configure the query source with its direct Table connection and separately
+initialize the requester/source behaviors and their admission policy. The
+requester's declared source and native progress resource are not Table storage.
 
-A query policy maps a requester PID to an explicit catalog principal. Submitted
-SQL and source declarations cannot choose that principal. Cancellation uses the
-original requester's correlation index, and only native self inputs can advance
-jobs. Authorize a new bundle with `UnifiedClient.authorizeBundle` before saving
-or fingerprinting it. The accepted bundle retains its original subject; result
-recovery prepares a fresh disclosure proof without replacing that attribution.
-See the [owner contract](../../../../contracts/CATALOG_QUERY_OWNER_V1.md).
+Current CONNECT, USAGE and Table SELECT gate capture, continuation and disclosure;
+mutation privileges remain independent. `UnifiedClient.authorizeCapture` seals
+an unsigned bundle with the explicit executor, original pin-operation identity
+and expected Table frontier. Save that authorized bundle before submission.
+Accepted work retains its original subject and source basis. Result recovery
+uses a fresh disclosure proof without replacing the original attribution.
+
+See the [direct request contract](../../../../contracts/DIRECT_TABLE_V1.md) and
+[query source contract](../../../../contracts/TABLE_QUERY_V1.md) for retention,
+closure and current-policy requirements.

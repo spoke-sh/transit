@@ -13,13 +13,13 @@ final class Bridge implements Worker.State<Void> {
     final Port port;
     final JsonObject caps;
     static Bridge local(Path nativeHost) { return new Bridge(obj("local_codec", true), nativeHost); }
-    static Bridge query(ClientConfig client, Credential credential, UnifiedQuery.Connection connection) {
+    static Bridge query(ClientConfig client, Credential credential, UnifiedQuery.Connection connection, UnifiedQuery.Tables tables) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
+            "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis(), "tables", tables == null ? null : tables.wire(credential,connection))), client.nativeHost());
     }
-    static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection, String tableServiceUrl) {
+    static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection, String serviceUrl) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "catalog_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis(), "table_service_url", tableServiceUrl)), client.nativeHost());
+            "catalog_client", obj("definition", Catalog.DEFINITION, "connection", connection.wire(credential), "timeout_ms", client.timeoutMillis(), "service_url", serviceUrl)), client.nativeHost());
     }
     static Bridge open(ServiceConfig config, FailurePolicy failure) {
         Activation activation = config.activation(); ClientConfig client = config.client();
@@ -92,7 +92,10 @@ final class Bridge implements Worker.State<Void> {
         return object(port.request(obj("unified_query", action), "unified-query", mutation, "UnifiedQueryResult"));
     }
     JsonObject catalog(JsonObject action) {
-        return object(port.request(obj("catalog", action), "catalog", action.has("submit"), "CatalogResult"));
+        boolean mutation = action.has("stage") || action.has("admit") ||
+            (action.has("operation") && !string(action.getAsJsonObject("operation").get("command")).equals("inspect")) ||
+            (action.has("retention") && (action.getAsJsonObject("retention").has("acquire") || action.getAsJsonObject("retention").has("release")));
+        return object(port.request(obj("catalog", action), "catalog", mutation, "CatalogResult"));
     }
     JsonObject prepare() { return object(port.request(obj("growing_prepare", System.currentTimeMillis() + 30_000), "prepare-turn", false, "GrowingEvent")); }
     JsonObject apply(long scope, JsonObject action) {

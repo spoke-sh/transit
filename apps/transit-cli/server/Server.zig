@@ -12,7 +12,7 @@ const Sql = @import("Sql.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
-const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway, board, sql };
+const Role = enum { node, source, requester, courier, gateway, board, sql };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
@@ -22,8 +22,8 @@ diagnostics: *telemetry.Runtime,
 config_path: []const u8,
 loaded: Config.Loaded,
 boot: [16]u8,
-processes: [9]Process = @splat(.{}),
-active_role: Role = .cold,
+processes: [6]Process = @splat(.{}),
+active_role: Role = .node,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
     const loaded = try Config.capture(init, options.path, diagnostic, true);
     const config = loaded.config;
@@ -155,25 +155,8 @@ fn cycle(self: *Self) !void {
     self.diagnostic.atFile(self.config_path);
     try config.preflight(self.init.io, self.ui, self.diagnostic);
     self.diagnostic.atFile(config.installation);
-    const secret = try std.Io.Dir.cwd().readFileAlloc(self.init.io, try installation.path("cold.seed"), allocator, .limited(65));
-    defer std.crypto.secureZero(u8, secret);
-    if (secret.len != 64) return error.InvalidCredentialFile;
-    try self.start(allocator, .cold, &.{ config.executables.minio, "server", try installation.path("cold"), "--certs-dir", try installation.path("certs"), "--address", try std.fmt.allocPrint(allocator, "127.0.0.1:{d}", .{config.ports.cold}), "--console-address", try std.fmt.allocPrint(allocator, "127.0.0.1:{d}", .{config.ports.cold_console}) }, &.{ .{ .name = "MINIO_ROOT_USER", .value = "transit" }, .{ .name = "MINIO_ROOT_PASSWORD", .value = secret }, .{ .name = "MINIO_BROWSER", .value = "off" }, .{ .name = "GOMAXPROCS", .value = "2" }, .{ .name = "GOMEMLIMIT", .value = "256MiB" }, .{ .name = "HOME", .value = try installation.path("provider-home") } }, false);
-    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/minio/health/ready", .{config.ports.cold}));
-    // PutBucket is idempotent only during recorded first bootstrap. A recovered
-    // installation never creates replacement cold storage or authority streams.
-    if (!installation.record.genesis_observed) try Provider.bucket(self.init, config.ports.cold, secret);
-    const store_config = try installation.path("ursula.toml");
-    try Files.write(self.init.io, store_config, try Provider.configuration(allocator, config, secret));
-    try self.start(allocator, .store, &.{ config.executables.ursula, "server", "--config", store_config }, &.{ .{ .name = "RUST_LOG", .value = "error" }, .{ .name = "TOKIO_WORKER_THREADS", .value = "2" } }, false);
-    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/__ursula/ready", .{config.ports.store}));
-    const node_config = try installation.path("node.json");
-    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
-    const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
-    try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
-    const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
-    try self.ready(node_health);
-    _ = try installation.query(.{ .capabilities = {} });
+    const had_tables = @import("Tables.zig").configured(installation);
+    try self.node(allocator);
     try installation.flush();
     self.active_role = .sql;
     try Sql.recover(installation);
@@ -181,8 +164,14 @@ fn cycle(self: *Self) !void {
     defer if (applications) |manager| manager.destroy();
     if (applications) |manager| try manager.recover();
     try installation.provision();
+    if (!had_tables) {
+        // The initial native bootstrap establishes stable scope and native
+        // domains. Restart this owned node once with that exact Table profile
+        // before starting workers or exposing SQL admission.
+        self.processes[@backingInt(Role.node)].stop(self.init.io);
+        try self.node(allocator);
+    }
     if (self.ui) try installation.provisionBoard();
-    try self.start(allocator, .maintenance, &.{ config.executables.node, node_config, "--maintain" }, &.{}, false);
     try self.worker(allocator, .source);
     try self.worker(allocator, .requester);
     const connection = installation.connection();
@@ -191,12 +180,11 @@ fn cycle(self: *Self) !void {
     try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
     try installation.initializeBehaviors();
-    var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
     const started = std.Io.Clock.awake.now(self.init.io);
     while (true) {
         if (Signals.interrupted()) return error.ServerStopped;
         if (!self.allAlive()) return error.ChildExited;
-        self.tableReady(&query) catch |err| {
+        @import("Tables.zig").ready(installation) catch |err| {
             if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 60000) return err;
             try self.init.io.sleep(.fromMilliseconds(100), .awake);
             continue;
@@ -299,14 +287,23 @@ fn cycle(self: *Self) !void {
         try self.init.io.sleep(.fromMilliseconds(100), .awake);
     }
 }
-fn tableReady(self: *Self, query: *q.UnifiedClient) !void {
-    const config = Installation.catalogFor(query.connection, self.installation.record);
-    var catalog: q.catalog.TableClient = .{ .transport = query.wire, .connection = .{ .scope = config.scope, .owner = config.owner, .principal = query.connection.principal }, .key = query.key };
-    const description = try catalog.describe();
-    if (!std.meta.eql(description.configuration, config)) return error.CatalogConfigurationChanged;
-    // Readiness never restores revoked policy or recreates a deliberately
-    // dropped default Table. First creation has its own exact saved recovery.
-    try self.installation.ensureDefaultTable(&catalog);
+fn node(self: *Self, allocator: std.mem.Allocator) !void {
+    const installation = self.installation;
+    const config = installation.config;
+    // Drop stale connections only after joining the old node. Retained signed
+    // provisioning requests belong to Installation, independently of transport.
+    const address = installation.wire.url;
+    const timeout = installation.wire.timeout_ms;
+    installation.wire.deinit();
+    installation.wire.* = q.wire.Client.init(self.init.gpa, self.init.io, address);
+    installation.wire.timeout_ms = timeout;
+    const node_config = try installation.path("node.json");
+    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .table = try @import("Tables.zig").node(installation), .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
+    try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
+    const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
+    try self.ready(node_health);
+    _ = try installation.query(.{ .capabilities = {} });
 }
 fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const installation = self.installation;
@@ -316,8 +313,9 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const process = (try installation.query(.{ .process = pid })).body.process.process;
     if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
     const generation = try std.math.add(u64, process.generation, 1);
-    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 10, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { catalog: q.catalog.TableCatalogRecords.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
-    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .catalog = Installation.catalogFor(connection, installation.record) } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
+    const Common = struct { tables: ?q.UnifiedBehavior.TableEndpoint = null, url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 10, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { unified_source: struct { peer: u64, initializer: u64 }, unified_requester: q.UnifiedBehavior.Requester } };
+    const tables = installation.directCatalog();
+    const config: Common = .{ .tables = if (role == .source) .{ .url = installation.wire.url, .scope = tables.scope, .branch = tables.branch, .audience = tables.audience } else null, .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .unified_source = .{ .peer = connection.requester, .initializer = Installation.caller } } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
     try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);
     var bytes: [1024]u8 = undefined;

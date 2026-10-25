@@ -163,6 +163,15 @@ immutable metadata reference and recursive `row_type`; names alone cannot
 reconstruct that declaration. Current metadata inspection rejects a changed or
 retired Table before new query work is prepared.
 
+Set `workspace.executor` to the capture worker's native principal, independently
+of `connection.source` (the worker PID). The Table declaration's resource can
+differ from `connection.resource` (query progress). Board uses the configured
+upstream for both native and direct Table requests, with the declaration's
+explicit Table audience and catalog scope. Manual Run and a selected Live draft
+authorize one current-frontier capture after compilation, then retain the signed
+bundle for upload and recovery. Editing, inspection and compilation acquire no
+snapshot pin. An already accepted request cannot be authorized again.
+
 Use recorded IDs from your installation. The query principal differs from the
 inspection principal and uses this realm/upstream. Provision its inspect/send
 and independent resource inspect/read grants, requester binding and source policy

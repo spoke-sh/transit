@@ -364,7 +364,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
     try engine.executable(process, sample, true);
     if (process.owner != principal or process.generation != command.generation) return error.StaleGeneration;
     if (process.revision != command.expected_revision) return error.StaleState;
-    if (command.authorization) |guard| _ = @import("growing_authorization.zig").guard(engine, guard, command.pid) catch |err| switch (err) {
+    if (command.authorization) |guard| _ = @import("growing_authorization.zig").guardAt(engine, guard, command.pid, sample) catch |err| switch (err) {
         // This code is emitted only after exact-retry lookup found no receipt.
         // Receipt disclosure denial above deliberately keeps its ordinary code.
         error.Forbidden, error.Unauthorized, error.StaleAuthorizationCredential => return error.AuthorizationSubjectDenied,

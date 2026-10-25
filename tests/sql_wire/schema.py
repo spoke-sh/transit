@@ -22,32 +22,47 @@ def run(postgres, mysql_options, external):
         write.execute(update,(7,1))
         assert write.rowcount == 0
 
-        def refused(missing=False):
+        def refused(retired=False):
             for sql,args in ((select,(1,)),(update,(8,1))):
                 try:
                     pg.execute(sql,args,prepare=True)
                 except psycopg.Error as error:
-                    assert error.sqlstate == ('42P01' if missing else '55000'), str(error)
-                    assert ('does not exist' if missing else 'source changed') in str(error)
+                    assert error.sqlstate == ('42501' if retired else '55000'), str(error)
+                    assert ('permission denied' if retired else 'source changed') in str(error)
                 else:
                     raise AssertionError('PostgreSQL reused a stale binding')
             for cursor,sql,args in ((read,select,(1,)),(write,update,(8,1))):
                 try:
                     cursor.execute(sql,args)
                 except mysql.connector.Error as error:
-                    assert error.errno == (1146 if missing else 1105), str(error)
-                    assert ('does not exist' if missing else 'source changed') in str(error)
+                    assert error.errno == (1142 if retired else 1105), str(error)
+                    assert ('permission denied' if retired else 'source changed') in str(error)
                 else:
                     raise AssertionError('MySQL reused a stale binding')
 
         applied(external(900001,'ALTER TABLE wire_schema ADD COLUMN extra BIGINT'))
         refused()
         applied(external(900002,'DROP TABLE wire_schema'))
-        refused(missing=True)
+        # A frozen handle still addresses the retired original object. New
+        # preparation instead resolves the currently absent name.
+        refused(retired=True)
+        try:
+            pg.execute(select,(1,),prepare=False)
+        except psycopg.Error as error:
+            assert error.sqlstate == '42P01' and 'does not exist' in str(error), str(error)
+        else:
+            raise AssertionError('PostgreSQL prepared an absent Table')
+        with my.cursor() as missing:
+            try:
+                missing.execute(select,(1,))
+            except mysql.connector.Error as error:
+                assert error.errno == 1146 and 'does not exist' in str(error), str(error)
+            else:
+                raise AssertionError('MySQL prepared an absent Table')
         applied(external(900003,'CREATE TABLE wire_schema (id BIGINT PRIMARY KEY, value BIGINT)'))
-        refused()
+        refused(retired=True)
         # A fresh preparation binds the replacement and sees no old row.
         assert pg.execute(select,(1,),prepare=False).fetchall() == []
         read.close()
         write.close()
-    print(json.dumps(dict(profile='database_wire_schema',external_principal=1234,alter_invalidates=True,drop_invalidates=True,name_reuse_invalidates=True,both_protocols=True)),flush=True)
+    print(json.dumps(dict(profile='database_wire_schema',external_principal=1234,alter_invalidates=True,drop_invalidates=True,name_reuse_invalidates=True,fresh_missing_name=True,both_protocols=True)),flush=True)

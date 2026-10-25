@@ -225,6 +225,15 @@ pub fn authenticate(engine: anytype, subject: a.Subject, audience: u64) !a.Verif
     return .{ .principal = selected.principal, .login_role = identity.role, .role = selected.role, .credential_epoch = identity.credential_epoch, .audience = audience, .context = claim.context };
 }
 pub fn guard(engine: anytype, value: a.Guard, audience: u64) !a.Verified {
+    return guardWithTime(engine, value, audience, .current);
+}
+/// Native transitions use their recorded time sample; public current checks
+/// acquire time only when a declared domain lifetime requires it.
+pub fn guardAt(engine: anytype, value: a.Guard, audience: u64, sample: ?core.Time.Sample) !a.Verified {
+    return guardWithTime(engine, value, audience, .{ .sampled = sample });
+}
+const GuardTime = union(enum) { current, sampled: ?core.Time.Sample };
+fn guardWithTime(engine: anytype, value: a.Guard, audience: u64, time: GuardTime) !a.Verified {
     try value.validate();
     const subject = try authenticate(engine, value.subject, audience);
     var store = try engine.authorization();
@@ -248,7 +257,30 @@ pub fn guard(engine: anytype, value: a.Guard, audience: u64) !a.Verified {
             if (!allowed) return error.Forbidden;
         }
     }
+    // Rights and usability are distinct. Only realm administration can bind a
+    // domain to a native resource; callers cannot probe arbitrary lifetimes by
+    // supplying an unchecked resource ID in their guard. Check these prerequisites
+    // under the same native fence as publication, after permission succeeds.
+    for (value.requirements) |slot| {
+        const required = slot orelse break;
+        if (required.object.kind != .domain) continue;
+        const object_value = (try store.object(required.object)) orelse return error.Forbidden;
+        const domain = (try store.domain(object_value.domain orelse return error.InvalidAuthorizationObject)) orelse return error.InvalidAuthorizationDomain;
+        if (domain.lifetime_resource) |resource| requireDomainLifetime(engine, resource, time) catch |err| switch (err) {
+            // A known unusable prerequisite denies this guard. Preserve the
+            // ordinary rejection path so workers can record a disposition after
+            // a publication race; storage/clock uncertainty still propagates.
+            error.StateResourceExpired, error.UnknownStateResource => return error.Forbidden,
+            else => return err,
+        };
+    }
     return subject;
+}
+fn requireDomainLifetime(engine: anytype, resource: u64, time: GuardTime) !void {
+    switch (time) {
+        .current => try engine.requireResourceLifetime(resource),
+        .sampled => |sample| try @import("growing_state.zig").usable(engine, try @import("growing_state.zig").resource(engine, resource), sample),
+    }
 }
 pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g.Request) !void {
     switch (request.command.authorization) {

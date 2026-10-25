@@ -37,7 +37,7 @@ test "exchange control codecs match independent fixed layouts and reject missing
 }
 fn cuts() ![2]f.Relational.Cut {
     var result: [2]f.Relational.Cut = undefined;
-    for (declarations, 0..) |source, i| result[i] = .{ .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
+    for (declarations, 0..) |source, i| result[i] = .{ .domain = .native_resource, .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
     return result;
 }
 const Authority = struct {
@@ -50,7 +50,7 @@ const Authority = struct {
     }
 };
 pub const Fixture = struct {
-    receiver: Store = .{},
+    receiver: Store = .{ .pid = 33, .resource = 77 },
     producer: Store = .{ .resource = 8, .pid = 4 },
     authority: Authority = .{},
     denied_producer: bool = false,
@@ -106,14 +106,14 @@ pub const Fixture = struct {
             try self.receiver.commit(turn);
         }
         turn = try self.producer.capture();
-        _ = try x.createProducer(&turn, bound, &self.authority, id, plan.budgets.spill_bytes);
+        _ = try x.createProducer(&turn, bound, &self.authority, id, .{ .owner = self.receiver.pid, .resource = self.receiver.resource }, plan.budgets.spill_bytes);
         try self.producer.commit(turn);
     }
     pub fn offer(self: *Fixture, bound: f.Relational.Bound, segment: codec.Segment, record: u64) !r.Pending {
         const pubn: s.Publication = .{ .resource = self.producer.resource, .domain = .query_exchange, .namespace = segment.exchange };
         for (0..100) |_| {
             var turn = try self.producer.capture();
-            const result = try x.offer(&turn, bound, &self.authority, segment, pubn, record, self.receiver.pid);
+            const result = try x.offer(&turn, bound, &self.authority, segment, pubn, record);
             var notice: ?r.Pending = null;
             if (result == .accepted) {
                 for (turn.decision.outputs) |slot| if (slot) |output| {
@@ -373,17 +373,17 @@ test "producer reserves cumulative quota before staging and cannot reinterpret p
     var segment: codec.Segment = .{ .exchange = 90, .source = 0, .partitions = 1, .partition = 0, .epoch = 1, .sequence = 0, .terminal = false, .len = 1 };
     segment.rows[0] = row(0, 0);
     turn = try fixture.producer.capture();
-    try t.expectEqual(.progress, try x.offer(&turn, bound, &fixture.authority, segment, publication, 1, fixture.receiver.pid));
+    try t.expectEqual(.progress, try x.offer(&turn, bound, &fixture.authority, segment, publication, 1));
     try fixture.producer.commit(turn);
     turn = try fixture.producer.capture();
     const reserved = try r.Producer.decode((try turn.read(budget_key)).?);
     try t.expect(reserved.pending != null and reserved.charged > budget.charged);
     var changed = segment;
     changed.rows[0].values[1] = 999;
-    try t.expectError(error.RelationalExchangeConflict, x.offer(&turn, bound, &fixture.authority, changed, publication, 1, fixture.receiver.pid));
+    try t.expectError(error.RelationalExchangeConflict, x.offer(&turn, bound, &fixture.authority, changed, publication, 1));
     for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
     fixture.authority.denied = true;
-    try t.expectError(error.CatalogDenied, x.offer(&turn, bound, &fixture.authority, segment, publication, 1, fixture.receiver.pid));
+    try t.expectError(error.CatalogDenied, x.offer(&turn, bound, &fixture.authority, segment, publication, 1));
     fixture.authority.denied = false;
     _ = try fixture.offer(bound, segment, 1);
     var exhausted = false;
@@ -391,7 +391,7 @@ test "producer reserves cumulative quota before staging and cannot reinterpret p
         segment.sequence = index;
         segment.rows[0] = row(0, index);
         turn = try fixture.producer.capture();
-        _ = x.offer(&turn, bound, &fixture.authority, segment, publication, index + 1, fixture.receiver.pid) catch |err| {
+        _ = x.offer(&turn, bound, &fixture.authority, segment, publication, index + 1) catch |err| {
             try t.expectEqual(error.RelationalSpillBudget, err);
             for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
             exhausted = true;
@@ -405,4 +405,27 @@ test "producer reserves cumulative quota before staging and cannot reinterpret p
     try t.expect(final.pending == null and final.charged <= final.limit and final.last > 1);
     // Every recorded source output remains eligible; quota did not erase it.
     for (0..final.last) |sequence| try t.expect(try turn.read(try r.key('p', 90, 0, 0, sequence)) != null);
+}
+
+test "exchange acceptance rejects a producer addressed to another receiver resource" {
+    const basis = try cuts();
+    const bound: f.Relational.Bound = .{ .plan = plan, .cuts = &basis };
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.setup(bound, 91, 1, 1, plan.budgets.spill_bytes);
+    const notice = try fixture.offer(bound, .{ .exchange = 91, .source = 0, .partitions = 1, .partition = 0, .epoch = 1, .sequence = 0, .terminal = true }, 1);
+    var turn = try fixture.noticeTurn(notice);
+    try t.expectEqual(.progress, try x.receive(&turn, bound, &fixture.authority, 91, notice));
+    try fixture.receiver.commit(turn);
+    // Simulate a foreign producer's saved destination while preserving the
+    // same segment and publisher. Acceptance must inspect this binding too.
+    turn = try fixture.producer.capture();
+    var sender = try x.producerState(&turn, bound, 91);
+    sender.receiver.resource += 1;
+    try turn.write(try r.key('b', 91, 0, 0, 0), try sender.encode());
+    try fixture.producer.commit(turn);
+    turn = try fixture.advanceTurn();
+    const before = turn.decision;
+    try t.expectError(error.RelationalExchangeConflict, x.advance(&turn, bound, &fixture.authority, 91));
+    try t.expectEqualDeep(before, turn.decision);
 }

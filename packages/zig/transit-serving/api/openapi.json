@@ -318,7 +318,7 @@
               "definition": {
                 "type": "string",
                 "enum": [
-                  "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                  "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                 ]
               },
               "realm": {
@@ -431,7 +431,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+              "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
             ]
           },
           "code": {
@@ -1228,7 +1228,7 @@
               "definition": {
                 "type": "string",
                 "enum": [
-                  "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                  "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                 ]
               },
               "realm": {
@@ -2233,11 +2233,10 @@
                             }
                           },
                           "data_revision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991,
-                            "x-transit-bits": 64,
-                            "x-transit-signed": false
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "maxLength": 20,
+                            "x-transit-encoding": "unsigned-decimal-u64"
                           },
                           "outcome_position": {
                             "type": "integer",
@@ -2457,14 +2456,15 @@
                 "additionalProperties": false,
                 "x-transit-field-order": [
                   "revision",
-                  "target",
+                  "audience",
                   "resource",
                   "realm",
                   "catalog",
+                  "branch",
+                  "namespace",
                   "object",
-                  "metadata_revision",
-                  "metadata_length",
-                  "metadata_digest",
+                  "interpretation_revision",
+                  "interpretation_digest",
                   "published"
                 ],
                 "properties": {
@@ -2475,7 +2475,7 @@
                     "x-transit-bits": 64,
                     "x-transit-signed": false
                   },
-                  "target": {
+                  "audience": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991,
@@ -2502,26 +2502,33 @@
                     "maxLength": 20,
                     "x-transit-encoding": "unsigned-decimal-u64"
                   },
+                  "branch": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  },
+                  "namespace": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
                   "object": {
                     "type": "string",
                     "pattern": "^(0|[1-9][0-9]*)$",
                     "maxLength": 20,
                     "x-transit-encoding": "unsigned-decimal-u64"
                   },
-                  "metadata_revision": {
+                  "interpretation_revision": {
                     "type": "string",
                     "pattern": "^(0|[1-9][0-9]*)$",
                     "maxLength": 20,
                     "x-transit-encoding": "unsigned-decimal-u64"
                   },
-                  "metadata_length": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "x-transit-bits": 32,
-                    "x-transit-signed": false
-                  },
-                  "metadata_digest": {
+                  "interpretation_digest": {
                     "type": "array",
                     "minItems": 32,
                     "maxItems": 32,
@@ -2539,14 +2546,15 @@
                 },
                 "required": [
                   "revision",
-                  "target",
+                  "audience",
                   "resource",
                   "realm",
                   "catalog",
+                  "branch",
+                  "namespace",
                   "object",
-                  "metadata_revision",
-                  "metadata_length",
-                  "metadata_digest"
+                  "interpretation_revision",
+                  "interpretation_digest"
                 ],
                 "x-transit-defaults": {
                   "published": true
@@ -2578,74 +2586,40 @@
                     ],
                     "properties": {
                       "data_revision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": false
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "maxLength": 20,
+                        "x-transit-encoding": "unsigned-decimal-u64"
                       },
                       "basis": {
                         "type": "object",
                         "additionalProperties": false,
                         "x-transit-field-order": [
-                          "cut",
+                          "resource",
+                          "partition",
+                          "accepted",
                           "contract",
                           "schema"
                         ],
                         "properties": {
-                          "cut": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "x-transit-field-order": [
-                              "kind",
-                              "resource",
-                              "revision",
-                              "head"
-                            ],
-                            "properties": {
-                              "kind": {
-                                "type": "string",
-                                "enum": [
-                                  "kv",
-                                  "table",
-                                  "document"
-                                ]
-                              },
-                              "resource": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991,
-                                "x-transit-bits": 64,
-                                "x-transit-signed": false
-                              },
-                              "revision": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991,
-                                "x-transit-bits": 64,
-                                "x-transit-signed": false
-                              },
-                              "head": {
-                                "type": "array",
-                                "minItems": 32,
-                                "maxItems": 32,
-                                "items": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 255,
-                                  "x-transit-bits": 8,
-                                  "x-transit-signed": false
-                                }
-                              }
-                            },
-                            "required": [
-                              "kind",
-                              "resource",
-                              "revision"
-                            ],
-                            "x-transit-defaults": {
-                              "head": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
-                            }
+                          "resource": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
+                          "partition": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "maxLength": 20,
+                            "x-transit-encoding": "unsigned-decimal-u64"
+                          },
+                          "accepted": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "maxLength": 20,
+                            "x-transit-encoding": "unsigned-decimal-u64"
                           },
                           "contract": {
                             "type": "array",
@@ -2673,7 +2647,9 @@
                           }
                         },
                         "required": [
-                          "cut",
+                          "resource",
+                          "partition",
+                          "accepted",
                           "contract",
                           "schema"
                         ],
@@ -2844,11 +2820,10 @@
                     "x-transit-signed": false
                   },
                   "data_revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991,
-                    "x-transit-bits": 64,
-                    "x-transit-signed": false
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "maxLength": 20,
+                    "x-transit-encoding": "unsigned-decimal-u64"
                   },
                   "outcome": {
                     "anyOf": [
@@ -3072,11 +3047,10 @@
                         }
                       },
                       "data_revision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": false
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "maxLength": 20,
+                        "x-transit-encoding": "unsigned-decimal-u64"
                       },
                       "outcome_position": {
                         "type": "integer",
@@ -3172,7 +3146,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                      "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                     ]
                   },
                   "realm": {
@@ -3552,11 +3526,10 @@
                                 }
                               },
                               "data_revision": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991,
-                                "x-transit-bits": 64,
-                                "x-transit-signed": false
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)$",
+                                "maxLength": 20,
+                                "x-transit-encoding": "unsigned-decimal-u64"
                               },
                               "outcome_position": {
                                 "type": "integer",
@@ -3679,7 +3652,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                              "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                             ]
                           },
                           "realm": {
@@ -4059,11 +4032,10 @@
                                         }
                                       },
                                       "data_revision": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "maximum": 9007199254740991,
-                                        "x-transit-bits": 64,
-                                        "x-transit-signed": false
+                                        "type": "string",
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "maxLength": 20,
+                                        "x-transit-encoding": "unsigned-decimal-u64"
                                       },
                                       "outcome_position": {
                                         "type": "integer",
@@ -4174,7 +4146,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                          "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                         ]
                       },
                       "realm": {
@@ -4322,7 +4294,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                          "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                         ]
                       },
                       "realm": {
@@ -4711,11 +4683,10 @@
                                     }
                                   },
                                   "data_revision": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": 9007199254740991,
-                                    "x-transit-bits": 64,
-                                    "x-transit-signed": false
+                                    "type": "string",
+                                    "pattern": "^(0|[1-9][0-9]*)$",
+                                    "maxLength": 20,
+                                    "x-transit-encoding": "unsigned-decimal-u64"
                                   },
                                   "outcome_position": {
                                     "type": "integer",
@@ -5102,14 +5073,15 @@
                         "additionalProperties": false,
                         "x-transit-field-order": [
                           "revision",
-                          "target",
+                          "audience",
                           "resource",
                           "realm",
                           "catalog",
+                          "branch",
+                          "namespace",
                           "object",
-                          "metadata_revision",
-                          "metadata_length",
-                          "metadata_digest",
+                          "interpretation_revision",
+                          "interpretation_digest",
                           "published"
                         ],
                         "properties": {
@@ -5120,7 +5092,7 @@
                             "x-transit-bits": 64,
                             "x-transit-signed": false
                           },
-                          "target": {
+                          "audience": {
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991,
@@ -5147,26 +5119,33 @@
                             "maxLength": 20,
                             "x-transit-encoding": "unsigned-decimal-u64"
                           },
+                          "branch": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255,
+                            "x-transit-bits": 8,
+                            "x-transit-signed": false
+                          },
+                          "namespace": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
                           "object": {
                             "type": "string",
                             "pattern": "^(0|[1-9][0-9]*)$",
                             "maxLength": 20,
                             "x-transit-encoding": "unsigned-decimal-u64"
                           },
-                          "metadata_revision": {
+                          "interpretation_revision": {
                             "type": "string",
                             "pattern": "^(0|[1-9][0-9]*)$",
                             "maxLength": 20,
                             "x-transit-encoding": "unsigned-decimal-u64"
                           },
-                          "metadata_length": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 4294967295,
-                            "x-transit-bits": 32,
-                            "x-transit-signed": false
-                          },
-                          "metadata_digest": {
+                          "interpretation_digest": {
                             "type": "array",
                             "minItems": 32,
                             "maxItems": 32,
@@ -5184,14 +5163,15 @@
                         },
                         "required": [
                           "revision",
-                          "target",
+                          "audience",
                           "resource",
                           "realm",
                           "catalog",
+                          "branch",
+                          "namespace",
                           "object",
-                          "metadata_revision",
-                          "metadata_length",
-                          "metadata_digest"
+                          "interpretation_revision",
+                          "interpretation_digest"
                         ],
                         "x-transit-defaults": {
                           "published": true
@@ -5223,74 +5203,40 @@
                             ],
                             "properties": {
                               "data_revision": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991,
-                                "x-transit-bits": 64,
-                                "x-transit-signed": false
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)$",
+                                "maxLength": 20,
+                                "x-transit-encoding": "unsigned-decimal-u64"
                               },
                               "basis": {
                                 "type": "object",
                                 "additionalProperties": false,
                                 "x-transit-field-order": [
-                                  "cut",
+                                  "resource",
+                                  "partition",
+                                  "accepted",
                                   "contract",
                                   "schema"
                                 ],
                                 "properties": {
-                                  "cut": {
-                                    "type": "object",
-                                    "additionalProperties": false,
-                                    "x-transit-field-order": [
-                                      "kind",
-                                      "resource",
-                                      "revision",
-                                      "head"
-                                    ],
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "enum": [
-                                          "kv",
-                                          "table",
-                                          "document"
-                                        ]
-                                      },
-                                      "resource": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "maximum": 9007199254740991,
-                                        "x-transit-bits": 64,
-                                        "x-transit-signed": false
-                                      },
-                                      "revision": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "maximum": 9007199254740991,
-                                        "x-transit-bits": 64,
-                                        "x-transit-signed": false
-                                      },
-                                      "head": {
-                                        "type": "array",
-                                        "minItems": 32,
-                                        "maxItems": 32,
-                                        "items": {
-                                          "type": "integer",
-                                          "minimum": 0,
-                                          "maximum": 255,
-                                          "x-transit-bits": 8,
-                                          "x-transit-signed": false
-                                        }
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "resource",
-                                      "revision"
-                                    ],
-                                    "x-transit-defaults": {
-                                      "head": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
-                                    }
+                                  "resource": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "x-transit-bits": 64,
+                                    "x-transit-signed": false
+                                  },
+                                  "partition": {
+                                    "type": "string",
+                                    "pattern": "^(0|[1-9][0-9]*)$",
+                                    "maxLength": 20,
+                                    "x-transit-encoding": "unsigned-decimal-u64"
+                                  },
+                                  "accepted": {
+                                    "type": "string",
+                                    "pattern": "^(0|[1-9][0-9]*)$",
+                                    "maxLength": 20,
+                                    "x-transit-encoding": "unsigned-decimal-u64"
                                   },
                                   "contract": {
                                     "type": "array",
@@ -5318,7 +5264,9 @@
                                   }
                                 },
                                 "required": [
-                                  "cut",
+                                  "resource",
+                                  "partition",
+                                  "accepted",
                                   "contract",
                                   "schema"
                                 ],
@@ -5489,11 +5437,10 @@
                             "x-transit-signed": false
                           },
                           "data_revision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991,
-                            "x-transit-bits": 64,
-                            "x-transit-signed": false
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "maxLength": 20,
+                            "x-transit-encoding": "unsigned-decimal-u64"
                           },
                           "outcome": {
                             "anyOf": [
@@ -5717,11 +5664,10 @@
                                 }
                               },
                               "data_revision": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991,
-                                "x-transit-bits": 64,
-                                "x-transit-signed": false
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)$",
+                                "maxLength": 20,
+                                "x-transit-encoding": "unsigned-decimal-u64"
                               },
                               "outcome_position": {
                                 "type": "integer",
@@ -5931,11 +5877,10 @@
                             }
                           },
                           "data_revision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991,
-                            "x-transit-bits": 64,
-                            "x-transit-signed": false
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "maxLength": 20,
+                            "x-transit-encoding": "unsigned-decimal-u64"
                           },
                           "outcome_position": {
                             "type": "integer",
@@ -5997,11 +5942,10 @@
                         "x-transit-signed": false
                       },
                       "data_revision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": false
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "maxLength": 20,
+                        "x-transit-encoding": "unsigned-decimal-u64"
                       },
                       "outcome": {
                         "anyOf": [

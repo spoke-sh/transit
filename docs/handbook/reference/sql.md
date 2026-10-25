@@ -78,6 +78,16 @@ Table mutations and configuration reloads retain their domain identities. Flight
 keeps its separate finite query adapter. The kernel native gateway still carries
 signed operations; the SQL session API is a distinct service boundary.
 
+The shared direct Table runtime handles `CREATE TABLE IF NOT EXISTS` and
+`DROP TABLE IF EXISTS` with frozen name conditions. If no Table mutation is
+needed, it retains an unchanged catalog outcome with zero row counts. The
+existing definition or absent name is checked again at acceptance; a concurrent
+change rejects the operation. Retrying its operation identity returns the
+original outcome under current rights, even after name reuse. The local server's
+default Tables use this direct owner. Table reads and mutations do not depend on
+the query worker processing an actor input; captured-query sources retain their
+separate execution path.
+
 ### Diagnosing rejected SQL
 
 The console and Flight query adapter distinguish parse errors, unsupported
@@ -152,8 +162,8 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `CREATE SINK`                                              | Grammar only                                                                            | [Connector effect target](sql/create-sink.md)                             |
 | `CREATE TABLE`                                             | Console with explicit catalog, offline compiler and shared callers; Flight rejects      | [Columns, types and nullability](sql/create-table.md)                     |
 | `ALTER TABLE`, `DROP TABLE` | Configured catalog owner and shared typed callers | [Schema evolution](sql/alter-table.md), [removing live names](sql/drop-table.md) |
-| `CREATE DOCUMENT`                                          | Offline compiler and `DeclarativeCatalog` binding                                       | [Document declaration](sql/create-document.md)                            |
-| `CREATE KV`                                                | Offline compiler and `DeclarativeCatalog` binding                                       | [Typed KV declaration](sql/create-kv.md)                                  |
+| `CREATE DOCUMENT`                                          | Offline compiler; executable naming uses separate typed resource operations             | [Document declaration](sql/create-document.md)                            |
+| `CREATE KV`                                                | Offline compiler; executable naming uses separate typed resource operations             | [Typed KV declaration](sql/create-kv.md)                                  |
 | `GRANT`                                                    | Grammar only                                                                            | [Privilege declaration](sql/grant.md)                                     |
 | `REVOKE`                                                   | Grammar only                                                                            | [Privilege revocation](sql/revoke.md)                                     |
 | `SHOW`                                                     | Settings and configured database/schema/Table names execute; connectors are grammar only              | [Settings and catalogs](sql/show.md)                     |

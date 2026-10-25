@@ -236,6 +236,67 @@ test "independent upload frames preserve full-width namespace and strict status 
     try t.expect((try decoded.encode()).eql(encoded));
 }
 
+test "prepared finite queries preserve immutable bytes and activate one original identity after restart" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    const bundle = fixture();
+    var buffer: [q.Bundle.max_bytes]u8 = undefined;
+    const bytes = try bundle.encode(&buffer);
+    const reference = try bundle.reference(store.resource, std.math.maxInt(u64));
+    var turn = try store.capture();
+    try upload.begin(&turn, reference);
+    try store.commit(turn);
+    try stage(&store, reference, bytes);
+    turn = try store.capture();
+    try upload.seal(&turn, reference.namespace);
+    try store.commit(turn);
+    turn = try store.capture();
+    try upload.prepare(&turn, reference.namespace);
+    try t.expectEqual(@as(usize, 2), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqual(.prepared, (try upload.status(&turn, reference.namespace)).?.phase);
+    try t.expect(try upload.active(&turn) == null);
+    try upload.prepare(&turn, reference.namespace);
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try t.expectError(error.QueryUploadClosed, upload.submit(&turn, reference.namespace, 7));
+    // Preparation frees the one active upload slot without deleting retained
+    // bytes. A competing active request blocks activation rather than replacing it.
+    const other = try bundle.reference(store.resource, 2);
+    try upload.begin(&turn, other);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryBusy, upload.activate(&turn, reference.namespace));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try upload.cancel(&turn, other.namespace);
+    try store.commit(turn);
+    for (0..10) |_| {
+        turn = try store.capture();
+        const complete = try upload.collect(&turn, other.namespace);
+        try store.commit(turn);
+        if (complete) break;
+    } else return error.CollectionDidNotFinish;
+    var restart = try store.clone();
+    defer restart.deinit();
+    turn = try restart.capture();
+    try upload.activate(&turn, reference.namespace);
+    try t.expectEqual(@as(usize, 2), writes(turn));
+    try restart.commit(turn);
+    turn = try restart.capture();
+    try upload.activate(&turn, reference.namespace);
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const correlation = try upload.submit(&turn, reference.namespace, 7);
+    try restart.commit(turn);
+    turn = try restart.capture();
+    const admitted = (try upload.status(&turn, reference.namespace)).?;
+    try t.expectEqualDeep(reference, admitted.reference);
+    try t.expectEqual(.admitted, admitted.phase);
+    try t.expectEqual(correlation, try upload.submit(&turn, reference.namespace, 7));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try t.expectError(error.QueryUploadClosed, upload.prepare(&turn, reference.namespace));
+    try t.expectError(error.QueryUploadClosed, upload.activate(&turn, reference.namespace));
+}
+
 test "finite query waits bind the earliest lifetime and authenticated timeout releases admission" {
     for ([_][2]?u64{ .{ null, 150 }, .{ 100, 150 }, .{ 150, 100 }, .{ 100, null } }) |limits| {
         var store: Store = .{ .resource = 8, .pid = 9 };
@@ -276,126 +337,6 @@ test "finite query waits bind the earliest lifetime and authenticated timeout re
         try t.expect(try s.Waiting.dispatch(&turn, frame));
         try cleanup(&store, ref);
     }
-}
-
-fn completeTemplate(store: *Store, bundle: q.Bundle, namespace: u64) !s.PublicationReference {
-    const ref = try bundle.reference(store.resource, namespace);
-    var bytes: [q.Bundle.max_bytes]u8 = undefined;
-    const body = try bundle.encode(&bytes);
-    var turn = try store.capture();
-    try upload.begin(&turn, ref);
-    try store.commit(turn);
-    try stage(store, ref, body);
-    turn = try store.capture();
-    try upload.seal(&turn, namespace);
-    try store.commit(turn);
-    turn = try store.capture();
-    const correlation = try upload.submit(&turn, namespace, 3);
-    try store.commit(turn);
-    const manifest: s.PublicationReference = .{ .domain = .query_result, .resource = 7, .namespace = 900, .record = r.manifest_record, .spec = try s.Publication.Digest.of(r.manifest_format, "manifest") };
-    const frame: s.Frame = .{ .kind = .reply, .correlation = correlation, .payload = try manifest.encode() };
-    turn = try store.capture();
-    turn.delivery.input.value = try frame.encode();
-    turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
-    try t.expect(try turn.acceptReply() == .accepted);
-    try upload.reply(&turn, frame, 3);
-    try store.commit(turn);
-    return ref;
-}
-
-test "new finite refresh copies one bounded chunk per turn and recovers from every committed cut" {
-    var store: Store = .{ .resource = 8, .pid = 9 };
-    defer store.deinit();
-    const original = try completeTemplate(&store, fixture(), std.math.maxInt(u64));
-    var reference = original;
-    reference.namespace = 2;
-    var complete = false;
-    for (0..original.spec.chunks() + 4) |_| {
-        var turn = try store.capture();
-        complete = try upload.copyNext(&turn, original.namespace, 2);
-        try t.expect(writes(turn) <= 4);
-        for (turn.decision.outputs) |out| try t.expect(out == null);
-        try store.commit(turn);
-        // Destroy all owner-local progress after every step; only the committed
-        // private state selects the successor, without a materialized bundle.
-        const restored = try store.clone();
-        store.deinit();
-        store = restored;
-        if (complete) break;
-    }
-    try t.expect(complete);
-    var bytes: [q.Bundle.max_bytes]u8 = undefined;
-    var expected: [q.Bundle.max_bytes]u8 = undefined;
-    try t.expectEqualSlices(u8, try fixture().encode(&expected), try reference.read(Source{ .store = &store }, &bytes));
-    var turn = try store.capture();
-    try t.expectEqual(.sealed, (try upload.status(&turn, 2)).?.phase);
-    try t.expect(try upload.copyNext(&turn, original.namespace, 2));
-    try t.expectEqual(@as(usize, 0), writes(turn));
-    const correlation = try upload.submit(&turn, 2, 3);
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expect(try upload.copyNext(&turn, original.namespace, 2));
-    try t.expectEqual(correlation, try upload.submit(&turn, 2, 3));
-    try t.expectEqual(@as(usize, 0), writes(turn));
-}
-
-test "refresh copy cannot reuse identity bypass active quota or revive a retired template" {
-    var store: Store = .{ .resource = 8, .pid = 9 };
-    defer store.deinit();
-    const ref = try completeTemplate(&store, fixture(), 1);
-    var turn = try store.capture();
-    try t.expectError(error.QueryUploadIdentityConflict, upload.copyNext(&turn, 1, 1));
-    try turn.write(try p.Value.init("other"), .{});
-    const before = turn.decision;
-    try t.expectError(error.MutationBudgetExceeded, upload.copyNext(&turn, 1, 2));
-    try t.expectEqualDeep(before, turn.decision);
-    turn = try store.capture();
-    try t.expect(!try upload.copyNext(&turn, 1, 2));
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expectError(error.QueryBusy, upload.copyNext(&turn, 1, 3));
-    try t.expectEqual(@as(usize, 0), writes(turn));
-    try upload.retire(&turn, ref.namespace);
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expectError(error.QueryUploadClosed, upload.copyNext(&turn, 1, 2));
-    try t.expectEqual(@as(usize, 0), writes(turn));
-    // Accepted partial work stays observable and keeps quota until explicit
-    // cancellation/collection. Retirement never authorizes silent eviction.
-    try t.expectEqual(.uploading, (try upload.status(&turn, 2)).?.phase);
-    try t.expectEqual(@as(?u64, 2), try upload.active(&turn));
-}
-
-test "refresh copy rejects mixed half-upload and corrupt template bytes before admission" {
-    var store: Store = .{ .resource = 8, .pid = 9 };
-    defer store.deinit();
-    const ref = try completeTemplate(&store, fixture(), 1);
-    var turn = try store.capture();
-    try t.expect(!try upload.copyNext(&turn, 1, 2));
-    try store.commit(turn);
-    turn = try store.capture();
-    const chunk = store.state.get(s.Publication.key(.query_request, 1, 'c', ref.record, 0)).?;
-    try upload.part(&turn, .{ .namespace = 2, .ordinal = 0, .second = false, .bytes = chunk.slice()[0..request.part_bytes] });
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expectError(error.QueryUploadIdentityConflict, upload.copyNext(&turn, 1, 2));
-    try upload.cancel(&turn, 2);
-    try store.commit(turn);
-    var abandoned = ref;
-    abandoned.namespace = 2;
-    try cleanup(&store, abandoned);
-    var corrupt = chunk;
-    corrupt.data[0] ^= 1;
-    try store.state.put(t.allocator, s.Publication.key(.query_request, 1, 'c', ref.record, 0), corrupt);
-    for (0..ref.spec.chunks() + 1) |_| {
-        turn = try store.capture();
-        try t.expect(!try upload.copyNext(&turn, 1, 3));
-        try store.commit(turn);
-    }
-    turn = try store.capture();
-    try t.expectError(error.InvalidPublicationDigest, upload.copyNext(&turn, 1, 3));
-    try t.expectEqual(@as(usize, 0), writes(turn));
-    try t.expectEqual(@as(u64, 0), (try upload.status(&turn, 3)).?.correlation);
 }
 
 test "draft budget independent full-width records and command frames" {

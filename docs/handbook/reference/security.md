@@ -22,7 +22,9 @@ scopes. Role memberships support ADMIN, INHERIT and SET independently; object
 grants support delegation options and RESTRICT/CASCADE. PUBLIC has no bootstrap
 access. Cross-realm federation is not implemented.
 
-Repeated grants preserve existing options and independent grantors. Ownership
+Repeated grants preserve omitted options and independent grantors. Turning off
+an enabled membership option checks dependencies; a new SET-only membership or
+an unchanged false option does not reconcile unrelated inactive grant paths. Ownership
 transfer checks SET eligibility from the login role separately from inherited
 owner authority. Exact logical role-name lookup is visible to authenticated
 callers in the realm; private native roles and full role enumeration remain
@@ -80,14 +82,48 @@ objects. CONNECT and USAGE precede each Table privilege check; role ownership
 governs ALTER and DROP. Metadata visibility follows the current object's grants
 or ownership. Names and backing-resource associations do not inherit privileges.
 
-The [Table service](../../../apps/transit-table-service/README.md) lets a restricted
-caller use one Table without raw access to the shared catalog resource. Its
-private storage identity reads bytes while a separate, action-bound caller proof
-supplies the credential epoch and selected role for authorization. It checks all
-observed requirements before returning a complete response. Metadata is filtered
-by current visibility. Historical definitions use the original Table's authority,
-including after DROP or name reuse. Direct raw-resource grants deliberately allow
-broader inspection and are not a Table isolation mechanism.
+SQL authorization plans resolve database, schema and Table names through the
+direct catalog and publish through native authorization against the observed
+policy revision. Default Table grants apply when a new Table permission object
+is registered. Adding or removing a default does not change existing Table
+grants. Catalog listings filter inaccessible objects; an exact lookup of a live
+Table without metadata privileges returns AccessDenied. SELECT permits retained
+reads without granting mutation, definition changes or raw native resource access.
+
+Direct namespace CREATE requires database ownership and eligibility for its
+declared owner role; RENAME and DROP require ownership of the original native
+schema. Admission and native registration are separate from catalog publication.
+DROP removes live namespace visibility but preserves native permission references
+for retained Table reads, receipts and result evidence. Those references remain
+subject to current grants and resource lifetime. The
+[namespace lifecycle](../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
+defines bounded RESTRICT checks, cancellation and exact recovery.
+
+Typed direct Table mutations can retain an additional authorization condition
+from an application's original accepted input. The worker needs its own Table
+rights, and the original subject must still satisfy the retained condition at
+admission and acceptance. Worker credential replacement preserves that condition;
+it does not renew the original caller's authority. Current authorized workers
+can still inspect or cancel the same operation after the original condition
+fails. A previously accepted mutation remains accepted. See the
+[direct Table authority contract](../../../contracts/DIRECT_TABLE_V1.md#requests-and-authority).
+
+Root may explicitly bind an authorization domain to a native resource's
+lifetime. The binding is immutable and grants no access to that resource.
+Protected guard checks require both current rights and a usable bound resource;
+a privilege decision alone does not establish usability. Direct Table database,
+schema and Table domains bind their catalog resource, so later native query
+publication checks the source lifetime even when the query runs in a different
+state resource. Native transitions use their recorded time sample and existing
+commit fence; see the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
+
+The [direct Table owner](../../../contracts/DIRECT_TABLE_V1.md) lets a caller
+use an authorized Table without raw access to the catalog lifetime resource.
+Each signed action binds the original credential epoch, selected role and
+connection. The node checks all accumulated requirements before disclosing a
+response. Metadata is filtered by current visibility. Retained metadata and rows
+use the original Table's authority after DROP or name reuse. Native raw-resource
+grants are separate permissions; they do not authorize a direct Table operation.
 
 Saved authorization changesets bind their reviewed scope and unsent intents to
 an original signature. Before recovery signs a continuation, it verifies that

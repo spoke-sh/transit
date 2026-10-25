@@ -1,14 +1,17 @@
 """Actual Board and application browser consumers, with owned physical services."""
 import base64
+import copy
 import hashlib
 import json
 from pathlib import Path
 import struct
 import subprocess
 import time
-from serving_table import watch as table_watch, query_policy, source_value
+from urllib.request import Request
+from serving_table import watch as table_watch, query_policy, source_value, authorize
 from reactive import reactive
-from serving import policy, post, signed_read, submit
+from serving import policy, post, signed_read, submit, Key
+from storage import wait_ready
 
 
 def run(env, tls):
@@ -22,7 +25,8 @@ def run(env, tls):
     cast(application, query_policy(env['counter_definition'], application, ingress, requests, 65536, struct.pack('<QQQ', 64, 64, 1048576)))
     cast(ingress, policy(33))
     drained(application); drained(ingress)
-    env['grant'](33, 20, ingress)
+    # The installer already has native send/inspect through its SQL login role.
+    # A native-principal grant cannot replace that catalog-owned credential.
     env['grant'](34, 20, ingress)
     env['resource_grant'](requests, 34, 3)
     # Abandoned leases must release bounded live capacity without a browser
@@ -58,7 +62,18 @@ def run(env, tls):
         # this identified operation, never for global quiescence.
         until = time.monotonic() + 30
         while time.monotonic() < until:
-            status, current = post(env['gateway_ports'][1], '/serving/v1/read', signed_read(keys[33], 33, ingress, 'status', operation), counter_host, None)
+            try:
+                signed = signed_read(keys[33], 33, ingress, 'status', operation)
+            except AssertionError as error:
+                failure = error.args[0]
+                if (isinstance(failure, tuple) and failure[:2] == ('/v1/query', 503)
+                        and json.loads(failure[2]) == {'err': 'HttpCapacity'}):
+                    # Signing first reads the current credential epoch. This
+                    # observation can retry without resubmitting the mutation.
+                    time.sleep(.05)
+                    continue
+                raise
+            status, current = post(env['gateway_ports'][1], '/serving/v1/read', signed, counter_host, None)
             assert status in (200, 404, 409, 429, 503, 504), (status, current)
             if status == 200 and current['stage'] == 'completed':
                 expected = counts.get(row, 0) + delta
@@ -80,7 +95,7 @@ def run(env, tls):
         viewer=dict(principal=65536, seed_file=str(keys[65536].seed), refresh=True))
     board_config = dict(upstream=env['worker_url'], realm=49, principal=79, seed_file=str(keys[79].seed), profile='native_v1', public_origin=gateway['public_origin'], port=gateway['port'], request_timeout_ms=5000, upstream_timeout_ms=3500,
         query=dict(seed_file=str(keys[65536].seed), connection=dict(realm=49, principal=65536, source=application, resource=resource, requester=ingress, requests=requests),
-            workspace=dict(name='counter', source=source_value(env['counter_definition'], application), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
+            workspace=dict(name='counter', executor=78, source=source_value(env['counter_definition'], application), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
         reactive=dict(principal=79, seed_file=str(keys[79].seed), gateway=gateway))
     board = env['start']('board-live', env['board'], board_config)
     pins = []
@@ -100,15 +115,37 @@ def run(env, tls):
     browser = subprocess.Popen(['vp', 'exec', '--filter', '@transit/board-web', 'node', 'browser/' + script, str(configuration)], stdout=log, stderr=subprocess.STDOUT, env=env['store'].env | {'NODE_EXTRA_CA_CERTS': str(ca_bundle)})
     previous = None
     sessions_before = None
+    next_progress = time.monotonic() + 30
+
+    def progress():
+        # Public process observations locate stalled computation without logging
+        # application values, credentials or signed requests.
+        for label, pid in (('ingress', ingress), ('application', application)):
+            try:
+                state = env['query'](0, {'process': pid})['body']['process']
+            except (OSError, AssertionError) as error:
+                # Diagnostics share bounded read admission with the workload.
+                # Failure to observe cannot interrupt the proof being observed.
+                print('Reactive worker progress unavailable:', label, type(error).__name__, flush=True)
+                continue
+            fields = ('generation', 'lifecycle', 'admitted', 'consumed', 'revision', 'failure')
+            print('Reactive worker progress:', label,
+                  {key: state['process'][key] for key in fields} |
+                  {'head': state['input']['position'] if state['input'] else None}, flush=True)
 
     def active_sessions():
         entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, view=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
         return bytes.fromhex(entry['value'])
     try:
-        until = time.monotonic() + 900
+        # Reference permits six minutes per finite query; retain a bounded
+        # enclosing schedule without changing per-request or session limits.
+        until = time.monotonic() + (1500 if env.get('profile') == 'reference' else 900)
         while browser.poll() is None:
             assert observer.poll() is None and (env['hosts_alive']() if 'hosts_alive' in env else board.poll() is None), 'view host exited'
             assert time.monotonic() < until, 'browser live view deadline'
+            if time.monotonic() >= next_progress:
+                progress()
+                next_progress = time.monotonic() + 30
             marker = root / 'view-stage'
             stage = marker.read_text() if marker.exists() else None
             if stage and stage != previous:
@@ -117,23 +154,45 @@ def run(env, tls):
                 if stage in ('mutate', 'mutate-again'): mutate()
                 elif stage == 'deny': env['resource_grant'](resource, 65536, 1)
                 elif stage == 'rows':
-                    for row in range(2, 21): mutate(row)
+                    env['populate_rows']()
+                    counts.update({row: 1 for row in range(2, 21)})
                 elif stage == 'restart': env['recover']()
                 elif stage == 'sessions-before': sessions_before = active_sessions()
                 elif stage == 'sessions-after': assert active_sessions() == sessions_before, 'reconnect replaced logical sessions'
-                elif stage == 'peer-closed':
+                elif stage in ('peer-closed', 'peer-reloaded'):
                     until_closed = time.monotonic() + 40
                     while sum(active_sessions()[4 + i * 16:20 + i * 16] != bytes(16) for i in range(4)) != 2:
                         assert time.monotonic() < until_closed, 'closed tab retained a live session'
                         time.sleep(.25)
+                elif stage == 'rotate-viewer':
+                    identity = env['query'](65537, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']
+                    replacement = Key(root, 'rotated-browser-viewer', 88)
+                    replacement.authority_query = keys[65537].authority_query
+                    authorize(env['send'], env['query'], {'rotate_credential': dict(principal=65537,
+                        expected_epoch=identity['credential_epoch'], public_key=replacement.public)})
+                    keys[65537] = replacement
+                elif stage == 'replace-viewer':
+                    # The old gateway must first expose current denial to the
+                    # browser. Only this separate stage supplies its new key.
+                    env['gateways'][1].kill()
+                    env['gateways'][1].wait(timeout=10)
+                    updated = copy.deepcopy(env['gateway_config'])
+                    gateway = updated['role']['gateway']
+                    assert gateway['viewer']['principal'] == 65537
+                    gateway['viewer']['seed_file'] = str(keys[65537].seed)
+                    for caller in gateway['callers']:
+                        if caller['principal'] == 65537:
+                            caller['public_key'] = keys[65537].public
+                    env['gateways'][1] = env['start']('gateway-viewer-rotated', env['example'], updated)
+                    wait_ready(env['store'].http, env['gateways'][1], Request(
+                        f"http://127.0.0.1:{gateway['port']}/health", headers={'Host': gateway['host']}))
                 elif stage == 'reset':
                     cast(ingress, reactive(0, table_watch(env['counter_definition'], application, expected=1, revision=2)))
                 elif stage == 'retire':
                     env['send']({'terminate': application})
                     env['send']({'retire_resource': resource})
                 elif stage != 'ready': raise AssertionError(('unknown browser stage', stage))
-                state = env['query'](0, {'process': ingress})['body']['process']
-                print('Ingress at stage completion:', {k: state['process'][k] for k in ('admitted', 'consumed', 'revision')} | {'head': state['input']['position'] if state['input'] else None}, flush=True)
+                progress()
                 (root / 'view-stage-ack').write_text(stage)
             time.sleep(.05)
         log.seek(0)

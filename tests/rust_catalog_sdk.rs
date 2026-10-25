@@ -1,306 +1,73 @@
-//! Installed Rust general Table lifecycle, owned values and exact saved recovery.
-use serde_json::{Value, json};
-use std::os::unix::fs::OpenOptionsExt;
-use std::{
-    fs,
-    io::{self, BufRead, Write},
-    path::Path,
-    time::{Duration, Instant},
-};
-use transit_client::{ClientConfig, Credential, ProcessRef, ResourceRef, Result};
-use transit_station_sdk::{catalog as m, logical as l};
-fn text<'a>(v: &'a Value, key: &str) -> &'a str {
-    v[key].as_str().unwrap()
+//! Installed direct Table lifecycle, retained metadata and original recovery.
+use serde_json::{Value,json};
+use std::{fs,io::{self,BufRead,Write},os::unix::fs::OpenOptionsExt,path::Path};
+use transit_client::{ClientConfig,Credential,ResourceRef,ErrorKind};
+use transit_station_sdk::{catalog as m,logical as l};
+type Result<T> = std::result::Result<T,Box<dyn std::error::Error>>;
+fn text<'a>(v:&'a Value,key:&str)->&'a str{v[key].as_str().unwrap()}
+fn number(v:&Value,key:&str)->u64{v[key].as_u64().unwrap()}
+fn persist(path:&Path,data:&str){let mut f=fs::OpenOptions::new().create(true).truncate(true).write(true).mode(0o600).open(path).unwrap();f.write_all(data.as_bytes()).unwrap();f.sync_all().unwrap();}
+fn compile(c:&mut m::Client,sql:&str,operation:u64,object:Option<u64>)->Result<m::Compiled>{Ok(c.compile_sql(sql,m::Identity::new(operation,1)?,object,m::Dialect::Transit,m::Ingestion::Point)?)}
+fn complete(c:&mut m::Client,work:m::Compiled,path:&Path)->Result<m::Observation>{
+    persist(&path.join("work.json"),&work.saved.save());let original=c.stage(&work.intent)?;persist(&path.join("work-reference.json"),&original.save());let mut observed=c.admit(&original)?;
+    for _ in 0..16{if observed.state!=m::OperationState::Admitted{break}observed=c.execute(&original,32)?;}assert_eq!(observed.state,m::OperationState::Committed);Ok(observed)
 }
-fn number(v: &Value, key: &str) -> u64 {
-    v[key].as_u64().unwrap()
-}
-fn connect(config: &Value) -> Result<m::Client> {
-    let c = &config["connection"];
-    let s = &c["scope"];
-    let realm = number(s, "realm");
-    let native = ClientConfig::growing(text(config, "url"))?.with_timeout(if config["table_service_url"].is_string() {30000} else {10000})?;
-    let credential = Credential::new(realm, number(c, "principal"), text(config, "seed_file"))?;
-    let mut connection = m::Connection::new(
-        ProcessRef::new(realm, number(c, "owner"))?,
-        m::Scope::new(
-            ResourceRef::new(realm, number(s, "resource"))?,
-            text(s, "catalog").parse().unwrap(),
-        )?,
-    )?;
-    if let Some(role) = c["role"].as_u64() {
-        connection = connection.with_role(role)?;
-    }
-    if let Some(namespace) = c["namespace"].as_u64() {
-        connection = connection.with_namespace(namespace)?;
-    }
-    if let Some(service) = config["table_service_url"].as_str() {
-        m::Client::open_mediated(native, credential, connection, service.into())
-    } else {
-        m::Client::open(native, credential, connection)
-    }
-}
-fn persist(path: &Path, data: &[u8]) {
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .mode(0o600)
-        .open(path)
-        .unwrap();
-    file.write_all(data).unwrap();
-    file.sync_all().unwrap();
-}
-fn finish(client: &mut m::Client, compiled: m::Compiled, path: &Path) -> Result<m::Outcome> {
-    persist(
-        &path.join("intent.json"),
-        &serde_json::to_vec(
-            &json!({"definition":compiled.saved.definition(),"bytes":compiled.saved.bytes()}),
-        )
-        .unwrap(),
-    );
-    let reference = compiled.intent.reference;
-    let deadline = Instant::now() + Duration::from_secs(120);
-    loop {
-        assert!(
-            Instant::now() < deadline,
-            "Table operation exceeded its budget"
-        );
-        match client.next(&reference)? {
-            m::Next::Terminal(outcome) => return Ok(outcome),
-            m::Next::Running => continue,
-            m::Next::UploadCancelled => panic!("Unexpected upload cancellation"),
-            m::Next::Send(prepared) => {
-                persist(&path.join("step.json"), prepared.data().as_bytes());
-                let position = client.submit(&prepared)?.position.get();
-                persist(&path.join("receipt.json"), position.to_string().as_bytes());
-                loop {
-                    assert!(
-                        Instant::now() < deadline,
-                        "Table progress exceeded its budget"
-                    );
-                    match client.progress(&reference, &prepared, position, true)? {
-                        m::Progress::Pending => continue,
-                        m::Progress::Processed {
-                            disposition,
-                            outcome,
-                            ..
-                        } => {
-                            assert!(disposition.is_none(), "{disposition:?}");
-                            if let Some(outcome) = outcome {
-                                if outcome.terminal {
-                                    return Ok(outcome);
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-fn atom(value: l::Atom) -> l::Cell {
-    l::Cell::Value(l::CellValue::Atom(value))
-}
-fn assignment(column: u64, value: l::Cell) -> m::Assignment {
-    m::Assignment {
-        column,
-        value: m::AssignmentValue::Cell(value),
-    }
-}
-fn scenario(mut client: m::Client, config: &Value, path: &Path, index: u64) -> Result<Value> {
-    let base = 1100 + index * 100;
-    let original_object = 12001 + index * 10;
-    let name = format!("sdk_people_{index}");
-    let ids = |offset| m::Identity::new(base + offset, base + offset + 100000).unwrap();
-    let description = client.describe()?;
-    assert_eq!(description.configuration.scope, client.connection().scope());
-    assert_eq!(
-        description.subject.principal,
-        number(&config["connection"], "principal")
-    );
-    let compiled=client.compile_sql(&format!("CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))"),ids(0),Some(original_object))?;
-    assert_eq!(
-        finish(&mut client, compiled, path)?.phase,
-        m::Phase::Applied
-    );
-    let original = client.lookup(&name)?.unwrap();
-    assert_eq!(original.schema.columns.len(), 3);
-    assert!(matches!(
-        original.schema.columns[1].datatype,
-        l::Descriptor::Structure(_)
-    ));
-    let payload = l::Cell::Value(l::CellValue::Structure(vec![
-        atom(l::Atom::Binary(vec![0, 128, 255])),
-        atom(l::Atom::Utf8("東京".into())),
-    ]));
-    let amount = atom(l::Atom::Decimal(123456789012345678901234567890));
-    let insert = client.prepare(
-        &name,
-        ids(1),
-        &m::Operation::Mutate {
-            basis: original.metadata.basis(),
-            mutation: m::Mutation::Insert {
-                rows: vec![vec![
-                    assignment(3, amount.clone()),
-                    assignment(1, atom(l::Atom::Signed(1))),
-                    assignment(2, payload),
-                ]],
+fn uncertain<T>(result:m::DispatchResult<T>,original:&str){match result {Err(m::DispatchError::Uncertain{cause,original:recovery})=>{
+    assert_eq!(recovery.save(),original);assert_eq!(cause.kind,ErrorKind::UnknownOutcome);assert_eq!(cause.status,Some(6));assert!(!cause.diagnostic_invalid);assert_eq!(cause.diagnostic.as_ref().unwrap()["outcome"],"unknown");
+},_=>panic!("expected uncertainty with original recovery")}}
+fn atom(a:l::Atom)->l::Cell{l::Cell::Value(l::CellValue::Atom(a))}
+fn assignment(column:u64,value:l::Cell)->m::Assignment{m::Assignment{column,value:m::AssignmentValue::Cell(value)}}
+fn snapshot(path:&Path)->m::Snapshot{m::Snapshot::restore(&fs::read_to_string(path.join("snapshot.json")).unwrap()).unwrap()}
+fn main()->Result<()>{
+    let argument=std::env::args().nth(1).unwrap();let path=Path::new(&argument);let config:Value=serde_json::from_slice(&fs::read(path)?)?;let c=&config["connection"];let s=&c["scope"];
+    let scope=m::Scope::new(ResourceRef::new(number(s,"realm"),number(s,"resource"))?,text(s,"catalog").parse()?)?;
+    let mut connection=m::Connection::new(scope,number(c,"audience"))?.with_branch(text(c,"branch").parse()?)?;
+    if let Some(role)=c["role"].as_u64(){connection=connection.with_role(role)?;}
+    let mut client=m::Client::open(ClientConfig::growing(text(&config,"url"))?.with_timeout(10000)?,Credential::new(number(s,"realm"),number(c,"principal"),text(&config,"seed_file"))?,connection,Some(text(&config,"service_url").into()))?;
+    let directory=path.parent().unwrap().join("rust");fs::create_dir_all(&directory)?;let name="rust_items";let object=u64::MAX-1;
+    println!("{}",json!({"ready":true}));io::stdout().flush()?;
+    for line in io::stdin().lock().lines(){let action:Value=serde_json::from_str(&line?)?;let (command,_)=action.as_object().unwrap().iter().next().unwrap();if command=="close"{break}
+        let result=match command.as_str(){
+            "prepare"=>{
+                assert_eq!(client.describe()?.subject.principal,number(c,"principal"));assert_eq!(client.namespace(1)?.unwrap().name,"public");assert!(client.namespaces(None)?.entries.iter().any(|n|n.id==1));
+                let work=compile(&mut client,&format!("CREATE TABLE {name} (id BIGINT PRIMARY KEY, payload BINARY)"),1,Some(object))?;complete(&mut client,work,&directory)?;
+                eprintln!("Rust direct prepare: current definition");let current=client.lookup(name,1)?.unwrap();assert_eq!(current.row_count,0);assert_eq!(current.basis.object(),object);
+                let rows=(0..9).map(|i|vec![assignment(1,atom(l::Atom::Signed(i))),assignment(2,atom(l::Atom::Binary(vec![i as u8;32768])))]).collect();
+                eprintln!("Rust direct prepare: typed bulk work");let work=client.prepare(name,m::Identity::new(2,1)?,&m::Operation::Mutate{basis:current.basis,mutation:m::Mutation::Insert{rows},ingestion:m::Ingestion::Bulk})?;
+                eprintln!("Rust direct prepare: preview");assert!(matches!(client.preview(&work.intent)?.current,Some(m::PreviewCurrent::Definition{row_count:0,..})));
+                persist(&directory.join("intent.json"),&work.saved.save());eprintln!("Rust direct prepare: load exact work");let loaded=client.load(&m::SavedIntent::restore(&fs::read_to_string(directory.join("intent.json"))?)?)?;
+                let original=client.stage(&loaded)?;persist(&directory.join("original.json"),&original.save());assert_eq!(client.admit(&original)?.state,m::OperationState::Admitted);
+                uncertain(client.execute(&original,32),&original.save());json!({"uncertain":true})
             },
-        },
-    )?;
-    let saved = insert.saved.clone();
-    let applied = finish(&mut client, insert, path)?;
-    assert_eq!(
-        applied.counts,
-        Some(m::Counts {
-            matched: 1,
-            changed: 1
-        })
-    );
-    let predicate = vec![m::Predicate::Compare {
-        column: 1,
-        op: m::CompareOperator::Eq,
-        value: l::Atom::Signed(1),
-    }];
-    let update = client.prepare(
-        &name,
-        ids(2),
-        &m::Operation::Mutate {
-            basis: original.metadata.basis(),
-            mutation: m::Mutation::Update {
-                assignments: vec![assignment(3, amount)],
-                predicate: Some(predicate.clone()),
+            "recover"=>{
+                let original=m::Reference::restore(&fs::read_to_string(directory.join("original.json"))?)?;let observed=client.inspect(&original)?;let commit=observed.commit.as_ref().unwrap();
+                assert_eq!((commit.matched,commit.affected,commit.live_rows),(9,9,9));assert_eq!(client.execute(&original,32)?,observed);
+                let current=client.lookup(name,1)?.unwrap();let acquisition=client.prepare_snapshot(&current,90000)?;persist(&directory.join("basis.json"),&current.basis.save());persist(&directory.join("acquisition.json"),&acquisition.save());
+                uncertain(client.acquire_snapshot(&acquisition),&acquisition.save());json!({"retention_uncertain":true})
             },
-        },
-    )?;
-    assert_eq!(
-        finish(&mut client, update, path)?.counts,
-        Some(m::Counts {
-            matched: 1,
-            changed: 0
-        })
-    );
-    let altered = client.prepare(
-        &name,
-        ids(3),
-        &m::Operation::Alter {
-            basis: original.metadata.basis(),
-            change: m::Change::Add {
-                name: "enabled".into(),
-                datatype: l::Descriptor::Scalar(l::ScalarType::Boolean),
-                nullable: false,
-                default: Some(atom(l::Atom::Boolean(true))),
-                max_characters: None,
+            "retained"=>{
+                let acquisition=m::SnapshotAcquisition::restore(&fs::read_to_string(directory.join("acquisition.json"))?)?;let status=client.snapshot_status(&acquisition.owner())?;assert!(!status.released);
+                let snapshot=status.snapshot.unwrap();persist(&directory.join("snapshot.json"),&snapshot.save());let metadata=client.snapshot_metadata(&snapshot)?;assert_eq!(metadata.accepted,acquisition.expected());assert_eq!((metadata.row_count,metadata.schema.columns.len()),(9,2));json!({"retained":true})
             },
-        },
-    )?;
-    assert_eq!(finish(&mut client, altered, path)?.phase, m::Phase::Applied);
-    assert!(
-        client
-            .prepare(
-                &name,
-                ids(4),
-                &m::Operation::Drop {
-                    basis: Some(original.metadata.basis()),
-                    if_exists: false
-                }
-            )
-            .is_err()
-    );
-    let current = client.lookup(&name)?.unwrap();
-    let deleted = client.prepare(
-        &name,
-        ids(5),
-        &m::Operation::Mutate {
-            basis: current.metadata.basis(),
-            mutation: m::Mutation::Delete {
-                predicate: Some(predicate),
+            "denied"=>{let e=client.snapshot_metadata(&snapshot(&directory)).unwrap_err();assert_eq!(e.kind,ErrorKind::AccessDenied);assert_eq!(e.status,Some(4));assert_eq!(e.diagnostic.unwrap()["category"],"access");json!({"denied":true})},
+            "metadata"=>{let metadata=client.snapshot_metadata(&snapshot(&directory))?;let basis=m::Basis::restore(&fs::read_to_string(directory.join("basis.json"))?)?;assert_eq!(metadata.interpretation,basis.interpretation());json!({"rows":metadata.row_count,"columns":metadata.schema.columns.len()})},
+            "retire"=>{
+                let work=compile(&mut client,&format!("UPDATE {name} SET id=0 WHERE id=0"),3,None)?;let unchanged=complete(&mut client,work,&directory)?.commit.unwrap();assert_eq!((unchanged.matched,unchanged.affected),(1,0));
+                let work=compile(&mut client,&format!("DELETE FROM {name} WHERE id=8"),4,None)?;let deleted=complete(&mut client,work,&directory)?.commit.unwrap();assert_eq!((deleted.matched,deleted.affected),(1,1));
+                let old=client.lookup(name,1)?.unwrap();let work=client.prepare(name,m::Identity::new(5,1)?,&m::Operation::Alter{basis:old.basis.clone(),change:m::Change::Add{name:"extra".into(),datatype:l::Descriptor::Scalar(l::ScalarType::Int64),nullable:true,default:None,max_characters:None,encoding:m::Encoding::Plain,collation:m::Collation::None}})?;
+                complete(&mut client,work,&directory)?;let error=client.prepare(name,m::Identity::new(55,1)?,&m::Operation::Drop{basis:Some(old.basis),if_exists:false}).unwrap_err();assert_eq!(error.code.as_deref(),Some("TableDefinitionChanged"));
+                let work=compile(&mut client,&format!("ALTER TABLE {name} RENAME TO {name}_old"),6,None)?;complete(&mut client,work,&directory)?;
+                let work=compile(&mut client,&format!("DROP TABLE {name}_old"),7,None)?;complete(&mut client,work,&directory)?;
+                let work=compile(&mut client,&format!("CREATE TABLE {name} (replacement BIGINT)"),8,Some(object-1))?;complete(&mut client,work,&directory)?;
+                assert_eq!(client.lookup(name,1)?.unwrap().basis.object(),object-1);assert_eq!(client.snapshot_metadata(&snapshot(&directory))?.row_count,9);json!({"original":true})
             },
-        },
-    )?;
-    assert_eq!(
-        finish(&mut client, deleted, path)?.counts,
-        Some(m::Counts {
-            matched: 1,
-            changed: 1
-        })
-    );
-    let dropped = client.prepare(
-        &name,
-        ids(6),
-        &m::Operation::Drop {
-            basis: Some(current.metadata.basis()),
-            if_exists: false,
-        },
-    )?;
-    assert_eq!(finish(&mut client, dropped, path)?.phase, m::Phase::Applied);
-    let replacement = client.compile_sql(
-        &format!("CREATE TABLE {name} (replacement TEXT)"),
-        ids(7),
-        Some(original_object + 1),
-    )?;
-    assert_eq!(
-        finish(&mut client, replacement, path)?.phase,
-        m::Phase::Applied
-    );
-    client.close()?;
-    let mut client = connect(config)?;
-    let loaded = client.load(&m::SavedIntent::new(
-        saved.definition().into(),
-        saved.bytes().to_vec(),
-    )?)?;
-    assert_eq!(loaded.object, original_object);
-    assert_eq!(client.status(&loaded.reference)?.outcome, Some(applied));
-    assert_eq!(
-        client.lookup(&name)?.unwrap().metadata.object,
-        original_object + 1
-    );
-    let historical = client
-        .definition(original_object, original.metadata.revision)?
-        .unwrap();
-    assert_eq!(historical.metadata, original.metadata);
-    assert_eq!(historical.schema, original.schema);
-    assert!(client.definition(original_object, 999)?.is_none());
-    assert!(!client.list(None)?.entries.is_empty());
-    client.close()?;
-    Ok(
-        json!({"profile":"installed-rust-general-table","original_object":original_object.to_string(),"replacement_object":(original_object+1).to_string(),"counts":{"matched":"1","changed":"1"}}),
-    )
-}
-fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let path = std::env::args().nth(1).unwrap();
-    let path = Path::new(&path);
-    let config: Value = serde_json::from_slice(&fs::read(path)?)?;
-    let mut client = Some(connect(&config)?);
-    println!("{{\"ready\":true}}");
-    io::stdout().flush()?;
-    for line in io::stdin().lock().lines() {
-        let action: Value = serde_json::from_str(&line?)?;
-        if action.get("close").is_some() {
-            break;
-        }
-        if action.get("denied").is_some() {
-            let mut fresh = connect(&config)?;
-            assert_eq!(fresh.describe().unwrap_err().status, Some(4));
-            fresh.close()?;
-            println!("{}", json!({"status":0,"value":{"denied":true}}));
-            io::stdout().flush()?;
-            continue;
-        }
-        let value = scenario(
-            client.take().unwrap(),
-            &config,
-            path.parent().unwrap(),
-            number(&action["scenario"], "index"),
-        )?;
-        println!("{}", json!({"status":0,"value":value}));
-        io::stdout().flush()?;
-    }
-    if let Some(client) = client {
-        client.close()?;
-    }
-    println!("{{\"closed\":true}}");
-    Ok(())
+            "release"=>{let snapshot=snapshot(&directory);assert!(!client.snapshot_status(&snapshot.owner())?.released);uncertain(client.release_snapshot(&snapshot),&snapshot.save());json!({"release_uncertain":true})},
+            "verify"=>{
+                let snapshot=snapshot(&directory);assert!(client.snapshot_status(&snapshot.owner())?.released);client.release_snapshot(&snapshot)?;
+                let original=m::Reference::restore(&fs::read_to_string(directory.join("original.json"))?)?;assert_eq!(client.inspect(&original)?.commit.unwrap().affected,9);
+                let saved=m::SavedIntent::restore(&fs::read_to_string(directory.join("intent.json"))?)?;assert_eq!(client.load(&saved)?.identity().operation(),2);
+                assert_eq!(client.lookup(name,1)?.unwrap().basis.object(),object-1);assert_eq!(client.tables(1,None)?.consistency,Some(m::Consistency::Independent));json!({"recovered":true})
+            },_=>panic!("unknown proof phase")
+        };println!("{}",json!({"status":0,"value":result}));io::stdout().flush()?;
+    }client.close()?;println!("{}",json!({"closed":true}));Ok(())
 }

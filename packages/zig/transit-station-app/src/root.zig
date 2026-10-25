@@ -20,7 +20,9 @@ pub const MigrationDiagnostic = @import("MigrationDiagnostic.zig");
 pub const Migration = @import("Migration.zig");
 pub const query = @import("transit_query");
 pub const NamedRelational = @import("NamedRelational.zig");
+pub const NamedRelationalPublication = @import("NamedRelationalPublication.zig");
 pub const NamedRelationalRecords = @import("NamedRelationalRecords.zig");
+pub const NamedResource = @import("NamedResource.zig");
 test {
     _ = @import("model_test.zig");
     _ = @import("publication_test.zig");
@@ -28,6 +30,7 @@ test {
     _ = @import("host_test.zig");
     _ = @import("migration_test.zig");
     _ = @import("named_relational_test.zig");
+    _ = @import("named_resource_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 

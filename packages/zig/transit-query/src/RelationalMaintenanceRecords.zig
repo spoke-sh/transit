@@ -86,7 +86,7 @@ pub const ExchangeInput = struct {
         return result;
     }
 };
-pub const Phase = enum(u8) { admitted = 1, running = 2, idle = 3, failed = 4, cancelled = 5, retired = 6 };
+pub const Phase = enum(u8) { admitted = 1, running = 2, idle = 3, failed = 4, cancelled = 5, retired = 6, acquiring = 7, seeking = 8 };
 pub const Head = struct {
     id: u64,
     peer: u64,
@@ -101,6 +101,8 @@ pub const Head = struct {
     continuation: u64,
     positions: [q.fuze.Relational.max_sources]u64 = @splat(0),
     count: u8,
+    acquired: u8 = 0,
+    cleanup_cursor: u8 = 0,
     preference: u8 = 0,
     phase: Phase = .admitted,
     released: bool = false,
@@ -124,10 +126,14 @@ pub const Head = struct {
         try p.Growth.validateVersionId(self.request_version);
         if (self.request_version.input != self.id or self.continuation < self.id) return error.InvalidMaintainedRecord;
         if (self.count == 0 or self.count > self.positions.len or self.preference >= self.count) return error.InvalidMaintainedRecord;
-        for (self.positions[0..self.count]) |position| if (position == 0 or position > p.max_counter) return error.InvalidMaintainedRecord;
+        if (self.acquired > self.count or self.cleanup_cursor > self.count) return error.InvalidMaintainedRecord;
+        const initial = self.revision == 0 and self.phase != .running and self.phase != .idle and self.phase != .seeking;
+        for (self.positions[0..self.count]) |position| if (position == 0 and !initial) return error.InvalidMaintainedRecord;
+        if ((self.phase == .admitted or self.phase == .acquiring) and (self.revision != 0 or self.manifest != 0)) return error.InvalidMaintainedRecord;
+        if ((self.phase == .running or self.phase == .idle or self.phase == .seeking) and self.acquired != self.count) return error.InvalidMaintainedRecord;
         for (self.positions[self.count..]) |position| if (position != 0) return error.InvalidMaintainedRecord;
         if ((self.revision == 0) != (self.manifest == 0) or self.next_record == 0 or self.manifest >= self.next_record) return error.InvalidMaintainedRecord;
-        if (self.phase == .idle and self.revision == 0) return error.InvalidMaintainedRecord;
+        if ((self.phase == .idle or self.phase == .seeking) and self.revision == 0) return error.InvalidMaintainedRecord;
         if (self.released != (self.phase == .retired)) return error.InvalidMaintainedRecord;
         var bytes: [p.Value.max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
@@ -139,6 +145,8 @@ pub const Head = struct {
         try writer.writeByte(self.request_version.index);
         for (self.positions) |position| try writer.writeInt(u64, position, .little);
         try writer.writeByte(self.count);
+        try writer.writeByte(self.acquired);
+        try writer.writeByte(self.cleanup_cursor);
         try writer.writeByte(self.preference);
         try writer.writeByte(@backingInt(self.phase));
         try writer.writeByte(@intFromBool(self.released));
@@ -154,6 +162,8 @@ pub const Head = struct {
         result.request_version = .{ .pid = try reader.takeInt(u64, .little), .input = try reader.takeInt(u64, .little), .index = try reader.takeByte() };
         for (&result.positions) |*position| position.* = try reader.takeInt(u64, .little);
         result.count = try reader.takeByte();
+        result.acquired = try reader.takeByte();
+        result.cleanup_cursor = try reader.takeByte();
         result.preference = try reader.takeByte();
         result.phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidMaintainedRecord;
         result.released = try flag(&reader);

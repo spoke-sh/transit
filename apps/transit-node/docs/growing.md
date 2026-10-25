@@ -17,13 +17,50 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | --- | --- |
 | `profile` | Literal `native_v1`, also the default |
 | `genesis` | Exact expected v1 genesis |
-| `ursula_url`, `bucket`, `journal` | Private provider location |
+| `local_directory` | Local native storage directory; select this instead of the three Ursula fields |
+| `ursula_url`, `bucket`, `journal` | Private Ursula provider location when `local_directory` is absent |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
 | `resident_pages` | Decoded page cache slots per execution lane, default 512, configurable 0–4096; ten lanes plus the bootstrap/maintenance context synchronize verified cache entries at lane boundaries; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
+| `storage` | Shared storage candidate/allocation limits and maintenance settings; does not select a provider |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
-| `maintenance` | Configuration for the separate `--maintain` process, below |
+| `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the local node, or in Ursula's separate `--maintain` process |
+| `table` | Optional local direct Table owner: fixed catalog/native bindings and registrar credential reference; see below |
+
+Both providers use the same signed HTTP request handling, current-rights checks,
+snapshot registry and bounded request lanes. The local provider holds an
+exclusive directory lock and persists native catalog/resource state through its
+[log and immutable object adapter](../../../packages/zig/transit-backend-local/README.md).
+It rejects a second owner and incompatible history. `--initialize` creates a new
+native authority; ordinary startup requires that authority to exist. This
+selection is also the installed local launcher's default. Its Table bootstrap
+and shared SQL sessions use the direct Table route in the same physical owner.
+
+`table.catalog` is the `DirectCatalog.Configuration`: existing scope and native
+database/schema/Table domain bindings, branch one, service audience, database
+and initial namespace names, and its exclusive nonzero control partition.
+It allocates Table partitions above that control partition; reserve that range
+for this one catalog. Native authority uses partition zero. Retained catalog
+configuration/history is checked before readiness; startup does not initialize
+the catalog or execute its pending operations.
+
+`table.registrar` names `principal`, `seed_file` and an optional native `role`.
+The registrar must already have the native domain registration authority. The
+key reference grants nothing to the original Table caller; each registration
+step checks that caller again before native commitment. The signed `initialize`
+operation establishes the initial catalog under current native ownership.
+Configuration selects a service owner and storage placement, not application
+definitions or a second permission store. Ursula nodes do not provide this
+direct Table route.
+
+`table.statement_scan_rows` defaults to 1,000,000 decoded row visits and
+`table.statement_scan_bytes` to 64 MiB of canonical input bytes per typed
+UPDATE/DELETE execution attempt. Both must be positive and count all passes,
+including group-boundary re-reads. These deployment work quotas do not constrain
+retained Table cardinality. Exceeding either records a `work_limit` rejection
+without publishing a row prefix. Index staging and physical storage quotas are
+separate. Captured queries and language SDK adapters still require migration.
 
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is
@@ -72,6 +109,24 @@ applicable. Values remain opaque application bytes. Computation runs in the
 caller; the node validates identity, ordering, state dependencies and publication.
 Requests use the common bounded, cancelable HTTP loop and diagnostics.
 
+With `table` configured, `POST /table/v1` accepts the
+[direct Table contract](../../../contracts/DIRECT_TABLE_V1.md) through the same
+listener. Point and bulk row bytes bypass native actor inputs and resource-block
+frames. Catalog DDL excludes concurrent row admission; independent Table requests
+share directory access and use 64 bounded lock stripes. A stripe collision can
+serialize otherwise independent Tables. No per-row catalog root is published.
+The service opens a bounded Table/catalog view for each request; recovery cost
+currently grows with retained history even though resident caches stay bounded.
+
+Direct requests accept at most 8 MiB and buffer at most 16 MiB of response, in
+addition to bounded schema/row conversion, index caches and private storage work.
+They use the listener's ordinary request lanes. `X-Transit-Control: table` uses
+reserved admission only for exact operation inspection/cancellation and pin
+release; the parsed action is checked and native authorization still applies.
+It does not grant ordinary execution access to the reserve. Inspection and
+startup do not dispatch retained work. Explicit execution resumes it using its
+original operation identity.
+
 The listener allows 16 sockets, four active data requests and two reserved
 control requests. Health, commands and snapshot release/finish use the reserve.
 `X-Transit-Control: snapshot` is an admission hint: on query routes the parsed
@@ -114,13 +169,23 @@ share one conditional publication journal per realm.
 
 ## Background maintenance
 
-Run `transit-node CONFIG.json --maintain` as a separate trusted process. Its
+With Ursula, run `transit-node CONFIG.json --maintain` as a separate trusted process. Its
 `maintenance` configuration supplies a dedicated full-width `principal` and
 `seed_file`, with `interval_ms` (default 1000) and `operation_timeout_ms` (default
 5000), both 1–60000. Use a separate principal from application and administrative
 request producers. Each step reauthenticates its key and requires current
 realm-wide admin, effect and delivery permissions; it does not require send,
 execute or mailbox inspection permission. Raw storage remains privileged.
+
+With local storage, setting `maintenance` starts the same bounded lifecycle scan
+inside the node's exclusive storage owner. It has a private engine and bounded
+page cache, and shares the local owner's serialized publication boundary with
+request lanes. Shutdown joins both tasks before closing storage. Local
+`--maintain` rejects: a second process cannot acquire the directory while the
+node owns it. Authorized accepted-floor trimming survives restart; unlimited
+retention and the history-trim opt-in are unchanged. Local immutable objects
+remain retained, and `storage.maintenance.compact: true` rejects. Standalone
+payload reclamation reports unavailable without recording a deletion outcome.
 
 The process rotates through processes, resources and indexed pending effects/
 outputs, inspecting one record from a bounded page per step. Its disposable
@@ -185,11 +250,19 @@ Counters cover this process's completed attempt, not maintenance in another
 process, durable outcomes, caller persistence or response transport time.
 Missing headers mean missing measurement, not zero work. Counters do not depend
 on sampled logs and retain no payloads, credentials or principal labels. Encoding
-failure omits diagnostics without changing the authority response. Metrics are
-opt-in to keep the default response and instrumentation work unchanged.
+failure omits diagnostics without changing the authority response. Metrics
+headers are opt-in. With local storage, provider counters measure native log
+and immutable page/block operations, including conflicts and storage failures.
+Cache hits do not count as provider reads. Local payload bytes count serialized
+WAL entries and page/block envelopes; they do not count filesystem framing or
+individual system calls. Trimming includes its verification reads.
 
 
 ## Physical storage budgets and maintenance
+
+The following allocation ledger and physical collection details apply to
+Ursula. Local allocation accounting and retained-object limits are described in
+the [local backend](../../../packages/zig/transit-backend-local/README.md).
 
 The native configuration accepts `storage.limits.bytes` (default 8 GiB),
 `storage.limits.control_bytes` (64 MiB) and `storage.limits.candidate_bytes`

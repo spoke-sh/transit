@@ -93,11 +93,11 @@ export function Atlas({
   return (
     <main className="atlas-main">
       <nav aria-label="Board navigation">
-        <Link to="/" search={{ status: "all", sort: "pid" }}>
+        <Link to="/" search={{ status: "all", sort: "pid" }} onClick={() => setEntered(false)}>
           Process directory
         </Link>
         {" · "}
-        <Link to="/resources" search={{}}>
+        <Link to="/resources" search={{}} onClick={() => setEntered(false)}>
           Resource directory
         </Link>
       </nav>

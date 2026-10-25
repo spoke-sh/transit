@@ -5,7 +5,7 @@ pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
 pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
-pub const Completion = enum { select, insert, update, delete, create_table, alter_table, drop_table, set, show, discard_all };
+pub const Completion = enum { select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all };
 pub const Id = [32]u8;
 pub const Instance = [16]u8;
 pub const Token = [16]u8;
@@ -93,11 +93,13 @@ pub const Operation = struct {
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
 };
-pub const Description = struct { statement: Id, schema: []const u8, parameters: []const []const u8, mutation: bool };
+/// A command without returned rows has no result schema. The field is required;
+/// null is distinct from a row-returning statement with an empty result.
+pub const Description = struct { statement: Id, schema: ?[]const u8, parameters: []const []const u8, mutation: bool };
 pub const Basis = union(enum) {
-    source: struct { kind: fuze.Unified.SourceKind, resource: u64, revision: u64, head: [32]u8, contract: [32]u8, schema: [32]u8 },
-    table: struct { realm: u64, resource: u64, catalog: u64, owner: u64, object: u64, revision: u64, commitment: [32]u8, schema: [32]u8 },
-    per_resource_snapshot_vector: []const fuze.Relational.Cut,
+    source: struct { kind: fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
+    table: struct { object: @import("transit_protocol").DataLifecycle.Object, interpretation: @import("transit_protocol").DataLifecycle.Definition, accepted: @import("transit_protocol").DataLifecycle.Position, changed_lsn: u64, pin: @import("transit_protocol").DataLifecycle.Content, commitment: [32]u8, schema: [32]u8 },
+    independent_table_snapshots: []const fuze.Relational.Cut,
 };
 pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool, basis: ?Basis = null };
 pub const Response = struct {
@@ -114,7 +116,7 @@ pub const Response = struct {
         operation: Operation,
         operations: struct { entries: []const Operation, next: ?u64 },
         completion: struct { kind: Completion, matched: u64 = 0, changed: u64 = 0 },
-        assistance: struct { coverage: enum { complete, limited }, status: enum { ready, inside_text, unsupported }, profile: enum { unified_v1, catalog_v1, configuration_v1 }, resource: u64, contract: [32]u8, resource_revision: u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
+        assistance: struct { coverage: enum { complete, limited }, status: enum { ready, inside_text, unsupported }, profile: enum { unified_v1, catalog_v1, configuration_v1, direct_table_v1 }, resource: u64, contract: [32]u8, resource_revision: ?u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
         closed,
         err: Error,
     },

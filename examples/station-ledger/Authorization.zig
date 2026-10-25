@@ -5,11 +5,11 @@ const q = @import("transit_query");
 const p = q.protocol;
 const Self = @This();
 client: q.wire.AuthorizationClient,
-profile: q.catalog.TableAuthority.Profile,
+data: @import("Data.zig").Binding,
 
 pub const Configuration = struct {
     role: u64,
-    profile: q.catalog.TableAuthority.Profile,
+    data: @import("Data.zig").Binding,
 };
 pub fn prepare(self: Self, turn: *q.station.Turn, body: []const u8) !q.QueryAuthorization {
     return q.QueryAuthorization.prepare(self.client, turn.delivery.pid, turn.delivery.pid, turn.view.resource, body);

@@ -95,8 +95,8 @@ pub fn classification(value: Reason) Class {
         .ReactiveAttachmentConflict => .{ .code = "reactive.attachment_conflict", .category = .conflict, .stage = .admission, .message = "The requested attachment generation differs from the recorded generation. This input did not replace the attachment. Inspect the existing attachment and fence older transport replies." },
         .ReactiveSubscriptionConflict => .{ .code = "reactive.subscription_conflict", .category = .conflict, .stage = .admission, .message = "The subscription identity or generation conflicts with the recorded session subscription. This input did not replace or remove it. Compare the original subscription fields before continuing." },
         .ReactiveLeaseConflict => .{ .code = "reactive.lease_conflict", .category = .conflict, .stage = .admission, .message = "The expected lease differs from the recorded lease, or the requested deadline does not advance it. This input did not renew the session. Inspect the original lease fields and committed clock." },
-        .InvalidRefreshBudget => .{ .code = "refresh.invalid_budget", .category = .limit, .stage = .input, .message = "Follow requires a nonzero template identity and a budget from 1 through 8 selected query intents. This input did not create another Follow generation. Review the explicit finite budget." },
-        .InvalidRefreshTemplate => .{ .code = "refresh.invalid_template", .category = .binding, .stage = .admission, .message = "The Follow template is not a complete query result for the declared source contract and schema. This input did not start a refresh. Inspect the original template and exact source basis." },
+        .InvalidRefreshBudget => .{ .code = "refresh.invalid_budget", .category = .limit, .stage = .input, .message = "Follow requires a nonzero template identity, a budget from 1 through 8 and that many distinct prepared capture identities. This input did not create another Follow generation. Review the explicit finite budget." },
+        .InvalidRefreshTemplate => .{ .code = "refresh.invalid_template", .category = .binding, .stage = .admission, .message = "The Follow template or prepared captures do not match the required states, caller, source, plan or independent capture grants. This input did not start a refresh. Inspect the exact saved query identities and source basis." },
         .RefreshGenerationConflict => .{ .code = "refresh.generation_conflict", .category = .conflict, .stage = .admission, .message = "The requested Follow generation differs from the recorded generation. This input did not replace it. Inspect the exact current generation and retain its accepted query identities." },
         .RefreshNotFound => .{ .code = "refresh.absent", .category = .lifecycle, .stage = .admission, .message = "The owner found no Follow view at this identity. This input did not create or pause one. Inspect the original Follow request and its committed disposition." },
         .RefreshResultConflict => .{ .code = "refresh.result_conflict", .category = .conflict, .stage = .admission, .message = "The acknowledged query namespace or phase differs from the retained ready result. This input did not mark it covered. Verify the complete exact result before acknowledging its original namespace." },
@@ -136,7 +136,7 @@ pub const Witness = union(enum(u8)) {
     binding: struct { expected: u64, actual: u64, expected_codec: u16, actual_codec: u16, target: u64, present: bool, published: bool } = 12,
     refresh: struct { expected: root.RefreshModel.Namespace, actual: root.RefreshModel.Namespace, phase: root.RefreshModel.Phase } = 13,
     frame: struct { correlation: u64, expected: u64, actual: u64, kind: enum(u8) { reply_source, observer, timer, administrator }, actual_known: bool = true } = 14,
-    target: struct { expected: u64, actual: u64, kind: enum(u8) { source, resource } } = 15,
+    target: struct { expected: u64, actual: u64, kind: enum(u8) { source, resource, partition } } = 15,
     basis: struct { expected: [32]u8, actual: [32]u8, kind: enum(u8) { schema, contract, metadata } } = 16,
     source_kind: struct { expected: root.query.fuze.Unified.SourceKind, actual: root.query.fuze.Unified.SourceKind } = 17,
     table: root.RefreshModel.Namespace = 18,
@@ -160,7 +160,7 @@ pub fn bindingWitness(value: ?m.Binding, expected: u64, codec: u16) Witness {
     return .{ .binding = .{ .expected = expected, .actual = if (value) |v| v.revision else 0, .expected_codec = codec, .actual_codec = if (value) |v| v.codec else 0, .target = if (value) |v| v.target else 0, .present = value != null, .published = if (value) |v| v.published else false } };
 }
 pub fn sourceWitness(value: ?root.ReactiveModel.Source, expected: u64) Witness {
-    return .{ .source = .{ .expected = expected, .actual = if (value) |v| v.revision else 0, .present = value != null, .published = if (value) |v| v.published else false, .target = if (value) |v| v.target else 0, .resource = if (value) |v| v.resource else 0, .metadata = if (value) |v| v.metadata_digest else @splat(0) } };
+    return .{ .source = .{ .expected = expected, .actual = if (value) |v| v.revision else 0, .present = value != null, .published = if (value) |v| v.published else false, .target = if (value) |v| v.audience else 0, .resource = if (value) |v| v.resource else 0, .metadata = if (value) |v| v.interpretation_digest else @splat(0) } };
 }
 pub fn progressWitness(key: p.Value, actual: ?u64, limit: u64) !Witness {
     if (key.len == 0 or key.len > 32) return error.InvalidServingRecord;
@@ -306,8 +306,17 @@ pub fn facts(result: *d, witness: Witness) !void {
             try result.fact(.limit, .owner, .{ .unsigned = .init(value.limit) });
         },
         .target => |value| {
-            try result.fact(if (value.kind == .source) .expected_source else .expected_resource, .owner, .{ .unsigned = .init(value.expected) });
-            try result.fact(if (value.kind == .source) .actual_source else .actual_resource, .owner, .{ .unsigned = .init(value.actual) });
+            try result.fact(switch (value.kind) {
+                .source => .expected_source,
+                .resource => .expected_resource,
+                .partition => .expected_value,
+            }, .owner, .{ .unsigned = .init(value.expected) });
+            try result.fact(switch (value.kind) {
+                .source => .actual_source,
+                .resource => .actual_resource,
+                .partition => .supplied_value,
+            }, .owner, .{ .unsigned = .init(value.actual) });
+            if (value.kind == .partition) try result.text(.field_path, .owner, "source.partition");
         },
         .basis => |value| {
             try result.fact(.expected_schema, .owner, .{ .digest = value.expected });

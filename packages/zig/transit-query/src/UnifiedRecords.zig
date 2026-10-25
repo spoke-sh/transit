@@ -32,7 +32,7 @@ pub const Policy = struct {
     pub const declaration_bytes = 118;
     pub const max_bytes = 126;
     pub const Catalog = struct {
-        scope: q.catalog.TableCatalogRecords.Scope,
+        scope: p.DataLifecycle.Scope,
         owner: u64,
         principal: u64,
         pub fn validate(self: Catalog) !void {
@@ -67,7 +67,7 @@ pub const Policy = struct {
                 .declaration => |value| try writer.writeAll(&value),
                 .catalog => |value| {
                     try value.validate();
-                    try q.catalog.TableMetadata.scopeWrite(writer, value.scope);
+                    inline for (.{ "realm", "resource", "catalog" }) |field| try writer.writeInt(u64, @field(value.scope, field), .little);
                     try writer.writeInt(u64, value.owner, .little);
                     try writer.writeInt(u64, value.principal, .little);
                 },
@@ -115,7 +115,7 @@ pub const Policy = struct {
         var bytes: [max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQA1");
-        try writer.writeAll(&q.catalog.TableMetadata.definition());
+        try writer.writeAll(&p.Growth.definition_bytes);
         inline for (.{ "peer", "requests", "revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);
         try self.target.write(&writer);
         try writer.writeByte(@intFromBool(self.allow));
@@ -126,7 +126,7 @@ pub const Policy = struct {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQA1");
-        if (!std.mem.eql(u8, try reader.take(32), &q.catalog.TableMetadata.definition())) return error.IncompatibleDefinition;
+        if (!std.mem.eql(u8, try reader.take(32), &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
         var result: Policy = .{ .peer = try reader.takeInt(u64, .little), .requests = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .target = try Target.read(&reader), .allow = false, .limits = undefined };
         result.allow = switch (try reader.takeByte()) {
             0 => false,
@@ -140,13 +140,23 @@ pub const Policy = struct {
     }
 };
 
-pub const Phase = enum(u8) { capturing = 1, captured = 2, complete = 3, cancelled = 4, denied = 5, failed = 6, retired = 7 };
+pub const Phase = enum(u8) { capturing = 1, captured = 2, complete = 3, cancelled = 4, denied = 5, failed = 6, retired = 7, admitted = 8, acquiring = 9 };
+pub const Retention = union(enum) {
+    native: p.Growth.ReadVersionId,
+    table: struct { worker: u64 },
+    pub fn worker(self: Retention) u64 {
+        return switch (self) {
+            .native => |value| value.pid,
+            .table => |value| value.worker,
+        };
+    }
+};
 pub const Job = struct {
     id: u64,
     destination: u64,
     correlation: u64,
     policy_revision: u64,
-    source: p.Growth.ReadVersionId,
+    source: Retention,
     request: Ref,
     phase: Phase = .capturing,
     continuation: u64,
@@ -160,19 +170,24 @@ pub const Job = struct {
     }
     pub fn encode(self: Job) !p.Value {
         inline for (.{ "id", "destination", "correlation", "policy_revision" }) |name| try identity(@field(self, name));
-        try p.Growth.validateVersionId(self.source);
+        switch (self.source) {
+            .native => |version| {
+                try p.Growth.validateVersionId(version);
+                if (version.input != self.id or self.phase == .admitted or self.phase == .acquiring) return error.InvalidQueryRecord;
+            },
+            .table => |value| try identity(value.worker),
+        }
         try q.Bundle.checkReference(self.request);
-        if (self.source.input != self.id) return error.InvalidQueryRecord;
         try identity(self.continuation);
         if ((self.phase == .failed or self.phase == .denied) != (self.failure != null)) return error.InvalidQueryRecord;
         if (self.failure) |failure| if (failure.denied() != (self.phase == .denied)) return error.InvalidQueryRecord;
-        var bytes: [143 + q.QueryFailure.encoded_bytes]u8 = undefined;
+        var bytes: [136 + q.QueryFailure.encoded_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQJ1");
         inline for (.{ "id", "destination", "correlation", "policy_revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);
-        try writer.writeInt(u64, self.source.pid, .little);
-        try writer.writeInt(u64, self.source.input, .little);
-        try writer.writeByte(self.source.index);
+        try writer.writeByte(if (self.source == .native) 1 else 2);
+        try writer.writeInt(u64, self.source.worker(), .little);
+        if (self.source == .native) try writer.writeByte(self.source.native.index);
         try writer.writeAll((try self.request.encode()).slice());
         try writer.writeByte(@backingInt(self.phase));
         try writer.writeInt(u64, self.continuation, .little);
@@ -185,7 +200,18 @@ pub const Job = struct {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQJ1");
-        var result: Job = .{ .id = try reader.takeInt(u64, .little), .destination = try reader.takeInt(u64, .little), .correlation = try reader.takeInt(u64, .little), .policy_revision = try reader.takeInt(u64, .little), .source = .{ .pid = try reader.takeInt(u64, .little), .input = try reader.takeInt(u64, .little), .index = try reader.takeByte() }, .request = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidQueryRecord, .continuation = try reader.takeInt(u64, .little), .cleanup = try reader.takeInt(u64, .little) };
+        var result: Job = .{ .id = try reader.takeInt(u64, .little), .destination = try reader.takeInt(u64, .little), .correlation = try reader.takeInt(u64, .little), .policy_revision = try reader.takeInt(u64, .little), .source = undefined, .request = undefined, .continuation = undefined };
+        const retention = try reader.takeByte();
+        const worker = try reader.takeInt(u64, .little);
+        result.source = switch (retention) {
+            1 => .{ .native = .{ .pid = worker, .input = result.id, .index = try reader.takeByte() } },
+            2 => .{ .table = .{ .worker = worker } },
+            else => return error.InvalidQueryRecord,
+        };
+        result.request = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes)));
+        result.phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidQueryRecord;
+        result.continuation = try reader.takeInt(u64, .little);
+        result.cleanup = try reader.takeInt(u64, .little);
         result.failure = switch (try reader.takeByte()) {
             0 => null,
             1 => try q.QueryFailure.decode(try p.Value.init(try reader.take(q.QueryFailure.encoded_bytes))),
@@ -216,7 +242,7 @@ pub const Checkpoint = struct {
         try self.progress.validate(plan);
         if (self.cut.kind == .table) {
             const capacity = std.math.mul(u64, self.progress.pages, f.LogicalArrow.max_rows) catch return error.InvalidQueryRecord;
-            if (self.cursor.table_scanned < self.progress.counters.scanned or self.cursor.table_scanned > capacity or (!self.cursor.done and self.cursor.table_scanned != capacity)) return error.InvalidQueryRecord;
+            if (self.cursor.table_scanned < self.progress.counters.scanned or self.cursor.table_scanned > capacity) return error.InvalidQueryRecord;
         }
         _ = try self.encode();
         return plan;
@@ -229,10 +255,7 @@ pub const Checkpoint = struct {
         var bytes: [p.Value.max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQC1");
-        try writer.writeByte(@backingInt(self.cut.kind));
-        try writer.writeInt(u64, self.cut.resource, .little);
-        try writer.writeInt(u64, self.cut.revision, .little);
-        try writer.writeAll(&self.cut.head);
+        try self.cut.write(&writer);
         try writer.writeAll(&try self.progress.encodeRecord());
         try writer.writeByte(@intFromBool(self.cursor.done));
         switch (self.cut.kind) {
@@ -271,7 +294,7 @@ pub const Checkpoint = struct {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQC1");
-        const cut: q.Basis.Cut = .{ .kind = std.enums.fromInt(m.SourceKind, try reader.takeByte()) orelse return error.InvalidQueryRecord, .resource = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .head = (try reader.takeArray(32)).* };
+        const cut = try q.Basis.Cut.read(&reader);
         var result: Checkpoint = .{ .cut = cut, .progress = try f.LogicalStream.Progress.decodeRecord(try reader.take(f.LogicalStream.progress_bytes)) };
         result.cursor.ordinal = result.progress.pages;
         result.cursor.done = switch (try reader.takeByte()) {

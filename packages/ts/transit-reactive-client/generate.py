@@ -38,7 +38,8 @@ def clean(value):
 
 
 outputs = {
-    "types.ts": "// Generated from Zig-owned reactive schemas; do not edit.\n" + "\n".join(f"export type {name} = {ts(schema)};" for name, schema in schemas.items()) + "\n",
+    "types.ts": "// Generated from Zig-owned reactive schemas; do not edit.\n" + "\n".join(f"export type {name} = {ts(schema)};" for name, schema in schemas.items()) + "\n" +
+        "export const currentDefinition = " + ts(schemas["SignedCommand"]["properties"]["request"]["properties"]["definition"]) + " as const;\n",
     "schemas.json": json.dumps(clean(schemas), separators=(",", ":")) + "\n",
 }
 for name, content in outputs.items():

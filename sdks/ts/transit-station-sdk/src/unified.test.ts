@@ -11,26 +11,23 @@ import {
   IncompatibleNative,
 } from "@transit/client";
 import * as q from "./unified.ts";
-import { Metadata, MetadataCommitment, Schema, Scope } from "./catalog.ts";
+import { Schema, Scope, schemaWire } from "./catalog.ts";
 import contract from "./contract.json" with { type: "json" };
 
 const resource = new ResourceRef(1, 7),
   owner = new ProcessRef(1, 3);
 const source: q.Source = {
   kind: "table",
-  owner,
-  metadata: new Metadata({
-    namespace: 1,
-    scope: new Scope(resource, 9n),
-    objectId: 17n,
-    revision: 3n,
-    name: "people",
-    schemaFingerprint: "01".repeat(32),
-    principal: 9,
-    operation: 2n,
-    admittedInput: 10,
-    commitment: new MetadataCommitment(200, "ab".repeat(32)),
-  }),
+  scope: new Scope(resource, 9n),
+  audience: 3,
+  branch: 1n,
+  namespace: 1,
+  interpretation: new q.TableInterpretation(
+    3n,
+    new Uint8Array(32).fill(0xab),
+    200n,
+    new Uint8Array(32).fill(1),
+  ),
   schema: new Schema(17n, 2n, 3n, [
     { id: 1n, name: "id", type: { kind: "uint128" }, nullable: false },
     { id: 2n, name: "値", type: { kind: "binary" }, nullable: true },
@@ -38,7 +35,144 @@ const source: q.Source = {
 };
 const budgets = { pages: 100n, segments: 100n, resultBytes: 1048576n };
 
-test("SQL preparation freezes full-width atoms and catalog metadata before awaiting transport", async () => {
+test("lookup preserves direct interpretation, schema and full-width frontier", async () => {
+  const maximum = (1n << 64n) - 1n;
+  const response = {
+    table: {
+      source: {
+        version: 1,
+        resource: 7,
+        source: {
+          table: {
+            scope: { realm: 1, resource: 7, catalog: "9" },
+            owner: 3,
+            branch: "1",
+            namespace: 1,
+            object: "17",
+            interpretation: {
+              revision: "3",
+              digest: Array(32).fill(0xab),
+              bytes: "200",
+              schema: Array(32).fill(1),
+            },
+            row_type: {
+              structure: [
+                { name: "id", type: { uint128: {} }, nullable: false, optional: false },
+                { name: "値", type: { binary: {} }, nullable: true, optional: false },
+              ],
+            },
+          },
+        },
+      },
+      schema: schemaWire(source.schema),
+      expected: { partition: maximum.toString(), next_lsn: maximum.toString() },
+    },
+  };
+  await withHost(response, async (client) => {
+    const found = await client.lookupTable("people");
+    assert.ok(found);
+    assert.equal(found.source.schema.objectId, 17n);
+    assert.equal(found.source.interpretation.revision, 3n);
+    assert.equal(found.source.schema.revision, 2n);
+    assert.deepEqual(found.capture(103, 12n), new q.Capture(103, 12n, maximum, maximum));
+  });
+  const inconsistent = structuredClone(response);
+  inconsistent.table.source.source.table.row_type.structure[0]!.name = "substituted";
+  await withHost(inconsistent, async (client) => {
+    await assert.rejects(client.lookupTable("people"), IncompatibleNative);
+  });
+});
+
+test("capture preserves full-width storage coordinates and keeps cleanup separate", async () => {
+  const maximum = (1n << 64n) - 1n;
+  const bundle = new q.Bundle(new Uint8Array([1, 2, 3]));
+  await withHost({ authorized: "010203" }, async (client, requests) => {
+    await client.authorizeBundle(bundle, new q.Capture(103, maximum, maximum, maximum));
+    const submitted = (await requests()).find((v: any) => v.unified_query?.authorize) as any;
+    assert.deepEqual(submitted.unified_query.authorize, {
+      bundle: "010203",
+      capture: {
+        executor: 103,
+        operation: maximum.toString(),
+        expected: { partition: maximum.toString(), next_lsn: maximum.toString() },
+      },
+    });
+  });
+  await withHost({ prepared: "owned cleanup control" }, async (client, requests) => {
+    const prepared = await client.prepareCleanup(maximum, bundle);
+    assert.equal(prepared.data, "owned cleanup control");
+    const submitted = (await requests()).find((v: any) => v.unified_query?.cleanup) as any;
+    assert.deepEqual(submitted.unified_query.cleanup, {
+      namespace: maximum.toString(),
+      bundle: "010203",
+    });
+  });
+  assert.throws(() => new q.Capture(103, maximum + 1n, 1n, 0n), TypeError);
+  assert.throws(() => new q.Capture(103, 1n, 0n, 0n), TypeError);
+});
+
+test("Table result cuts remain distinct from native resource versions", async () => {
+  // The fake boundary checks decoding and route separation, never result truth.
+  const response = {
+    page: {
+      manifest: {
+        job: 1,
+        source: { table: { worker: 3 } },
+        requester: 4,
+        correlation: "1",
+        policy_revision: "1",
+        request: "00".repeat(72),
+        basis: {
+          cut: { kind: "table", resource: 7, position: { table: Array(32).fill(1) } },
+          contract: Array(32).fill(2),
+          schema: Array(32).fill(3),
+        },
+        table_position: {
+          resource: 7,
+          partition: "18446744073709551615",
+          accepted: "18446744073709551615",
+          contract: Array(32).fill(2),
+          schema: Array(32).fill(3),
+        },
+        plan: Array(32).fill(4),
+        pages: "3",
+        scanned: "19",
+        selected: "19",
+        value_count: "0",
+        segments: "1",
+        rows: "1",
+        bytes: "64",
+        sum: null,
+        finished: "source_end",
+        chain: Array(32).fill(5),
+      },
+      columns: [{ name: "n", type: { uint64: {} }, nullable: false, optional: false }],
+      ordinal: "0",
+      rows: 1,
+      ipc: "00",
+      next: null,
+    },
+  };
+  await withHost(response, async (client) => {
+    const page = await client.page(1n);
+    assert.deepEqual(page.manifest.source, owner);
+    assert.deepEqual(page.manifest.resource, resource);
+    assert.equal(page.manifest.tablePosition?.accepted, (1n << 64n) - 1n);
+    assert.deepEqual(page.manifest.cut, { kind: "table", commitment: new Uint8Array(32).fill(1) });
+  });
+  const substituted = structuredClone(response);
+  substituted.page.manifest.table_position.schema.fill(7);
+  await withHost(substituted, async (client) => {
+    await assert.rejects(client.page(1n), IncompatibleNative);
+  });
+  const crossed = structuredClone(response);
+  Object.assign(crossed.page.manifest.basis.cut, { position: { native_revision: 1 } });
+  await withHost(crossed, async (client) => {
+    await assert.rejects(client.page(1n), IncompatibleNative);
+  });
+});
+
+test("SQL preparation freezes full-width atoms and direct interpretation before awaiting transport", async () => {
   await withHost({ compiled: {} }, async (client, requests) => {
     const bytes = new Uint8Array([0, 255]);
     const parameters: q.Scalar[] = [
@@ -64,8 +198,8 @@ test("SQL preparation freezes full-width atoms and catalog metadata before await
     ]);
     const table = submitted.unified_query.compile.scope.source.source.table;
     assert.equal(table.object, "17");
-    assert.equal(table.metadata.id, "3");
-    assert.deepEqual(table.metadata.spec.digest, Array(32).fill(0xab));
+    assert.equal(table.interpretation.revision, "3");
+    assert.deepEqual(table.interpretation.digest, Array(32).fill(0xab));
     assert.deepEqual(
       table.row_type.structure.map((v: any) => [v.name, v.type, v.nullable]),
       [
@@ -169,7 +303,7 @@ for await (const line of createInterface({input: process.stdin})) {
   const action=JSON.parse(line); let value;
   if ('hello' in action) value={host_version:1,station_version:1,transit_version:1};
   else if ('growing_capabilities' in action) value={definition:${JSON.stringify(contract.definition)}};
-  else if ('capabilities' in action.unified_query) value={capabilities:{version:1,source:1,plan:1,result:1,bundle_bytes:25255,part_bytes:128,segment_bytes:65536,batch_rows:8,columns:128,kv:true,table:true,document:true}};
+  else if ('capabilities' in action.unified_query) value={capabilities:{version:1,source:1,plan:1,result:1,bundle_bytes:25614,part_bytes:128,segment_bytes:65536,batch_rows:8,columns:128,kv:true,table:true,document:true}};
   else value=${JSON.stringify(response)};
   console.log(JSON.stringify({status:0,value}));
 }
@@ -180,7 +314,8 @@ for await (const line of createInterface({input: process.stdin})) {
     const client = await q.Client.open(
       { url: "http://127.0.0.1:1", profile: "native_v1", nativeHost: path },
       new Credential(1, 9, "unused.seed"),
-      new q.Connection(owner, resource, new ProcessRef(1, 4), new ResourceRef(1, 8)),
+      new q.Connection(owner, new ResourceRef(1, 77), new ProcessRef(1, 4), new ResourceRef(1, 8)),
+      new q.Tables("http://127.0.0.1:2", new Scope(resource, 9n), 1n, 3),
     );
     try {
       await run(client, async () =>

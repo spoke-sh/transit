@@ -17,6 +17,13 @@ Give concurrently running profiles different ports. Board's listener/origin and
 logging use the shared [launcher settings](../../../launchers/README.md#local-development-configuration).
 No workload receives operator, storage, provider or Board credentials.
 
+The node owns the persistent native directory and runs maintenance within that
+owner. Local and Compose use the installation's `native/` directory; the
+reference chart mounts a retained node PVC. The registrar and maintenance keys
+are mounted only in the node. First provisioning uses a temporary owned listener
+to establish native policy before the long-lived local/Compose node starts;
+ordinary restarts open the existing directory and never initialize missing history.
+
 ## Workloads and identities
 
 | Role | Principal | State and responsibility |
@@ -38,8 +45,9 @@ lifecycle controller does not have provider credentials.
 The ledger and requester have stable LOGIN roles and explicitly select a shared
 NOLOGIN data role. Its database CONNECT, schema USAGE and Table
 SELECT/INSERT/UPDATE grants are provisioned once through saved native
-authorization changes. The root owns the catalog/schema and admits Table
-creation; the ledger principal registers its stable object identity. Local,
+authorization changes. The ledger LOGIN role owns the catalog/schema and Table;
+root explicitly admits creation. The node uses a separate registrar principal (1000) to register
+stable objects. The registrar is not a workload credential. Local,
 Compose and reference activation rotate credentials while retaining these
 roles. Starting or replacing a worker does not restore revoked grants.
 
@@ -47,26 +55,32 @@ The printed `processes` mapping identifies actual durable PIDs and resource IDs;
 principal numbers are not PIDs. Durable resources, rows, audit entries and retained
 query results use paged storage, independently of resident cache size. Each native
 turn still admits four writes and four outputs, with 256-byte values. Wide
-framework records and Arrow results use bounded immutable publications. The
-example's Table pages allow four-KiB records and eight simultaneously staged
-records within 32 KiB. Its finite queries allow 32 source pages, eight segments
+framework records and Arrow results use bounded immutable publications. Direct
+Table rows and segments use the node's native local storage owner.
+A dispatch record has a 16 KiB per-record limit and lives in a native immutable
+block; it does not carry the Table rows through actor messages. Its finite queries
+allow 32 source pages, eight segments
 and 64 KiB of result bytes, with one active upload per requester.
 
-Root explicitly initializes the ledger catalog and admits `prepare-table` before
-queuing its initial deltas. Native installation readiness and Table publication
-are separate observations; the printed example workflow waits for its initialized
-total. Each delta retains its original input and correlation in a durable queue.
-Table publication, the audit entry and the reply become visible together. An
+Root provisions the catalog policy and admits `prepare-table` before queuing
+the initial deltas. The ledger initializes its direct catalog under its owner
+role. Native installation readiness and Table publication are separate
+observations; the initial total appears after these accepted operations complete.
+Each delta retains its original input and correlation in a durable queue.
+A native dispatch commit precedes direct Table admission. Once the original
+Table receipt is confirmed, a separate native commit publishes the audit and
+reply together. A crash between these commits preserves the pending identity. An
 advisory cancellation cannot remove accepted application work or retract a reply.
 
 The ledger needs current read access to the requester's upload resource; the
-requester needs current read access to the ledger's schema/result resource.
+requester needs current read access to the ledger's query progress/result resource.
 Launchers grant these separately from ownership and configure the corresponding
 resource IDs. Root-origin query policy explicitly maps the configured peer to
 the requester principal and can revoke subsequent capture and disclosure.
 Both workers act as configured application services. A delta records the
 ledger's data-role proof; a query records the requester's proof, source binding
-and fixed query before upload. Later turns keep that exact proof. Current grant
+and fixed query, exact data cut and retention grant before upload. Later turns
+keep that exact proof. Current grant
 revocation or credential rotation can deny unfinished work; the host preserves
 its durable input and staging for inspection instead of signing it again.
 History and results retain unlimited lifetime by default. Storage quotas do not
@@ -91,7 +105,7 @@ or query completion. Keep input within the example's supported syntax; malformed
 input deliberately exercises the bounded failed-handler path.
 
 In Board, follow the three PIDs, their **State** associations, and the associated
-resource entries. Lenses identify the GenServer descriptor, Table schema, registry
+resource entries. Lenses identify the GenServer descriptor, registry
 scope/binding, child policy, waiting records, and query uploads and source-owned result publications.
 Every interpretation links to its observed PID, resource, entry revision and cut.
 Application row values remain opaque. Kernel history/ownership views expose

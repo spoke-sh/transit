@@ -97,6 +97,7 @@ pub const TableMemtable = struct {
     object_id: u64,
     partition_id: u64,
     schema: TableSchema.Schema,
+    owned_schema: TableSchema.Owned,
     layout_fingerprint: [32]u8,
     lease: PartitionLease.PartitionLease,
     log: TransitLog.Log,
@@ -105,6 +106,7 @@ pub const TableMemtable = struct {
     next_segment_id: u64 = 1,
     active_manifest_owned: ?TableManifest.OwnedManifest = null,
     entries: std.ArrayListUnmanaged(VersionedEntry) = .empty,
+    recovery_required: bool = false,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -118,13 +120,18 @@ pub const TableMemtable = struct {
         cache: ?*NvmeCache.NvmeCache,
     ) !TableMemtable {
         try schema.validate();
+        if (catalog_id == 0 or object_id != schema.object or partition_id == 0 or
+            lease.object_id != object_id or lease.partition_id != partition_id or
+            lease.holder_id == 0 or lease.writer_epoch == 0 or lease.policy_epoch == 0) return error.InvalidPartitionLease;
         const fp = try schema.layoutFingerprint();
+        const owned = try schema.clone(allocator);
         return .{
             .allocator = allocator,
             .catalog_id = catalog_id,
             .object_id = object_id,
             .partition_id = partition_id,
-            .schema = schema,
+            .schema = owned.schema,
+            .owned_schema = owned,
             .layout_fingerprint = fp,
             .lease = lease,
             .log = log,
@@ -137,6 +144,7 @@ pub const TableMemtable = struct {
         self.clearEntries();
         self.entries.deinit(self.allocator);
         if (self.active_manifest_owned) |*owned| owned.deinit();
+        self.owned_schema.deinit();
         self.* = undefined;
     }
 
@@ -149,43 +157,74 @@ pub const TableMemtable = struct {
     }
 
     pub fn upsertRow(self: *TableMemtable, row: TableRow.Row, now_ms: i64) !u64 {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
         try self.lease.validateDataPartition(now_ms);
         try row.identity.validate();
         try self.schema.validateRow(row.cells);
 
         var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
-        const pk_sort_key = try Collation.encodePrimaryKeySortKey(self.schema, row.cells, true, &pk_buf);
+        const pk_sort_key = try row.storageKey(self.schema, &pk_buf);
 
         const row_buf = try self.allocator.alloc(u8, TableRow.max_bytes);
         defer self.allocator.free(row_buf);
         const encoded_row = try row.encode(self.schema, row_buf);
 
+        var entry = try self.prepareEntry(.upsert, pk_sort_key, encoded_row);
+        errdefer self.freeEntry(entry);
         const receipt = try self.appendWalDelta(.upsert, pk_sort_key, encoded_row);
-        try self.applyInMemoryDelta(receipt.lsn, .upsert, pk_sort_key, encoded_row);
+        entry.lsn = receipt.lsn;
+        self.entries.appendAssumeCapacity(entry);
         return receipt.lsn;
     }
 
     pub fn deleteByPrimaryKey(self: *TableMemtable, key_cells: []const Cell, now_ms: i64) !u64 {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
         try self.lease.validateDataPartition(now_ms);
         var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
         const pk_sort_key = try Collation.encodePrimaryKeySortKey(self.schema, key_cells, false, &pk_buf);
+        return self.deleteStorageKey(pk_sort_key);
+    }
 
+    pub fn deleteByIdentity(self: *TableMemtable, identity: TableRow.Identity, now_ms: i64) !u64 {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
+        try self.lease.validateDataPartition(now_ms);
+        if (self.schema.primary_key.len != 0) return error.TableHasPrimaryKey;
+        return self.deleteStorageKey(&try identity.encode());
+    }
+
+    fn deleteStorageKey(self: *TableMemtable, pk_sort_key: []const u8) !u64 {
+        var entry = try self.prepareEntry(.delete, pk_sort_key, &.{});
+        errdefer self.freeEntry(entry);
         const receipt = try self.appendWalDelta(.delete, pk_sort_key, &.{});
-        try self.applyInMemoryDelta(receipt.lsn, .delete, pk_sort_key, &.{});
+        entry.lsn = receipt.lsn;
+        self.entries.appendAssumeCapacity(entry);
         return receipt.lsn;
     }
 
-    /// Read-Your-Writes snapshot point lookup by Primary Key at `snapshot_lsn`.
-    /// Consults the Tier 0 MVCC Memtable first, then committed `.tseg`/`.tdel` segments
-    /// in the active `TableManifest`.
+    /// Point lookup at an inclusive WAL position. Positions before the active
+    /// checkpoint are unavailable here; retained snapshots need their own basis.
     pub fn getByPrimaryKey(
         self: *TableMemtable,
         allocator: std.mem.Allocator,
         key_cells: []const Cell,
         snapshot_lsn: u64,
     ) !?TSeg.OwnedRow {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
         var pk_buf: [Collation.max_sort_key_bytes]u8 = undefined;
         const pk_sort_key = try Collation.encodePrimaryKeySortKey(self.schema, key_cells, false, &pk_buf);
+        return self.getByStorageKey(allocator, pk_sort_key, snapshot_lsn);
+    }
+
+    pub fn getByIdentity(self: *TableMemtable, allocator: std.mem.Allocator, identity: TableRow.Identity, snapshot_lsn: u64) !?TSeg.OwnedRow {
+        if (self.schema.primary_key.len != 0) return error.TableHasPrimaryKey;
+        return self.getByStorageKey(allocator, &try identity.encode(), snapshot_lsn);
+    }
+
+    fn getByStorageKey(self: *TableMemtable, allocator: std.mem.Allocator, pk_sort_key: []const u8, snapshot_lsn: u64) !?TSeg.OwnedRow {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
+        if (self.active_manifest_owned) |m| {
+            if (snapshot_lsn < m.manifest.flushed_lsn) return error.SnapshotNotRetained;
+        }
 
         // 1. Check Tier 0 MVCC Memtable from newest to oldest `<= snapshot_lsn`
         var idx = self.entries.items.len;
@@ -225,13 +264,13 @@ pub const TableMemtable = struct {
                 maybe_del = try TDel.DeletionVector.decode(allocator, tdel_bytes);
             }
 
-            if (try TSeg.lookupPrimaryKey(
+            if (try TSeg.lookupStorageKey(
                 allocator,
                 self.schema,
                 &footer,
                 tseg_bytes,
                 if (maybe_del) |*d| d else null,
-                key_cells,
+                pk_sort_key,
             )) |found| {
                 return found;
             }
@@ -244,6 +283,7 @@ pub const TableMemtable = struct {
     /// writes `.tdel` deletion vectors for any prior segments whose keys were overwritten
     /// or deleted, and publishes `manifest/<object_id>/v{N+1}.tman` via conditional CAS.
     pub fn flushToSegment(self: *TableMemtable, now_ms: i64) !?TableManifest.Manifest {
+        if (self.recovery_required) return error.MemtableRecoveryRequired;
         try self.lease.validateDataPartition(now_ms);
         if (self.entries.items.len == 0) {
             return if (self.active_manifest_owned) |m| m.manifest else null;
@@ -297,7 +337,7 @@ pub const TableMemtable = struct {
                 }
 
                 if (newly_deleted > 0) {
-                    const tdel_buf = try a.alloc(u8, 64 + seg.row_count * 4);
+                    const tdel_buf = try a.alloc(u8, TDel.header_bytes + 32 + @as(usize, seg.row_count) * 4);
                     const encoded_tdel = try del_vec.encode(tdel_buf);
                     var tdel_sha: [32]u8 = undefined;
                     std.crypto.hash.sha2.Sha256.hash(encoded_tdel, &tdel_sha, .{});
@@ -394,6 +434,7 @@ pub const TableMemtable = struct {
     /// Recovers the latest committed `TableManifest` from `TransitObjectStore` and replays
     /// any uncommitted `.row_delta` frames from `TransitLog` after the manifest checkpoint.
     pub fn recoverFromWal(self: *TableMemtable) !u64 {
+        self.recovery_required = true;
         self.clearEntries();
         if (self.active_manifest_owned) |*prev| {
             prev.deinit();
@@ -409,6 +450,12 @@ pub const TableMemtable = struct {
             defer self.allocator.free(bytes);
             _ = try self.store.getRange(mk, 0, @intCast(meta.size), bytes);
             const owned = try TableManifest.decode(self.allocator, bytes);
+            errdefer {
+                var failed = owned;
+                failed.deinit();
+            }
+            if (owned.manifest.catalog_id != self.catalog_id or owned.manifest.object_id != self.object_id or
+                owned.manifest.schema_revision != self.schema.revision or !std.mem.eql(u8, &owned.manifest.layout_fingerprint, &self.layout_fingerprint)) return error.TableDefinitionChanged;
             if (self.active_manifest_owned) |*prev| prev.deinit();
             self.active_manifest_owned = owned;
         }
@@ -421,24 +468,27 @@ pub const TableMemtable = struct {
             self.next_segment_id = max_seg_id + 1;
         }
 
+        const end = try self.log.tail(self.partition_id);
+        if (start_lsn > end) return error.InvalidTableManifest;
         var replayed: u64 = 0;
-        var batch = try self.log.read(self.allocator, self.partition_id, start_lsn, 4096);
-        defer batch.deinit();
-
-        for (batch.frames) |frame| {
-            if (frame.header.kind != .row_delta) continue;
-            var delta = try decodeRowDeltaPayload(self.allocator, frame.payload);
-            defer delta.deinit();
-            if (delta.object_id != self.object_id) continue;
-
-            try self.applyInMemoryDelta(
-                frame.header.lsn,
-                delta.op,
-                delta.pk_sort_key,
-                delta.encoded_row,
-            );
-            replayed += 1;
+        while (start_lsn < end) {
+            var batch = try self.log.read(self.allocator, self.partition_id, start_lsn, 128);
+            defer batch.deinit();
+            if (batch.frames.len == 0) return error.WalHistoryMissing;
+            for (batch.frames) |frame| {
+                if (start_lsn == end) break;
+                if (frame.header.partition_id != self.partition_id or frame.header.lsn != start_lsn) return error.WalHistoryMissing;
+                start_lsn += 1;
+                if (frame.header.kind != .row_delta) continue;
+                var delta = try decodeRowDeltaPayload(self.allocator, frame.payload);
+                defer delta.deinit();
+                if (delta.object_id != self.object_id) continue;
+                if (delta.schema_revision != self.schema.revision) return error.TableDefinitionChanged;
+                try self.applyInMemoryDelta(frame.header.lsn, delta.op, delta.pk_sort_key, delta.encoded_row);
+                replayed += 1;
+            }
         }
+        self.recovery_required = false;
         return replayed;
     }
 
@@ -478,7 +528,26 @@ pub const TableMemtable = struct {
             self.lease.policy_epoch,
             .row_delta,
             payload,
-        );
+        ) catch |err| {
+            self.recovery_required = true;
+            return err;
+        };
+    }
+
+    fn freeEntry(self: *TableMemtable, entry: VersionedEntry) void {
+        self.allocator.free(entry.pk_sort_key);
+        self.allocator.free(entry.encoded_row);
+    }
+
+    /// Reserve every allocation before attempting durable acceptance. Failure
+    /// cannot leave an accepted frame followed by an allocation-dependent row.
+    fn prepareEntry(self: *TableMemtable, op: DeltaOp, key: []const u8, row: []const u8) !VersionedEntry {
+        const key_copy = try self.allocator.dupe(u8, key);
+        errdefer self.allocator.free(key_copy);
+        const row_copy = try self.allocator.dupe(u8, row);
+        errdefer self.allocator.free(row_copy);
+        try self.entries.ensureUnusedCapacity(self.allocator, 1);
+        return .{ .lsn = 0, .op = op, .pk_sort_key = key_copy, .encoded_row = row_copy };
     }
 
     fn applyInMemoryDelta(

@@ -25,7 +25,10 @@ services:
     image: '${EXCHANGE_NODE_IMAGE:?}'
     command: [/node.json]
     environment: {LOG_LEVEL: warn}
-    volumes: ['${EXCHANGE_WORK:?}/operator/node.json:/node.json:ro']
+    volumes:
+      - '${EXCHANGE_WORK:?}/operator/node.json:/node.json:ro'
+      - '${EXCHANGE_WORK:?}/operator:/operator:ro'
+      - '${EXCHANGE_WORK:?}/node-data:/authority'
     networks: [storage, client]
   ingress:
     <<: *runtime

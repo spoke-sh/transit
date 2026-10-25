@@ -1,4 +1,4 @@
-"""Gateway ledger and coordinator against signed native ingress and disk Ursula."""
+"""Gateway ledger and direct Table owner with independent accepted outcomes."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -6,28 +6,35 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import urllib.request
 
-from storage import Fixture, free_port, wait_ready
+from storage import free_port, wait_ready
 
 
 def run(node, catalog, gateway):
     node, catalog, gateway = map(lambda p: str(Path(p).resolve()), (node, catalog, gateway))
-    with Fixture() as store:
-        root = store.root
+    with tempfile.TemporaryDirectory(prefix='transit-direct-sql-ledger-') as directory:
+        root = Path(directory)
+        http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         port = free_port()
         direct = f'http://127.0.0.1:{port}'
         public = json.loads(subprocess.check_output([catalog, 'public'], timeout=10))
         config = root / 'node.json'
-        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(
-            realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=store.url,
-            bucket='sql-gateway', journal='authority', port=port, resident_pages=512,
-            request_timeout_ms=10000)))
+        settings = dict(profile='native_v1', genesis=dict(
+            realm=46, root_key=public, max_clock_error_ms=10000), local_directory=str(root/'native'),
+            port=port, resident_pages=8,
+            request_timeout_ms=10000)
+        config.write_text(json.dumps(settings))
         armed = None
         lost = {}
         replayed = set()
         recovered = set()
+        lost_data = None
+        recovered_data = False
+        repeated_data = False
         receipt_inspectors = {}
         failures = []
         sends = 0
@@ -36,6 +43,7 @@ def run(node, catalog, gateway):
         detached_replies = 0
         pipeline_enabled = False
         pipeline = {}
+        stale_reads = {}
         successor_admitted = threading.Event()
         def intent_upload(request):
             send = request['command'].get('send')
@@ -58,6 +66,7 @@ def run(node, catalog, gateway):
 
             def do_POST(self):
                 nonlocal armed, sends, turns, delay_ingress, detached_replies
+                nonlocal lost_data, recovered_data, repeated_data
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = getattr(upstream_local, 'conn', None)
                 if connection is None:
@@ -88,9 +97,39 @@ def run(node, catalog, gateway):
                         connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                         response = connection.getresponse()
                     data = response.read()
+                    status = response.status
+                    if self.path == '/table/v1' and response.status == 200:
+                        request = json.loads(body)
+                        operation = request['action'].get('operation')
+                        if operation and lost_data and operation['binding'] == lost_data[0]:
+                            if operation['command'] == 'inspect':
+                                assert json.loads(data)['result'] == lost_data[1], 'Original direct outcome changed'
+                                recovered_data = True
+                            elif operation['command'] == 'execute':
+                                repeated_data = True
+                        if operation and armed == 1234 and operation['command'] == 'execute':
+                            result = json.loads(data)
+                            outcome = result['result'].get('ddl', result['result'].get('rows'))
+                            if 'committed' in outcome:
+                                lost_data = operation['binding'], result['result']
+                                armed = None
+                                result['context'][0] ^= 1
+                                data = json.dumps(result).encode()
                     if self.path == '/v1/query' and response.status == 200:
                         query = json.loads(body)['query']
                         kind = query['kind']
+                        entries = kind.get('entries') if isinstance(kind, dict) else None
+                        if pipeline_enabled and query['principal'] == 2001 and entries and entries.get('key'):
+                            key = bytes.fromhex(entries['key'])
+                            if key.startswith(b'\x00GWn'):
+                                phase = 'detached' if key[4:] == bytes([177])*16 else 'admission'
+                                if phase not in stale_reads:
+                                    # A current-revision reader can lose its cut
+                                    # to ledger progress between metadata and
+                                    # entry reads. Fail each pure lookup once.
+                                    stale_reads[phase] = entries['revision']
+                                    status = 422
+                                    data = b'{"err":"StaleStateResource"}'
                         authority = kind.get('authorization') if isinstance(kind, dict) else None
                         if authority and isinstance(authority['kind'], dict) and 'receipt' in authority['kind']:
                             original_request = authority['kind']['receipt']
@@ -144,7 +183,7 @@ def run(node, catalog, gateway):
                             lost[str(armed)] = body, data
                             armed = None
                             data = b'{"position":0}'
-                    self.send_response(response.status)
+                    self.send_response(status)
                     self.send_header('Content-Length', str(len(data)))
                     self.send_header('Content-Type', 'application/json')
                     self.end_headers()
@@ -169,7 +208,7 @@ def run(node, catalog, gateway):
             subprocess.run([node, str(config), '--initialize'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
             def start():
                 process = subprocess.Popen([node, str(config)], stdout=log, stderr=subprocess.STDOUT)
-                wait_ready(store.http, process, direct + '/health')
+                wait_ready(http, process, direct + '/health')
                 return process
 
             def call(binary, mode, *args, fail=False):
@@ -183,8 +222,12 @@ def run(node, catalog, gateway):
 
             authority = start()
             call(catalog, 'provision')
+            authority.terminate()
+            authority.wait(timeout=10)
+            settings['table'] = json.loads((root/'catalog-node.json').read_text())
+            config.write_text(json.dumps(settings))
+            authority = start()
             call(catalog, 'initialize')
-            call(catalog, 'pump')
             call(gateway, 'provision')
             armed = 2001
             call(gateway, 'begin', 1, fail=True)
@@ -200,21 +243,19 @@ def run(node, catalog, gateway):
             assert call(gateway, 'status', first['id'])['phase'] == 'abandoned'
 
             created = call(gateway, 'enqueue', 2, 'CREATE TABLE wire_data (id BIGINT NOT NULL, value BIGINT NOT NULL, PRIMARY KEY (id))')
-            call(gateway, 'run', 'step_part')
+            assert call(gateway, 'run', 'dispatch')['stopped'] == 'dispatch'
             assert call(gateway, 'replace')['stale_rejected']
             armed = 1234
             call(gateway, 'run', fail=True)
-            assert armed is None and '1234' in lost, 'Table receipt fault was not exercised'
+            assert armed is None and lost_data, 'Direct Table outcome fault was not exercised'
             authority.kill()
             authority.wait(timeout=10)
             authority = None
-            store.stop()
-            store.start()
             authority = start()
             call(gateway, 'replace')
             call(gateway, 'run')
-            assert '1234' in recovered, 'Exact Table receipt was not recovered after restart'
-            assert '1234' not in replayed, 'An accepted Table send was unnecessarily redispatched'
+            assert recovered_data, 'Exact direct Table outcome was not recovered after restart'
+            assert not repeated_data, 'A committed direct operation was unnecessarily executed again'
             assert call(gateway, 'status', created['operation'])['summary'] == 'applied'
             assert call(catalog, 'inspect', 'wire_data')['count'] == 0
 
@@ -251,12 +292,15 @@ def run(node, catalog, gateway):
             call(gateway, 'cancel', result['detached'])
             call(gateway, 'run')
             assert call(gateway, 'status', result['detached'])['phase'] == 'abandoned'
+            assert set(stale_reads) == {'admission', 'detached'}, stale_reads
             assert not failures, failures
             print(json.dumps(dict(profile='native_gateway_ledger', operations=33,
                                   lost_receipts=sorted(replayed | recovered), exact_resubmissions=sorted(replayed),
                                   recovered_receipts=sorted(recovered), fenced_replacements=3,
+                                  direct_outcome_recovered=recovered_data, direct_reexecuted=repeated_data,
                                   receipt_inspectors={name: sorted(principals) for name, principals in receipt_inspectors.items()},
-                                  exact_counts=True, ingress_pipeline=pipeline, detached_replies=detached_replies, turns=turns, sends=sends,
+                                  exact_counts=True, ingress_pipeline=pipeline, stale_reads=stale_reads,
+                                  detached_replies=detached_replies, turns=turns, sends=sends,
                                   seconds=round(time.monotonic()-started, 3))))
         finally:
             if sys.exc_info()[0] and failures:

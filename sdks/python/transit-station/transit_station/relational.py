@@ -7,12 +7,11 @@ from pathlib import Path
 import secrets
 from types import TracebackType
 from typing import Any, Callable, Literal, TypeVar
-from transit_client import ResourceRef
 from transit_client._native import Library, encode, seed
 from transit_client._worker import Worker, owned_await
 from transit_client.errors import IncompatibleNative, UnsupportedCapability, native_error
 from transit_client.types import integer
-from .catalog_values import Connection
+from .catalog_values import Connection, Basis, Snapshot, Position, ObjectIdentity
 from . import catalog_values as v
 from .table import RowIdentity
 from .logical_values import ScalarType
@@ -35,7 +34,7 @@ def _id(value: object) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Options:
-    consistency: Literal['per_resource_snapshot_vector']
+    consistency: Literal['independent_table_snapshots']
     resident_bytes: int
     spill_bytes: int
     result_bytes: int
@@ -47,7 +46,7 @@ class Options:
     spill_directory: Path
 
     def _wire(self) -> dict[str, object]:
-        if self.consistency != 'per_resource_snapshot_vector': raise ValueError('Select per_resource_snapshot_vector explicitly')
+        if self.consistency != 'independent_table_snapshots': raise ValueError('Select independent_table_snapshots explicitly')
         result: dict[str, object] = {name: str(v._wide(getattr(self, name), name)) for name in
             ('resident_bytes', 'result_bytes', 'output_rows', 'work_steps', 'requests', 'spill_work')}
         result.update(consistency=self.consistency, spill_bytes=str(v._wide(self.spill_bytes, 'spill bytes', 0)),
@@ -59,14 +58,15 @@ class Options:
 class Statement:
     sql: str
     routes: tuple[int, ...]
+    namespace: int = 1
 
     def __post_init__(self) -> None:
-        v._text(self.sql, 4096)
+        v._text(self.sql, 4096); integer(self.namespace, 'namespace')
         object.__setattr__(self, 'routes', tuple(self.routes))
         if not 1 <= len(self.routes) <= 2: raise ValueError('Select one or two explicit catalog routes')
         for route in self.routes: integer(route, 'route', minimum=0, maximum=1)
 
-    def _wire(self) -> dict[str, object]: return dict(sql=self.sql, routes=self.routes)
+    def _wire(self) -> dict[str, object]: return dict(sql=self.sql, routes=self.routes, namespace=self.namespace)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,11 +106,18 @@ class Column:
 @dataclass(frozen=True, slots=True)
 class Source:
     alias: str
-    resource: ResourceRef
-    catalog: int
-    owner: int
-    object_id: int
-    schema: str
+    basis: Basis
+    position: Position
+
+
+@dataclass(frozen=True, slots=True)
+class RetainedSource:
+    basis: Basis
+    snapshot: Snapshot
+    def __post_init__(self) -> None:
+        if not isinstance(self.basis, Basis) or not isinstance(self.snapshot, Snapshot): raise TypeError('Supply saved binding and snapshot')
+        if (self.snapshot.owner.object != self.basis.interpretation.interpretation.object or
+            self.snapshot.owner._wire()['connection'] != self.basis._wire()['connection']): raise ValueError('Foreign retained source')
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,9 +141,8 @@ def _description(value: object) -> Description:
     if v._boolean(value['executed']): raise ValueError('Expected a proposed plan')
     sources = []
     for item in _array(value['sources'], 1, 2):
-        item = v._object(item, 'alias realm resource catalog owner object schema')
-        sources.append(Source(v._text(item['alias'], 255), ResourceRef(item['realm'], item['resource']),
-            v._decimal(item['catalog']), integer(item['owner'], 'owner'), v._decimal(item['object']), v._digest(item['schema'])))
+        item = v._object(item, 'alias binding position')
+        sources.append(Source(v._text(item['alias'], 255), Basis.restore(encode(item['binding']).decode()), v._position(item['position'])))
     columns = []
     for item in _array(value['columns'], 1, 128):
         item = v._object(item, 'name type nullable optional')
@@ -151,8 +157,8 @@ def _description(value: object) -> Description:
 
 @dataclass(frozen=True, slots=True)
 class Cut:
-    resource: int
-    revision: int
+    object: ObjectIdentity
+    position: Position
     commitment: str
     schema: str
 
@@ -165,17 +171,19 @@ class Opened:
     complete_coverage: Literal[False] = False
 
 
-def _opened(value: object, identity: str) -> Opened:
+def _opened(value: object, identity: str, sources: tuple[RetainedSource, ...]) -> Opened:
     value = v._object(value, 'reference description cuts complete_coverage')
     reference, description = _reference(value['reference']), _description(value['description'])
-    if reference.id != identity or reference.plan != description.plan or v._boolean(value['complete_coverage']):
-        raise ValueError('Relational open changed its requested identity')
+    if (reference.id != identity or reference.plan != description.plan or v._boolean(value['complete_coverage']) or
+        len(sources) != len(description.sources)): raise ValueError('Relational open changed its requested identity')
     cuts: list[Cut] = []
-    for item in _array(value['cuts'], len(description.sources), len(description.sources)):
-        item = v._object(item, 'resource revision commitment schema')
-        cut = Cut(integer(item['resource'], 'resource'), integer(item['revision'], 'revision', minimum=0), v._digest(item['commitment']), v._digest(item['schema']))
+    for item in _array(value['cuts'], len(sources), len(sources)):
+        item = v._object(item, 'object position commitment schema')
+        cut = Cut(v._object_identity(item['object']), v._position(item['position']), v._digest(item['commitment']), v._digest(item['schema']))
         source = description.sources[len(cuts)]
-        if cut.resource != source.resource.resource or cut.schema != source.schema: raise ValueError('Cut differs from its source')
+        original = sources[len(cuts)]
+        if (source.basis._wire() != original.basis._wire() or cut.object != source.basis.interpretation.interpretation.object or
+            cut.schema != source.basis.interpretation.schema_fingerprint or cut.position != source.position): raise ValueError('Cut differs from its original source')
         cuts.append(cut)
     return Opened(reference, description, tuple(cuts))
 
@@ -259,15 +267,18 @@ def _closed(value: object) -> None: v._object(value, '')
 class Client:
     """One active query and one owned native worker; close joins in-flight work."""
     def __init__(self, url: str, principal: int, seed_file: Path, catalogs: tuple[Connection, ...], options: Options, *,
-                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
+                 timeout_ms: int = 5000, native_directory: Path | None = None, service_url: str | None = None) -> None:
         catalogs = tuple(catalogs)
         if not 1 <= len(catalogs) <= 2 or not all(isinstance(item, Connection) for item in catalogs):
             raise ValueError('Select one or two catalog connections')
-        if any(item.owner.realm != catalogs[0].owner.realm for item in catalogs): raise ValueError('Catalogs must share the caller realm')
+        if any(item != catalogs[0] for item in catalogs): raise ValueError('Select one direct catalog connection')
+        self._catalogs = catalogs
+        self._principal = integer(principal, 'principal', minimum=0)
         config = encode(dict(timeout_ms=integer(timeout_ms, 'timeout', maximum=60000), relational=dict(
-            catalogs=[item._wire(principal) for item in catalogs], options=options._wire(),
+            definition=v.DEFINITION, catalogs=[item._wire(principal) for item in catalogs], options=options._wire(),
+            service_url=None if service_url is None else v._text(service_url, 2048),
             spill_directory=v._text(str(options.spill_directory), 4096))))
-        endpoint = v._text(url, 4096).encode()
+        endpoint = v._text(url, 2048).encode()
         self._api = Library('station', Path(__file__).with_name('station-abi.json'), native_directory)
         self._worker = Worker(self._api.contract['minimum_stack_bytes'])
         self._handle = c.c_void_p()
@@ -281,7 +292,7 @@ class Client:
             self._worker.call(create)
             caps = v._object(self._call({'capabilities': {}}, 'capabilities'), 'definition sources active_queries page_rows interactive captured maintained consistency')
             v._definition(caps['definition'])
-            if caps['interactive'] is not True or caps['page_rows'] != 1 or caps['active_queries'] != 1 or caps['consistency'] != 'per_resource_snapshot_vector':
+            if caps['interactive'] is not True or caps['page_rows'] != 1 or caps['active_queries'] != 1 or caps['consistency'] != 'independent_table_snapshots':
                 raise UnsupportedCapability('Native caller lacks interactive relational capabilities')
         except BaseException:
             self.close()
@@ -296,11 +307,28 @@ class Client:
     def _call(self, action: object, expected: str) -> object:
         return self._worker.call(lambda: self._invoke(action, expected))
 
-    def explain(self, statement: Statement) -> Description:
-        return _decode(_description, self._call({'explain': statement._wire()}, 'explained'))
+    def _description(self, value: object, statement: Statement) -> Description:
+        result = _description(value)
+        if len(result.sources) != len(statement.routes): raise ValueError('Changed source count')
+        for source, route in zip(result.sources, statement.routes):
+            if (route >= len(self._catalogs) or source.basis.connection != self._catalogs[route] or
+                source.basis.principal != self._principal or source.basis.namespace != statement.namespace): raise ValueError('Changed source connection')
+        return result
 
-    def open_query(self, identity: str, statement: Statement) -> Opened:
-        return _decode(_opened, self._call({'open': {'id': _id(identity), 'statement': statement._wire()}}, 'opened'), identity)
+    def _open(self, identity: str, statement: Statement, sources: tuple[RetainedSource, ...]) -> object:
+        if len(sources) != len(statement.routes): raise ValueError('Supply one saved binding and explicit snapshot per source')
+        for source, route in zip(sources, statement.routes):
+            if (route >= len(self._catalogs) or source.basis.connection != self._catalogs[route] or
+                source.basis.principal != self._principal or source.basis.namespace != statement.namespace): raise ValueError('Foreign retained source')
+        return {'open': dict(id=_id(identity), statement=statement._wire(), bindings=[source.basis._wire() for source in sources],
+                             snapshots=[source.snapshot._wire() for source in sources])}
+
+    def explain(self, statement: Statement) -> Description:
+        return _decode(self._description, self._call({'explain': statement._wire()}, 'explained'), statement)
+
+    def open_query(self, identity: str, statement: Statement, sources: tuple[RetainedSource, ...]) -> Opened:
+        sources = tuple(sources)
+        return _decode(_opened, self._call(self._open(identity, statement, sources), 'opened'), identity, sources)
 
     def page(self, reference: Reference, ordinal: int) -> Page:
         value = self._call({'page': {'reference': reference._wire(), 'ordinal': str(v._wide(ordinal, 'ordinal', 0))}}, 'page')
@@ -321,17 +349,18 @@ class Client:
 class AsyncClient:
     """Cancelling an await leaves its native operation owned; close joins it."""
     def __init__(self, url: str, principal: int, seed_file: Path, catalogs: tuple[Connection, ...], options: Options, *,
-                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
-        self._owner = Client(url, principal, seed_file, catalogs, options, timeout_ms=timeout_ms, native_directory=native_directory)
+                 timeout_ms: int = 5000, native_directory: Path | None = None, service_url: str | None = None) -> None:
+        self._owner = Client(url, principal, seed_file, catalogs, options, timeout_ms=timeout_ms, native_directory=native_directory, service_url=service_url)
 
     async def _call(self, action: object, expected: str) -> object:
         return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(action, expected)))
 
     async def explain(self, statement: Statement) -> Description:
-        return _decode(_description, await self._call({'explain': statement._wire()}, 'explained'))
+        return _decode(self._owner._description, await self._call({'explain': statement._wire()}, 'explained'), statement)
 
-    async def open_query(self, identity: str, statement: Statement) -> Opened:
-        return _decode(_opened, await self._call({'open': {'id': _id(identity), 'statement': statement._wire()}}, 'opened'), identity)
+    async def open_query(self, identity: str, statement: Statement, sources: tuple[RetainedSource, ...]) -> Opened:
+        sources = tuple(sources)
+        return _decode(_opened, await self._call(self._owner._open(identity, statement, sources), 'opened'), identity, sources)
 
     async def page(self, reference: Reference, ordinal: int) -> Page:
         value = await self._call({'page': {'reference': reference._wire(), 'ordinal': str(v._wide(ordinal, 'ordinal', 0))}}, 'page')

@@ -20,9 +20,12 @@ pub fn init(host: *g.Session, configuration: *const g.Configuration.Source) !*Se
     errdefer arena.deinit();
     const key = try q.wire.readKey(host.allocator, host.io, configuration.key_file);
     const definition = try configuration.workspace.source.native(arena.allocator());
-    if (definition.resource != configuration.connection.resource) return error.QueryIdentityMismatch;
+    if (definition.source != .table and definition.resource != configuration.connection.resource) return error.QueryIdentityMismatch;
     try (try configuration.workspace.limits.native()).validate();
-    self.* = .{ .host = host, .configuration = configuration, .arena = arena, .definition = definition, .client = .{ .wire = &host.wire, .connection = configuration.connection, .key = key }, .fingerprint = undefined };
+    var caller: q.UnifiedClient = .{ .wire = &host.wire, .connection = configuration.connection, .key = key };
+    caller.tables = try q.Workspace.directTables(arena.allocator(), &caller, configuration.workspace);
+    if (caller.tables) |*tables| tables.allocator = host.allocator;
+    self.* = .{ .host = host, .configuration = configuration, .arena = arena, .definition = definition, .client = caller, .fingerprint = undefined };
     self.fingerprint = try bindingFingerprint(host.allocator, configuration, key.public_key.toBytes());
     try self.current();
     _ = try self.client.describe(self.definition);
@@ -88,24 +91,49 @@ pub const Read = struct {
     workspace: []u8,
     arrow: []u8,
     adapter: []u8,
+    pin: ?g.ReadPins.Record = null,
     decoded: ?f.LogicalInspect.Batch = null,
     index: usize = 0,
     pub fn init(source: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !Read {
         var bound = try source.bind(prepared, values);
         errdefer bound.deinit();
-        var nonce: [16]u8 = undefined;
-        try source.host.io.randomSecure(&nonce);
-        var query = try q.Interactive.open(&source.client, bound.bundle, nonce, source.host.allocator);
+        var pin: ?g.ReadPins.Record = null;
+        errdefer closePin(source, pin);
+        var query = if (source.client.tables) |tables| table: {
+            const declaration = source.definition.source.table;
+            const response = try tables.call(.{ .observe = .{ .namespace = declaration.namespace, .interpretation = declaration.interpretation.interpretation, .rows = null } });
+            defer response.deinit();
+            const metadata = response.value.result.observation.definition;
+            const binding = try g.catalog.DirectTableBinding.init(tables.connection, metadata);
+            if (!std.meta.eql(binding.interpretation, declaration.interpretation)) return error.TableDefinitionChanged;
+            pin = try source.host.runtime.read_pins.?.acquireCurrent(tables, binding);
+            break :table try q.Interactive.openTable(&source.client, bound.bundle, try pin.?.snapshot(), source.host.allocator);
+        } else native: {
+            var nonce: [16]u8 = undefined;
+            try source.host.io.randomSecure(&nonce);
+            break :native try q.Interactive.open(&source.client, bound.bundle, nonce, source.host.allocator);
+        };
         errdefer query.close() catch {};
         var arena: std.heap.ArenaAllocator = .init(source.host.allocator);
         errdefer arena.deinit();
         const workspace = try arena.allocator().alloc(u8, f.LogicalArrow.working_bytes);
         const arrow = try arena.allocator().alloc(u8, f.LogicalArrow.segment_bytes);
         const adapter = try arena.allocator().alloc(u8, q.UnifiedBehavior.adapter_bytes);
-        return .{ .source = source, .bound = bound, .query = query, .arena = arena, .page_arena = .init(source.host.allocator), .workspace = workspace, .arrow = arrow, .adapter = adapter };
+        return .{ .source = source, .bound = bound, .query = query, .arena = arena, .page_arena = .init(source.host.allocator), .workspace = workspace, .arrow = arrow, .adapter = adapter, .pin = pin };
+    }
+    fn closePin(source: *Self, pin: ?g.ReadPins.Record) void {
+        if (pin) |record| {
+            const rejection = source.host.wire.last_rejection;
+            defer source.host.wire.last_rejection = rejection;
+            source.host.runtime.read_pins.?.close(source.client.tables.?, record) catch |err| {
+                source.host.runtime.read_cleanup_failure.store(@intFromError(err), .release);
+            };
+            source.host.runtime.notify();
+        }
     }
     pub fn deinit(self: *Read) void {
         self.query.close() catch {};
+        closePin(self.source, self.pin);
         if (self.decoded) |*decoded| decoded.deinit();
         self.page_arena.deinit();
         self.arena.deinit();

@@ -15,9 +15,14 @@ generate:
     zig build contract > "$generated/transit-v1.schema.json"
     zig build application-installation-contract > "$generated/application-installation-v1.schema.json"
     zig build diagnostic-contract > "$generated/diagnostic-v1.schema.json"
+    zig build data-lifecycle-contract > "$generated/data-lifecycle-v1.schema.json"
+    zig build index-lifecycle-contract > "$generated/index-lifecycle-v1.schema.json"
     mv "$generated/transit-v1.schema.json" contracts/transit-v1.schema.json
     mv "$generated/application-installation-v1.schema.json" contracts/application-installation-v1.schema.json
     mv "$generated/diagnostic-v1.schema.json" contracts/diagnostic-v1.schema.json
+    mv "$generated/data-lifecycle-v1.schema.json" contracts/data-lifecycle-v1.schema.json
+    mv "$generated/index-lifecycle-v1.schema.json" contracts/index-lifecycle-v1.schema.json
+    python3 -B tests/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
 # Detect public schema/default/signing changes that were not reviewed together.
@@ -27,10 +32,12 @@ check:
     zig build application-installation-contract | python3 -B tests/contract.py --installation
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
     zig build diagnostic-contract | python3 -B tests/diagnostic_contract.py
+    zig build data-lifecycle-contract | python3 -B tests/contract.py --data-lifecycle
+    zig build index-lifecycle-contract | python3 -B tests/index_lifecycle_contract.py
     just contract::client-check
     just contract::station-check
     just contract::logical-check
-    just contract::table-service-check
+    just contract::direct-table-check
     just contract::configuration-check
     just contract::sql-session-check
     python3 -B bindings/generate.py
@@ -57,11 +64,11 @@ logical-generate:
 logical-check:
     zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py
 
-table-service-generate:
-    zig build table-service-contract | python3 -B tests/table_service_contract.py --write
+direct-table-generate:
+    zig build direct-table-contract | python3 -B tests/direct_table_contract.py --write
 
-table-service-check:
-    zig build table-service-contract | python3 -B tests/table_service_contract.py
+direct-table-check:
+    zig build direct-table-contract | python3 -B tests/direct_table_contract.py
 
 configuration-generate:
     zig build configuration-contract | python3 -B tests/configuration_contract.py --write

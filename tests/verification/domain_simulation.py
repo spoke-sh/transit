@@ -1,7 +1,8 @@
 """Replay bounded component schedules through their real package implementations.
 
 Component assertions are independent contract checks, not a second copy of the
-component algorithm. These private-turn stores do not establish disk durability.
+component algorithm. Private-turn stores and the direct catalog's volatile
+log/object adapters do not establish disk durability.
 """
 import argparse
 import hashlib

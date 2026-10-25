@@ -24,7 +24,7 @@ pub fn append(publication: Pub, turn: *s.Turn, id: u64, offset: u32, bytes: []co
     errdefer turn.decision = before;
     try check(publication);
     const record = try publication.inspect(turn, id);
-    if (record.spec.length > c.TableIntent.max_bytes) return error.GatewayRecordTooLarge;
+    if (record.spec.length > c.DirectTableIntent.max_bytes) return error.GatewayRecordTooLarge;
     if (record.state != .staging) return error.GatewayUploadClosed;
     if (offset >= record.spec.length or offset % part_bytes != 0 or bytes.len != @min(part_bytes, record.spec.length - offset)) return error.InvalidGatewayPart;
     const half_key = halfKey(publication, id);
@@ -92,37 +92,6 @@ fn prefetch(publication: Pub, source: anytype, id: u64, index: u32, chunks: u32)
     }
 }
 
-/// Equality against an already validated immutable publication at one committed
-/// cut. This is a bounded range read, not a replacement full-chain validator.
-/// The ledger creates its binding only after read() verifies the entire intent.
-pub fn Matcher(comptime Source: type) type {
-    return struct {
-        source: Source,
-        publication: Pub,
-        spec: Pub.Spec,
-        body_offset: u32,
-        body_length: u32,
-        pub fn matchBytes(self: @This(), offset: u32, bytes: []const u8) !bool {
-            if (bytes.len > s.Frame.max_payload or offset > self.body_length or bytes.len > self.body_length - offset) return false;
-            const record = try self.publication.inspect(self.source, 1);
-            if (record.state != .published or !std.meta.eql(record.spec, self.spec) or @as(u64, self.body_offset) + self.body_length != self.spec.length) return error.InvalidGatewayIntent;
-            var absolute: usize = @as(usize, self.body_offset) + offset;
-            var compared: usize = 0;
-            while (compared < bytes.len) {
-                const index: u32 = @intCast(absolute / Pub.chunk_bytes);
-                const chunk = (try self.source.read(Pub.key(self.publication.domain, self.publication.namespace, 'c', 1, index))) orelse return error.MissingPublicationChunk;
-                if (chunk.len != try self.spec.size(index)) return error.InvalidPublicationChunk;
-                const begin = absolute % Pub.chunk_bytes;
-                const count = @min(bytes.len - compared, chunk.len - begin);
-                if (!std.mem.eql(u8, bytes[compared..][0..count], chunk.slice()[begin..][0..count])) return false;
-                absolute += count;
-                compared += count;
-            }
-            return true;
-        }
-    };
-}
-
 /// Validate a fully staged finite record before its atomic publication. Its
 /// committed source excludes private appends; the caller still owns the seal.
 pub fn readStaged(allocator: std.mem.Allocator, publication: Pub, source: anytype, id: u64, maximum: usize) ![]u8 {
@@ -142,19 +111,4 @@ pub fn readStaged(allocator: std.mem.Allocator, publication: Pub, source: anytyp
     }
     if (!std.mem.eql(u8, &record.chain, &record.spec.digest) or !std.meta.eql(try Pub.Digest.of(record.spec.format, bytes), record.spec)) return error.InvalidPublicationDigest;
     return bytes;
-}
-
-/// Discard only an explicitly abandoned, never-published bounded step attempt.
-/// Its permanent descriptor/identity remains; accepted intents are excluded.
-pub fn collectAbandonedStep(publication: Pub, turn: *s.Turn, id: u64) !void {
-    const before = turn.decision;
-    errdefer turn.decision = before;
-    try check(publication);
-    const record = try publication.inspect(turn, id);
-    if (id <= 1 or record.state != .abandoned or record.spec.format != @import("SavedStep.zig").format or record.spec.length > @import("SavedStep.zig").max_bytes) return error.InvalidGatewayCleanup;
-    const half = halfKey(publication, id);
-    const retained_half = try turn.read(half);
-    if (retained_half) |value| if (value.len != part_bytes or record.written > 1) return error.InvalidGatewayUpload;
-    if (!try publication.collect(turn, id)) return error.InvalidGatewayCleanup;
-    if (retained_half != null) try turn.write(half, null);
 }

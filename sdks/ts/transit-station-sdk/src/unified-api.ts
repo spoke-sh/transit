@@ -1,6 +1,10 @@
 // Public language-native API; neutral codecs stay inside the package.
 export {
   Bundle,
+  TableInterpretation,
+  TableDefinition,
+  Tables,
+  Capture,
   Connection,
   Prepared,
   Uncertain,
@@ -37,4 +41,5 @@ export type {
   InspectionDetails,
   Inspection,
   Manifest,
+  Cut,
 } from "./unified.ts";

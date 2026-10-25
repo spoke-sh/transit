@@ -69,8 +69,10 @@ Provider tools keep their own logging conventions and bounded capture.
 
 Startup, readiness, retries, SQL transitions and shutdown share the same bounded
 logger. SQL waiting for its first health check reports `starting`; loss of a
-previously ready SQL service reports `unavailable`. Unchanged status and connection
-hints are suppressed. The SQL status file remains the complete observed account
+previously ready SQL service reports `unavailable`. A failed native authority
+observation can report `busy` or `unavailable` with its cause even during startup;
+recovery retains the same pending work and requires a fresh readiness check.
+Unchanged status and connection hints are suppressed. The SQL status file remains the complete observed account
 state. Core readiness does not imply that optional SQL listeners already accept
 connections; wait for `sql.status` with `operation="accepting"` or inspect the file.
 
@@ -82,15 +84,15 @@ failed sink can hide a readiness notice, so automation uses stdout or probes.
 ## Defaults and configuration
 
 The installed local bundle runs without a configuration file. Defaults select
-version 1, realm 1, an installation at `./.transit`, loopback ports 19101–19105
-for cold storage, cold console, store, node and gateway, application management
+version 1, realm 1, an installation at `./.transit`, loopback ports 19104 and
+19105 for node and gateway, application management
 on 19106, and Board on 19107. Application quotas are eight applications and 32
 roles. For missing executable settings, lookup prepends the directory containing
 the physical `transit` executable to the inherited `PATH`. The default names are
-`minio`, `ursula`, `transit-node`, `transit-query-host` and `transit-board`.
+`transit-node`, `transit-query-host`, `transit-board` and `transit-sql-gateway`.
 Running `transit server` searches that executable’s directory first, then
 `PATH`. Symlink invocation uses the resolved executable directory. A missing
-provider must be installed there or available on `PATH`; lookup reports its
+artifact must be installed there or available on `PATH`; lookup reports its
 name. Explicit `executables` paths override lookup. The effective search is
 bounded to a 64 KiB `PATH` and 256 entries.
 
@@ -167,14 +169,9 @@ gateway_allowed_hosts: []
 admission_ceiling: 65536
 control_reserve: 4096
 ports:
-  cold: 19101
-  cold_console: 19102
-  store: 19103
   node: 19104
   gateway: 19105
 executables:
-  minio: "/absolute/path/to/minio"
-  ursula: "/absolute/path/to/ursula"
   node: "/absolute/path/to/transit-node"
   query_host: "/absolute/path/to/transit-query-host"
   board: "/absolute/path/to/transit-board"
@@ -204,23 +201,23 @@ additional control positions. The selected profile accepts ceilings from 128
 through 65,536 and reserves from zero through 65,536. These immutable genesis
 quotas limit accepted obligations; they do not expire retained history. Restart
 cannot reopen exhausted admission. Physical disk headroom must be provisioned
-separately; Ursula stops admitting writes below 64 MiB free and resumes above
-128 MiB. Neither physical pressure nor reserve exhaustion authorizes data loss.
+separately. The local adapter enforces encoded-byte allocation limits and a
+control reserve; filesystem exhaustion can still reject or leave an operation
+uncertain. Neither physical pressure nor reserve exhaustion authorizes data loss.
 
-The selected dependency set is the matching Transit CLI/node/query-host/Board build,
-pinned Ursula 0.5.1 and MinIO RELEASE.2025-09-07T16-13-09Z. The proof extracts the
-native MinIO binary from its pinned fixture image. Docker is proof setup, not a
-server runtime dependency. Source builds supply this complete dependency set;
-there is no published release bundle or general runtime upgrade path. The server
-hashes every configured executable and itself with bounded streaming reads before provisioning; ordinary
+The selected dependency set is the matching Transit CLI, node, query host, Board
+and SQL gateway build. Native state persists in `data/native/wal` and
+`data/native/objects` under the installation directory through the
+[local backend](../../../packages/zig/transit-backend-local/README.md). It uses
+no external storage service. Native page objects are `.data` files; selecting
+this backend alone does not move Table SQL onto `.tseg` storage. Source builds
+supply the dependency set; executable replacement requires a coordinated
+cutover. The server hashes every configured executable and itself with bounded streaming reads before provisioning; ordinary
 startup requires the same artifact hashes and immutable configuration. Mutable configuration is tracked independently; executable replacement remains outside this startup mechanism.
 
 After resolving the CLI, the complete local bundle needs no ambient tools.
 The running installation uses no shell, Python, task runner, Process Compose or
 source checkout. Child environments are explicit.
-MinIO receives a private service home under `provider-home` and an explicit
-certificate directory, without inheriting the operator's home or credentials.
-Its browser is disabled; the separate cold-console port remains reserved.
 
 When the complete neighborhood is ready, redirected or piped stdout emits one JSON record naming
 `installation`, optional `management_config` (a YAML file), `gateway_url`, the effective
@@ -330,13 +327,19 @@ replacement creates its own fresh in-memory key, receives scoped grants and an
 exact ownership generation. Foreign resource access is granted separately from
 the source's optional requester association. Activation markers are never removed.
 
-The server starts MinIO, disk Ursula, authority, maintenance, source, requester,
-courier, then gateway. Catalog initialization and default Table creation use
-public recorded inputs; the courier delivers the catalog's recorded continuations.
-The server checks the exact catalog configuration and completion of the original
-default CREATE before gateway readiness. Its immutable intent and each signed
-progress step survive interruption. Recorded initialization is not repeated on
-restart, and revoked rights are not restored. SIGINT/SIGTERM stop in reverse order and join
+The server first establishes the native catalog identities, then configures the
+node's direct Table owner with those exact identities and a dedicated registrar.
+On a new installation it restarts its node once before starting query workers or
+opening SQL. The query source and requester have their own native lifetimes;
+they do not accept Table mutations. The courier delivers recorded process work.
+
+The server checks the direct catalog configuration and completion of the
+original default CREATE before gateway readiness. Complete declaration bytes
+are staged privately, then their exact reference is fsynced in the installation
+record before admission. Recovery inspects and executes only that binding.
+The completion marker prevents startup from recreating `items` after an explicit
+DROP. Later readiness uses current authorized reads, without reapplying schema
+creation or restoring revoked rights. SIGINT/SIGTERM stop in reverse order and join
 children. Each
 child starts in a distinct process group through a Linux parent-death trampoline;
 the trampoline arms SIGKILL and checks the expected parent before exec. Killing
@@ -366,7 +369,7 @@ The shared SQL service executes interactive SELECT over native snapshots;
 consoles fetch bounded logical batches.
 
 Once genesis has been observed, recovery never enables node bootstrap or creates
-a replacement cold bucket. Missing storage markers and an authority position
+a replacement authority. Missing storage markers and an authority position
 below the recorded observation fail closed. Corruption, an unavailable provider
 or quota pressure never triggers deletion, expiry or a reset. This observed
 position is not a global latest-history oracle. Snapshot restore, distributed
@@ -376,15 +379,14 @@ ownership and live disaster recovery are outside this profile.
 
 | Role | Native authority / private inputs | Resident and work bounds |
 | --- | --- | --- |
-| Manager | Root key; provisioning and scoped caller key for initial casts | One 64 KiB installation record, one frozen request, nine children, 64 KiB streaming artifact hash buffer |
-| MinIO | Local provider credential only | Two Go scheduler threads, 256 MiB Go soft heap target; independent provider, no Transit authority |
-| Ursula | Disk WAL and local cold credential | One Raft group, two cores, 8 MiB hot data and 8 MiB cold read cache; 8 MiB uncommitted Raft payload cap, 64 live-read waiters per core, 512 MiB RSS admission threshold |
-| Authority | Genesis public root key, raw storage location | Eight decoded authority pages plus 16 immutable control records; 16 sockets, four data/two control/four wait requests, serialized engine work; 256 KiB native body/reply, two-second HTTP deadline |
-| Maintenance | Separate admin/effect/delivery grant and raw storage location | One bounded scan/transition at a time, one-second idle interval, two-second operation deadline |
-| Catalog owner | Fresh PID-scoped inspect/execute/publish grant and own resource | Bounded typed intent/row/page work; four mutations per committed turn; no whole-catalog or whole-Table workspace |
+| Manager | Root key; provisioning and scoped caller key for initial casts | One 64 KiB installation record, one frozen request, six service children, 64 KiB streaming artifact hash buffer |
+| Authority | Genesis public root key, exclusive local storage directory | 512 decoded pages per bounded request lane; ten lanes, 16 sockets, four data/two control/four wait requests; 256 KiB native body/reply, two-second HTTP deadline |
+| Maintenance | Separate admin/effect/delivery grant inside the node owner | Private 512-page cache; one bounded scan/transition at a time, one-second idle interval, two-second operation deadline; immutable objects retained |
+| Direct Table owner | Node-local storage and a dedicated native domain registrar; every operation checks its original caller | Separate catalog/Table partitions, bounded pages and 64 Table lock stripes; 8 MiB request/16 MiB response bounds |
+| Query source | Fresh PID-scoped inspect/execute/publish grant and own resource | Bounded captured-query work; its native turns do not carry direct Table row mutations |
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
-| Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
+| Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB native body/reply or 8 MiB/16 MiB direct Table body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
 | Console | OS-authenticated local peer or SQL account over verified HTTPS | Its separate [console bounds](console.md); session handles, bounded batches and original operation tokens |
 
@@ -400,11 +402,12 @@ Gateway transport diagnostics omit ordinary idle closes and idle expiry.
 establish whether the authority accepted the request. Preserve the exact saved
 request and reconcile through the caller's recovery interface.
 
-The gateway forwards only native `/v1/query`, `/v1/command` and `/health` routes,
+The gateway forwards native `/v1/query`, `/v1/command`, `/v1/blocks`, direct
+`/table/v1` and `/health` routes,
 preserving the signed body and upstream response status. Node and gateway permit
 64 sequential exchanges per connection; clients discard connections after 200 ms
 since an exchange started, and the listener bounds idle header waits to one second. Commands, health and
-checked snapshot release/finish requests use
+checked snapshot and Table control requests use
 the control reserve; native authorization still decides every operation. Exact
 configured Host is required, and browser Origin, Authorization and forwarded
 identity headers reject. Transport failure remains uncertainty. The gateway is

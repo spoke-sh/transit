@@ -29,7 +29,7 @@ class Client:
     def transport(self):
         self.http = http.client.HTTPSConnection('localhost', self.port, context=ssl.create_default_context(cafile=str(self.root / 'certificate.pem')), timeout=40)
 
-    def call(self, action, *, error=None, headers=None, lane=None, patch=None, unavailable=False):
+    def call(self, action, *, error=None, headers=None, lane=None, patch=None, unavailable=False, capacity=False):
         started = time.perf_counter()
         if time.monotonic() - self.last >= .5:
             self.http.close()
@@ -58,6 +58,10 @@ class Client:
         result = value['result']
         if unavailable and isinstance(result, dict) and result.get('err', {}).get('code') == 'AuthorityUnavailable':
             return None
+        if capacity and isinstance(result, dict):
+            failure = result.get('err', {})
+            if failure.get('code') == 'AuthorityUnavailable' and failure.get('sqlstate') == list(b'53000'):
+                return None
         if error:
             assert result['err']['code'] == error, result
         else:
@@ -92,6 +96,22 @@ class Client:
     def execute(self, sql, token=None, **kwargs):
         return self.call(dict(execute=dict(sql=sql, token=token, **kwargs)))
 
+    def concurrent_read(self, sql='SELECT id FROM native_sessions'):
+        # The bounded native service may reject simultaneous requests. This
+        # fixture explicitly issues another SELECT only before receiving any
+        # batch. It never retries a write, fetch or an existing result snapshot.
+        started = time.perf_counter()
+        deadline = time.monotonic() + 15
+        attempts = 0
+        while True:
+            attempts += 1
+            result = self.call(dict(execute=dict(sql=sql, token=None)), capacity=True)
+            if result is not None:
+                self.sample.update(milliseconds=round((time.perf_counter()-started)*1000, 3), sql_requests=attempts)
+                return result
+            assert time.monotonic() < deadline, 'concurrent read capacity did not recover'
+            time.sleep(.02)
+
     def terminal(self, operation):
         deadline = time.monotonic() + (270 if operation['identity']['kind'] == 'captured' else 90)
         while operation['phase'] != 'terminal':
@@ -112,7 +132,7 @@ class Client:
         self.http.close()
 
 
-def run(root, port, postgres, restart, console, authorize, select_source, sources=None, faults=None, service_pid=None):
+def run(root, port, postgres, restart, console, authorize, select_source, source_pin, sources=None, faults=None, service_pid=None):
     first, second = Client(root, port).open(), Client(root, port).open()
     rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnsupportedGatewayStatement')['err']
     assert rejected['retry'] == 'never', rejected
@@ -123,10 +143,10 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     # The actual native route shares grammar, metadata and settings assistance.
     assistance_samples = []
     for text, cursor, expected, profile in (
-        ('SELECT va FROM native_sessions', 9, '"value"', 'catalog_v1'),
-        ('SELECT n.va FROM native_sessions AS n', 11, '"value"', 'catalog_v1'),
-        ('.mode table\nSELECT 1; SELECT va FROM native_sessions', 31, '"value"', 'catalog_v1'),
-        ('UPDATE native_sessions SET va', 29, '"value"', 'catalog_v1'),
+        ('SELECT va FROM native_sessions', 9, '"value"', 'direct_table_v1'),
+        ('SELECT n.va FROM native_sessions AS n', 11, '"value"', 'direct_table_v1'),
+        ('.mode table\nSELECT 1; SELECT va FROM native_sessions', 31, '"value"', 'direct_table_v1'),
+        ('UPDATE native_sessions SET va', 29, '"value"', 'direct_table_v1'),
         ('SET query.statement_t', 21, 'query.statement_timeout', 'configuration_v1'),
     ):
         result = first.call(dict(assist=dict(text=text, cursor=cursor)))['assistance']
@@ -186,7 +206,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     assert explain['rows']
     first.call(dict(close_result=explain['cursor']))
     with ThreadPoolExecutor(max_workers=2) as pool:
-        replies = list(pool.map(lambda c: c.execute('SELECT id FROM native_sessions'), (first, second)))
+        replies = list(pool.map(lambda c: c.concurrent_read(), (first, second)))
     for client, reply in zip((first, second), replies):
         client.call(dict(close_result=reply['batch']['cursor']))
     # The same table is visible through the ordinary PostgreSQL adapter.
@@ -244,6 +264,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
         assert batch['basis']['source']['kind'] == name
         selected.call(dict(close_result=batch['cursor']))
+        if name == 'table':
+            configured = next(source for source in json.loads((root/'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
+            assert configured['connection']['resource'] != configured['workspace']['source']['resource']
+            orphan = Client(root, port).open(name)
+            held = orphan.concurrent_read('SELECT value FROM items')['batch']
+            assert held['rows'] and not held['complete'] and held['basis']['source']['kind'] == 'table'
+            pins = [path for path in root.glob('read-pins-*/*.pin')
+                    if json.loads(path.read_text())['table']['connection']['principal'] == configured['connection']['principal']]
+            assert len(pins) == 1, pins
+            (root/'orphaned-source-pin.json').write_bytes(pins[0].read_bytes())
+            assert not source_pin()['released']
+            # Closing transport does not close an explicit native session.
+            # Physical gateway replacement must settle this exact original pin.
+            orphan.http.close()
         # Capture admission belongs to the SQL account, not a running source
         # worker. Keep owners paused until after service replacement, so this
         # schedule proves durable admission before any query can complete.
@@ -257,6 +291,13 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first.close()
     second.close()
     restart(wire=False)
+    if (root/'orphaned-source-pin.json').exists():
+        deadline = time.monotonic() + 30
+        while not source_pin()['released']:
+            assert time.monotonic() < deadline, 'Replacement did not close the source caller pin'
+            time.sleep(.05)
+        print(json.dumps(dict(profile='native_sql_source_pin_recovery', original_pin_released=True,
+                              independent_data_and_progress=True)), flush=True)
     restored = Client(root, port).open()
     prior = restored.call(dict(status=dict(token=insert_token)))['operation']
     assert prior['phase'] == 'terminal' and prior['changed'] == 1
@@ -361,10 +402,16 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         terminal.close()
     print('Native console completion: CREATE advances to TABLE without a menu flash; partial words, undo, catalog and settings passed over TLS.', flush=True)
     def console_read(_):
-        result = subprocess.run([console, 'console', '--config', str(config), '-c', 'SELECT id FROM native_sessions'], cwd=consumer, env=client_environment, capture_output=True, text=True, timeout=60)
-        assert result.returncode == 0, result.stderr
-        assert '"complete_coverage":true' in result.stdout, result.stdout
-        return result.stdout
+        deadline = time.monotonic() + 30
+        while True:
+            result = subprocess.run([console, 'console', '--config', str(config), '-c', 'SELECT id FROM native_sessions'], cwd=consumer, env=client_environment, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0:
+                assert '"complete_coverage":true' in result.stdout, result.stdout
+                return result.stdout
+            # As above, only an explicit capacity rejection before any output
+            # permits this fixture to submit another independent read.
+            assert not result.stdout and 'AuthorityUnavailable (53000)' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
+            time.sleep(.02)
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(console_read, range(2)))
     if faults is not None:

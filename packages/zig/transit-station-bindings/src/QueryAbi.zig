@@ -5,31 +5,47 @@ pub const bridge = @import("QueryBridge.zig");
 const q = bridge.q;
 const allocator = std.heap.page_allocator;
 pub const Client = opaque {};
-pub const Config = struct { connection: ?q.UnifiedClient.Connection = null, timeout_ms: u32 = 5000, relational: ?q.RelationalBridge.Config = null };
+pub const Config = struct {
+    connection: ?q.UnifiedClient.Connection = null,
+    timeout_ms: u32 = 5000,
+    relational: ?q.RelationalBridge.Config = null,
+    tables: ?struct { url: []const u8, connection: q.Values.DirectConnection } = null,
+};
 const Impl = struct {
     threaded: std.Io.Threaded,
     wire: q.wire.Client,
     client: ?q.UnifiedClient = null,
     key: q.protocol.Ed25519.KeyPair,
     url: []u8,
+    table_url: ?[]u8 = null,
+    table_wire: ?q.wire.Client = null,
     relational: ?*q.RelationalCaller = null,
     busy: std.atomic.Value(bool) = .init(false),
 };
 fn cast(pointer: *Client) *Impl {
     return @ptrCast(@alignCast(pointer));
 }
+fn validEndpoint(url: []const u8) bool {
+    if (url.len == 0 or url.len > 2048) return false;
+    const uri = std.Uri.parse(url) catch return false;
+    return (std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) and uri.host != null and uri.user == null and uri.password == null and uri.query == null and uri.fragment == null;
+}
 pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u8, config: [*]const u8, config_len: usize, out: *?*Client) callconv(.c) base.Status {
     out.* = null;
     if (version != 1) return .incompatible_version;
     if (url_len == 0 or url_len > 2048 or config_len == 0 or config_len > 8192) return .invalid_argument;
-    const uri = std.Uri.parse(url[0..url_len]) catch return .invalid_argument;
-    if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return .invalid_argument;
+    if (!validEndpoint(url[0..url_len])) return .invalid_argument;
     const parsed = q.Values.parse(Config, allocator, config[0..config_len]) catch |err| return base.status(err);
     defer parsed.deinit();
     const c = parsed.value;
     if (c.connection) |connection| {
         inline for (.{ "realm", "principal", "source", "resource", "requester", "requests" }) |field| q.UnifiedRecords.identity(@field(connection, field)) catch return .invalid_argument;
     } else if (c.relational == null) return .invalid_argument;
+    if (c.tables) |tables| {
+        const connection = c.connection orelse return .invalid_argument;
+        const direct = tables.connection.native() catch return .invalid_argument;
+        if (!validEndpoint(tables.url) or direct.scope.realm != connection.realm or direct.principal != connection.principal or direct.role != connection.role) return .invalid_argument;
+    }
     if (c.timeout_ms == 0 or c.timeout_ms > 60000) return .invalid_argument;
     const client = allocator.create(Impl) catch return .out_of_memory;
     const endpoint = allocator.dupe(u8, url[0..url_len]) catch {
@@ -40,12 +56,23 @@ pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u
     client.wire = q.wire.Client.init(allocator, client.threaded.io(), endpoint);
     client.wire.timeout_ms = c.timeout_ms;
     if (c.connection) |connection| client.client = .{ .wire = &client.wire, .connection = connection, .key = client.key };
+    if (c.tables) |tables| initializeTables(client, tables.url, tables.connection, c.timeout_ms) catch |err| {
+        destroy(@ptrCast(client));
+        return base.status(err);
+    };
     if (c.relational) |config_relational| initializeRelational(client, config_relational) catch |err| {
         destroy(@ptrCast(client));
         return base.status(err);
     };
     out.* = @ptrCast(client);
     return .ok;
+}
+fn initializeTables(client: *Impl, url: []const u8, connection: q.Values.DirectConnection, timeout_ms: u32) !void {
+    const direct = try connection.native();
+    client.table_url = try allocator.dupe(u8, url);
+    client.table_wire = q.wire.Client.init(allocator, client.threaded.io(), client.table_url.?);
+    client.table_wire.?.timeout_ms = timeout_ms;
+    client.client.?.tables = .{ .allocator = allocator, .authority = &client.wire, .service = &client.table_wire.?, .connection = direct, .key = client.key };
 }
 fn initializeRelational(client: *Impl, config: q.RelationalBridge.Config) !void {
     for (config.catalogs) |connection| {
@@ -57,15 +84,23 @@ fn initializeRelational(client: *Impl, config: q.RelationalBridge.Config) !void 
 pub fn destroy(pointer: ?*Client) callconv(.c) void {
     const client = cast(pointer orelse return);
     if (client.relational) |relational| relational.destroy();
-    if (client.client) |*unified| std.crypto.secureZero(u8, std.mem.asBytes(&unified.key));
+    if (client.client) |*unified| {
+        if (unified.tables) |*tables| std.crypto.secureZero(u8, std.mem.asBytes(&tables.key));
+        std.crypto.secureZero(u8, std.mem.asBytes(&unified.key));
+    }
     std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     client.wire.deinit();
+    if (client.table_wire) |*wire| wire.deinit();
     client.threaded.deinit();
     allocator.free(client.url);
+    if (client.table_url) |url| allocator.free(url);
     allocator.destroy(client);
 }
 pub fn observe(pointer: *Client, observer: *q.wire.observability.telemetry.Runtime) void {
-    cast(pointer).wire.observer = observer;
+    const client = cast(pointer);
+    client.wire.observer = observer;
+    if (client.table_wire) |*wire| wire.observer = observer;
+    if (client.relational) |relational| relational.service.observer = observer;
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
@@ -74,6 +109,8 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     if (client.busy.swap(true, .acquire)) return .busy;
     defer client.busy.store(false, .release);
     client.wire.last_rejection = null;
+    if (client.table_wire) |*wire| wire.last_rejection = null;
+    if (client.relational) |relational| relational.service.last_rejection = null;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -89,7 +126,7 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     }
     var detail: q.fuze.Sql.Binding = .{};
     const result = apply(client, alloc, action.value, &detail) catch |err| {
-        const original_rejection = client.wire.last_rejection;
+        const original_rejection = if (action.value == .relational and client.relational != null) client.relational.?.service.last_rejection orelse client.wire.last_rejection else if (client.table_wire) |wire| wire.last_rejection orelse client.wire.last_rejection else client.wire.last_rejection;
         var diagnostic = q.ApiDiagnostic.project(action.value, err, detail, action.value == .submit, identity) catch null;
         if (action.value == .relational) if (client.relational) |relational| if (diagnostic) |*value| relational.session.diagnostic(action.value.relational, err, value);
         if (action.value != .relational) if (client.client) |unified| q.ApiDiagnostic.qualify(&diagnostic, unified.connection);
@@ -223,4 +260,40 @@ test "failure to parse for lack of memory is not a syntax error" {
     defer parsed.deinit();
     try t.expectEqual(.unavailable, parsed.value.diagnostic.category);
     try t.expectEqual(.not_submitted, parsed.value.diagnostic.outcome);
+}
+
+test "query Table routing owns its endpoint and preserves a separate service audience" {
+    const t = std.testing;
+    const endpoint = "http://127.0.0.1:1";
+    const seed: [32]u8 = @splat(0);
+    const config: Config = .{
+        .connection = .{ .realm = 7, .principal = 8, .source = 9, .resource = 10, .requester = 11, .requests = 12, .role = 3 },
+        .tables = .{ .url = "http://127.0.0.1:2", .connection = .{ .scope = .{ .realm = 7, .resource = 20, .catalog = "18446744073709551615" }, .branch = "1", .audience = 21, .principal = 8, .role = 3 } },
+    };
+    const encoded = try q.protocol.Json.valueAlloc(t.allocator, config);
+    defer t.allocator.free(encoded);
+    var pointer: ?*Client = null;
+    try t.expectEqual(.ok, create(1, endpoint.ptr, endpoint.len, &seed, encoded.ptr, encoded.len, &pointer));
+    defer destroy(pointer);
+    const tables = cast(pointer.?).client.?.tables.?;
+    try t.expectEqual(@as(u64, 21), tables.connection.audience);
+    try t.expectEqual(std.math.maxInt(u64), tables.connection.scope.catalog);
+    try t.expect(tables.authority == &cast(pointer.?).wire);
+    try t.expect(tables.service == &cast(pointer.?).table_wire.?);
+    for (0..5) |case| {
+        var foreign = config;
+        switch (case) {
+            0 => foreign.tables.?.connection.scope.realm += 1,
+            1 => foreign.tables.?.connection.principal += 1,
+            2 => foreign.tables.?.connection.role = null,
+            3 => foreign.tables.?.url = "http://user:password@127.0.0.1",
+            4 => foreign.connection = null,
+            else => unreachable,
+        }
+        const bytes = try q.protocol.Json.valueAlloc(t.allocator, foreign);
+        defer t.allocator.free(bytes);
+        var rejected: ?*Client = null;
+        try t.expectEqual(.invalid_argument, create(1, endpoint.ptr, endpoint.len, &seed, bytes.ptr, bytes.len, &rejected));
+        try t.expect(rejected == null);
+    }
 }

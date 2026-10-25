@@ -158,6 +158,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.InvalidArrayLength, .code = "sql.invalid_array_length", .category = .constraint, .summary = "Array length does not match its descriptor", .hint = "Supply exactly the declared positive number of array elements." },
     .{ .cause = error.IncompatibleColumnEncoding, .code = "sql.incompatible_column_encoding", .category = .binding, .summary = "Physical column encoding is incompatible with the logical column type", .hint = "Choose an encoding descriptor supported for the column's logical type." },
     .{ .cause = error.IncompatibleColumnCollation, .code = "sql.incompatible_column_collation", .category = .binding, .summary = "Column collation is incompatible with the logical column type", .hint = "Specify text collations only on UTF8 columns; non-text columns require collation none." },
+    .{ .cause = error.UnsupportedColumnCollation, .code = "sql.unsupported_column_collation", .category = .unsupported, .summary = "Column collation is unsupported", .hint = "Choose a supported collation; reserved ICU descriptors cannot be admitted." },
 };
 pub fn fromError(cause: anyerror) ?[]const u8 {
     for (entries) |entry| if (entry.cause == cause) return entry.code;

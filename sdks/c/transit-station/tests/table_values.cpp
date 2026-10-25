@@ -18,7 +18,7 @@ int main() try {
     transit_logical_type_view string{}; string.kind = TRANSIT_LOGICAL_UTF8;
     transit_logical_cell_view nil{}; nil.state = TRANSIT_LOGICAL_NULL;
     char name[] = "id";
-    transit_station_catalog_column columns[] = {{1, name, &integer, false, nullptr, 0}, {2, "name", &string, true, &nil, 23}};
+    transit_station_catalog_column columns[] = {{1, name, &integer, false, nullptr, 0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE}, {2, "name", &string, true, &nil, 23, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE}};
     const uint64_t key[] = {1}; transit_station_catalog_schema schema{UINT64_MAX, 1, 3, columns, 2, key, 1};
     transit_station_catalog_assignment assignments[] = {{1, &nil}, {2, nullptr}};
     const transit_station_catalog_assignments row{assignments, 2};

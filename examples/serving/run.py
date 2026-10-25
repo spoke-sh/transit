@@ -2,7 +2,8 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
-from http.client import HTTPConnection, HTTPSConnection
+from http.client import HTTPConnection, HTTPSConnection, HTTPException
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -19,8 +20,8 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
 from serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
 from serving_tls import TLSProxy
-from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter, provision_catalog
-from placement import Compose, Reference
+from serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
+from placement import Compose, DirectReference
 
 
 def run(profile, reactive=False, views=False):
@@ -29,14 +30,17 @@ def run(profile, reactive=False, views=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL': 'warn'}
     with tempfile.TemporaryDirectory(prefix='transit-serving-') as directory, ExitStack() as owned:
         work = Path(directory)
-        subprocess.run(['zig', 'build', 'transit', '-Doptimize=ReleaseSafe', '--prefix', str(work / 'tools')], cwd=ROOT, check=True, timeout=900)
+        subprocess.run(['zig', 'build', 'transit-station-host', '-Doptimize=ReleaseSafe', '--prefix', str(work / 'tools')], cwd=ROOT, check=True, timeout=900)
         roles = ('operator', 'ingress', 'application', 'courier', 'gateway-0', 'gateway-1')
         for role in roles:
             (work / role).mkdir(mode=0o700)
             (work / (role + '-data')).mkdir(mode=0o700)
         (work / 'wal').mkdir()
-        keys = {p: Key(work, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
+        (work / 'node-data').mkdir()
+        keys = {p: Key(work, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (177, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
+        worker_public = {principal: keys[principal].public for principal in (77, 78)}
+        inspector_epoch = None
         placement, cold = None, None
         local, logs, proxies = [], [], []
         url = None
@@ -48,15 +52,49 @@ def run(profile, reactive=False, views=False):
 
         def request(endpoint, path, value=None, expected=200, tls=None, headers=None):
             target = urlsplit(endpoint)
-            connection = HTTPSConnection(target.hostname, target.port, context=tls, timeout=15) if tls else HTTPConnection(target.hostname, target.port, timeout=15)
-            try:
-                connection.request('POST' if value is not None else 'GET', path,
-                    compact(value) if value is not None else None, {'Content-Type': 'application/json'} | (headers or {}))
-                response = connection.getresponse()
-                body = response.read()
-                assert response.status == expected, (path, response.status, body[:500], expected)
-                return json.loads(body)
-            finally: connection.close()
+            encoded = compact(value) if value is not None else None
+            deadline, retries, transport_retries, contention_retries = time.monotonic() + 10, 0, 0, 0
+            while True:
+                connection = HTTPSConnection(target.hostname, target.port, context=tls, timeout=15) if tls else HTTPConnection(target.hostname, target.port, timeout=15)
+                try:
+                    connection.request('POST' if value is not None else 'GET', path,
+                        encoded, {'Content-Type': 'application/json'} | (headers or {}))
+                    response = connection.getresponse()
+                    body, status = response.read(), response.status
+                except (OSError, HTTPException):
+                    if expected != 200 or path not in ('/v1/query', '/v1/command') or time.monotonic() >= deadline:
+                        raise
+                    if profile == 'reference' and placement is not None and endpoint == url:
+                        forward = placement.forwards.get('node')
+                        if forward is not None and forward[0].poll() is not None:
+                            status = forward[0].returncode
+                            assert placement.url('node') == endpoint
+                            print(f'Serving placement restored the same native port-forward after exit {status}', flush=True)
+                    # The reference port-forward can lose a response after
+                    # native acceptance. Reuse the same signed bytes and native
+                    # sequence; a duplicate command recovers its original receipt.
+                    transport_retries += 1
+                    time.sleep(min(.1 * transport_retries, .5))
+                    continue
+                finally: connection.close()
+                decoded = json.loads(body)
+                # Match the native fixture's bounded pre-dispatch recovery.
+                # Keep exact signed bytes, including sequence and nonce; no
+                # timeout, ambiguous outcome or semantic rejection enters here.
+                if (expected == 200 and path in ('/v1/query', '/v1/command') and
+                    status == 503 and decoded == {'err': 'HttpCapacity'} and time.monotonic() < deadline):
+                    retries += 1
+                    time.sleep(min(.1 * retries, .5))
+                    continue
+                if (expected == 200 and path in ('/v1/query', '/v1/command') and
+                    status == 409 and decoded == {'err': 'Conflict'} and time.monotonic() < deadline):
+                    contention_retries += 1
+                    time.sleep(min(.1 * contention_retries, .5))
+                    continue
+                if retries or transport_retries or contention_retries:
+                    print(f'Serving placement exact request: {retries} capacity refusals, {contention_retries} native contention retries, {transport_retries} uncertain transport retries before status {status}', flush=True)
+                assert status == expected, (path, status, body[:500], expected)
+                return decoded
 
         def ready(child, endpoint):
             until = time.monotonic() + 90
@@ -76,11 +114,32 @@ def run(profile, reactive=False, views=False):
         def query(kind):
             return request(url, '/v1/query', native_query(keys[0], 0, kind))['body']
 
+        def query_as(principal, kind):
+            return request(url, '/v1/query', native_query(keys[principal], principal, kind))
+
+        for key in keys.values():
+            key.authority_query = lambda message: request(url, '/v1/query', message)
+
         def grant(principal, permissions, pid=None, public=None):
             send({'grant': dict(subject=principal, public_key=public or keys[principal].public, permissions=permissions, pid=pid)})
 
         def resource_grant(resource, principal, permissions):
             send({'grant_resource': dict(resource=resource, subject=principal, permissions=permissions)})
+
+        def rotate_inspector(public):
+            nonlocal inspector_epoch
+            def observe(kind):
+                return query({'authorization': dict(role=None, kind=kind)})['authorization']
+            change = send({'authorization': {'begin': dict(expected_revision=observe({'identity': {}})['revision'], role=None,
+                action={'rotate_credential': dict(principal=177, expected_epoch=inspector_epoch, public_key=public)})}})
+            for _ in range(128):
+                outcome = observe({'change': change})['body']['change']
+                if outcome['status'] == 'published':
+                    inspector_epoch = outcome['revision']
+                    return
+                assert outcome['status'] in ('ready', 'preparing'), outcome
+                send({'authorization': {'publish' if outcome['status'] == 'ready' else 'advance': change}})
+            raise AssertionError('Inspection credential rotation exceeded its bound')
 
         def cast(pid, payload, principal=33):
             return send({'send': dict(pid=pid, value=frame(payload))}, principal)
@@ -106,16 +165,20 @@ def run(profile, reactive=False, views=False):
             generation = query({'process': pid})['process']['process']['generation'] + 1
             config = dict(url=placement.authority, realm=REALM, principal=principal, pid=pid,
                 generation=generation, activation_directory='/runtime-data', request_timeout_ms=10000, role=role)
+            if 'live_ingress' in role: config['inspection_principal'] = 177
             if profile == 'reference':
                 handle, registration = placement.register_host(config)
                 assert registration['realm'] == REALM and registration['pid'] == pid and registration['principal'] == principal and registration['generation'] == generation
                 public = registration['public_key']
                 assert public != keys[principal].public, 'bootstrap must use a fresh key'
-                grant(principal, 88, pid, public)
-                resource_grant(resource, principal, 7)
-                if views:
-                    resource_grant(application_resource if principal == 77 else ingress_resource, principal, 3)
-                send({'own': dict(pid=pid, expected_generation=generation - 1, worker=principal)})
+                if 'live_ingress' in role:
+                    rotate_inspector(public)
+                # Preserve role membership and current resource grants while
+                # fencing the old activation. Recreating a native grant would
+                # replace the role and discard the worker's Table authority.
+                send({'rotate_worker': dict(pid=pid, worker=principal, expected_generation=generation - 1,
+                    expected_public_key=worker_public[principal], expected_permissions=88, public_key=public)})
+                worker_public[principal] = public
                 return handle
             config['seed_file'] = '/' + name + '/seed.key'
             (work / name / 'seed.key').write_bytes(keys[principal].seed.read_bytes())
@@ -127,6 +190,7 @@ def run(profile, reactive=False, views=False):
         def courier():
             config = dict(url=placement.authority if profile == 'compose' else url,
                 realm=REALM, principal=80, seed_file='/courier/seed.key' if profile == 'compose' else str(keys[80].seed),
+                idle_max_interval_ms=1000,
                 role={'courier': dict(destinations=[ingress, application])})
             path = write('courier/config.json', config)
             if profile == 'compose':
@@ -180,7 +244,7 @@ def run(profile, reactive=False, views=False):
             return api('read', signed_read(keys[65536], 65536, ingress, kind, operation), expected)
 
         try:
-            placement = Reference(work, views) if profile == 'reference' else Compose(work, views)
+            placement = DirectReference(work, views) if profile == 'reference' else Compose(work, views)
             if profile == 'compose':
                 # Compose creates the isolated storage bridge before the native
                 # cold fixture binds its exact host-side private interface.
@@ -189,7 +253,10 @@ def run(profile, reactive=False, views=False):
                 network = placement.project + '_storage'
             else:
                 network = 'kind'
-            bridge = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config'][0]['Gateway']
+            addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config']
+            bridge = next((item['Gateway'] for item in addresses if item.get('Gateway') and ipaddress.ip_address(item['Gateway']).version == 4), None)
+            if bridge is None:
+                raise RuntimeError('Serving placement requires an IPv4 Docker bridge gateway')
             cold = owned.enter_context(ColdStore(bind_address=bridge))
             placement.cold_address = bridge
             placement.cold_port = cold.port
@@ -197,7 +264,7 @@ def run(profile, reactive=False, views=False):
             (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config())
             (work / 'ursula.toml').chmod(0o600)
             write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000),
-                ursula_url='http://ursula:8080', bucket='serving', journal='authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
+                local_directory='/authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
             storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
@@ -211,26 +278,50 @@ def run(profile, reactive=False, views=False):
                 resource_grant(application_resource, 77, 3)
                 resource_grant(ingress_resource, 78, 3)
             grant(34, 20); grant(80, 148)
-            for principal in (65536, 65537): grant(principal, 20, ingress)
-            catalog_authority = provision_catalog(REALM, application_resource, keys[33], send,
-                lambda principal, kind: request(url, '/v1/query', native_query(keys[principal], principal, kind)),
-                readers=(65536, 65537) if reactive else ())
+            for principal in (65536, 65537):
+                if views and principal == 65536:
+                    grant(principal, 16)
+                    role = query_as(principal, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']['login_role']
+                    authorize(send, query_as, {'grant': dict(object=dict(kind='process', id=ingress), grantee=role, privileges=4, grant_options=0)})
+                else:
+                    grant(principal, 20, ingress)
             grant(79, 16, None if reactive else ingress); resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
+            if views:
+                grant(177, 16)
+                inspector_epoch = request(url, '/v1/query', native_query(keys[177], 177,
+                    {'authorization': dict(role=None, kind={'identity': {}})}))['body']['authorization']['body']['identity']['credential_epoch']
+                for target in (ingress_resource, application_resource): resource_grant(target, 177, 3)
+                resource_grant(application_resource, 77, 3)
+                resource_grant(ingress_resource, 78, 3)
+            catalog_authority = provision_catalog(REALM, application_resource, application, keys[33], send, query_as,
+                readers=((65536, 65537, 77, 79, 177) if views else (65536, 65537, 79)) if reactive else ())
+            placement.stop_for_recovery('node', authority)
+            registrar = work / 'operator/registrar.seed'
+            registrar.write_bytes(keys[0].seed.read_bytes()); registrar.chmod(0o600)
+            node_config = json.loads((work / 'operator/node.json').read_text())
+            node_config['table'] = dict(catalog=catalog_authority['catalog'], registrar=dict(principal=0, seed_file='/operator/registrar.seed'))
+            write('operator/node.json', node_config)
+            authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
+            counter_definition = bootstrap_counter(str(work / 'tools/bin/transit-station-host'), work, url, catalog_authority['data'], keys[33])
+            def populate_rows():
+                populate_query_rows(str(work / 'tools/bin/transit-station-host'), work, url, catalog_authority['data'])
+            sequences[0] = request(url, '/v1/query', native_query(keys[0], 0, {'identity': {}}))['principal_sequence']
             ingress_role = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)} if views else {'ingress': dict(service=1, administrator=33, observer=34)}
-            application_role = {'application': dict(ingress=ingress, initializer=33, queries=views, table_limits=TABLE_LIMITS, **catalog_authority)}
+            application_role = {'application': dict(ingress=ingress, initializer=33, queries=views, data=catalog_authority['data'])}
             workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
                        activate('application', 78, application, application_resource, application_role)]
             cast(ingress, b'SV1c\x00'); cast(application, b'')
             drained(ingress); drained(application)
             resource_grant(application_resource, 33, 3)
             delivery = courier()
-            counter_definition = bootstrap_counter(work / 'tools/bin/transit', work, url, REALM, application, application_resource, keys[33], cast, drained,
-                lambda principal, kind: request(url, '/v1/query', native_query(keys[principal], principal, kind)), sequences, readers=(65536, 65537) if reactive else ())
             if not views:
                 if profile == 'reference': delivery.kill(); delivery.wait(timeout=10)
                 else: placement.stop_for_recovery('courier', delivery)
-            deadline = int(time.time() * 1000) + 900000
+            # The reference browser's longer finite-query observation must fit
+            # inside this fixture publication's declared lifetime. Session
+            # leases and individual request deadlines are independent.
+            deadline = int(time.time() * 1000) + (1800000 if views and profile == 'reference' else 900000)
             cast(ingress, publication(1, application, deadline)); cast(ingress, policy(65536)); drained(ingress)
             if views:
                 for resource in (ingress_resource, application_resource): resource_grant(resource, 65536, 3)
@@ -255,7 +346,7 @@ def run(profile, reactive=False, views=False):
                 from views_placement import run as run_views
                 run_views(locals())
                 if profile == 'reference': placement.check_hosts(workers)
-                print(f'Live views {profile}: owned workers/gateways/node/store recovered; {cold.data_objects()} cold objects / {cold.file_bytes()} bytes; total {time.monotonic()-started:.2f}s.', flush=True)
+                print(f'Live views {profile}: owned workers/gateways/node/store recovered; retained local native and Table logs; total {time.monotonic()-started:.2f}s.', flush=True)
                 return
             gateway_workers = gateways()
             assert read('discovery')['binding']['target'] == application
@@ -306,7 +397,7 @@ def run(profile, reactive=False, views=False):
             cast(ingress, policy(65536, revision=2, reads=False)); drained(ingress)
             read('result', 1, 403)
             if profile == 'reference': placement.check_hosts(workers)
-            print(f'Serving {profile}: two TLS gateways, exact retry, physical worker/gateway/node/disk recovery, fresh activation, immutable outcome, retirement and current denial passed in {time.monotonic()-started:.2f}s; 8 resident authority pages, 8 MiB hot store, {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
+            print(f'Serving {profile}: two TLS gateways, exact retry, physical worker/gateway/node/disk recovery, fresh activation, immutable outcome, retirement and current denial passed in {time.monotonic()-started:.2f}s; 8 resident authority pages with retained local native and Table logs.', flush=True)
         except BaseException:
             traceback.print_exc()
             if placement:

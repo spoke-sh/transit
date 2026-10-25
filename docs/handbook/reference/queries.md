@@ -149,12 +149,42 @@ recorded terminal outcome retains the original recovery obligation.
 
 Explicit durable queries use the query v1 captured-query path. The requester
 uploads and seals the plan bundle, then makes a durable source call. The source
-retains a read version, stages Arrow segments through bounded Publication turns,
+retains a native KV/Document version or an exact direct Table pin, stages Arrow segments through bounded Publication turns,
 publishes a complete manifest and returns its reference through the original
 reply route. Even an empty result carries its schema and completion evidence.
 Source rows remain unchanged by a SELECT, but query bookkeeping and result
 publication write durable state. The console defaults to the separate interactive
 session profile below; explicit durable callers retain this recovery contract.
+
+A direct Table capture uses an explicit executor principal, pin-operation
+identity and expected Table partition/log frontier. Its progress resource can
+differ from the Table's catalog resource. Compilation produces an unsigned
+description; capture authorization freezes the original caller, selected role,
+interpretation, frontier and query route before upload. The worker records
+acquisition eligibility before contacting storage. Recovery repeats that
+original operation, including after RENAME or schema changes; it never captures
+newer data silently. The [typed caller guide](../../../packages/zig/transit-query/docs/unified-client.md)
+describes configuration and the prepare/submit/observe sequence.
+
+Captured Table reads use the retained schema and row-identity pages. A complete
+primary-key equality can seek the retained index, including composite keys;
+the original predicate still determines selection. An absent key completes that
+selection without claiming that all Table rows were scanned. Both matching and
+empty reads require current source rights.
+
+Result completeness and pin cleanup are separate observations. A completed
+result retains its source commitment and checks current source rights even after
+the pin is released. A storage outage or current denial leaves cleanup pending.
+After credential rotation, `prepareCleanup` authorizes closure of the original
+pin separately; it cannot renew the accepted query's read authority. Repeated
+cleanup uses saved prepared bytes and preserves the original result and failure
+evidence.
+
+A current-frontier capture that has not acquired a pin can close when an
+authorized status observation proves its Table definition has advanced. The old
+definition cannot become current again. A pin acquired before ALTER still retains
+the old cut and requires release; advancing data alone does not close an absent
+current-frontier capture. Denial and unavailable observations leave cleanup pending.
 
 Each durable requester runs one active query. Retained queries and results can
 grow on disk without loading their complete history into memory. Work is bounded
@@ -170,7 +200,9 @@ Native query hosts bound source decoding to 1 MiB and logical Arrow encoding to
 4 MiB per active step. Exhaustion records a specific query memory-budget failure,
 discards the candidate and releases its source pin. It does not stop the source
 owner or remove stored rows. Storage and general allocator failures remain
-infrastructure errors. These working-set limits are independent of Table value
+infrastructure errors, including allocation failures in the direct Table HTTP
+client. Those failures leave the attempt retryable without advancing the query.
+These working-set limits are independent of Table value
 and encoded-result limits.
 
 ## Finite draft evaluation
@@ -224,25 +256,39 @@ grouping by int64 columns, projection, COUNT and ordered checked int64 SUM.
 SQL declares int64 as BIGINT. Join nulls do not match; grouping places null keys
 together and before integer keys. Duplicate rows retain their multiplicity.
 
-`transit-query.RelationalQuery` seals a per-resource snapshot vector before
-execution. Aliases in one resource share its cut, while different resources may
-be captured at different times. This does not provide an atomic or causal shared
-snapshot. Every source's current rights still apply, including empty inputs.
-The [console configuration](../../../apps/transit-cli/docs/console.md#finite-relational-queries)
-describes this interactive profile. Its private disk group index and
-bounded operator state have separate resident, spill, work and result limits.
-Rows remain incomplete until terminal source/output checks succeed.
+The SQL service uses `DirectRelationalQuery` over independently retained Table
+partition cuts. Tables in one catalog need not share a frontier; repeated aliases
+of the same Table share one pin. Each cut records its atomic domain explicitly.
+`RelationalQuery` retains the separate native-resource snapshot-vector profile.
+Neither vector promises an atomic or causal cross-domain snapshot. Every source's
+current rights apply, including empty inputs. The
+[console configuration](../../../apps/transit-cli/docs/console.md#finite-relational-queries)
+describes interactive execution. Private disk grouping and bounded operator
+state have separate resident, spill, work and result limits. Rows remain
+incomplete until terminal source/output checks succeed.
 
 The Zig `RelationalCapture` owner provides a separate durable lifetime. An
 authenticated call admits a frozen plan and schema vector, retains its data cuts,
 and records immutable operator checkpoints and output coverage. The coordinator
-is the first Table owner; other sources remain read-only. `RelationalResult`
+owns an independent native progress resource and retains each direct Table
+through the original caller's scoped grant. `RelationalResult`
 checks the complete manifest, ordered rows, byte counts and digest chain, with
-current rights to every source before disclosure. Cancellation, failure and
-retirement release pins; explicitly scheduled collection removes publication
+current rights to every source before disclosure. Completion, cancellation,
+failure and retirement schedule pin cleanup. Current denial leaves cleanup
+pending; separately authorized cleanup can close the original pins after
+credential rotation. Explicitly scheduled collection removes publication
 chunks in bounded turns while preserving control evidence. The
 [captured owner guide](../../../packages/zig/transit-query/docs/relational-capture.md)
 defines the host's exact-retry and authorization responsibilities.
+
+Before exhausting a captured result or maintained revision, its typed reader's
+`freshness` operation compares the original retained source vector with current
+authorized Table observations. Logical row changes make the result stale even
+when the schema is unchanged; no-op writes and physical storage work alone do
+not. A changed interpretation is reported separately, while denied or unavailable
+reads return an error. Different Tables are observed independently. Inspection
+starts no computation and does not establish complete output coverage: that
+still requires the result reader's checked terminal outcome.
 
 The Station query ABI and port expose explicit catalog configuration, explanation,
 repeatable one-row pages and close through the shared
@@ -268,6 +314,22 @@ notifications remain distinct from complete transaction capture.
 | Flight and other language SDK adapters | Relational execution is unsupported |
 
 Named definitions use the [application-owned interface](applications.md#contracts-and-commands).
+Its typed `NamedRelationalPublication` plan saves the complete immutable bundle,
+predicted logical reference and one dependency registration per distinct Table.
+Explicit registration requires the caller's current source SELECT and computation
+metadata WRITE rights. Publication checks current graph membership before
+returning the native command; it starts no query. A lost reply keeps the original
+plan and operation identities. Registration and native publication have separate
+acceptances and require explicit recovery.
+
+Retiring an exact definition prevents new authorization and activation. Retiring
+the current name permits reuse with a fresh object identity. Existing accepted
+work, result access policy and original attribution remain with their query owner.
+Retirement leaves dependency edges intact until separately authorized removal;
+an old registration receipt does not restore a removed edge. Resolve uncertain
+publication before cleanup. The [naming contract](../../../contracts/NAMED_RELATIONAL_V1.md)
+defines these controls and their bounds.
+
 Saved typed requests and cursors require the exact current contract definition;
 none of these callers substitutes a fresh query for missing accepted work.
 
@@ -328,12 +390,20 @@ failures computed from cached source rows. Diagnostic construction or disclosure
 failure preserves the primary computation error and does not create durable work.
 These local witnesses are not saved outcomes for a durable captured query.
 
-Fuze executes outside kernel authority over signed native snapshot reads.
+Fuze executes outside kernel authority over authorized source reads. Direct
+Table reads retain a durable partition pin including accepted unflushed rows.
+The SQL service journals acquisition before dispatch and release before cleanup;
+its bounded recovery worker closes interrupted requests and earlier-generation
+pins under current rights. Denied cleanup retains its record. These pins do not
+expire with the native-resource lease described below. An ordinary SQL result
+still cannot resume after losing its session.
+
+The native-resource read profile uses signed snapshot requests.
 For console connections, execution lives in the shared SQL service. Low-level
 Query SDK callers execute in their own process. The authority
 does not execute SQL. There are no durable upload, execution-progress or result
-publication turns in this profile. Table, KV and Document share the existing
-finite compiler, source adapters and Arrow codecs. The contract provides:
+publication turns in this profile. Table, KV and Document adapters share finite compiler and Arrow interfaces.
+The native-resource snapshot contract provides:
 
 - One explicit source basis per session, bounded plan/buffers/cursor/pins and
   current authorization before disclosure. It is not a global snapshot.
@@ -400,10 +470,12 @@ wait closure, retained evidence and duplicate handling.
 
 The typed Zig `RelationalMaintenance` owner publishes a complete result for each
 recorded Table-history basis, including no-op transaction coverage. It captures
-an initial basis, backfills while later history remains durable, then advances
-one eligible resource transaction at a time. Required Tables in one resource
-move together. Different resources have an explicit vector and recorded processing
-order; this is not a global or causal snapshot.
+an initial direct Table basis, backfills while later history remains durable,
+then advances one eligible logical Table acceptance at a time. Same-Table aliases
+share a cut; distinct Tables remain independent, including within one catalog.
+Bounded storage-only traversal has a durable cursor and publishes no result
+revision. Source vectors record the processing order without a global snapshot
+claim. Native query progress is independent of the Table catalog resource.
 
 The owner recomputes each basis with the same finite relational executor and
 stages an ordered paired delta against the previous complete result. One commit
@@ -415,7 +487,7 @@ identity. Current source rights remain necessary even for noncontributing inputs
 
 Activation and wakeups are explicit authenticated host operations. The owner does
 not supply a background daemon, automatic SQL activation, or an event-time finality
-claim. Its first-source owner placement, workspace/state budgets and cumulative
+claim. Its direct retention grants, workspace/state budgets and cumulative
 retention costs are described in the
 [maintained caller guide](../../../packages/zig/transit-query/docs/relational-maintenance.md).
 
@@ -424,18 +496,29 @@ manifest. A partial delivery cannot replace the consumer's relation. After
 terminal coverage validation, save its position atomically with applying the
 complete transaction. Resume requests the next recorded revision; pending keeps
 the old position, and a mismatch requires explicit reset. Cancellation or failure
-preserves previous complete results; retirement makes them unavailable. Every
-read rechecks current policy and native/catalog rights to all sources.
+preserves previous complete results and schedules closure of the original history
+leases; retirement makes results unavailable. Cleanup progress remains separate
+from result completion. Every read rechecks current policy and source rights,
+including after source leases close.
 
 ## Explicit query exchanges
 
 Typed Zig hosts can route frozen source rows into logical partitions and stage
-them in bounded segments. The receiver shares the first Table owner's resource;
-producers have explicit PIDs and separate resources under the same authority.
+them in bounded segments. Receiver and producers have explicit PIDs and separate
+resources under the same authority, independently of the Table catalog owners.
+Workers use their own credentials and original-caller grants for exact retained
+cuts. These borrowed reads confer no acquisition, history advancement or cleanup
+permission; the coordinator owns the source leases.
 Each accepted segment has a receiver-owned copy and an exact deduplication
 identity. Consumption separately indexes its rows and returns credits. Every
 partition, including an empty one, must publish and consume terminal coverage
 before execution can read the exchanged source.
+
+A maintained successor requires a new exchange bound to its exact source vector.
+Attaching incomplete coverage or an exchange from the preceding revision leaves
+the query unchanged. Retiring the live request publication does not revoke an
+already accepted computation's retained request. Explicit query retirement
+releases that dependency and makes its results unavailable.
 
 The native paged row index restores original source order, so different delivery
 or batch schedules preserve the existing join and checked-SUM semantics. Current

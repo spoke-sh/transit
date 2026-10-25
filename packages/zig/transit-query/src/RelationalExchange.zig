@@ -40,7 +40,6 @@ pub fn create(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64,
     try bound.validate();
     try sources.validate(bound);
     if (bound.plan.lifetime == .interactive) return error.InvalidRelationalExchange;
-    if (turn.delivery.pid != bound.plan.sources[0].owner or turn.view.resource != bound.plan.sources[0].resource) return error.RelationalSourceChanged;
     if (bound.plan.budgets.resident_bytes < resident_bytes) return error.RelationalResidentBudget;
     if (limits.retained_bytes > bound.plan.budgets.spill_bytes) return error.RelationalSpillBudget;
     var stored: r.Head = .{ .id = id, .owner = turn.delivery.pid, .resource = turn.view.resource, .binding = try bound.fingerprint(), .partitions = partitions, .sources = @intCast(bound.plan.sources.len), .limits = limits };
@@ -76,7 +75,7 @@ fn channel(reader: anytype, stored: r.Head, source: u8, partition: u64) !r.Chann
     if (source >= stored.sources or partition >= stored.partitions) return error.InvalidRelationalExchange;
     return r.Channel.decode((try reader.read(try r.key('c', stored.id, source, partition, 0))) orelse return error.RelationalExchangePending);
 }
-pub fn createProducer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64, quota: u64) !Pub {
+pub fn createProducer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64, receiver: r.Receiver, quota: u64) !Pub {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try bound.validate();
@@ -86,18 +85,28 @@ pub fn createProducer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, 
     if (quota > bound.plan.budgets.spill_bytes) return error.RelationalSpillBudget;
     const address = try r.key('b', id, 0, 0, 0);
     if (try turn.read(address) != null or try turn.read(Pub.key(.query_exchange, id, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
-    const stored: r.Producer = .{ .id = id, .owner = turn.delivery.pid, .resource = turn.view.resource, .binding = try bound.fingerprint(), .limit = quota, .charged = r.Producer.base_bytes };
+    const stored: r.Producer = .{ .id = id, .owner = turn.delivery.pid, .resource = turn.view.resource, .binding = try bound.fingerprint(), .receiver = receiver, .limit = quota, .charged = r.Producer.base_bytes };
     try turn.write(address, try stored.encode());
     return Pub.create(turn, .query_exchange, id, .{ .record_bytes = x.max_bytes, .staging_bytes = x.max_bytes, .staging_records = 1 });
+}
+/// Read the original producer and destination even on duplicates and control
+/// acknowledgements. A caller cannot redirect an already eligible segment.
+pub fn producerState(turn: *Turn, bound: f.Relational.Bound, id: u64) !r.Producer {
+    const value = try r.Producer.decode((try turn.read(try r.key('b', id, 0, 0, 0))) orelse return error.InvalidRelationalExchange);
+    if (value.owner != turn.delivery.pid or value.resource != turn.view.resource or value.id != id or !std.mem.eql(u8, &value.binding, &try bound.fingerprint())) return error.RelationalSourceChanged;
+    return value;
 }
 /// The producer stages exact FXS1 bytes first, then atomically records eligibility
 /// and sends the receiver's identified notice. It must keep the publication
 /// readable until durable acceptance; retirement after acceptance is safe.
-pub fn offer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, segment: x.Segment, publication: Pub, record: u64, receiver: u64) !Advance {
+pub fn offer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, segment: x.Segment, publication: Pub, record: u64) !Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try sources.validate(bound);
-    if (publication.domain != .query_exchange or publication.namespace != segment.exchange or publication.resource != turn.view.resource or receiver != bound.plan.sources[0].owner) return error.InvalidRelationalExchange;
+    if (publication.domain != .query_exchange or publication.namespace != segment.exchange or publication.resource != turn.view.resource) return error.InvalidRelationalExchange;
+    const budget_key = try r.key('b', segment.exchange, 0, 0, 0);
+    var budget = try producerState(turn, bound, segment.exchange);
+    const receiver = budget.receiver.owner;
     var bytes: [x.max_bytes]u8 = undefined;
     const body = try segment.encode(bound, &bytes);
     const reference: Ref = .{ .resource = publication.resource, .domain = publication.domain, .namespace = publication.namespace, .record = record, .spec = try Pub.Digest.of(r.segment_format, body) };
@@ -108,9 +117,6 @@ pub fn offer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, segment: 
         try turn.cast(receiver, try notice.encode());
         return .duplicate;
     }
-    const budget_key = try r.key('b', segment.exchange, 0, 0, 0);
-    var budget = try r.Producer.decode((try turn.read(budget_key)) orelse return error.InvalidRelationalExchange);
-    if (budget.owner != turn.delivery.pid or budget.resource != turn.view.resource or budget.id != segment.exchange or !std.mem.eql(u8, &budget.binding, &try bound.fingerprint())) return error.RelationalSourceChanged;
     if (budget.pending) |pending| {
         if (!std.meta.eql(pending, reference)) {
             if (pending.record == reference.record) return error.RelationalExchangeConflict;
@@ -196,6 +202,9 @@ pub fn advance(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64
     const notice = try r.Pending.decode((try turn.read(pending_key)) orelse return error.InvalidRelationalExchange);
     var route = try channel(turn, stored, notice.source, notice.partition);
     var producer = try turn.captured(route.resource);
+    const sender = try r.Producer.decode((try producer.read(try r.key('b', id, 0, 0, 0))) orelse return error.RelationalExchangePending);
+    if (sender.id != id or sender.owner != route.producer or sender.resource != route.resource or sender.receiver.owner != stored.owner or sender.receiver.resource != stored.resource or
+        !std.mem.eql(u8, &sender.binding, &stored.binding)) return error.RelationalExchangeConflict;
     const eligible = (try producer.read(try r.key('p', id, notice.source, notice.partition, notice.sequence))) orelse return error.RelationalExchangePending;
     if (!eligible.eql(try notice.encode())) return error.RelationalExchangeConflict;
     const descriptor = try notice.remote.publication().inspect(&producer, notice.remote.record);

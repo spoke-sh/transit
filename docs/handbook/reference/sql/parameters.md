@@ -74,17 +74,19 @@ and [exact parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
 
 ## General Table APIs in Zig
 
-`transit-query.TablePrepared` prepares a SELECT against an authorized catalog
-Table and exposes owned result metadata without opening a data snapshot.
-`TableQuery.openPrepared` checks that Table identity and opens a new cut for each
-execution. Data changes are visible to later executions; schema changes,
-renames and replacement Tables require new preparation. Current read permission
-is checked on every execution and disclosure.
+`transit-query.DirectTablePrepared` prepares a SELECT against current authorized
+metadata without opening a data snapshot. `DirectTableQuery.openPreparedRetained`
+binds it to a separately acquired exact pin. The execution checks the original
+interpretation and current read rights; the reader borrows the pin and never
+replaces or releases it implicitly. A caller can acquire a later data cut for
+another execution under the same interpretation. Schema changes, renames and
+replacement objects require new preparation.
 
-`transit-catalog.TablePreparedDml` prepares INSERT, UPDATE and DELETE. Binding
-checks exact types, defaults and nullability and produces a new owned intent for
-the ordinary signed Table caller. Binding never dispatches that intent. Save its
-exact recovery material before submission; another binding is new work.
+`transit-catalog.DirectTablePreparedDml` prepares INSERT, UPDATE and DELETE.
+Binding checks types, defaults, nullability, exact interpretation and current
+operation rights, then returns an owned direct intent. Binding dispatches
+nothing. Save the exact work before staging and its reference before admission;
+another binding is a new operation.
 
 These APIs accept typed SQL NULL and the scalar descriptors supported by the
 shared logical compiler. NULL comparisons evaluate to unknown; use `IS NULL`

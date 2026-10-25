@@ -1,122 +1,141 @@
 # frozen_string_literal: true
 require 'json'
+require 'fileutils'
 require 'transit/station'
 $stdout.sync = true
 M = Transit::Station::Catalog
 L = Transit::Station::Logical
 raise 'Catalog caller did not load installed gem' unless Gem.loaded_specs.fetch('transit-station').full_gem_path.start_with?(ENV.fetch('GEM_HOME'))
-
-def connect(config)
-  c = config.fetch('connection'); s = c.fetch('scope')
-  scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: s.fetch('realm'), resource: s.fetch('resource')), catalog: Integer(s.fetch('catalog'), 10))
-  connection = M::Connection.new(owner: Transit::ProcessRef.new(realm: s.fetch('realm'), pid: c.fetch('owner')), scope: scope, role: c['role'], namespace: c.fetch('namespace', 1))
-  M::Client.new(Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: config['table_service_url'] ? 30000 : 10000),
-    Transit::Credential.new(realm: s.fetch('realm'), principal: c.fetch('principal'), seed_file: config.fetch('seed_file')), connection, table_service_url: config['table_service_url'])
+def check(value)
+  raise 'Installed direct catalog assertion failed' unless value
 end
-
 def persist(path, bytes)
   File.open(path, 'wb', 0o600) { |file| file.write(bytes); file.flush; file.fsync }
 end
-
-def finish(client, compiled, directory)
-  persist(File.join(directory, 'intent.json'), JSON.generate(definition: compiled.saved.definition, bytes: compiled.saved.bytes.unpack1('H*')))
-  reference = compiled.intent.reference
-  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 120
-  loop do
-    raise 'Table operation exceeded its budget' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-    step = client.next(reference)
-    return step.outcome if step.kind == :terminal
-    next if step.kind == :running
-    raise 'Unexpected upload cancellation' unless step.kind == :send
-    persist(File.join(directory, 'step.json'), step.prepared.data)
-    position = client.submit(step.prepared)
-    persist(File.join(directory, 'receipt.json'), JSON.generate(position: position))
-    loop do
-      raise 'Table progress exceeded its budget' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-      progress = client.progress(reference, step.prepared, position, wait: true)
-      next if progress.observation == :pending
-      raise "Unexpected input disposition #{progress.disposition}" unless progress.disposition.nil?
-      return progress.outcome if progress.outcome&.terminal
-      break
-    end
-  end
-end
-
 def atom(kind, value) = L::Present.new(value: L::Atom.new(kind: kind, value: value))
-def assignment(column, value) = M::Assignment.new(column: column, value: value)
-def check(value)
-  raise 'Installed Table assertion failed' unless value
-end
-
-def scenario(client, config, directory, index)
-  base = 1100 + index * 100; object = 12001 + index * 10; name = "sdk_people_#{index}"
-  identity = ->(offset) { M::Identity.new(operation: base + offset, namespace: base + offset + 100000) }
-  description = client.describe
-  check(description.configuration.scope == client.connection.scope && description.subject.principal == config.fetch('connection').fetch('principal'))
-  compiled = client.compile_sql("CREATE TABLE #{name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", identity.call(0), object)
-  check(finish(client, compiled, directory).phase == :applied)
-  original = client.lookup(name)
-  check(original.schema.columns.length == 3 && original.schema.columns[1].type.is_a?(L::Structure))
-  payload = L::Present.new(value: L::Sequence.new(kind: :structure, cells: [atom(:binary, [0, 128, 255].pack('C*')), atom(:utf8, '東京')]))
-  amount = atom(:decimal, 123456789012345678901234567890)
-  insert = client.prepare(name, identity.call(1), M::Mutate.new(basis: original.metadata.basis,
-    mutation: M::Insert.new(rows: [[assignment(3, amount), assignment(1, atom(:signed, 1)), assignment(2, payload)]])))
-  applied = finish(client, insert, directory)
-  check(applied.counts == M::Counts.new(matched: 1, changed: 1))
-  predicate = [M::Comparison.new(column: 1, op: :eq, value: L::Atom.new(kind: :signed, value: 1))]
-  unchanged = client.prepare(name, identity.call(2), M::Mutate.new(basis: original.metadata.basis,
-    mutation: M::Update.new(assignments: [assignment(3, amount)], predicate: predicate)))
-  check(finish(client, unchanged, directory).counts == M::Counts.new(matched: 1, changed: 0))
-  alter = client.prepare(name, identity.call(3), M::Alter.new(basis: original.metadata.basis,
-    change: M::AddColumn.new(name: 'enabled', type: L::Scalar.new(kind: :boolean), nullable: false, default: atom(:boolean, true))))
-  check(finish(client, alter, directory).phase == :applied)
-  begin
-    client.prepare(name, identity.call(4), M::Drop.new(basis: original.metadata.basis))
-  rescue Transit::Error
-    # The native caller rejects this exact stale basis before staging work.
-  else
-    raise 'Stale metadata retargeted Table work'
+def complete(client, work, directory)
+  persist(File.join(directory, 'work.json'), work.saved.save)
+  original = client.stage(work.intent)
+  persist(File.join(directory, 'work-reference.json'), original.save)
+  observed = client.admit(original)
+  16.times do
+    break unless observed.state == :admitted
+    observed = client.execute(original, steps: 32)
   end
-  current = client.lookup(name)
-  delete = client.prepare(name, identity.call(5), M::Mutate.new(basis: current.metadata.basis, mutation: M::Delete.new(predicate: predicate)))
-  check(finish(client, delete, directory).counts == M::Counts.new(matched: 1, changed: 1))
-  check(finish(client, client.prepare(name, identity.call(6), M::Drop.new(basis: current.metadata.basis)), directory).phase == :applied)
-  check(finish(client, client.compile_sql("CREATE TABLE #{name} (replacement TEXT)", identity.call(7), object + 1), directory).phase == :applied)
-  client.close
-  replacement = connect(config)
-  begin
-    saved = insert.saved
-    loaded = replacement.load(M::SavedIntent.new(definition: saved.definition, bytes: saved.bytes))
-    check(loaded.object == object)
-    check(replacement.status(loaded.reference).outcome == applied)
-    check(replacement.lookup(name).metadata.object == object + 1)
-    historical = replacement.definition(object, original.metadata.revision)
-    check(historical.metadata == original.metadata && historical.schema == original.schema && !historical.respond_to?(:head))
-    check(replacement.definition(object, 999).nil?)
-    check(!replacement.list.entries.empty?)
-  ensure
-    replacement.close
-  end
-  { profile: 'installed-ruby-general-table', original_object: object.to_s, replacement_object: (object + 1).to_s, counts: { matched: '1', changed: '1' } }
+  check(observed.state == :committed)
+  observed
 end
-
-path = ARGV.fetch(0); config = JSON.parse(File.binread(path)); client = connect(config)
+def uncertain(original)
+  begin
+    yield
+  rescue M::Uncertain => error
+    check(error.original.save == original.save && error.status == 6 && error.diagnostic.fetch('outcome') == 'unknown' && !error.diagnostic_invalid)
+    return
+  end
+  raise 'Expected original operation uncertainty'
+end
+config = JSON.parse(File.read(ARGV.fetch(0)))
+c = config.fetch('connection'); s = c.fetch('scope')
+scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: s.fetch('realm'), resource: s.fetch('resource')), catalog: Integer(s.fetch('catalog'), 10))
+connection = M::Connection.new(scope: scope, audience: c.fetch('audience'), branch: Integer(c.fetch('branch'), 10), role: c['role'])
+client = M::Client.new(Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000),
+  Transit::Credential.new(realm: s.fetch('realm'), principal: c.fetch('principal'), seed_file: config.fetch('seed_file')), connection, service_url: config.fetch('service_url'))
+directory = File.join(File.dirname(ARGV.fetch(0)), 'ruby'); FileUtils.mkdir_p(directory)
+name = 'ruby_items'; object = (1<<64)-2
+compile = ->(sql, operation, create = nil) { client.compile_sql(sql, M::Identity.new(operation: operation), create) }
+load_snapshot = -> { M::Snapshot.restore(File.read(File.join(directory, 'snapshot.json'))) }
 begin
   puts JSON.generate(ready: true)
   $stdin.each_line do |line|
-    action = JSON.parse(line)
-    break if action.key?('close')
-    if action.key?('denied')
-      fresh = connect(config)
+    action = JSON.parse(line); command = action.keys.fetch(0)
+    break if command == 'close'
+    result = case command
+    when 'prepare'
+      check(client.describe.subject.principal == c.fetch('principal'))
+      check(client.namespace(1).name == 'public')
+      check(client.namespaces.entries.map(&:id).include?(1))
+      complete(client, compile.call("CREATE TABLE #{name} (id BIGINT PRIMARY KEY, payload BINARY)", 1, object), directory)
+      current = client.lookup(name)
+      check(current.row_count == 0 && current.basis.object == object)
+      rows = 9.times.map do |i|
+        [M::Assignment.new(column: 1, value: atom(:signed, i)), M::Assignment.new(column: 2, value: atom(:binary, i.chr * 32768))]
+      end
+      work = client.prepare(name, M::Identity.new(operation: 2), M::Mutate.new(basis: current.basis, mutation: M::Insert.new(rows: rows), ingestion: :bulk))
+      check(client.preview(work.intent).current.row_count == 0)
+      persist(File.join(directory, 'intent.json'), work.saved.save)
+      loaded = client.load(M::SavedIntent.restore(File.read(File.join(directory, 'intent.json'))))
+      original = client.stage(loaded)
+      persist(File.join(directory, 'original.json'), original.save)
+      check(client.admit(original).state == :admitted)
+      uncertain(original) { client.execute(original, steps: 32) }
+      {uncertain: true}
+    when 'recover'
+      original = M::Reference.restore(File.read(File.join(directory, 'original.json')))
+      observed = client.inspect(original)
+      check(observed.state == :committed && [observed.commit.matched,observed.commit.affected,observed.commit.live_rows] == [9,9,9])
+      check(client.execute(original, steps: 32) == observed)
+      current = client.lookup(name)
+      acquisition = client.prepare_snapshot(current.basis, current.position, 90000)
+      persist(File.join(directory, 'basis.json'), current.basis.save)
+      persist(File.join(directory, 'acquisition.json'), acquisition.save)
+      uncertain(acquisition) { client.acquire_snapshot(acquisition) }
+      {retention_uncertain: true}
+    when 'retained'
+      acquisition = M::SnapshotAcquisition.restore(File.read(File.join(directory, 'acquisition.json')))
+      status = client.snapshot_status(acquisition.owner)
+      check(!status.released && status.snapshot)
+      persist(File.join(directory, 'snapshot.json'), status.snapshot.save)
+      metadata = client.snapshot_metadata(status.snapshot)
+      check(metadata.accepted == acquisition.expected && metadata.row_count == 9 && metadata.schema.columns.length == 2)
+      {retained: true}
+    when 'denied'
       begin
-        denied = false
-        begin; fresh.describe; rescue Transit::Error => error; check(error.status == 4); denied = true; end
-        check(denied)
-      ensure; fresh.close; end
-      puts JSON.generate(status: 0, value: {denied: true})
-      next
+        client.snapshot_metadata(load_snapshot.call)
+      rescue Transit::AccessDenied => error
+        check(error.status == 4 && error.diagnostic.fetch('category') == 'access')
+      else raise 'Revoked retained metadata was disclosed'
+      end
+      {denied: true}
+    when 'metadata'
+      metadata = client.snapshot_metadata(load_snapshot.call)
+      basis = M::Basis.restore(File.read(File.join(directory, 'basis.json')))
+      check(metadata.interpretation == basis.interpretation)
+      {rows: metadata.row_count, columns: metadata.schema.columns.length}
+    when 'retire'
+      unchanged = complete(client, compile.call("UPDATE #{name} SET id=0 WHERE id=0", 3), directory)
+      check([unchanged.commit.matched,unchanged.commit.affected] == [1,0])
+      deleted = complete(client, compile.call("DELETE FROM #{name} WHERE id=8", 4), directory)
+      check([deleted.commit.matched,deleted.commit.affected] == [1,1])
+      old = client.lookup(name)
+      complete(client, client.prepare(name, M::Identity.new(operation: 5), M::Alter.new(basis: old.basis, change: M::AddColumn.new(name: 'extra', type: L::Scalar.new(kind: :int64)))), directory)
+      begin
+        client.prepare(name, M::Identity.new(operation: 55), M::Drop.new(basis: old.basis))
+      rescue Transit::Error => error
+        check(error.code == 'TableDefinitionChanged')
+      else raise 'Stale basis retargeted a newer definition'
+      end
+      complete(client, compile.call("ALTER TABLE #{name} RENAME TO #{name}_old", 6), directory)
+      complete(client, compile.call("DROP TABLE #{name}_old", 7), directory)
+      complete(client, compile.call("CREATE TABLE #{name} (replacement BIGINT)", 8, object-1), directory)
+      check(client.lookup(name).basis.object == object-1)
+      check(client.snapshot_metadata(load_snapshot.call).row_count == 9)
+      {original: true}
+    when 'release'
+      snapshot = load_snapshot.call
+      check(!client.snapshot_status(snapshot.owner).released)
+      uncertain(snapshot) { client.release_snapshot(snapshot) }
+      {release_uncertain: true}
+    when 'verify'
+      snapshot = load_snapshot.call
+      check(client.snapshot_status(snapshot.owner).released)
+      client.release_snapshot(snapshot)
+      original = M::Reference.restore(File.read(File.join(directory, 'original.json')))
+      check(client.inspect(original).commit.affected == 9)
+      check(client.load(M::SavedIntent.restore(File.read(File.join(directory, 'intent.json')))).identity.operation == 2)
+      check(client.lookup(name).basis.object == object-1 && client.tables.consistency == :independent)
+      {recovered: true}
+    else raise "Unknown proof phase: #{command}"
     end
-    result = scenario(client, config, File.dirname(path), action.fetch('scenario').fetch('index'))
     puts JSON.generate(status: 0, value: result)
   end
 ensure

@@ -69,10 +69,12 @@ function sourceColumns(
       table.owner === 0 ||
       !unsigned(table.scope.catalog, false) ||
       !unsigned(table.object, false) ||
-      !unsigned(table.metadata.id, false) ||
-      table.metadata.spec.format !== 0x54434d01 ||
-      table.metadata.spec.length === 0 ||
-      table.metadata.spec.length > 436 ||
+      !unsigned(table.branch, false) ||
+      table.namespace === 0 ||
+      !unsigned(table.interpretation.revision, false) ||
+      !unsigned(table.interpretation.bytes, false) ||
+      table.interpretation.digest.every((b) => b === 0) ||
+      table.interpretation.schema.every((b) => b === 0) ||
       !("structure" in table.row_type) ||
       !columns(table.row_type.structure)
     )
@@ -200,10 +202,31 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const page = value.page,
       evidence = page.evidence,
       manifest = evidence.manifest;
+    const cut = manifest.basis.cut;
+    const table = manifest.table_position;
+    if (cut.kind === "table") {
+      if (
+        !("table" in cut.position) ||
+        !("table" in manifest.source) ||
+        !table ||
+        table.resource !== cut.resource ||
+        !unsigned(table.partition, false) ||
+        !unsigned(table.accepted, false) ||
+        table.contract.some((b, i) => b !== manifest.basis.contract[i]) ||
+        table.schema.some((b, i) => b !== manifest.basis.schema[i]) ||
+        table.contract.every((b) => b === 0) ||
+        table.schema.every((b) => b === 0)
+      )
+        return false;
+    } else if (
+      table !== null ||
+      !("native_revision" in cut.position) ||
+      !("native" in manifest.source)
+    )
+      return false;
     if (
       !columns(evidence.columns) ||
       manifest.basis.cut.resource === 0 ||
-      (manifest.basis.cut.kind !== "table" && manifest.basis.cut.head.some((byte) => byte !== 0)) ||
       evidence.rows > 8 ||
       page.cells.length !== evidence.rows ||
       !hex(evidence.ipc, 65536) ||
@@ -309,7 +332,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const compiled = value.compiled,
       plan = compiled.plan;
     if (
-      !hex(compiled.bundle, 25255) ||
+      !hex(compiled.bundle, 25615) ||
       compiled.bundle.length === 0 ||
       plan.version !== 1 ||
       (plan.limit !== null && !unsigned(plan.limit)) ||

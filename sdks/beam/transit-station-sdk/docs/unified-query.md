@@ -6,15 +6,15 @@ wire schemas. Shared Zig owns validation, codecs, signed operations and query
 semantics; the Erlang SDK owns immutable values and a bounded native-port worker.
 
 Declare a `transit_unified_kv` with versioned key/value decoders, a
-`transit_unified_table` with its catalog owner, metadata and schema, or a `transit_unified_document` with an
+`transit_unified_table` with its direct scope, service audience, branch, namespace,
+interpretation and full schema, or a `transit_unified_document` with an
 accepted reference and bounded projections. `prepare/3` takes this source, a
 `transit_unified_plan` and positive `transit_unified_budgets`. Ordered projection,
 `all`, `{state, Column, State}` and `{compare, Column, Op, Scalar}` predicates share
 one model. Predicates and parameters use the shared logical atoms, including
 `{signed, N}`, `{unsigned, N}`, `{float64, F}`, `{boolean, B}`, `{utf8, Binary}`
-and `{binary, Binary}`. Integers retain their full 128-bit range. Table metadata
-includes the immutable publication commitment returned by catalog lookup; an
-object ID alone does not bind a source definition.
+and `{binary, Binary}`. Integers retain their full 128-bit range. Table interpretation binds the immutable declaration and full schema commitments;
+an object ID alone does not bind a source definition.
 
 Result columns use full logical descriptors with explicit nullable/optional
 flags. Projections allow 128 columns and 255-byte UTF-8 output names. KV decoders
@@ -92,13 +92,36 @@ the signed Table schedule; an optional source selects KV or Document. The
 [proof guide](../../../../tests/README.md) records measured qualifications.
 
 Connections accept an optional selected native role; omission uses the login role.
-Local bundle construction produces a description. Call `authorize_bundle/2` once on the
-query client before persisting a newly constructed Table bundle or its fingerprint.
-The returned bytes bind the authenticated caller, role, credential epoch, source
-owner and requester to the exact query and budget. SQL compilation already returns
-an authorized bundle. An already authorized Table bundle rejects resealing.
+Configure the optional direct Table endpoint with its URL, catalog scope, branch
+and service audience when opening the query client. It uses the original caller's
+credential and selected role. The native query progress resource can differ from
+the Table's catalog resource in the same realm.
 
-Persist and recover the original bundle bytes unchanged, alongside each prepared
-command and receipt. Current authorization is checked again during progress and
-result disclosure. Credential or policy changes never justify replacing accepted
-work with a newly signed bundle. The complete bundle bound is 25,255 bytes.
+`lookup_table/3` returns the current direct Table source, full schema and exact
+partition frontier. A missing visible name returns no definition. Lookup takes no
+pin and starts no query. The definition's capture helper combines that frontier
+with the executor principal and a caller-chosen pin operation identity. A
+concurrent change can make the expected frontier stale before acquisition; saved
+work must retain its original source and expected position.
+
+Local preparation and SQL compilation return unsigned descriptions. Call
+`authorize_bundle/3` with the explicit capture before persisting a new Table
+bundle or fingerprint. The returned bytes bind the original caller, role,
+credential epoch, exact source, executor, pin owner, query route and budgets.
+Storage operation, partition and WAL counters retain their full uint64 range;
+native principal identities retain the native counter bound. An already signed
+Table bundle rejects resealing. KV and Document bundles take no direct capture.
+
+Persist and recover the original bundle bytes unchanged, alongside every prepared
+command and receipt. Current authority is checked during progress and result
+reads. Credential or policy changes never justify replacing accepted work.
+
+`prepare_cleanup/3` prepares separate terminal pin cleanup with the current
+credential. Persist, submit and observe it like other controls. It preserves the
+saved execution proof and cut, including after credential rotation, and grants no
+scan or query resumption. The worker commits this proof before remote closure.
+
+Manifest `source` is `{native, ReadVersion}` or `{table, Worker}`; `cut` is
+`{native_revision, Revision}` or `{table, Commitment}` (Elixir uses atom tags).
+A direct Table cut has no native resource revision. Verified result reads after
+pin closure still check current source and result authority.

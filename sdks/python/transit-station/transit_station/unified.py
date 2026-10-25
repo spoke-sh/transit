@@ -17,7 +17,8 @@ from .document import DocumentReference
 from .turn import ReadVersion
 from . import logical_values as logical
 from .logical_values import Descriptor as Type, Atom as Scalar, Cell as Cell
-from .catalog_values import Metadata, Schema
+from .catalog_values import Scope, Schema
+from . import catalog_values as catalog
 
 class Aggregate(Enum):
     ROWS = 'rows'
@@ -113,25 +114,107 @@ class KVSource:
             'prefix': owned_bytes(self.prefix, 32).hex(), 'key': self.key._wire(), 'value': self.value._wire()}}}
 
 
+def _digest32(value: bytes) -> bytes:
+    result = owned_bytes(value, 32)
+    if len(result) != 32: raise ValueError('Expected a 32-byte commitment')
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class TableInterpretation:
+    revision: int
+    digest: bytes
+    byte_count: int
+    schema_digest: bytes
+    def __post_init__(self) -> None:
+        _wide(self.revision, 'definition revision', 1)
+        _wide(self.byte_count, 'declaration bytes', 1)
+        object.__setattr__(self, 'digest', _digest32(self.digest))
+        object.__setattr__(self, 'schema_digest', _digest32(self.schema_digest))
+    def _wire(self) -> object:
+        return dict(revision=str(self.revision), digest=list(self.digest), bytes=str(self.byte_count), schema=list(self.schema_digest))
+
+
 @dataclass(frozen=True, slots=True)
 class TableSource:
-    owner: ProcessRef
-    metadata: Metadata
+    scope: Scope
+    audience: int
+    branch: int
+    namespace: int
+    interpretation: TableInterpretation
     schema: Schema
     def __post_init__(self) -> None:
-        if not isinstance(self.owner, ProcessRef) or not isinstance(self.metadata, Metadata) or not isinstance(self.schema, Schema):
-            raise TypeError('Expected a catalog Table definition and owner')
-        if self.owner.realm != self.resource.realm or self.schema.object_id != self.metadata.object_id:
-            raise ValueError('Table source requires one catalog identity and realm')
+        if not isinstance(self.scope, Scope) or not isinstance(self.interpretation, TableInterpretation) or not isinstance(self.schema, Schema):
+            raise TypeError('Expected a direct Table interpretation and schema')
+        integer(self.audience, 'Table service audience')
+        integer(self.namespace, 'schema namespace')
+        _wide(self.branch, 'branch', 1)
     @property
-    def resource(self) -> ResourceRef: return self.metadata.scope.resource
+    def resource(self) -> ResourceRef: return self.scope.resource
     def _wire(self) -> object:
-        m = self.metadata
         row_type = logical.StructureType(tuple(logical.Field(c.name, c.type, c.nullable, False) for c in self.schema.columns))
         return {'version': 1, 'resource': self.resource.resource, 'source': {'table': {
-            'scope': m.scope._wire(), 'owner': self.owner.pid, 'object': str(m.object_id),
-            'metadata': {'id': str(m.revision), 'spec': {'format': 0x54434d01, 'length': m.commitment.bytes,
-                'digest': list(bytes.fromhex(m.commitment.digest))}}, 'row_type': logical.type_wire(row_type)}}}
+            'scope': self.scope._wire(), 'owner': self.audience, 'branch': str(self.branch), 'namespace': self.namespace,
+            'object': str(self.schema.object_id), 'interpretation': self.interpretation._wire(), 'row_type': logical.type_wire(row_type)}}}
+
+
+@dataclass(frozen=True, slots=True)
+class Tables:
+    """Direct service routing; the query client supplies its original caller and role."""
+    url: str
+    scope: Scope
+    branch: int
+    audience: int
+    def __post_init__(self) -> None:
+        if not isinstance(self.scope, Scope): raise TypeError('Expected catalog scope')
+        owned_bytes(self.url.encode(), 2048)
+        _wide(self.branch, 'branch', 1)
+        integer(self.audience, 'Table service audience')
+    def _wire(self, principal: int, connection: Connection) -> object:
+        if self.scope.resource.realm != connection.source.realm: raise ValueError('Direct Table service must use the query realm')
+        return dict(url=self.url, connection=dict(scope=self.scope._wire(), branch=str(self.branch), audience=self.audience,
+            principal=integer(principal, 'principal'), role=connection.role))
+
+
+@dataclass(frozen=True, slots=True)
+class Capture:
+    executor: int
+    operation: int
+    partition: int
+    next_lsn: int
+    def __post_init__(self) -> None:
+        integer(self.executor, 'executor principal')
+        _wide(self.operation, 'pin operation', 1)
+        _wide(self.partition, 'partition', 1)
+        _wide(self.next_lsn, 'accepted frontier')
+    def _wire(self) -> object:
+        return dict(executor=self.executor, operation=str(self.operation), expected=dict(partition=str(self.partition), next_lsn=str(self.next_lsn)))
+
+
+@dataclass(frozen=True, slots=True)
+class TableDefinition:
+    source: TableSource
+    partition: int
+    next_lsn: int
+    def __post_init__(self) -> None:
+        if not isinstance(self.source, TableSource): raise TypeError('Expected direct Table source')
+        _wide(self.partition, 'partition', 1)
+        _wide(self.next_lsn, 'accepted frontier')
+    def capture(self, executor: int, operation: int) -> Capture:
+        return Capture(executor, operation, self.partition, self.next_lsn)
+
+
+def _table(value: dict[str, Any] | None) -> TableDefinition | None:
+    if value is None: return None
+    declaration = value['source']
+    direct = declaration['source']['table']
+    interpretation = direct['interpretation']
+    schema = catalog._schema(value['schema'])
+    source = TableSource(catalog._scope(direct['scope']), direct['owner'], catalog._decimal(direct['branch']), direct['namespace'],
+        TableInterpretation(catalog._decimal(interpretation['revision']), bytes(interpretation['digest']),
+            catalog._decimal(interpretation['bytes']), bytes(interpretation['schema'])), schema)
+    if source._wire() != declaration: raise IncompatibleNative('Inconsistent direct Table definition')
+    return TableDefinition(source, catalog._decimal(value['expected']['partition']), catalog._decimal(value['expected']['next_lsn'], 0))
 
 
 class ProjectionMode(Enum):
@@ -276,7 +359,7 @@ def decode_arrow(columns: tuple[Column, ...], ipc: bytes, rows: int, *,
 class Bundle:
     """Validated canonical bytes; preparing this value does not admit work."""
     data: bytes = field(repr=False)
-    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25255))
+    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25614))
     @classmethod
     def prepare(cls, source: Source, plan: Plan, budgets: Budgets, *, native_directory: Path | None = None) -> Bundle:
         result = _codec({'prepare': {'source': source._wire(), 'plan': plan._wire(), 'limits': budgets._wire()}}, native_directory)
@@ -519,19 +602,30 @@ def _compilation_request(source: Source, name: str, sql: str, budgets: Budgets,
 
 
 @dataclass(frozen=True, slots=True)
+class NativeCut:
+    revision: int
+    def __post_init__(self) -> None: integer(self.revision, 'native resource revision', minimum=0)
+
+
+@dataclass(frozen=True, slots=True)
+class TableCut:
+    commitment: bytes
+    def __post_init__(self) -> None: object.__setattr__(self, 'commitment', _digest32(self.commitment))
+
+
+@dataclass(frozen=True, slots=True)
 class Manifest:
     job: int
-    source: ReadVersion
+    source: ReadVersion | ProcessRef
     requester: ProcessRef
     correlation: int
     policy_revision: int
     request: bytes
     source_kind: str
     resource: ResourceRef
-    revision: int
+    cut: NativeCut | TableCut
     source_digest: bytes
     schema_digest: bytes
-    source_head: bytes
     plan_digest: bytes
     pages: int
     scanned: int
@@ -566,25 +660,42 @@ class Page:
 
 def _page(v: dict[str, Any], realm: int) -> Page:
     data, basis = v['manifest'], v['manifest']['basis']
-    original = data['source']
-    manifest = Manifest(integer(data['job'], 'job'), ReadVersion(original['pid'], original['input'], original['index']),
+    original, position = data['source'], basis['cut']['position']
+    retained: ReadVersion | ProcessRef
+    cut: NativeCut | TableCut
+    if basis['cut']['kind'] == 'table':
+        if set(original) != {'table'} or set(position) != {'table'}: raise IncompatibleNative('Invalid direct Table cut')
+        retained = ProcessRef(realm, original['table']['worker'])
+        cut = TableCut(bytes(position['table']))
+    elif basis['cut']['kind'] in ('kv', 'document'):
+        if set(original) != {'native'} or set(position) != {'native_revision'}: raise IncompatibleNative('Invalid native source cut')
+        version = original['native']
+        retained = ReadVersion(version['pid'], version['input'], version['index'])
+        cut = NativeCut(position['native_revision'])
+    else: raise IncompatibleNative('Unknown query source kind')
+    manifest = Manifest(integer(data['job'], 'job'), retained,
         ProcessRef(realm, data['requester']), _wide(int(data['correlation']), 'correlation'), _wide(int(data['policy_revision']), 'policy revision'),
-        owned_bytes(bytes.fromhex(data['request']), 72), basis['cut']['kind'], ResourceRef(realm, basis['cut']['resource']), integer(basis['cut']['revision'], 'revision', minimum=0),
-        bytes(basis['contract']), bytes(basis['schema']), bytes(basis['cut']['head']), bytes(data['plan']),
+        owned_bytes(bytes.fromhex(data['request']), 72), basis['cut']['kind'], ResourceRef(realm, basis['cut']['resource']), cut,
+        bytes(basis['contract']), bytes(basis['schema']), bytes(data['plan']),
         _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'), _wide(int(data['value_count']), 'value count'),
         _wide(int(data['segments']), 'segments'), _wide(int(data['rows']), 'rows'), _wide(int(data['bytes']), 'bytes'),
         None if data['sum'] is None else integer(int(data['sum']), 'sum', minimum=-(1 << 63), maximum=(1 << 63)-1), data['finished'], bytes(data['chain']))
-    if any(len(v) != 32 for v in (manifest.source_digest, manifest.schema_digest, manifest.source_head, manifest.plan_digest, manifest.chain)):
+    if any(len(v) != 32 for v in (manifest.source_digest, manifest.schema_digest, manifest.plan_digest, manifest.chain)):
         raise IncompatibleNative('Invalid manifest commitment')
     return Page(manifest, tuple(_column(item) for item in v['columns']),
         _wide(int(v['ordinal']), 'ordinal'), integer(v['rows'], 'rows', minimum=0, maximum=8),
         owned_bytes(bytes.fromhex(v['ipc']), 65536), None if v['next'] is None else Cursor(v['next']))
 
 
+def _check_source(source: Source, connection: Connection) -> None:
+    if source.resource.realm != connection.resource.realm or (not isinstance(source, TableSource) and source.resource != connection.resource):
+        raise ValueError('Source differs from the connection')
+
+
 class Client:
     """One owned native worker; close joins in-flight work. No activation needed."""
     def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
-                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
+                 timeout_ms: int = 5000, native_directory: Path | None = None, tables: Tables | None = None) -> None:
         self.connection = connection
         self._api = Library('station', Path(__file__).with_name('station-abi.json'), native_directory)
         self._worker = Worker(self._api.contract['minimum_stack_bytes'])
@@ -592,7 +703,8 @@ class Client:
         def create() -> None:
             endpoint, key = url.encode(), seed(seed_file)
             try:
-                config = encode({'connection': connection._wire(principal), 'timeout_ms': integer(timeout_ms, 'timeout', maximum=60000)})
+                config = encode({'connection': connection._wire(principal), 'timeout_ms': integer(timeout_ms, 'timeout', maximum=60000),
+                    'tables': None if tables is None else tables._wire(principal, connection)})
                 status = self._api.lib.station_unified_query_create(1, endpoint, len(endpoint), key, config, len(config), c.byref(self._handle))
                 if status: raise native_error(status, phase='open_query')
             finally: c.memset(key, 0, 32)
@@ -613,8 +725,12 @@ class Client:
     def _call(self, action: object, recovery: bytes = b'') -> dict[str, Any]:
         return self._worker.call(lambda: self._invoke(action, recovery))
 
+    def lookup_table(self, name: str, namespace: int = 1) -> TableDefinition | None:
+        """Read the current direct definition and frontier without acquiring a pin or starting a query."""
+        return _table(self._call({'table': {'namespace': integer(namespace, 'schema namespace'), 'name': _name(name)}})['table'])
+
     def describe(self, source: Source) -> Description:
-        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        _check_source(source, self.connection)
         v = self._call({'describe': source._wire()})['description']
         budgets, caps = v['limits'], v['capabilities']
         return Description(integer(v['resource_revision'], 'revision', minimum=0), _wide(int(v['policy_revision']), 'policy revision'),
@@ -623,17 +739,23 @@ class Client:
 
     def inspect_sql(self, source: Source, name: str, sql: str, budgets: Budgets) -> Inspection:
         """DESCRIBE, SHOW TABLES or EXPLAIN under current source access; no query admission."""
-        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        _check_source(source, self.connection)
         return _inspection(self._call(_inspection_request(source, name, sql, budgets))['inspection'], source.resource)
 
-    def authorize_bundle(self, bundle: Bundle) -> Bundle:
+    def authorize_bundle(self, bundle: Bundle, capture: Capture | None = None) -> Bundle:
         """Seal a newly constructed bundle once, before saving its bytes or fingerprint.
 
         Saved or accepted bundles already carry their original proof. Recover them
         unchanged; this method rejects an already authorized Table bundle.
         """
         if not isinstance(bundle, Bundle): raise TypeError('Expected query bundle')
-        return Bundle(bytes.fromhex(self._call({'authorize': bundle.data.hex()})['authorized']))
+        return Bundle(bytes.fromhex(self._call({'authorize': {'bundle': bundle.data.hex(), 'capture': None if capture is None else capture._wire()}})['authorized']))
+
+    def prepare_cleanup(self, namespace: int, bundle: Bundle) -> Prepared:
+        """Authorize terminal pin cleanup with the current credential; preserve the original bundle."""
+        value = self._call({'cleanup': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}})['prepared']
+        if value is None: raise IncompatibleNative('Missing cleanup command')
+        return Prepared(value.encode())
 
     def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}})['prepared']
@@ -642,7 +764,7 @@ class Client:
     def compile_sql(self, source: Source, name: str, sql: str, budgets: Budgets,
                     parameters: tuple[Scalar, ...] | None = None) -> Bundle:
         """Own a finite bundle under current source access; no upload or admission."""
-        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        _check_source(source, self.connection)
         result = self._call(_compilation_request(source, name, sql, budgets, parameters))
         return Bundle(bytes.fromhex(result['compiled']['bundle']))
 
@@ -688,17 +810,21 @@ class Client:
 class AsyncClient:
     """One bounded worker. Cancelling an await leaves its native operation owned."""
     def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
-                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
+                 timeout_ms: int = 5000, native_directory: Path | None = None, tables: Tables | None = None) -> None:
         # Construction performs only local allocation/key loading/capability
         # negotiation; all authority calls run on the owned worker below.
-        self._owner = Client(url, principal, seed_file, connection, timeout_ms=timeout_ms, native_directory=native_directory)
+        self._owner = Client(url, principal, seed_file, connection, timeout_ms=timeout_ms, native_directory=native_directory, tables=tables)
         self.connection = connection
 
     async def _call(self, action: object, recovery: bytes = b'') -> dict[str, Any]:
         return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(action, recovery)))
 
+    async def lookup_table(self, name: str, namespace: int = 1) -> TableDefinition | None:
+        """Read the direct Table owner; lookup grants no later capture or result access."""
+        return _table((await self._call({'table': {'namespace': integer(namespace, 'schema namespace'), 'name': _name(name)}}))['table'])
+
     async def describe(self, source: Source) -> Description:
-        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        _check_source(source, self.connection)
         v = (await self._call({'describe': source._wire()}))['description']
         budgets, caps = v['limits'], v['capabilities']
         return Description(integer(v['resource_revision'], 'revision', minimum=0), _wide(int(v['policy_revision']), 'policy revision'),
@@ -706,14 +832,20 @@ class AsyncClient:
             None if v['active'] is None else _wide(int(v['active']), 'active'), caps['bundle_bytes'], caps['segment_bytes'], caps['batch_rows'])
 
     async def inspect_sql(self, source: Source, name: str, sql: str, budgets: Budgets) -> Inspection:
-        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        _check_source(source, self.connection)
         return _inspection((await self._call(_inspection_request(source, name, sql, budgets)))['inspection'], source.resource)
 
-    async def authorize_bundle(self, bundle: Bundle) -> Bundle:
+    async def authorize_bundle(self, bundle: Bundle, capture: Capture | None = None) -> Bundle:
         """Seal new work before persistence; never reseal a recovered bundle."""
         if not isinstance(bundle, Bundle): raise TypeError('Expected query bundle')
-        result = await self._call({'authorize': bundle.data.hex()})
+        result = await self._call({'authorize': {'bundle': bundle.data.hex(), 'capture': None if capture is None else capture._wire()}})
         return Bundle(bytes.fromhex(result['authorized']))
+
+    async def prepare_cleanup(self, namespace: int, bundle: Bundle) -> Prepared:
+        """Prepare separate current cleanup authority without replacing accepted execution authority."""
+        value = (await self._call({'cleanup': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}}))['prepared']
+        if value is None: raise IncompatibleNative('Missing cleanup command')
+        return Prepared(value.encode())
 
     async def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = (await self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}}))['prepared']
@@ -722,7 +854,7 @@ class AsyncClient:
     async def compile_sql(self, source: Source, name: str, sql: str, budgets: Budgets,
                           parameters: tuple[Scalar, ...] | None = None) -> Bundle:
         """Cancellation of the await leaves the native read owned by this worker."""
-        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        _check_source(source, self.connection)
         result = await self._call(_compilation_request(source, name, sql, budgets, parameters))
         return Bundle(bytes.fromhex(result['compiled']['bundle']))
 

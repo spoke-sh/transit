@@ -7,11 +7,12 @@ import json
 import math
 from pathlib import Path
 import threading
-from transit_client import ProcessRef, ResourceRef
+from transit_client import ResourceRef
 from transit_client._worker import Worker
 from transit_client.errors import Busy, Closed, IncompatibleNative, UncertainOperation
 from transit_station import catalog as m, logical as l
 from transit_station import logical_values as codec
+from transit_station import catalog_values as v
 
 
 def rejects(kind, action):
@@ -23,22 +24,36 @@ def rejects(kind, action):
 contract = json.loads(Path(m.__file__).with_name('station-abi.json').read_bytes())
 definition = contract['definition']
 scope = m.Scope(ResourceRef(46, 7), (1 << 64) - 1)
-connection = m.Connection(ProcessRef(46, 3), scope)
+connection = m.Connection(scope, 3)
 authority = m.AuthorityProfile(21, 22, 23, 24, 1, 25)
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), True))
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), 1 << 64))
-rejects(ValueError, lambda: m.Connection(ProcessRef(47, 3), scope))
-rejects(ValueError, lambda: m.Connection(ProcessRef(46, 3), scope, role=True))
-rejects(ValueError, lambda: m.Connection(ProcessRef(46, 3), scope, namespace=0))
+rejects(ValueError, lambda: m.Connection(scope, 3, role=True))
+rejects(ValueError, lambda: m.Connection(scope, 3, branch=0))
+rejects(ValueError, lambda: m.Identity(1, 0))
 rejects(ValueError, lambda: m.AuthorityProfile(21, 21, 23, 24, 1, 25))
-rejects(ValueError, lambda: m.Prepared(bytes(8193)))
-rejects(ValueError, lambda: m.SavedIntent('0' * 64, b'nonempty'))
-source = bytearray(b'opaque saved bytes')
-prepared, saved = m.Prepared(source), m.SavedIntent(definition, source)
-source[:] = b'x' * len(source)
-assert prepared.data == saved.data == b'opaque saved bytes'
-assert 'opaque' not in repr(prepared) and 'opaque' not in repr(saved)
-rejects(FrozenInstanceError, lambda: setattr(prepared, 'data', b'changed'))
+object_id = dict(scope=scope._wire(), branch='1', object=str((1 << 64) - 1))
+interpretation = dict(object=object_id, revision='1', digest='ab'*32)
+stored = dict(interpretation=interpretation, content=dict(bytes='300', sha256='ab'*32), schema_fingerprint='cd'*32, retired=False)
+basis_wire = dict(definition=definition, connection=connection._wire(17), namespace=1, name='items', interpretation=stored)
+basis = m.Basis.restore(json.dumps(basis_wire))
+bound = dict(definition=definition, identity=dict(scope=scope._wire(), principal=17, operation='10'), target=object_id,
+             action='insert', expected_definition=interpretation, expected_data=None, intent='aa'*32, prerequisite=None)
+saved_wire = {'table': dict(definition=definition, namespace=1, bytes=b'opaque saved bytes'.hex())}
+saved = m.SavedIntent.restore(json.dumps(saved_wire))
+summary = dict(id=dict(definition=definition, digest='11'*32), namespace=1, binding=dict(table=bound))
+compiled_wire = dict(summary=summary, saved=saved_wire)
+reference_wire = dict(table=dict(definition=definition, connection=connection._wire(17), namespace=1, binding=bound, content=dict(bytes='200', sha256='22'*32)))
+reference = m.Reference.restore(json.dumps(reference_wire))
+for cls, original in ((m.SavedIntent, saved_wire), (m.Reference, reference_wire)):
+    for foreign in ('foreign', None):
+        bad = copy.deepcopy(original)
+        if foreign is None: del bad['table']['definition']
+        else: bad['table']['definition'] = foreign
+        rejects(ValueError, lambda: cls.restore(json.dumps(bad)))
+rejects(FrozenInstanceError, lambda: setattr(saved, '_data', 'changed'))
+assert 'opaque' not in repr(saved) and saved._wire() == saved_wire
+rejects(ValueError, lambda: m.Basis.restore(json.dumps(basis_wire)[:-1] + ',"name":"other"}'))
 payload = bytearray([0, 128, 255])
 cells = [l.Present(l.Atom('binary', payload)), l.Present(l.Atom('decimal', 123456789012345678901234567890))]
 cell = l.Present(l.SequenceValue('structure', cells))
@@ -147,7 +162,7 @@ try:
     budget_owner = client()
     try:
         rejects(ValueError, lambda: budget_owner.prepare('items', m.Identity(1, 100), m.Mutate(
-            m.Basis(17, 3, 'ab' * 32), m.Insert(((m.Assignment(1, large_cell),),) * 1024))))
+            basis, m.Insert(((m.Assignment(1, large_cell),),) * 1024))))
         assert visits < 16 and budget_owner._api.calls == []
     finally: budget_owner.close()
 finally: codec.cell_wire = wire_cell
@@ -155,113 +170,112 @@ finally: codec.cell_wire = wire_cell
 
 owner = client()
 try:
-    for response in (MemoryError(), None, {}, {'receipt': {'position': 0}}, {'receipt': {'position': '1'}}, {'receipt': {'position': 1}, 'extra': True}):
+    owner._api.response = {'compiled': copy.deepcopy(compiled_wire)}
+    compiled = owner.prepare('items', m.Identity(10), m.Mutate(basis, m.Insert(((m.Assignment(1, l.Null()),),))))
+    assert compiled.intent.operation == 10 and compiled.intent.namespace == 1
+    for response in (MemoryError(), None, {}, {'staged': {}}, {'staged': reference_wire, 'extra': True}):
         owner._api.response = response
-        try: owner.submit(prepared)
-        except UncertainOperation as error: assert error.recovery == prepared.data
-        else: raise AssertionError('Malformed admission response reported success')
-    owner._api.response = {'receipt': {'position': 1}}
-    assert owner.submit(prepared) == 1
-    s = dict(realm=46, resource=7, catalog=str(scope.catalog))
-    description = dict(configuration=dict(scope=s, owner=3, administrator=17, table_limits=dict(record_bytes=2097216, staging_bytes='16777216', staging_records=65536), authority=authority._wire(), database_name='transit'),
-        subject=dict(principal=17, login_role=19, role=19, credential_epoch=3, audience=3, context=[1]*32), authorization_revision=4, resource_revision=2)
-    for revision in ((1 << 64) - 1, '01', '+1', -1, True):
-        bad = copy.deepcopy(description); bad['authorization_revision'] = revision
-        owner._api.response = {'description': bad}
-        rejects(IncompatibleNative, owner.describe)
-    owner._api.response = {'description': copy.deepcopy(description)}
+        try: owner.stage(compiled.intent)
+        except m.Uncertain as error:
+            assert error.original is compiled.saved and json.loads(error.recovery) == saved_wire
+        else: raise AssertionError('Malformed mutation response reported success')
+    owner._api.response = {'staged': copy.deepcopy(reference_wire)}
+    ref = owner.stage(compiled.intent)
+    assert ref.operation == 10 and ref._wire() == reference_wire
+    owner._api.response['staged']['table']['binding']['identity']['operation'] = '11'
+    rejects(m.Uncertain, lambda: owner.stage(compiled.intent))
+    assert ref._wire() == reference_wire
+    owner._api.response = {'loaded': copy.deepcopy(summary)}
+    assert owner.load(compiled.saved) == compiled.intent
+    assert owner._api.calls[-1] == {'load': saved_wire}
+    bad = copy.deepcopy(compiled_wire); bad['summary']['binding']['table']['identity']['operation'] = '11'
+    owner._api.response = {'compiled': bad}
+    rejects(IncompatibleNative, lambda: owner.compile_sql('INSERT INTO items VALUES (1)', m.Identity(10)))
+    committed = dict(binding=bound, resulting=stored, outcome=dict(position=dict(partition='10', next_lsn='8'), matched='1', affected='0', live_rows='1'))
+    owner._api.response = {'observation': {'rows': {'committed': copy.deepcopy(committed)}}}
+    assert owner.inspect(ref).commit.affected == 0
+    assert owner.inspect(ref).commit.matched == 1
+    for mutation in ('binding', 'counts', 'kind', 'unknown'):
+        bad = copy.deepcopy(committed)
+        if mutation == 'binding': bad['binding']['identity']['operation'] = '11'
+        elif mutation == 'counts': bad['outcome']['affected'] = '2'
+        elif mutation == 'unknown': bad['extra'] = True
+        owner._api.response = {'observation': {'ddl' if mutation == 'kind' else 'rows': {'committed': bad}}}
+        rejects(IncompatibleNative, lambda: owner.inspect(ref))
+        rejects(m.Uncertain, lambda: owner.execute(ref, 1))
+    description = dict(configuration=dict(scope=scope._wire(), branch='1', partition='2', audience=3, authority=authority._wire(), database_name='transit', initial_schema_name='public'),
+        subject=dict(principal=17, login_role=19, role=19, credential_epoch=3, audience=3, context=[1]*32), policy_revision=4)
+    owner._api.response = {'catalog': {'description': copy.deepcopy(description)}}
     retained = owner.describe()
-    owner._api.response['description']['subject']['context'][0] = 2
-    assert retained.subject.context == bytes([1]*32) and retained.authorization_revision == 4
+    owner._api.response['catalog']['description']['subject']['context'][0] = 2
+    assert retained.subject.context == bytes([1]*32) and retained.policy_revision == 4
     for field, value in (('principal', 18), ('role', 29), ('audience', 4), ('credential_epoch', 0), ('context', [True]*32)):
         bad = copy.deepcopy(description); bad['subject'][field] = value
-        owner._api.response = {'description': bad}
+        owner._api.response = {'catalog': {'description': bad}}
         rejects(IncompatibleNative, owner.describe)
-    bad = copy.deepcopy(description); del bad['configuration']['authority']
-    owner._api.response = {'description': bad}
-    rejects(IncompatibleNative, owner.describe)
-    owner._api.response = {'observation': 'cancelled'}
-    rejects(IncompatibleNative, lambda: owner.observe(prepared, 1))
-    metadata = dict(scope=s, namespace=1, object=str((1 << 64) - 1), revision='1', name='items', schema_fingerprint='1' * 64, principal=17, operation='1', admitted_input=2, commitment=dict(format=0x54434d01, length=200, digest=[1]*32))
-    entry = dict(metadata=metadata, head=dict(revision='2', rows='3', pending='0'))
-    token = dict(definition=definition, scope=s, resource_revision=3, after_object=metadata['object'])
-    page = dict(resource_revision=3, entries=[entry] + [None] * 7, next=token)
-    owner._api.response = dict(page=copy.deepcopy(page))
-    retained = owner.list()
-    assert retained.entries[0].metadata.object_id == (1 << 64) - 1 and retained.entries[0].head.rows == 3
-    owner._api.response['page']['entries'][0]['metadata']['name'] = 'changed'
-    assert retained.entries[0].metadata.name == 'items'
-    assert retained.entries[0].metadata.commitment == m.MetadataCommitment(200, '01'*32)
-    rejects(FrozenInstanceError, lambda: setattr(retained.next, 'after_object', 1))
-    values = list(retained.entries); public_page = m.Page(3, values, retained.next); values.clear()
-    assert public_page.entries == retained.entries
-    owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=schema._wire(), authorization=29))
-    assert owner.lookup('items').schema == schema
-    rejects(IncompatibleNative, lambda: owner.lookup('other'))
-    historical = dict(metadata=copy.deepcopy(metadata), schema=schema._wire())
-    owner._api.response = dict(historical=copy.deepcopy(historical))
-    exact = owner.definition(schema.object_id, 1)
-    assert exact.schema == schema and not hasattr(exact, 'head')
-    rejects(IncompatibleNative, lambda: owner.definition(1, 1))
-    rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 2))
-    owner._api.response['historical']['metadata']['scope']['catalog'] = '1'
-    rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 1))
-    owner._api.response = dict(historical=dict(historical, head=entry['head']))
-    rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 1))
-    owner._api.response = dict(historical=None)
-    assert owner.definition(schema.object_id, 99) is None
-    for malformed in ('hole', 'order', 'scope', 'cut', 'next_object', 'missing_definition', 'foreign_definition', 'numeric_object', 'unknown_head', 'missing_commitment', 'foreign_commitment', 'long_commitment', 'bad_digest'):
+    metadata = dict(binding=basis_wire, schema=schema._wire(), authorization=29, position=dict(partition='10', next_lsn='8'), changed_lsn='7', row_count='1')
+    owner._api.response = {'metadata': copy.deepcopy(metadata)}
+    current = owner.lookup('items')
+    assert current.basis.object_id == (1 << 64)-1 and current.position.next_lsn == 8
+    owner._api.response['metadata']['binding']['name'] = 'changed'
+    assert current.basis.name == 'items'
+    rejects(IncompatibleNative, lambda: owner.lookup('items'))
+    physical_wire = dict(definition=definition, object=str(schema.object_id), revision='1', next_column='2',
+        columns=[dict(id='1', name='text', type={'utf8': {}}, nullable=True, default=None,
+                      max_characters=None, encoding='ebcdic', collation='ebcdic_cp037')], primary_key=[])
+    owner._api.response = {'metadata': dict(metadata, schema=physical_wire)}
+    physical = owner.lookup('items').schema
+    assert physical.columns[0].encoding == m.Encoding.EBCDIC and physical.columns[0].collation == m.Collation.EBCDIC_CP037
+    assert physical._wire() == physical_wire
+    assert v._change(m.SetPhysical(1, m.Encoding.FSST, m.Collation.ASCII_CI)) == {'physical': dict(column='1', encoding='fsst', collation='ascii_ci')}
+    for field in ('encoding', 'collation'):
+        for missing in (True, False):
+            bad = copy.deepcopy(physical_wire)
+            if missing: del bad['columns'][0][field]
+            else: bad['columns'][0][field] = 'invented'
+            owner._api.response = {'metadata': dict(metadata, schema=bad)}
+            rejects(IncompatibleNative, lambda: owner.lookup('items'))
+    entry = dict(interpretation=interpretation, namespace=1, name='items', position=metadata['position'], changed_lsn='7')
+    token = dict(definition=definition, connection=connection._wire(17), selection=dict(tables=1), position=dict(partition='2', next_lsn='3'), after=object_id['object'])
+    page = dict(entries=[entry]+[None]*7, next=token, position=token['position'], consistency='independent')
+    owner._api.response = {'catalog': {'tables': copy.deepcopy(page)}}
+    listing = owner.tables()
+    assert listing.entries[0].interpretation.object.object_id == (1 << 64)-1
+    for mutation in ('hole', 'order', 'scope', 'cut', 'next_object', 'missing_definition', 'foreign_definition', 'numeric_object', 'unknown_entry', 'selection'):
         bad = copy.deepcopy(page)
-        if malformed == 'hole': bad['entries'][1], bad['entries'][0] = bad['entries'][0], None
-        elif malformed == 'order': bad['entries'][1] = copy.deepcopy(bad['entries'][0])
-        elif malformed == 'scope': bad['entries'][0]['metadata']['scope']['catalog'] = '1'
-        elif malformed == 'cut': bad['next']['resource_revision'] += 1
-        elif malformed == 'next_object': bad['next']['after_object'] = '1'
-        elif malformed == 'missing_definition': del bad['next']['definition']
-        elif malformed == 'foreign_definition': bad['next']['definition'] = '0' * 64
-        elif malformed == 'numeric_object': bad['entries'][0]['metadata']['object'] = (1 << 64) - 1
-        elif malformed == 'unknown_head': bad['entries'][0]['head']['unknown'] = 1
-        elif malformed == 'missing_commitment': del bad['entries'][0]['metadata']['commitment']
-        elif malformed == 'foreign_commitment': bad['entries'][0]['metadata']['commitment']['format'] = 0
-        elif malformed == 'long_commitment': bad['entries'][0]['metadata']['commitment']['length'] = 445
-        else: bad['entries'][0]['metadata']['commitment']['digest'][0] = 256
-        owner._api.response = dict(page=bad)
-        rejects(IncompatibleNative, owner.list)
-    owner._api.response = dict(page=copy.deepcopy(page))
-    rejects(IncompatibleNative, lambda: owner.list(retained.next))
-    owner._api.response = dict(page=dict(resource_revision=4, entries=[None] * 8, next=None))
-    rejects(IncompatibleNative, lambda: owner.list(retained.next))
-    owner._api.response['page']['resource_revision'] = 3
-    assert owner.list(retained.next) == m.Page(3, (), None)
-    # Retired objects can consume a complete scan page without a visible entry.
-    empty = dict(resource_revision=3, entries=[None] * 8, next=dict(token, after_object='9'))
-    owner._api.response = dict(page=empty)
-    assert owner.list(m.Cursor(definition, scope, 3, 8)).next.after_object == 9
-    owner._api.response = dict(definition=None)
-    assert owner.lookup('absent') is None
-    summary = dict(reference=dict(definition=definition, digest='a' * 64), scope=s, owner=3, principal=17, operation='10', namespace='100', object='1', kind='insert')
-    reply = dict(intent=summary, saved=dict(definition=definition, bytes=b'saved'.hex()))
-    action = m.Mutate(m.Basis(1, 1, '1' * 64), m.Insert(((m.Assignment(1, l.Present(l.Atom('binary', bytes(300000)))),),)))
-    owner._api.response = dict(compiled=copy.deepcopy(reply))
-    compiled = owner.prepare('items', m.Identity(10, 100), action)
-    assert compiled.intent.identity == m.Identity(10, 100)
-    assert len(owner._api.calls[-1]['prepare']['action']['mutate']['mutation']['action']['insert'][0][0]['value']['cell']['value']['atom']['binary']) == 600000
-    for field, value in (('owner', 4), ('principal', 18), ('operation', '11'), ('namespace', '101'), ('object', '2'), ('kind', 'update')):
-        bad = copy.deepcopy(reply); bad['intent'][field] = value
-        owner._api.response = dict(compiled=bad)
-        rejects(IncompatibleNative, lambda: owner.prepare('items', m.Identity(10, 100), action))
-    owner._api.response = dict(loaded=summary)
-    assert owner.load(compiled.saved) == compiled.intent
-    assert owner._api.calls[-1] == {'load': {'definition': definition, 'bytes': b'saved'.hex()}}
-    outcome = dict(kind='update', operation='10', object='1', actual_object=None, phase='applied', terminal=True, counts=dict(matched='1', changed='0'), admitted_input=1, completed_input=2, diagnostic={'fixture': True})
-    owner._api.response = dict(state=dict(outcome=copy.deepcopy(outcome), upload=None))
-    assert owner.status(compiled.intent.reference).outcome.counts == m.Counts(1, 0)
-    for field, value in (('counts', None), ('terminal', False), ('phase', 'building'), ('kind', 'create'), ('diagnostic', {})):
-        bad = copy.deepcopy(outcome); bad[field] = value
-        owner._api.response = dict(state=dict(outcome=bad, upload=None))
-        rejects(IncompatibleNative, lambda: owner.status(compiled.intent.reference))
+        if mutation == 'hole': bad['entries'][0], bad['entries'][1] = None, bad['entries'][0]
+        elif mutation == 'order': bad['entries'][1] = copy.deepcopy(bad['entries'][0])
+        elif mutation == 'scope': bad['entries'][0]['interpretation']['object']['scope']['catalog'] = '1'
+        elif mutation == 'cut': bad['next']['position'] = dict(bad['next']['position'], next_lsn='4')
+        elif mutation == 'next_object': bad['next']['after'] = '1'
+        elif mutation == 'missing_definition': del bad['next']['definition']
+        elif mutation == 'foreign_definition': bad['next']['definition'] = 'foreign'
+        elif mutation == 'numeric_object': bad['entries'][0]['interpretation']['object']['object'] = 7
+        elif mutation == 'unknown_entry': bad['entries'][0]['extra'] = True
+        elif mutation == 'selection': bad['next']['selection'] = dict(tables=2)
+        owner._api.response = {'catalog': {'tables': bad}}
+        rejects(IncompatibleNative, owner.tables)
+    owner._api.response = {'catalog': {'tables': dict(page, entries=[None]*8, next=None)}}
+    assert owner.tables(cursor=listing.next).entries == ()
+    rejects(ValueError, lambda: owner.tables(namespace=2, cursor=listing.next))
+    acquisition = owner.prepare_snapshot(current.basis, current.position, (1 << 64)-1)
+    acquisition = m.SnapshotAcquisition.restore(acquisition.save())
+    assert acquisition.owner.operation == (1 << 64)-1 and acquisition.expected == current.position
+    snapshot_wire = dict(owner=acquisition.owner._wire(), content=dict(bytes='100', sha256='33'*32))
+    owner._api.response = {'retention': {'acquired': snapshot_wire}}
+    snapshot = owner.acquire_snapshot(acquisition)
+    assert snapshot.owner.object == current.basis.interpretation.interpretation.object
+    pin_metadata = dict(snapshot=snapshot_wire, interpretation=stored, accepted=current.position._wire(), changed_lsn='7', row_count='1', schema=schema._wire(), authority=dict(database=24, schema=25, table=29))
+    owner._api.response = {'retention': {'metadata': copy.deepcopy(pin_metadata)}}
+    assert owner.snapshot_metadata(snapshot).accepted == current.position
+    owner._api.response['retention']['metadata']['snapshot']['owner']['operation'] = '1'
+    rejects(IncompatibleNative, lambda: owner.snapshot_metadata(snapshot))
+    owner._api.response = None
+    rejects(m.Uncertain, lambda: owner.release_snapshot(snapshot))
+    owner._api.response = {'retention': {'released': snapshot_wire}}
+    assert owner.release_snapshot(snapshot) is None
     owner._api.response = {'forgotten': {}}
-    assert owner.forget(compiled.intent.reference) is None
+    assert owner.forget(compiled.intent) is None
 finally:
     owner.close()
 assert owner._api.destroyed
@@ -274,9 +288,9 @@ async def cancellation():
     client_async._owner = owner
     api = owner._api
     api.entered, api.release = threading.Event(), threading.Event()
-    api.response = {'receipt': {'position': 2}}
+    api.response = {'observation': {'rows': {'not_observed': {}}}}
     try:
-        pending = asyncio.create_task(client_async.submit(prepared))
+        pending = asyncio.create_task(client_async.admit(reference))
         assert await asyncio.to_thread(api.entered.wait, 5)
         pending.cancel()
         try: await pending
@@ -297,4 +311,4 @@ async def cancellation():
 
 
 asyncio.run(cancellation())
-print('Python general Tables: nested owned schemas/cells, exact widths, strict pages/identity, uncertain recovery and cancelled-await joined cleanup passed.')
+print('Python direct Tables: nested owned schemas/cells, exact widths, strict pages/identity, uncertain recovery and cancelled-await joined cleanup passed.')

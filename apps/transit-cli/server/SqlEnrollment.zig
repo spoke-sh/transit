@@ -37,10 +37,10 @@ pub const Account = struct {
     login_role: ?u64 = null,
     pub fn ledger(self: Account, allocator: std.mem.Allocator, realm: u64) !g.Ledger.Configuration {
         const bindings = try allocator.dupe(g.Ledger.Binding, &.{self.binding});
-        return .{ .realm = realm, .owner = self.journal.receipts[0] orelse return error.UnresolvedProvisioning, .resource = self.journal.receipts[1] orelse return error.UnresolvedProvisioning, .worker = self.principals.worker, .ingress = self.principals.ingress, .control = self.principals.control, .coordinator = self.principals.coordinator, .table_principal = self.principals.table, .reader = self.principals.reader, .account = self.identity, .bindings = bindings, .operation_quota = self.operation_quota, .byte_quota = self.byte_quota, .pending_quota = self.pending_quota };
+        return .{ .realm = realm, .owner = self.journal.receipts[0] orelse return error.UnresolvedProvisioning, .resource = self.journal.receipts[1] orelse return error.UnresolvedProvisioning, .worker = self.principals.worker, .ingress = self.principals.ingress, .control = self.principals.control, .coordinator = self.principals.coordinator, .table_principal = self.principals.table, .account = self.identity, .bindings = bindings, .operation_quota = self.operation_quota, .byte_quota = self.byte_quota, .pending_quota = self.pending_quota };
     }
 };
-pub const Principals = struct { worker: u64, ingress: u64, control: u64, coordinator: u64, table: u64, reader: u64 };
+pub const Principals = struct { worker: u64, ingress: u64, control: u64, coordinator: u64, table: u64 };
 pub fn path(installation: *Installation, allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
     return std.fs.path.join(allocator, &.{ installation.config.installation, "sql", name });
 }
@@ -105,8 +105,8 @@ pub fn administrator(installation: *Installation, allocator: std.mem.Allocator, 
     try record.journal.authorize(installation, file, record, 1, .{ .bind_credential = .{ .principal = record.administrator, .role = record.journal.receipts[0].?, .public_key = key.public_key.toBytes() } });
     try record.journal.authorize(installation, file, record, 2, .{ .membership = .{ .member = record.journal.receipts[0].?, .role = p.Authorization.root_role, .inherit = true, .set = true } });
     try Files.json(installation.init.io, allocator, try path(installation, allocator, "authorization.yaml"), @import("AuthorizationProfile.zig"){ .version = 1, .url = installation.wire.url, .seed_file = key_path, .connection = .{ .definition = n.current_definition, .realm = installation.config.realm, .principal = record.administrator, .role = 0 } });
-    const connection = installation.connection();
-    try Files.json(installation.init.io, allocator, try path(installation, allocator, "catalog.yaml"), .{ .version = 1, .url = installation.wire.url, .seed_file = key_path, .connection = try q.catalog.TableValues.Connection.foreign(allocator, .{ .scope = .{ .realm = connection.realm, .resource = connection.resource, .catalog = 1 }, .owner = connection.source, .principal = record.administrator, .role = 0 }) });
+    const catalog = installation.directCatalog();
+    try Files.json(installation.init.io, allocator, try path(installation, allocator, "catalog.yaml"), .{ .version = 1, .definition = n.current_definition, .url = installation.wire.url, .seed_file = key_path, .namespace = catalog.authority.initial_schema, .connection = q.catalog.DirectTableProtocol.Connection{ .scope = catalog.scope, .branch = catalog.branch, .audience = catalog.audience, .principal = record.administrator, .role = 0 } });
 }
 pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, desired: Settings.Account) !Account {
     const directory = try accountPath(installation, allocator, desired.name, "");
@@ -141,7 +141,7 @@ pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, 
 /// proposal for catalog discovery; only an explicit operator apply grants it.
 pub fn catalogAccess(installation: *Installation, allocator: std.mem.Allocator) !void {
     const revision = (try installation.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision;
-    const catalog = Installation.catalogFor(installation.connection(), installation.record);
+    const catalog = installation.directCatalog();
     const objects = [_]p.Authorization.ObjectRef{ .{ .kind = .domain, .id = catalog.authority.database }, .{ .kind = .domain, .id = catalog.authority.initial_schema_authority } };
     const intents = [_]q.wire.AuthorizationSet.Intent{
         .{ .grant = .{ .object = objects[0], .grantee = p.Authorization.root_role, .privileges = q.catalog.TableAuthority.connect } },
@@ -158,7 +158,7 @@ pub fn loadAccount(installation: *Installation, allocator: std.mem.Allocator, na
 pub fn provision(installation: *Installation, allocator: std.mem.Allocator, record: *Account) !void {
     const file = try accountPath(installation, allocator, record.name, "account.json");
     try record.journal.flush(installation, file, record);
-    for (0..14) |i| {
+    for (0..12) |i| {
         if (record.journal.receipts[i] != null) continue;
         const done = record.journal.receipts;
         const lane: ?[]const u8 = switch (i) {
@@ -166,7 +166,6 @@ pub fn provision(installation: *Installation, allocator: std.mem.Allocator, reco
             6 => "ingress",
             8 => "control",
             10 => "coordinator",
-            12 => "reader",
             else => null,
         };
         var key: p.Ed25519.KeyPair = undefined;
@@ -189,8 +188,6 @@ pub fn provision(installation: *Installation, allocator: std.mem.Allocator, reco
                 9 => record.principals.control,
                 else => record.principals.coordinator,
             }, .permissions = Installation.read_permissions } },
-            12 => .{ .create_principal = .{ .subject = record.principals.reader, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect), .pid = record.binding.owner } },
-            13 => .{ .grant_resource = .{ .resource = record.binding.resource, .subject = record.principals.reader, .permissions = Installation.read_permissions } },
             else => unreachable,
         };
         try record.journal.submit(installation, file, record, @intCast(i), command);
@@ -214,7 +211,7 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
         // with the same name. A recorded publication is never repeated after
         // credential disable/rotation, even if its observation was interrupted.
         if (resolved.id != installation.record.authorization_steps[0].?) return .unavailable;
-        try record.journal.authorize(installation, try accountPath(installation, allocator, record.name, "account.json"), record, 14, .{ .bind_credential = .{ .principal = record.principals.table, .role = resolved.id, .public_key = key.public_key.toBytes() } });
+        try record.journal.authorize(installation, try accountPath(installation, allocator, record.name, "account.json"), record, 12, .{ .bind_credential = .{ .principal = record.principals.table, .role = resolved.id, .public_key = key.public_key.toBytes() } });
     }
     const caller: q.wire.AuthorizationClient = .{ .transport = installation.wire, .realm = installation.config.realm, .principal = record.principals.table, .key = key };
     const observed = caller.read(.identity) catch |err| {
@@ -231,7 +228,7 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
         try Journal.save(installation, try accountPath(installation, allocator, record.name, "account.json"), record);
     }
     const binding = try Installation.settingsBinding(installation.record, installation.config.realm);
-    const catalog = Installation.catalogFor(installation.connection(), installation.record);
+    const catalog = installation.directCatalog();
     const objects = [_]p.Authorization.ObjectRef{ .{ .kind = .process, .id = record.binding.owner }, binding.object, .{ .kind = .domain, .id = catalog.authority.database }, .{ .kind = .domain, .id = catalog.authority.initial_schema_authority } };
     const privileges = [_]u64{ p.permission(.inspect) | p.permission(.send), q.settings.Contract.inspect, q.catalog.TableAuthority.connect, q.catalog.TableAuthority.usage };
     var intents: [objects.len]q.wire.AuthorizationSet.Intent = undefined;
@@ -272,6 +269,6 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
 }
 
 pub fn controlProfile(installation: *Installation, allocator: std.mem.Allocator, record: Account) !void {
-    const profile: g.OperatorConfiguration = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = installation.wire.url, .ledger = try record.ledger(allocator, installation.config.realm), .control_key_file = try accountPath(installation, allocator, record.name, "control.seed"), .table_key_file = try accountPath(installation, allocator, record.name, "table.seed"), .reader_key_file = try accountPath(installation, allocator, record.name, "reader.seed"), .pending_file = try accountPath(installation, allocator, record.name, "control-pending.json"), .timeout_ms = installation.config.sql.command_ms };
+    const profile: g.OperatorConfiguration = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = installation.wire.url, .ledger = try record.ledger(allocator, installation.config.realm), .control_key_file = try accountPath(installation, allocator, record.name, "control.seed"), .table_key_file = try accountPath(installation, allocator, record.name, "table.seed"), .pending_file = try accountPath(installation, allocator, record.name, "control-pending.json"), .timeout_ms = installation.config.sql.command_ms };
     _ = try Files.jsonIfChanged(installation.init.io, allocator, try accountPath(installation, allocator, record.name, "control.json"), profile);
 }

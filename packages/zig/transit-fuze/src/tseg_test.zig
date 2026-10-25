@@ -10,7 +10,7 @@ const TSeg = @import("TSeg.zig");
 const VectorKernel = @import("VectorKernel.zig");
 const LogicalQuery = @import("LogicalQuery.zig");
 
-test "Collation: order-preserving sort keys agree with compareBytes across all four collations" {
+test "Collation: order-preserving sort keys agree with compareBytes across supported collations" {
     const samples = [_][]const u8{
         "",
         "a",
@@ -27,13 +27,13 @@ test "Collation: order-preserving sort keys agree with compareBytes across all f
     };
 
     // 1. In EBCDIC CP037, lowercase 'a' (0x81) < uppercase 'A' (0xC1) < digit '0' (0xF0)
-    try std.testing.expectEqual(std.math.Order.lt, Collation.compareBytes("a", "A", .ebcdic_cp037));
-    try std.testing.expectEqual(std.math.Order.lt, Collation.compareBytes("A", "0", .ebcdic_cp037));
-    try std.testing.expectEqual(std.math.Order.gt, Collation.compareBytes("a", "A", .utf8_binary));
-    try std.testing.expectEqual(std.math.Order.gt, Collation.compareBytes("A", "0", .utf8_binary));
-    try std.testing.expectEqual(std.math.Order.eq, Collation.compareBytes("Apple", "apple", .ascii_ci));
+    try std.testing.expectEqual(std.math.Order.lt, try Collation.compareBytes("a", "A", .ebcdic_cp037));
+    try std.testing.expectEqual(std.math.Order.lt, try Collation.compareBytes("A", "0", .ebcdic_cp037));
+    try std.testing.expectEqual(std.math.Order.gt, try Collation.compareBytes("a", "A", .utf8_binary));
+    try std.testing.expectEqual(std.math.Order.gt, try Collation.compareBytes("A", "0", .utf8_binary));
+    try std.testing.expectEqual(std.math.Order.eq, try Collation.compareBytes("Apple", "apple", .ascii_ci));
 
-    const collations = [_]Collation.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037, .icu_root };
+    const collations = [_]Collation.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037 };
     for (collations) |coll| {
         for (samples) |left| {
             for (samples) |right| {
@@ -276,4 +276,33 @@ test "VectorKernel: bindCollation evaluates predicates using declared collation"
     var out: [1]VectorKernel.Outcome = undefined;
     atom_ci.run(atom_ci, view, 0, &out);
     try std.testing.expectEqual(@import("Finite.zig").Truth.true_value, out[0].truth);
+}
+
+test "segment readers reject foreign definition, interpretation and deletion ownership" {
+    const t = std.testing;
+    const columns = [_]TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const rows = [_]TableRow.Row{.{ .identity = .{ .origin = 1, .operation = 1, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 9 } } }} }};
+    var bytes: [8192]u8 = undefined;
+    const encoded = try TSeg.writeSegment(t.allocator, schema, &rows, .{ .segment_id = 1 }, &bytes);
+    var footer = try TSeg.readFooter(t.allocator, encoded);
+    defer footer.deinit();
+    var changed = schema;
+    changed.revision = 2;
+    // Even a key that does not exist must check interpretation before pruning.
+    try t.expectError(error.TableSchemaChanged, TSeg.lookupPrimaryKey(t.allocator, changed, &footer, encoded, null, &.{.{ .value = .{ .atom = .{ .signed = 0 } } }}));
+    var deletion = try TDel.DeletionVector.init(t.allocator, 2, 1);
+    defer deletion.deinit();
+    try t.expectError(error.IncompatibleDeletionVector, TSeg.lookupPrimaryKey(t.allocator, schema, &footer, encoded, &deletion, &.{.{ .value = .{ .atom = .{ .signed = 9 } } }}));
+    const trailer = encoded[encoded.len - 16 ..];
+    const start: usize = @intCast(std.mem.readInt(u64, trailer[0..8], .little));
+    const length = std.mem.readInt(u32, trailer[8..12], .little);
+    bytes[start + 4] ^= 1;
+    std.crypto.hash.sha2.Sha256.hash(bytes[start .. start + length - 32], bytes[start + length - 32 ..][0..32], .{});
+    try t.expectError(error.IncompatibleDefinition, TSeg.readFooter(t.allocator, encoded));
+    var del_bytes: [128]u8 = undefined;
+    const del_encoded = try deletion.encode(&del_bytes);
+    del_bytes[5] ^= 1;
+    std.crypto.hash.sha2.Sha256.hash(del_bytes[0 .. del_encoded.len - 32], del_bytes[del_encoded.len - 32 ..][0..32], .{});
+    try t.expectError(error.IncompatibleDefinition, TDel.DeletionVector.decode(t.allocator, del_encoded));
 }

@@ -14,6 +14,45 @@ unit:
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe
 
+# Real local native node and signed caller faults, with no external store.
+local-native-service:
+    zig build test-local-native-service
+
+# Verify direct catalog lifecycle against signed native registration and policy.
+local-catalog:
+    zig build test-local-catalog
+
+# Real direct Table HTTP owner, typed caller, disk restart and uncertain replies.
+direct-table-service *args:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- {{args}}
+
+# Focused shared host preparation, saved work and explicit direct operations.
+direct-table-callers:
+    zig build test-direct-table-callers -Doptimize=ReleaseSafe
+
+direct-catalog-abi:
+    zig build test-direct-catalog-abi -Doptimize=ReleaseSafe
+
+direct-dependencies:
+    zig build test-direct-dependencies -Doptimize=ReleaseSafe
+    just test::direct-table-service dependency-growth
+
+direct-named-resources:
+    zig build test-direct-named-resources -Doptimize=ReleaseSafe
+    just test::direct-table-service resource-growth
+
+# Public retained direct Table capture with independent native progress and restart.
+direct-captured-query *args:
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- {{args}}
+
+# Prepared direct Table refresh, native selection, node restart and fresh output.
+direct-follow-query:
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --follow-only
+
+# Separate named publication, caller grants and explicit direct Table activation.
+direct-named-query:
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --named-only
+
 # Primitive bytes/index proof; native authority and SQL integration are separate.
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe
@@ -190,6 +229,7 @@ packages:
     cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit-core && zig build test
     cd packages/zig/transit-backend-ursula && zig build test
+    cd packages/zig/transit-backend-local && zig build test
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
 
@@ -226,6 +266,7 @@ packages-build:
     cd packages/zig/transit-protocol && zig build check
     cd packages/zig/transit-core && zig build check
     cd packages/zig/transit-backend-ursula && zig build check
+    cd packages/zig/transit-backend-local && zig build check
     cd packages/zig/transit-client && zig build check
     cd packages/zig/transit-runtime-substrate && zig build check
 
@@ -251,15 +292,14 @@ authorization-cli:
     zig build test-operation-fixture transit-node transit-admin transit client-abi transit-client-host
     python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
-# Table isolation, original subjects, rotation and revocation across disk restart.
-authorization-tables *args:
-    zig build test-operation-fixture transit-node transit-admin transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
+# Current Table roles, SQL defaults, filtered metadata and retained-cut denial.
+authorization-tables:
+    just test::direct-table-service authorization
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
-    zig build test-operation-fixture transit-node transit-admin transit transit-query-host transit-table-service serving-example
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+    zig build transit-node transit-admin transit-station-host serving-example -Doptimize=ReleaseSafe
+    python3 -B tests/authorization_serving.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
 callers:
@@ -394,47 +434,41 @@ table-ddl-sql:
 table-dml-sql:
     nix shell .#sql-tools --command zig build test-table-dml-sql -Doptimize=ReleaseSafe
 
-# Catalog Table publication, exact receipt recovery and native fencing on disk.
-[positional-arguments]
-catalog *args:
+# Private fixture retention and direct dependency/resource lifecycle recovery.
+catalog:
     python3 -B tests/catalog_fixture.py
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
+    just test::direct-dependencies
+    just test::direct-named-resources
 
-# General typed metadata and rows beyond resident pages, cold reads and restart.
+# Paged direct catalog/rows beyond resident pages, original pins and node restart.
 catalog-growth:
-    just test::typed-tables --grow 139 --cold
+    just test::direct-table-service growth
 
-# Complete maintained revisions, independent deltas and disk/cold-store recovery.
+# Complete maintained revisions and independent direct Table deltas on disk.
 relational-maintenance:
-    just test::typed-tables --maintained --cold
+    just test::direct-captured-query --maintained-only
 
-# Shared interactive callers and explicit Board pages over real catalog routes.
+# Explicit retained relational callers and Board pages over the direct owner.
 relational-callers:
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true
 
-# Bounded producer/receiver exchange recovery and maintained publication on disk.
+# Bounded direct exchanges, process recovery and three independent producers.
 relational-exchanges:
     zig build test-relational-exchanges -Doptimize=ReleaseSafe
 
 # Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
 relational-capacity:
     zig build relational-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-typed-table-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
 
 # Immutable named definitions, explicit activation and revision recovery on disk.
 named-relational:
     python3 -B tests/named_relational_records.py
     zig build test-named-relational -Doptimize=ReleaseSafe
 
-# General typed Table owner/caller, bounded turns and exact disk recovery.
-[positional-arguments]
-typed-tables *args:
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
-
-# Combined Table initialization, retained reads and independently authorized writes.
-[positional-arguments]
-table-query-writer *args:
-    zig build test-table-query-writer -Doptimize=ReleaseSafe -- "$@"
+# Direct Table capture and separately authorized native query progress.
+table-query-writer:
+    zig build test-table-query-writer -Doptimize=ReleaseSafe
 
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:
@@ -532,7 +566,7 @@ console-latency *args:
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:
-    zig build transit transit-node transit-query-host transit-board mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Native-session snapshot execution, typed values and retained source basis.
@@ -542,6 +576,12 @@ interactive-query:
 # Actual native server with independent console and owned process failures.
 server:
     zig build test-server -Doptimize=ReleaseSafe
+
+server-direct-tables:
+    zig build test-server-direct-tables -Doptimize=ReleaseSafe
+
+server-direct-faults:
+    zig build test-server-direct-faults -Doptimize=ReleaseSafe
 
 # Terminal text, JSON collectors, settings propagation and standalone failures.
 server-logging:
@@ -688,7 +728,7 @@ server-application-faults:
 
 # Accepted application input across real ENOSPC in an owned ext4 image.
 server-application-capacity:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
@@ -735,6 +775,7 @@ fuze-types:
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
+    python3 -B tests/column_codecs.py
     python3 -B tests/table_schema.py
     python3 -B tests/table_storage.py
     python3 -B tests/table_catalog.py

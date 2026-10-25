@@ -21,25 +21,26 @@ from serving import compact
 
 class ExistingKey:
     def __init__(self, directory, seed_file):
+        self.openssl = os.environ.get('TEST_TRANSIT_OPENSSL', 'openssl')
         self.path = directory / (Path(seed_file).stem + '-proof.der')
         self.path.write_bytes(bytes.fromhex('302e020100300506032b657004220420') + bytes.fromhex(Path(seed_file).read_text().strip()))
         self.path.chmod(0o600)
-        self.public = list(subprocess.check_output(['openssl', 'pkey', '-inform', 'DER', '-in', str(self.path), '-pubout', '-outform', 'DER'])[-32:])
+        self.public = list(subprocess.check_output([self.openssl, 'pkey', '-inform', 'DER', '-in', str(self.path), '-pubout', '-outform', 'DER'])[-32:])
 
     def sign(self, data):
         with tempfile.NamedTemporaryFile(dir=self.path.parent) as message:
             message.write(data)
             message.flush()
-            return list(subprocess.check_output(['openssl', 'pkeyutl', '-sign', '-rawin', '-inkey', str(self.path), '-keyform', 'DER', '-in', message.name]))
+            return list(subprocess.check_output([self.openssl, 'pkeyutl', '-sign', '-rawin', '-inkey', str(self.path), '-keyform', 'DER', '-in', message.name]))
 
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -47,7 +48,8 @@ def post(port, path, value, expected=200, headers=None, retry_unavailable=False)
     deadline = time.monotonic() + 15
     while True:
         result = exchange(port, path, value, headers)
-        if not retry_unavailable or result != (503, b'{"err":"AuthorityUnavailable"}') or time.monotonic() >= deadline:
+        retryable = result in ((503, b'{"err":"AuthorityUnavailable"}'), (503, b'{"err":"HttpCapacity"}'))
+        if not retry_unavailable or not retryable or time.monotonic() >= deadline:
             break
         # Opt in only for pure reads or a caller-retained identical native
         # request whose exact replay is part of the proof. Never rebuild an ID.

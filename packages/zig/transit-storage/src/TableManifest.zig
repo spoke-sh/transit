@@ -1,6 +1,7 @@
 //! Immutable versioned Table Manifests (`"TMAN"` v1) committed to `TransitObjectStore`
 //! via conditional CAS (`If-None-Match` on `manifest/<object_id>/v<N>.tman`).
 const std = @import("std");
+const definition = @import("transit_protocol").Growth.definition_bytes;
 const TransitObjectStore = @import("TransitObjectStore.zig");
 
 pub const max_encoded_bytes: usize = 512 * 1024;
@@ -73,6 +74,7 @@ pub const Manifest = struct {
         var writer: std.Io.Writer = .fixed(out[0..@min(out.len, max_encoded_bytes)]);
         try writer.writeAll("TMAN");
         try writer.writeByte(1); // version 1
+        try writer.writeAll(&definition);
         try writer.writeInt(u64, self.catalog_id, .little);
         try writer.writeInt(u64, self.object_id, .little);
         try writer.writeInt(u64, self.manifest_version, .little);
@@ -127,10 +129,11 @@ pub const OwnedManifest = struct {
 };
 
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !OwnedManifest {
-    if (bytes.len < 4 + 1 + 64 + 32 + 4 + 32 or bytes.len > max_encoded_bytes) {
+    if (bytes.len < 4 + 1 + 32 + 64 + 32 + 4 + 32 or bytes.len > max_encoded_bytes) {
         return error.InvalidTableManifest;
     }
     if (!std.mem.eql(u8, bytes[0..4], "TMAN") or bytes[4] != 1) return error.InvalidTableManifest;
+    if (!std.mem.eql(u8, bytes[5..37], &definition)) return error.IncompatibleDefinition;
 
     const body = bytes[0 .. bytes.len - 32];
     const expected_digest = bytes[bytes.len - 32 ..][0..32];
@@ -142,7 +145,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !OwnedManifest {
     errdefer arena.deinit();
     const a = arena.allocator();
 
-    var reader: std.Io.Reader = .fixed(body[5..]);
+    var reader: std.Io.Reader = .fixed(body[37..]);
     const catalog_id = try reader.takeInt(u64, .little);
     const object_id = try reader.takeInt(u64, .little);
     const manifest_version = try reader.takeInt(u64, .little);

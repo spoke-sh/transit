@@ -211,26 +211,29 @@ canonical DML plan. Explicit NULL never requests a default. The existing
 1024-row and 4 MiB intent limits apply; binding uses a bounded codec buffer of
 at most the intent limit plus its 512-byte envelope allowance.
 
-`transit-catalog.TablePreparedDml.prepare` and
-`transit-query.TablePrepared.prepare` acquire current metadata and rights before
-and after compilation. They retain no data snapshot and send no native command.
-`TableBinding` commits to the current contract, realm, resource, catalog, owner,
-principal and complete immutable metadata reference. Ordinary data revisions do
+`transit-catalog.DirectTablePreparedDml.prepare` and
+`transit-query.DirectTablePrepared.prepare` acquire current metadata and rights
+before and after compilation. They retain no data snapshot and admit no operation.
+`DirectTableBinding` commits to the current definition, complete connection,
+selected role, branch, namespace, name and immutable Table interpretation. Ordinary data revisions do
 not invalidate it. ALTER, rename, DROP/recreate and caller changes require new
 preparation, including changes that leave projected column types unchanged.
 
-`TableQuery.openPrepared` captures a new authorized resource cut for every
-execution, checks that preparation identity and binds a new plan to the captured
-basis. `LogicalPrepared.instantiate` requires both the original immutable basis
-and the new captured basis explicitly; it never changes an existing plan.
+The caller separately acquires an exact Table pin, preserving its original
+operation and expected position on uncertainty. `DirectTableQuery.openPreparedRetained`
+checks the prepared interpretation and current rights, then binds a new plan to
+that retained basis. It acquires no pin and never substitutes a newer cut.
+`DirectTablePrepared.instantiate` requires the stored interpretation, schema and
+captured fingerprint explicitly; it never changes an existing plan.
 Execution uses the normal bounded Table query path and its current disclosure
 checks, including terminal and empty results. Result metadata is owned by the
 template and available without scanning data.
 
-`TablePreparedDml.bind` rechecks current operation rights and metadata and returns
-a new `TableIntent` with an explicit operation/namespace identity. The existing
-`TableClient` owns signing, admission, progress, cancellation and terminal counts.
-A saved intent or signed send remains the exact recovery object after disconnect;
+`DirectTablePreparedDml.bind` rechecks current operation rights and metadata and
+returns a new `DirectTableIntent` with an explicit operation identity and ingestion
+selection. Binding leaves that work unadmitted. `DirectTableClient` exposes
+signing, admission, progress, cancellation and the owner's terminal counts.
+A saved intent remains the exact recovery object after disconnect;
 recompiling or rebinding is a new operation.
 
 The logical predicate and FDM1 payload add atom tag 4, followed by column:u8 and

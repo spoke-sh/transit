@@ -14,6 +14,161 @@ for successive complete results. The physical mechanisms below preserve those
 semantics. Typed maintained owners require explicit host activation and wakeups;
 they do not establish an automatic SQL materialized-view service.
 
+## Direct Table snapshots and interrupted SQL reads
+
+The question is how a finite SQL result retains its exact source when accepted
+rows still live in the WAL, storage maintenance moves rows into segments, or a
+gateway loses the acquisition reply. This account covers the direct Table
+adapter and its local gateway recovery journal. It assumes the Table owner keeps
+its append-only history and immutable snapshot objects, the local journal's file
+and directory syncs establish durability, and native generation checks fence a
+replaced SQL coordinator. It does not establish storage garbage collection or
+resumption of an ordinary SELECT after session loss.
+
+A retained Table basis names the object and immutable definition, the partition's
+accepted frontier and logical-change frontier, the schema and snapshot content.
+The snapshot root covers both WAL and segment locators. The paged row-identity
+index orders rows independently of their physical location. A flush changes
+locators while preserving this index and logical-change evidence. Repeated
+relational scans therefore retain canonical contribution order across WAL and
+segment sources. The [storage owner](../../../packages/zig/transit-storage/src/TablePartition.zig)
+checks identity uniqueness before publishing the complete root.
+
+[`DirectRelationalCompilation`](../../../packages/zig/transit-query/src/DirectRelationalCompilation.zig)
+binds current definitions without acquiring data. Execution supplies retained
+pins and verifies the prepared interpretations. A cut explicitly identifies a
+native resource or a Table partition. Separate Tables have independent frontiers
+even when their catalog resource is the same; aliases of one Table reuse its
+pin. A single resource revision would erase that distinction and incorrectly
+promise consistency. Final batched authorization covers every input, including
+an empty input that contributes no row. This check establishes current disclosure
+rights, not a common data frontier.
+
+The difficult interruption lies between remote pin acceptance and receiving its
+handle. [`ReadPins`](../../../packages/zig/transit-sql/src/ReadPins.zig) syncs the
+original principal, prepared binding, random acquisition identity and expected
+frontier before its first request. It records the returned handle before exposing
+the query. Closure is also durable before release. Recovery observes the original
+pin: it releases an active pin or removes a journal entry after recorded release.
+If no pin exists at the original frontier, replaying that exact acquisition and
+releasing it closes uncertainty. If the object has retired or advanced beyond
+the expected frontier, a delayed original request can no longer acquire the pin.
+Choosing a fresh identity or frontier would instead create unrelated work.
+
+A pass visits at most eight journal entries and reconciles at most one eligible
+record. Current-generation active reads stay protected; earlier-generation and
+closing records are eligible. Denial or unavailable evidence leaves the record
+and reports a cleanup error without blocking unrelated accepted mutations. This
+costs durable local metadata and extra control requests; lease-only cleanup would
+not preserve this durable pin contract. The journal has no authority to grant
+access, expire history or physically collect Table objects.
+
+The mechanism is falsified by an accepted acquisition with no recoverable original
+request, cleanup of a current-generation active pin, changed interpretation under
+a prepared handle, unstable row order after flush, or output disclosure after
+rights are revoked. The direct Table service proof recorded in the [proof ledger](../../../tests/README.md)
+exercises corrupted acquisition replies, node restart, generation replacement,
+retained joins and revocation. Storage and SQL package tests cover root atomicity
+and dispatch/terminal binding. The [proof ledger](../../../tests/README.md) records
+executions and limits. These component/HTTP checks do not by themselves qualify
+the default launcher or every installed SQL transport.
+
+## Durable capture across the native and direct owners
+
+The question is how a native computation can retain direct Table data without
+claiming a transaction across its progress resource and the Table owner. This
+account covers `UnifiedCapture` and the finite `RelationalCapture` adapter. It assumes native
+commit fencing, the direct owner's durable idempotency and pin records, current
+authorization checks, and preservation of accepted storage history. It does not
+establish garbage collection or automatic computation scheduling.
+
+The model has three separate identities: the immutable query bundle, the
+worker-owned native job, and the original caller's Table pin operation. The
+[source declaration](../../../packages/zig/transit-query/src/TableSource.zig)
+binds the direct service audience and immutable interpretation. The
+[bundle](../../../packages/zig/transit-query/src/Bundle.zig) binds a signed Table
+grant to that description and the native execution route. A native resource
+revision cannot stand in for the Table cut: independently accepted Table writes
+advance their partition frontiers without changing the worker's progress state.
+
+The worker first admits a job, then commits acquisition eligibility and a
+permanent pin-owner claim. Only committed eligibility permits the direct pin
+request. A lost reply therefore leaves an original operation to reconcile;
+absence of the native handle is not evidence that no remote pin exists. The
+claim rejects another job's attempt to reuse the same pin owner. The recorded
+source evidence covers interpretation, immutable pin content, accepted and
+logical-change frontiers, row count and native authority references. Bounded
+pages reopen this pin and validate the complete evidence before returning rows.
+Complete primary-key equality can instead seek the retained physical key index;
+the reader verifies the returned row's actual key and exact basis. Absence is
+evidence for that selection, not full-Table traversal. Both paths recheck current
+rights before returning owned output, including empty output.
+Native progress publication repeats the original caller's source guard, closing
+the gap between a successful direct read and a later native commit.
+
+Traversal completion and release have separate commit boundaries. A final Arrow
+segment, checkpoint and job can consume all four native metadata mutations, so
+the next turn records closure eligibility. Subsequent work cannot return to
+source traversal. A later turn attempts direct release and records its observed
+completion. The [retention owner](../../../packages/zig/transit-query/src/CapturedTablePin.zig)
+keeps the original grant and evidence after closure. Result reads check that
+evidence under a fresh disclosure subject; reopening a released pin would both
+impede completed results and risk confusing cleanup with read authority.
+
+Credential rotation illustrates why execution and cleanup use separate proofs.
+Replacing a saved execution proof could restart revoked work. Keeping only that
+proof could strand a pin indefinitely after rotation. An explicit closure proof
+instead commits to the exact original grant, authorizes only pin reconciliation
+and release, and is stored separately before use. Every remote attempt still
+checks current caller and executor credentials and source rights. This preserves
+the original execution epoch while permitting authorized cleanup. Unavailability
+or continued denial leaves a visible pending obligation; liveness assumes a
+future authorized retry and available storage.
+
+The alternative of acquiring a pin before recording native eligibility would
+leave unowned remote work after a crash. Combining both owners into one global
+commit would introduce a transaction domain beyond the existing authority model.
+The chosen protocol costs additional bounded control turns and stores permanent
+operation identities. Source traversal owns at most eight decoded rows per page;
+the number of durable jobs does not set resident collection size.
+
+Allocation failure also needs an owner. A direct page read combines local schema
+and row decoding with HTTP work using the client's separate allocator. The
+[capture allocator](../../../packages/zig/transit-query/src/CaptureMemory.zig)
+records failed allocations from the fixed adapter buffer. Only that evidence
+allows `OutOfMemory`, or the allocating JSON writer's `WriteFailed`, to become a
+durable adapter-budget failure. A
+declined resize or remap can fall back to another allocation and is not such
+evidence. Native read poisoning and external allocation errors preserve the
+original attempt error, rolling back the proposed query progress. Inferring
+local exhaustion from every unpoisoned page error would incorrectly close work
+after a transient client failure.
+
+Captured relational execution applies this protocol independently to each
+distinct Table. Aliases of one exact declaration share a pin and cut; Tables in
+one catalog can still have different frontiers. The coordinator records the full
+vector only after all handles commit and all source guards pass. A revoked first
+source cannot authorize output merely because a later source was acquired.
+Partial acquisition therefore creates cleanup obligations, without establishing
+a usable vector or an atomic catalog observation. Relational resume seeks one
+ordered row after its accepted identity on the original pin; that suffix lookup
+does not claim complete sequential consumption or change another reader's cursor.
+
+The [direct captured-query proof](../../../tests/README.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23) exercises the public
+signed service and real native hosts with independent progress storage, unflushed
+rows, worker/node replacement and corrupted successful pin/release replies.
+Its assertions distinguish the original cut from a renamed current definition,
+and result disclosure from access revocation. The
+[fixture](../../../tests/direct_captured_query.zig) also exercises cancellation
+and separately authorized cleanup after credential rotation. Its scoped relational
+schedule covers a two-row self-join and two separate two-row Tables, including
+replacement between acquisitions and result revocation/restoration. Installed
+language consumers exercise single-source declaration, authorization, result
+reading and cleanup preparation over the shared fault schedule. The
+[proof ledger](../../../tests/README.md) records those outcomes and bounds; this
+does not establish exhaustive interleavings, maintained-source migration,
+independent language execution hosts or storage GC safety.
+
 ## Column execution and ordered failure frontiers
 
 The question is whether private column computation can remove repeated dynamic
@@ -267,9 +422,11 @@ The [captured owner](../../../packages/zig/transit-query/src/RelationalCapture.z
 commits the checkpoint reference together with consumed input and output
 coverage. Admission retains the exact request as well as data cuts: retaining
 only a result's sources would leave restart dependent on a mutable or retired
-request publication. Current-revision guards prevent a policy read from racing
-the turn that accepts a checkpoint. They do not turn the separately acquired
-source cuts into a cross-resource transaction.
+request publication. Direct Table acquisition follows committed native eligibility;
+each recovered handle records the source's exact authority objects. Native
+authorization guards fence the turn that accepts a checkpoint against those
+objects, independently of the query's own progress resource. They do not turn
+the separately acquired source cuts into a cross-owner transaction.
 
 Each candidate is reconstructed from the previous checkpoint and receives the
 same reserved record IDs. Consequently a restart during staging can validate and
@@ -281,7 +438,10 @@ cursor alone, this design incurs additional immutable records and native turns;
 it makes the acceptance boundary independently inspectable.
 
 Closure and collection have separate authority requirements. Releasing a pin
-uses recorded identities and needs no read of its protected bytes. Collection
+uses recorded identities and needs no read of its protected bytes. Direct pin
+settlement still needs current permission; credential rotation can leave closure
+pending until a separate fresh cleanup proof commits. That proof cannot replace
+the accepted execution grant. Collection
 walks contiguous private publication IDs and removes a bounded number of chunks
 per turn, keeping permanent descriptors and failure evidence. A host that insists
 on opening every foreign dependency before any handler can still starve closure
@@ -376,19 +536,31 @@ operator or rewrite can claim equivalence. Existing
 The implementation question is whether a consumer can keep an exact relation
 while a query restarts between small native writes and its inputs continue to
 change. The selected model is `R_k = Q(B_k)`: each basis contains one complete
-Table-history position per resource, each result uses the same canonical finite
-semantics, and each delta is the ordered difference from `R_(k-1)` to `R_k`.
-This scope excludes event-time finality and distributed write authority.
+logical direct Table position per distinct Table, each result uses the same
+canonical finite semantics, and each delta is the ordered difference from
+`R_(k-1)` to `R_k`. Aliases of one Table share a cut; two Tables in one catalog
+remain independent. This scope excludes event-time finality, a catalog-wide
+transaction and distributed write authority.
 
 [RelationalHistory](../../../packages/zig/transit-query/src/RelationalHistory.zig)
-obtains each logical Table root from complete retained history under a fresh
-current authorized resource view. Its resource commitment includes every required
-Table at the selected coordinate. Thus two required Tables changed by one native
-commit cannot enter different sides of the basis. A recorded choice between
-resources establishes processing order without assuming a global snapshot.
-The argument assumes the Table owner preserves complete predecessor records and
-accepted immutable pages; gaps fail explicitly. A stored hash is evidence to
-validate, not authority to read it.
+obtains each logical Table root through an original-caller history lease and
+exact WAL record commitment. The complete source record also binds its physical
+schema, declaration, row count, last logical row-change position and native
+authority references. Query progress lives in an independent native resource.
+A recorded choice between Tables establishes processing order without a global
+snapshot. The argument assumes the Table owner preserves complete predecessor
+records and accepted immutable objects; gaps fail explicitly. A stored hash is
+evidence to validate, not authority to read it.
+
+Physical history and logical revisions have separate coordinates. A wake records
+an upper bound for each Table and starts a bounded scan after the preceding
+logical cut. Admission, cancellation, flush and other storage records may produce
+an empty page. Persisting that page's cursor permits replacement to continue
+without rescanning the same prefix. Selecting a logical acceptance records a new
+full source vector before computation. An accepted no-op has its own WAL
+commitment even when its rows and last row-change coordinate are unchanged.
+Treating all physical records as results would invent revisions; collapsing
+unchanged logical acceptances would lose the selected transaction granularity.
 
 [RelationalMaintenance](../../../packages/zig/transit-query/src/RelationalMaintenance.zig)
 first records a successor basis, then reconstructs bounded finite work from its
@@ -397,8 +569,9 @@ remain private until one root publication binds their complete coverage. By
 induction over that root publication, the visible result is either the prior
 complete `R_(k-1)` or the complete `Q(B_k)`. Losing a proposal does not change the
 root. Losing a receipt requires the original native retry; regenerating a new
-submission is not part of this argument. The native current-view guards keep
-source policy checks conditional on the resource state used at acceptance.
+submission is not part of this argument. Direct reads check the original
+caller's current rights; native authorization guards fence subsequent progress
+and result publication. A lease preserves data, never continuing permission.
 
 The delta merge compares stable identities, then values. A changed output ordinal
 without changed values creates no logical delta. A same-identity value change is
@@ -427,11 +600,20 @@ ordered-overflow counterexample above. Those optimizations must agree with this
 complete-basis construction; they cannot coalesce logical revisions or skip an
 earlier failure whose arithmetic would fit at a later basis.
 
-The [maintained proof ledger](../../../tests/README.md#maintained-relational-revisions)
-records reproducible reference-store and native schedules separately, including
-unfinished qualification. The reference store tests proposal reconstruction,
-no-op coverage and failed-successor preservation; they do not prove durability.
-Native disk evidence, lag/state measurements and faults bound stronger claims.
+The [proof ledger](../../../tests/README.md) records executed schedules and their
+source definitions and reproduction commands. The
+[direct query runner](../../../tests/direct_captured_query.py) starts private
+local nodes and drives the signed direct service with native computation progress; its
+maintained cases cover aliases and independent Tables. Pure source/vector record
+checks cover interpretation, full-width coordinates and malformed bytes.
+The direct failure schedule covers work/spill limits, ordered overflow, a
+service-reported history gap and a separately accepted rebuild. The failed
+identity stays closed and its last complete result remains unchanged. Direct
+exchange checks cover initial and successor attachment with one producer and
+one/seven partitions. Earlier actor-backed schedules establish their recorded
+profile only. Cleanup rotation, multiple workers, lag/state and broader fault
+schedules require their own direct evidence. Finite small-row checks
+establish neither sustainable catch-up nor performance at large cardinalities.
 
 ### Immutable names and query attribution
 
@@ -451,6 +633,34 @@ the archive or an earlier root. The archive supplies attribution, while the
 current policy supplies authority. Confusing those two would let an old allowed
 record bypass revocation.
 
+Dependency preparation raises a second question: how can the caller register an
+exact definition before its native publisher chooses a retained read version?
+The logical reference hashes the namespace/object/revision, immutable publication,
+full bundle fingerprint, original peer and lifetime. The retained native version
+is a physical locator in the stored definition, outside that logical digest. The
+publisher verifies the actual bundle against the prepared digest; native history
+authenticates the locator. Hashing the later locator would prevent preparing an
+exact graph edge before publication without a separate reservation protocol.
+
+The saved publication plan binds each distinct source to that logical reference.
+Its source catalog accepts registration under the caller's source SELECT and
+computation metadata WRITE rights. A point inspection verifies current membership
+before the caller dispatches the separate native publication. Checking only the
+registration receipt would be unsound after explicit removal: receipts remain
+immutable while graph membership changes. Catalog and native acceptances are not
+one transaction, so authorized removal can race publication. The application must
+preserve protection across uncertain native acceptance and resolve or fence
+pending work before abandoning its registrations. This workflow does not supply
+automatic reconciliation or prevent an authorized administrator from removing an
+edge.
+
+Exact definition retirement records a permanent marker. New authorization and
+activation reject it; the immutable definition, attribution and existing query
+work remain. A retired head frees only the name for a fresh object. Graph removal
+is separately authorized, and data retention remains with accepted query pins and
+history leases. Thus freeing a name cannot relabel an old result, and replaying an
+old publication or registration receipt cannot revive the name or edge.
+
 This design uses another retained record and explicit authorization step instead
 of enlarging the query root or introducing a separate execution engine. It
 preserves the existing one-resource atomic boundary and current-policy revision
@@ -458,7 +668,9 @@ checks. Logical namespace quotas include immutable records and declared bundle
 bytes; they do not measure the complete physical retained resource cuts. History
 has no implicit expiry. The [naming contract](../../../contracts/NAMED_RELATIONAL_V1.md)
 and [implementation](../../../packages/zig/transit-station-app/src/NamedRelational.zig)
-specify this additive profile. Independent record bytes, conditional-retry tests
+specify the current definition and its coordinated stored-format cutover. The
+[saved publication owner](../../../packages/zig/transit-station-app/src/NamedRelationalPublication.zig)
+implements the explicit cross-owner workflow. Independent record bytes, conditional-retry tests
 and disk recovery are reproducible through the [proof ledger](../../../tests/README.md#named-relational-definitions).
 This mechanism does not establish SQL view syntax, network subscription delivery
 or effect dispatch.
@@ -510,7 +722,7 @@ with pinned Fuze/query package tests and the independent Python exchange fixture
 checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
 the reference-store schedule exercises nine partition/batch combinations,
 duplicate acknowledgement, denied producer rereads, credit and quota pressure.
-The native exchange task separately runs producer and receiver hosts against
+The historical native exchange task ran producer and receiver hosts against
 disk Ursula with bounded hot/cache storage and a local cold store.
 It loses accepted staging/acceptance replies, reconstructs workers, restarts the
 node/store and publishes the maintained result for two partition/worker layouts.
@@ -520,16 +732,33 @@ generation replacement with the same credential is also distinct from recorded
 handoff and credential retirement. The ledger retains the precise measurements,
 failed host attempts and each separate fault/capacity schedule.
 
+The direct-source implementation separates the receiver PID/resource from Table
+ownership. Its signed assignment includes that destination, and both producer
+retry and receiver acceptance check the recorded destination. Each producer
+borrows only the assignment's exact direct cut. The caller signs the original
+lease grant plus the worker, target and assignment commitment; the data owner
+checks current caller/executor authority before and after reading. Workers cannot
+release the coordinator's lease or select later history through this permission.
+This separates read distribution from retention ownership without sharing the
+coordinator's credential. It adds one explicit caller signature per source and
+worker assignment. The public direct schedule changes live data before the first
+scan, preserves that scan's selected cut and requires a fresh attachment for the
+successor. It also retires the live request while the accepted computation keeps
+its retained request version. This tests separation of publication lifetime from
+computation lifetime. The earlier native host must be migrated before its
+historical fault evidence qualifies the direct-source implementation.
+
 ### Boundary for historical and shared execution
 
 Which evidence can the current plan safely carry into future historical or
 shared dataflows? The implemented bound plan contains exact source identities,
-schemas, resource cuts and a definition fingerprint. Same-resource aliases
-must share one cut. The maintained vector records complete Table transactions,
+schemas, explicit native or Table-partition cuts and a definition fingerprint.
+Same-Table aliases must share one cut. The maintained vector records complete
+logical Table acceptances,
 including no-output progress. These facts let the present two-input executor
 distinguish a completed result from an observed prefix. The
 [relational contract](../../../contracts/RELATIONAL_V1.md#source-basis-and-lifetime)
-and [history tests](../../../packages/zig/transit-query/src/relational_history_test.zig)
+and [history record checks](../../../packages/zig/transit-query/src/RelationalHistoryRecord.zig)
 are the implementation evidence for that boundary.
 
 A future join of two versions of one resource needs two explicitly qualified
@@ -783,82 +1012,71 @@ current policy (`policy_epoch`).
 
 ### Logical types and physical codecs and collation semantics
 
-A foundational design requirement for querying both cloud-native columnar tables
-and legacy enterprise/mainframe datasets without silent data corruption is the
-strict separation of three orthogonal column properties:
+The question is whether a Table value keeps its meaning when WAL rows become
+column pages or an index compares text. The model separates logical type
+$\tau$, physical encoding $\epsilon$ and collation $\kappa$. Encoding changes
+bytes; it must not change the accepted logical value. Collation determines
+ordering and equality; it is independent of whether the text is stored as UTF-8,
+CP037 or a compressed symbol stream. The
+[representation contract](../../../contracts/TABLE_SCHEMA_V1.md#physical-representation-and-collation)
+owns admitted combinations and value limits.
 
-1. **Logical Type ($\tau$):** The mathematical domain of the value in `Fuze`
-   (`int64`, `decimal128(p, s)`, `float64`, `utf8`, `bytes`, `timestamp`, `bool`),
-   wrapped in Transit's five-state cell algebra:
-   $$\text{Cell}(\tau) \;=\; \text{Value}(\tau) \;\mid\; \text{Null} \;\mid\; \text{Missing} \;\mid\; \text{TypeError}(\text{code}) \;\mid\; \text{Conflict}$$
-2. **Physical Encoding ($\epsilon$):** The byte-level representation in `.tseg`
-   segments or foreign dataset records, decoded into canonical `Batch.zig`
-   lanes by composable Zig codecs:
+`TableSchema` validates both descriptors and value-dependent representability
+before a row can enter the Table WAL. This is necessary because postponing an
+encoding error until flush would leave accepted rows permanently unflushable.
+Packed/zoned decimal therefore admits at most 31 decimal digits, and binary
+COMP admits signed integers through 64 bits. HFP accepts only its normalized
+range, converts the binary significand exactly and preserves signed zero.
+Out-of-range values reject instead of rounding or underflowing to zero. RLE and
+dictionary distinguish floating zero signs because compression must preserve
+stored bytes even though SQL equality treats those zeros as equal.
 
-   | Physical Codec | Representation | Target Logical Vector & SIMD Decode Strategy |
-   | --- | --- | --- |
-   | `PLAIN_ARROW` | 64-byte-aligned fixed/variable buffers | Zero-copy `mmap` / `preadv` slice |
-   | `BITPACK_FOR` / `RLE` | Frame-of-reference bit-packed integers and run-length runs | Vectorized SIMD unpack / run expansion |
-   | `DICTIONARY` / `FSST` | Dictionary codes or Fast Static Symbol Table (`<= 255` 1–8B symbols) | Late materialization on codes; branchless 256-entry symbol table expansion for strings |
-   | `COMP3` (`PACKED_DECIMAL`) | 2 decimal digits per byte (`0x0`–`0x9` nibbles) + trailing sign nibble (`0xC`/`0xF` `+`, `0xD` `-`) | SIMD nibble unpack (`vpshufb`/`tbl` + multiply-add) into `decimal128(p, s)` or `int64`; invalid nibbles (`> 9`) or invalid sign (`< 0xA`) emit `TypeError` |
-   | `ZONED` (`DISPLAY`) | 1 digit per byte (`0xF0`–`0xF9` in EBCDIC) with overpunched sign in final/leading byte (`0xC0`–`0xC9` `+`, `0xD0`–`0xD9` `-`) | Sign-zone extraction + ASCII/decimal fold into `decimal128(p, s)` |
-   | `COMP` / `COMP-4` | Big-endian 2, 4 or 8-byte two's-complement binary integer with implied scale | `@byteSwap` into `int64` / `decimal128(p, s)` |
-   | `IBM_HFP` (`COMP-1`/`2`) | IBM System/360 base-16 floating point ($m \times 16^{e - 64}$) | Exact base-16 to IEEE-754 base-2 exponent normalization (`float64`) |
-   | `EBCDIC_CP037` / `CP1047` / `CP500` | Fixed or variable-length EBCDIC codepage bytes | Preserved in physical bytes for EBCDIC predicates or transcoded via 256-byte lookup table to UTF-8 |
+[`Ebcdic037`](../../../packages/zig/transit-fuze/src/Ebcdic037.zig) uses the full
+[Unicode-hosted CP037 table 2.00](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT),
+including controls and Latin-1 scalars. Encoding iterates UTF-8 codepoints;
+reinterpreting UTF-8 bytes as Latin-1 would corrupt accented text. CP037 has a
+256-scalar repertoire; unrepresentable characters reject. Decoding may expand
+each physical byte to two UTF-8 bytes. `icu_root` rejects: a byte-weight
+approximation cannot establish a Unicode collation version or locale contract.
+Other codepages, PAD SPACE and versioned Unicode collation need explicit
+contracts before admission.
 
-3. **Collation ($\kappa$):** The total preorder $\preceq_\kappa$ and equivalence
-   relation $\equiv_\kappa$ governing `<, \le, =, \ge, >`, `BETWEEN`, `MIN`/`MAX`,
-   `ORDER BY`, `GROUP BY` and join key hashing/equality:
+[`PhysicalCodecs`](../../../packages/zig/transit-fuze/src/PhysicalCodecs.zig)
+writes bounded `TCP1` pages with the shared definition identifier. Decoding
+checks complete framing and codec identity. Foreign mainframe decoders expose
+invalid or inexact values as `type_error`; they do not silently substitute a
+number. General pages retain five-state cells, while ordinary Table acceptance
+rejects stored error/conflict states. These are different input profiles.
+Plain pages currently use canonical logical value envelopes; they are not
+borrowed Arrow buffers. The symbol-table codec is Transit-owned and does not
+claim upstream FSST format compatibility. SIMD mainframe conversion and Arrow
+page borrowing remain storage/query extensions, not consequences of an encoding
+name.
 
-   | Collation | Ordering & Padding Law | Primary Use Case |
-   | --- | --- | --- |
-   | `UCS_BASIC` / `UTF8_BINARY` | Lexicographical unsigned byte order (`'0' [0x30] < 'A' [0x41] < 'a' [0x61]`), `NO PAD` | Default cloud-native UTF-8 ordering |
-   | `EBCDIC_037_PAD` / `EBCDIC_1047_NOPAD` | Native EBCDIC codepage weight (`'a' [0x81] < 'A' [0xC1] < '0' [0xF0]`); `PAD SPACE` (`0x40`) for fixed `PIC X(n)` | Exact compatibility with z/OS DB2, VSAM KSDS and COBOL `SORT` |
-   | `ASCII_CI` | Case-folded ASCII order (`'a' == 'A'`), `NO PAD` | Case-insensitive identifiers and keys |
-   | `UCA_<version>_<locale>` | Unicode Collation Algorithm (UTS #10) with pinned DUCET version | Locale-sensitive human sorting |
+For valid text in an admitted collation, the implementation must establish
+$u \preceq_\kappa v$ if and only if
+`memcmp(sort_key(u, κ), sort_key(v, κ)) <= 0`. `Collation` uses the same CP037
+mapping for comparisons and keys, and folds only ASCII A–Z for `ascii_ci`.
+Zone maps and primary-key indexes consume these keys. A predicate can use their
+bounds only when it has the same collation. Direct SQL currently rejects
+non-binary text collations before evaluation, including UPDATE/DELETE predicate
+plans. It does not infer correct hash/group/join semantics from storage support.
+The neutral JSON schema requires explicit encoding and collation fields and
+preserves them through SDK conversion. The shared schema validator admits the
+type/codec/collation combination; the direct Table interface retains complete
+schema bytes. Carrying descriptors does not establish query support.
 
-#### Why collation must bind to Zone Maps and B-Tree indexes
-
-In `EBCDIC`, lowercase letters precede uppercase letters and digits sort last
-(`'a' < 'A' < '0'`), which is the exact inverse of ASCII/UTF-8 (`'0' < 'A' < 'a'`).
-If a `.tseg` segment computed its row-group Zone Map `(min, max)` or its embedded
-primary-key B-tree index using `UCS_BASIC` byte order while a query evaluated
-`WHERE acct_code BETWEEN 'A000' AND '9999' COLLATE EBCDIC_037_PAD`, zone-map
-pruning would falsely discard matching row groups (an unsound optimization).
-
-Therefore, for any column with declared collation $\kappa$:
-- Every `.tseg` Zone Map stores $\min_\kappa$ and $\max_\kappa$ ordered under
-  $\preceq_\kappa$. Row-group pruning is enabled for predicate $\text{col} \;\text{op}_\sigma\; c$
-  **if and only if** the predicate collation $\sigma$ equals the column's indexed
-  collation $\kappa$.
-- The `.tseg` embedded primary-key B-tree index stores **order-preserving sort
-  keys** $\text{sort\_key}(v, \kappa)$ such that:
-  $$u \preceq_\kappa v \;\Longleftrightarrow\; \text{memcmp}(\text{sort\_key}(u, \kappa), \text{sort\_key}(v, \kappa)) \le 0$$
-  This allows `Fuze` B-tree lookups and radix/merge sorts to execute at raw byte
-  comparison speed while strictly honoring `EBCDIC`, `PAD SPACE` or `UCA` rules.
-- Hash joins and hash aggregations hash the canonical collation key
-  $\text{hash}(\text{sort\_key}(v, \kappa))$ rather than raw UTF-8 bytes so that
-  values equivalent under $\equiv_\kappa$ (such as trailing-space-padded
-  `PIC X(10)` keys) always map to the same hash bucket.
-
-#### Lossless mainframe `REDEFINES` and dirty-record handling via 5-state cells
-
-Mainframe COBOL datasets frequently contain two phenomena that crash standard
-two-state (`value`/`null`) vectorized engines:
-1. **Uninitialised or sentinel bytes in numeric fields:** Spaces (`0x40` in
-   EBCDIC) or `HIGH-VALUES` (`0xFF`) stored inside a `COMP-3` or `ZONED` field.
-2. **Untagged or tag-switched `REDEFINES` unions:** The same byte range in a
-   fixed record is interpreted as schema variant $A$ when `REC-TYPE = '1'` and
-   variant $B$ when `REC-TYPE = '2'`.
-
-Because `.tseg` and `Fuze`'s `Batch.zig` carry a native 5-state tag per cell
-(`value`, `null`, `missing`, `type_error`, `conflict`):
-- When a `REDEFINES` branch has a declared `WHEN` discriminator that does not
-  match the current row, its columns emit `missing` (`IS MISSING`).
-- When an active numeric field contains invalid BCD nibbles (`0x404040` or
-  `0xFFFFFF`), the SIMD `COMP-3` decoder sets the cell tag to `type_error`
-  without aborting the batch scan, allowing SQL queries to filter, audit or
-  route dirty records declaratively (`WHERE balance IS TYPE_ERROR`).
+The independent [fixture generator](../../../tests/column_codecs.py) uses
+Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.
+[Column tests](../../../packages/zig/transit-fuze/src/column_codec_test.zig)
+compare exact page bytes, every CP037 scalar pair, floating bit patterns and
+malformed inputs. The [disk test](../../../packages/zig/transit-storage/src/table_partition_test.zig)
+checks rejection before WAL acceptance and compares retained WAL rows with
+flushed segment rows after reopen. The [proof ledger](../../../tests/README.md)
+records the reproduction commands, pinned development environment and executed
+results for the schema, Fuze and storage checks.
+These selected fixtures establish no universal SQL collation or foreign-record
+import profile.
 
 ### Function coloring is an effect and trait system
 

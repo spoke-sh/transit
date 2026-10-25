@@ -19,3 +19,12 @@ export function pageProfile(page: ResultPage) {
     return { ...column, counts };
   });
 }
+
+/** Label the admitted position without treating a Table cut as a native revision. */
+export function sourcePositionText(manifest: ResultPage["evidence"]["manifest"]): string {
+  const table = manifest.table_position;
+  if (table) return `partition ${table.partition}, accepted ${table.accepted}`;
+  const position = manifest.basis.cut.position;
+  if ("native_revision" in position) return `revision ${position.native_revision}`;
+  throw new Error("Missing Table position");
+}

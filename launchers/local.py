@@ -46,6 +46,11 @@ class Local:
         installation.artifacts.initialize()
         installation.configure_board()
         installation.configs()
+        if installation.example == "station":
+            # Station provisions direct catalog policy through a temporary
+            # listener. Finish and join it before the manager's node health
+            # probe can admit any dependent service.
+            installation.initialize()
         # Startup readiness must refer to this worker launch, not the saved
         # configuration from the previous activation.
         for name in installation.workloads:

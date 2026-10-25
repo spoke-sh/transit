@@ -58,21 +58,21 @@ Deterministic tests cover competing attachments, stale subscription controls,
 renewal/expiry races, retained growth, aggregate quota and failed reads. These
 checks do not advertise SSE/WebSocket or prove deployed recovery.
 
-`TableWatch` resolves immutable catalog metadata/schema, the Table-head entry
-and first bounded row page at one exact current resource revision. It requires
-current database CONNECT, schema USAGE and Table SELECT for the authenticated caller. The snapshot
-transport admits two INT64 columns with the first a non-null primary key;
-application integers encode as decimal strings. Head reservations may notify
-possible change before atomic row publication; unrelated query bookkeeping does
-not advance the watermark. Metadata changes require an explicit new snapshot. A
-`more` flag directs larger snapshots to the existing finite query reader.
-`covered` reuses `transit-query`'s source contract/schema basis, checking the
-identical resource and data watermark. It does not extend a query's released pin.
+`TableWatch` resolves the exact direct Table interpretation and first bounded row
+page at an accepted partition position. It requires current database CONNECT,
+schema USAGE and Table SELECT for the authenticated caller as well as the
+configured private reader. The snapshot transport admits two INT64 columns with
+the first a non-null primary key; application integers encode as decimal strings.
+Its data watermark changes only for accepted row changes. Query bookkeeping does
+not advance it. Interpretation changes require an explicit new snapshot. A `more`
+flag directs larger snapshots to the finite query reader. `covered` checks the
+query's identical Table interpretation and data watermark. It does not extend a
+query's released pin.
 
 `ReactiveAdapter` checks signed scopes, current native/service authority, leases,
 attachments and subscription generations before and after bounded observations.
 It also rechecks the watched resource's writer, current grant and declaration.
-The host supplies a qualified conservative wall-clock upper bound and performs
+The host supplies a conservative wall-clock upper bound and performs
 a final `check` before each protected transport release. A cursor is signed
 integrity evidence, never a grant. Snapshot races restart the whole acquisition
 up to three times; loss of coverage is explicit reset or interruption.
@@ -95,15 +95,15 @@ the SSE field object; its `data` string contains the shared `ServerMessage`.
 Independent description validation explicitly checks that encoded JSON content.
 
 `ReactiveClient` supplies shared frozen caller preparation, committed-control
-observation and scoped read signing for M21 hosts. `ReactiveAdapter.inspect`
+observation and scoped read signing for private hosts. `ReactiveAdapter.inspect`
 projects only the existing Table watch metadata; it never reads application rows.
 The [private client contract](../../../contracts/REACTIVE_CLIENT_V1.md) describes
 credential scope, source evidence and generated browser validation. This consumer
 foundation alone does not qualify complete live query replacement or UI fairness.
 
-M21's opt-in `LiveService` composes the ingress with the v1 finite requester.
+The opt-in `LiveService` composes the ingress with the v1 finite requester.
 The [refresh guide](docs/refresh.md) owns its bounded round-robin scheduler,
-eight-intent limit per follow generation, current scoped proofs and plan copying.
+eight-intent limit per follow generation, current scoped proofs and prepared-query activation.
 Accepted work survives view closure; only new scheduling depends on a live lease.
 
 

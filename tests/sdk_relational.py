@@ -1,55 +1,105 @@
-"""Installed language-native relational callers; shared real-authority schedule."""
+"""Installed language-native retained relational callers on the direct owner."""
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
+import tarfile
+import zipfile
 
-from sdk_catalog import install
 from sdk_unified import Consumer
+from relational_callers_native import SQL, EXPECTED, SELF_SQL, SELF_EXPECTED
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def exercise(languages, url, root, catalogs, policy, typed, sql):
+def install(target, language, environment):
+    target.mkdir()
+    packages = target / 'packages'
+    packages.mkdir()
+    artifacts = {}
+    if language == 'python':
+        for path in (ROOT / '.cache/bindings/wheels').glob('*.whl'):
+            if path.name.split('-')[1] != '0.2.0' or path.name.split('-')[0] not in ('transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'): continue
+            shutil.copy2(path, packages / path.name)
+            artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            if path.name.startswith('transit_station-'):
+                with zipfile.ZipFile(path) as archive:
+                    for name in ('catalog.py', 'catalog_values.py', 'relational.py', 'station-abi.json'):
+                        assert archive.read('transit_station/' + name) == (ROOT / 'sdks/python/transit-station/transit_station' / name).read_bytes(), 'Rebuild matching Python wheels'
+        assert len(artifacts) == 4
+        venv = target / 'venv'
+        subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(venv)], env=environment, check=True)
+        python = str(venv / 'bin/python')
+        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(packages), 'transit-station==0.2.0'], env=environment, check=True, stdout=subprocess.DEVNULL)
+        script = target / 'consumer.py'
+        shutil.copy2(ROOT / 'tests/python_relational_sdk.py', script)
+        commands = [(f'python-{mode}', [python, '-B', str(script), mode]) for mode in ('sync', 'async')]
+    elif language == 'node':
+        dependencies = {}
+        for name in ('client', 'native-client', 'station', 'native-station'):
+            path = ROOT / '.cache/bindings/node' / f'transit-{name}-0.2.0.tgz'
+            copy = packages / path.name
+            shutil.copy2(path, copy)
+            artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            dependencies['@transit/' + name] = 'file:' + str(copy)
+            if name == 'station':
+                with tarfile.open(path) as archive:
+                    for filename in ('catalog.js', 'relational.js', 'contract.json'):
+                        assert archive.extractfile('package/dist/' + filename).read() == (ROOT / 'sdks/ts/transit-station-sdk/dist' / filename).read_bytes(), 'Rebuild matching Node packages'
+        manager = json.loads((ROOT / 'package.json').read_text())['packageManager']
+        (target / 'package.json').write_text(json.dumps(dict(private=True, type='module', packageManager=manager, dependencies=dependencies, pnpm=dict(overrides=dependencies))))
+        subprocess.run(['vp', 'env', 'exec', '--package-manager', manager, 'pnpm', 'install', '--prefer-offline', '--ignore-scripts'], cwd=target, env=environment, check=True, stdout=subprocess.DEVNULL)
+        script = target / 'consumer.mjs'
+        shutil.copy2(ROOT / 'tests/node_relational_sdk.mjs', script)
+        commands = [('node', ['node', str(script)])]
+    else:
+        raise ValueError('No installed relational adapter for this language')
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    return commands
+
+
+def exercise(languages, authority, service, root, fixture, policy):
     installed = root / 'installed-relational'
-    install(installed, languages)
+    installed.mkdir()
     results = []
     for language in languages:
         target = installed / language
-        config = target / 'relational.json'
-        config.write_text(json.dumps(dict(url=url, catalogs=catalogs, seed_file=str(root / 'relational-caller.seed'), spill_directory=str(root))))
         environment = {k: v for k, v in os.environ.items() if k not in ('NODE_PATH', 'PYTHONPATH', 'PYTHONHOME', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
-        if language == 'node':
-            script = target / 'relational.mjs'
-            shutil.copy2(ROOT / 'tests/node_relational_sdk.mjs', script)
-            commands = [('node', ['node', str(script), str(config)])]
-        elif language == 'python':
-            script = target / 'relational.py'
-            shutil.copy2(ROOT / 'tests/python_relational_sdk.py', script)
-            commands = [(f'python-{mode}', [str(target / 'venv/bin/python'), '-B', str(script), mode, str(config)]) for mode in ('sync', 'async')]
-        else:
-            raise ValueError('No installed relational adapter for this language')
+        commands = install(target, language, environment)
+        config = target / 'relational.json'
+        config.write_text(json.dumps(dict(url=authority, service_url=service, catalogs=fixture.configuration['catalogs'], seed_file=str(root / 'caller.seed'), spill_directory=str(target))))
         for name, command in commands:
-            client = Consumer(command, environment, target)
+            client = Consumer([*command, str(config)], environment, target, read_timeout=180)
             def failure(action, expected):
                 client.send(action)
                 result = client.read()
                 assert result['status'] and result['value']['err'] == expected, result
                 return result['value']
+            def prepare(number, sql=SQL, routes=(0, 1)):
+                statement = dict(namespace=1, sql=sql, routes=list(routes))
+                explained = client.call(dict(explain=statement))
+                snapshots = fixture.retain(explained['sources'])
+                sources = [dict(basis=json.dumps(source['binding']), snapshot=json.dumps(snapshot)) for source, snapshot in zip(explained['sources'], snapshots, strict=True)]
+                action = dict(open=dict(id=f'{number:032x}', statement=statement, sources=sources))
+                opened = client.call(action)
+                assert client.call(action) == opened
+                assert opened['description'] == explained and not opened['completeCoverage']
+                assert json.loads(opened['reference'])['plan'] == explained['plan']
+                return action, opened, snapshots
+            def finish(ref, snapshots):
+                client.call(dict(close_query=ref))
+                client.call(dict(close_query=ref))
+                for snapshot in snapshots:
+                    assert not fixture.catalog.call(dict(retention=dict(status=snapshot['owner'])))['retention']['status']['released']
+                fixture.release(snapshots)
             try:
-                layouts = []
-                for number, routes, expected in ((101, [0, 0], [[None,'1','0',None],['7','6','6','12'],['9','1','0',None]]), (102, [0, 1], [[None,'1','0',None],['7','2','2','16'],['9','1','0',None]])):
-                    statement = dict(sql=sql, routes=routes)
-                    explained = client.call(dict(explain=statement))
-                    action = dict(open=dict(id=f'{number:032x}', statement=statement))
-                    opened = client.call(action)
-                    assert client.call(action) == opened
-                    assert not explained['executed'] and not opened['completeCoverage']
-                    assert explained['plan'] == opened['description']['plan'] == typed(routes)['plan']
-                    assert explained['sources'][0]['catalog'] == str((1 << 64)-1)
+                for number, sql, routes, expected in ((101, SQL, (0, 0), EXPECTED), (102, SQL, (0, 1), EXPECTED), (103, SELF_SQL, (0, 0), SELF_EXPECTED)):
+                    action, opened, snapshots = prepare(number, sql, routes)
+                    assert (opened['cuts'][0] == opened['cuts'][1]) == (sql == SELF_SQL)
                     ref = opened['reference']
-                    assert json.loads(ref)['plan'] == explained['plan']
                     failure(dict(page=dict(reference=ref, ordinal='1')), 'InvalidQueryCursor')
                     rows = []
                     for ordinal in range(4):
@@ -58,39 +108,33 @@ def exercise(languages, url, root, catalogs, policy, typed, sql):
                         assert client.call(request) == page
                         if page['completeCoverage']:
                             assert page['row'] is None and ordinal == 3
-                            break
-                        rows.append(page['row'])
-                    assert [row['cells'] for row in rows] == expected
+                        else: rows.append(page['row'])
+                    assert [[None if value is None else int(value) for value in row['cells']] for row in rows] == expected
                     assert len({json.dumps(row['identity'], sort_keys=True) for row in rows}) == 3
-                    client.call(dict(close_query=ref))
-                    client.call(dict(close_query=ref))
-                    layouts.append(dict(routes=routes, rows=3, complete=True))
-                statement = dict(sql=sql, routes=[0, 1])
-                ref = client.call(dict(open=dict(id=f'{103:032x}', statement=statement)))['reference']
-                client.call(dict(page=dict(reference=ref, ordinal='0')))
+                    finish(ref, snapshots)
+                action, opened, snapshots = prepare(104)
+                ref = opened['reference']
+                first = client.call(dict(page=dict(reference=ref, ordinal='0')))
                 policy(False)
-                # SDKs expose the native authority rejection as their code;
-                # the owned diagnostic preserves its catalog-level meaning.
-                denied = failure(dict(page=dict(reference=ref, ordinal='0')), 'AccessDenied')
-                assert denied['diagnostic']['category'] == 'access'
-                assert denied['diagnostic']['cause'] == 'CatalogDenied'
-                facts = {v['field']: v for v in denied['diagnostic']['facts'] if v}
-                assert facts['native_cause']['value'] == dict(text='AccessDenied')
-                client.call(dict(close_query=ref))
-                policy(True)
-                ref = client.call(dict(open=dict(id=f'{104:032x}', statement=statement)))['reference']
-                client.call(dict(page=dict(reference=ref, ordinal='0')))
+                try:
+                    denied = failure(dict(page=dict(reference=ref, ordinal='0')), 'AccessDenied')
+                    assert denied['diagnostic']['category'] == 'access'
+                finally: policy(True)
+                assert client.call(dict(page=dict(reference=ref, ordinal='0'))) == first
                 client.call(dict(reconnect={}))
                 failure(dict(page=dict(reference=ref, ordinal='0')), 'InvalidQueryCursor')
-                ref = client.call(dict(open=dict(id=f'{105:032x}', statement=dict(sql='SELECT SUM(v) AS total FROM rel_overflow', routes=[0]))))['reference']
+                assert client.call(action) == opened
+                finish(ref, snapshots)
+                _, opened, snapshots = prepare(105, 'SELECT SUM(v) AS total FROM rel_overflow', (0,))
+                ref = opened['reference']
                 request = dict(page=dict(reference=ref, ordinal='0'))
                 failed = failure(request, 'Overflow')
                 assert failure(request, 'Overflow') == failed
                 facts = {v['field']: v for v in failed['diagnostic']['facts'] if v}
                 assert facts['column']['value'] == dict(text='total') and facts['completion']['value'] == dict(boolean=False)
                 assert facts['source_key']['value']['text'][-8:] == '00000001'
-                client.call(dict(close_query=ref))
-                results.append(dict(language=name, layouts=layouts, current_denial=True, lost_host=True, ordered_overflow=True, artifacts=json.loads((target / 'artifacts.json').read_text())))
+                finish(ref, snapshots)
+                results.append(dict(language=name, join_layouts=3, current_denial=True, lost_host=True, ordered_overflow=True, original_retention=True, artifacts=json.loads((target / 'artifacts.json').read_text())))
             finally:
                 client.close()
     return results

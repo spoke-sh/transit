@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b",
+    "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -67,7 +67,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+            "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
           ]
         },
         "realm": {
@@ -524,7 +524,8 @@
                                       "additionalProperties": false,
                                       "x-transit-field-order": [
                                         "registrar",
-                                        "actions"
+                                        "actions",
+                                        "lifetime_resource"
                                       ],
                                       "properties": {
                                         "registrar": {
@@ -540,13 +541,29 @@
                                           "maximum": 9007199254740991,
                                           "x-transit-bits": 64,
                                           "x-transit-signed": false
+                                        },
+                                        "lifetime_resource": {
+                                          "anyOf": [
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
                                         }
                                       },
                                       "required": [
                                         "registrar",
                                         "actions"
                                       ],
-                                      "x-transit-defaults": {}
+                                      "x-transit-defaults": {
+                                        "lifetime_resource": null
+                                      }
                                     }
                                   }
                                 },
@@ -2093,7 +2110,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                               ]
                                             },
                                             "realm": {
@@ -3406,7 +3423,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                    "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -4823,7 +4840,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+        "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
       }
     },
     "SignedRequest": {
@@ -4856,7 +4873,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
               ]
             },
             "realm": {
@@ -5313,7 +5330,8 @@
                                           "additionalProperties": false,
                                           "x-transit-field-order": [
                                             "registrar",
-                                            "actions"
+                                            "actions",
+                                            "lifetime_resource"
                                           ],
                                           "properties": {
                                             "registrar": {
@@ -5329,13 +5347,29 @@
                                               "maximum": 9007199254740991,
                                               "x-transit-bits": 64,
                                               "x-transit-signed": false
+                                            },
+                                            "lifetime_resource": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "x-transit-bits": 64,
+                                                  "x-transit-signed": false
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
                                             }
                                           },
                                           "required": [
                                             "registrar",
                                             "actions"
                                           ],
-                                          "x-transit-defaults": {}
+                                          "x-transit-defaults": {
+                                            "lifetime_resource": null
+                                          }
                                         }
                                       }
                                     },
@@ -6882,7 +6916,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                    "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -8195,7 +8229,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -9665,7 +9699,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
               ]
             },
             "realm": {
@@ -10122,7 +10156,8 @@
                                           "additionalProperties": false,
                                           "x-transit-field-order": [
                                             "registrar",
-                                            "actions"
+                                            "actions",
+                                            "lifetime_resource"
                                           ],
                                           "properties": {
                                             "registrar": {
@@ -10138,13 +10173,29 @@
                                               "maximum": 9007199254740991,
                                               "x-transit-bits": 64,
                                               "x-transit-signed": false
+                                            },
+                                            "lifetime_resource": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "x-transit-bits": 64,
+                                                  "x-transit-signed": false
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
                                             }
                                           },
                                           "required": [
                                             "registrar",
                                             "actions"
                                           ],
-                                          "x-transit-defaults": {}
+                                          "x-transit-defaults": {
+                                            "lifetime_resource": null
+                                          }
                                         }
                                       }
                                     },
@@ -11691,7 +11742,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                    "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -13004,7 +13055,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -14488,7 +14539,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
               ]
             },
             "realm": {
@@ -16256,7 +16307,8 @@
                                                   "additionalProperties": false,
                                                   "x-transit-field-order": [
                                                     "registrar",
-                                                    "actions"
+                                                    "actions",
+                                                    "lifetime_resource"
                                                   ],
                                                   "properties": {
                                                     "registrar": {
@@ -16272,13 +16324,29 @@
                                                       "maximum": 9007199254740991,
                                                       "x-transit-bits": 64,
                                                       "x-transit-signed": false
+                                                    },
+                                                    "lifetime_resource": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "integer",
+                                                          "minimum": 0,
+                                                          "maximum": 9007199254740991,
+                                                          "x-transit-bits": 64,
+                                                          "x-transit-signed": false
+                                                        },
+                                                        {
+                                                          "type": "null"
+                                                        }
+                                                      ]
                                                     }
                                                   },
                                                   "required": [
                                                     "registrar",
                                                     "actions"
                                                   ],
-                                                  "x-transit-defaults": {}
+                                                  "x-transit-defaults": {
+                                                    "lifetime_resource": null
+                                                  }
                                                 }
                                               }
                                             },
@@ -18090,7 +18158,8 @@
                                               "additionalProperties": false,
                                               "x-transit-field-order": [
                                                 "registrar",
-                                                "actions"
+                                                "actions",
+                                                "lifetime_resource"
                                               ],
                                               "properties": {
                                                 "registrar": {
@@ -18106,13 +18175,29 @@
                                                   "maximum": 9007199254740991,
                                                   "x-transit-bits": 64,
                                                   "x-transit-signed": false
+                                                },
+                                                "lifetime_resource": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 9007199254740991,
+                                                      "x-transit-bits": 64,
+                                                      "x-transit-signed": false
+                                                    },
+                                                    {
+                                                      "type": "null"
+                                                    }
+                                                  ]
                                                 }
                                               },
                                               "required": [
                                                 "registrar",
                                                 "actions"
                                               ],
-                                              "x-transit-defaults": {}
+                                              "x-transit-defaults": {
+                                                "lifetime_resource": null
+                                              }
                                             }
                                           }
                                         },
@@ -26738,7 +26823,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+            "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
           ]
         },
         "realm": {
@@ -27208,7 +27293,8 @@
                                           "additionalProperties": false,
                                           "x-transit-field-order": [
                                             "registrar",
-                                            "actions"
+                                            "actions",
+                                            "lifetime_resource"
                                           ],
                                           "properties": {
                                             "registrar": {
@@ -27224,13 +27310,29 @@
                                               "maximum": 9007199254740991,
                                               "x-transit-bits": 64,
                                               "x-transit-signed": false
+                                            },
+                                            "lifetime_resource": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "x-transit-bits": 64,
+                                                  "x-transit-signed": false
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
                                             }
                                           },
                                           "required": [
                                             "registrar",
                                             "actions"
                                           ],
-                                          "x-transit-defaults": {}
+                                          "x-transit-defaults": {
+                                            "lifetime_resource": null
+                                          }
                                         }
                                       }
                                     },
@@ -28076,7 +28178,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                               ]
                                             },
                                             "realm": {
@@ -28266,7 +28368,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                    "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -29125,7 +29227,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                    "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                   ]
                                 },
                                 "realm": {
@@ -29582,7 +29684,8 @@
                                                               "additionalProperties": false,
                                                               "x-transit-field-order": [
                                                                 "registrar",
-                                                                "actions"
+                                                                "actions",
+                                                                "lifetime_resource"
                                                               ],
                                                               "properties": {
                                                                 "registrar": {
@@ -29598,13 +29701,29 @@
                                                                   "maximum": 9007199254740991,
                                                                   "x-transit-bits": 64,
                                                                   "x-transit-signed": false
+                                                                },
+                                                                "lifetime_resource": {
+                                                                  "anyOf": [
+                                                                    {
+                                                                      "type": "integer",
+                                                                      "minimum": 0,
+                                                                      "maximum": 9007199254740991,
+                                                                      "x-transit-bits": 64,
+                                                                      "x-transit-signed": false
+                                                                    },
+                                                                    {
+                                                                      "type": "null"
+                                                                    }
+                                                                  ]
                                                                 }
                                                               },
                                                               "required": [
                                                                 "registrar",
                                                                 "actions"
                                                               ],
-                                                              "x-transit-defaults": {}
+                                                              "x-transit-defaults": {
+                                                                "lifetime_resource": null
+                                                              }
                                                             }
                                                           }
                                                         },
@@ -31151,7 +31270,7 @@
                                                                     "definition": {
                                                                       "type": "string",
                                                                       "enum": [
-                                                                        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                                        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                                       ]
                                                                     },
                                                                     "realm": {
@@ -32464,7 +32583,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                                            "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -33881,7 +34000,7 @@
                               ],
                               "x-transit-defaults": {
                                 "version": 1,
-                                "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                               }
                             }
                           }
@@ -35523,7 +35642,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+        "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
       }
     },
     "SignedQuery": {
@@ -35555,7 +35674,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
               ]
             },
             "realm": {
@@ -36025,7 +36144,8 @@
                                               "additionalProperties": false,
                                               "x-transit-field-order": [
                                                 "registrar",
-                                                "actions"
+                                                "actions",
+                                                "lifetime_resource"
                                               ],
                                               "properties": {
                                                 "registrar": {
@@ -36041,13 +36161,29 @@
                                                   "maximum": 9007199254740991,
                                                   "x-transit-bits": 64,
                                                   "x-transit-signed": false
+                                                },
+                                                "lifetime_resource": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 9007199254740991,
+                                                      "x-transit-bits": 64,
+                                                      "x-transit-signed": false
+                                                    },
+                                                    {
+                                                      "type": "null"
+                                                    }
+                                                  ]
                                                 }
                                               },
                                               "required": [
                                                 "registrar",
                                                 "actions"
                                               ],
-                                              "x-transit-defaults": {}
+                                              "x-transit-defaults": {
+                                                "lifetime_resource": null
+                                              }
                                             }
                                           }
                                         },
@@ -36893,7 +37029,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                    "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -37083,7 +37219,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -37942,7 +38078,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                       ]
                                     },
                                     "realm": {
@@ -38399,7 +38535,8 @@
                                                                   "additionalProperties": false,
                                                                   "x-transit-field-order": [
                                                                     "registrar",
-                                                                    "actions"
+                                                                    "actions",
+                                                                    "lifetime_resource"
                                                                   ],
                                                                   "properties": {
                                                                     "registrar": {
@@ -38415,13 +38552,29 @@
                                                                       "maximum": 9007199254740991,
                                                                       "x-transit-bits": 64,
                                                                       "x-transit-signed": false
+                                                                    },
+                                                                    "lifetime_resource": {
+                                                                      "anyOf": [
+                                                                        {
+                                                                          "type": "integer",
+                                                                          "minimum": 0,
+                                                                          "maximum": 9007199254740991,
+                                                                          "x-transit-bits": 64,
+                                                                          "x-transit-signed": false
+                                                                        },
+                                                                        {
+                                                                          "type": "null"
+                                                                        }
+                                                                      ]
                                                                     }
                                                                   },
                                                                   "required": [
                                                                     "registrar",
                                                                     "actions"
                                                                   ],
-                                                                  "x-transit-defaults": {}
+                                                                  "x-transit-defaults": {
+                                                                    "lifetime_resource": null
+                                                                  }
                                                                 }
                                                               }
                                                             },
@@ -39968,7 +40121,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                                            "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -41281,7 +41434,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                                                                "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -42698,7 +42851,7 @@
                                   ],
                                   "x-transit-defaults": {
                                     "version": 1,
-                                    "definition": "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+                                    "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
                                   }
                                 }
                               }
@@ -44384,7 +44537,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+            "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
           ]
         },
         "realm": {
@@ -46152,7 +46305,8 @@
                                               "additionalProperties": false,
                                               "x-transit-field-order": [
                                                 "registrar",
-                                                "actions"
+                                                "actions",
+                                                "lifetime_resource"
                                               ],
                                               "properties": {
                                                 "registrar": {
@@ -46168,13 +46322,29 @@
                                                   "maximum": 9007199254740991,
                                                   "x-transit-bits": 64,
                                                   "x-transit-signed": false
+                                                },
+                                                "lifetime_resource": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 9007199254740991,
+                                                      "x-transit-bits": 64,
+                                                      "x-transit-signed": false
+                                                    },
+                                                    {
+                                                      "type": "null"
+                                                    }
+                                                  ]
                                                 }
                                               },
                                               "required": [
                                                 "registrar",
                                                 "actions"
                                               ],
-                                              "x-transit-defaults": {}
+                                              "x-transit-defaults": {
+                                                "lifetime_resource": null
+                                              }
                                             }
                                           }
                                         },
@@ -47986,7 +48156,8 @@
                                           "additionalProperties": false,
                                           "x-transit-field-order": [
                                             "registrar",
-                                            "actions"
+                                            "actions",
+                                            "lifetime_resource"
                                           ],
                                           "properties": {
                                             "registrar": {
@@ -48002,13 +48173,29 @@
                                               "maximum": 9007199254740991,
                                               "x-transit-bits": 64,
                                               "x-transit-signed": false
+                                            },
+                                            "lifetime_resource": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "x-transit-bits": 64,
+                                                  "x-transit-signed": false
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
                                             }
                                           },
                                           "required": [
                                             "registrar",
                                             "actions"
                                           ],
-                                          "x-transit-defaults": {}
+                                          "x-transit-defaults": {
+                                            "lifetime_resource": null
+                                          }
                                         }
                                       }
                                     },
@@ -56708,6 +56895,7 @@
             "FreshKeyRequired",
             "HistoryPinned",
             "HistoryReclaimed",
+            "TableDefinitionChanged",
             "QueryExpired",
             "IdentityElement",
             "InvalidAttempt",

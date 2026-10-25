@@ -131,92 +131,57 @@ current disclosure rights, retain its original cut, and atomically commit the
 adapter cursor, returned progress and publication evidence. These local steps do
 not themselves implement native durable admission, retention or publication.
 
-## Signed native Table reads
+## Captured direct Table reads
 
-`transit-query.TableSource` supplies a bounded adapter for public captured and
-retained state readers. Its declaration contains the realm/resource/catalog,
-owner, stable object, exact immutable metadata reference and complete logical row
-descriptor. The metadata commitment binds the original column identities, keys,
-defaults and schema revision. It does not bind by the Table's current name.
+`transit-query.TableSource` declares an exact direct Table interpretation. Its
+identity includes realm/resource/catalog, service audience, branch, namespace,
+stable object, declaration revision/content commitment, schema fingerprint and
+complete logical row descriptor. The query worker's progress resource is separate
+from the catalog resource. Neither a current name nor a native KV revision binds
+this data source.
 
 Canonical declaration bytes are `TQS1`, the 32-byte current shared definition,
-uint64 realm/resource/catalog/owner/object, the metadata reference (uint64
-revision, uint32 format and length, 32-byte Publication digest), uint16 descriptor
-length and `FTY1` descriptor. Integers are little-endian. The envelope allows 126
-bytes plus the existing 16-KiB logical descriptor budget. Decode owns all recursive
-descriptor bytes and rejects foreign definitions, incomplete or noncanonical
-input. `TableSource.decodeInto` composes the same decoder within a caller-owned
-request arena, which owns every schema/name and partial-failure allocation.
-`LogicalPlanCodec.decodeInto` does the same for the complete schema-bound plan.
-Neither returns an independent owner; the enclosing request releases its arena.
-The declaration fingerprint is SHA-256 of
-`transit.table.query.declaration.v1\0` followed by those canonical bytes.
+uint64 realm/resource/catalog/audience/branch/namespace/object, uint64 declaration
+revision, its 32-byte digest, uint64 declaration byte length, 32-byte schema
+fingerprint, uint16 logical descriptor length and the `FTY1` descriptor. Integers
+are little-endian. The envelope is 174 bytes plus the existing 16-KiB logical
+descriptor budget. Decode owns recursive descriptors and rejects incompatible,
+incomplete or noncanonical bytes. `decodeInto` instead borrows the caller's
+request arena. The declaration fingerprint hashes
+`transit.table.query.declaration.v1`, a zero byte and those canonical bytes.
 
-Capture validates the live object and exact metadata before admitting its source
-cut. The captured binding hashes `transit.table.query.capture.v1\0`, the declaration
-fingerprint, uint64 captured resource revision and canonical complete Table head.
-The host owns native retention and atomic admission. A saved declaration or
-computed binding alone does not prove either operation occurred.
+Explicit capture supplies the original caller's signed grant for one executor,
+exact interpretation, pin operation and Table frontier. Admission records durable
+acquisition eligibility before any pin operation. Capture reopens that original
+pin and verifies the complete declaration and decoded schema, including for
+LIMIT 0. The retained basis binds immutable pin content, interpretation, accepted
+WAL frontier, logical-change frontier, row count and native authority references.
+Its canonical fingerprint and the enclosing query basis follow the
+[unified query contract](UNIFIED_QUERY_V1.md#ownership-and-source-identity).
 
-Each adapter page owns at most eight decoded rows, in stable row-identity order,
-with a binding/ordinal/row-count/identity continuation. Complete composite-key
-equality can use the collision-safe typed index. The page still contains complete
-source rows for the original Fuze predicate. Full scans check the head's exact row
-count; source LIMIT completion belongs to the execution owner. Adapter pages are
-independent of execution-vector sizes and durable Table cardinality.
+Each adapter page owns at most eight decoded rows, in stable row-identity order.
+Its continuation binds the captured source, ordinal, consumed row count and last
+identity; a byte-limited page may contain fewer than eight rows. Full traversal
+checks exact source coverage. The Fuze plan owns filtering, projection,
+aggregation and LIMIT completion. Current direct traversal scans row identities;
+this adapter does not expose a composite-key point-seek operation.
 
-Every page checks current CONNECT, schema USAGE and Table SELECT before and
-after reading its original captured schema/root. Continuations may finish after
-ALTER or DROP; new capture against a stale declaration rejects. The principal
-must match the reader's independently authenticated original subject. A submitted
-declaration or committed requester-policy number cannot authenticate that user.
-`UnifiedRecords.Policy` constrains requester PID, request resource, scope/owner,
-expected original principal, revision and budgets. Durable Table bundles carry
-an original proof bound to their canonical bytes and intended reply route;
-continuation and recovery preserve that proof. Native readers independently
-retain resource access/lifetime checks. The page's `deinit` releases every row;
-`engine` borrows those values until release. An error provides no page.
+Every page checks current CONNECT/USAGE/SELECT under the original grant before
+and after reading. ALTER, RENAME, DROP and name reuse cannot replace the retained
+interpretation. A new capture against a stale declaration rejects. Native
+progress and result publication also carry the original subject's source guard;
+a completed direct read alone cannot authorize a later native commit. The page's
+`deinit` releases its rows, and `engine` borrows them until release. An error
+provides no page. Completed results retain source evidence after pin release and
+require separate current disclosure authorization.
 
-`transit-query.TableQuery` composes this compiler and executor with the general
-catalog's signed connection and native leased snapshots. It resolves the supplied
-Table name inside one captured resource cut, validates the catalog's exact owner
-and configuration, and checks both inspect and read rights. Its binding commits
-the current shared definition, realm/resource/catalog/owner, captured resource
-revision, stable Table object, metadata commitment and complete Table head.
+The installed finite reader is `DirectTableQuery.openRetained`, described above.
+Its retained Table basis is separate from native computation progress. The SQL
+session owner acquires and journals its pins explicitly and closes them through
+its original identities. The public pull reader borrows its supplied pin; closing
+that reader does not release the durable pin.
 
-`next()` returns one independently owned row. `nextBatch(maximum)` returns an
-owned batch of at most the requested one to eight rows and 16 MiB of canonical
-cells. Release every returned row or batch with `deinit`. The query rechecks
-current native authorization and scoped catalog policy after computation and
-before returning the entire batch or successful completion. This observation
-authorizes that bounded disclosure; a later call performs a fresh observation.
-The same gate applies to cached data, empty results, aggregates and LIMIT 0.
-Byte-bound lookahead remains private, is included in query-wide accounting, and
-requires another current check before disclosure. Failure releases the proposed
-batch and poisons the query. Sixty-four cached native
-entries belong exclusively to the captured cut; they never establish current
-permission. Complete primary-key equality uses the typed key index and still
-evaluates the predicate. Other predicates scan stable row identities.
-
-Schema evolution and DROP do not rewrite an already captured reader's identity.
-It may finish against its original schema and row root after a name is reused,
-subject to current read permission and native resource lifetime. A new name lookup
-selects the replacement object. This does not supply general historical AS OF
-queries, a cross-resource snapshot or authority to read a retired resource.
-
-Every query supplies positive limits for native snapshot requests, returned rows
-and canonical result bytes. The request budget includes acquisition, data reads
-and final policy validation; capability negotiation and explicit cleanup are
-outside it. Result bytes count the output descriptor and length-prefixed bound
-logical cells. Transport/Arrow/JSON framing has its own additional bounds. A query
-holds its two bounded schema owners, fixed cache, bounded index traversal and one
-decoded row; it does not materialize the Table. Returned row ownership belongs to
-the caller, which must release rows instead of retaining an unbounded result.
-
-Final validation releases the native snapshot. Close/deinit, cancellation, expiry
-and authority replacement preserve incomplete-output truth; no path silently
-opens a replacement cut. A failed handle cannot continue. The native rejection
-from a failed fetch is retained before cleanup can issue another native operation.
-The public Zig adapter is separate from the configured console, durable query and
-foreign-language integrations; their enabled capabilities are owned by those
-interfaces.
+The [direct request contract](DIRECT_TABLE_V1.md) owns retention and current
+policy checks. The [SQL session contract](SQL_SESSION_V1.md) owns statement,
+result-reader and session lifecycle. Neither reader silently opens a replacement
+cut after a failure or treats incomplete output as complete.

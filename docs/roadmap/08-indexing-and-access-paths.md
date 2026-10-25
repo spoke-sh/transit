@@ -22,6 +22,12 @@ Resolve index identity, key semantics, constraint dependencies and coverage with
 those owners before their dependent formats; this delivery position does not
 postpone foundational contract work.
 
+The [neutral index contract](../../contracts/INDEX_LIFECYCLE_V1.md) supplies
+immutable source/key/constraint bindings, build identities, progress and exact
+coverage publication descriptors. Its deterministic validation is foundation
+work; catalog operations, secondary structures, online maintenance and planner
+eligibility in this milestone remain unimplemented.
+
 The storage milestone already owns bounded memtables, manifests, primary-key
 indexes, pruning, range reads and local recovery. The transaction milestone owns
 every constraint and isolation guarantee it advertises. Neither can defer an

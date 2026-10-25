@@ -15,8 +15,9 @@ def atom_value(datatype, value):
 def table_source(columns):
     from transit_client import ResourceRef, ProcessRef
     from transit_station import unified as q, catalog
-    metadata = catalog.Metadata(catalog.Scope(ResourceRef(1, 7), 9), 9, 1, 'items', '01'*32, 17, 1, 1, catalog.MetadataCommitment(200, '01'*32), namespace=1)
-    return q.TableSource(ProcessRef(1, 3), metadata, catalog.Schema(9, 1, len(columns)+1, tuple(columns)))
+    interpretation = q.TableInterpretation(1, bytes([1])*32, 200, bytes([2])*32)
+    return q.TableSource(catalog.Scope(ResourceRef(1, 7), 9), 3, 1, 1, interpretation,
+        catalog.Schema(9, 1, len(columns)+1, tuple(columns)))
 
 
 def wire_type(value):
@@ -107,7 +108,7 @@ def codecs(config):
     print('Python installed unified codecs: three sources, nine Boolean bundles, six scalar types, 128 columns, nested uint128, five states and malformed rejection passed', flush=True)
 
 
-def source(config):
+def source(config, table=None):
     from transit_client import ResourceRef
     from transit_station import unified as q, logical as l, catalog
     from transit_station.document import DocumentReference
@@ -116,13 +117,8 @@ def source(config):
     if config['kind'] == 'kv':
         value = q.KVSource(resource, b'k', q.Decoder(q.DecoderType.BINARY), q.Decoder(q.DecoderType.UTF8))
     elif config['kind'] == 'table':
-        from transit_client import ProcessRef
-        values = config['connection']
-        owner = ProcessRef(resource.realm, values['source'])
-        with catalog.Client(config['url'], values['principal'], Path(config['seed_file']), catalog.Connection(owner, catalog.Scope(resource, 1))) as client:
-            definition = client.lookup('items')
-            assert definition is not None
-            value = q.TableSource(owner, definition.metadata, definition.schema)
+        assert table is not None
+        value = table
     else:
         value = q.DocumentSource(DocumentReference(resource, 17, 1, 1, 13), (
             q.Projection(q.DecoderColumn('value', q.DecoderType.UTF8), relative=True),
@@ -152,16 +148,27 @@ async def serve(config, asynchronous):
     realm = values['realm']
     connection = q.Connection(ProcessRef(realm, values['source']), ResourceRef(realm, values['resource']),
         ProcessRef(realm, values['requester']), ResourceRef(realm, values['requests']))
-    owner = (q.AsyncClient if asynchronous else q.Client)(config['url'], values['principal'], Path(config['seed_file']), connection, timeout_ms=10000)
-    declared, unsigned_bundle = source(config)
+    tables = None
+    capture = None
+    if config['kind'] == 'table':
+        t = config['tables']; scope = t['connection']['scope']
+        tables = q.Tables(t['url'], catalog.Scope(ResourceRef(realm, scope['resource']), int(scope['catalog'])),
+            int(t['connection']['branch']), t['connection']['audience'])
+        c = config['capture']
+        capture = q.Capture(c['executor'], int(c['operation']), int(c['expected']['partition']), int(c['expected']['next_lsn']))
+    owner = (q.AsyncClient if asynchronous else q.Client)(config['url'], values['principal'], Path(config['seed_file']), connection, timeout_ms=10000, tables=tables)
     async def invoke(method, *args):
         value = getattr(owner, method)(*args)
         return await value if asynchronous else value
     try:
-        sealed = await invoke('authorize_bundle', unsigned_bundle)
+        definition = await invoke('lookup_table', 'items') if tables is not None else None
+        if tables is not None: assert definition is not None
+        declared, unsigned_bundle = source(config, definition.source if definition is not None else None)
+        result_resource = declared.scope.resource if isinstance(declared, q.TableSource) else connection.resource
+        sealed = await invoke('authorize_bundle', unsigned_bundle, capture)
         assert sealed.data == Path(config['bundle']).read_bytes()
         description = await invoke('describe', declared)
-        assert description.bundle_bytes == 25255 and description.batch_rows == 8
+        assert description.bundle_bytes == 25614 and description.batch_rows == 8
         print(json.dumps({'ready': True}), flush=True)
         for line in sys.stdin:
             action = json.loads(line)
@@ -186,7 +193,7 @@ async def serve(config, asynchronous):
                     limits = v['scope']['limits']
                     inspected = await invoke('inspect_sql', declared, v['scope']['name'], v['sql'],
                         q.Budgets(*(int(limits[name]) for name in ('pages', 'segments', 'result_bytes'))))
-                    assert inspected.resource == connection.resource
+                    assert inspected.resource == result_resource
                     assert inspected.source_kind == config['kind']
                     details = inspected.details
                     if isinstance(details, q.SourceDescription):
@@ -227,7 +234,7 @@ async def serve(config, asynchronous):
                 elif 'page' in action:
                     v = action['page']
                     page = await invoke('page', int(v['namespace']), None if v.get('cursor') is None else q.Cursor(v['cursor']))
-                    assert page.manifest.resource == connection.resource and page.manifest.source_kind == config['kind']
+                    assert page.manifest.resource == result_resource and page.manifest.source_kind == config['kind']
                     assert len(page.decode()) == page.rows
                     # Supply the pinned optional Arrow consumer only after the
                     # clean package has opened and decoded through shared Zig.

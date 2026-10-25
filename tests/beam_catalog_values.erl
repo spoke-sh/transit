@@ -1,126 +1,64 @@
-%% Installed strict values, large frames and actual owned-port failure schedules.
+%% Strict installed direct values and actual joined-port ownership under caller loss.
 -module(beam_catalog_values).
 -include_lib("transit_station_sdk/include/transit_catalog.hrl").
 -export([main/2]).
-max() -> 18446744073709551615.
-config(Root,Override) ->
-    {#transit_config{url= <<"http://127.0.0.1:9">>,profile=native_v1,timeout_ms=1000,native_host=Override},
-     #transit_credential{realm=46,principal=17,seed_file=unicode:characters_to_binary(filename:join(Root,"seed"))},
-     #transit_catalog_connection{owner=#transit_process{realm=46,pid=3},scope=#transit_catalog_scope{resource=#transit_resource{realm=46,resource=7},catalog=max()}}}.
-open(A,Root,Mode) ->
-    file:delete(filename:join(Root,"entered")),file:delete(filename:join(Root,"release")),ok=file:write_file(filename:join(Root,"mode.json"),json:encode(Mode)),
-    {Config,Identity,Connection}=config(Root,filename:join(Root,"host")),{ok,Client}=A:open(Config,Identity,Connection),Client.
-wait(F) -> wait(F,erlang:monotonic_time(millisecond)+5000).
-wait(F,Deadline) -> case F() of true->ok; false->true=erlang:monotonic_time(millisecond)<Deadline,timer:sleep(10),wait(F,Deadline) end.
-joined(Root) -> {ok,Bytes}=file:read_file(filename:join(Root,"host-pid")),Pid=binary_to_integer(Bytes),wait(fun()->not filelib:is_dir(filename:join("/proc",integer_to_list(Pid))) end).
-close(A,C) -> case A:close(C) of {ok,_}->ok; {error,#transit_error{kind=cleanup},_}->ok end.
-response(A,Root,Value,Action) -> C=open(A,Root,#{status=>0,value=>Value}),try Action(C) after close(A,C) end,joined(Root).
-invalid({error,#transit_error{kind=Kind}}) -> true=lists:member(Kind,[incompatible_native,read_failed]),ok.
-definition_id() -> maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)).
-scope_json() -> #{realm=>46,resource=>7,catalog=>integer_to_binary(max())}.
-metadata() -> #{scope=>scope_json(),namespace=>1,object=>integer_to_binary(max()),revision=>integer_to_binary(max()),name=><<"items">>,schema_fingerprint=>binary:copy(<<"ab">>,32),principal=>17,operation=>integer_to_binary(max()),admitted_input=>9,commitment=>#{format=>16#54434d01,length=>200,digest=>lists:duplicate(32,171)}}.
-schema() -> #{definition=>definition_id(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null}],primary_key=>[]}.
-entry() -> #{metadata=>metadata(),head=>#{revision=><<"1">>,rows=><<"0">>,pending=><<"0">>}}.
-metadata_definition() -> (entry())#{schema=>schema(),authorization=>101}.
-metadata_page() -> #{resource_revision=>9,entries=>[entry()|lists:duplicate(7,null)],next=>#{definition=>definition_id(),scope=>scope_json(),resource_revision=>9,after_object=>integer_to_binary(max())}}.
-description_values(A,Root) ->
-    Authority=#{database_domain=>1,schema_domain=>2,table_domain=>3,database=>4,initial_schema_authority=>5,initial_schema=>1},
-    Subject=#{principal=>17,login_role=>23,role=>23,credential_epoch=>1,audience=>3,context=>lists:duplicate(32,171)},
-    Configuration=#{scope=>scope_json(),owner=>3,administrator=>0,table_limits=>#{record_bytes=>4096,staging_bytes=><<"8192">>,staging_records=>64},authority=>Authority,database_name=><<"fixture">>},
-    Description=#{configuration=>Configuration,subject=>Subject,authorization_revision=>9,resource_revision=>2},
-    response(A,Root,#{description=>Description},fun(C)->
-        {ok,#transit_catalog_description{subject=#transit_catalog_subject{principal=17,login_role=23,role=23,credential_epoch=1,audience=3,context=Context},configuration=#transit_catalog_configuration{authority=#transit_catalog_authority{table_domain=3},administrator=0},authorization_revision=9}}=A:describe(C),true=Context=:=binary:copy(<<171>>,32)
-    end),
-    lists:foreach(fun(Bad)->response(A,Root,#{description=>Bad},fun(C)->invalid(A:describe(C)) end) end,
-        [Description#{subject=>Subject#{principal=>18}},Description#{subject=>Subject#{role=>24}},Description#{subject=>Subject#{audience=>4}},Description#{subject=>Subject#{credential_epoch=>0}},Description#{subject=>Subject#{context=>lists:duplicate(31,171)}},Description#{configuration=>Configuration#{authority=>Authority#{table_domain=>2}}},Description#{configuration=>maps:remove(authority,Configuration)}]).
-metadata_values(A,Root) ->
-    Max=max(),
-    response(A,Root,#{definition=>metadata_definition()},fun(C)->
-        {ok,#transit_catalog_definition{metadata=#transit_catalog_metadata{object=Max,revision=Max,operation=Max,name= <<"items">>,commitment=#transit_catalog_metadata_commitment{bytes=200,digest=Digest}},schema=#transit_catalog_schema{columns=[#transit_catalog_column{id=1,type=int128,name= <<"id">>}]}}}=A:lookup(C,<<"items">>),true=Digest=:=binary:copy(<<171>>,32),
-        invalid(A:lookup(C,<<"wrong">>))
-    end),
-    response(A,Root,#{historical=>#{metadata=>metadata(),schema=>schema()}},fun(C)->
-        {ok,#transit_catalog_historical_definition{metadata=#transit_catalog_metadata{object=Max,revision=Max}}}=A:definition(C,Max,Max),
-        invalid(A:definition(C,1,Max)),invalid(A:definition(C,Max,1))
-    end),
-    response(A,Root,#{definition=>null},fun(C)->{ok,undefined}=A:lookup(C,<<"items">>) end),
-    response(A,Root,#{historical=>null},fun(C)->{ok,undefined}=A:definition(C,Max,Max) end),
-    Page=metadata_page(),
-    response(A,Root,#{page=>Page},fun(C)->
-        {ok,#transit_catalog_page{resource_revision=9,entries=[#transit_catalog_entry{metadata=#transit_catalog_metadata{object=Max}}],next=Next}}=A:list(C),
-        invalid(A:list(C,Next)),invalid(A:list(C,Next#transit_catalog_cursor{resource_revision=8,after_object=1})),
-        {error,#transit_error{kind=invalid_argument}}=A:list(C,Next#transit_catalog_cursor{definition=undefined}),
-        {error,#transit_error{kind=invalid_argument}}=A:list(C,Next#transit_catalog_cursor{definition=binary:copy(<<"0">>,64)})
-    end),
-    response(A,Root,#{page=>Page#{entries=>lists:duplicate(8,null),next=>null}},fun(C)->{ok,#transit_catalog_page{entries=[],next=undefined}}=A:list(C) end),
-    Next=maps:get(next,Page),
-    response(A,Root,#{page=>Page#{entries=>lists:duplicate(8,null),next=>Next#{after_object=><<"9">>}}},fun(C)->
-        {_,_,#transit_catalog_connection{scope=Scope}}=config(Root,undefined),
-        {ok,#transit_catalog_page{entries=[],next=#transit_catalog_cursor{after_object=9}}}=A:list(C,#transit_catalog_cursor{definition=definition_id(),scope=Scope,resource_revision=9,after_object=8})
-    end),
-    D=metadata(),Commitment=maps:get(commitment,D),
-    lists:foreach(fun(Bad)->
-        response(A,Root,#{definition=>(metadata_definition())#{metadata=>Bad}},fun(C)->invalid(A:lookup(C,<<"items">>)) end)
-    end,[maps:remove(namespace,D),D#{namespace=>2},maps:remove(commitment,D),D#{commitment=>Commitment#{format=>0}},D#{commitment=>Commitment#{length=>0}},D#{commitment=>Commitment#{length=>445}},D#{commitment=>Commitment#{digest=>lists:duplicate(31,171)}}]),
-    E=entry(),
-    Invalid=[Page#{entries=>lists:duplicate(7,null)},Page#{entries=>[null,E|lists:duplicate(6,null)]},Page#{entries=>[E,E|lists:duplicate(6,null)]},
-        Page#{entries=>[E#{metadata=>D#{scope=>(scope_json())#{catalog=><<"1">>}}}|lists:duplicate(7,null)]},
-        Page#{next=>maps:remove(definition,Next)},Page#{next=>Next#{definition=>binary:copy(<<"0">>,64)}},Page#{next=>Next#{after_object=><<"1">>}},Page#{next=>Next#{resource_revision=>10}},
-        Page#{entries=>[E#{metadata=>D#{object=>Max}}|lists:duplicate(7,null)]},Page#{entries=>[E#{metadata=>D#{revision=><<"01">>}}|lists:duplicate(7,null)]},Page#{extra=>true}],
-    lists:foreach(fun(Bad)->response(A,Root,#{page=>Bad},fun(C)->invalid(A:list(C)) end) end,Invalid).
-large_values(A,Root) ->
-    Definition=definition_id(),Identity=#transit_catalog_identity{operation=10,namespace=100},
-    Summary=#{reference=>#{definition=>Definition,digest=>binary:copy(<<"00">>,32)},scope=>scope_json(),owner=>3,principal=>17,operation=><<"10">>,namespace=><<"100">>,object=><<"1">>,kind=><<"insert">>},
-    Compiled=#{intent=>Summary,saved=>#{definition=>Definition,bytes=>binary:copy(<<"ab">>,300000)}},
-    Big={value,{atom,{binary,binary:copy(<<0>>,1048576)}}},Bad={value,{list,[Big,Big]}},
-    BigColumn=#transit_catalog_column{id=1,name= <<"data">>,type=binary,default=Big},
-    BadColumn=BigColumn#transit_catalog_column{id=2,name= <<"later">>,default=Bad},
-    BigSchema=#transit_catalog_schema{object=1,revision=1,next_column=3,columns=[BigColumn,BadColumn],primary_key=[]},
-    BigRows=lists:duplicate(9,[#transit_catalog_assignment{column=1,value=Big}])++[[#transit_catalog_assignment{column=1,value=Bad}]],
-    Oversized=[{create,BigSchema,false},{mutate,#transit_catalog_basis{object=1,revision=1,schema_fingerprint= <<0:256>>},{insert,BigRows}}],
-    lists:foreach(fun(Op)->
-        {error,#transit_error{kind=invalid_argument,phase=catalog_wire_budget}}=transit_sdk_value:protect(fun()->transit_catalog_value:action({prepare,<<"items">>,Identity,Op}) end)
-    end,Oversized),
-    response(A,Root,#{},fun(C)->
-        lists:foreach(fun(Op)->
-            {error,#transit_error{kind=invalid_argument,phase=catalog_request}}=A:prepare(C,<<"items">>,Identity,Op)
-        end,Oversized)
-    end),
-    Operation={mutate,#transit_catalog_basis{object=1,revision=1,schema_fingerprint= <<0:256>>},{insert,[[#transit_catalog_assignment{column=1,value={value,{atom,{binary,binary:copy(<<0>>,300000)}}}}]]}},
-    response(A,Root,#{compiled=>Compiled},fun(C)->
-        {ok,#transit_catalog_compiled{saved=#transit_catalog_saved_intent{bytes=Bytes},intent=#transit_catalog_intent{identity=Identity,object=1,kind=insert}}}=A:prepare(C,<<"items">>,Identity,Operation),300000=byte_size(Bytes)
-    end),
-    lists:foreach(fun(Field)->
-        Value=case Field of owner->18; principal->18; kind-> <<"update">>; _-> <<"11">> end,
-        response(A,Root,#{compiled=>Compiled#{intent=>Summary#{Field=>Value}}},fun(C)->invalid(A:prepare(C,<<"items">>,Identity,Operation)) end)
-    end,[owner,principal,operation,namespace,object,kind]),
-    Deep=lists:foldl(fun(_,V)->{value,{map,[{{utf8,<<"k">>},V}]}} end,null,lists:seq(1,15)),
-    {ok,Wire}=transit_logical:encode(cell,Deep),Wrapped=lists:foldl(fun(_,V)->#{<<"wrapper">>=>V} end,Wire,lists:seq(1,5)),Bytes=transit_sdk_value:encode(Wrapped),
-    Wrapped=transit_sdk_value:json(Bytes,96),{error,#transit_error{kind=incompatible_native}}=transit_sdk_value:protect(fun()->transit_sdk_value:json(Bytes) end).
-main(A,[Root]) ->
-    ok=beam_schema_values:run(),ok=beam_logical_values:run(),
-    ok=file:write_file(filename:join(Root,"seed"),lists:duplicate(64,$1)),
-    {Config,Identity,Connection}=config(Root,undefined),{ok,Native}=A:open(Config,Identity,Connection),
-    try
-        lists:foreach(fun(Bytes)->{error,#transit_error{kind=invalid_argument}}=A:submit(Native,#transit_catalog_prepared{bytes=Bytes}) end,[<<>>,binary:copy(<<0>>,8193),<<255>>]),
-        {error,#transit_error{kind=invalid_argument}}=A:load(Native,#transit_catalog_saved_intent{definition=binary:copy(<<"0">>,64),bytes= <<1>>})
-    after {ok,_}=A:close(Native) end,
-    description_values(A,Root),metadata_values(A,Root),large_values(A,Root),
-    Prepared=#transit_catalog_prepared{bytes= <<"opaque fixture command">>},
-    Modes=[<<"loss">>,#{status=>0,value=>#{receipt=>#{position=><<"1">>}}},#{status=>0,value=>#{receipt=>#{position=>7},extra=>true}}],
-    lists:foreach(fun(Mode)->C=open(A,Root,Mode),try {uncertain,Prepared,#transit_error{kind=unknown_outcome,status=6}}=A:submit(C,Prepared) after close(A,C) end,joined(Root) end,Modes),
-    Denied=open(A,Root,#{status=>4,value=>#{err=><<"CatalogDenied">>}}),
-    try {error,#transit_error{kind=access_denied,status=4,code= <<"CatalogDenied">>}}=A:submit(Denied,Prepared) after {ok,_}=A:close(Denied) end,joined(Root),
-    Success=open(A,Root,#{status=>0,value=>#{receipt=>#{position=>7}}}),
-    try {ok,#transit_admission{position=7}}=A:submit(Success,Prepared) after {ok,_}=A:close(Success) end,joined(Root),
-    C=open(A,Root,<<"block">>),Parent=self(),{Waiting,Monitor}=spawn_monitor(fun()->Parent!{unexpected,A:submit(C,Prepared)} end),
-    try
-        wait(fun()->filelib:is_file(filename:join(Root,"entered")) end),exit(Waiting,kill),
-        receive {'DOWN',Monitor,process,Waiting,killed}->ok after 5000->error(waiter_alive) end,
-        {error,#transit_error{kind=busy}}=A:capabilities(C),{Closer,CloseMonitor}=spawn_monitor(fun()->Parent!{closed,A:close(C)} end),
-        receive {closed,_}->error(abandoned_native_work) after 100->ok end,
-        ok=file:write_file(filename:join(Root,"release"),<<"1">>),receive {closed,{ok,_}}->ok after 5000->error(close_not_joined) end,
-        receive {'DOWN',CloseMonitor,process,Closer,normal}->ok after 5000->error(closer_alive) end,
-        {error,#transit_error{kind=closed}}=A:capabilities(C),joined(Root),<<"opaque fixture command">>=Prepared#transit_catalog_prepared.bytes
+max()->18446744073709551615.
+definition()->maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)).
+scope()->#{realm=>46,resource=>7,catalog=>integer_to_binary(max())}.
+connection()->#{scope=>scope(),branch=><<"1">>,audience=>3,principal=>17,role=>null}.
+object()->#{scope=>scope(),branch=><<"1">>,object=>integer_to_binary(max())}.
+interpretation()->#{object=>object(),revision=><<"1">>,digest=>binary:copy(<<"ab">>,32)}.
+stored()->#{interpretation=>interpretation(),content=>#{bytes=><<"300">>,sha256=>binary:copy(<<"ab">>,32)},schema_fingerprint=>binary:copy(<<"cd">>,32),retired=>false}.
+basis()->#{definition=>definition(),connection=>connection(),namespace=>1,name=><<"items">>,interpretation=>stored()}.
+position()->#{partition=>integer_to_binary(max()),next_lsn=>integer_to_binary(max())}.
+binding()->#{definition=>definition(),identity=>#{scope=>scope(),principal=>17,operation=><<"10">>},target=>object(),action=><<"insert">>,expected_definition=>interpretation(),expected_data=>null,intent=>binary:copy(<<"aa">>,32),prerequisite=>null}.
+reference()->#{table=>#{definition=>definition(),connection=>connection(),namespace=>1,binding=>binding(),content=>#{bytes=><<"200">>,sha256=>binary:copy(<<"22">>,32)}}}.
+summary()->#{id=>#{definition=>definition(),digest=>binary:copy(<<"11">>,32)},namespace=>1,binding=>#{table=>binding()}}.
+observed()->#{rows=>#{committed=>#{binding=>binding(),resulting=>stored(),outcome=>#{position=>position(),matched=><<"9">>,affected=><<"9">>,live_rows=><<"9">>}}}}.
+schema()->#{definition=>definition(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null,encoding=><<"plain">>,collation=><<"none">>}],primary_key=>[]}.
+page()->#{position=>position(),entries=>[#{interpretation=>interpretation(),namespace=>1,name=><<"items">>,position=>position(),changed_lsn=><<"3">>}|lists:duplicate(7,null)],next=>#{definition=>definition(),connection=>connection(),selection=>#{tables=>1},position=>position(),'after'=>integer_to_binary(max())},consistency=><<"independent">>}.
+config(Root,Override)->{#transit_config{url= <<"http://127.0.0.1:9">>,profile=native_v1,timeout_ms=1000,native_host=Override},#transit_credential{realm=46,principal=17,seed_file=unicode:characters_to_binary(filename:join(Root,"seed"))},#transit_catalog_connection{scope=#transit_catalog_scope{resource=#transit_resource{realm=46,resource=7},catalog=max()},audience=3}}.
+open(A,Root,Mode)->file:delete(filename:join(Root,"entered")),file:delete(filename:join(Root,"release")),ok=file:write_file(filename:join(Root,"mode.json"),json:encode(Mode)),{C,I,B}=config(Root,filename:join(Root,"host")),{ok,Client}=A:open(C,I,B),Client.
+wait(F)->wait(F,erlang:monotonic_time(millisecond)+5000).
+wait(F,D)->case F() of true->ok;false->true=erlang:monotonic_time(millisecond)<D,timer:sleep(10),wait(F,D) end.
+joined(Root)->{ok,Bytes}=file:read_file(filename:join(Root,"host-pid")),Pid=binary_to_integer(Bytes),wait(fun()->not filelib:is_dir(filename:join("/proc",integer_to_list(Pid))) end).
+close(A,C)->case A:close(C) of {ok,_}->ok;{error,#transit_error{kind=cleanup},_}->ok end.
+response(A,Root,Value,Action)->C=open(A,Root,#{status=>0,value=>Value}),try Action(C) after close(A,C) end,joined(Root).
+invalid({error,#transit_error{kind=Kind}})->true=lists:member(Kind,[invalid_argument,incompatible_native,read_failed]),ok.
+restore(A,K,V)->{ok,Out}=A:restore(K,iolist_to_binary(json:encode(V))),Out.
+values(A,Root)->
+    Basis=restore(A,basis,basis()),true=is_record(Basis,transit_catalog_basis),{ok,SavedBasis}=A:save(Basis),Size=byte_size(SavedBasis)-1,<<Prefix:Size/binary,_>>=SavedBasis,
+    invalid(A:restore(basis,<<Prefix/binary,",\"name\":\"other\"}">>)),
+    lists:foreach(fun(V)->invalid(A:restore(reference,iolist_to_binary(json:encode(#{table=>V})))) end,[maps:remove(definition,maps:get(table,reference())),(maps:get(table,reference()))#{definition=>binary:copy(<<"0">>,64)},(maps:get(table,reference()))#{binding=>(binding())#{identity=>#{scope=>scope(),principal=>18,operation=><<"10">>}}}]),
+    Ref=restore(A,reference,reference()),
+    response(A,Root,#{observation=>observed()},fun(C)->{ok,#transit_catalog_observation{state=committed,commit=#transit_catalog_commit{affected=9,position=#transit_catalog_position{next_lsn=N}}}}=A:inspect(C,Ref),true=N=:=max() end),
+    Bad=#{rows=>#{committed=>#{binding=>(binding())#{identity=>#{scope=>scope(),principal=>17,operation=><<"11">>}},resulting=>stored(),outcome=>#{position=>position(),matched=><<"9">>,affected=><<"9">>,live_rows=><<"9">>}}}},
+    response(A,Root,#{observation=>Bad},fun(C)->invalid(A:inspect(C,Ref)),{uncertain,Ref,#transit_error{kind=unknown_outcome}}=A:admit(C,Ref) end),
+    response(A,Root,#{catalog=>#{tables=>page()}},fun(C)->{ok,#transit_catalog_page{entries=[#transit_catalog_entry{interpretation=#transit_catalog_interpretation{object=#transit_catalog_object{object=O}}}],next=Cursor,consistency=independent}}=A:tables(C),true=O=:=max(),invalid(A:tables(C,1,Cursor)) end),
+    Page=page(),Entries=maps:get(entries,Page),Next=maps:get(next,Page),
+    lists:foreach(fun(P)->response(A,Root,#{catalog=>#{tables=>P}},fun(C)->invalid(A:tables(C)) end) end,
+        [Page#{entries=>tl(Entries)},Page#{entries=>[null,hd(Entries)|lists:duplicate(6,null)]},Page#{entries=>[hd(Entries),hd(Entries)|lists:duplicate(6,null)]},Page#{next=>Next#{'after'=><<"1">>}},Page#{next=>Next#{position=>#{partition=><<"1">>,next_lsn=><<"1">>}}},Page#{next=>maps:remove(definition,Next)}]),
+    Owner=#{definition=>definition(),connection=>connection(),object=>object(),operation=>integer_to_binary(max())},Acquisition=restore(A,snapshot_acquisition,#{owner=>Owner,expected=>position()}),true=(Acquisition#transit_catalog_snapshot_acquisition.owner)#transit_catalog_snapshot_owner.operation=:=max(),
+    Snapshot=restore(A,snapshot,#{owner=>Owner,content=>#{bytes=><<"500">>,sha256=>binary:copy(<<"44">>,32)}}),
+    Metadata=#{snapshot=>null,interpretation=>stored(),accepted=>position(),changed_lsn=><<"3">>,row_count=><<"9">>,schema=>schema(),authority=>#{database=>31,schema=>32,table=>33}},
+    %% Saved bytes are decoded once; the response embeds the complete object.
+    {ok,SnapshotBytes}=A:save(Snapshot),M=Metadata#{snapshot=>transit_sdk_value:json(SnapshotBytes,96)},
+    response(A,Root,#{retention=>#{metadata=>M}},fun(C)->{ok,#transit_catalog_snapshot_metadata{row_count=9,schema=#transit_catalog_schema{columns=[_]}}}=A:snapshot_metadata(C,Snapshot) end),
+    Stored=#{table=>#{definition=>definition(),namespace=>1,bytes=>binary:copy(<<"ab">>,300000)}},
+    response(A,Root,#{compiled=>#{summary=>summary(),saved=>Stored}},fun(C)->
+        Rows=[[#transit_catalog_assignment{column=1,value={value,{atom,{signed,1}}}}]],{ok,#transit_catalog_compiled{saved=Saved,intent=#transit_catalog_intent{identity=#transit_catalog_identity{operation=10}}}}=A:prepare(C,<<"items">>,#transit_catalog_identity{operation=10},{mutate,Basis,{insert,Rows},bulk}),
+        {ok,Bytes}=A:save(Saved),true=byte_size(Bytes)>600000
+    end),Ref.
+main(A,[Root])->
+    ok=beam_schema_values:run(),ok=beam_logical_values:run(),ok=file:write_file(filename:join(Root,"seed"),lists:duplicate(64,$1)),Ref=values(A,Root),
+    lists:foreach(fun(Mode)->C=open(A,Root,Mode),try {uncertain,Ref,#transit_error{kind=unknown_outcome,status=6}}=A:admit(C,Ref) after close(A,C) end,joined(Root) end,
+        [<<"loss">>,#{status=>0,value=>#{observation=>#{rows=>#{committed=>#{}}}}},#{status=>0,value=>#{observation=>observed(),extra=>true}}]),
+    Denied=open(A,Root,#{status=>4,value=>#{err=><<"TableGrantDenied">>}}),try {error,#transit_error{kind=access_denied,status=4}}=A:admit(Denied,Ref) after close(A,Denied) end,joined(Root),
+    ok=file:write_file(filename:join(Root,"reply.json"),json:encode(#{status=>0,value=>#{observation=>observed()}})),
+    C=open(A,Root,<<"block">>),Parent=self(),{Waiting,Monitor}=spawn_monitor(fun()->Parent!{unexpected,A:admit(C,Ref)} end),
+    try wait(fun()->filelib:is_file(filename:join(Root,"entered")) end),exit(Waiting,kill),receive {'DOWN',Monitor,process,Waiting,killed}->ok after 5000->error(waiter_alive) end,
+        {error,#transit_error{kind=busy}}=A:capabilities(C),{Closer,CloseMonitor}=spawn_monitor(fun()->Parent!{closed,A:close(C)} end),receive {closed,_}->error(abandoned_native_work) after 100->ok end,
+        ok=file:write_file(filename:join(Root,"release"),<<"1">>),receive {closed,{ok,_}}->ok after 5000->error(close_not_joined) end,receive {'DOWN',CloseMonitor,process,Closer,normal}->ok after 5000->error(closer_alive) end,
+        {error,#transit_error{kind=closed}}=A:capabilities(C),joined(Root)
     after file:write_file(filename:join(Root,"release"),<<"1">>),A:close(C) end,
-    file:delete(filename:join(Root,"seed")),io:format("~p general Table values, schema history, large frames, uncertain receipts and joined waiter loss passed.~n",[A]).
+    file:delete(filename:join(Root,"seed")),io:format("~p direct values, complete bindings, wide saved work and joined waiter/port loss passed.~n",[A]).

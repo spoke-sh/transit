@@ -72,7 +72,7 @@ closed: bool = false,
 pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !Self {
     try bundle.validate();
     try options.identity.validate();
-    if (bundle.plan.lifetime != .maintained or bundle.sources[0].scope.realm != client.realm or bundle.sources[0].scope.resource != options.resource or bundle.sources[0].owner != options.owner) return error.RelationalSourceChanged;
+    if (bundle.plan.lifetime != .maintained or bundle.sources[0].scope.realm != client.realm) return error.RelationalSourceChanged;
     if (options.requests < 2) return error.QueryPageBudget;
     if (options.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     const subject = try q.ResultDisclosure.check(disclosure, try options.selection(bundle), client.realm);
@@ -180,11 +180,22 @@ fn authorize(self: *Self, finish: bool) !void {
     if (!grant.allow or grant.revision != self.stored.policy_revision or grant.requests != self.stored.request.resource or !std.mem.eql(u8, &grant.request, &try self.bundle.fingerprint())) return error.QueryDenied;
     const original = try self.bundle.subject(self.stored.request_version.pid, self.stored.peer, self.stored.request.resource);
     if (original.principal() != grant.principal) return error.QueryDenied;
-    var observed: ?p.Authorization.Guard = null;
-    var authority = q.QueryAuthorization.readerContext(self.source.client, self.disclosure, &observed);
+    var authority = q.QueryAuthorization.readerContext(self.source.client, self.disclosure, null);
     authority.budget = .{ .used = &self.requests, .limit = self.options.requests };
-    for (self.bundle.sources) |source| {
-        try add(&selections, source.scope.resource, q.catalog.Records.key(source.scope.catalog, 'c', 0, 0));
+    // Immutable acquisition evidence survives direct lease closure. Source
+    // permissions remain current and are independent of progress storage.
+    var required: ?p.Authorization.Guard = null;
+    for (self.bundle.sources, self.bundle.plan.sources, 0..) |source, declared, i| {
+        if (try self.bundle.sourceOrdinal(i) != i) continue;
+        var storage: [16384]u8 = undefined;
+        var fixed: std.heap.FixedBufferAllocator = .init(&storage);
+        const slot: q.CapturedTablePin.Slot = .{ .job = self.stored.id, .source = @intCast(i) };
+        const pin = (try q.CapturedTablePin.observe(fixed.allocator(), &reader, slot, self.options.owner)) orelse return error.IncompleteSource;
+        if (!std.meta.eql(pin.grant, self.bundle.retention[i])) return error.RelationalSourceChanged;
+        const retained = try q.CapturedTablePin.source(fixed.allocator(), &reader, slot, self.options.owner);
+        _ = try source.basis(retained, declared.schema);
+        const guard = try retained.authority.guard(self.disclosure);
+        required = if (required) |previous| try previous.merge(guard) else guard;
     }
     const value = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = selections, .finish = finish });
     for (value.current) |slot| if (slot) |current_result| {
@@ -198,13 +209,8 @@ fn authorize(self: *Self, finish: bool) !void {
             if (live.phase == .retired) return error.MaintainedResetRequired;
             if (live.id != self.stored.id or live.policy_revision != self.stored.policy_revision or !std.meta.eql(live.request, self.stored.request) or !std.meta.eql(live.request_version, self.stored.request_version) or live.revision < self.stored.revision) return error.QueryDenied;
         }
-        var data: q.wire.ResourceReader.Reader = .{ .client = self.source.client, .view = .{ .resource = current_result.resource.id, .revision = current_result.resource.revision } };
-        var authorized = authority.wrap(&data);
-        for (self.bundle.sources) |source| if (source.scope.resource == current_result.resource.id) {
-            _ = try source.checkCurrent(&authorized, self.disclosure.principal());
-        };
     };
-    _ = try authority.requireAuthorization(observed orelse return error.QueryDenied);
+    _ = try authority.requireAuthorization(required orelse return error.QueryDenied);
 }
 fn order(self: *Self, identity: @FieldType(f.RelationalExecution.Output, "identity")) !void {
     if (self.last) |previous| if (try f.RelationalDelta.identityOrder(previous, identity) != .lt) return error.InvalidRelationalSourceOrder;
@@ -267,6 +273,21 @@ pub fn next(self: *Self) !?Event {
     self.chain = chain;
     self.last = identity;
     return event;
+}
+/// Recheck this retained revision's current disclosure rights without reading
+/// output or advancing a consumer checkpoint. Composed inspection shares the
+/// same request budget and must check again before disclosing its result.
+pub fn check(self: *Self) !void {
+    if (self.failed or self.complete or self.closed or self.source.closed) return error.QueryClosed;
+    try self.authorize(false);
+}
+/// Observe freshness for this exact complete revision without waking maintenance.
+/// Output/delta coverage remains incomplete until next() reaches its checked end.
+pub fn freshness(self: *Self, clients: []const q.catalog.DirectTableClient) !q.RelationalFreshness {
+    try self.check();
+    const result = try q.RelationalFreshness.maintained(self.bundle, self.manifest.vector, clients, self.disclosure);
+    try self.check();
+    return result;
 }
 pub fn checkpoint(self: *const Self) !Position {
     if (!self.complete or self.failed) return error.IncompleteResult;

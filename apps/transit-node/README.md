@@ -1,7 +1,8 @@
 # transit-node
 
 The Transit authority executable composes [transit-core](../../packages/zig/transit-core/README.md),
-the [Ursula backend](../../packages/zig/transit-backend-ursula/README.md), signed
+the configured [local](../../packages/zig/transit-backend-local/README.md) or
+[Ursula](../../packages/zig/transit-backend-ursula/README.md) storage backend, signed
 HTTP ingress and a trusted clock. It validates and commits protocol operations;
 application handlers run in callers.
 
@@ -26,6 +27,7 @@ diagnostics. `profile` is `native_v1`, including when omitted.
 | --- | --- |
 | `POST /v1/command` | Signed mutation or reconciliation of an accepted receipt |
 | `POST /v1/query` | Signed process, delivery, inspection, resource and snapshot reads |
+| `POST /table/v1` | Signed direct Table operations when the local `table` owner is configured |
 | `GET /health` | Refresh storage and report role readiness |
 
 The [service contract](../../contracts/SERVICE_V1.md) owns envelopes, signature
@@ -38,7 +40,7 @@ Incompatible histories and saved operations reject under the
 The listener allows 16 connections, four ordinary requests, four notification
 waits and two reserved control requests, with 64 sequential exchanges per
 connection. Each admitted request owns an execution lane with its own engine,
-provider client and bounded caches. Immutable reads and preparation overlap;
+provider state and bounded caches. Immutable reads and preparation overlap;
 conditional journal append serializes accepted successors. A competing
 publication can return `Conflict`; uncertain outcomes still require the original
 request identity. This does not create independent write shards or establish
@@ -55,11 +57,37 @@ caller without an implicit retry. Hosts use `Client.contended` to distinguish an
 from expiry, fencing or a conflicting request identity, while retaining exact
 pending commands through their own bounded scheduling policy.
 
-Run `--maintain` separately for authorized lifetime, collection and checkpoint
-work. The [courier](../transit-delivery/README.md) delivers committed outputs via
+With Ursula storage, run `--maintain` separately for authorized lifetime,
+collection and checkpoint work. With local storage, the `maintenance` setting
+runs lifecycle scans and accepted-floor trimming inside the node's exclusive
+owner; a separate `--maintain` process rejects. Local immutable objects remain
+retained. The local launcher selects this backend. Configured Table operations
+use the separate direct Table owner; native process, KV and Document state retain
+their paged native commit boundary. The
+[courier](../transit-delivery/README.md) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
 reconciles physical placement through Substrate. Workers need neither Ursula
 credentials nor provider access.
+
+`LocalCatalogPolicy` connects the internal direct catalog component to the same
+native role graph, credential checks and resource lifetime fence. It verifies
+the original caller's signed request context and the registered domain bindings;
+it supplies no new grant store. `LocalCatalogRunner` resumes explicit CREATE execution through the
+existing native registration ledger. It prepares each native step, checks the
+original caller again, then commits only against that checked native head.
+Inspection does not run this helper. `just test::local-catalog` exercises this
+composition with real signed native changes and local disk storage.
+
+`LocalTableService` dispatches the [signed direct Table contract](../../contracts/DIRECT_TABLE_V1.md)
+inside that owner. The composition test drives declaration admission/execution,
+binary row writes, retained reads and release through its serialized envelopes.
+The dispatcher checks current rights after buffering the response; a concurrent
+revocation suppresses disclosure. The local `table` setting exposes this dispatcher
+at `/table/v1`. The local launcher configures this owner for its default Tables;
+the shared SQL session, captured queries and direct catalog SDK adapters use
+the same signed direct operations. The [catalog caller guide](../../packages/zig/transit-catalog/README.md)
+describes the typed operations and host boundary; the [SDK reference](../../docs/handbook/reference/sdks.md)
+owns language coverage.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep

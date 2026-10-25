@@ -50,8 +50,8 @@ pub const Read = struct {
     emitted: bool = false,
     started: bool = false,
     index: usize = 0,
-    tables: ?q.catalog.TableCatalog.Page = null,
-    schemas: ?q.catalog.SchemaCatalog.Page = null,
+    tables: ?@FieldType(q.catalog.DirectTableProtocol.Result, "list") = null,
+    schemas: ?@FieldType(q.catalog.DirectTableProtocol.Result, "namespaces") = null,
     pages: u64 = 0,
     pub fn init(host: *Host, prepared: *Prepared) !Read {
         var self: Read = .{ .host = host, .plan = &prepared.plan, .arena = .init(host.allocator) };
@@ -86,10 +86,9 @@ pub const Read = struct {
                     var table = self.host.table;
                     table.connection.scope.resource = database.binding.resource;
                     table.connection.scope.catalog = database.binding.catalog;
-                    table.connection.owner = database.binding.owner;
-                    table.connection.namespace = database.binding.namespace;
+                    table.connection.audience = database.binding.owner;
                     table.connection.role = database.binding.role;
-                    _ = table.describeDatabase() catch |err| {
+                    _ = table.require(.{ .namespace = null, .target = null, .access = .database }) catch |err| {
                         if (err == error.AccessDenied or err == error.CatalogDenied) continue;
                         return err;
                     };
@@ -102,19 +101,29 @@ pub const Read = struct {
                     if (self.tables) |page| while (self.index < page.entries.len) {
                         const slot = page.entries[self.index];
                         self.index += 1;
-                        if (slot) |entry| return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.metadata.name.slice()) });
+                        if (slot) |entry| {
+                            _ = try self.host.table.require(.{ .namespace = self.host.namespace, .target = entry.interpretation, .access = .inspect });
+                            return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
+                        }
                     };
                     if (self.started and self.tables.?.next == null) return null;
                 } else {
-                    if (self.schemas) |page| while (self.index < page.schemas.len) {
-                        const slot = page.schemas[self.index];
+                    if (self.schemas) |page| while (self.index < page.entries.len) {
+                        const slot = page.entries[self.index];
                         self.index += 1;
-                        if (slot) |entry| return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
+                        if (slot) |entry| {
+                            const current = try self.host.table.call(.{ .namespace = entry.id });
+                            defer current.deinit();
+                            if (current.value.result.namespace == null or !std.meta.eql(entry, current.value.result.namespace.?)) return error.CatalogIdentityConflict;
+                            return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
+                        }
                     };
                     if (self.started and self.schemas.?.next == null) return null;
                 }
                 if (self.pages == 10000) return error.ConfigurationReadBudgetExceeded;
-                if (kind == .tables) self.tables = try self.host.table.list(if (self.tables) |page| page.next else null) else self.schemas = try self.host.table.schemas(if (self.schemas) |page| page.next else null);
+                const response = try self.host.table.call(if (kind == .tables) .{ .list = .{ .namespace = self.host.namespace, .after = if (self.tables) |page| page.next else null } } else .{ .namespaces = .{ .after = if (self.schemas) |page| page.next else null } });
+                defer response.deinit();
+                if (kind == .tables) self.tables = response.value.result.list else self.schemas = response.value.result.namespaces;
                 self.started = true;
                 self.index = 0;
                 self.pages += 1;

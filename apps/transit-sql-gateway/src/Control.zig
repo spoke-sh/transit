@@ -41,12 +41,8 @@ fn number(args: []const []const u8, index: usize) !u64 {
     if (index >= args.len) return error.ExpectedControlArguments;
     return std.fmt.parseInt(u64, args[index], 10);
 }
-fn command(args: []const []const u8, table_wire: *g.station.client.Client, config: Config, table_key: p.Ed25519.KeyPair) !g.Control.Command {
-    if (args.len == 1 and std.mem.eql(u8, args[0], "initialize")) {
-        const caller: g.station.client.AuthorizationClient = .{ .transport = table_wire, .realm = config.ledger.realm, .principal = config.ledger.table_principal, .key = table_key };
-        const response = try caller.read(.identity);
-        return .{ .initialize = response.principal_sequence };
-    }
+fn command(args: []const []const u8) !g.Control.Command {
+    if (args.len == 1 and std.mem.eql(u8, args[0], "initialize")) return .{ .initialize = {} };
     if (args.len == 2 and std.mem.eql(u8, args[0], "reconcile")) return .{ .reconcile = try number(args, 1) };
     if (args.len == 2 and std.mem.eql(u8, args[0], "cancel")) return .{ .cancel = try number(args, 1) };
     if (args.len == 3 and std.mem.eql(u8, args[0], "reserve")) return .{ .reserve = .{ .operation = try number(args, 1), .bytes = try number(args, 2) } };
@@ -62,27 +58,21 @@ const Entry = struct {
     resource: u64,
     catalog: u64,
     phase: g.LedgerRecords.Phase,
-    pending_sequence: u64,
-    input: u64,
+    dispatch_eligible: bool,
     blocked: bool,
     cancellation_requested: bool,
     fn from(item: g.LedgerRecords.Operation) Entry {
-        return .{ .operation = item.id, .resource = item.resource, .catalog = item.catalog, .phase = item.phase, .pending_sequence = item.pending_sequence, .input = item.input, .blocked = item.blocked != 0, .cancellation_requested = item.cancel != 0 };
+        return .{ .operation = item.id, .resource = item.resource, .catalog = item.catalog, .phase = item.phase, .dispatch_eligible = item.published != 0, .blocked = item.blocked != 0, .cancellation_requested = item.cancel != 0 };
     }
 };
-fn terminal(init: std.process.Init, client: *g.Client, source: anytype, item: g.LedgerRecords.Operation, key: p.Ed25519.KeyPair, reader_key: p.Ed25519.KeyPair) !?g.Terminal {
+fn terminal(init: std.process.Init, client: *g.Client, source: anytype, item: g.LedgerRecords.Operation, key: p.Ed25519.KeyPair) !?g.Terminal {
     if (item.phase != .terminal) return null;
     const ledger = client.ledger;
-    var cached = try client.cachedSource(source.view.revision);
-    const bytes = try g.Upload.read(init.gpa, ledger.publication(item.id), &cached, 1, ledger.configuration.intent_bytes);
-    defer init.gpa.free(bytes);
-    defer std.crypto.secureZero(u8, bytes);
-    var intent = try g.catalog.TableIntent.restore(init.gpa, bytes);
-    defer intent.deinit();
-    defer std.crypto.secureZero(u8, intent.bytes);
-    var table: g.catalog.TableClient = .{ .transport = client.transport, .connection = .{ .scope = .{ .realm = ledger.configuration.realm, .resource = item.resource, .catalog = item.catalog }, .owner = item.owner, .principal = ledger.configuration.table_principal, .namespace = item.namespace, .role = item.selectedRole() }, .key = key, .reader = .{ .wire = client.transport, .realm = ledger.configuration.realm, .principal = ledger.configuration.reader, .key = reader_key } };
-    const observation = try table.inspectIntent(&intent);
-    const actual = if (observation.outcome) |outcome| try g.Terminal.fromOutcome(outcome) else if (observation.upload) |upload| try g.Terminal.fromUpload(upload) else return error.GatewayOperationNotTerminal;
+    const reference = try ledger.readReference(init.gpa, source, item);
+    const table: g.catalog.DirectTableClient = .{ .allocator = init.gpa, .authority = client.transport, .service = client.transport, .connection = reference.connection(), .key = key };
+    const response = try reference.operation(table, .inspect, 1);
+    defer response.deinit();
+    const actual = (try g.Terminal.fromReference(reference, response.value.result)) orelse return error.GatewayOperationNotTerminal;
     const saved = try g.LedgerRecords.decode(g.Terminal, (try source.read(g.LedgerRecords.key('t', item.id, 0))) orelse return error.InvalidGatewayTerminal);
     if (!std.meta.eql(saved, actual)) return error.GatewayIdentityConflict;
     return actual;
@@ -92,10 +82,10 @@ fn list(client: *g.Client, cursor: ?g.Ledger.Cursor) !g.Ledger.Page {
     return client.ledger.list(&source, cursor);
 }
 const Status = struct { operation: Entry, terminal: ?g.Terminal };
-fn status(init: std.process.Init, client: *g.Client, id: u64, key: p.Ed25519.KeyPair, reader_key: p.Ed25519.KeyPair) !Status {
+fn status(init: std.process.Init, client: *g.Client, id: u64, key: p.Ed25519.KeyPair) !Status {
     var source = try client.source();
     const item = try client.ledger.operation(&source, id);
-    return .{ .operation = Entry.from(item), .terminal = try terminal(init, client, &source, item, key, reader_key) };
+    return .{ .operation = Entry.from(item), .terminal = try terminal(init, client, &source, item, key) };
 }
 // A concurrent ledger turn can invalidate a current-revision metadata read.
 // Retry only the observation before printing any output. Caller-supplied page
@@ -126,8 +116,6 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostics: *g.que
     defer std.crypto.secureZero(u8, std.mem.asBytes(&control_key));
     var table_key = try g.query.wire.readKey(init.gpa, init.io, config.table_key_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&table_key));
-    var reader_key = try g.query.wire.readKey(init.gpa, init.io, config.reader_key_file);
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&reader_key));
     var wire = g.station.client.Client.init(init.gpa, init.io, config.native_url);
     defer wire.deinit();
     errdefer if (wire.last_rejection) |cause| diagnostics.event(.{ .name = "sql.control.rejected", .level = .err, .outcome = .rejected, .error_type = @tagName(cause) });
@@ -152,7 +140,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostics: *g.que
         return print(init, .{ .entries = entries[0..count], .next = page.next, .revision = page.revision });
     }
     if (std.mem.eql(u8, action, "status") and args.len == 3) {
-        return print(init, try fresh(init, &client, config.timeout_ms, status, .{ init, &client, try number(args, 2), table_key, reader_key }));
+        return print(init, try fresh(init, &client, config.timeout_ms, status, .{ init, &client, try number(args, 2), table_key }));
     }
     if (std.mem.eql(u8, action, "credential") and args.len == 5) {
         const password = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.gpa, .limited(g.Authentication.max_password_bytes));
@@ -176,7 +164,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostics: *g.que
     var pending = try loadPending(init, config, &client);
     if (std.mem.eql(u8, action, "prepare") and args.len > 2) {
         if (pending) |value| if (!value.processed) return error.GatewayControlPending;
-        const prepared = try client.prepare(try command(args[2..], &wire, config, table_key));
+        const prepared = try client.prepare(try command(args[2..]));
         try save(init, config.pending_file, Pending{ .prepared = prepared });
         return print(init, .{ .state = "prepared", .sequence = prepared.signed.request.sequence });
     }

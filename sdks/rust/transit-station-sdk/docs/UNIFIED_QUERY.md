@@ -7,11 +7,11 @@ typed values, allocation and native-worker lifetimes. Importing the crate
 performs no work or credential access.
 
 Construct `Source::KV` with versioned key/value `Decoder`s, `Source::Table` with
-a catalog `Metadata`, `Schema` and owner `ProcessRef`, or `Source::Document` with an accepted reference and
+a direct catalog `Scope`, service audience, branch, namespace, `TableInterpretation` and `Schema`, or `Source::Document` with an accepted reference and
 bounded projections with `DecoderColumn` declarations. Query `Type`, `Scalar`
 and cell types reuse the shared logical models; `Column` has a descriptor and
 explicit nullable/optional flags. `DecoderType` retains the six-scalar KV/Document
-profile. The native query owner verifies the metadata commitment and current
+profile. The native query owner verifies the full interpretation commitment and current
 catalog rights. `Bundle::prepare` validates them and returns canonical owned
 bytes. This local operation grants no access and admits no work.
 
@@ -24,12 +24,21 @@ errors. EXPLAIN exposes owned `InspectedPredicate::Program` instructions with
 `InspectedAtom` structure and no literals. These host values are not durable
 state; preserve the resulting canonical bundle for query recovery.
 
-`Client::open(config, credential, connection)` binds a caller to source/requester
+`Client::open(config, credential, connection, tables)` binds a caller to source/requester
 PIDs and resources in one realm. It requires neither activation nor writer
 ownership. One owned worker runs native operations on the required stack. Methods
 take an exclusive mutable borrow; concurrent access cannot be hidden in an
 unbounded executor queue. The API blocks: move the owner into a host blocking
 task when integrating with an executor. `close` and drop join native destruction.
+
+Pass `Some(Tables { url, scope, branch, audience })` to configure the direct
+endpoint, or `None` for native sources alone. Direct reads share the query
+client's caller, credential and role. The Table catalog and native progress
+resources can differ within one realm. `lookup_table(namespace, name)` returns an
+optional `TableDefinition` with the full schema, exact source identity and observed
+frontier. Lookup acquires no pin and starts no query. Compile using its `source`,
+then use `definition.capture(executor, operation)` to construct explicit capture
+input. A concurrent change can reject that frontier without rebinding saved work.
 
 `compile_sql(&source, name, sql, budgets, parameters)` returns an owned `Bundle`
 under the client's exclusive mutable borrow. `parameters` is `Option<&[Scalar]>`:
@@ -70,15 +79,17 @@ persistence/submission/observation sequence. Dropping a host wait does not cance
 accepted work.
 
 `page(namespace, cursor.as_ref())` returns one owned IPC segment, exact typed
-manifest provenance including the retained source-head digest, and optional
-continuation. Every read rechecks current grants
+manifest provenance and optional continuation. `Manifest.cut` is `Cut::Native`
+for a KV/Document resource revision or `Cut::Table` for the original direct
+interpretation/manifest/WAL commitment. `Manifest.source` distinguishes a native
+read version from a direct query worker in `Retention`. Every read rechecks current grants
 and lifecycle. Retain a cursor only with its connection/namespace; it grants no
 permission. Failure cannot advance the borrowed cursor. None next establishes
 verified complete coverage. A page's `decode` uses shared Zig to preserve five
 cell states and ordered conflict IDs. The optional pinned Arrow 59.1.0 feature
 adds `to_arrow`, retaining the nested state/alternative schema.
 
-Bounds are 25,255 bytes per bundle, eight rows and 128 result columns per batch,
+Bounds are 25,614 bytes per bundle, eight rows and 128 result columns per batch,
 4 KiB per predicate byte literal and 64 KiB per IPC segment. KV sources have two
 columns and Document projections remain bounded to eight. Source/output names
 are nonempty UTF-8 of at most 255 bytes without NUL. Full-width counters, integers and float bits survive the
@@ -91,12 +102,20 @@ completed runs from planned matrix coverage.
 
 Connections accept an optional selected native role; omission uses the login role.
 Local bundle construction produces a description. Call `authorize_bundle` once on the
-query client before persisting a newly constructed Table bundle or its fingerprint.
+query client with `Some(Capture { executor, operation, partition, next_lsn })`
+before persisting a newly constructed Table bundle or its fingerprint. The executor
+is a principal; pin identity and frontier fields use full-width `u64` values.
+Native KV/Document descriptions use `None`.
 The returned bytes bind the authenticated caller, role, credential epoch, source
-owner and requester to the exact query and budget. SQL compilation already returns
-an authorized bundle. An already authorized Table bundle rejects resealing.
+owner and requester to the exact query and budget. SQL compilation returns an unsigned description; Tables require explicit
+capture authorization. An already authorized Table bundle rejects resealing.
 
 Persist and recover the original bundle bytes unchanged, alongside each prepared
 command and receipt. Current authorization is checked again during progress and
 result disclosure. Credential or policy changes never justify replacing accepted
-work with a newly signed bundle. The complete bundle bound is 25,255 bytes.
+work with a newly signed bundle. The complete bundle bound is 25,614 bytes.
+
+`prepare_cleanup(namespace, &original_bundle)` returns a separately authorized
+terminal cleanup control under the current credential. Persist, submit and observe
+it like other controls. It preserves the original execution proof and source cut
+after credential rotation and grants no source scan or query resumption.

@@ -14,6 +14,8 @@ pub const Authorization = @import("Authorization.zig");
 pub const Growth = @import("Growth.zig");
 pub const Inspection = Growth.Inspection;
 pub const Lifecycle = @import("Lifecycle.zig");
+pub const DataLifecycle = @import("DataLifecycle.zig");
+pub const IndexLifecycle = @import("IndexLifecycle.zig");
 pub const max_effect_observations = 16;
 pub const max_payload_bytes = 64 * 1024;
 pub const max_turn_outputs = Growth.turn_outputs;
@@ -59,6 +61,8 @@ test {
     _ = Diagnostic;
     _ = EffectDiagnostic;
     _ = Authorization;
+    _ = DataLifecycle;
+    _ = IndexLifecycle;
 }
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.
@@ -142,6 +146,7 @@ pub const ErrorCode = enum {
     FreshKeyRequired,
     HistoryPinned,
     HistoryReclaimed,
+    TableDefinitionChanged,
     QueryExpired,
     IdentityElement,
     InvalidAttempt,

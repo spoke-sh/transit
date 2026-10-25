@@ -35,13 +35,12 @@ The [unified query guide](docs/UNIFIED_QUERY.md) covers typed v1 sources, finite
 plans, persisted admission commands and immutable nested Arrow pages.
 
 The [catalog guide](docs/CATALOG.md) covers general schemas, typed mutations,
-ALTER/DROP, historical metadata, policy and exact saved-intent recovery.
+ALTER/DROP, current inspection, explicit retention and exact saved-intent recovery.
 The [logical value guide](docs/LOGICAL.md) describes owned recursive types and
 cells, exact numbers and bounded neutral codecs.
 
 The [handler Table guide](docs/TABLES.md) covers typed rows, retained cuts and
 saved mutations that advance through explicit continuation turns.
-
 
 Handler query failures use a typed callback with the authenticated origin,
 correlation, result identity and reason. See

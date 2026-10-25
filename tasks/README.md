@@ -49,10 +49,10 @@ directory. Recipes work from repository subdirectories after entering the dev
 shell. `just ci` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
-`just test::catalog` and `just test::typed-tables` use disk-backed cold storage
-with bounded hot storage and caches. Their retained authorization and Table
-histories can exceed a hot-only store's finite capacity; the proof does not
-raise that capacity or discard history to complete.
+`just test::catalog` qualifies direct dependencies and named native resources;
+`just test::direct-table-service` qualifies direct Table operations. Their local durable
+owners retain history on disk with bounded metadata/data caches. Growth schedules
+retain more objects and rows than those caches without discarding accepted work.
 
 | Command | What it does today |
 | --- | --- |
@@ -68,7 +68,7 @@ raise that capacity or discard history to complete.
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all six lane reports at the same committed revision |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
-| `just bindings::authorization` | Build all ten SDKs and run installed grant/use/revoke lifecycles through the private Table service without raw resource access |
+| `just bindings::authorization` | Build all ten SDKs and run installed direct catalog lifecycles with explicit selected roles, current revocation and denied raw resource access |
 | `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
 | `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
@@ -89,10 +89,13 @@ raise that capacity or discard history to complete.
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
 | `just test::public-query` | Exercise the native query callers/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::named-relational` | Check independent named-query records, separate publication/authorization/activation and captured/maintained native recovery on disk |
+| `just test::direct-named-query` | Qualify named captured definitions over direct Tables, separate activation, worker replacement, original attribution and verified results |
+| `just test::direct-dependencies` | Qualify exact dependency registration/removal, redacted DROP RESTRICT and original receipt recovery across abrupt node replacement; traverse 139 retained edges beyond resident caches |
+| `just test::direct-named-resources` | Qualify named KV/Document allocation, actual writer initialization, typed access and original receipts across lost replies and node replacement; retain 139 initialized objects beyond resident caches |
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |
 | `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |
-| `just test::sql-gateway` | Exercise signed gateway controls and coordinator recovery through native owners on disk-backed Ursula; included in growth CI |
+| `just test::sql-gateway` | Exercise signed gateway controls and direct Table outcome recovery through local durable owners; included in growth CI |
 | `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in growth CI |
 | `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
@@ -100,6 +103,8 @@ raise that capacity or discard history to complete.
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
 | `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
+| `just test::server-direct-tables` | Exercise installed direct Table CRUD/DDL with the query worker stopped, exact bootstrap recovery and deliberate default-Table deletion |
+| `just test::server-direct-faults` | Refuse direct execution while testing new-console status, cancellation and exact recovery across caller/manager loss |
 | `just test::server-sql-local` | Exercise the default build's installed executables and adjacent discovery under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
 | `just test::server-sql-lifetimes` | Verify idle psql and PostgreSQL/MySQL sockets, native session expiry, explicit timeout errors and bounded partial frames over plaintext/TLS |
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
@@ -164,6 +169,7 @@ raise that capacity or discard history to complete.
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
 | `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
+| `just test::local-catalog` | Checks the internal direct catalog against signed native registrations, ownership changes and resource retirement on local disk |
 | `just test::node-recovery` | Qualifies read-only retained startup through provider connection loss and unavailability, finite exhaustion, and denied/missing/genesis rejection |
 | `just test::node-concurrency` | Uses provider barriers to check overlapping signed reads/commits, revocation during a read and one receipt for concurrent exact retries |
 | `just test::block-storage` | Checks immutable block/index primitives through disk restart, failed staging and corrupt/missing bytes; native turn and SQL integration are separate |

@@ -16,7 +16,6 @@ import time
 import urllib.error
 import urllib.request
 
-from cold_storage import minio_binary
 from storage import free_port
 from table_console import TableConsole, atom, records, results as table_results
 
@@ -73,12 +72,11 @@ class Fixture:
         self.cli = str(self.root / "transit")
         shutil.copy2(Path(cli).resolve(), self.cli)
         self.reserved_ports = set()
-        ports = [self.reserve_port() for _ in range(6)]
+        ports = [self.reserve_port() for _ in range(3)]
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
-            "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports[:5])),
-            "sql": {"health_port": ports[5]},
-            "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
-                "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
+            "ports": dict(zip(("node", "gateway"), ports[:2])),
+            "sql": {"health_port": ports[2]},
+            "executables": {"node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
                 "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
                 "board": os.environ.get("TEST_TRANSIT_BOARD_BINARY", str(Path(cli).resolve().parent / "transit-board"))}}
         self.path = self.root / "transit.yaml"
@@ -264,7 +262,8 @@ def run(cli, node, host):
     # Own/reap grandchildren when deliberately killing the manager. Runtime
     # supervision uses PDEATHSIG and does not depend on this fixture facility.
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
-    fixture = Fixture(cli, node, host)
+    from server_direct_boundary import FaultFixture
+    fixture = FaultFixture(cli, node, host)
     start = time.monotonic()
     success = False
     print(f"Transit server proof: {fixture.root}", flush=True)
@@ -274,6 +273,13 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert 'creating installation' in Path(fixture.logs[-1].name).read_text()
+        node_config = json.loads((fixture.installation / 'node.json').read_text())
+        assert node_config['local_directory'] == str(fixture.installation / 'data/native')
+        assert 'ursula_url' not in node_config
+        assert list((fixture.installation / 'data/native/wal').glob('*.twal'))
+        assert list((fixture.installation / 'data/native/objects').glob('*.data'))
+        owned_commands = [command(pid) for pid in children(fixture.process.pid)]
+        assert not any('minio server' in value or 'ursula server' in value or '--maintain' in value for value in owned_commands)
         from server_configuration import run as configuration_proof
         configuration_proof(fixture)
         from server_faults import gateway_hosts, reusable_connections
@@ -336,19 +342,25 @@ def run(cli, node, host):
         info = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(explicit), '--format', 'json'],
                               input='.info\n', capture_output=True, text=True, timeout=30)
         assert info.returncode == 0 and json.loads(info.stdout)['database'] == 'transit', info
-        # Kill a console after native admission while the owner cannot process
-        # its input. The native service must retain and recover the same operation.
-        source_pid = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
-        os.kill(source_pid, signal.SIGSTOP)
+        # Kill a console after its exact direct binding is dispatched while
+        # Table execution is refused. Native ledger/control remains available.
+        fixture.boundary.pause()
         pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
                                     'INSERT INTO items (id, value) VALUES (3, 300)'],
                                    cwd=fixture.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    env={'PATH': '/unavailable', 'LANG': 'C'})
         try:
-            deadline = time.monotonic() + 20
+            deadline = time.monotonic() + 60
             while True:
+                if not fixture.boundary.observed.exists():
+                    assert pending.poll() is None and time.monotonic() < deadline, 'direct work was not dispatched'
+                    time.sleep(.05)
+                    continue
+                binding = json.loads(fixture.boundary.observed.read_text())
                 inventory = fixture.sql_operations()
-                unfinished = [entry for entry in inventory if entry['phase'] not in ('terminal', 'abandoned')]
+                unfinished = [entry for entry in inventory
+                              if int(entry['identity']['id']) == binding['identity']['operation']
+                              and entry['phase'] not in ('terminal', 'abandoned')]
                 if unfinished:
                     saved_write = unfinished[-1]
                     operation = saved_write['identity']['id']
@@ -363,7 +375,7 @@ def run(cli, node, host):
         record_path = fixture.installation / "installation.json"
         saved = record_path.read_bytes()
         try:
-            for incompatible in (None, "previous-v1-definition", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
+            for incompatible in (None, "previous-v1-definition", "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
                 record = json.loads(saved)
                 if incompatible is None:
                     del record['definition']
@@ -377,6 +389,13 @@ def run(cli, node, host):
                 rejected = fixture.console('SELECT COUNT(*) FROM items;\n', expected=1)
                 assert rejected.stderr and not rejected.stdout, rejected
                 assert record_path.read_bytes() == encoded
+            for missing in ('default_table', 'table_registrar_receipt'):
+                record = json.loads(saved)
+                del record[missing]
+                encoded = json.dumps(record).encode()
+                record_path.write_bytes(encoded)
+                fixture.refusal('cannot read the retained installation record')
+                assert record_path.read_bytes() == encoded
         finally:
             record_path.write_bytes(saved)
         fixture.start()
@@ -384,6 +403,7 @@ def run(cli, node, host):
         assert fixture.record()["provision"] == original["provision"]
         observed = fixture.sql_session(dict(status=dict(operation=saved_write['identity'])))['operation']
         assert observed['identity'] == saved_write['identity']
+        fixture.boundary.resume()
         resumed = fixture.sql_session(dict(resume=saved_write['identity']))['operation']
         deadline = time.monotonic() + 90
         while resumed['phase'] != 'terminal':
@@ -396,7 +416,7 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        for role in ('"catalog":', "/transit-node ", "ursula server"):
+        for role in ('"unified_source":', "/direct-node ", '"unified_requester":'):
             fixture.kill_role(role)
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
@@ -409,7 +429,7 @@ def run(cli, node, host):
         assert "restart budget exhausted" in failure and "ChildExited" in failure, failure
         assert 'role="courier"' in failure and "retrying" not in failure, failure
         fixture.stop()
-        for name in ("wal", "cold"):
+        for name in ("data",):
             old = fixture.installation / name
             backup = fixture.installation / (name + "-absent")
             old.rename(backup)
@@ -432,7 +452,7 @@ def run(cli, node, host):
                 fixture.start()
                 fixture.ready()
             denied = fixture.console('INSERT INTO items (id, value) VALUES (4, 400);\n', expected=1)
-            assert 'CatalogDenied' in denied.stderr and not denied.stdout, denied
+            assert 'AccessDenied (42501)' in denied.stderr and not denied.stdout, denied
             assert not list(fixture.installation.glob('console-*'))
             assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '2'
         # The initialized default is a real catalog object. Startup must not
@@ -457,12 +477,13 @@ def run(cli, node, host):
         assert records(fixture.console('DESCRIBE items;\n')[-1]) == schema
         # A stopped child cannot process SIGTERM. Force the supervisor's timed
         # SIGKILL path and join its pipe drainers before closing their handles.
-        source = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
+        source = next(pid for pid in children(fixture.process.pid) if '"unified_source":' in command(pid))
         os.kill(source, signal.SIGSTOP)
         fixture.stop()
         success = True
         print(f"Transit server core lifecycle: passed in {time.monotonic() - start:.2f}s", flush=True)
     finally:
+        fixture.boundary.resume()
         fixture.cleanup()
         if success:
             shutil.rmtree(fixture.root)

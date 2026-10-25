@@ -36,6 +36,16 @@ pub const Identity = struct {
 pub const Row = struct {
     identity: Identity,
     cells: []const Cell,
+    /// A keyless Table preserves every row by its durable owner identity.
+    /// Keyed Tables use the declared equality/order semantics instead.
+    pub fn storageKey(self: Row, schema: s.Schema, output: []u8) ![]const u8 {
+        try self.identity.validate();
+        try schema.validateRow(self.cells);
+        if (schema.primary_key.len != 0) return @import("Collation.zig").encodePrimaryKeySortKey(schema, self.cells, true, output);
+        if (output.len < Identity.encoded_bytes) return error.RowBufferTooSmall;
+        output[0..Identity.encoded_bytes].* = try self.identity.encode();
+        return output[0..Identity.encoded_bytes];
+    }
     pub fn encode(self: Row, schema: s.Schema, output: []u8) ![]const u8 {
         try self.identity.validate();
         try schema.validateRow(self.cells);

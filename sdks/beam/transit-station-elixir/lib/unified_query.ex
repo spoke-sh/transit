@@ -22,10 +22,34 @@ defmodule Transit.Station.Sdk.UnifiedQuery.KvSource do
   defstruct [:resource, :key, :value, prefix: <<>>]
 end
 
-defmodule Transit.Station.Sdk.UnifiedQuery.TableSource do
-  @enforce_keys [:owner, :metadata, :schema]
+defmodule Transit.Station.Sdk.UnifiedQuery.TableInterpretation do
+  @enforce_keys [:revision, :digest, :byte_count, :schema_digest]
   @derive {Inspect, only: []}
-  defstruct [:owner, :metadata, :schema]
+  defstruct [:revision, :digest, :byte_count, :schema_digest]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.TableSource do
+  @enforce_keys [:scope, :audience, :branch, :namespace, :interpretation, :schema]
+  @derive {Inspect, only: []}
+  defstruct [:scope, :audience, :branch, :namespace, :interpretation, :schema]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.Tables do
+  @enforce_keys [:url, :scope, :branch, :audience]
+  @derive {Inspect, only: []}
+  defstruct [:url, :scope, :branch, :audience]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.Capture do
+  @enforce_keys [:executor, :operation, :partition, :next_lsn]
+  @derive {Inspect, only: []}
+  defstruct [:executor, :operation, :partition, :next_lsn]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.TableDefinition do
+  @enforce_keys [:source, :partition, :next_lsn]
+  @derive {Inspect, only: []}
+  defstruct [:source, :partition, :next_lsn]
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.Projection do
@@ -184,8 +208,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
     :request,
     :kind,
     :resource,
-    :revision,
-    :source_head,
+    :cut,
     :source_digest,
     :schema_digest,
     :plan_digest,
@@ -209,8 +232,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
     :request,
     :kind,
     :resource,
-    :revision,
-    :source_head,
+    :cut,
     :source_digest,
     :schema_digest,
     :plan_digest,
@@ -248,6 +270,10 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     Decoder,
     KvSource,
     TableSource,
+    TableInterpretation,
+    Tables,
+    Capture,
+    TableDefinition,
     Projection,
     DocumentSource,
     PredicateProgram,
@@ -298,7 +324,8 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def open(
         %Client.Config{} = config,
         %Client.Credential{} = credential,
-        %Connection{} = connection
+        %Connection{} = connection,
+        tables \\ nil
       ) do
     with :ok <- Runner.compatible(),
          do:
@@ -306,7 +333,8 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
              :transit_unified_query.open(
                Client.native(config),
                Client.native(credential),
-               native(connection)
+               native(connection),
+               native(tables)
              )
            )
   end
@@ -336,8 +364,17 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
       )
 
   @doc "Seal new work before persistence; recover saved bundles unchanged."
-  def authorize_bundle(client, %Bundle{} = bundle),
-    do: result(:transit_unified_query.authorize_bundle(client, native(bundle)))
+  def lookup_table(client, namespace, name),
+    do: result(:transit_unified_query.lookup_table(client, namespace, name))
+
+  def capture(%TableDefinition{} = definition, executor, operation),
+    do: convert(:transit_unified_query.capture(native(definition), executor, operation))
+
+  def authorize_bundle(client, %Bundle{} = bundle, capture \\ nil),
+    do: result(:transit_unified_query.authorize_bundle(client, native(bundle), native(capture)))
+
+  def prepare_cleanup(client, namespace, %Bundle{} = bundle),
+    do: result(:transit_unified_query.prepare_cleanup(client, namespace, native(bundle)))
 
   def prepare_next(client, namespace, %Bundle{} = bundle),
     do: result(:transit_unified_query.prepare_next(client, namespace, native(bundle)))
@@ -374,8 +411,21 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
 
   def native(%TableSource{} = v),
     do:
-      {:transit_unified_table, Client.native(v.owner), Catalog.native(v.metadata),
-       Catalog.native(v.schema)}
+      {:transit_unified_table, Catalog.native(v.scope), v.audience, v.branch, v.namespace,
+       native(v.interpretation), Catalog.native(v.schema)}
+
+  def native(%TableInterpretation{} = v),
+    do:
+      {:transit_unified_table_interpretation, v.revision, v.digest, v.byte_count, v.schema_digest}
+
+  def native(%Tables{} = v),
+    do: {:transit_unified_tables, v.url, Catalog.native(v.scope), v.branch, v.audience}
+
+  def native(%Capture{} = v),
+    do: {:transit_unified_capture, v.executor, v.operation, v.partition, v.next_lsn}
+
+  def native(%TableDefinition{} = v),
+    do: {:transit_unified_table_definition, native(v.source), v.partition, v.next_lsn}
 
   def native(%Projection{} = v),
     do:
@@ -426,10 +476,10 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     do:
       {:transit_unified_manifest, native(v.job), native(v.source), native(v.requester),
        native(v.correlation), native(v.policy_revision), native(v.request), native(v.kind),
-       native(v.resource), native(v.revision), native(v.source_head), native(v.source_digest),
-       native(v.schema_digest), native(v.plan_digest), native(v.pages), native(v.scanned),
-       native(v.selected), native(v.value_count), native(v.segments), native(v.rows),
-       native(v.byte_count), native(v.sum), native(v.finished), native(v.chain)}
+       native(v.resource), native(v.cut), native(v.source_digest), native(v.schema_digest),
+       native(v.plan_digest), native(v.pages), native(v.scanned), native(v.selected),
+       native(v.value_count), native(v.segments), native(v.rows), native(v.byte_count),
+       native(v.sum), native(v.finished), native(v.chain)}
 
   def native(%Page{} = v),
     do:
@@ -491,12 +541,41 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
       value: convert(value)
     }
 
-  def convert({:transit_unified_table, owner, metadata, schema}),
-    do: %TableSource{
-      owner: Client.convert(owner),
-      metadata: Catalog.convert(metadata),
-      schema: Catalog.convert(schema)
+  def convert(
+        {:transit_unified_table, scope, audience, branch, namespace, interpretation, schema}
+      ),
+      do: %TableSource{
+        scope: Catalog.convert(scope),
+        audience: audience,
+        branch: branch,
+        namespace: namespace,
+        interpretation: convert(interpretation),
+        schema: Catalog.convert(schema)
+      }
+
+  def convert(
+        {:transit_unified_table_interpretation, revision, digest, byte_count, schema_digest}
+      ),
+      do: %TableInterpretation{
+        revision: revision,
+        digest: digest,
+        byte_count: byte_count,
+        schema_digest: schema_digest
+      }
+
+  def convert({:transit_unified_tables, url, scope, branch, audience}),
+    do: %Tables{url: url, scope: Catalog.convert(scope), branch: branch, audience: audience}
+
+  def convert({:transit_unified_capture, executor, operation, partition, next_lsn}),
+    do: %Capture{
+      executor: executor,
+      operation: operation,
+      partition: partition,
+      next_lsn: next_lsn
     }
+
+  def convert({:transit_unified_table_definition, source, partition, next_lsn}),
+    do: %TableDefinition{source: convert(source), partition: partition, next_lsn: next_lsn}
 
   def convert(
         {:transit_unified_projection, column, path, relative, mode, text_bytes, text_steps}
@@ -616,8 +695,8 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
 
   def convert(
         {:transit_unified_manifest, job, source, requester, correlation, policy_revision, request,
-         kind, resource, revision, source_head, source_digest, schema_digest, plan_digest, pages,
-         scanned, selected, value_count, segments, rows, byte_count, sum, finished, chain}
+         kind, resource, cut, source_digest, schema_digest, plan_digest, pages, scanned, selected,
+         value_count, segments, rows, byte_count, sum, finished, chain}
       ),
       do: %Manifest{
         job: convert(job),
@@ -628,8 +707,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
         request: convert(request),
         kind: convert(kind),
         resource: convert(resource),
-        revision: convert(revision),
-        source_head: convert(source_head),
+        cut: convert(cut),
         source_digest: convert(source_digest),
         schema_digest: convert(schema_digest),
         plan_digest: convert(plan_digest),

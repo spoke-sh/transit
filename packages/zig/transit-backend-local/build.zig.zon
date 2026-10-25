@@ -1,0 +1,13 @@
+.{
+    .name = .transit_backend_local,
+    .version = "0.0.0",
+    .fingerprint = 0x33361b79ec825465,
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_core = .{ .path = "../transit-core" },
+        .transit_storage = .{ .path = "../transit-storage" },
+        .transit_fuze = .{ .path = "../transit-fuze" },
+        .transit_observability = .{ .path = "../transit-observability" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

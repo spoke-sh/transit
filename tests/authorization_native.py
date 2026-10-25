@@ -84,7 +84,7 @@ def run(node, cli, report=None):
         analyst_seed, analyst_key = system.key('analyst')
         apply({'bind_credential': {'principal': 101, 'role': analyst, 'public_key': analyst_key, 'pid': None}})
         assert query({'identity': {}}, 101, analyst_seed)['body']['identity']['login_role'] == analyst
-        domain = apply({'register_domain': {'registrar': 0, 'actions': 3}})
+        domain = apply({'register_domain': {'registrar': 0, 'actions': 3, 'lifetime_resource': None}})
         object_id = apply({'register_object': {'domain': domain, 'owner': 0, 'schema': None}})
         protected = {'kind': 'domain', 'id': object_id}
         grant = apply({'grant': {'object': protected, 'grantee': analyst, 'privileges': 1, 'grant_options': 0}})

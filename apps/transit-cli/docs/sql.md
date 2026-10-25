@@ -165,7 +165,7 @@ New roles start without data rights. Grant their database/schema access and
 Table privileges explicitly using the examples below. The generated
 `authorization.yaml` and `catalog.yaml` select a separate private administrator
 with root-role membership; protect their seed as full administrative access.
-SQL receives separate worker, ingress, coordinator, Table and private-reader
+SQL receives separate worker, ingress, coordinator and Table
 credentials. Account initialization and normal admission use separate fenced
 activations. One initialized account can serve connections while others await
 authorization.

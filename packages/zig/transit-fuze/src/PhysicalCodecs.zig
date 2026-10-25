@@ -4,9 +4,11 @@ const std = @import("std");
 const Types = @import("Types.zig");
 const Values = @import("Values.zig");
 const TableSchema = @import("TableSchema.zig");
-const Collation = @import("Collation.zig");
+const Ebcdic = @import("Ebcdic037.zig");
 
 pub const Encoding = TableSchema.Encoding;
+pub const page_header_bytes = 41;
+const definition = @import("transit_protocol").Growth.definition_bytes;
 
 /// Encode a signed integer/decimal value into COBOL `COMP-3` (Packed Decimal / BCD)
 /// with trailing sign nibble `0xC` (positive/zero) or `0xD` (negative).
@@ -173,74 +175,27 @@ pub fn decodeComp4(bytes: []const u8, expected: Types.Type) Values.Cell {
     return numericCellFromSigned(signed_val, expected);
 }
 
-/// Encode an IEEE-754 `f64` into 8-byte IBM System/360 Hexadecimal Floating-Point (`COMP-2`).
-/// Format: `[sign: 1b][characteristic: 7b (excess-64 base-16)][fraction: 56b]`.
-pub fn encodeIbmHfp64(value: f64) ![8]u8 {
-    if (!std.math.isFinite(value)) return error.InvalidIbmHfpValue;
-    if (value == 0.0) return @splat(0);
-    const negative = value < 0.0;
-    var abs_val = @abs(value);
-    var exp16: i32 = 0;
-    while (abs_val >= 1.0) : (exp16 += 1) {
-        abs_val /= 16.0;
-        if (exp16 > 63) return error.IbmHfpOverflow;
-    }
-    while (abs_val > 0.0 and abs_val < (1.0 / 16.0)) : (exp16 -= 1) {
-        abs_val *= 16.0;
-        if (exp16 < -64) return @splat(0);
-    }
-    const characteristic: u8 = @intCast(exp16 + 64);
-    const scaled = @round(abs_val * @as(f64, @floatFromInt(@as(u64, 1) << 56)));
-    var frac: u64 = @intFromFloat(@min(scaled, @as(f64, @floatFromInt((@as(u64, 1) << 56) - 1))));
-    const top_byte: u8 = (if (negative) @as(u8, 0x80) else 0x00) | (characteristic & 0x7F);
-    frac |= (@as(u64, top_byte) << 56);
-    var out: [8]u8 = undefined;
-    std.mem.writeInt(u64, &out, frac, .big);
-    return out;
-}
+pub const encodeIbmHfp64 = @import("IbmHfp.zig").encode64;
+pub const decodeIbmHfp = @import("IbmHfp.zig").decode;
 
-/// Decode 4-byte (`COMP-1`) or 8-byte (`COMP-2`) IBM Hexadecimal Floating-Point into a 5-state `Values.Cell`.
-pub fn decodeIbmHfp(bytes: []const u8, expected: Types.Type) Values.Cell {
-    const err_cell: Values.Cell = .{ .type_error = Types.Kind.fromTag(expected.tag()) };
-    if (bytes.len != 4 and bytes.len != 8) return err_cell;
-    const negative = (bytes[0] & 0x80) != 0;
-    const characteristic: i32 = @intCast(bytes[0] & 0x7F);
-    var fraction: u64 = 0;
-    const frac_bits: u6 = if (bytes.len == 4) 24 else 56;
-    for (bytes[1..]) |b| {
-        fraction = (fraction << 8) | b;
-    }
-    if (fraction == 0) {
-        return floatCellFromF64(0.0, expected);
-    }
-    const norm_fraction: f64 = @as(f64, @floatFromInt(fraction)) / @as(f64, @floatFromInt(@as(u64, 1) << frac_bits));
-    const power2: i32 = (characteristic - 64) * 4;
-    const magnitude = std.math.ldexp(norm_fraction, power2);
-    if (!std.math.isFinite(magnitude)) return err_cell;
-    const result = if (negative) -magnitude else magnitude;
-    return floatCellFromF64(result, expected);
-}
+/// CP037 -> UTF-8; the output may need twice the source byte length.
+pub const decodeEbcdic037 = Ebcdic.decode;
+/// UTF-8 -> CP037; invalid UTF-8 and unmappable scalars reject.
+pub const encodeEbcdic037 = Ebcdic.encode;
 
-/// Transcode an EBCDIC CP037 slice into UTF-8/ASCII in `out`.
-pub fn decodeEbcdic037(bytes: []const u8, out: []u8) ![]const u8 {
-    if (out.len < bytes.len) return error.BufferTooSmall;
-    for (bytes, 0..) |b, i| {
-        out[i] = Collation.ebcdic037_to_latin1[b];
+/// Value-dependent physical constraints are checked before Table acceptance,
+/// as well as by page writers. Schema validation owns type/codec compatibility.
+pub fn validateValue(column: TableSchema.Column, value: Values.Value) !void {
+    switch (column.encoding) {
+        .ibm_hfp => _ = try encodeIbmHfp64(value.atom.float),
+        .ebcdic => try Ebcdic.validate(value.atom.bytes),
+        else => {},
     }
-    return out[0..bytes.len];
-}
-
-/// Transcode an ASCII/Latin-1 slice into EBCDIC CP037 in `out`.
-pub fn encodeEbcdic037(bytes: []const u8, out: []u8) ![]const u8 {
-    if (out.len < bytes.len) return error.BufferTooSmall;
-    for (bytes, 0..) |b, i| {
-        out[i] = Collation.latin1_to_ebcdic037[b];
-    }
-    return out[0..bytes.len];
 }
 
 fn numericCellFromSigned(val: i128, expected: Types.Type) Values.Cell {
     const err_cell: Values.Cell = .{ .type_error = Types.Kind.fromTag(expected.tag()) };
+    expected.validate(.{}) catch return err_cell;
     switch (expected) {
         .int8 => {
             if (val < std.math.minInt(i8) or val > std.math.maxInt(i8)) return err_cell;
@@ -269,23 +224,11 @@ fn numericCellFromSigned(val: i128, expected: Types.Type) Values.Cell {
     }
 }
 
-fn floatCellFromF64(val: f64, expected: Types.Type) Values.Cell {
-    const err_cell: Values.Cell = .{ .type_error = Types.Kind.fromTag(expected.tag()) };
-    switch (expected) {
-        .float32 => {
-            const f32_val: f32 = @floatCast(val);
-            if (!std.math.isFinite(f32_val)) return err_cell;
-            return .{ .value = .{ .atom = .{ .float = @floatCast(f32_val) } } };
-        },
-        .float64 => return .{ .value = .{ .atom = .{ .float = val } } },
-        else => return err_cell,
-    }
-}
-
 /// Encode a column slice of 5-state `Values.Cell` into a self-contained physical column page
 /// using the column's declared `Encoding` ($\epsilon$).
 /// Page wire format:
 ///   - `magic`: `"TCP1"` (4 bytes)
+///   - `definition`: mandatory current shared definition (32 bytes)
 ///   - `encoding`: `u8` (`@intFromEnum(encoding)`)
 ///   - `row_count`: `u32`
 ///   - `tag_stream`: `row_count` bytes (`0 = value`, `1 = null`, `2 = missing`, `3 = type_error`, `4 = conflict`)
@@ -293,8 +236,14 @@ fn floatCellFromF64(val: f64, expected: Types.Type) Values.Cell {
 ///   - `value_payload`: physical codec representation for all `.value` lanes (`plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp3`, `zoned`, `comp4`, `ibm_hfp`, `ebcdic`).
 pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column, cells: []const Values.Cell, out: []u8) ![]const u8 {
     try column.validateEncodingAndCollation();
+    if (cells.len > 65536) return error.ColumnPageRowLimitExceeded;
+    for (cells) |cell| if (cell == .value) {
+        try cell.validate(column.field(), .{});
+        try validateValue(column, cell.value);
+    };
     var writer: std.Io.Writer = .fixed(out);
     try writer.writeAll("TCP1");
+    try writer.writeAll(&definition);
     try writer.writeByte(@backingInt(column.encoding));
     try writer.writeInt(u32, @intCast(cells.len), .little);
 
@@ -405,8 +354,10 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
         .ebcdic => {
             for (values) |val| {
                 const bytes = val.atom.bytes;
-                try writer.writeInt(u32, @intCast(bytes.len), .little);
-                for (bytes) |b| try writer.writeByte(Collation.latin1_to_ebcdic037[b]);
+                const count = try std.unicode.utf8CountCodepoints(bytes);
+                try writer.writeInt(u32, @intCast(count), .little);
+                var iterator = try Ebcdic.Iterator.init(bytes);
+                while (try iterator.next()) |byte| try writer.writeByte(byte);
             }
         },
     }
@@ -416,8 +367,10 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
 /// Decode a physical column page encoded by `encodeColumnPage` back into `Values.Cell` items
 /// owned by `arena`.
 pub fn decodeColumnPage(arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8) ![]Values.Cell {
-    if (bytes.len < 9 or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
-    var reader: std.Io.Reader = .fixed(bytes[4..]);
+    try column.validateEncodingAndCollation();
+    if (bytes.len < page_header_bytes or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
+    if (!std.mem.eql(u8, bytes[4..36], &definition)) return error.IncompatibleDefinition;
+    var reader: std.Io.Reader = .fixed(bytes[36..]);
     const enc_raw = try reader.takeByte();
     const encoding = std.enums.fromInt(Encoding, enc_raw) orelse return error.InvalidColumnPage;
     if (encoding != column.encoding) return error.ColumnEncodingMismatch;
@@ -448,6 +401,7 @@ pub fn decodeColumnPage(arena: std.mem.Allocator, column: TableSchema.Column, by
             cells[i] = .{ .type_error = std.enums.fromInt(Types.Kind, k_raw) orelse return error.InvalidColumnPage };
         } else if (t == 4) {
             const alt_count = try reader.takeInt(u16, .little);
+            if (@as(usize, alt_count) * 17 > reader.end - reader.seek) return error.InvalidColumnPage;
             const alts = try arena.alloc(Values.Alternative, alt_count);
             for (alts) |*alt| {
                 const counter = try reader.takeInt(u64, .little);
@@ -511,13 +465,16 @@ pub fn decodeColumnPage(arena: std.mem.Allocator, column: TableSchema.Column, by
             for (decoded_values) |*slot| {
                 const len = try reader.takeInt(u32, .little);
                 const raw = try reader.take(len);
-                const utf8 = try arena.alloc(u8, len);
-                _ = try decodeEbcdic037(raw, utf8);
+                const capacity = std.math.mul(usize, len, 2) catch return error.InvalidColumnPage;
+                const buffer = try arena.alloc(u8, capacity);
+                const utf8 = try decodeEbcdic037(raw, buffer);
                 slot.* = .{ .value = .{ .atom = .{ .bytes = utf8 } } };
             }
         },
     }
 
+    if (reader.seek != reader.end) return error.InvalidColumnPage;
+    for (decoded_values) |cell| if (cell == .value) try cell.validate(column.field(), .{});
     var vi: usize = 0;
     for (tags, 0..) |t, i| if (t == 0) {
         cells[i] = decoded_values[vi];
@@ -538,7 +495,8 @@ fn scalarToU64(expected: Types.Type, val: Values.Value) u64 {
     };
 }
 
-fn u64ToScalarCell(expected: Types.Type, word: u64) Values.Cell {
+fn u64ToScalarCell(expected: Types.Type, word: u64) !Values.Cell {
+    if (expected == .boolean and word > 1) return error.InvalidBitpackedPage;
     return .{ .value = .{ .atom = switch (expected) {
         .boolean => .{ .boolean = word != 0 },
         .uint8, .uint16, .uint32, .uint64 => .{ .unsigned = word },
@@ -590,7 +548,7 @@ fn decodeBitpackedValues(reader: *std.Io.Reader, expected: Types.Type, out: []Va
     const bit_width = try reader.takeByte();
     if (bit_width > 64) return error.InvalidBitpackedPage;
     if (bit_width == 0) {
-        for (out) |*slot| slot.* = u64ToScalarCell(expected, min_val);
+        for (out) |*slot| slot.* = try u64ToScalarCell(expected, min_val);
         return;
     }
     var bit_acc: u128 = 0;
@@ -605,7 +563,7 @@ fn decodeBitpackedValues(reader: *std.Io.Reader, expected: Types.Type, out: []Va
         const offset: u64 = @as(u64, @truncate(bit_acc)) & mask;
         bit_acc >>= @intCast(bit_width);
         acc_bits -= bit_width;
-        slot.* = u64ToScalarCell(expected, min_val +% offset);
+        slot.* = try u64ToScalarCell(expected, std.math.add(u64, min_val, offset) catch return error.InvalidBitpackedPage);
     }
 }
 
@@ -631,11 +589,12 @@ fn encodeRleValues(writer: *std.Io.Writer, expected: Types.Type, values: []const
 
 fn decodeRleValues(arena: std.mem.Allocator, reader: *std.Io.Reader, expected: Types.Type, out: []Values.Cell) !void {
     const runs = try reader.takeInt(u32, .little);
+    if (runs > out.len) return error.InvalidRlePage;
     var pos: usize = 0;
     for (0..runs) |_| {
         const val = try readCanonicalValue(arena, reader, expected);
         const len = try reader.takeInt(u32, .little);
-        if (pos + len > out.len) return error.InvalidRlePage;
+        if (len == 0 or len > out.len - pos) return error.InvalidRlePage;
         for (0..len) |_| {
             out[pos] = .{ .value = val };
             pos += 1;
@@ -673,6 +632,7 @@ fn encodeDictionaryValues(allocator: std.mem.Allocator, writer: *std.Io.Writer, 
 
 fn decodeDictionaryValues(arena: std.mem.Allocator, reader: *std.Io.Reader, expected: Types.Type, out: []Values.Cell) !void {
     const dict_len = try reader.takeInt(u32, .little);
+    if (dict_len > out.len) return error.InvalidDictionaryCode;
     const dict = try arena.alloc(Values.Value, dict_len);
     for (dict) |*dv| dv.* = try readCanonicalValue(arena, reader, expected);
     for (out) |*slot| {
@@ -772,6 +732,7 @@ fn decodeFsstValues(arena: std.mem.Allocator, reader: *std.Io.Reader, out: []Val
         const decoded_len = try reader.takeInt(u32, .little);
         const token_len = try reader.takeInt(u32, .little);
         const tokens = try reader.take(token_len);
+        if (@as(u64, decoded_len) > @as(u64, token_len) * 8) return error.InvalidFsstStream;
         const buf = try arena.alloc(u8, decoded_len);
         var ti: usize = 0;
         var bi: usize = 0;
@@ -798,7 +759,10 @@ fn decodeFsstValues(arena: std.mem.Allocator, reader: *std.Io.Reader, out: []Val
 
 fn valuesEqual(expected: Types.Type, a: Values.Value, b: Values.Value) bool {
     return switch (a) {
-        .atom => |la| (Values.atomOrder(la, b.atom, expected) catch return false) == .eq,
+        .atom => |la| if (la == .float)
+            @as(u64, @bitCast(la.float)) == @as(u64, @bitCast(b.atom.float))
+        else
+            (Values.atomOrder(la, b.atom, expected) catch return false) == .eq,
         .json => |lj| std.mem.eql(u8, lj, b.json),
         else => false,
     };
@@ -807,10 +771,13 @@ fn valuesEqual(expected: Types.Type, a: Values.Value, b: Values.Value) bool {
 fn writeCanonicalValue(writer: *std.Io.Writer, expected: Types.Type, val: Values.Value) !void {
     const field: Types.Field = .{ .name = "v", .type = expected, .nullable = true };
     const cell: Values.Cell = .{ .value = val };
-    var small: [4096]u8 = undefined;
-    const encoded = try Types.Codec.encodeBound(cell, field, &small);
-    try writer.writeInt(u32, @intCast(encoded.len), .little);
-    try writer.writeAll(encoded);
+    // Column encoders use a fixed segment budget. Encode into that remaining
+    // buffer, without imposing a separate 4 KiB limit on each logical value.
+    const start = writer.end;
+    try writer.writeInt(u32, 0, .little);
+    const encoded = try Types.Codec.encodeBound(cell, field, writer.buffer[writer.end..]);
+    std.mem.writeInt(u32, writer.buffer[start..][0..4], @intCast(encoded.len), .little);
+    writer.end += encoded.len;
 }
 
 fn readCanonicalValue(arena: std.mem.Allocator, reader: *std.Io.Reader, expected: Types.Type) !Values.Value {

@@ -1,5 +1,1665 @@
 # Validation and evidence
 
+## Direct catalog growth and retained rows — 2026-10-24
+
+`just test::direct-table-service growth` passes 366 public typed calls with 139
+Tables and 139 rows retained before catalog growth. Ordered metadata traverses
+eight-entry pages; row reads use seven-row batches. The native owner uses one
+resident page and the direct catalog/Table indexes retain their default
+16-page caches. The fixture does not collect either durable sequence in memory.
+After node SIGKILL and disk restart, every name and row remains readable under
+the original saved pin and exact source basis, followed by explicit pin cleanup.
+The data path issues no native actor data commands. This qualifies local disk
+growth and recovery, not cold-provider placement or total process RSS.
+
+## Direct catalog diagnostic boundaries — 2026-10-24
+
+`just test::diagnostic-errors` and `just test::diagnostic-outcomes` pass after
+moving catalog caller projections to the direct host boundary. The checks cover
+16 compiler-inferred boundaries, nine unknown-cause projections and 3,479
+projections across 29 declared outcome surfaces, with semantic drift mutations
+rejected. Direct caller cases include the reviewed shared and direct-only causes.
+An attempted mutation retains its original catalog operation identity and asks
+for status inspection; later transport, decoding or permission failures cannot
+establish rejection or suggest replaying an unrelated native send. These are
+projection checks; public recovery evidence is recorded separately.
+
+## Direct exchange producers and backpressure — 2026-10-24
+
+`nix develop --command just test::direct-captured-query --exchange-workers-only`
+passes with three independent producer resources and seven partitions over two
+independent Table cuts. All fourteen channels complete under one-segment receiver
+credit, deliberate duplicate eligible notices, reversed producer stepping and
+repeated host reconstruction. Retry rounds drain admitted receiver work first;
+earlier fixture attempts either omitted required retries or injected them faster
+than this deliberately serial driver could consume them.
+
+The result retains COUNT=2 after a live source deletion. Every producer is denied
+parent-pin release; closure invalidates the borrowed cuts while the completed
+result remains readable. These are independent logical producers within one OS
+executor. Physical executor replacement is covered by the separate single-
+producer handoff schedule; this pass does not qualify concurrent provider hosts.
+
+`just test::relational-exchanges` runs both direct schedules sequentially in
+separate private fixtures. `just test::relational-maintenance` and
+`just test::named-relational` likewise select the current direct maintained and
+named schedules. Their build graph is validated; these task rewiring changes do
+not constitute another execution of the previously recorded runtime proofs.
+
+## Direct Table Compose live views — 2026-10-24
+
+`nix develop .#serving --command just test::reactive-views-placement compose`
+passes after restoring captured-request batch reads and bounding idle worker
+polling. The real browser recovers an uncertain submission across navigation,
+retrieves its original result after physical service replacement, verifies a
+distinct finite refresh, and clears protected data when permission is revoked
+between complete candidate verification and its visible reread. The existing
+query and revocation deadlines remain unchanged.
+
+The run takes 626.83 seconds overall. Observed counter propagation, physical
+recovery and query-refresh times are 4.958, 11.768 and 142.683 seconds. These are
+shared-host observations, not interactive latency guarantees. Earlier Compose
+attempts failed at the second refresh. The fixture now retries only explicit
+pre-dispatch native capacity refusals with unchanged signed bytes and treats
+optional progress-observation failures as unavailable evidence. This pass does
+not qualify the reference-provider schedule.
+
+A follow-up Compose run also passes with bounded courier error backoff. Failed
+reads repeat under current authority; an uncertain delivery retains its original
+signed command. The browser schedule takes 590.00 seconds, with observed counter,
+physical-recovery and query-refresh times of 3.905, 9.411 and 125.308 seconds.
+These runs do not isolate a performance improvement under matched conditions.
+
+## Captured direct Table request batching — 2026-10-24
+
+`nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe
+-- --captured-only` passes with 23 authorized publication read batches observed
+from the actual source worker. The direct Table wrapper had omitted native
+`readBatch`, causing published requests to use separate reads for each 256-byte
+chunk on every continuation. It now forwards the existing bounded operation.
+The HTTP fixture requires combined descriptor/chunk reads of at most eight keys.
+
+The same run preserves original-cut recovery after lost pin/release replies and
+node replacement, retained Table evidence after pin closure, current disclosure
+denial and cleanup after credential rotation. This result does not qualify the
+separate Compose browser timing schedule.
+
+## Direct Table selected-role boundary — 2026-10-24
+
+`nix develop --command just test::direct-table-service authorization` passes
+against the public direct owner. A login with a set-only membership cannot
+discover the Table until it explicitly selects that role. The selected caller
+can pin and read the row, but cannot open the native lifetime resource or inspect
+an unrelated native process. Revoking role selection denies metadata, reopening
+the retained pin and pin release. Restoring selection permits the original cut
+and its cleanup; clearing selection still denies access.
+
+An initial fixture attempt failed because its root administrator tried to read
+a native resource without a read grant. The corrected fixture creates a known
+unrelated process through the public control operation and checks the Table
+caller's denial directly. The expanded full Table schedule passes 1,374 typed
+calls, including this check. Its first final audit rejected the fixture's explicit
+process creation; the corrected audit retains the original restriction on native
+data commands and separately requires exactly that one setup spawn. These runs
+do not rerun all language SDKs or the older authorization suite.
+
+The expanded authorization schedule also passes SQL-issued CONNECT/USAGE and
+future-only default Table grants through the current direct catalog resolver and
+native publication owner. A SELECT-only reader sees only the later Table in
+paged listings, cannot discover the earlier Table or prepare DELETE/DROP, and
+retains its original cut through explicit SELECT revocation/restoration. Removing
+the default affects a subsequent registration without removing the existing
+grant. Root creates the login credential; the database owner publishes every SQL
+policy change against its original observed revision. This replaces the older
+mediated fixture's default-grant and filtered-metadata coverage.
+
+## Direct prepared Table lifetime — 2026-10-24
+
+`nix develop --command just test::direct-table-service prepared` passes against
+the public direct owner. The same SELECT, INSERT and MySQL UPDATE preparations
+survive successive data changes. Preparation and DML binding leave the Table
+frontier unchanged and the new operation unadmitted. Explicit execution preserves
+Unicode and SQL-like text as values, full-width unsigned values, nullable updates
+and bound-NULL comparisons. Fresh SELECTs use independent explicit pins.
+
+Current ownership removal denies the old preparation; restoring it permits a
+fresh read. ALTER and DROP/recreate invalidate the unchanged prepared objects,
+including when their selected column types still match. The complete direct
+Table schedule also passes with 1,361 typed calls, including this slice and its
+separate recovery faults. These passes do not replace the whole older typed-Table
+schedule.
+
+## Direct exchange worker handoff — 2026-10-24
+
+`nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe
+-- --exchanges-only` passes with recorded worker replacement. The schedule saves
+each handoff phase and exact signed native command before submission, recovers
+the same receipt after acceptance, checkpoints the complete producer resource,
+and reopens every original direct history cut through its borrowed read proof
+while execution ownership is fenced. Activation rotates the worker credential;
+the old credential is denied. Reconstructed producer and receiver hosts finish
+the one- and seven-partition successors and close the original history leases.
+
+The expanded schedule saves the original request bundle, history vector,
+assignment and borrowed proofs to an atomic private checkpoint, then kills the
+executor with SIGKILL. That process contains both receiver and producer hosts.
+After a disk-backed node restart, a new executor restores the same selection,
+performs the recorded credential handoff and finishes both results and cleanup.
+The checkpoint bytes remain unchanged throughout recovery. This expanded run
+passes; earlier attempts failed to compile the fixture's mode and local name.
+
+This qualifies physical replacement of that executor, with one producer and
+independent native resources. It does not qualify provider replacement,
+multi-producer placement or filesystem capacity failures. The corresponding
+older schedules still require migration before the old Table owner is removed.
+
+## Direct SQL ledger recovery and pin authority — 2026-10-24
+
+`nix develop --command just test::sql-gateway` passes the migrated direct Table
+schedule in 26.796 seconds. It retains 33 account operations, fences three owner
+replacements, and recovers the exact native admission, detached wait and pipelined
+upload after lost replies. A separately lost committed Table outcome is recovered
+through its original direct operation without executing that mutation again.
+Current preparation/reads dispatch no native writes; parameterized PostgreSQL and
+MySQL reads, a self-join sharing one retained pin, exact mutation counts and paged
+history all pass. The independent control ledger records 153 turns and 156 sends.
+All 30 shared SQL unit tests pass, including configuration checks for independent
+Table data identities and the required capture executor.
+
+After removing the obsolete private Table-reader principal, all 30 SQL units and
+`nix develop .#sql-wire --command just test::server-sql-local` pass. The installed
+CLI/node/gateway schedule qualifies the five-principal account, trust and password
+authentication, TLS enforcement, revocation across restart, and exact bootstrap
+credential publication after reply loss and manager SIGKILL.
+
+`nix develop --command just test::direct-table-service` also passes 1,253 public
+typed calls, including the updated SQL read-pin recovery schedule. A denied
+current credential resolver preserves both original acquisition records. Recovery
+then closes interrupted acquisitions and old-generation pins; current revocation
+still refuses cleanup until access is restored. The complete command also checks
+64 KiB point data, bulk `.tseg` publication, CRUD/DDL, namespace retirement,
+retained SQL/joins, delegated reads and change-reader checkpoints across restart.
+
+SQL Table sources now derive their direct route from the declared data scope;
+their native resource holds independent computation progress. Interactive source
+pins share the account's recovery journal, while captured admission publishes the
+explicit original cut, executor and pin operation.
+
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway
+-Doptimize=ReleaseSafe -- sessions` passes the complete native-session schedule.
+It checks independent TLS/SCRAM sessions, concurrent reads, metadata recovery,
+exact operation-token recovery and retained KV (41 rows), Document (12 rows)
+and Table (9 rows) results after gateway replacement. Every returned batch is
+retried for exact equality. Replacement releases the original abandoned Table
+source pin. The focused `sessions-table` slice and all 30 shared SQL units pass.
+
+Same-account pin acquisition now observes the prepared definition/frontier under
+the acquisition/closure lock. An injected capacity refusal after acquisition
+checks that cleanup preserves SQLSTATE `53000`. Concurrent fixture reads may
+explicitly repeat a SELECT only before receiving any batch; measurements count
+those attempts. Existing cursors, captured admissions and writes never use that
+helper. These scoped passes do not qualify every SQL deployment or close the
+coordinated cutover.
+
+## Unified direct Table recovery and closure — 2026-10-24
+
+`nix develop .#serving --command just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-source=table` passes in 53.99 seconds. Its catalog uses the local direct
+owner, independently of native source/requester progress. Native ABI and port
+callers agree on SQL inspection and pure parameter compilation. Explicit capture
+authorization is saved separately from that unsigned description. The schedule
+recovers the original signed upload and six complete Arrow segments containing
+41 exact UTF-8 rows (15,120 bytes) after source/requester/node replacement. Current
+revocation suppresses reads; restoring access preserves the original result.
+Every acquired Table pin is released, and reopening it returns the public
+`QueryExpired` rejection. Eight resident native pages are configured.
+
+Adding `-Dunified-counts=true -Dunified-lifecycle=true` passes in 137.03 seconds.
+It recovers a partial COUNT accumulator after replacement, refuses partial
+results, preserves exact lost-reply retries and recorded budget/policy failure
+diagnostics, and checks cancellation, current source/request authorization,
+cleanup and released-pin refusal. New finite queries use distinct explicit pin
+operations; retries retain their already authorized bundles. The independent
+fault decoder follows the current `UQJ1` retention tags and `UQC1` typed source
+positions. Read/candidate-preparation retries are bounded to explicit capacity
+or stale-cut refusals; signed submissions never enter that retry helper.
+
+These Table schedules deliberately leave point rows unflushed and verify that
+no `.tseg` exists. They qualify WAL-only recovery, not automatic flushing or
+physical garbage collection. Their unused Ursula/MinIO fixture does not establish
+cold Table persistence. The shared-fixture KV regression also passes in 38.94
+seconds over disk Ursula, with 41 rows and six segments. Optional Table Board,
+installed-SDK and finite-expiry schedules, and the remaining older catalog/SQL
+fixtures, are not qualified by these commands.
+
+## Direct Follow browser lifecycle — 2026-10-24
+
+`nix develop .#serving --command just test::reactive-views-lifecycle` passes the
+embedded Board/Chromium multi-tab schedule against direct Table storage. It
+checks independent sessions for one principal, actual stream loss with the
+original snapshot basis retained, reconnect without session replacement,
+pagehide and abandoned-session expiry, watch-generation reset, explicit
+resnapshot, and protected-state removal after the catalog lifetime resource is
+retired. The native/browser portion completes in 71.29 seconds; dependency
+installation and build time are additional.
+
+The schedule exposed a recorded renewal rejection being treated as a temporary
+disconnect. LiveView now stops in `reset_required`, retaining the original
+diagnostic and snapshot until explicit resnapshot; current denial or expiry
+still takes precedence and clears protected state. All 18 focused LiveView unit
+tests pass, including a single-renewal regression and denial precedence for both
+lease conflicts and watch resets. Board and reactive-client formatting/lint and
+Board strict TypeScript checks pass. This does not qualify the remaining
+Compose/reference Follow placement or credential-rotation schedules.
+
+## Courier discovery through the pending index — 2026-10-24
+
+`nix develop .#serving --command just test::public-query` passes with the courier
+using the public native pending-output index. The fixture first runs filtered
+delivery, then replaces that courier with realm-wide delivery after retained
+query history exists. Original signed admission recovery, source fencing,
+41 exact int64/null rows, busy admission, malformed schema rejection, incomplete
+result refusal, cancellation and current read denial all pass.
+
+Realm-wide delivery uses the indexed output directly. A filtered courier starts
+its bounded destination scan at the first pending output and retains its cursor;
+no pending work means an output-change wait. Expired page observations back off
+without changing any prepared delivery. This qualifies the exercised scheduling
+and recovery paths; it does not establish a latency target or complete the
+remaining browser/placement schedules.
+
+## Direct Flight and captured-query consumers — 2026-10-24
+
+The public-query, Board captured-query and Flight fixtures now provision Tables
+through `DirectTablePreparedDdl`/`DirectTablePreparedDml` and the signed direct
+service. Catalog storage, source worker progress and requester progress have
+different resource identities. The local authority and Table owner share one
+durable directory; the fixture's Ursula/MinIO services do not establish tiered
+Table persistence.
+
+Executed with the pinned development environments:
+
+- `nix develop .#serving --command just test::public-query` passes actual query
+  hosts and the operation-fixture shell: 41 exact int64/null rows, lost accepted
+  replies, original signed retry, fresh fenced ownership, incomplete-prefix
+  refusal, busy admission, cancellation and current read denial. A forged logical
+  column type with an unchanged definition identity rejects before admission.
+- `nix develop .#serving --command zig build test-board-query -Doptimize=ReleaseSafe`
+  passes explicit capture, identical preparation/submission recovery, typed pages,
+  bounded capacity retries, exhaustion and current denial. This command does not
+  include the browser schedule.
+- Adding `-Dquery-browser=true` also passes the embedded Board/Chromium schedule
+  in 52.7 seconds of browser execution: Canvas/Browse navigation, exact lost-send
+  retry, typed results, current revocation, restored access and explicit reopening
+  of the retained result. The fixture separates data and progress resource IDs.
+  It exposed and corrected their conflation in workspace validation and recovery
+  links, empty Follow recovery storage, and replay of a prior draft denial during
+  access refresh. Failed attempts are superseded by this complete rerun.
+- `nix develop .#flight --command just test::flight` passes native TLS PyArrow,
+  ADBC Python/C and saved diagnostic recovery on the updated schema check. Flight
+  repeats an original query after a direct row change and retains the old result;
+  a distinct first sequence captures the changed row. The finite-statement
+  portion completes in 64.22 seconds; that is not the full command's elapsed time.
+- `nix develop .#flight --command just test::flight-faults` passes on the updated
+  schema-validation implementation with two scoped mappings: lost acceptance,
+  gateway replacement, unchanged retry bytes/receipt, current SELECT denial after
+  a returned batch, released pins, bounded concurrent fetch/control work,
+  malformed/slow peers, requester retirement and original result recovery through
+  worker/node/gateway replacement. Sampled gateway RSS is 81,383,424 bytes, below
+  the fixture's unchanged 192 MiB ceiling; this is not a measured peak.
+- `nix develop .#flight --command just test::flight-placement compose` passes
+  TLS PyArrow/ADBC Python/C and physical gateway, query worker, node and store
+  replacement in 507.16 seconds. The original ticket and admission retry retain
+  their accepted results. Native history and direct Table files persist in the
+  authority directory; the fixture reports no cold Table objects.
+- The focused query-package `test-unit -Dtest-filter='general Table'` passes.
+  Query-client browser-library tests pass all 57 cases and Board unit tests pass
+  all 95 cases. Board formatting, lint and strict TypeScript checks pass.
+
+The schema regression exposed that checking the stored definition identifier
+alone did not authenticate its separately supplied logical descriptor. New-work
+metadata now compares that descriptor with the authorized stored schema;
+retained execution still uses its original pin and interpretation.
+
+`nix develop .#flight --command just test::flight-placement reference` also
+passes the complete TLS PyArrow/ADBC Python/C schedule after the courier change,
+including physical gateway, query worker, node and store recovery and the exact
+original ticket/admission retry. The placement portion completes in 991.94
+seconds and reports zero cold Table objects. This complete rerun supersedes the
+earlier ADBC C deadline failure; it does not establish a latency target.
+These scoped runs do not close the remaining actor-Table consumer
+removal, coordinated artifact cutover or final repository/clean-build gates.
+
+## Direct serving counter acceptance — 2026-10-24
+
+`nix develop --command zig build test-serving-counter -Doptimize=ReleaseSafe`
+passes **8 component tests** composing the real direct catalog dispatcher and
+Table storage with an independent native private-turn reference store. The
+example executable also builds in ReleaseSafe. These in-memory tests establish
+uncommitted preparation refusal, exact receipt recovery after a lost data reply,
+frozen-write rejection after a competing mutation, unchanged configuration
+binding, queued growth, overflow, no-op updates and native output-budget rollback.
+They do not establish physical durability.
+
+`nix develop --command zig build test-serving -Doptimize=ReleaseSafe` passes the
+independent Python/OpenSSL HTTP fixture in **9.70 seconds**, with eight resident
+native authority pages. The installer explicitly initializes the direct catalog
+and creates the Table through the public host port before application activation.
+An injected lost Table commit reply is recovered by inspecting its original
+receipt; the counter result and separate native progress both equal one.
+Lost ingress, application and outbox-delivery receipts preserve original native
+commands. Two gateways, conflicting retries, physical worker/gateway/node
+replacement over retained local files, publication retirement, current service
+policy denial and replay of pre-revocation signed reads all pass.
+
+`nix develop --command just test::reactive-refresh` passes the independent TLS
+refresh schedule in **93.33 seconds**. Two views sharing one caller retain
+distinct explicitly prepared captures, recover the exact lost Follow receipt,
+admit one query at a time and select a fair successor. Worker replacement keeps
+the original active namespace. Raw resource-read permission and current Table
+SELECT are checked independently; revocation blocks disclosure and refresh,
+while explicit control preserves the original stop and query diagnostics.
+Temporary unavailable observations retry only the same read when its diagnostic
+permits that retry. The source executor authenticates without a selected owner
+role; the live requester uses a separate read-only inspection identity.
+
+`nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe
+-Dserving-tls=true -Dserving-capacity=true -Dserving-lifetimes=true
+-Dserving-growth=true` passes in **821.04 seconds**. Eight delayed authorized
+gateway reads occupy their configured work slots; excess work refuses and health
+responds in **0.003 seconds**. The fixture serializes upstream exchanges during
+that capacity schedule to keep native-node admission separate. Ordered
+cancellation, authenticated timeout, duplicate observations, late replies after
+physical recovery, finite process/wait/resource bounds and hard expiry pass.
+Another **128 retained operations** preserve old result reads with eight native
+resident pages. Authority, two workers and one gateway use **126,509,056 bytes**
+RSS under the fixture's 512 MiB ceiling. The local directory contains **172,875
+files / 93,832,328 bytes**. This is bounded-residency and recovery evidence; its
+elapsed time and file count do not establish efficient storage or a throughput
+target. Automatic flushing and compaction remain separate work.
+
+`nix develop .#serving --command just test::reactive-views` passes the actual
+Chromium/Board/counter schedule in **332.21 seconds**. The browser verifies 20
+rows across bounded result pages after losing a submission reply and navigating
+away, prepares all eight independent Follow captures, and selects a new finite
+result with a later direct Table acceptance position. Revocation between full
+candidate verification and its visible reread clears the protected workspace.
+Only the bounded Follow recovery record remains in tab storage; it saves control
+and intent state without result snapshots. Observed Board heap use is
+**10,854,716 bytes**, and mutation-to-verified-result time is **59.55 seconds**;
+these establish the tested behavior, not an interactive latency target. The
+preceding attempt passed those query/disclosure steps but failed an obsolete
+assertion that all session storage must be empty. Reload and credential-rotation
+Follow schedules and physical placements remain separate qualification.
+
+The Table mutation receipt precedes the separate native progress/reply commit.
+This does not establish a transaction across those owners. The native fixture
+uses local logs and objects; it does not qualify Ursula or cold storage.
+Physical placement and broader reactive lifecycle reruns are still open for the
+changed example. Failed attempts exposed fixture
+provisioning/SQL/decoding errors, invalid post-revocation signing, mismatched
+executor/inspection identities and temporary upstream admission pressure; those
+attempts are not passed evidence. Final repository gates remain separate.
+
+## Snapshot pins against competing checkpoints — 2026-10-24
+
+`nix develop --command sh -c 'cd packages/zig/transit-storage && zig build
+test -Doptimize=ReleaseSafe -Dtest-filter="disk checkpoint races"'` passes the
+disk-backed checkpoint race test. Two independently recovered Table owners
+compete for the same WAL frontier. An accepted pin with a lost reply defeats a
+stale flush; recovering that flush preserves the original unflushed row. When
+the flush wins, staged snapshot bytes do not become an accepted pin and retry
+cannot substitute a newer cut. Release wins and checkpoint wins are both
+exercised; a lost release reply survives disk reopen without resurrecting either
+released owner or losing any of the four accepted rows.
+
+This proves conditional checkpoint publication and durable pin ownership. The
+local native owner still refuses physical history collection; this test does
+not qualify destructive GC, compaction or WAL trimming. The first test attempt
+left its injected lost-reply flag enabled for subsequent operations; the
+corrected schedule passes. A separate invocation using `--build-file` failed
+during build configuration and supplied no test evidence.
+
+## Retained relational caller conformance — 2026-10-24
+
+`nix develop .#bindings -c zig build test-relational-callers
+-Doptimize=ReleaseSafe -Drelational-sdk=python` passes **1,390 public requests**
+through the native C ABI, native port and independently installed synchronous
+and asynchronous Python clients. The corresponding `-Drelational-sdk=node` run
+passes **1,087 public requests** through the native callers and installed
+TypeScript API. Matching Python wheels and Node tarballs were rebuilt with
+`just bindings::python-build bindings::node-build`.
+
+The fixture provisions three Tables through the direct owner and produces
+`.tseg` files. Two configured routes identify one catalog. Both route layouts
+join independent Table cuts; a self-join explicitly shares one retained pin.
+Nullable keys, unmatched rows, duplicate matches and COUNT/SUM groups have
+independent expected results. Every open carries the original complete bindings
+and explicit snapshots. Repeated open/page/close is stable; malformed bindings,
+changed work and invalid/skipped/earlier cursors reject.
+
+Two abrupt node replacements and one killed native port preserve original
+retention. A pooled connection can report unavailable after node loss; the test
+retries only the identical cached read permitted by its diagnostic. Destroying a
+query client invalidates its old cursor. Explicit reopening from the original
+bindings and snapshots starts execution from the beginning, without acquiring a
+new source basis. Each installed Python and TypeScript API exercises the same reconstruction.
+Current denial blocks a cached row. Output exhaustion preserves an incomplete
+prefix and its original failure; overflow retains the exact output column and
+ordered source-row witness. Local query closure leaves the pins owned; the
+fixture explicitly releases each original pin and verifies its released state.
+
+The former actor-catalog fixture is replaced by this direct service schedule.
+The first attempt stopped on an obsolete malformed-binding error expectation;
+the second stopped on a stale pooled connection after replacement. Neither was
+passed evidence. This run does not establish automatic recovery of execution,
+mixed-catalog joins, physical reclamation or the final repository gates.
+
+## Direct Board relational recovery — 2026-10-24
+
+`nix develop -c zig build test-direct-board -Doptimize=ReleaseSafe
+-Ddirect-board-browser=true` passes **504 public requests** and the real embedded
+Chromium worksheet. The installed node stores Table data locally and produces
+`.tseg` files; the fixture uses the shared native catalog ABI to provision rows.
+Board has a separate read-only inspector and query credential. Both configured
+routes select the same direct catalog; the test executes joins/groups over two
+independent Tables through `[0, 0]` and `[0, 1]` route selections.
+
+The owner persists exact source bindings, accepted positions and original pin
+operations before acquisition. Two corrupted accepted-pin replies and one
+corrupted release reply preserve unknown outcomes. Two abrupt node replacements,
+Board replacements during acquisition/closure and active execution, and cleanup
+with a rotated credential retain the original identities. A source changed
+between Explain and Run rejects; explicit closure distinguishes released pins
+from acquisitions proven permanently excluded by an advanced frontier. Every
+closure keeps the original input and pin operations unchanged. Current denial
+blocks cached and terminal pages; no observation implicitly starts new work.
+
+Chromium closes an interrupted query after Board replacement, distinguishes
+metadata explanation from Run, recovers a lost open reply and browser reload
+without creating another query, and reads exact nullable grouped values. It
+clears protected rows and the SQL draft after credential revocation. The final
+close waits for its successful response, then the fixture checks closed durable
+state and the interrupted query's released native pins. The accessibility scan
+reports no violations. Foreign Origin and disabled-route requests reject.
+
+Focused workspace tests cover exclusive journal ownership, owned JSON readback,
+startup closure and corrupt connection rejection. Four browser-boundary tests
+and strict TypeScript checks pass. The diagnostic suite executes **3,435
+projections across 29 declared surfaces**, including the new recovery errors.
+The earlier browser attempts were incomplete: one asserted release for a pin
+that never existed, another hit a Node stdin pipe error, and another ended while
+its close request was still running. The fourth full attempt passes.
+
+This is local direct-service and browser evidence. It does not qualify Follow,
+Compose/reference placement, physical reclamation, cleanup without current
+CONNECT/USAGE/SELECT, or the final combined repository checks.
+
+## Installed C and C++ direct lifecycle — 2026-10-24
+
+`nix develop .#bindings -c zig build test-direct-catalog-c -Doptimize=ReleaseSafe`
+passes **152 public requests** across independently installed C11 and C++17
+consumers. Six matching pkg-config artifacts supply the C API, C++ facade and
+native libraries. Consumer compilation treats warnings as errors; compile-fail
+checks reject copying clients and unique recovery owners. The C/C++ adapter
+package checks preserve handler Table ownership and rejection coverage.
+
+The forwarding native-library boundary suite passes **77 cases**: complete
+binding and mandatory-definition checks, exact prepared action/object identity,
+wide saved intents, bounded aggregate construction, physical descriptors, dense
+ordered pages, substituted observations/snapshots, definite denial and unknown
+mutation outcomes. A cancelled POSIX caller remains joined to its native work;
+concurrent access returns busy and close waits through receipt publication.
+The first boundary attempt stopped at the fixture's old capabilities envelope;
+the corrected fixture and complete second installed run pass.
+
+Both consumers stage nine 32 KiB rows, persist their original work and recover
+committed writes after corrupted replies. Four corrupted pin/release replies and
+six abrupt caller/node replacements preserve unchanged saved intents, references
+and acquisitions. Exact DML counts, stale definition rejection, ALTER/RENAME/DROP,
+name reuse, namespace/Table inspection, retained original metadata, current
+credential rotation and idempotent release pass. The service produces `.tseg`
+files; observed native commands are limited to authorization administration.
+
+This proof checks retained metadata, without interactive SQL row reads. It does
+not establish physical reclamation, automatic expiry, Board integration or final
+repository checks.
+
+## Installed Erlang and Elixir direct lifecycle — 2026-10-24
+
+`nix develop .#bindings -c zig build test-direct-catalog-beam -Doptimize=ReleaseSafe`
+passes **155 public requests** across independently installed Erlang and Elixir
+APIs. Six matching OTP application artifacts provide the native ports, shared
+worker and Elixir value projection; package and consumer compilation treats
+warnings as errors. The generated recursive-schema and logical-value suites pass
+for both consumers, as do complete binding/cursor checks, wide saved values,
+substituted receipts, malformed replies and actual waiting-process loss whose
+native operation remains owned until joined port cleanup.
+
+Each adapter stages nine 32 KiB rows, saves original work before dispatch and
+recovers after a corrupted committed-write response. Across both runs, four
+corrupted acquisition/release replies and six abrupt caller/node replacements
+preserve unchanged original values. Exact mutation counts, stale bases,
+ALTER/RENAME/DROP/name reuse, namespace/Table inspection, retained metadata,
+current credential rotation and idempotent original release pass. The service
+produces `.tseg` files. Observed native commands are limited to authorization
+administration. The first attempt stopped at a test fixture's Erlang syntax
+error before the value suite; the corrected complete second run passes.
+
+This proof checks retained metadata, without interactive SQL row reads. It does
+not establish physical reclamation, automatic expiry, the remaining C/C++
+adapter, Board integration or final repository checks.
+
+## Installed Rust direct lifecycle and retained metadata — 2026-10-24
+
+`nix develop .#bindings -c zig build test-direct-catalog-rust -Doptimize=ReleaseSafe`
+passes **78 public requests** using four matching crate artifacts installed
+outside the checkout. The proof verifies source/contract bytes, builds offline
+with warnings treated as errors and checks resolved registry packages against
+the committed lock. All **14 library tests** pass, including existing logical
+and application-owned handler Table checks. Compile-fail checks reject overlapping
+mutable calls and reuse after consuming close.
+
+Nine 32 KiB bulk rows, corrupted committed-write and retention replies, and three
+abrupt caller/node replacements preserve original recovery values. Exact counts,
+stale bases, ALTER/RENAME/DROP/name reuse, current inspection, retained metadata,
+credential rotation and idempotent release pass. The service produces `.tseg`
+files and the observed native commands are limited to authorization administration.
+The first two installed attempts stopped at typed bulk preparation: the decoder
+incorrectly reused the raw client's 256 KiB string limit for catalog saved intent
+bytes. The decoder now applies the catalog's explicit bound; a saved-value
+regression check and the complete third run pass. The raw-client bound is unchanged.
+
+`serde` is now a direct dependency at its existing locked version for strict
+saved JSON decoding. Both affected locks add that dependency without changing
+registry versions. The Rust example also compiles. This proof establishes retained
+metadata, not an interactive SQL cursor, automatic expiry or physical reclamation.
+C/C++, BEAM adapters, Board integration and final repository checks remain open.
+
+## Installed .NET direct lifecycle and retained metadata — 2026-10-24
+
+`nix develop .#bindings -c zig build test-direct-catalog-dotnet -Doptimize=ReleaseSafe`
+passes **78 public requests** through four independently packaged NuGet artifacts
+installed outside the checkout. The consumer compiles with warnings treated as
+errors and uses the packaged native libraries. Nine 32 KiB bulk rows, corrupted
+committed-write and retention replies, and three abrupt caller/node replacements
+preserve original saved work, references and acquisition values. Exact mutation
+counts, stale definitions, ALTER/RENAME/DROP/name reuse, original receipts,
+namespace/Table inspection and retained metadata pass. Current credential
+rotation denies retained metadata, repeated release is idempotent, and the
+service produces `.tseg` files.
+
+Boundary checks pass owned logical values, strict metadata, physical descriptors,
+complete saved bindings, immutable pages and cancellation/disposal that joins the
+native worker. The first attempt exposed a test fixture constructing JSON integer
+nodes differently from native parsed JSON; the fixture now crosses the same JSON
+serialization boundary and the full rerun passes. This proof checks retained
+metadata, not interactive SQL row reads. Remaining adapters, Board integration,
+physical reclamation and final repository validation are not established by it.
+
+## Installed Java direct lifecycle and retained metadata — 2026-10-24
+
+`nix develop .#bindings -c zig build test-direct-catalog-java -Doptimize=ReleaseSafe`
+passes **78 public requests** through independently packaged JARs installed outside
+the checkout. The consumer compiles with Java 21 and warnings treated as errors,
+checks the matching contract resource and uses the packaged native port. Nine
+32 KiB bulk rows, a corrupted committed-write reply, two uncertain retention
+replies and three abrupt caller/node replacements preserve original recovery
+values. Exact counts, stale definitions, ALTER/RENAME/DROP/name reuse, original
+receipts, current namespace/Table inspection and retained metadata pass. Current
+credential rotation denies retained metadata; repeated original release is
+idempotent. The service produces `.tseg` files, and native commands observed by
+the proxy are limited to authorization administration.
+
+Installed decoder/ownership tests also pass complete saved identities, physical
+schema requirements, bounded conversion, strict cursors, substituted receipts,
+large port frames and cancelled futures whose worker/child cleanup is joined.
+The generated recursive-schema suite passes independently. The first installed
+attempt stopped during consumer compilation because a test's Gson parser class
+required absent annotation metadata under `-Werror`; the consumer now uses the
+same existing Gson entry point as the other installed tests, and the complete
+rerun passes. This proof establishes retained metadata, not interactive SQL row
+reads, physical reclamation, automatic expiry or the unfinished other adapters,
+Board workflow and final repository checks.
+
+## Installed Ruby direct lifecycle and retained metadata — 2026-10-24
+
+`nix develop .#bindings -c zig build test-direct-catalog-ruby -Doptimize=ReleaseSafe`
+passes **78 public requests** through four matching gems installed outside the
+checkout. The proof checks packaged catalog/bridge/schema bytes against the
+built revision and uses the packaged native port without source-path overrides.
+Nine 32 KiB rows use direct bulk staging. A corrupted committed-write reply,
+corrupted pin/release replies and three abrupt caller/node replacements preserve
+the original saved work, operation reference and acquisition. Original receipts
+and retained metadata survive ALTER, RENAME, DROP and same-name replacement;
+current credential rotation denies retained metadata. Exact no-op/deletion
+counts, stale-basis refusal, current namespace/Table pages and idempotent release
+also pass. The service produces `.tseg` files and the proxy observes no native
+actor commands beyond authorization administration.
+
+The Ruby boundary suite passes owned nested values, full-width identities,
+complete saved-binding rejection, malformed mutation replies retaining recovery,
+fragmented large port responses and cancellation that joins active worker cleanup.
+Existing handler Table checks pass **28 adversarial rejections**. These preserve
+the application-owned handler path, distinct from the general catalog path being
+replaced. The installed Ruby proof checks retained metadata; it does not execute
+an interactive SQL cursor or independently decode retained rows. Python,
+TypeScript and shared native callers provide their separately recorded SQL
+coverage. Physical reclamation, automatic retention expiry, remaining adapters,
+Board integration and final combined checks remain unqualified by this run.
+
+The complete TypeScript SDK check also passes **39 Station tests**, client tests,
+formatting, lint and type checks. A stale unified-query fixture exposed a missing
+accepted Table position in the language projection; the decoder now preserves
+it and rejects substituted resource/schema commitments. That projection check
+uses a fake native boundary and does not establish result truth.
+
+## Installed TypeScript direct lifecycle and retained SQL — 2026-10-24
+
+`zig build test-direct-catalog-node -Doptimize=ReleaseSafe` passes **197 public
+requests** using four independently packed, version-matched packages installed
+outside the checkout. The consumer resolves the packaged native port without a
+source-tree override. It runs the same direct lifecycle schedule as Python:
+wide bulk rows, a corrupted committed write reply, exact saved recovery through
+three abrupt caller/node replacements, and uncertain snapshot acquisition and
+release. Cached and terminal output and repeated open reject after credential
+rotation. Original rows remain readable through the explicit retained binding
+after ALTER, RENAME, DROP and name reuse; no-op and deletion counts remain exact.
+
+The package build includes TypeScript compilation. This run qualifies the
+installed Table lifecycle and explicit retained interactive reads; namespace
+administration, dependency/named-resource wrappers, the other language adapters,
+Board integration and final repository gates remain separate work. It does not
+establish physical reclamation, automatic pin expiry or a durable interactive
+cursor after host loss.
+
+## Installed Python direct lifecycle and retained SQL — 2026-10-24
+
+`zig build test-direct-catalog-python -Doptimize=ReleaseSafe` passes **393 public
+requests** against the disk-backed local service. Four version-matched wheels
+are installed into an isolated consumer environment; the proof verifies their
+catalog/relational source and contract resources against the built revision.
+Both synchronous and asynchronous clients stage nine 32 KiB rows, preserve the
+original operation after a corrupted accepted reply, and recover through actual
+caller termination and node replacement. Four corrupted snapshot acquisition/
+release replies and six abrupt caller/node replacements retain the original
+saved work, operation reference and acquisition unchanged.
+
+The same installed clients check matched/changed counts, ALTER, RENAME, DROP and
+name reuse, then read nine rows from the original retained definition. Repeated
+and terminal pages recheck current authority; credential rotation denies both
+cached disclosure and repeated open. Local query closure leaves the explicit
+source pin intact, and original-owner status resolves uncertain release. These
+checks establish neither physical reclamation nor abandoned-pin expiry.
+
+Earlier installed attempts failed in the harness: a synchronous call raised
+before entering its expected-error handler, and overlapping fault rules flipped
+the same response byte twice. The corrected complete schedule passes. Python's
+strict type check passes **27 source/example files**; catalog decoder/ownership
+checks, **6 relational boundary tests**, existing handler Table checks and the
+application work model also pass. The handler checks preserve the application-owned Table helpers. They do not
+qualify retirement of the separate general actor catalog path.
+The other general language adapters, Board integration and final combined and
+clean-checkout gates remain open.
+
+## Direct catalog ABI and port recovery — 2026-10-24
+
+The latest ReleaseSafe rerun passes **233 public requests** through both the C
+ABI and native port. It includes the original bulk writes, four uncertain
+pin/release replies and four abrupt node replacements, plus explicit relational
+reads over the saved original binding and snapshot after DROP/name reuse. Both
+callers preserve exact repeated pages, verify nine rows and terminal completion,
+reject altered bindings and invalid ordinals, and deny cached and terminal
+disclosure after credential rotation. Restored authority permits the original
+read; destroying an interactive caller invalidates its local cursor without
+releasing its durable source pin. Explicit release uses the original owner.
+
+Earlier runs exposed a test that confused the live position with the retained
+cut, local malformed-binding errors escaping the request boundary, and a test
+that attempted to bind an existing credential instead of rotating it. These are
+corrected in the passing run. Focused native relational suites pass **36** and
+**10** tests; the TypeScript catalog/relational suites pass **14** tests with
+their type check, and the browser decoder suite passes **4** tests. The native
+Board build also passes. These checks do not qualify the unfinished Board UI,
+Python or other installed language adapters, physical GC or abandoned-pin expiry.
+
+`nix develop -c just test::direct-catalog-abi` passes **63 public requests** against
+the local disk-backed service with separately built ReleaseSafe C ABI and native
+port binaries. Both callers prepare and stage nine 32 KiB rows in a bulk request
+larger than an actor frame. The proxy verifies each committed write before
+corrupting its response; both callers report uncertainty and retain the original
+operation. Caller replacement and **two abrupt node replacements** precede exact
+receipt inspection. Repeated execution preserves the same counts, and original
+receipts remain inspectable after DROP and name reuse. Immutable `.tseg` files
+exist, full-width object IDs are preserved, and missing/foreign saved fields are
+rejected without replacing valid local work.
+
+The first run exposed missing structured diagnostics for the port parser's
+pre-dispatch rejection. The port now uses the shared catalog input projection,
+and the full schedule passes. The Station binding package separately passes
+**22 tests**, including old actor configuration rejection, foreign definition
+rejection, local saved loading, no-dispatch failure, overlap rejection and result
+buffer ownership after handle destruction. These checks do not inject a real
+post-acceptance output allocation failure. The TypeScript catalog boundary suite
+passes **9 tests**, covering lossless references, physical descriptors, bounded
+wide preparation, read failure versus uncertain mutation, and mismatched success
+responses. These are source-level wrapper tests; installed language consumers
+and the interactive relational cutover remain unfinished.
+
+The extended rerun passes **77 public requests**, with four corrupted snapshot
+acquisition/release replies and **four abrupt node replacements**. Both callers
+persist exact acquisition bindings before dispatch, resolve original retention
+owners after caller/node loss, and inspect original accepted positions and schemas
+after DROP/name reuse. Uncertain release is confirmed through original-owner
+status; repeated release preserves the same reference. The focused retention
+reference package run passes **4 tests**, the expanded TypeScript suite passes
+**10 tests**, and contract/mapping/documentation checks pass. The TypeScript
+package type check remains incomplete because its interactive relational adapter
+still imports the removed actor owner connection. No physical GC or abandoned-pin
+expiry is established by these retention checks.
+
+## Direct caller diagnostic projection — 2026-10-24
+
+The focused catalog package run on committed source `ba51e4226` passes **4 tests**,
+including root imports. Every direct registry entry retains its reviewed category,
+failed reads report `not_applicable`, local failures report `not_submitted`, and
+recorded mutation attempts preserve `unknown` and the original full-width operation
+identity. The semantic mapping gate covers **106 direct/common causes across 66
+owner/error pairs**, with no exceptions in this boundary. The inventory records
+603 owners and 4,904 owner/error pairs; inventory coverage is separate from this
+executable projection proof. This slice does not establish SDK/ABI migration or
+inject allocation failures into a real accepted request.
+
+## Explicit relational queries over retained definitions — 2026-10-24
+
+The ReleaseSafe `just test::direct-table-service` rerun passes **1,253 typed
+calls** and the original three-restart CRUD/DDL, retained-read, delegation and
+change-reader schedule. The added query explicitly supplies the original saved
+Table binding and pin after DROP/name reuse; COUNT reads the original two rows,
+then verifies terminal completion. A changed source name or a different retained
+interpretation is rejected. Source metadata and output disclosure use current
+snapshot rights rather than requiring the old interpretation to remain live.
+This run includes the ongoing SDK cutover's matching native binaries and fixtures;
+it qualifies the shared retained relational implementation, not completed
+interactive language bindings or a resumable cursor after host loss.
+
+## Installed Work items direct lifecycle — 2026-10-24
+
+`nix develop -c just test::server-applications` passes on frozen source
+`cde2f0848` with separately built ReleaseSafe consumer binaries and frozen local
+runtime artifacts. The local installation migrates **19 rows in 19 row steps**,
+retains **21 receipts**, reaches worker generation **9**, preserves exact earlier
+receipts after replacement and restart, and checks current access and logical
+identities. The full schedule takes **390.194 seconds**; manager RSS peaks at
+**52,432,896 bytes** and installation checkpoints at **3,037 bytes**.
+
+The earlier installed attempt remains failed: migration step 22 exhausted
+recovery with ConnectionRefused after the manager's node restart budget was
+exhausted. The successful run uses a fresh owned installation and completes the
+original schedule without increasing its retry or timeout budgets. Its retained
+directory is `/var/tmp/transit-server-proof-szi0g_8x`; the failed directory is
+`/var/tmp/transit-server-proof-pbcvzasf`. This is local application installation
+evidence, not Kubernetes/Substrate placement or a final SDK cutover check.
+
+## Direct caller mutation-attempt evidence — 2026-10-24
+
+The focused `direct caller attempt` package run passes **4 tests**, including
+root imports. It preserves original operation identity across later reads and
+projects unknown outcomes for denial, conflict, malformed replies, timeout and
+allocation errors after mutation dispatch. Failed credential lookup against an
+unreachable authority leaves the attempt empty. These are attempt projections;
+they do not establish a durable operation outcome or inject output-allocation
+failure into a real accepted request.
+
+The first filtered run omitted the new test import and establishes no test pass.
+The first public-proof build caught an incorrect staged-intent member access;
+it is corrected, the test import is present, and the explicit-count package rerun
+passes. The corrected public rerun passes `just test::direct-dependencies`
+(**32 calls**) and `just test::direct-named-resources` (**107 calls**). Corrupted
+dependency replies preserve unknown outcomes and their original IDs. In each
+resource allocation, a native receipt proves allocation was accepted before the
+catalog response reports AccessDenied; the attempt remains unknown, preserving
+the saved operation for recovery after explicit grants. All original fault and
+restart assertions also pass. Contract, diagnostic inventory/mapping and
+documentation checks pass. The hook does not yet replace the general catalog
+ABI's dispatch/error boundary.
+
+## Direct host named resource recovery — 2026-10-24
+
+`just test::direct-named-resources` passes **107 typed catalog calls**, eight
+withheld resource replies, four withheld dependency replies and eleven abrupt
+node replacements with resource operations routed through serialized shared host
+actions. The saved host CREATE bindings remain unchanged across each recovery.
+The schedule covers original caller allocation, actual Station KV/Document
+initialization, typed KV writes/deletes, Document publication, current native
+data denial, metadata lookup, rename/DROP and original receipt recovery.
+Dependency registration, both graph directions, RESTRICT and explicit cleanup
+continue to use their existing native owner in this resource schedule.
+
+The focused `direct resource host` package test passes full-width Document IDs,
+staging budgets, object/operation identities and positions, owned restoration
+after freeing the source arena, wrong-caller rejection and exact prepared native
+allocation recovery. Independent schema fixtures require complete bindings and
+reject numeric full-width Document IDs. Their first run caught a missing Python
+brace; the corrected run passes. Generated contracts, diagnostic checks,
+formatting and documentation links pass. General SDK/ABI integration and final
+combined/clean-checkout qualification remain open.
+
+## Shared direct preview repository check — 2026-10-24
+
+`nix develop -c just check` passes on frozen source `1af0494e7`, including
+contracts, independent fixtures, the disk-backed unit suite, CLI diagnostics,
+console history, frontend checks and the documentation tests/build. Later host
+inspection, administration, dependency and resource changes have their own scoped
+evidence below and require the final combined and clean-checkout gates. This run
+is not `just ci-clean` or installed-placement qualification.
+
+## Direct host dependency recovery — 2026-10-24
+
+`just test::direct-dependencies` passes **32 typed HTTP calls** through the shared
+host adapter. The original host bindings remain byte-for-byte unchanged across
+corrupted registration/removal replies and abrupt node replacement. Recovery
+returns the exact terminal receipts; current membership becomes absent after
+removal even when the original registration receipt is replayed. Both graph
+directions, current metadata revocation, redacted DROP blockers, altered-binding
+rejection and DROP/name replacement pass.
+
+Independent generated-contract checks require complete saved host bindings and
+decimal full-width operation identities. All 152 catalog package tests pass,
+including owned saved-binding restoration after freeing its original JSON arena
+and cursor rejection for a changed caller, selection or authority. Diagnostic
+mappings/inventory, formatting and documentation links pass. This is shared caller qualification;
+general SDK/ABI migration and final integrated/clean-checkout gates remain open.
+
+## Direct host namespace and policy preparation — 2026-10-24
+
+`just test::direct-table-callers` passes **150 typed HTTP calls**, including
+saved namespace-binding restoration, read-only preview, explicit CREATE/RENAME/
+DROP, stale-definition rejection and original CREATE receipt recovery after
+retirement. Policy compilation binds the exact native Table reference; preparing
+its signed native authorization record leaves the policy revision unchanged.
+The complete `just test::direct-table-service` regression passes **1239 typed
+HTTP calls**, including retained history, lost replies and three restarts.
+
+All 151 catalog package tests pass. The new binding test restores the maximum
+operation/catalog IDs after freeing its source arena and rejects a different
+caller. Its first run incorrectly used the borrowing JSON parser and crashed
+after freeing that input; the corrected fixture uses the owned parser and the
+complete rerun passes. Independent generated-contract fixtures reject missing
+namespace-binding definitions and numeric full-width operation IDs. Diagnostics,
+formatting and documentation links pass.
+
+These are shared host adapters over the existing namespace and native policy
+owners. Preparation does not publish a policy change. General SDK/ABI integration,
+dependency/resource host adapters and final integrated/clean-checkout checks
+remain separate delivery gates.
+
+## Direct host catalog inspection — 2026-10-24
+
+`just test::direct-table-callers` passes **129 typed HTTP calls** with the host
+inspection adapter. It reads capabilities, the current signed catalog
+description, namespace metadata and the Table directory through the direct
+owner. Directory entries preserve the exact interpretation returned by lookup;
+continuation against a changed directory rejects after DROP. Existing saved-work,
+preview, wide bulk mutation and receipt-recovery checks also pass.
+
+The complete catalog package suite passes. The `direct catalog cursors` test
+round-trips full-width IDs/frontiers, rejects a changed caller or selection and
+rejects a changed directory before returning a continuation result. Independent
+Python fixtures reject missing cursor definitions and numeric full-width IDs.
+Generated contracts, diagnostics, formatting and documentation links pass.
+These checks cover the shared host inspection boundary; general SDK/ABI dispatch,
+catalog administration and the final integrated/clean-checkout gates remain open.
+
+## Shared direct preview — 2026-10-24
+
+`just test::direct-table-callers` passes **124 typed HTTP calls** through the
+real local node. The host previews loaded DDL, bulk rows, predicate statements
+and conditional names without admission. Repeated previews preserve positions;
+operation inspection remains unobserved. A competing INSERT invalidates the
+saved predicate's data frontier, ALTER invalidates the saved row definition,
+and DROP reports an object conflict. Conditional previews distinguish the
+original existing definition from its later absence. Exact original receipts
+remain independently recoverable.
+
+The complete catalog package suite and `just test::local-catalog` pass.
+Disk-backed component assertions verify unchanged object-put counts, catalog
+roots and Table log tails, absent identity claims and current denial during
+preview. Native policy checks reject revoked Table ownership and an independently
+revoked acceptance prerequisite. Response tests reject changed identities,
+invented success against a changed frontier, altered schema fingerprints and
+inconsistent stale reasons. The first expanded package run failed because the
+new test used a change frontier equal to its saved frontier; the corrected
+fixture uses a strictly later change and the complete rerun passes.
+
+Reflected host/native schemas, independent full-width preview values,
+diagnostic mappings/inventory and documentation links pass. The initial contract
+regeneration caught a shadowed local variable; it is corrected. These additive
+preview operations leave stored formats and the current definition unchanged.
+The focused caller task does not itself inject faults or replace nodes. The
+complete `just test::direct-table-service` regression also passes **1213 typed
+HTTP calls**, including lost replies, retained history, current revocation and
+three restarts. Final integrated/clean-checkout gates remain separate.
+
+## Typed direct caller preparation — 2026-10-24
+
+`just test::direct-table-service` passes **1184 typed HTTP calls** in the pinned
+ReleaseSafe profile under current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`.
+The added host sequence prepares typed CREATE, inserts nine 32 KiB UTF8 values
+through a serialized host action larger than the 256 KiB actor frame, and reads
+back a complete value from the direct owner. Typed ALTER adds a default; a DROP
+prepared against the earlier definition rejects. RENAME, DROP and absent
+conditional DROP use the same saved-work, staging, admission and explicit
+execution path as SQL. The existing SQL, history, lost-reply, revocation and
+three-restart regression also passes.
+
+Host session package tests, independently validated generated contracts,
+diagnostic mappings/inventory, Zig formatting and documentation links pass.
+The independent Python contract check includes the wide typed batch and rejects
+a missing definition. These are additive caller types; native and stored formats
+are unchanged. Preview, SDK/ABI wiring, removal of remaining actor Table callers
+and the final integrated/clean-checkout gates remain unfinished.
+
+## Shared direct caller session — 2026-10-24
+
+`just test::direct-table-service` passes **1150 typed HTTP calls** in the pinned
+ReleaseSafe profile under current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`.
+The new host session sequence compiles CREATE with independent operation/object
+IDs, saves and restores it after destroying its original session, stages without
+admission, admits and executes it, and decodes its metadata. Conditional CREATE
+returns the owning unchanged name outcome; conditional execute rejects. INSERT
+returns the exact committed matched/affected counts. After source DROP and local
+forgetting, the original reference still recovers the identical CREATE receipt.
+Existing SQL, DDL, retained history, current revocation, lost replies and three
+node-restart schedules also pass.
+
+The `direct host session` package test passes inert loading against an unreachable
+endpoint, failed output allocation without replacing the prior intent, wrong
+namespace/caller rejection and explicit local forgetting. Reflected host action,
+result and saved-work contracts pass independent Python validation; diagnostics,
+formatting and documentation links pass. This qualifies the shared caller's
+lookup, SQL compilation and explicit recovery path. Typed declaration/batch
+preparation, preview, SDK/ABI wiring and the final integrated/clean-checkout gates
+remain separate work.
+
+## Lossless direct caller references — 2026-10-24
+
+The catalog package's `direct host references` tests pass full-width unsigned
+catalog, object, operation, definition-revision and LSN conversion, owned JSON
+restoration after the source arena is released, malformed decimal rejection,
+missing compatibility rejection and mismatched interpretation-content rejection.
+`just contract::direct-table-generate` generates the host reference/preparation
+schemas from their Zig owners and checks an independent Python fixture against
+the exact canonical saved intent and its SHA-256 content commitment. The fixture
+contains operation/catalog identity `18446744073709551615`; host schemas reject
+a numeric operation and missing required identity fields. Zig reconstructs the
+original native reference from that independent fixture.
+
+The complete catalog package tests, generated direct-contract drift check,
+diagnostic mappings/inventory, Zig formatting and documentation links pass in
+the pinned Nix shell. This does not replace the final integrated repository and
+clean-checkout checks.
+
+This adds value contracts under the existing current-v1 definition; native
+requests and stored formats are unchanged. It is prerequisite evidence for
+general Table SDK/ABI migration, not proof that those callers already dispatch
+through the direct owner.
+
+## Shared direct Table DDL preparation — 2026-10-24
+
+Under current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`,
+SQL and typed callers use `DirectTablePreparedDdl` for CREATE, ALTER, RENAME,
+DROP and conditional name assertions. This is a shared compiler refactor; it
+does not change stored intent or receipt formats.
+
+`just test::direct-table-service` passes **1121 typed HTTP calls** using the
+pinned ReleaseSafe profile. The added schedule binds CREATE operation 509 to
+object 1509, releases its preparation template, restores the complete saved
+intent, and checks that staging has not admitted it. After acceptance it adds a
+typed default, rejects an older prepared DROP, renames and drops the Table, then
+recovers the unchanged original CREATE receipt. Existing CRUD/DDL, conditional
+name evidence, SQL, retained reads, history, revocation and three node-restart
+checks also pass. The first expanded run stopped because its stale-binding
+assertion expected `TableDefinitionChanged`; this action's HTTP client reports
+`Conflict`. The corrected assertion retains rejection and the complete rerun
+passes.
+
+The SQL package suite, diagnostic mappings/inventory, Zig formatting and
+documentation links pass. This supplies shared preparation for caller migration;
+it does not qualify the remaining actor Table SDK/ABI paths. Final integrated
+repository and clean-checkout checks remain delivery gates.
+
+## Obsolete named metadata owner removal — 2026-10-24
+
+The supplied-resource-ID `DeclarativeCatalog` implementation is removed. Its
+Table name-collision, lifecycle and dependency fallbacks are removed with it.
+The retained Table dependency/redaction regression uses actual Table definitions;
+named KV/Document allocation, initialization and dependency coverage belongs to
+the direct owner and the executed schedules below. Caller-supplied computation
+completion remains a rejected action. Removing that metadata helper does not
+finish migration of the remaining actor Table callers.
+
+Shared current-v1 definition
+`1f0a0d9a10df7cb89783f6106fb0881a56c29ad7135167b97325ba1d56750029`
+replaces the stored interpretation; old artifacts are not adopted or reset.
+Schemas, host resources and independent signing fixtures are regenerated.
+The complete catalog package tests, diagnostic mappings/inventory,
+`just contract::check`, documentation links and the complete handbook check pass
+in the pinned Nix shell. The first contract-check attempt reached the generated
+host-type check and failed because this fresh worktree lacked installed frontend
+dependencies. After `just transit-board::install`, the complete contract and
+handbook rerun passes, including types, nine content tests and production build.
+
+This records component and format qualification for the removal. Public named
+resource/query fault schedules below retain their exact earlier source definitions;
+full-repository and clean-checkout qualification remain separate delivery gates.
+
+## Named query dependency publication and retirement — 2026-10-24
+
+Under shared current-v1 definition
+`fb5dbd8980b7260fecf93af4f0d47684cc6d386d8bd86c92009b98530a64edd0`,
+the Station application naming tests pass pure saved publication preparation,
+owned JSON restoration, exact source/dependent bindings, logical references
+independent of retained physical locators, conditional publication, retirement,
+name reuse and preserved original attribution. Independent Python fixtures verify
+the `NRL1` logical digest, mandatory proposal digest, `NRT1` retirement record and
+exact keys. The complete Station application package suite passes; reproduce it
+with `zig build test` from `packages/zig/transit-station-app` in the pinned Nix
+shell. The complete catalog package suite and its additional `dependency
+membership` filter pass current graph observation, metadata denial, inert reads,
+removed membership despite an old successful receipt, exact response binding and
+rejection of a missing membership field or substituted operation result.
+
+An initial saved-plan test exposed borrowed JSON strings that outlived their
+temporary preparation buffer. The loader now owns its decoded bytes and the
+regression passes. The first two public captured-query runs reached their
+600-second supervisor deadline while progressing through the added node-restart
+schedule. Neither is passing evidence. The dedicated captured schedule now allows
+1200 seconds for twelve accepted-reply faults and both query/retirement shapes;
+per-operation and bounded-work assertions remain in force.
+
+The public captured schedule passes `zig build test-direct-captured-query --
+--named-only`: six exact source registrations and six native naming acceptances
+withhold their replies, each followed by abrupt node replacement. Publication,
+authorization and retirement recover their original native receipts after worker
+generation/key rotation. Four saved publication plans remain byte-identical.
+Self-joins share an edge; independent Tables retain distinct cuts and edges.
+Both shapes verify inert publication, explicit activation, original result
+attribution, current disclosure denial/restoration, stale/error freshness,
+DROP RESTRICT before cleanup, exact retirement/removal and complete retained
+results after source DROP. Replaying the old registration cannot restore a
+removed edge or make its publication plan ready.
+
+The maintained schedule passes `zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --maintained-only` under the same source definition.
+It recovers six registrations and six native publication/policy/retirement
+acceptances across abrupt node replacement and worker credential rotation;
+all four saved publication plans remain byte-identical. Both self-join and
+independent-Table shapes complete backfill and original physical history progress,
+verify no-op revisions and paired deltas, close their original history leases,
+enforce current disclosure denial/restoration, reject DROP before cleanup and
+retire both named definitions before explicit edge removal. The original retained
+revision remains readable after source DROP; explicit result retirement then
+requires reset. These are separate logical retirement and cleanup operations.
+
+The first Debug run completed preparation/key recovery but
+hit the 600-second deadline while the second query shape was still advancing in
+backfill. The dedicated two-shape backfill phase now has a 1200-second supervisor
+budget; the incomplete run is not counted as passing evidence. The second Debug
+run passed preparation and backfill, then exceeded the 900-second resume deadline
+after recovering the first retirement acceptance. It is also incomplete. The
+passing ReleaseSafe run retains the same budgets and assertions.
+
+Generated schema/ABI/signing fixtures and `just contract::check` pass.
+Diagnostic mappings and inventory pass with 594 production owners, 4864
+owner/error pairs and 5071 error-return boundaries. The complete handbook check
+passes formatting, types, nine content tests and production build. The complete
+`just check` also passes at source `849901e64` in the pinned Nix shell, after
+installing locked frontend dependencies. This includes the native/package tests,
+generated contracts, CLI, Board and handbook checks. Clean-checkout qualification
+and a full check of the final integrated source remain required before delivery.
+These checks do not establish atomic catalog/native publication, automatic
+reconciliation, SQL view publication or service-managed query scheduling.
+
+## Named resource dependency authority and retirement — 2026-10-24
+
+Under shared current-v1 definition
+`77272670307dae08e50482d54527d048999215b933dc5c078e20ab06fe50bbde`,
+`zig build test-direct-named-resources` passes **107 typed catalog HTTP calls**
+with eight withheld resource-stage replies, four withheld dependency replies and
+eleven abrupt node replacements in the pinned Nix shell. Separate caller processes
+preserve the saved declaration and registration/removal bindings. Real initialized
+KV and Document objects serve as both sources and dependents. Both graph directions,
+source native-read denial, independent metadata inspection, DROP RESTRICT, exact
+registration/removal recovery and no resurrection from an old receipt pass before
+the existing typed data, rename and retirement checks.
+
+Focused catalog checks cover both resource kinds, exact allocated dependent
+definitions before publication, wrong-kind rejection, unsupported source mutation
+masks, dependent metadata denial/redaction, lost registration acknowledgement,
+rename without edge retargeting, retained edges after consumer retirement and
+explicit cleanup without source data access. An initial test left the intentional
+lost-reply flag enabled for subsequent mutations; the corrected fixture scopes
+that fault to registration. It is not counted as passing evidence.
+
+The cutover regenerates schemas, binding declarations and independent signing
+fixtures because named dependency authority no longer refers to the catalog's
+backing native resource. `just contract::check` and the complete catalog package
+tests pass. The existing Table
+dependency HTTP regression also passes **30 typed calls**, two withheld replies
+and abrupt node replacement, preserving exact receipts, metadata revocation,
+redacted blockers and DROP/name replacement. Diagnostic inventory/mapping checks
+and documentation links pass. This qualifies explicit same-catalog named-resource registration,
+not atomic resource/dependency publication, automatic reconciliation, cross-catalog
+named resources, query publication integration or distributed placement. Full
+repository and clean-checkout qualification remain required before delivery.
+
+## Named native resource allocation and initialization — 2026-10-24
+
+Under shared current-v1 definition
+`c9953eefbeb433c169967c999da0fe0b356e55372a9e055af6a737acee9470bf`,
+`zig build test-direct-named-resources` passes **71 typed catalog HTTP calls** in
+the pinned Nix shell. The public caller saves two declarations before admission.
+An independent proxy withholds valid observation evidence for all eight accepted
+CREATE stage replies by corrupting their context; nine abrupt node replacements
+separate allocation and initialization stages. Saved bindings remain byte-identical.
+This is an executed local native-disk schedule, not a Compose or Reference run.
+
+The proof uses actual original-caller native allocation, explicit metadata and
+native data permissions, public Station turns and current public readers. It
+checks inert preview, hidden pending names, one prepared allocation per principal,
+allocation accepted before a denied attachment, exact native receipt recovery,
+KV initialization and all three Document initialization stages. Typed KV
+put/get/delete, actual Document change staging/acceptance and current read denial
+after revocation pass. Metadata rename and logical DROP preserve the initial
+marker, original completion receipt and independently readable native data.
+The final resource listing excludes the retired catalog bindings.
+
+The existing direct Table HTTP regression also passes **1090 typed calls** under
+this definition, including full CRUD/DDL, retained reads/history, namespace and
+conditional-name recovery, original-caller delegation, cleanup and three restarts.
+
+Focused catalog tests pass shared Table/name/operation conflicts, disk recovery
+after each lost stage acknowledgement, allocation-reservation recovery and
+release, final publication-fence denial, malformed wire response rejection,
+independent Python/OpenSSL intent/digest vectors and **25 live definitions plus
+11 cancelled claims with a one-page resident cache**. Filtered empty listing
+pages preserve continuation; native and metadata rights remain distinct.
+Framework tests pass discarded proposals between initialization steps, no
+adoption of populated or anonymous data, exact markers, typed value/key bounds,
+owned decoding, permission loss, partial-KV-marker rejection and preservation of
+private proposals on failure.
+
+Earlier integration attempts failed on reused fixture identities, missing native
+inspection/worker grants and absent clock configuration. They also exposed two
+implementation defects: simultaneous declarations froze the same caller sequence,
+and the emptiness scan rejected GenServer's private framework descriptor. The
+durable allocation index and explicit committed scan now have regression checks;
+private user mutations cannot hide populated data. Those failed attempts are not
+counted as passing evidence.
+
+The coordinated current-v1 cutover regenerates schemas, public bindings and
+independent signing fixtures. `just contract::check`, the complete catalog package
+tests, `zig build test-local-catalog`, focused framework initialization tests and
+documentation link checks pass against this definition. Diagnostic inventory/mapping checks pass; this
+records their declared scope and does not establish new diagnostic projections.
+This proof does not integrate named consumers with exact dependency registration,
+retire the remaining actor catalog implementation, expose executable KV/Document
+console SQL, establish automatic reconciliation, qualify arbitrary application
+writers or prove distributed transactions.
+
+The full `just check` run at `7378460bd` passed core, contract, native/package,
+CLI and Board stages, then failed the handbook ownership test because this
+Internals account included a repository command. The command now belongs to the
+proof ledger. With only documentation wording changed, the complete
+`just transit-docs::check` rerun passes formatting, types, all nine content tests
+and the production build. This records the initial failure and corrected stage
+separately; clean-checkout qualification is still required before delivery.
+
+## Direct definition dependencies and restricted retirement — 2026-10-24
+
+Under shared current-v1 definition
+`876f2437cc73bd0a2822fd49a77e8ede1e3c8fcfa0fd747851ee49aa8e0e5ac1`,
+`just test::direct-dependencies` passes **30 typed HTTP calls** in the pinned Nix
+shell. The independent proxy corrupts the first accepted registration and removal
+replies; each is followed by an abrupt node kill and separate caller recovery.
+Saved bindings remain byte-identical. Original terminal receipts, altered-intent
+rejection, both graph directions, current metadata denial and restoration, and
+generic RESTRICT with a redacted blocker pass. A rejected DROP stays rejected
+after removal; a separate DROP and same-name creation preserve the old identity.
+Replaying the original registration does not restore the removed edge.
+
+The focused catalog tests pass disk recovery, revocation at the publication fence, cancel
+tombstones, no-op receipts, source DDL exclusion, rename/stale-definition handling,
+and **41 edges with a one-page resident cache**. Four-edge scans omit inaccessible
+records, advance past filtered records and reject changed observation
+cursors without writing during inspection. Independent Python/OpenSSL signing
+and big-endian digest fixtures cover full-width identifiers. Client validation
+rejects substituted objects, duplicate edges, mixed positions and authority modes.
+
+`zig build test-local-catalog -Doptimize=ReleaseSafe` passes real native grants,
+denial after acceptance/response buffering, exact receipt recovery, metadata-only
+inspection and explicit orphan cleanup. Native resource retirement alone retains
+metadata grants; the test separately revokes them, then requires realm ADMIN and
+source ownership for cleanup. No dependent data grant is inferred.
+
+`just contract::check`, diagnostic inventory/mapping checks and documentation
+links pass after coordinated schema, binding and signing-fixture regeneration.
+The first contract run lacked installed frontend dependencies in the isolated
+worktree; the locked install and complete rerun pass. Earlier HTTP attempts had
+incorrect fixture expectations for a typed DROP rejection and tried to inject a
+successful-reply fault into a denied removal. Those failed attempts are not
+evidence of success; the final fixture preserves both distinctions.
+
+This qualifies explicit registration and inspection. It does not publish or
+activate named KV, Document or query consumers, retain their data, integrate
+their publication owners automatically, or qualify Table garbage collection.
+The catalog format requires both graph indices and the new definition; prior
+artifacts reject rather than acquiring an empty graph through a default.
+
+The existing `just test::direct-table-service` regression also passes **1090
+typed calls**: point/bulk rows with a real `.tseg`, full CRUD/DDL, SQL namespace
+and conditional-name recovery, retained joins and history, original-caller read
+delegation, explicit pin cleanup and three restarts. It does not acquire
+dependency registrations implicitly.
+
+The full `just check` run at committed revision `6d64dbd5c` passes, including
+the unit suites, generated contracts and independent fixtures, frontend checks,
+and handbook tests and build. This result covers the dependency registry and
+the existing application changes at that revision; subsequent named-resource
+implementation requires its own qualification. The final clean-checkout gate
+has not yet run for this implementation branch.
+
+## Station ledger over the direct Table owner — 2026-10-24
+
+The shared current-v1 definition is
+`40ebbb4d9c928daa573cfaf38cafe3361c7fb972bfcd314d64f9dc665e75e547`.
+In the pinned Nix shell, `zig build test-station` passes the ledger, service and
+lifetime schedules against the native local owner. The ledger saves its exact
+catalog/branch/object binding and rejects missing or previous definitions and
+replacement-object configurations before consuming the original input.
+
+Creation and row changes use immutable direct intents. A native dispatch record
+precedes direct admission; the original Table receipt precedes a separate native
+audit/reply commit. The schedule refuses initialization once, loses an accepted
+direct admission reply, expires a native view and loses or holds native terminal
+receipts. Exact retries, changed policy bases, abrupt node/worker replacement,
+stale-generation rejection and the final 7 + 5 - 2 = 10 result pass. Native audit
+publication uses two writes and does not carry Table rows or publish a Table head.
+
+The requester saves its caller-signed capture grant and original cut before
+upload. Independent Arrow decoding, replacement of both query hosts, explicit
+query-policy denial and native SELECT revocation before publication pass. The
+executor uses its login identity; the saved requester grant supplies the data
+role. Registry/rebind routing, late-result timeout closure, scoped supervision
+and blocked-handler control remain in the passing suite. Opted-in expiry uses
+maintenance inside the owning node, permanently reclaims native progress and
+rejects a later worker. This does not establish physical Table reclamation.
+
+Earlier runs failed on missing domain lifetime bindings, ordinary privileges
+mistakenly inferred from ownership, a root-input SEND requirement, an executor
+carrying the requester's selected role and external maintenance opening an
+exclusively owned local directory. The final schedule corrects those compositions
+without relaxing the owning checks.
+
+`just launchers::local::test-station` also passes with ReleaseSafe installed
+artifacts: registry/call/Arrow exchanges, same-PID recovery, credential rotation,
+all three worker upgrades, Board provenance and persistent stop/start. Its
+courier fault refuses 293 reads, replaces the courier in **30.385 seconds** and
+completes the query within the separate recovery window (**15.937 seconds**).
+These are observed test times, not latency guarantees. The initial launcher
+attempt failed because its temporary bootstrap listener satisfied the manager's
+health probe before provisioning completed. Bootstrap now completes before the
+manager starts. The successful installed run precedes the additional realm and
+executor startup-rejection checks. The subsequent native suite passes those
+additional checks too. `just launchers::compose::test-station` passes the same
+registry, direct mutation, captured query, same-PID replacement, three-worker
+upgrade, Board inspection and retained stop/start workflow in real containers.
+`just launchers::reference::test-station` subsequently passes the same workflow
+in an owned Kind/Substrate cluster, including forced ledger pod deletion, fresh
+worker activation, three-worker upgrades and retained stop/start. The full
+`just check` run passes after the independently signed/hashed fixtures are
+regenerated through their owners. Earlier fixture failures remain failures.
+The check starts at the Station migration commit; the subsequent reference
+bootstrap corrections also pass chart checks, 15 ownership/recovery checks and
+documentation links. These results do not qualify the unfinished shared
+dependency and named-resource work or replace final committed-HEAD validation.
+
+## Retained native storage in the Helm chart — 2026-10-24
+
+In the pinned Nix shell, `python3 -B tests/deployments.py` passes chart lint and
+rendered deployment checks. A native local owner and its explicit initializer
+mount the same retained PVC; an existing claim is reused without another claim
+being created. Only the node receives the configured credential Secret. The
+chart rejects an ephemeral local path, simultaneous Ursula configuration and an
+external maintenance process for the exclusively owned directory. Existing
+Ursula and private-network checks remain in the same passing schedule.
+
+The Station reference run uses a newly owned Kind/Substrate cluster. Initial
+attempts exposed a seven-character/eight-character Substrate version mismatch
+and a bootstrap deadlock: Helm waited for an unused native PVC, while the
+`WaitForFirstConsumer` storage class waited for the initializer. Build version,
+DaemonSet lookup and worker node selector now share one explicit pinned value;
+the initializer deploys with the claim. The real claim binds and initialization,
+native provisioning and activation of all three workers complete. The 15
+reference ownership/recovery unit checks and chart checks also pass.
+
+The subsequent run fails the **60-second initial ledger completion deadline**.
+Node evidence includes storage writes canceled at the two-second request budget
+while the disk-backed unit suite runs concurrently. A later inspection observes
+the expected total of 12, which does not turn the deadline failure into a pass.
+The failed installation is stopped with data and logs retained. After the large
+disk-backed unit suite completes, a fresh reference installation passes the
+original unchanged deadlines, direct ledger/query workflow, forced pod loss,
+three-worker upgrades, Board provenance and persistent stop/start. Its fixture
+stops and resets its own installation. A node pod reports three restarts during
+the final start; the schedule proves eventual ready state and retained results,
+not a restart-free startup. No provider-isolation or power-loss claim is added.
+
+## Named publication recovery with current credentials — 2026-10-24
+
+Under the `b840e71b` current-v1 definition, both focused direct-service schedules
+pass in the pinned Nix shell:
+
+```sh
+just test::direct-named-query
+zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --maintained-only
+```
+
+Each schedule covers a self-join and two independent Tables. The fixture saves
+each exact native naming/policy proposal to a synced private file before dispatch.
+For each worker, the proxy loses the first accepted `NRD1` publication reply and
+`NRP1` authorization reply and abruptly replaces the node. Eight injected reply
+losses across the two schedules then rotate the corresponding worker key and
+generation before reconstructing its host.
+
+The initial attempt to recover by resubmitting the retired signature correctly
+failed. The final fixture verifies that denial, then uses the existing current-
+credential receipt query for the exact original request. The proxy independently
+compares the returned receipt with the original accepted response and verifies
+that the saved proposal bytes never change. Altered request content rejects with
+`ConflictingRetry`; the prior worker generation cannot resume. The fixture retires
+each saved proposal only after observing its receipt.
+
+Publication and authorization leave execution absent until explicit activation.
+Captured output, original named attribution after later publication and current
+disclosure denial/restoration pass. The maintained schedule also passes node
+restart during acquisition and physical history traversal, backfill, complete
+successor revisions/deltas, original lease cleanup and retirement. Its complete
+run takes approximately **10 minutes**. Current keys authorize recovery; they do
+not replace the original caller's query grants or source cuts.
+
+Documentation links and the site check pass, including nine tests and its build.
+These schedules qualify naming/policy reply recovery. They do not close shared
+dependency registration, migration of the older actor fixtures, broader activation
+and failure fault schedules, or final committed-HEAD/installed qualification.
+
+## CLI actor Table helper retirement — 2026-10-24
+
+The console already executes through the shared SQL service. Its unreferenced
+`ConsoleRelational` implementation and actor `TableRecovery` journal are removed,
+including the obsolete journal's unit-test import. Their recovery semantics do
+not describe the installed service-owned operation ledger and pin journal.
+The diagnostic inventory no longer treats these files as production owners.
+
+In the pinned Nix shell, `zig build test-cli-lifecycle -Doptimize=ReleaseSafe
+--summary all` passes **33/33** tests. `just test::cli-diagnostics` passes **193**
+server/console cases and **127** artifact/file cases. Diagnostic inventory,
+semantic mappings and documentation links pass; the site passes nine tests and
+its production build. The DROP TABLE help and SQL reference now state the
+direct runtime's missing shared dependency check and Table garbage collector;
+they no longer promise the old actor catalog's RESTRICT behavior. This cleanup
+does not implement those missing owners or retire the remaining actor consumers.
+
+## Direct Table change-reader checkpoints — 2026-10-24
+
+The shared current-v1 definition is
+`b840e71bde2e36fc2c83d773e3bb13bbf9c44c15d3d46b955beed1f8fda84a00`.
+`TableChangeReader` now traverses an explicitly acquired direct history lease.
+Its mandatory versioned position binds the original connection, object, lease
+and exact logical history record. It replaces the actor Table journal reader;
+local closure does not release or reacquire the durable lease.
+
+In the pinned Nix shell, `just test::direct-table-service` passes **1090** typed
+HTTP calls. The fixture saves the position to disk, rejects missing/foreign
+definitions and altered record commitments, and reopens it after process/node
+replacement. Writes accepted during paused backfill leave its original rows
+unchanged. Two replays verify eight complete transactions: a no-op, insert,
+delete, update, delete, column addition, rename and DROP. Insert/delete cursors
+advance independently in the before/after sources; the first implementation
+incorrectly shared one cursor and failed the owner's source-membership check.
+The corrected run passes without weakening that check.
+
+The schedule also verifies incomplete-transaction checkpoint rejection,
+allocation failure without cursor advancement, request exhaustion, cancellation,
+current denial/restoration, original schemas after name reuse and rejection after
+explicit lease closure. Row changes retain the original acceptance receipt and
+both source bases; physical-only pages create no logical transaction. The old
+actor change-reader fixture is removed; other actor Table consumers still need
+migration.
+
+Query package tests pass **152/152** and native protocol tests **51/51**. Generated
+contracts/bindings, diagnostic inventory, Board contracts and documentation links
+pass. The documentation site passes nine tests and its production build. Query
+unit and site runs precede the final independent-cursor correction and proof
+prose; the HTTP run includes that correction. The repository-wide check began
+before this cutover and cannot establish final committed-HEAD qualification.
+Shared dependency registration, named resource provisioning and the remaining
+caller/installed gates stay open.
+
+## Native SQL namespace lifecycle — 2026-10-24
+
+The shared current-v1 definition is
+`819b12b133443f6c0a269c818da0698cb222ac4cad1d7010da3ac602000a0f55`.
+The previous definition rejects. Native SQL prepares CREATE/RENAME/DROP SCHEMA
+without publication, stores the original namespace binding in its operation
+ledger and dispatches to the direct catalog. Schema commands have a mandatory
+null prepared result schema. Row-returning statements retain their logical
+schema independently of whether execution returns any rows.
+
+In the pinned Nix shell, ReleaseSafe SQL tests pass **30/30**, protocol tests
+**51/51** and SQL protocol tests **7/7**. The ledger schedule preserves the
+selected session namespace separately from the changed schema, checks exact
+terminal evidence and replacement fencing, and validates rejection/cancellation
+diagnostics. `just test::direct-table-service` passes **705** typed HTTP calls,
+including the real SQL preparation/binding path, stale prepared and admitted
+schema rejection, lost replies, name reuse and exact outcomes after restart.
+
+`just test::server-direct-faults` passes Table and namespace operations under
+blocked direct execution, killed callers and abrupt server restart. Reads and
+control requests remain available; recovery uses the saved original intent,
+and cancellation leaves the unpublished namespace change unapplied. The fixture
+now sends the public cancellation wrapper instead of an invalid bare identity.
+
+The installed namespace schedule exposed two defects: command preparation tried
+to encode an invalid empty logical structure, and the console omitted the
+recorded dependency reason for a rejected DROP. Both are fixed. The subsequent
+installed run failed earlier, during Table DDL, while SQL readiness repeatedly
+reported `AuthorityTimeout`; the console correctly preserved an unknown outcome.
+That run is not passed. A subsequent `just test::server-direct-tables` run passes
+the complete installed schedule: Table CRUD/DDL and schema lifecycle while the
+query worker is stopped, inert preparation, stale schema rejection, visible
+dependency diagnostics, abrupt restart, original outcomes and deliberate
+default-Table deletion/name reuse. The fixture logs each static Table statement
+to identify a failing stage without exposing saved credentials or requests.
+The repository-wide `just check` subsequently passed. It began before the
+following change-reader cutover, so it is not final committed-HEAD qualification.
+Contract generation/checks, diagnostic inventory/mappings,
+inferred error boundaries and **3411** diagnostic outcome projections pass.
+The earlier documentation site check passes nine tests and its build, preceding
+the final nullable-schema and diagnostic prose updates. These scoped results do
+not close the milestone's remaining caller and provisioning gates.
+
+## Work items result position display — 2026-10-24
+
+The repository `just check` completed its unit, CLI and console-history checks,
+then rejected Work items' stale `cut.revision` access during strict TypeScript
+checking. The renderer now uses the shared `sourcePositionText` formatter for
+direct Table partition and accepted-position evidence. Its focused `vp check`
+and `vp exec tsc --noEmit` pass. The earlier full run is not a pass and began
+before the SQL namespace changes; it does not qualify that cutover.
+
+## Installed Work items physical exhaustion — 2026-10-24
+
+In the pinned Nix shell, `just test::server-application-capacity` passes in
+**165.82 s** after explicitly provisioning the direct catalog authority and
+initializing its first Table. The owned ext4 image reaches actual ENOSPC with an
+accepted native input outstanding. After shutdown, space release and restart,
+the saved request completes with the original receipt, PID and resource and
+exactly one row. Bounded recovery retries check that the complete saved request
+bytes remain unchanged. The container keeps PATH unavailable and uses an
+explicit pinned OpenSSL executable for the proof's independent signatures.
+
+This run uses the `f444c2a1` definition and the stop-on-error worker policy. It
+precedes the SQL namespace contract cutover. The longer installed application
+schedule passed replacement and abrupt restart, then failed at migration step
+22 after authority timeouts exhausted the supervisor's restart budget. It is
+not counted as passed. Management retries now verify their saved request bytes,
+and replacement rejection compares against the immediately preceding active
+generation while preserving original logical identities.
+
+## Work items direct storage in Compose — 2026-10-24
+
+In the pinned serving environment, `just test::work-items-placement compose`
+passes in **556.46 s**, including **210.06 s** building physical images. Native
+history and direct Table data use the node's persistent local directory. Explicit
+initialization precedes native provisioning, Table service configuration and
+public catalog setup. Replacements open that same directory.
+
+Separate data, publication, requester, delivery and gateway processes complete
+the real browser schedule across worker, node and gateway replacement. It checks
+fresh worker keys, unchanged original query recovery, full migration and
+verification, schema publication, a new query and current denial. The TLS edge,
+private ingress and egress probes pass. Ursula and MinIO serve only as isolated
+denial targets in this topology; this run establishes no tiered cold-store data
+recovery. The two finite browser queries allow 180 seconds each for complete
+verified coverage. This is a bounded fixture deadline, not a latency guarantee.
+
+The run uses the direct data migration and membership fix; it predates the
+subsequent stop-on-error worker policy qualified in the next record. The Reference
+fixture now has an explicit initialization job and separate native/Table PVC,
+but that profile has not run: this checkout lacks the owned reference
+infrastructure and matching runtime image. It remains an open execution gate.
+
+## Work items direct storage on the reference runtime — 2026-10-24
+
+`nix develop .#serving --command python3 -B examples/work-items/placed.py reference`
+passes in **885.08 s**, including **165.31 s** of image work. The actual browser
+verifies its original query in **117.006 s** and its new query after migration in
+**133.614 s**. Both retain the existing 180-second finite-query bound. Only the
+external physical replacement/migration wait uses a separate 600-second bound.
+
+Three Substrate owners receive fresh registrations and conditional native key /
+generation rotation. Their original roles and cross-resource grants survive.
+The node and gateway reopen the same native/direct Table history on the owned
+PVC. The browser recovers its lost accepted upload, observes the schema
+transition, verifies all pages of the replacement query, and clears protected
+state after current denial. Keyboard, responsive layout and axe checks pass.
+The private gateway egress probe also passes. Namespace cleanup completes.
+
+The fixture declares its already-owned node claim to Helm, avoiding an unused
+delayed-binding PVC. Native history and direct Table data use that claim;
+Ursula and MinIO remain isolated denial targets, not evidence of cold-tier
+recovery. The successful run uses isolated reference metadata; the earlier run
+interrupted by removal of the shared reference cache is not passed evidence.
+
+## Work items direct-admission reply loss — 2026-10-24
+
+Direct data calls fail outside the native turn reader. The Work items worker
+uses the stop-on-error handler policy so those failures discard private work
+instead of committing a failed input. Its outer loop retries temporary
+unavailability with the same durable dispatch; domain rejections retain their
+explicit application dispositions.
+
+In the pinned Nix shell, `just test::work-items` passes in **86.72 s**. The proxy
+replaces one successful direct INSERT admission reply with HTTP 503 and checks
+that no submitted native turn marks an input failed. The existing 19-row
+migration, two fresh-key worker replacements, disk restart, exact native retries,
+complete verification and old-epoch rejection also pass. The run observes 242
+turns, at most four metadata mutations and 244-byte metadata values, 81 pages,
+25 transport disconnects and exactly one lost direct-admission reply. This is a
+native application proof; installed application and placement schedules remain
+separate checks.
+
+## Membership additions preserve inactive paths — 2026-10-24
+
+Installed Work items provisioning exposed `AuthorizationDependencies` while
+adding a new membership with INHERIT false and SET true. Administration treated
+every explicit false option as a removal and reconciled unrelated inactive
+delegation paths. It now runs removal closure only when a previously published,
+enabled option actually changes from true to false.
+
+In the pinned Nix shell, `zig build test -Doptimize=ReleaseSafe` in
+`packages/zig/transit-core` passes **123/123** tests. The new case disables an
+unrelated grantor, creates and repeats the SET-only membership, checks that it
+confers no inherited authority, then re-enables the grantor and observes its
+unchanged delegated grant. A separate repeated-membership reduction still
+rejects dependent ADMIN authority with RESTRICT and preserves publication.
+Installed application recovery and full repository checks remain separate gates.
+
+## Work items over the direct data owner — 2026-10-24
+
+Work items now retains an explicit direct catalog binding and immutable dispatch
+records in its native progress resource. Table admission follows committed
+dispatch eligibility and retains the original input authorization prerequisite.
+Migration records independent source/target bases, copies one transformed row
+per bounded step, verifies every target row and separately activates the data
+contract. Native progress and direct Table acceptance are separate decisions.
+
+In the pinned Nix shell, `zig build test-work-items-unit
+-Doptimize=ReleaseSafe` passes **13/13** tests. They exercise a 33-row migration,
+empty and abandoned targets, current denial, conflicting contents, lost Table
+acceptance replies, committed dispatch eligibility and unchanged exact recovery.
+Inspection checks the recorded verification bases and rejects later row changes.
+`zig build test-work-items test-work-items-browser -Doptimize=ReleaseSafe` passes
+both real disk-backed schedules: native recovery in **84.97 s** and the embedded
+browser in **184.88 s**, including **26.83 s** of browser provisioning.
+The native schedule covers 19 rows, two fresh-key fenced worker replacements,
+node restart, exact caller/worker retries, complete verification and old-epoch
+rejection. It observes 243 turns, at most four metadata mutations per turn,
+244-byte metadata values, 81 pages and 22 injected transport disconnects.
+
+The browser covers all 19 rows over three result pages, application schema and
+publication changes, gateway replacement, original uncertain-upload recovery and
+cancellation, a fresh query and current-access denial. Responsive layout,
+keyboard access and axe checks pass. Peak RSS is 125,267,968 bytes for the node,
+33,419,264 for either gateway, 28,545,024 for the data worker, 14,942,208 for
+publication, 19,255,296 for the requester and 13,463,552 for delivery. These are
+observed fixture measurements, not deployment limits or latency guarantees.
+
+The stored application binding/dispatch change replaces the shared current-v1
+definition with `f444c2a15245cf6a5852c727ebf3922f214a7fb8d3e078ea2d92b6b1eb668463`.
+The prior definition and missing/foreign application binding bytes reject.
+Protocol units pass **51/51**; regenerated contracts, SDK bindings, independent
+Work items command fixtures and diagnostic checks pass. The direct HTTP proof
+also passes **651** calls against this definition, including its existing
+CRUD/DDL, SQL, retained-read, revocation and restart schedules.
+
+Installed-application and physical placement qualification are recorded
+separately below when complete. This slice does not establish an atomic
+cross-plane migration freeze, historical query access from current-read bases,
+automatic point flushing, full `just check` or committed-HEAD `just ci-clean`.
+
+## Direct completion after console and Go integration — 2026-10-24
+
+The lifecycle branch rebases onto `origin/main` at `84afe73b`, retaining the
+console interaction reducer and Go SDK. Direct Table completion now applies the
+shared keyword-continuation rule with one bounded catalog page budget and a
+final authorization/definition check. The Go declarations are regenerated for
+the current shared definition.
+
+In the pinned Nix shell, the query package's ReleaseSafe `test-unit` target
+passes **148/148** tests. `just test::console-history` passes the complete PTY
+suite. `just test::direct-table-service` passes **651** typed HTTP calls,
+including eleven console keyword/range cases and unchanged SQL-editor behavior,
+alongside its CRUD/DDL, lost-reply, retained-read, revocation and restart schedules.
+`just bindings::check`, the diagnostic inventory and the Markdown link check
+pass. These runs do not establish full `just check`, installed Go qualification,
+Work items migration or committed-HEAD `just ci-clean` for this branch.
+
 ## Console interaction state machine — 2026-10-24
 
 `nix develop --command just test::console-model` passes with 5,278 distinct
@@ -45,7 +1705,6 @@ identities, graph and counterexamples are retained in
 four filter classes, start/end cursors and one borrower. This is bounded transition
 conformance, not an unbounded refinement proof, arbitrary-history/undo coverage,
 transport liveness, terminal rendering proof or a latency guarantee.
-
 
 ## Cancel interactions without clearing drafts — 2026-10-24
 
@@ -162,6 +1821,156 @@ The task writes its local outcome/history to
 shell, including the SDK navigation, Go syntax support and production handbook
 build. These are worktree checks; committed-HEAD `just ci-clean` has not run.
 
+## Optimistic current Table reads — 2026-10-23
+
+The current shared definition is
+`dec0151b4f9d664f75113d65fd43b3ba9a47f07ffb28fdda7e4b91b3d369bb60`;
+the preceding namespace definition rejects. `read_current` supplies a point
+lookup or bounded ordered suffix under an exact definition and original logical
+data basis. Generated schemas, binding resources and signing fixtures use this
+definition, including an independent Python/OpenSSL full-width seek request.
+
+In the pinned Nix shell, the storage package's
+`zig build test -Doptimize=ReleaseSafe -Dtest-filter="current Table" --summary all`
+passes **4/4** tests. The added schedules traverse 33 mixed WAL/segment rows with
+a one-page resident cache and disk reopen between pages, preserving order through
+no-op acceptance, pin/release and flush. They check row ownership after owner
+destruction, invalid/future/wrong-partition bases, invalid seeks, byte limits,
+logical-change rejection, DROP and authorization failure after buffering a hit,
+absence, rows or an empty suffix. Reads preserve log roots and object put counts.
+This is focused storage evidence; the earlier full storage and catalog attempts
+were stopped before the final definition/fixtures and are not counted as passed.
+
+`zig build test-local-catalog --summary all` passes **2/2** Debug tests. Its new
+signed native cases recheck current Table ownership after complete response
+buffering for a hit, absence, a row page and an empty suffix, and reject retained
+delegation used for a current read. The existing CRUD, history, namespace and
+original-input prerequisite schedules also pass. The protocol package passes
+**51/51** ReleaseSafe tests, including rejection of the replaced definition.
+`just contract::check transit-board::contract` passes after regeneration.
+
+The catalog package passes **132/132** ReleaseSafe tests. New response checks
+reject stale logical bases, wrong definitions/partitions, mismatched point keys,
+repeated identities, forged continuations and invalid counts/byte budgets.
+`just test::direct-table-service` passes **627** typed HTTP calls, including a
+64 KiB current point read, ordered continuation, empty suffix, stale-basis
+rejection and current revocation/restoration after node restart. The existing
+CRUD/DDL, namespace, history, delegation, lost-reply and three-restart schedules
+also pass. Diagnostic inventory/mappings and `just transit-docs::check` pass,
+including **9** documentation tests and the static site build.
+
+These reads do not migrate Work items, retain a source after mutation, establish
+cross-Table atomic reads or qualify distributed locking and physical collection.
+Full `just check` and committed-HEAD `just ci-clean` remain outstanding.
+
+## Shared direct action dispatch — 2026-10-23
+
+The typed Table/namespace dispatch now resides in `transit-catalog`, while the
+local host retains signed-request validation, native policy, lock coordination,
+registration execution and the final disclosure fence. After that ownership
+move, `zig build test-local-catalog --summary all` passes **2/2** Debug tests,
+including Table CRUD, delegated reads/history, original-input prerequisites and
+namespace authority/recovery schedules. Wire and persisted definitions are
+unchanged by this move; application consumer migration remains separate.
+
+## Direct namespace lifecycle — 2026-10-23
+
+The current shared definition is
+`e8677230beea38e3f824c3413009a123a2386f7c6c7a1cfcaa7efe51e8486c78`;
+the preceding definition rejects. Namespace bindings, permanent identity
+claims, name reservations, paged DROP progress and resulting schema records
+publish through the direct catalog WAL. In the pinned Nix shell, protocol tests
+pass **51/51** and catalog tests pass **130/130** in ReleaseSafe. The added
+catalog schedules cover disk reopen, lost admission/publication replies, exact
+retry after rename/DROP/name reuse, cross-kind identity conflict, cancellation,
+current denial, pending/live Table RESTRICT, retained snapshots after namespace
+retirement and multi-page dependency progress with a one-page resident cache.
+
+`zig build test-local-catalog --summary all` passes **2/2** Debug tests. Its signed
+native namespace schedule checks real registration, database/schema ownership
+loss before execution, response withholding after accepted publication, native
+reopen, fresh caller credentials and exact original outcomes after retirement.
+This composes the real local service and native policy; it does not exercise an
+HTTP transport or concurrent browser callers.
+
+`just test::direct-table-service` passes **618** real typed HTTP calls. Its
+namespace additions compile CREATE/RENAME/DROP SQL through the direct typed
+compiler, provision actual native schema authority, create a Table in that
+namespace, reject DROP while it is live and preserve its retained snapshot after
+Table and namespace retirement. A proxy withholds usable publication evidence
+by damaging the response context; the caller recovers the exact saved namespace
+binding. Original CREATE/RENAME/DROP outcomes and the original empty Table cut
+survive OS-process restarts and namespace name replacement. The broader existing
+CRUD, history, delegation, quota and three-restart schedule also passes. This
+qualifies the typed SQL compiler and request path, not interactive console
+administrative submission or application setup migration.
+
+`just contract::check transit-board::contract`, diagnostic inventory/mappings and
+`just transit-docs::check` pass after regeneration, including nine documentation
+tests and the documentation build. These focused checks do not establish full
+repository qualification: the earlier `just check` reached unit tests and
+exposed stale mediated SDK switches and the unmigrated Work items Table source.
+That run was stopped after those failures; its remaining long-running unit
+suite and later checks are not counted as passed. The SDK switches are fixed
+in the separate evidence record below. Work items remains open.
+
+## SDK bridge computation removal — 2026-10-23
+
+The mediated SDK bridge no longer projects the removed generic catalog
+`computation` action or result. The Station bindings package passes **22/22**
+Debug tests in the pinned Nix shell. The repository check exposed these stale
+switch arms and the still-unmigrated Work items caller; this focused check does
+not establish full repository qualification.
+
+## Changed Table inspection diagnostics — 2026-10-23
+
+Board maps the native `TableDefinitionChanged` cause to
+`inspection.observation_changed`, with an explicit fresh-observation action and
+no mutation outcome or fabricated completion. Its API package passes **13/13**
+Debug tests. `just test::diagnostic-outcomes` passes **3,411** projections across
+**29** declared surfaces, including the added reviewed native case. The broader
+`just check` run first exposed this missing case and stopped at that gate;
+later repository checks were not executed in that run.
+
+## Direct mutation authorization prerequisites — 2026-10-23
+
+Direct mutation bindings retain an optional native guard through admission,
+staging, acceptance and recovery under definition
+`9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56`.
+The replaced definition rejects. In the pinned Nix shell, ReleaseSafe package
+tests pass for protocol (**51/51**), catalog (**127/127**), local backend
+(**10/10**) and serving (**52/52**). `just contract::check` and
+`just transit-board::contract` pass with regenerated neutral schemas, language
+resources and independent signing/saved-intent fixtures.
+Diagnostic inventory/mappings and `just transit-docs::check` also pass, including
+**9** documentation tests and the site build.
+
+`zig build test-local-catalog --summary all` passes **2/2** Debug tests against
+real native authorization and disk-backed local storage. The new schedule binds
+an accepted native input from a separate caller, denies CREATE and row execution
+after its privilege is revoked, and permits exact inspection and cancellation.
+Restoring the privilege resumes the original pending work. The worker's own
+Table rights remain necessary. A fresh worker key executes the unchanged
+binding; reopening native history preserves that binding. Rotating the original
+caller's credential blocks the pending mutation while exact cancellation and
+inspection of an earlier committed receipt remain available. Removing the saved
+condition conflicts. The local-backend race also revokes the additional subject
+after private bulk staging and proves that no Table acceptance or row prefix
+was published before exact recovery under restored rights.
+
+`just test::direct-table-service` passes its **562** typed HTTP calls, existing
+CRUD/DDL, retained reads, lost replies, revocation and restart schedules under
+the new definition. The additional accepted-input condition is exercised by the
+native dispatcher test, not a separate HTTP fault schedule. Work-items migration,
+application-policy dispatch eligibility and atomicity between native control
+progress and Table acceptance remain separate work.
+
+Before this change, rebasing onto `origin/main` at `4df1ccc8` preserved responsive
+console completion. The query package's ReleaseSafe suite passed **148/148**,
+`just test::console-history` passed, and the diagnostic inventory was regenerated
+and checked. Those runs used the preceding definition; they are rebase evidence,
+not full-repository qualification of this mutation change.
+
 ## Responsive console completion menus — 2026-10-24
 
 `just check` and `just test::console-history` pass for the responsive completion
@@ -184,6 +1993,1047 @@ strings/comments, quoted case sensitivity, escaped quotes, UTF-8, disambiguated
 columns and dotted settings. These are editor and shared lexical checks; they
 do not add service authority guarantees or establish a production latency target.
 The accepted interaction is recorded in [D4](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D4.md).
+
+## Direct Table completion and console integration — 2026-10-23
+
+The direct Table adapter carries the shared completion coverage/status contract,
+cursor-local statement selection and bounded ranking through the current v1
+definition `e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a`.
+Both predecessor definitions reject; generated schemas, signing fixtures and
+language resources use the integrated definition.
+
+In the pinned Nix shell, the protocol and query packages' ReleaseSafe tests pass
+**50/50** and **146/146** respectively.
+The ranked-name regression retains the exact definition of a later candidate
+that replaces an earlier full-shortlist entry and rejects conflicting definitions
+for one displayed name. `zig build test-direct-table-service
+-Doptimize=ReleaseSafe --summary all` passes **8/8** build steps and **562** typed
+HTTP calls. Its new checks cover second-statement replacement ranges, quoted
+text, absent source metadata, limited root-keyword coverage and tab-separated
+`.schema` completion. Existing CRUD/DDL, retained reads, exact reply recovery,
+restart and current-revocation assertions also pass.
+
+`just test::console-history` passes the real terminal editing, completion,
+history, signal and outcome schedules. `just contract::check`,
+`just transit-board::contract`, strict query-client TypeScript and **57**
+query-client tests pass. Diagnostic inventory/mappings and
+`just transit-docs::check` pass, including **9** documentation tests and the site
+build. These scoped runs do not establish full repository or clean-checkout
+qualification.
+
+`zig build test-server-direct-tables -Doptimize=ReleaseSafe --summary all`
+passes **13/13** steps, including installed native-session Table/settings
+completion, the original six-statement DDL batch with the query worker stopped,
+and restart/name-reuse checks. This build also includes Board's explicit
+read-only preparation-recovery retry case. An earlier run timed out at the
+batch's 80-second harness deadline while the installation reported
+`AuthorityTimeout` and `HttpCapacity`. Isolated statements completed in
+5.84–10.25 seconds; the unchanged batch then passed on rerun. These observations
+do not identify the earlier delay's cause or establish a latency guarantee.
+
+## Saved Follow control and preparation recovery — 2026-10-23
+
+The direct Follow schedule under definition
+`554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa`
+passes original receipt recovery before/after native acceptance, namespace
+mismatch rejection and unchanged principal sequences during read-only recovery.
+The private reactive owner decodes actual signed controls, rejects a valid
+signature from another key before acceptance, and returns original receipt
+positions afterward. The Workspace wrapper exercises the corresponding prepared
+upload receipt operation. Existing prepared-capture selection, node restart,
+worker replacement, fresh verified output and bounded pause still pass.
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --follow-only
+```
+
+In `nix develop`, the query and serving package suites pass 143 and 52 tests.
+The query-client
+TypeScript suite passes 57 tests; the full Board suite passes 93 tests, and a
+subsequent focused run passes 29 session/Follow/live-view tests after adding exact
+attachment metadata recovery. Strict types, Board formatting/lint and the Board
+production build pass. The reactive package reports one existing catch-parameter
+lint warning and no errors. Generated query/Board/reactive contract checks,
+diagnostic inventory/mapping checks and the nine documentation tests/build pass.
+
+```sh
+cd packages/zig/transit-query && zig build test -Doptimize=ReleaseSafe --summary all
+cd packages/zig/transit-serving && zig build test -Doptimize=ReleaseSafe --summary all
+cd packages/ts/transit-query-client && vp check && vp exec tsc --noEmit && vp test run
+cd apps/transit-board-web && vp check && vp exec tsc --noEmit && vp test run && vp build
+cd apps/transit-board-web && vp test run src/session-recovery.test.ts src/follow-recovery.test.ts src/live-view.test.ts
+```
+
+Run each command from the repository root. Browser-owner tests use injected
+transport observations: inert import, no saved rows, failure to persist before
+dispatch, original accepted token recovery, changed saved input/scope rejection,
+template/pool/budget binding, consumed-pool reuse without re-preparation,
+exhaustion without replacement, and interrupted closure without reopening. The
+composed Board artifact validates all three owners before making them operational.
+These tests do not establish an installed browser reload against the private
+HTTP host, credential rotation at lost replies, or Compose/reference deployment
+qualification. Those schedules and full repository/committed-HEAD checks remain
+required; the milestone and its broader tracking issues remain open.
+
+## Named maintained revision inspection and recovery — 2026-10-23
+
+Under definition
+`554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa`,
+this native local-persistence schedule passes:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --maintained-only
+```
+
+Self-join and independent-Table maintenance now publish an immutable named
+definition and explicitly authorize/activate it. Repeated publication and metadata
+reads leave policy, execution and history leases absent until their separate
+operations. A node restart recovers the original acquisition, followed by another
+restart inside bounded physical history traversal. Initial output, complete
+successors/deltas, no-op revisions, lease cleanup, current revocation/restoration
+and retirement pass through those named activations.
+
+`NamedRelational.maintainedDefinition` resolves actual result and delta readers
+through their original retained native snapshot. It preserves attribution after
+a later named definition and after node restart, rejects a foreign computation
+scope, consumes no output and cannot establish a consumer checkpoint. Exhausted
+readers reject inspection. Source freshness remains bound to the inspected
+revision; inspecting definitions/freshness leaves the maintenance head unchanged.
+The existing result reader performs complete coverage and current-rights checks.
+
+Diagnostic inventory/mapping checks and `just transit-docs::check` pass, including
+nine documentation tests and the production documentation build. This schedule
+does not inject lost native naming replies or credential rotation at those replies;
+the older naming fixture still needs migration. Direct dependency registration,
+full repository checks and the committed-HEAD clean gate remain outstanding.
+
+## Query-owned computation evidence — 2026-10-23
+
+Under definition
+`554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa`,
+the catalog and application package suites pass 127 and 45 tests respectively:
+
+```sh
+cd packages/zig/transit-catalog && zig build test -Doptimize=ReleaseSafe --summary all
+cd packages/zig/transit-station-app && zig build test -Doptimize=ReleaseSafe --summary all
+```
+
+Run each command from the repository root in `nix develop`. The generic catalog
+computation record, caller-supplied completion operation and schema-only freshness
+inspection are removed. Canonical record tests reject their retired kind/action
+tags even under a current header, and the JSON caller rejects the removed
+inspection action. Captured and maintained query owners retain their actual
+execution/result evidence; named KV/Document metadata does not acquire stronger
+provisioning semantics from this removal.
+
+The shared current-v1 definition changes for the removed stored and caller
+contracts. Reflected contracts, language bindings, independent signing fixtures
+and diagnostic inventory/mapping checks pass. The prior definition remains an
+explicit rejection case. These checks do not complete direct dependencies, named
+resource provisioning, full repository qualification or the committed-HEAD clean
+gate.
+
+## Result source freshness and named attribution — 2026-10-23
+
+Under definition
+`312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0`,
+these native local-persistence schedules pass:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --named-only
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --maintained-only
+nix develop -c zig build test-direct-table-service -Doptimize=ReleaseSafe --summary all
+```
+
+Captured self-join and two-Table results compare their actual retained cuts with
+current logical-change positions. Pin progress and accepted no-ops remain fresh;
+DELETE without a schema change reports stale. Same-Table aliases agree, while an
+unchanged independent Table stays fresh. The HTTP fault peer injects a generic
+conflict and unavailable response; neither becomes definition-change evidence.
+Current revocation denies inspection. RENAME reports `definition_changed` through
+the specific wire rejection, and the original result still verifies COUNT=1 and
+complete coverage. Exhausted readers reject further freshness inspection.
+
+`NamedRelational.capturedDefinition` resolves original attribution through the
+result reader's retained snapshot, even after a later name revision. A foreign
+computation scope rejects; inspection consumes no output and uses the reader's
+request budget. Maintained revisions report the original backfill stale after a
+row change and the latest completed revision fresh after restart and catch-up.
+Inspection leaves the maintenance head unchanged and cannot produce a consumer
+checkpoint before output verification. The direct Table suite passes 549 typed
+exchanges, including explicit `TableDefinitionChanged` after DROP/name reuse.
+
+Package suites pass 143 query, 45 application, 50 protocol and 51 serving tests.
+Reflected contracts, generated bindings, independent signing fixtures and
+diagnostic inventory/mapping checks pass. The shared current-v1 identifier is
+replaced for the distinct wire rejection; the prior definition rejects. These
+checks do not complete generic catalog computation replacement, direct dependency
+registration, named-maintenance inspection, full repository qualification or the
+committed-HEAD clean gate.
+
+## Named captured definitions over the direct service — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+the following native local-persistence schedule passes:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --named-only
+```
+
+The equivalent task is `just test::direct-named-query`. Both a self-join and two
+independent Tables use separate computation resources. Upload and named
+publication leave query policy, activation and direct pins absent. Explicit
+authorization still starts no work; the publishing peer's separate activation
+executes the frozen bundle. Worker replacement during acquisition preserves its
+original grants and named attribution. Later named publication advances the
+definition without changing the completed query's original policy or attribution.
+Result readback verifies COUNT=1 and complete coverage after pin cleanup; current
+source revocation denies disclosure and restoration permits it. The executor
+still cannot independently look up the Table.
+
+This schedule does not inject node restart or lost native replies into the naming
+layer, and does not replace the older named-maintenance native fixture. Result
+freshness and the generic catalog computation-completion path remain separate
+open work. Full repository and committed-HEAD clean qualification are outstanding.
+
+## Named definition fixtures with direct Table grants — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+`zig build test -Doptimize=ReleaseSafe --summary all` in
+`packages/zig/transit-station-app` passes all 45 tests. Named definition tests use
+offline direct Table interpretations and signed snapshot/history grants with a
+computation resource independent of the Table catalog. A bounded HTTP peer
+injects executor identity and read-only source-authority responses; it accepts no
+pin acquisition or mutation. Publication/authorization retries, quota rollback,
+captured/maintained activation, old policy denial and 67 retained revisions pass.
+These are transition and transport composition checks, not native authority or
+Table durability evidence. Independent named-record fixtures and diagnostic
+mapping/inventory checks also pass. Work-item and older installed relational
+fixtures still require migration; the full repository check remains outstanding.
+
+## Explicit Workspace capture and separate caller recovery — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+the native Follow schedule passes through `Workspace.compile`, `capture` and
+`refresh`. Compilation leaves the bundle unsigned; explicit capture requires a
+configured executor and rejects an already authorized bundle. Preparation neither
+acquires a Table pin nor advances the Table acceptance position.
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe -Ddirect-query-example=true --summary all -- --follow-only
+```
+
+This run also starts the actual `example-state-query` executable as a separate
+caller. It compiles and saves its capture before upload, recovers the same saved
+bundle in a new OS process without changing its recovery file, and reads verified
+complete coverage with SUM=20. The native worker runs under its own credential
+and independent progress resource. The Follow selection/restart/replacement
+schedule also passes. This additional example schedule does not inject a lost
+upload reply or qualify Compose/reference placement.
+
+The query package passes 142 tests; the TypeScript query client passes 55 tests,
+`vp check` and `vp exec tsc --noEmit`. Draft caller cases cover saved-grant reuse
+after a lost upload reply, independent grants for selected edits, capture denial
+before dispatch and changed-metadata rejection. Board's focused workspace/live
+state suites pass 23 tests; its type checks and actual binary/embedded frontend
+build pass. Generated Workspace/Board contracts and diagnostic mappings/inventory
+checks pass. Installed browser reload, remaining legacy callers, the full
+repository check and clean committed-HEAD gate remain outstanding.
+
+## Current-capture cleanup after definition changes — 2026-10-23
+
+Under definition
+`18d5e193251f177dbf700e9601a6dede6e98e48d9c2c744049ffacc1b0601ca8`,
+`nix develop -c just test::direct-table-service` passes 549 typed HTTP exchanges.
+Two current-frontier grants are saved before restart; one acquires a pin and the
+other remains absent. After ALTER, authorized cleanup proves the absent grant
+can never acquire under its original definition, without appending a pin record.
+The previously acquired grant instead recovers and releases its original cut.
+Delayed acquisitions reject in both cases, including after another restart and
+DROP/name reuse. Current revocation denies cleanup of both grants. The existing
+uncertain acquisition/release and retained-history schedules still pass.
+
+The catalog suite passes 127 tests. The focused storage `-Dtest-filter=pin` suite
+passes seven tests, and catalog `-Dtest-filter='pin status'` passes four. Mandatory
+interpretation evidence and foreign-object response rejection are covered.
+`just contract::check`, diagnostic mapping/inventory checks and `git diff --check`
+pass. These checks do not rerun the broader captured/Follow or browser schedules;
+the full repository check and clean committed-HEAD gate remain outstanding.
+
+## Prepared finite refresh and direct watch transitions — 2026-10-23
+
+In the pinned Nix shell, `zig build test -Doptimize=ReleaseSafe` in
+`packages/zig/transit-serving` passes all 51 tests. Direct catalog fixtures cover
+authorized read-only observations, logical change watermarks, exact retained-cut
+coverage and current interpretation rejection. Scheduler tests use real native
+upload/preparation records and direct observations, with execution/results and
+authority injected at the reader boundary. They cover fair selection, restart of
+requester state, independent manual admission, pause/closure, cancellation,
+retained failures and explicit admission of an already selected prepared request.
+These fixtures do not verify complete query execution or native authentication.
+
+`vp test run` in `packages/ts/transit-query-client` passes all 52 tests; `vp check`
+and `vp exec tsc --noEmit` pass. Sixteen refresh-caller cases cover bounded distinct
+identities, exact-token retry after a lost submission reply, pending acceptance,
+caller-scope changes, rejection and refusal to relabel an activated request as
+prepared. Export/restore cases recover lost and accepted-pending inputs without
+new grants, recheck saved readiness, reject a changed connection and bound malformed
+recovery input before any dispatch. `vp test run src/live-view.test.ts` in `apps/transit-board-web` passes
+all 16 tests. These browser state fixtures do not replace the native Follow or
+installed browser proof. Full repository and clean committed-HEAD checks remain
+outstanding for this change.
+
+Under current definition
+`02553baa7d791340e9ea3339002537bf15495c26bd2f2bd2e2fde5950589e53f`,
+`just contract::check` passes; the query and catalog package suites pass 142 and
+126 tests. `just test::diagnostic-outcomes` passes 3,410 projections after adding
+prepared status and direct-source failure mappings. `just check` reaches the unit
+suite but cannot pass while the named relational and work-item example fixtures
+still construct the removed actor Table query source. These require migration;
+the successful focused suites do not certify those callers.
+
+The direct Follow composition passes:
+
+```sh
+nix develop -c zig build test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --follow-only
+```
+
+The equivalent task is `just test::direct-follow-query`. This real disk-backed
+native node uses separate Table, query-worker and requester resources, with a
+separate read-only inspection credential. It executes and verifies a completed
+template, prepares two independently signed current captures without remote pins,
+accepts Follow and a row update, then restarts the node after committed selection
+and before activation. Worker replacement resumes the same selected namespace;
+the verified sum changes from 10 to 20, the accepted Table position advances and
+acknowledgment covers the observed change. Pause leaves the second request prepared.
+Every control's exact signed duplicate returns its original receipt. This schedule
+does not yet inject lost pin/release replies into Follow, revoke the original
+caller during selection, rotate credentials, or exercise installed browser reload.
+
+## Retained Table evidence and current disclosure rights — 2026-10-23
+
+The combined public run passes under definition
+`38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`:
+
+```sh
+nix develop --command zig build test-direct-table-service test-direct-captured-query -Doptimize=ReleaseSafe --summary all -- --captured-only
+```
+
+The Table schedule passes 530 typed exchanges. `read_authority` returns the same
+native source requirements as an authorized observation, denies a revoked caller,
+and remains available for the original object after DROP/name reuse. It agrees
+with that object's retained snapshot authority, without acquiring another pin.
+
+The focused single-source capture schedule retains node restart, uncertain
+acquisition/release and credential-changing cleanup. `UnifiedResult.open` returns
+the exact recorded Table basis after its source pin is closed; its commitment
+matches the verified result page. Current revocation denies both metadata open
+and page disclosure. The schedule does not run relational, maintained, exchange
+or installed SDK consumers unless separately selected. The default full schedule
+retains those cases.
+
+The query package passes all 143 tests, including native KV/Document results
+whose `table_basis` is null. The focused catalog selection passes 33/33 tests;
+retained and borrowed grants cannot use the new authority-discovery action.
+Direct contract regeneration and validation pass. Reactive consumer migration
+and full repository qualification remain unfinished.
+
+## Read-only current Table observations — 2026-10-23
+
+`nix develop --command zig build test-direct-table-service
+-Doptimize=ReleaseSafe --summary all` passes 526 typed HTTP exchanges under
+definition `38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`.
+The new `observe` request returns an empty current Table without advancing its
+acceptance position. After disk restart it returns metadata, a one-row prefix
+containing the original 64 KiB value, and a complete two-row page at the same
+current position. Revocation denies the observation and restored rights permit
+it. After DROP and name reuse the old interpretation rejects, while the existing
+retained-source tests continue to read their original cuts. This run also retains
+the earlier CRUD/DDL, three-restart, history, lost-reply and cleanup assertions.
+
+Focused storage tests pass 4/4 for retained/current pages, including mixed WAL
+and segment storage, owned variable-length cells, byte budgets, final denial
+after buffering and empty completion. Current observations leave the root,
+log position, object writes and pin state unchanged. The catalog selection
+passes 33/33 tests (`direct`, `current observations`, `borrowed Table` filters).
+Injected catalog policy checks final denial and unchanged persistent state;
+response checks reject unrelated interpretations, altered authority references,
+false coverage, byte-count changes and duplicate identities. Retained-query and
+borrowed grants reject the current-observation action.
+
+The direct contract generation/check, verification catalog, documentation's nine
+tests and production site build pass. This adds a public read-only observation
+primitive; reactive watch integration and full repository checks remain pending.
+
+## Direct maintained successors and query fixture migration — 2026-10-23
+
+The direct runner's `--exchanges-only` and `--relational-failures-only` schedules
+pass under definition
+`38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`:
+
+```sh
+nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --exchanges-only
+nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --relational-failures-only
+```
+
+The exchange schedule now publishes two maintained revisions using one producer,
+first with one partition and then seven. A live delete before the first scan
+leaves its original two-row result intact; the next revision uses a fresh vector,
+assignment and borrowed-read proofs and returns one row. Incomplete attachment
+and attachment of the old exchange reject without changing the native decision.
+An old borrowed proof cannot read the newer cut. Reconstructed hosts preserve
+progress and drain producer acknowledgements before changing assignments.
+Retiring the live request publication before either scan leaves the accepted
+computation's retained request available. Cancellation closes its history lease
+while both results remain readable; explicit query retirement releases the
+request and rejects later result reads.
+
+The five failure cases retain work/spill and ordered-overflow assertions. After
+the service-reported history gap, a new executor and accepted query identity
+acquire a current cut and publish count four, sum six. That query closes its own
+lease. The failed original identity, original failure and prior result remain
+unchanged after both the restored-service wake and the explicit rebuild.
+These runs reconstruct hosts but do not inject lost native receipts or restart
+the node. Multiple exchange workers and credential-changing cleanup remain
+separate qualification work.
+
+`nix develop --command zig build test --summary all` in
+`packages/zig/transit-query` passes all 143 tests: 140 component tests and three
+native-contract fixtures. The obsolete actor-store maintained tests are replaced
+by the direct backfill/delta, failure and exchange schedules. Table lifecycle and
+retained interpretation checks use the public direct capture/source-page
+schedules; native KV/Document fixtures remain. The contract fixture uses injected
+authorization to reject unsigned, changed, misrouted, stale-epoch and wrong-role
+proofs, including changed retention purpose/executor, without publication. It
+does not claim a new real-service authority proof. Full repository and installed
+caller qualification remain pending.
+
+The migration initially found stale record lengths and the SQL inspection
+fixture's removed Table metadata fields. Current native checkpoints occupy 222
+bytes and the tested manifest 366 bytes. The fixture now uses direct
+interpretation descriptors; parsing remains strict. The direct scalar fixture
+also checks the Table catalog resource independently of the query progress
+resource. Earlier failed fixture runs are not counted as passing.
+
+## Finite direct capture memory and retirement — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --unified-boundaries-only` passes five public cases
+under definition `38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`.
+An empty Table is captured, renamed and dropped before traversal completes; the
+verified empty result preserves its original schema. Explicit result retirement
+collects its publication while keeping the completed source pin closed. A stored
+600 KiB text value exceeds the normal 1 MiB decoding adapter, records a durable
+budget failure and remains readable through a separately acquired current pin.
+Explicit adapter and Arrow workspace exhaustion also retain the failure identity,
+close the original pin and preserve the stored row. Hosts are reconstructed
+during bounded progress. Separate client failures cover both the allocating
+writer's `WriteFailed` and the Table HTTP response allocator's `OutOfMemory`.
+Both leave the native proposal unchanged, produce no terminal query diagnostic,
+and permit the same query to complete with healthy memory.
+
+The schedule exposed a local allocating JSON writer returning `WriteFailed`
+instead of `OutOfMemory` while validating a saved grant. Capture now classifies
+either error as an adapter budget only when its own fixed allocator records
+exhaustion. Failed resize/remap probes do not establish that evidence. Twenty-nine
+selected query tests pass across capture, KV/Document sources and allocator
+classification. They preserve external publication and poisoned retained-read
+errors, exact budget/runtime witnesses, replay, cleanup and later healthy work.
+The current native retention encoding stores the input once as the job ID;
+failed native job records occupy 248 bytes. These checks replace the superseded
+actor-store Table capture/memory fixtures and retain native KV/Document coverage.
+The two direct native contract tests also pass, preserving exact checkpoint
+encoding and prepared scalar ownership.
+
+This focused schedule does not restart the node or inject lost native receipts.
+The full query unit build still fails at the unmigrated maintained actor-store
+fixture's call to `TableSource.from`; it is not reported as passing. The broader
+current-definition and installed caller checks remain pending. Documentation and
+diagnostic inventory/mapping checks pass separately.
+
+## Direct Table exchange placement and borrowed reads — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --exchanges-only` passes under definition
+`38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8`.
+The private persistent node admits a maintained self-join over two rows, with
+query progress separate from the Table catalog. The coordinator retains the
+history lease. A separate producer principal saves original-caller assignment
+and borrowed-read proofs, reads the exact cut, and delivers both source channels
+through one logical partition. The receiver attaches complete coverage and the
+verified revision reader returns count two. Recreating hosts during bounded
+steps preserves progress. Cancellation closes the original lease, rejects
+further borrowed reads and leaves the completed result readable.
+
+The setup first encountered `PendingWork` when adding a producer-resource
+association under active coordinator ownership. The corrected schedule suspends
+the receiver, adds the optional association, resumes and reacquires a new
+ownership generation while retaining the accepted query. This is a generation
+replacement and discarded-proposal schedule; it does not inject lost native
+receipts or restart the node after exchange acceptance.
+
+Eighteen selected query tests pass for exchange control bytes, routing/coverage,
+credit and quota limits, producer replay, immutable receiver binding and original
+caller assignment. Receiver acceptance rejects a producer record addressed to
+another resource. Five selected catalog tests pass, including independent
+Python-signed borrowed request bytes. The full catalog ReleaseSafe suite passes
+124 tests. The two local catalog/native-policy tests pass snapshot and historical
+borrowed reads, exact-successor rejection, denied acquisition/release, current
+policy revocation after buffering, original-caller credential rotation and reads
+after lease closure.
+
+The shared v1 definition replaces the prior envelopes and producer record;
+`RXB1` now carries the immutable receiver PID/resource. Contract generation and
+checks, binding resources, independent signing/codec fixtures, diagnostic mapping
+checks and the documentation checks pass. This focused public schedule does not
+qualify multiple exchange workers, later maintained attachments, credential
+handoff, capacity or the older exchange/native caller hosts. Their migration and
+full repository/installed qualification remain pending.
+
+## Retained direct Table pages and predicates — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --source-pages-only` passes against the private
+persistent node. Retained pages keep wide/nested values and the original
+interpretation after ALTER, DROP and name reuse. The predicate schedule compares
+84 combinations of column, comparison and signed boundary against full logical
+predicate evaluation over 43 keys, including both `INT64` extremes and a nullable
+non-key column. Complete primary-key equality uses one point page for hits and
+absence; other comparisons use bounded scans. A disjunction containing a key
+comparison preserves rows outside that atom. Current Table permission denial
+rejects both point and scan reads.
+
+These public schedules replace the actor-store Table adapter fixtures. The
+source-page phase has a finite 600-second test deadline for the expanded HTTP
+schedule; it establishes result equivalence, not a latency target. KV and
+Document adapter checks retain their native resource fixtures.
+
+## Direct relational failure boundaries — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --relational-failures-only` passes five public cases
+under definition `fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52`.
+Captured work/spill limits and captured/maintained SUM overflow produce durable
+failure records. The overflow input includes a later cancelling value; evaluation
+still records the first overflowing row identity and output column. Recreating
+the host during bounded steps preserves the result and witness. Captured cleanup
+collects abandoned pages while retaining the failed checkpoint. Failed maintained
+successors preserve the preceding complete manifest and verified result. Every
+case closes its original direct lease.
+
+The gap case replaces one successful history response at the HTTP test proxy
+with `HistoryReclaimed`. The coordinator records `TableHistoryGap`, preserves the
+last complete revision, and rejects implicit resumption after the proxy restores
+ordinary responses. The test waits for the subsequent explicit wake to commit
+before checking the unchanged failed identity. This is a service-boundary fault
+injection, not evidence of end-to-end disk corruption recovery.
+
+The storage `Table history retention` ReleaseSafe filter passes three tests.
+Its new disk-backed case deliberately trims required WAL coverage through the
+lower storage test interface, bypassing the Table retention owner. Historical
+reads reject without changing the accepted Table root or releasing the lease.
+The HTTP owner maps explicit missing/trimmed Table/WAL history to
+`HistoryReclaimed`; transport/storage availability failures remain attempts.
+No physical history collector is enabled by these checks.
+
+Eighteen selected query tests pass for direct captured bundles/vectors,
+historical vectors/scan cursors, finite-exchange vector encoding and source
+declaration encoding. They include
+truncation, allocation failure, signed grant preservation, independent Table cuts,
+alias identity, schema/retirement rejection and fixed scan bounds. These replace
+the corresponding actor-store relational fixtures; their runtime behavior is
+covered by the public direct schedules. Explicit exchange placement/attachment,
+fresh maintained cleanup after credential rotation, older native caller fixtures
+and full query/repository qualification remain pending.
+
+## Maintained direct Table queries — 2026-10-23
+
+`nix develop --command zig build test-direct-captured-query
+-Doptimize=ReleaseSafe -- --maintained-only` passes under current definition
+`fa0ce9cb4eb38397a9ad22078cbf6ca4fc0f8426a0428853fc136553dd13eb52`.
+The private disk-backed node runs both a self-join and a join of independent
+Tables in one catalog. Each unprivileged executor stores native query progress
+outside the catalog resource. The schedule loses the native handle commit after
+remote history acquisition, restarts, and recovers the exact original lease.
+Accepted changes during backfill do not replace the initial two-row result.
+Twelve cancelled row operations form a physical history prefix longer than one
+page; a second restart preserves the committed scan cursor inside that prefix.
+
+Explicit wakeups publish the next two logical acceptances, including a no-op,
+as separate complete revisions. The verified result reader and exact-successor
+delta reader agree on their checkpoints; a changed count has a paired before/
+after delta and the no-op has no delta. An empty interval creates no revision.
+Cancellation closes every original lease, preserves disclosure of complete
+results, and does not preserve source permission after revocation. Restoration
+permits a fresh read; retirement requires a consumer reset. An earlier run found
+that removing the scan record used the application-key deletion API; switching
+to the internal framework write API preserves the reserved-key guard. The
+passing schedule includes both logical selection and empty-interval removal.
+
+The query filters `direct history records`, `maintained control`, and `exchange
+authorization` pass 13 tests. They cover full-width Table positions, exact source
+record/vector encoding, scan alias consistency, control cursor bounds and
+exchange authorization binding. These codec inputs do not assert storage
+admission. The catalog ReleaseSafe suite passes 123 tests, and the storage
+history-retention filter passes two tests. All current generators and independent
+contract/signing fixtures regenerate successfully after the definition change.
+
+The prior default captured-query schedule passed its captured phases under this
+definition before reaching the scan-removal defect. The successful focused run
+does not execute installed SDK consumers or qualify their current artifacts.
+The separate failure schedule above covers ordered overflow and an explicit
+history-coverage rejection. Exchange and credential-rotation cleanup schedules,
+older relational consumers, the full query package and repository checks remain
+pending. The two-row cases do not establish throughput or catch-up performance.
+
+## Direct Table history retention — 2026-10-23
+
+The storage ReleaseSafe `Table history retention` filter passes two tests after
+replacing the shared current-v1 definition. The disk-backed owner recovers a
+history lease after a lost reply and restart, retains the original cut and exact
+logical successors, preserves no-op acceptances across flush and later writes,
+and rejects cross-revision cursors, mismatched record commitments, current denial
+and reads after explicit release. An ordinary snapshot pin remains independent.
+
+`nix develop --command zig build test-local-catalog -Doptimize=ReleaseSafe`
+passes both native catalog tests under the new definition. Signed direct-service
+requests distinguish snapshot grants from history grants, reject attempts to
+change the kind of an existing lease, recover exact acquisitions, and reopen a
+saved no-op revision. Table-rights revocation after response serialization denies
+both buffered historical rows and an empty history page. These tests use the
+real local policy/storage owner but call service dispatch in process.
+
+The native/binding/logical/Table/configuration/SQL-session/Board generators pass.
+Independent fixtures for native requests, physical schemas/storage, Table sources,
+worker handoff, unified queries, relational plans/records/exchanges, named results,
+Documents, applications/signatures, reactive reads and column codecs regenerate
+successfully. The direct grant now has a mandatory retention kind; immutable
+snapshot metadata also requires that kind. Missing or foreign definitions retain
+the current hard-cutover rejection behavior. The full catalog ReleaseSafe suite
+also passes 123 tests under this definition, including historical reader cursor
+isolation and ordinary retained-reader allocation failures. Documentation passes
+its ownership tests, strict types and production build; local link checking passes
+5,506 links across 559 files.
+
+The expanded `nix develop --command zig build test-direct-table-service
+-Doptimize=ReleaseSafe` schedule passes 518 signed Table requests against a private
+node. The unprivileged executor retains the original history grant through a
+corrupted acquisition reply and restart, reads the original two-row cut one row
+per page, and records a no-op DELETE as a separate logical acceptance. A later
+restart preserves the exact saved point. After the existing CRUD/DDL schedule,
+history includes schema changes and retirement of the original Table, while the
+original and no-op cuts still read their original rows. Same-name recreation
+does not enter that history. A corrupted release reply and another restart
+recover the terminal lease state; further history reads and reacquisition reject.
+This qualifies the public retention/read protocol, not the maintained-query
+coordinator, which still requires migration.
+
+The query `direct history records` ReleaseSafe filter passes eleven selected
+and imported tests. The new 246-byte source record preserves maximum-width
+Table coordinates, the original lease/authority/interpretation and distinct
+no-op acceptance commitments in one native metadata value. Every truncated
+prefix, a foreign definition and a noncanonical retention tag reject. The
+`direct Table preparation` filter also passes eleven tests, including correct
+local errors for missing capture/snapshot input without turning an already
+sent command into a known rejection. The diagnostic mapping gate passes with
+those two caller codes shared by Board inspection.
+
+The complete public `test-direct-captured-query` regression also passes after
+this definition replacement: original-cut single-source recovery, wide/nested
+Fuze/Arrow pages, composite-key hit/absence, shared-alias and independent-Table
+relational capture, released-pin result disclosure, revocation/restoration and
+fresh terminal cleanup after credential rotation. The earlier ten-language
+installed-package run below predates the retention-kind addition; its rerun
+under the new definition remains pending. Full query-package and repository
+checks remain incomplete while the older consumers are migrated.
+
+## Direct captured Table queries and separate cleanup authority — 2026-10-23
+
+`nix develop --command just test::direct-captured-query` passes against a private
+disk-backed local node and signed public native/Table clients. A query worker
+with no ordinary Table rights stores progress in a resource independent of the
+catalog. The test captures 19 unflushed rows, restarts before pin acquisition,
+corrupts successful acquisition and release replies, restarts the node between
+attempts, and renames the Table before the native handle is published. Recovery
+preserves the original interpretation/frontier and traverses three pages. The
+verified COUNT result remains readable after pin release; revoking current Table
+rights denies disclosure, and a fresh credential can disclose after restoration.
+
+A second query cancels with a live pin, then rotates the original caller's
+credential. The old grant leaves cleanup pending. A separate fresh closure
+authorization commits before release, survives a corrupted release response and
+worker replacement, and reaches both remotely released and natively closed
+state. Immutable source evidence and the original bundle reference remain equal.
+The extended direct schedule also passes a malformed fresh cleanup signature:
+the control is rejected durably, the pin remains live, and the next valid proof
+at the same credential epoch completes cleanup. A third query loses Table access
+after admission but before acquisition eligibility. It becomes denied without a
+pin, and fresh cleanup after restoring access preserves that absence and failure.
+The [fixture](direct_captured_query.zig) uses the public clients and real native
+hosts; its proxy injects response uncertainty after acceptance, not a fabricated
+storage outcome. `CapturedTablePin.observe` supplies read-only closure status.
+
+The Station bindings ReleaseSafe tests pass in `nix develop .#bindings`, including
+owned direct endpoint configuration and rejection of caller/role/realm mismatch.
+The catalog ReleaseSafe suite passes, including exact closure-signature binding,
+rejection of its use as a read grant, and maximum-width source fingerprints.
+Documentation checks pass 5,500 local links across 559 files. The direct Table
+schema and independent request-signing fixture have been regenerated.
+
+`nix develop .#bindings --command just bindings::direct-captured-python` and
+`just bindings::direct-captured-ruby` also pass through their public SDK APIs with
+fresh native libraries/ports. They resolve the direct definition and frontier,
+compile an unsigned COUNT, and produce exactly the Zig caller's saved authorized
+bundle. Missing names remain missing; after recovery, the old name does not
+rebind, the renamed definition retains the unchanged schema, and verified results
+remain readable under the rotated credential. Python exercises both synchronous
+and asynchronous clients. Both callers prepare separate fresh terminal cleanup
+controls. These runs use source packages and private nodes; they do not establish
+installed wheel/gem qualification or the other languages' runtime behavior.
+
+Python strict checking passes 27 source files. TypeScript type checking and six
+query boundary tests pass, covering full-width capture coordinates, independent
+resources, distinct cut/retention variants and mismatched lookup-schema rejection.
+Those TypeScript boundary tests use a fake port and establish neither authority
+nor execution. Rust's library checks and 16 unit tests pass with the freshly built
+native libraries. The shared
+binding schemas have been regenerated for lookup/capture/cleanup. Documentation
+checking passes 5,503 links across 559 files before this evidence addition.
+
+The installed direct capture schedule now passes for all ten languages: Python
+(sync and async), TypeScript, Ruby, Rust, C, C++, Java, .NET, Erlang and Elixir.
+The command is `nix develop .#bindings --command just bindings::direct-captured-all`;
+the recorded run built the packages first, then passed all eight package-directory
+options to `zig build test-direct-captured-query -Doptimize=ReleaseSafe`.
+Each independently installed consumer resolves the direct definition/frontier,
+compiles COUNT, compares the entire authorized bundle with the Zig fixture and
+reads the same verified result after rename, restart, pin closure and credential
+rotation. Each also prepares a separate cleanup control. C and C++ retain their
+owned definition after closing the client; Rust's consumer preserves the SDK's
+locked registry dependencies. This proves those public caller operations over
+the shared fault schedule; the Zig host still drives execution and injected
+uncertainty.
+
+`nix develop .#bindings --command python3 -B tests/sdk_unified.py` also passes
+all ten independently installed codec consumers. It checks three source kinds,
+nine Boolean bundles, six scalar types, five cell states, 128 columns, uint128,
+nested values and malformed-input rejection. These codec checks do not establish
+execution authority or recovery; those claims come from the direct schedule above.
+
+The storage `Table ` filtered ReleaseSafe tests pass, including bounded logical
+history across restart, accepted no-ops, CREATE/RENAME/ALTER/DROP and current
+revocation before disclosure. That component inspection is not yet a public
+logical-change feed or maintained-query source adapter.
+
+The direct relational filter passes 12 tests, including exact physical
+schema matching, shared alias grants, native-route binding, maximum-width Table
+coordinates, every truncated bundle prefix and incompatible-definition rejection.
+Two Tables in one catalog require separate pin budgets and distinct pin owners;
+their partition/frontier commitments remain independent.
+The catalog ReleaseSafe suite also passes after adding retained identity-suffix
+reads; malformed coordinates, ordering and an empty initial page reject without
+changing sequential coverage. The documentation suite passes its nine ownership
+checks, strict types and production site build; local link checking passes 5,505
+links across 559 files. The public two-row captured self-join schedule passes:
+it uses independent native progress, shares one pin between aliases, replaces
+the worker after committed acquisition eligibility, closes the pin and reads a
+verified COUNT result. The expanded schedule also passes with two distinct
+Tables in one catalog: replacement occurs after the first pin is committed and
+before the second acquisition, the vector retains distinct partitions, and both
+pins close. Revoking one source's current authority denies result disclosure;
+restoring it permits the same verified result. The self-join also passes that
+revocation/restoration check. Both cases use two rows per Table and a COUNT with
+a post-join filter. The first 19-row combined run exceeded the 240-second deadline.
+A separate run showed advancing checkpoints and was stopped before completion;
+neither run passed. The lifecycle fixture now uses a two-row self-join in a
+separately timed phase, while single-source capture retains its 19-row three-page
+case. The one-row checkpoint model's cost on larger captured joins remains a
+performance limitation; this fixture does not establish throughput.
+
+The direct point-read extension passes the full catalog ReleaseSafe tests and
+the two local native catalog tests. The dispatcher checks both present and absent
+keys against a real native authorization fence and suppresses either response
+when Table ownership changes after buffering. An executor with no ordinary
+Table rights can read only through the original exact-pin grant. The retirement
+race asserts native guard denial, separately verifies the resource is expired,
+and confirms no new Table authorization registration was published. The reflected
+direct envelope and independent signing fixtures are regenerated.
+
+The query package's `general Table` filter passes 16 tests after migrating
+descriptor/policy fixtures to direct declarations. These include allocation
+failure cleanup, independent recursive bytes, truncation/foreign-definition
+rejection, an embedded query arena, multiple Table policy targets in independent
+progress storage, and caller/role mismatch rejection before I/O. They use
+unpublished definitions and a reference store; they establish no admission or
+storage durability. The two `direct native contracts` tests also pass, covering
+the maximum native checkpoint key, rejected cut changes and 21 scalar descriptor
+families through prepared/neutral query bundles with independently owned values.
+
+The complete public direct schedule now passes with its wide-row phase. A
+19-row, 13-column Table has a composite integer/UTF-8 key, nested lists and INT128
+values. Its original pin survives column rename, DROP and reuse of the Table
+name by another object. Matching and absent composite-key predicates finish in
+one source page, while ordinary traversal reads all 19 rows in three pages and
+preserves the projected values through Fuze and Arrow decoding. Current
+revocation denies both point selections; explicit release makes the original
+source unavailable. The same run passes the single-source fault schedule and
+both captured relational cases. Catalog tests also pass allocation-failure
+cleanup for retained point decoding. Documentation checks pass nine ownership
+tests, strict types, the production build and 5,505 links across 559 files.
+
+This is scoped feature-branch evidence. The shared-definition replacement,
+remaining generated artifacts, broader caller schedules and older relational
+Table paths are still in progress. The full query package currently fails to
+compile at those unported consumers; neither `just check` nor `just ci-clean`
+has qualified this combined working tree. No milestone or tracking issue is
+closed by these checks. Broader multi-source schedules, maintained logical-change
+history, remaining caller migration and GC/compaction race coverage remain
+separate obligations.
+
+## Retained-source publication authority — 2026-10-23
+
+The current shared definition is
+`f1849ba2a3c5da53b60914a76a25e141790d1d4c4c74adbf3b18be70c24b0677`.
+Direct snapshot replies require exact native database/schema/Table authority IDs;
+captured pin records retain those IDs for later native publication guards.
+Authorization domains now persist an explicit, immutable optional resource
+lifetime prerequisite. The previous definition rejects; contracts, binding
+resources and independent signing/record fixtures have been regenerated.
+
+The core ReleaseSafe suite passes 122 tests. Its native authority fixture gives
+a caller domain access without raw source-resource access, prepares an independent
+worker's guarded turn, advances the source deadline, verifies definite guard
+denial without maintenance, then materializes expiry and rejects the old prepared
+commit. Reopening the engine preserves the binding and denial. This uses the
+in-memory page/journal fixture; it does not claim a wall-clock resample after a
+transition is prepared. The policy store also rejects lifetime-binding changes.
+
+The query ReleaseSafe suite passes 142 tests, including retained policy IDs,
+current Table revocation and rejection of a replacement execution credential
+epoch. The local native catalog proof passes. The public direct HTTP proof passes
+475 typed calls, checks returned authority IDs through the native guard API, and
+preserves exact delegated source/closure behavior across three restarts.
+`just contract::check`, diagnostic mappings, inferred-error boundaries and 3,387
+outcome projections pass. Documentation checks pass 5,491 links across 559 files.
+
+`just test::server-direct-tables` also passes with a fresh installed local
+server: default publication, CRUD/DDL with the old query worker stopped, abrupt
+restart, preserved bootstrap intent, deliberate deletion and name reuse. Its
+manually signed gateway request now supplies the required `delegation: null`;
+omitting the field is explicitly rejected. The first run exposed that stale
+fixture and failed before SQL execution; the corrected full run passes.
+
+These proofs establish source authority and retention components. Captured-query
+admission, traversal, result publication and physical Table collection still
+require integration and qualification.
+
+## Durable-computation pin ownership component — 2026-10-23
+
+`zig build test -Doptimize=ReleaseSafe --summary all` in
+`packages/zig/transit-query` passes 142 tests. The new `CapturedTablePin` reference
+model checks committed eligibility before direct acquisition, duplicate pin-owner
+rejection, original grants across worker replacement, lost acquisition replies,
+lost native handle commits, committed closure before release, cleanup denial,
+lost release replies and lost native closed-state commits. Both known-handle and
+unknown-handle closure paths pass. Partial records and another executor reject.
+The fixture uses the native `Turn` proposal API with an in-memory reference store
+and modeled remote outcomes; it is not a disk-recovery or end-to-end capture proof.
+
+The catalog's focused ReleaseSafe suites for `direct Table` and `direct read
+delegation` pass. `just contract::direct-table-check` independently checks the
+309-byte retained grant with Python/OpenSSL bytes and original caller signatures.
+Diagnostic mapping/error checks and 5,490 local links across 559 files pass.
+The current shared definition remains
+`64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c`;
+these additive retention records do not replace an existing stored format.
+Captured-query admission, traversal and verified-result integration remain open.
+
+## Exact direct pin closure — 2026-10-23
+
+`just test::direct-table-service` passes 474 typed HTTP calls under definition
+`64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c`.
+SQL recovery uses the common direct client's explicit closure operation. The
+fixture exercises uncertain acquisition and release, restart, current denial,
+and retained pins after rewrite, retirement and name reuse. Recovery without a
+known handle rejects a different acquisition frontier for both the original
+caller and its delegated executor; the original retained reader remains usable.
+Diagnostic mapping and inferred-error checks pass. This qualifies exact remote
+closure, not captured-job admission or the decision that a durable job has ended.
+
+## Neutral physical schemas across language callers — 2026-10-23
+
+The shared current-v1 definition is
+`64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c`.
+The neutral schema requires explicit encoding/collation fields; previous definitions
+and missing fields reject. Generated contracts, binding resources and independent
+signing fixtures have been regenerated. The standalone FTS1 definition is unchanged.
+
+The Fuze ReleaseSafe suite passes, including independently generated neutral JSON,
+FTS1/FTP1 bytes and SHA-256 fingerprints from `tests/table_schema.py`. Its physical
+fixture combines bitpacking, EBCDIC/CP037, RLE and COMP-3; native conversion preserves
+all descriptors and rejects reserved ICU support. The catalog package's focused
+`-Dtest-filter=typed` suite passes, including physical ALTER lowering.
+`just test::table-ddl-sql` passes 270 independent declaration cases and 238 exact
+schema comparisons. `just test::direct-table-service` passes its 460-call public
+HTTP lifecycle, retained-cut and three-restart recovery schedule under this definition.
+
+All ten language SDK packages build in `nix develop .#bindings`. Installed boundary
+qualification passes for Python (sync/async), TypeScript, Rust, Ruby, C/C++, Java,
+.NET, Erlang and Elixir. The tests cover owned physical descriptors, metadata
+readback, typed changes and missing/unknown-field rejection. The C/C++ native-ABI
+fault fixture passes 63 cases. Rust's installed library passes 16 tests; the
+TypeScript source catalog suite passes 43 tests. Python type checking also passes.
+These runs invoke `tests/sdk_catalog.py`'s `install` function with a fresh temporary
+consumer directory and the selected language names; they execute its installed
+value/fault checks without starting the returned durable-owner clients. Reproduce
+a selected run after its `just bindings::<language>-build` task (`c-build` for
+C/C++, `beam-build` for Erlang/Elixir) with
+`PYTHONPATH=tests python3 -c 'from pathlib import Path; import tempfile; from sdk_catalog import install; install(Path(tempfile.mkdtemp()) / "consumers", ["python"])'`
+in the bindings shell. Select `node`, `rust`, `ruby`, `c`, `cpp`, `java`, `dotnet`,
+`erlang` or `elixir` for the other installed callers.
+
+Contract, formatting, diagnostic mapping/error/outcome and documentation checks
+pass. Diagnostic inventory records 577 production owners and 4,728 owner/error
+pairs; outcome checks execute 3,387 projections. This slice qualifies descriptor
+preservation, not the language SDK migration to direct Table ownership. Nonbinary
+SQL collation and captured-query lifecycle integration remain separate work.
+
+## Scoped direct Table read delegation — 2026-10-23
+
+The direct request definition is
+`d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964`.
+The catalog package's focused ReleaseSafe run with `-Dtest-filter='direct Table'`
+and `-Dtest-filter='direct read delegation'` passes. Independent Python/OpenSSL
+fixtures verify both caller and executor signatures, the exact definition/data
+frontier, pin owner and purpose commitment. Tampered scope, executor, frontier,
+caller role, action and missing mandatory delegation fields reject.
+
+`just test::direct-table-service` passes 460 typed HTTP calls. An executor with
+no database or Table grants acquires and reads only its caller-delegated pin.
+A corrupted acquisition reply leaves the original grant for exact recovery after
+restart. The same pin returns its two original rows, including a 64 KiB payload,
+after UPDATE/DELETE, ALTER, rename, DROP, name reuse and another restart. Current
+permission revocation denies reads. Discovery, other objects/pin owners and
+delegation chaining reject. A corrupted release reply is reconciled after a
+third restart; the released pin cannot reopen.
+
+`zig build test-local-catalog -Doptimize=ReleaseSafe` also passes. Its real native
+policy fixture changes the executor credential, caller credential and Table
+ownership after rows are buffered but before the final response check. Each
+change suppresses disclosure. A fresh executor proof resumes with the retained
+caller grant; even restoring the caller's original key cannot revive its stale
+credential epoch. The executor's own direct CONNECT check remains denied.
+
+The Fuze ReleaseSafe suite, `just contract::check`, diagnostic mappings, inferred
+error boundaries and 3,387 outcome projections pass. The collation diagnostic
+mapping now includes explicit unsupported-profile rejection. Source inventory
+records 577 production owners and 4,729 owner/error pairs; that inventory alone
+does not certify public mappings. Documentation links also pass.
+
+This proof covers the direct read capability and its native policy owner.
+Captured-query admission/cleanup, result evidence and language SDK migration
+remain separate work. No physical Table collector is exercised or implemented.
+
+## Direct catalog administration and installed database clients — 2026-10-23
+
+`just test::direct-table-service` passes 433 typed calls against the real node.
+The added authorization compiler checks stable Table references, qualified and
+unqualified names, PUBLIC grants/revokes, creator-scoped defaults, explicit role
+selection, bounded reads and unsupported schema lifecycle rejection. Compilation
+leaves the native policy revision and Table acceptance frontier unchanged.
+
+`just test::server-sql` passes in 122.98 seconds with real PostgreSQL and MySQL
+clients over verified TLS. The installation's administration profile resolves
+names through the direct catalog. Ungranted discovery returns the structured
+`cli.access_denied` diagnostic and creates no plan. Explicit native publication
+then grants reader/writer access; Unicode/NULL rows, denied writes, persistent
+revocation, regrant, listener replacement, disabled accounts, password rotation
+and DELETE all pass. A private boundary refuses direct execution until the
+waiting caller and manager have been killed. Restart recovers the original
+operation with both database listeners disabled and unavailable PEM paths;
+re-enabling access finds its one retained row. Expired and replaced TLS trust
+preserve control recovery while gating new admission.
+
+The run uses source-built installed executables, not the separate distribution
+bundle. Diagnostic error/outcome checks and documentation links also pass.
+This evidence does not qualify direct namespace lifecycle, SDK migration or
+captured-query administration. The public CLI still exposes only server/console.
+
+## Lossless physical column admission and public SQL — 2026-10-23
+
+The Fuze package's ReleaseSafe suite passes after replacing the shared definition
+with `f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982`
+and the standalone Table schema definition with
+`transit.table.schema.v1.2026-10-23`. Physical pages require the current binary
+definition; missing/foreign definitions and the previous schema definition reject.
+`just test::table-schema` passes the independent fixtures and standalone checks.
+The CP037 oracle covers every scalar U+0000–U+00FF and all 65,536 scalar pairs;
+HFP fixtures use independent rational arithmetic and exact floating bits.
+Mainframe page fixtures include signed 64-bit extrema. Regressions cover signed
+zero through RLE/dictionary/HFP, unsupported descriptors, unmappable characters,
+HFP range limits, trailing data and bitpacked overflow. The neutral JSON schema
+adapter rejects physical attributes instead of dropping them.
+
+`just test::direct-table-service` passes 420 typed calls against the real node.
+Its added Table uses bitpacked integers and CP037 text. Retained SQL reads agree
+for WAL-only and mixed WAL/segment cuts before and after restart, including
+accents, punctuation, NUL and control scalars. ALTER of a separate column
+containing `€` to CP037 records a durable constraint rejection without changing
+the definition or logical-data frontier. A later ASCII_CI definition is usable
+by storage but rejects direct SQL evaluation; old binary-collated pins retain
+their original semantics. Existing reply-loss, CRUD/DDL, revocation and retained
+query proofs also pass.
+
+The focused storage run
+`zig build test -Doptimize=ReleaseSafe '-Dtest-filter=physical value constraints'`
+also passes in `packages/zig/transit-storage`. Rejected CP037/HFP rows leave the
+WAL frontier and root unchanged; accepted integer extrema, a 31-digit decimal,
+CP037 text and floating negative zeros agree between retained WAL and flushed
+segment rows after disk reopen.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass. This evidence does not establish non-binary SQL comparisons, ICU, other
+codepages, neutral SDK physical descriptors or Arrow page borrowing. The full
+`transit-storage` ReleaseSafe test suite also passes at commit `b6ba9deb`.
+
+## Installed direct lifecycle, rollback and capacity — 2026-10-23
+
+`just test::server-faults` passes the complete server lifecycle (361.57 seconds)
+and bootstrap/gateway/rollback faults (45.28 seconds) in the pinned Nix shell.
+The lost-caller and lost-status fixtures now refuse direct Table execution
+through the private forwarding boundary. The run preserves exact operation
+recovery, configuration history, revocation, deliberately dropped Tables,
+process replacement, transport reuse and bounded shutdown. Removing mandatory
+direct bootstrap fields rejects the retained installation without rewriting it.
+Restoring an older private native-store snapshot is refused against the recorded
+recovery position.
+
+`just test::server-capacity` also passes (30.08 seconds). Its private ext4 volume
+reaches actual `ENOSPC` after direct admission. Observation and shutdown remain
+finite; after space is released and the manager restarts, the same operation
+finishes with matched/changed counts of one and exactly one row. The container
+uses private executable copies with the pinned Nix ELF interpreter. This run
+does not qualify application capacity, SDKs, captured-query migration or
+automatic Table flushing.
+
+## Installed direct execution recovery — 2026-10-23
+
+`just test::server-direct-faults` passes using a private forwarding process that
+returns HTTP 503 only for direct Table execution. Native ledger traffic, direct
+metadata, inspection and cancellation remain available. A new console inspects
+the original pending operation and reads the unchanged Table. After killing the
+waiting console and manager, startup recovers with execution still refused;
+the next observed binding matches the original. Removing the fault permits that
+same write to finish with matched/changed counts of one. A second blocked write
+is cancelled, remains cancelled across restart and contributes no rows.
+
+The fixture joins its supervised processes and adopted node descendants. The
+SQL package unit tests also pass in ReleaseSafe. This proof covers selective
+execution unavailability, not a complete loss of the shared native authority or
+Table metadata service, physical exhaustion, captured queries or SDK migration.
 
 ## Stable console completion menus — 2026-10-24
 
@@ -237,6 +3087,23 @@ source-worker/session qualification. Neither PTYs nor the basic session profile
 establish the user's desktop Ctrl-Space delivery or an SSH/multiplexer path.
 Clean-checkout qualification is reported separately from these workspace runs.
 
+## Installed direct Table bootstrap — 2026-10-23
+
+`just test::server-direct-tables` passes in the pinned Nix development shell.
+The real installed CLI, local node, query host and SQL gateway run in a private
+temporary installation. The proof checks the dedicated registrar and saved
+initial intent, a signed read through the forwarding gateway, and rejection of
+an ordinary Table read mislabeled as control traffic. SQL INSERT, UPDATE, SELECT,
+CREATE, ADD COLUMN, RENAME, DROP and conditional DDL succeed while the fixture's
+query source worker is stopped. An abrupt manager restart preserves rows and
+the original bootstrap reference. DELETE and deliberate DROP survive another
+restart without recreating the default Table; same-name CREATE remains usable.
+
+This run does not qualify captured-query migration, language SDK adapters,
+automatic point flushing, storage exhaustion or the broader installed SQL fault
+suite. The older tests that block actor Table execution need failure injection
+at the new direct boundary before they can qualify that boundary.
+
 ## Console multiline editing — 2026-10-23
 
 `just test::console-history` passes in the pinned Nix shell. The real PTY
@@ -254,6 +3121,18 @@ statement-outcome schedules. The diagnostic inventory records only the renderer'
 additional helper boundaries and propagation counts; public errors are unchanged.
 `just check` passes, including native units, CLI and terminal checks, generated
 contracts, frontend checks and the documentation production build.
+
+## Bounded direct HTTP client allocation — 2026-10-23
+
+`nix develop --command zig build test -Doptimize=ReleaseSafe` in
+`packages/zig/transit-client` passes. A real HTTP exchange with an 8 MiB request
+ceiling and 16 MiB response ceiling completes under a 1 MiB fixed allocator
+when its actual payload is small. The response remains usable after transport
+destruction. Tests also cover oversized requests before dispatch, response
+overflow, incremental growth to an exact byte limit, and timeout cleanup.
+This verifies allocation follows payload size while preserving wire ceilings;
+it does not qualify installed SQL or imply that maximum-sized exchanges fit
+every caller's resident budget.
 
 ## Frontend dependency installation during builds — 2026-10-23
 
@@ -407,6 +3286,775 @@ The complete rerun passes; the earlier attempts are not counted as passes.
 
 This is HTTP and local lifecycle evidence. It does not qualify browser automation,
 IPv6 listeners, remote aliases or aliases for the reactive gateway.
+
+## Data operation contracts and local WAL persistence — 2026-10-22
+
+In the pinned Linux development shell, `zig build test` in
+`packages/zig/transit-protocol` and `packages/zig/transit-catalog` passes after
+adding the neutral [data lifecycle contract](../contracts/DATA_LIFECYCLE_V1.md).
+Its independent JSON fixture checks complete retry bindings, full-width IDs,
+mandatory definitions, commit succession and unflushed snapshot coverage.
+These are descriptor checks; they do not qualify an installed acceptance or
+snapshot-pin service.
+
+`zig build test` in `packages/zig/transit-storage` passes its 13 component cases,
+including seven tests over actual temporary POSIX directories. The new cases
+exercise:
+
+- 73 partitions and rolling segment files with an eight-entry cache; restart
+  uses a 32 KiB allocator and returns at most two frames per requested page.
+- A log with 65 one-MiB payloads; restart and a tail read fit a 2 MiB owner
+  allocator, independently of retained history size.
+- A durable fence with no append, complete trim without LSN reset, stale epochs
+  and invalid trim boundaries.
+- Incomplete unacknowledged final frames, damaged earlier segments, missing
+  acknowledged tail files, checksum corruption and preserved incompatible logs.
+- Exclusive directory ownership and an injected file-sync error after a complete
+  frame write; the live owner refuses further work and restart recovers the
+  uncertain frame.
+
+The [local persistence contract](../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence)
+specifies the tested profile. These tests do not simulate host power loss,
+filesystem rollback, distributed fencing, authorization races, durable pin
+acquisition or installed SQL execution. Physical trim still requires an owning
+retention decision. The installed service backend is unchanged by these tests.
+
+The subsequent object-store component suite passes seven additional disk cases.
+They exercise stale observations across independent handles, concurrent CAS,
+immutable/conditional kind binding, cross-chunk reads, data/checksum corruption,
+513 objects with a 16 KiB owner allocator, missing/foreign definitions and six
+sync failures around staging and descriptor replacement. That allocator bound
+excludes the fixed chunk/checksum stack buffers and caller output.
+
+`zig build test-local-objects` passes three twelve-process races (create,
+conditional replace and competing immutable writes), exact immutable retries,
+stale CAS and reads from fresh processes. The Python oracle checks exactly one
+winner in each race and the actual stored bytes. It is included in `just test::unit`.
+These cases qualify local POSIX locks and publication under the exercised
+schedules; they do not establish distributed object-store behavior or safe
+physical collection. The [object contract](../contracts/TRANSIT_STORAGE_V1.md#local-object-persistence)
+states the deletion and retention boundary.
+
+Table component recovery additionally passes a 5,001-frame replay across every
+bounded log page, repeated replay without duplication, and refusal of reads,
+writes and flushes after a missing accepted prefix. Allocation-failure enumeration
+checks that row-visibility allocations precede the durable append. A real disk
+case writes a raw `TSEG` file, reopens the WAL/object providers, and reads both
+flushed rows and a three-frame unflushed suffix through one-frame log pages.
+Registered Tables own cloned schema storage and reject implicit definition or
+partition replacement and epoch regression. The storage and catalog package
+tests pass 23 and 89 cases respectively at this revision. This does not qualify
+bounded memtable residency, historical snapshot pins or installed SQL cutover.
+
+The subsequent storage-format cutover passes the storage, Fuze and catalog
+package tests. New cases preserve three keyless rows with identical values
+through flush and selective deletion/recovery; reject an unavailable pre-flush
+snapshot; reject foreign WAL/segment/deletion/manifest definitions, including
+artifacts with recomputed valid checksums; and reject schema or deletion-vector
+substitution before a point lookup. A complete older short WAL header is
+incompatible, not a truncatable torn tail. Schemas, binding resources and
+independent signing fixtures are regenerated for the replacement shared
+definition. The old identifier remains in protocol rejection tests.
+
+## Table definition acceptance and retained interpretation — 2026-10-22
+
+After rebasing on `origin/main` at `adb18139`, `zig build test` passes all 43
+storage package cases and all 10 local-backend package cases in the pinned Nix
+shell. `just contract::check` passes after regenerating the shared current
+identifier, schemas, language bindings and independent signing/byte fixtures.
+The complete `nix develop --command just check` also passes, including the root
+unit suite, 558 CLI diagnostic cases, the rebased external-editor proof, frontend
+checks and the documentation production build. Its existing reactive-client lint
+warning and benchmark SQLite resource warnings remain warnings, not failed gates.
+
+The added storage cases cover:
+
+- An accepted CREATE, RENAME, ALTER and DROP through the typed storage owner,
+  lost DDL replies, exact retry after actual disk reopen, and altered retry
+  content rejection. Rename changes the full definition while preserving the
+  row schema and WAL row references. Recovery loads persisted metadata instead
+  of substituting the opening template.
+- Accepted DML retried under its original schema after ALTER and DROP. Durable
+  pins acquired before and after rename retain their one-column schema after
+  the live schema gains a column; authorized release survives restart.
+- A 1,028-row ALTER through a one-page index cache, producing two replacement
+  segments. A final injected authorization denial publishes no successor or
+  receipt; the authorized retry publishes all rows in one acceptance record.
+- A collation change that would merge `A` and `a` rejects without publishing
+  either the schema or rewritten rows. This is a duplicate-key safety case,
+  not independent qualification of all declared collation profiles.
+- Missing declaration objects, a foreign definition with a recomputed valid
+  content hash, and roots missing mandatory interpretation fields reject.
+  Failed recovery preserves accepted WAL and blocks further reads.
+- Allocation-failure enumeration leaves both the old metadata and accepted
+  root unchanged on pre-commit failure; successful acceptance needs no
+  subsequent allocation to install the new declaration.
+
+The subsequent catalog and storage package suites pass after adding immutable
+catalog-wide operation binding and exact accepted-definition observation. A
+real disk reopen preserves the full original binding; attempts to retarget the
+operation to another object or branch, or change its intent, conflict. An
+independent full-width key oracle and corrupted/foreign claim bytes exercise
+the storage boundary. Another 129 operation claims require no resident catalog
+directory. `observeEvidence` returns a rename's original revision after the
+same Table has subsequently been altered and dropped. These claims reserve
+identity only; they do not establish durable operation admission or completion.
+
+These are storage and native-adapter proofs. They do not establish catalog name
+publication, durable pending/rejected/cancelled operations, installed direct SQL,
+physical collection or named KV/Document/computation execution. The storage
+owner retains all WAL and immutable objects. The full definition revision is
+separate from row-schema revision in its new persisted format; prior formats
+are rejected by the coordinated shared-definition cutover.
+
+## Direct catalog reservations and Table publication — 2026-10-22
+
+The pinned `zig build test` catalog package suite passes with seven added direct
+catalog cases. Tests use the actual local log/object owners and an injected
+policy callback. They establish:
+
+- A durable name reservation remains invisible before Table acceptance; lost
+  admission and Table replies preserve exact retry. Restart between admission
+  and RENAME execution retains the old visible name until acceptance.
+- DROP and same-name recreation select a new object/partition. Earlier operation
+  inspection returns its original resulting definition. Late cancellation does
+  not undo accepted work, and delayed settlement does not remove a later
+  operation's pending entry.
+- Cancelled reservations release names without reusing their object identities;
+  competing names reject durably. An admitted ALTER blocks conflicting row work.
+  Final injected denial preserves both admission and the accepted Table head.
+- A required-column ALTER rejects against an existing row, preserving the entire
+  prior Table root. Retry and cancellation cannot resume that rejected work.
+- Missing admitted intent fails closed. A final listing guard denial returns no
+  metadata page. A deliberately invalid accepted transition from cancelled to
+  admitted fails recovery and leaves the offending log intact.
+- Real disk reopen and paged listing of 129 Tables and operations work with a
+  one-page index cache. Listing records independent Table positions and makes no
+  catalog write. Direct row mutation also leaves the control-log head unchanged.
+
+These are internal component proofs. They do not establish signed native
+registration, concurrent service coordination, public typed/SQL execution,
+durable DML admission, dependency RESTRICT or schema DDL beyond initialization.
+The installed actor path remains active. Physical collection is absent, and
+cross-Table listing is not a consistent catalog snapshot.
+
+`nix develop --command just test::local-catalog` also passes the node composition
+test against the real local native owner. Signed native administration registers
+the database, schema and Table domains/objects. A caller with domain ownership
+and no raw resource access admits CREATE. Transferring Table ownership before
+publication denies execution; transferring it back permits exact completion.
+Later ownership removal denies both definition and original outcome disclosure.
+Restoring ownership recovers that outcome; retiring the resource then denies it
+despite retained Table grants. The request adapter rejects a changed request
+digest and a forged signature. This test does not exercise an HTTP Table route
+or automatic registration orchestration.
+
+The subsequent catalog suite passes eight direct-catalog cases after separating
+CREATE admission from native registration. A disk reopen preserves a reservation
+with no native object; cancellation stays terminal, and attachment of the later
+binding preserves the reserved object/partition through a lost reply. The
+local-native composition also passes with registration performed after catalog
+admission: stale checked policy rejects native BEGIN, exact repeated BEGIN
+recovers one native change, and lost attachment remains pending until Table
+acceptance. The client and protocol package suites, `just contract::check` and
+the diagnostic error/outcome checks pass after coordinated regeneration.
+
+That change replaced stored CREATE intent's supplied native ID with a selected owner
+role and added the retained `ready` phase. It selected the shared definition
+derived from `transit.native.v1.catalog-provisioning.2026-10-22`; the preceding
+definition remains an explicit rejection case. The service registration loop
+and public direct Table route are still absent.
+
+## Durable Table row admission and outcomes — 2026-10-22
+
+The subsequent `just test::local-catalog` run also passes explicit node-owned
+CREATE progression through `LocalCatalogRunner`. A one-step request leaves the
+operation admitted; a lost native append acknowledgement survives engine/catalog
+reopen and resumes to one published Table. Repeating execution returns the same
+outcome without another native commit. Zero work budgets reject, and execution
+of an unknown operation publishes nothing. Retiring the backing resource after
+native preparation denies the registrar commit, without creating a Table binding.
+This qualifies the internal runner and current-caller fence; HTTP dispatch and
+installed SQL integration remain separate gates. The full `just check` passed
+at `75045174` before this runner addition, in a detached worktree with locked
+frontend dependencies installed.
+
+The pinned storage package suite passes **52/52 tests** after adding frozen
+binary row intents, mandatory operation/pending roots, terminal controls and
+matched/changed outcome counts. The additional cases establish:
+
+- Lost admission and row-commit replies survive actual disk reopen. Inspection
+  does not execute work, and late cancellation returns the original commit.
+- Revoked access denies execution and observation. Regrant permits the exact
+  admitted work; a changed row basis produces durable rejection. Control progress
+  and read pins do not invalidate the admitted logical basis.
+- A late duplicate-key failure publishes no row prefix. Cancellation remains
+  terminal across replay. Definition changes reject while row work is pending.
+- Point and bulk UPDATE atomically exchange primary keys while retaining row
+  identities; destination collisions and replacement identities reject. Outcomes
+  survive replay, including canonical no-op matches without changed row bytes.
+- Disk-backed pending work reaches 129 operations with one resident index page.
+  Missing frozen work cannot execute. A forged cancelled-to-admitted transition
+  fails recovery and leaves the owner unavailable.
+- Frozen typed rows preserve supported finite floating-point bits, reject an
+  incompatible definition even under a recomputed object hash, and enforce the
+  admitted action's change shape.
+
+`just test::local-catalog` also passes with real signed native ownership changes
+around row admission and execution. It verifies that revocation denies both
+execution and cancellation, exhausted ordinary storage leaves work admitted,
+and explicit cancellation succeeds through reserved control capacity. Regrant
+permits another exact operation; resource retirement denies its result. Row
+operations leave the catalog directory root unchanged.
+
+These are component and native composition checks. Installed Table SQL still
+uses the actor path; public transport, SQL lowering, concurrent service
+coordination and automatic recovery scheduling remain unqualified here.
+The stored-format cutover uses the shared definition derived from
+`transit.native.v1.table-operation-admission.2026-10-22`, with the prior definition
+retained as an explicit rejection case. No older root defaults missing operation
+directories or outcome counts.
+
+After regeneration, the catalog suite passes **100/100 tests**, including the
+new DML/DDL coordination and lost-reply case. The local backend passes **10/10**,
+including rejection of a supplied object digest that does not match its bytes
+before quota reservation or object publication. `just contract::check`, the
+native catalog composition and diagnostic mapping/error/outcome checks pass with
+the new definition. Installed qualification is still separate.
+
+## Conditional SQL catalog outcomes — 2026-10-23
+
+The direct catalog component passes **119/119** tests after adding exact name
+assertions. Disk tests cover lost replies, restart, rename/name reuse, changed
+intent and cross-kind identity rejection. Memory tests cover late authorization
+denial before publication, cancellation, and 129 assertions with one resident
+page. This catalog run precedes the subsequent HTTP/SQL wiring and definition
+regeneration; it is evidence for the component transition logic.
+
+With the shared definition derived from
+`transit.native.v1.conditional-catalog-evidence.2026-10-23`, the SQL package passes
+**29/29** tests in ReleaseSafe. The new cases verify the committed dispatch gate,
+replacement, original catalog evidence, unchanged summaries, rejection and
+cancellation, and rejection of fabricated Table terminals. Independent Python
+fixtures include absent-name outcomes and full-width object/log identifiers.
+An initial gateway compile exposed a missing unchanged-status projection; the
+corrected gateway passes `zig build check` (Debug, MaxRSS 423 MiB).
+
+`just test::direct-table-service` passes **370 typed HTTP calls**. The SQL compiler
+produces retained existing-name and absent-name assertions, and ordinary Table
+work for conditional DDL that does require mutation. The proxy corrupts the
+first assertion acceptance response. Inspection recovers its unchanged outcome;
+two node restarts preserve it, including after the original Table is dropped and
+its name reused. A previously absent name created before acceptance produces
+durable rejection; cancellation remains terminal. The earlier CRUD/DDL, query,
+read-pin, revocation and `.tseg` checks also pass. The later terminal bound
+correction is covered by the full-width SQL fixtures and gateway compilation.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass after regeneration. These proofs do not qualify an installed SQL listener,
+the default launcher, dependency enforcement or named-resource provisioning.
+
+## Direct staged intent references — 2026-10-23
+
+The catalog package passes **116/116** tests in the pinned Linux Nix shell
+(one minute, MaxRSS 69 MiB). Immutable staging is idempotent; loading rejects
+altered bindings, lengths, commitments, missing objects and corrupt bytes.
+`just test::local-catalog` passes staging and admission with an UPDATE-only
+caller. Staging leaves the Table frontier unchanged, and revoking schema access
+prevents admission through a previously staged reference.
+
+`just test::direct-table-service` passes **250 typed HTTP calls**. DDL and
+parameterized INSERT/UPDATE/DELETE stage directly before admission; repeated
+staging preserves the exact reference and creates no operation record. A missing
+staged object reports unavailability. A staged DELETE remains unadmitted across
+restart and is first admitted using only its retained reference afterward.
+The existing two-restart CRUD/DDL, retained-source, revocation and finite-query
+checks also pass. An initial local test compilation had a duplicate variable
+name; only the subsequent complete runs are counted here.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass. The shared definition derives from
+`transit.native.v1.direct-intent-reference.2026-10-23`; the previous definition
+remains an explicit rejection case. This establishes the transport/storage
+boundary for small SQL control references. The installed SQL ledger still needs
+to adopt it, and staged-object cleanup is not implemented.
+
+The subsequent SQL baseline check found a fixture generator that still embedded
+the older project-identity definition. It now reads only that identifier from
+the generated native contract while retaining independently authored record and
+command layouts. After regeneration, the SQL package passes **28/28** tests
+(856 ms, MaxRSS 45 MiB). This is baseline actor-ledger evidence, not a direct
+SQL cutover result.
+
+## Direct SQL references and read recovery — 2026-10-23
+
+In the pinned Linux Nix shell, `just test::direct-table-service` passes
+**316 typed HTTP calls** against real local native/Table owners and two node
+restarts. The added cases cover retained self-join/grouping over an older source,
+namespace listing, source/column completion, and current revocation after result
+completion. A renamed Table rejects an older pin despite an unchanged column
+schema. Existing full CRUD/DDL, 64 KiB point rows, bulk `.tseg` publication and
+saved typed SQL mutations also pass.
+
+The same proof exercises SQL's disk pin journal. It corrupts an accepted pin
+reply, retains an active pin across restart, protects current-generation active
+reads and releases earlier-generation/closing pins. A release denied by current
+rights leaves durable cleanup work; restoring rights permits exact release and
+idempotent closure. The helper supplies the gateway generation explicitly; this
+does not independently qualify native SQL activation fencing or installed SQL
+listeners.
+
+SQL `zig build test -Doptimize=ReleaseSafe --summary all` passes **28/28** tests
+(309 ms, MaxRSS 11 MiB). Cases cover committed dispatch eligibility, exact frozen
+reference/content identity, replacement, local abandonment versus qualified
+cancellation, terminal position attribution, paged growth and independent record/
+control fixtures. The CLI and gateway executables compile with the changed session basis and
+completion descriptors. Diagnostic checks pass 3387 outcome projections across
+29 surfaces, plus 16 inferred error sets and nine unknown-cause projections.
+
+The full storage run passed **56/58** tests and failed two ALTER fixtures that
+reused one row identity for different rows. After assigning distinct ordinals,
+`zig build test -Doptimize=ReleaseSafe -Dtest-filter='Table ALTER'
+-Dtest-filter='Table identity index' --summary all` passes **4/4** tests (7 seconds,
+MaxRSS 52 MiB), including a new point/bulk identity-alias rejection case. The
+failed full run is not reported as a complete pass. Fuze **334/334** and Query
+**141/141** had passed earlier in this work before the definition regeneration;
+the current full-repository gate remains separate.
+
+Two earlier pin-journal runs failed before acquisition: the parent descriptor
+was unsuitable for directory sync, and new-file publication called the atomic
+replacement API. The journal now owns a readable parent descriptor and uses
+atomic link for creation, atomic replacement for updates. Only the completed
+runs above count as passing evidence.
+
+The shared definition derives from
+`transit.native.v1.direct-sql-read-recovery.2026-10-23`; the previous identifier
+remains an explicit rejection case. Contracts, binding resources, independent
+signing/storage fixtures and SQL records are regenerated together, and
+`just contract::check` passes. Installed SQL fault/recovery qualification,
+conditional catalog DDL, launcher provisioning and physical GC remain open.
+
+## Prepared SELECT over retained direct Tables — 2026-10-23
+
+Query `zig build test --summary all` passes **141/141** tests in the pinned Linux
+Nix shell (135 main and six spill checks; MaxRSS 65/46 MiB). The new binding case
+distinguishes the complete selected caller/namespace identity from the separately
+captured data fingerprint and rejects changed connections and definitions.
+
+`just test::direct-table-service` passes **221 typed HTTP calls**, including
+read-only SELECT preparation, numbered typed parameters, binary and NULL
+projection, a NULL predicate, request-budget exhaustion, wrong parameter count
+and released-pin refusal. Failed openings leave the caller's original pin usable;
+three parameter bindings use that same explicit source. Existing mutation,
+saved-intent, schema lifecycle, revocation and two-restart proofs also pass.
+Diagnostic error/outcome checks and documentation links pass.
+
+These tests qualify the typed retained-source interface. They do not establish
+automatic pin acquisition/recovery in SQL sessions, relational source integration
+or the installed gateway cutover.
+
+## Saved direct SQL mutation intent — 2026-10-23
+
+The catalog package passes **115/115** tests in the pinned Linux Nix shell
+(one minute, MaxRSS 71 MiB). The saved-intent cases verify independent Python
+canonical bytes, full-width identities, copied binary/NULL parameters, exact
+predicate/data-frontier binding and rejection of incompatible, missing,
+truncated, altered and noncanonical work. Templates and parameter values can be
+destroyed before loading and executing the independently owned intent.
+
+`just test::direct-table-service` passes **193 typed HTTP calls**. Numbered
+parameters drive INSERT, UPDATE and DELETE through metadata-only preparation
+and binding, then explicit admission/execution. The proof checks unchanged
+frontiers and absent operation records before admission, exact readmission,
+saved-intent outcome inspection after restart, and a MySQL positional DELETE
+saved before restart but first admitted afterward. Its unchanged outcome leaves
+the logical-change frontier intact while operation history advances. Existing
+retained reads, CRUD/DDL, revocation and two-restart checks also pass.
+
+An earlier fixture run freed its newly retained intent buffers before saving
+them; the fixture now returns an explicit arena owner. A subsequent run tried
+to pin an old physical frontier after the unchanged DELETE. The final fixture
+captures a new frontier for that new pin and checks the unchanged logical basis.
+Only the final complete HTTP run is counted as passed.
+
+Direct contract/schema generation, diagnostic error/outcome checks and local
+documentation links pass. These typed caller checks do not qualify installed
+SQL gateway execution or complete the default launcher cutover.
+
+## Direct preparation rights and immutable bindings — 2026-10-23
+
+In the pinned Linux Nix shell, catalog `zig build test --summary all` passes
+**110/110** cases (one minute, MaxRSS 66 MiB). Read-only namespace and exact
+definition checks leave the catalog root, Table WAL frontier and object count
+unchanged, including stale definitions and late denial.
+
+`just test::local-catalog` passes with real local native authority. An UPDATE-only
+caller can check UPDATE and execute private selection while a SELECT check
+rejects. Returned native subject attribution agrees with the caller; changing a
+lookup's authorization reference breaks its complete declaration commitment.
+
+`just test::direct-table-service` passes **146 typed HTTP calls** across two
+service restarts. A retained preparation binding survives a row update, rejects
+ALTER, and cannot follow DROP/name reuse, including after restart. Namespace
+inspection and current verified role checks use the public signed path. The
+existing CRUD/DDL, predicate, retained-pin and revocation cases also pass.
+
+`just contract::check`, diagnostic error/outcome checks and documentation links
+pass after regenerating the shared definition and fixtures. These checks do not
+establish installed prepared SQL or the default launcher's Table cutover.
+
+## Direct INSERT identity — 2026-10-23
+
+The storage package passes **56/56 tests** and the catalog package passes
+**109/109 tests** with INSERT identities bound to the original principal,
+operation and batch ordinal. Cases reject duplicate identities behind different
+keys and forged caller origins before any operation claim or immutable write;
+root and maximum native principal values produce valid origins. The public HTTP
+proof passes its **119 typed calls** with the new identities through UPDATE,
+retained reads and two service restarts. The shared definition, generated
+contracts, binding resources and independent signing fixtures were replaced
+together; the full contract check passes. The low-level concrete mutation
+primitive remains internal to the storage owner.
+
+## Frozen SQL predicate mutations — 2026-10-23
+
+The pinned storage suite passes **58/58 tests** with typed predicate intents and
+private bounded execution. Run it with
+`nix develop --command sh -c 'cd packages/zig/transit-storage && zig build test --summary all'`.
+Its disk case
+creates 1,400 rows, retains a snapshot, admits a compiled UPDATE, closes the
+physical stores, reopens them, loses the final execution reply and verifies one
+acceptance record for all 1,400 changes. Another reopen returns the exact outcome;
+a no-op matches all rows without changing the logical frontier, and DELETE
+removes all 1,400 rows while the original pin remains readable.
+
+The failure case records terminal rejection for a late key collision, stale data
+and exhausted row/byte budgets. Revocation at publication leaves the original
+rows and admitted work intact. The suite used one resident index page, took
+about **14 minutes** in Debug and reported **56 MiB** maximum resident memory.
+That duration includes the whole suite and disk synchronization; it is not a
+statement latency benchmark. Per-row immutable index publication still causes
+substantial write amplification.
+
+The catalog suite passes **110/110 tests**, including typed plan/digest binding,
+predicate preservation, missing-data-basis rejection and action mismatch.
+`just test::local-catalog` passes private UPDATE under an UPDATE-only native
+Table grant while denying SELECT pin acquisition. The shared-definition cutover
+also passes the full contract check and diagnostic boundary/outcome checks.
+`just test::direct-table-service` passes **139 typed HTTP calls**, including
+primary-key UPDATE and two predicate DELETEs, exact re-admission after commit,
+and original outcomes after another service restart. The existing concrete
+CRUD/DDL, finite SELECT, retained-pin and revocation cases still pass.
+These checks do not establish the default launcher or SQL gateway cutover.
+
+## Finite SQL over retained direct Tables — 2026-10-23
+
+The query package passes **140/140 tests**, including its native catalog-query
+composition, with `DirectTableQuery` and its bounded direct source adapter.
+`just test::direct-table-service` passes **119 typed HTTP calls** after adding
+Fuze SQL execution to the independent caller.
+
+The caller filters the original retained Table with `WHERE` and `LIMIT`, returns
+its 64 KiB binary value, and computes unsigned `COUNT(*) = 2` after the live Table
+has been rewritten, dropped and replaced. These checks run before and after the
+second service restart. Closing a query leaves the separately owned pin usable.
+Exhausted request budget during open and exhausted result-byte budget produce
+errors; a failed query cannot return a successful continuation. Revoking rights
+after opening `LIMIT 0` denies its empty result at the final disclosure gate.
+Diagnostic projections and documentation links also pass.
+
+This is a public typed finite-query owner over an explicit pin, not the installed
+SQL gateway or launcher cutover. It does not prepare parameters, acquire pins,
+execute DML or join independent sources. Non-binary text collations reject before
+execution; their SQL comparison semantics remain unfinished. These checks do not
+qualify all logical types, predicates or physical profiles.
+
+## Direct Table preview — 2026-10-23
+
+The catalog suite passes **109/109 tests** with read-only DDL preview. Repeated
+preview leaves the catalog root, Table frontier, immutable-object put count and
+operation-identity claims unchanged. It reports name, definition and logical-data
+conflicts, classifies ADD COLUMN as a rewrite, rejects reuse of an existing
+operation identity and denies disclosure at the final policy check. Response
+validation rejects changed proposal fingerprints, bindings, contradictory
+conflict/work fields and an operation result substituted for preview.
+
+`just test::direct-table-service test::local-catalog` passes. The HTTP proof now
+contains **92 typed calls**, with preview followed by `not_observed` operation
+inspection before ALTER, RENAME, DROP and replacement CREATE admission. Its
+two-restart, retained-source and current-revocation cases still pass. The native
+composition checks pass alongside the network caller.
+
+The shared current-v1 definition is derived from
+`transit.native.v1.direct-table-preview.2026-10-23`. Generated schemas, binding
+resources and independent signing fixtures were replaced together; the previous
+definition remains an explicit rejection case. `just contract::check`, diagnostic
+error/outcome checks and documentation links pass. Preview checks schema rules
+and expectations, not every existing row's constraints or future execution
+success. Dependency RESTRICT and installed SQL integration remain unfinished.
+
+## Direct Table CRUD/DDL recovery — 2026-10-23
+
+`just test::direct-table-service` passes **84 typed HTTP calls** through the
+configured local owner. In addition to CREATE/INSERT/read, it changes a primary
+key through point UPDATE, bulk-deletes another row, rewrites the remaining row
+through ADD COLUMN, renames and drops the Table, and recreates its former name
+with a distinct object. Accepted matched/changed/live counts are checked.
+
+Two actual node restarts preserve all original operation outcomes. Re-executing
+the original UPDATE after DROP returns that original commit and leaves the
+replacement Table empty. One-row pages from retained pins still expose both the
+original two-column data and the rewritten three-column data, including stable
+row identity and a NULL added column. An empty replacement snapshot completes
+explicitly. Pins are released after recovery. No Table work uses actor sends.
+
+The direct schema/signing contract and documentation checks also pass. This run
+covers these concrete CRUD/DDL cases, not every ALTER form or a concurrent HTTP
+schedule. Preview, dependency RESTRICT, default-launcher/SQL integration,
+automatic flushing and collector races remain unqualified.
+
+## Retained typed Table reader — 2026-10-23
+
+The catalog suite passes **107/107 tests** with `DirectTableReader`. Its new
+case rejects changed accepted/logical-change positions, premature completion,
+and invalid final-row bytes without advancing the cursor. It checks exact source
+row consumption and decodes binary values under the retained schema. Allocation
+checking covers partial-page decode failure.
+
+`just test::direct-table-service` passes with **24 typed HTTP calls** after the
+reader is wired into the independent caller. The retained source is consumed
+after restart, including its original unflushed 64 KiB row. Current revocation
+denies both cached-result checks and a completed reader's next call. Explicit
+release is repeatable, reopening a released handle returns `QueryExpired`, and
+a changed connection is rejected locally. Diagnostic error/outcome checks and
+documentation links pass. SQL does not use this reader yet.
+
+## Direct Table HTTP owner and typed caller — 2026-10-22
+
+`nix develop --command just test::direct-table-service` passes against a temporary
+disk-backed local node. The independent Zig caller uses the signed public native
+and `DirectTableClient` APIs. Its 18 typed calls cover CREATE admission/execution,
+a 64 KiB point row, bulk INSERT, retained snapshot inspection, bounded scan and
+release. The proof observes a real `.tseg` object from the bulk commit and no
+actor send or turn commands for Table work.
+
+The proxy corrupts a successful execution reply's request context. The caller
+rejects that envelope and recovers the exact committed operation through
+inspection. After an actual node restart, both original outcomes remain exact;
+a pin acquired while the first row was unflushed still returns its original
+64 KiB binary value and one-row source. Later live data contains two rows.
+Ownership revocation denies both retained reads and outcome inspection; regrant
+permits explicit release. An execution request cannot use the reserved control
+lane hint. The owner shares native authority, storage quotas and process locking.
+
+The existing `zig build test-local-native-service -Doptimize=ReleaseSafe` proof
+also passes signed paged reads/turns, invalid replies, exact retry after restart,
+current revocation and in-owner maintenance after adding the direct route.
+Diagnostic error/outcome projections, the verification catalog and documentation
+links pass. These runs do not replace the final committed clean-suite check.
+
+This proves the configured local HTTP path. The default launcher and installed
+SQL still use the actor Table implementation. Complete CRUD/DDL over this route,
+concurrent request schedules, automatic point-row flushing, incremental recovery
+and physical collection are separate unfinished work. Every request currently
+replays its relevant catalog/Table history with bounded resident memory.
+
+## Retained Table page reads — 2026-10-22
+
+The later storage suite passes **55/55 tests** after correcting conditional data
+bases at admission. A disk-backed source survives pin acquisition, physical
+flush and a canonical no-op before admission, then recovers admitted execution
+after reopen. An intervening logical write, foreign partition or future frontier
+still rejects. Conditional RENAME likewise survives control progress; replay
+preserves the original row receipt. The native dispatcher proof passes a no-op
+UPDATE selected from its pinned source, with one matched and zero changed rows.
+The catalog suite passes **106/106** and `just contract::check` passes after the
+coordinated definition/fixture regeneration.
+
+This changes persisted conflict semantics and selects the shared definition
+derived from `transit.native.v1.direct-table-service.2026-10-22`. The prior
+definition is an explicit incompatibility case. These checks do not qualify the
+in-progress listener, installed SQL migration or automatic point-row flushing.
+
+The subsequent catalog package suite passes **105/105 tests** with the signed
+direct request codec. Shared Python/OpenSSL and Zig vectors agree on the complete
+request context, signature, Unicode and full-width catalog IDs. New cases reject
+missing definitions, modified actions/roles, noncanonical base64, changed row
+payload digests, incompatible row interpretations and mismatched mutation shapes.
+Binary values, unsigned extremes and negative floating zero survive conversion.
+`just contract::direct-table-check` passes its independent schema/signing checks.
+
+`just test::local-catalog` passes with the internal `LocalTableService` dispatcher.
+Real signed requests pass through JSON parsing, current native authorization and
+disk storage for CREATE admission, hidden pending names, explicit execution,
+repeat admission returning the original commit, bulk INSERT, durable pin,
+snapshot/schema inspection, row scan and release. Inspection leaves the native
+head unchanged. Transferring Table ownership after response buffering denies
+the complete page; regrant permits release. This test exercises the dispatcher
+in process, not a network listener, installed launcher or SQL adapter.
+
+The following catalog run passes **106/106 tests** with `DirectTableClient`
+response validation. Its negative cases reject unrelated contexts, changed
+operation IDs, impossible changed counts, wrong accepted partitions, inconsistent
+terminal phases and wrong result kinds. The native dispatcher test also passes
+every returned envelope through this validator and rejects altered page byte
+counts and pin attribution. The client's HTTP method compiles; a network call
+through it has not yet been qualified here.
+
+The pinned storage suite passes **54/54 tests** with `inspectSnapshot` and
+`scanSnapshot`. New disk-backed cases traverse thirteen mixed unflushed WAL and
+segment rows across flush, schema rewrite, DROP and actual owner reopen. They
+retain the original two-column interpretation and exact accepted position,
+enforce independent row/byte page limits, and reject foreign or fabricated
+cursors and released handles. Variable-length returned values remain valid
+after the Table owner and its caches are destroyed. A final injected policy
+denial discards buffered values and also denies empty end-of-source metadata.
+Repeated inspection leaves the Table root unchanged.
+
+`just test::local-catalog` passes with the new catalog read operations under real
+native authority. A domain owner without raw-resource access can acquire and
+read its pin. Another pin principal rejects. Ownership revocation denies page
+delivery and release; regrant permits release even when ordinary data capacity
+is exhausted. Returned pages and schema use caller-owned allocations after the
+temporary catalog view closes.
+
+This qualifies bounded retained source pages, not public HTTP/SQL result
+streaming, service scheduling, a shared catalog cut or physical collection.
+
+## Table partition acceptance and retained read pins — 2026-10-22
+
+In the pinned development shell, `zig build test` passes in
+`packages/zig/transit-storage` and `packages/zig/transit-fuze` after adding
+[`TablePartition`](../packages/zig/transit-storage/docs/table-partitions.md).
+The storage cases exercise:
+
+- Exact point/bulk retry after a lost reply and real disk reopen, with altered
+  concrete content rejected under the original binding.
+- A staged two-row segment denied by the final injected policy fence: no rows,
+  receipt or WAL frame becomes accepted. A later authorized retry accepts both.
+- An underlying append that persists and then reports uncertainty: reads and
+  flushes refuse until recovery reconstructs the accepted operation.
+- Two competing Table roots: the stale candidate cannot publish; recovery sees
+  the winner and the original expected-data position remains stale.
+- 129 rows and receipts through one resident index page, flush and deletion,
+  then replay and a 128-row scan. The scan performs one segment read and one
+  row-group decode, rather than one per row. Earlier read roots retain their
+  original WAL row after checkpointing.
+- One 64-row statement containing 8 KiB values, with an accepted WAL frame above
+  512 KiB and a column page above 256 KiB. Exact segment reads agree; a group with
+  an unencodable long sort key remains eligible for range scanning.
+- Lost durable pin acquisition replies, disk reopen, unflushed read preservation
+  through flush/deletion, altered-frontier rejection, current denial and durable
+  idempotent release. Interrupted pre-publication pin staging leaves no pin; 129
+  durable pin records exceed the one-page cache.
+- Allocation-failure enumeration confirms that visibility allocations occur
+  before the durable acceptance record.
+
+The supporting immutable-index proof reopens 513 keys with one resident page,
+scans without a cache, preserves an earlier root, rejects missing/corrupt pages
+and cannot publish a failed private candidate. These are component proofs over
+the stated cache/operation bounds, not a total process RSS measurement.
+
+The guard is injected in these tests; they do not establish a live native policy
+adapter, catalog name/DDL publication, installed direct SQL or distributed
+transactions. This owner retains all WAL and objects and has no physical GC or
+trim operation. Pin tests therefore do not qualify a collector removing data
+concurrently. Existing actor Table callers remain until the public cutover.
+
+The subsequent `transit-backend-local` package suite passes composition checks
+using an actual native credential, signed original-subject proof and resource
+grant. An unrelated accepted native input leaves the data fence valid; two data
+partitions accept independently. Revocation rejects the old policy epoch, a
+native storage fence rejects the old storage epoch, and current resource
+retirement denies through the existing lifetime/dependency rules even when role
+permissions still exist. Native publication cannot acquire the exclusive side
+while a data authority guard holds its shared fence.
+
+A real native grant is revoked after private Table segment/index staging and
+before final acceptance. The whole batch remains absent, including its receipt;
+current observation is denied. Regrant permits the same exact operation, which
+survives replay. A separate physical-quota test denies data objects and log
+acceptance without changing the partition, while an explicitly selected control
+operation can use the reserve. These checks qualify the local adapter, not a
+public direct Table endpoint or SQL cutover.
+
+`nix develop --command just test::unit` and
+`nix develop --command zig build test-local-native-service -Doptimize=ReleaseSafe`
+pass after adding the shared authority fence. The public service proof covers
+signed native reads/turns, invalid replies, exact retry after restart, revocation
+and local maintenance; it does not exercise the unfinished direct Table route.
+
+## Native authority over local storage — 2026-10-22
+
+`nix develop --command zig build test-local-native` passes against temporary
+POSIX directories using the existing core authority engine and the new
+[local adapter](../packages/zig/transit-backend-local/README.md). It covers:
+
+- Lost native append replies followed by exclusive reopen and exact retry,
+  without another process or repeated staging.
+- 129 paged keys and immutable block bytes recovered through a one-page cache.
+- Data quota exhaustion preserving the old head and caller sequence, with a
+  control checkpoint still admitted through the reserve.
+- One turn atomically publishing a KV mutation, an immutable block, consumed
+  input, an output and an undispatched effect intent. Before commit none is
+  visible; after a lost reply/restart all are recovered. Physical history trim
+  preserves the exact receipt, and current resource revocation denies a later
+  block read and clears its output buffer.
+- Competing private candidates from two engine instances: one conditional WAL
+  acceptance, one conflict, and the same recovered winner.
+- Exclusive native ownership, foreign owner markers and refusal to initialize
+  native authority alongside unrelated existing object data.
+
+The root unit suite passes after carrying control-reserve eligibility in the
+core's prepared transition. The local package joins that suite and standalone
+package checks. These are native storage/authority component proofs; they do
+not qualify installed node/launcher composition, a Document service lifecycle,
+standalone payload publication, retained-root physical collection, power-loss
+behavior or direct Table SQL execution.
+
+`zig build test-local-native-service` subsequently passes the existing signed
+public-client fault corpus against `transit-node` with `local_directory`. The
+fixture starts no external storage service. It checks signed paged reads and
+turns, malformed replies, a lost turn receipt, node SIGKILL/restart, exact receipt
+recovery and current revocation, with one resident page and one CPU. It also
+checks real native WAL and immutable object files. HTTP admission, snapshot
+registration, retries and lane synchronization are shared with the Ursula node
+in `NativeServer.zig`. A subsequent run with local request metrics enabled also
+checks bounded numeric provider counters, actual read/write byte accounting and
+diagnostics across restart. A Debug run times out in Station recovery at its
+240-second schedule limit. The prescribed `just test::growing-service` ReleaseSafe
+run subsequently passes the complete caller, maintenance, Station, query and
+quota corpus with the new definition. Station recovery takes 64.844 seconds;
+the timeout is unchanged. `just check` also passes, including root units,
+generated contracts, frontend checks and the documentation build.
+The local service target additionally runs maintenance inside the exclusive
+node owner, using the existing public caller's lifecycle assertions. It checks
+accepted-floor WAL trimming, restart after trim, cancellation of pending effects
+and outputs without dispatch, resource/dependent retirement, preservation of an
+independent resource, revocation across restart and resumed trimming after a
+new grant. The independent Python reader verifies the on-disk trim metadata's
+checksum. This does not qualify local immutable-object collection, standalone
+payload publication, the launcher default or direct Table SQL storage.
+
+The subsequent `just test::server` ReleaseSafe run passes the source-built local
+launcher's complete core lifecycle corpus in 434.74 seconds. It observes real
+`.twal` and immutable `.data` files beneath `data/native`, and verifies that no
+MinIO, Ursula or separate maintenance process is launched. Existing SQL reads,
+writes and DDL run over native state in that local store. The corpus covers
+configuration reload and recovery, independent console snapshots, lost replies,
+child/manager interruption, retained operation identity, current revocation
+across restart, missing-storage refusal and intentional DROP/name reuse without
+recreating default data. Two earlier runs expose fixture assumptions: a removed
+provider process selector and an opt-in retry which omits `HttpCapacity`. The
+fixed fixture faults the live requester and retains the same signed request
+through bounded capacity retries, with unchanged deadlines.
+
+The installation layout cutover replaces the shared definition and regenerates
+contracts, bindings and signatures. Missing/foreign definitions, including the
+preceding local-node definition, reject before reopening accepted work. This
+source-built launcher evidence does not establish the Nix bundle's clean-build
+qualification, standalone payload ownership, local object collection, direct
+Table segment execution or completion of declarative data lifecycles.
 
 ## SQL idle lifetimes and readiness observations
 
@@ -1002,7 +4650,6 @@ tasks across six lanes, including the two new SDK checks in core; lane timings
 and completion are retained under `.cache/ci/clean/` and reported in the PR.
 A failed or incomplete lane does not qualify the complete inventory.
 
-
 ## Declarative authorization evaluator
 
 The [admission-bound recovery report](verification/results/authorization-admission-recovery-2026-10-15.json)
@@ -1022,7 +4669,6 @@ restart. The report records dirty source and exact file/log hashes. These are
 focused preflight results; final committed-source root checks, all 86 ordinary
 tasks and focused adapter proofs remain separate gates. Earlier results below
 retain their actual source and definition and do not certify this cutover.
-
 
 The [repository check report](verification/results/authorization-check-2026-10-15.json)
 records `just check` passing with definition `67f02f8b…2a15e`: native unit and
@@ -1243,8 +4889,7 @@ prefetch through authority decoration and coalescing duplicate checks within
 one bounded read. Every acquisition finishes with a fresh native check; final
 post-computation disclosure remains separate. The repeated 41-row Table scan
 uses **188 native requests**, including **81 authorization checks**, compared
-with 419 before these corrections and the earlier pre-authorization ceiling of
-75. The new fixture-specific ceilings are explicit; they do not claim the old
+with 419 before these corrections and the earlier pre-authorization ceiling of 75. The new fixture-specific ceilings are explicit; they do not claim the old
 cost profile is preserved. KV and Document retain their prior request bounds.
 
 The report records time to first output, total time, sampled client/node RSS,
@@ -1963,14 +5608,14 @@ browser tasks. This is composed coverage across committed-source clean checkouts
 not one complete run at a single HEAD. Exact task scopes, revisions, durations,
 log digests, orchestration scripts and failed attempts remain in the record.
 
-| Lane | Passed tasks | Source revisions |
-| --- | ---: | --- |
-| core | 23/23 | `d9c0e599` |
-| growth | 32/32 | `6cfeab83`, `f3687a86` |
-| experience | 7/7 | `fec5dd68` |
-| launchers | 2/2 | `c5d46e8f` |
-| bindings | 18/18 | `2fa8da42`, `74391333` |
-| browser | 7/7 | `74391333` |
+| Lane       | Passed tasks | Source revisions       |
+| ---------- | -----------: | ---------------------- |
+| core       |        23/23 | `d9c0e599`             |
+| growth     |        32/32 | `6cfeab83`, `f3687a86` |
+| experience |          7/7 | `fec5dd68`             |
+| launchers  |          2/2 | `c5d46e8f`             |
+| bindings   |        18/18 | `2fa8da42`, `74391333` |
+| browser    |          7/7 | `74391333`             |
 
 The original complete run at `6cfeab83` finished all 32 growth tasks, then failed
 in the TypeScript SDK inspection decoder. Later clean runs qualify that correction,
@@ -2155,7 +5800,7 @@ exact uint64, predicate unknown truth and all five vector lane states.
 
 `zig build test-typed-tables -Doptimize=ReleaseSafe` passes in 251.621 seconds
 through disk Ursula, signed native clients and real catalog/Station hosts. The
-[prepared lifetime schedule](table_parameters_native.py) keeps the same Zig
+[prepared lifetime schedule](https://github.com/spoke-sh/transit/blob/b861597c460896f0bfb7d8568f95ce549e94f38e/tests/table_parameters_native.py) keeps the same Zig
 objects alive across data changes, read denial/restoration, ALTER and
 DROP/recreate. Preparation and binding issue no native sends; execution observes
 new data cuts. DML returns an owned intent for the existing exact-send recovery
@@ -2255,7 +5900,6 @@ Linux x86_64 results do not establish another hardware profile, a latency SLO,
 a universal SIMD/parallel speedup or new join/maintenance algorithms. Hosted
 execution status is reported separately in the PR.
 
-
 ## Experimental int64 batch qualification
 
 The first [Vectorized queries](../docs/handbook/reference/queries.md), before the integrated
@@ -2312,14 +5956,14 @@ with locked dependencies and no inherited workspace build outputs. Full
 `just check` also passes at that revision. Later evidence/documentation commits
 are identified separately; they do not silently become the tested source.
 
-| Selected package | Executed evidence |
-| --- | --- |
-| Neutral semantics and finite execution | [315-case independent oracle, captured jobs and recovery](#captured-relational-owner-and-results), [resident spill growth](#relational-resident-growth) |
-| SQL and public callers | [Neutral ABI/port](#neutral-relational-caller-pages), [installed TypeScript/Python](#installed-interactive-relational-sdks), [explicit Board sessions](#explicit-relational-board-sessions), console and grammar checks |
-| Complete changes and maintenance | [Snapshot/tail](#complete-table-history-and-snapshot-tail), [ongoing input and failed successors](#ongoing-maintenance-and-failed-successors), [mutation costs](#complete-history-mutation-cost) |
-| Bounded exchanges | [Native fault schedules](#relational-exchange-faults-and-checkpoint-growth), [real disk exhaustion](#relational-physical-capacity), independent routing and rebatching fixtures |
-| Worker reassignment | [Recorded single-authority handoff](#recorded-manual-worker-handoff), paged checkpoints, stale credentials, source expiry and fenced restore refusal |
-| Named activation | [Immutable definitions, authorization and explicit activation](#named-relational-definitions), complete revisions/deltas and native overflow recovery |
+| Selected package                       | Executed evidence                                                                                                                                                                                                       |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Neutral semantics and finite execution | [315-case independent oracle, captured jobs and recovery](#captured-relational-owner-and-results), [resident spill growth](#relational-resident-growth)                                                                 |
+| SQL and public callers                 | [Neutral ABI/port](#neutral-relational-caller-pages), [installed TypeScript/Python](#installed-interactive-relational-sdks), [explicit Board sessions](#explicit-relational-board-sessions), console and grammar checks |
+| Complete changes and maintenance       | [Snapshot/tail](#complete-table-history-and-snapshot-tail), [ongoing input and failed successors](#ongoing-maintenance-and-failed-successors), [mutation costs](#complete-history-mutation-cost)                        |
+| Bounded exchanges                      | [Native fault schedules](#relational-exchange-faults-and-checkpoint-growth), [real disk exhaustion](#relational-physical-capacity), independent routing and rebatching fixtures                                         |
+| Worker reassignment                    | [Recorded single-authority handoff](#recorded-manual-worker-handoff), paged checkpoints, stale credentials, source expiry and fenced restore refusal                                                                    |
+| Named activation                       | [Immutable definitions, authorization and explicit activation](#named-relational-definitions), complete revisions/deltas and native overflow recovery                                                                   |
 
 The record retains both earlier clean attempts. One fails on the legacy growing
 Table test's assumption that every non-point read is the creation-prefix page;
@@ -2396,23 +6040,47 @@ does not isolate history overhead or establish a latency SLO.
 
 ## Relational physical capacity
 
-`just test::relational-capacity` passes on a newly allocated **2 GiB ext4 image**
-with native disk Ursula and owned MinIO. Real 32 MiB allocations fail with
-`ENOSPC` after leaving 4 MiB available. Both an active captured checkpoint and
-accepted exchange work refuse advancement without changing their recorded heads.
-Releasing only a **512 MiB preallocated reserve**, retaining the filler, and
-restarting the same node/store permits exact recovery and bounded advancement.
-Both complete results agree with the independent oracle afterward.
+`nix develop --command just test::relational-capacity` passes against the direct
+Table owner and native local storage on a private **2 GiB ext4 image**. A grouped
+LEFT JOIN retains a partial captured checkpoint; a separate exchange retains
+accepted producer/receiver state. Filling the filesystem to block exhaustion
+causes real `ENOSPC`, and both attempts return `AuthorityUnavailable` without
+changing the canonical digest of any retained computation entry. Health remains
+observable. Only a **512 MiB recovery reserve** is released before restarting the
+same authority; the filler remains allocated through complete result validation.
 
-The full schedule takes **487.562 seconds**, including both partition layouts,
+The captured result verifies grouped COUNT/SUM and NULL for an unmatched row.
+Its replacement records fresh ownership. The exchange executor is killed after
+its atomic checkpoint, then restores the same bundle, source vector and borrowed
+proofs. Recorded worker handoff, one/seven-partition successors and original
+lease cleanup complete without replacing that checkpoint. Storage refusals take
+0.141/0.238 seconds; health reads take 0.001 seconds each. Restart through complete
+result and cleanup takes 113.849/501.622 seconds for capture/exchange. These are
+shared-host observations, not latency guarantees or power-loss qualification.
+
+Two earlier attempts failed in the fixture's disk-filling setup before exercising
+Transit under pressure. The corrected driver reserves extent-metadata space for
+the initial allocation, consumes the tail in bounded steps and uses read/write
+file descriptors. Private executable copies use the pinned interpreter inside
+the owned container. This schedule does not qualify a remote storage provider.
+
+The historical **2026-10-12** schedule used the previous Table owner, native disk
+Ursula and owned MinIO on a **2 GiB ext4 image**. Real 32 MiB allocations failed with
+`ENOSPC` after leaving 4 MiB available. Both an active captured checkpoint and
+accepted exchange work refused advancement without changing their recorded heads.
+Releasing only a **512 MiB preallocated reserve**, retaining the filler, and
+restarting the same node/store permitted exact recovery and bounded advancement.
+Both complete results agreed with the independent oracle afterward.
+
+That schedule took **487.562 seconds**, including both partition layouts,
 handoff faults and source lifetime expiry. Captured/exchange refusal takes
 24/49 ms; health reads take 14/8 ms; reserve-release/restart/first-advance takes
 0.634/1.175 seconds. Those are finite shared-host observations during other
 qualification, not latency or sustained-throughput claims. The [record and
 retained failed fixture attempt](verification/results/relational-capacity-2026-10-12.json)
 include binary and raw-log hashes. The physical task remains an explicit Linux/
-Docker reference task, separate from the 79 ordinary clean tasks. It tests
-process replacement, not power-loss durability.
+Docker reference task, separate from ordinary clean tasks. The historical result
+does not qualify the current direct owner or expand its provider support.
 
 ## Relational exchange faults and checkpoint growth
 
@@ -3263,11 +6931,11 @@ and 64 for Document; the hot store remains 8 MiB. The focused run uses native
 and port callers; installed SDK coverage belongs to the independently completed
 bindings lane.
 
-| Source | Rows | Segments | IPC bytes | Proof seconds |
-| --- | ---: | ---: | ---: | ---: |
-| KV | 41 | 6 | 13584 | 39.28 |
-| Table | 41 | 6 | 13584 | 40.66 |
-| Document | 12 | 2 | 9880 | 393.55 |
+| Source   | Rows | Segments | IPC bytes | Proof seconds |
+| -------- | ---: | -------: | --------: | ------------: |
+| KV       |   41 |        6 |     13584 |         39.28 |
+| Table    |   41 |        6 |     13584 |         40.66 |
+| Document |   12 |        2 |      9880 |        393.55 |
 
 Growth includes the 190-case real file-query proof, logical types/sources/Arrow
 and neutral codecs, Table read/write recovery, full HTTP/gRPC worker fault
@@ -3318,14 +6986,14 @@ Fixture corrections at `67a30e89`, `1786ce1d` and `16f30893` do not alter runtim
 authority, stored/wire semantics or the current definition
 `9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9`.
 
-| Executed selection | Source revision | Passed tasks |
-| --- | --- | ---: |
-| Complete core, growth, experience and launcher lanes | `c79b9cf1` | 57 (22 + 26 + 7 + 2) |
-| Bindings check/native through .NET SDK | `c79b9cf1` | 10 |
-| BEAM SDK, ten-language interoperability, model, delivery and SQL rewrite proofs | `67a30e89` | 5 |
-| SQL differential proof, SDK gRPC faults and connector preparation recovery | `1786ce1d` | 3 |
-| Board, query, HTTP and gRPC browser tasks | `1786ce1d` | 4 |
-| Reactive browser, views and lifecycle tasks | `16f30893` | 3 |
+| Executed selection                                                              | Source revision |         Passed tasks |
+| ------------------------------------------------------------------------------- | --------------- | -------------------: |
+| Complete core, growth, experience and launcher lanes                            | `c79b9cf1`      | 57 (22 + 26 + 7 + 2) |
+| Bindings check/native through .NET SDK                                          | `c79b9cf1`      |                   10 |
+| BEAM SDK, ten-language interoperability, model, delivery and SQL rewrite proofs | `67a30e89`      |                    5 |
+| SQL differential proof, SDK gRPC faults and connector preparation recovery      | `1786ce1d`      |                    3 |
+| Board, query, HTTP and gRPC browser tasks                                       | `1786ce1d`      |                    4 |
+| Reactive browser, views and lifecycle tasks                                     | `16f30893`      |                    3 |
 
 The four complete lanes used `just ci-clean --lane <lane>`. Bindings and browser
 qualification retained passed prefixes after failures, then executed the remaining
@@ -4689,14 +8357,14 @@ that failed attempt is not recovery evidence. Logs are
 `/tmp/transit-sql-catalog-cpp-final-native.json`. Native binary hashes match the
 rebased four-language report below. Final SDK archive SHA-256 values:
 
-| Archive | SHA-256 |
-| --- | --- |
-| `transit-client-c-0.2.0-linux-x86_64.tar.gz` | `90c820a934d5a0d2a8aea65e70a6f1ec28dd5f0044c351f80bc156cbdcd3d4a0` |
-| `transit-client-cpp-0.2.0.tar.gz` | `24b3d7944ae2899f914dce09edfbbb00744579d3e76dceaee973f23f7dd86f99` |
-| `transit-native-client-c-0.2.0-linux-x86_64.tar.gz` | `a435721d4ee2561818adde127a0a098f4d49daf69176c192f305294a83f5857e` |
+| Archive                                              | SHA-256                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `transit-client-c-0.2.0-linux-x86_64.tar.gz`         | `90c820a934d5a0d2a8aea65e70a6f1ec28dd5f0044c351f80bc156cbdcd3d4a0` |
+| `transit-client-cpp-0.2.0.tar.gz`                    | `24b3d7944ae2899f914dce09edfbbb00744579d3e76dceaee973f23f7dd86f99` |
+| `transit-native-client-c-0.2.0-linux-x86_64.tar.gz`  | `a435721d4ee2561818adde127a0a098f4d49daf69176c192f305294a83f5857e` |
 | `transit-native-station-c-0.2.0-linux-x86_64.tar.gz` | `fbd4acaf89f0e8d6aaf4b5819a3c1af4162594cf9a9a2fa5b6ab532bcbf3690f` |
-| `transit-station-c-0.2.0-linux-x86_64.tar.gz` | `84594774cd5c7de7efd4b94ba9d2be35b6e3d21c90792a8d00aa62ca70a346fd` |
-| `transit-station-cpp-0.2.0.tar.gz` | `04be1174bd6ccd8137de0972027ec10a092a885291bc874a58dfeb6bbb5ce152` |
+| `transit-station-c-0.2.0-linux-x86_64.tar.gz`        | `84594774cd5c7de7efd4b94ba9d2be35b6e3d21c90792a8d00aa62ca70a346fd` |
+| `transit-station-cpp-0.2.0.tar.gz`                   | `04be1174bd6ccd8137de0972027ec10a092a885291bc874a58dfeb6bbb5ce152` |
 
 `bindings::catalog-c` owns this focused installed schedule; the regular C SDK
 regression also includes it. Committed-HEAD `just ci-clean --lane core` passes
@@ -4738,7 +8406,7 @@ Executed on development source based on `4ecef2ff`, with the evidence-only
   **2.470 s** installation, 1459 reads, 39 accepted turn responses, six lost
   caller receipts and three lost owner receipts.
 - The final **seven-language** schedule (`just test::catalog --sdk python --sdk
-  node --sdk rust --sdk ruby --sdk c --sdk cpp --sdk java`) passes in **73.578 s**,
+node --sdk rust --sdk ruby --sdk c --sdk cpp --sdk java`) passes in **73.578 s**,
   including **33.900 s** installation. It records **2655 reads, 60 accepted turn
   responses, thirteen lost caller receipts and three lost owner receipts**.
   Every selected caller recovers the original operation after caller/node/store
@@ -4772,13 +8440,13 @@ as executed recovery proof. Logs are
 `/tmp/transit-sql-catalog-java-all-native.json`; both retain exact SDK/native
 hashes. Native binary hashes match the rebased report below. Final Java artifacts:
 
-| JAR | SHA-256 |
-| --- | --- |
-| `transit-client-0.2.0.jar` | `8775ebc5cdb52de401f426f03d7d9496c15307089be60884685e078edd5ed89f` |
-| `transit-native-client-0.2.0.jar` | `66132be7fb9bec1018bdc867a1165593db00b0f41fae70330f8025c8489c52ae` |
-| `transit-station-sdk-0.2.0.jar` | `b966c9f485827ce4e1d19046b26031a9c2813d98381d11361e21120a4595fb26` |
+| JAR                                | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `transit-client-0.2.0.jar`         | `8775ebc5cdb52de401f426f03d7d9496c15307089be60884685e078edd5ed89f` |
+| `transit-native-client-0.2.0.jar`  | `66132be7fb9bec1018bdc867a1165593db00b0f41fae70330f8025c8489c52ae` |
+| `transit-station-sdk-0.2.0.jar`    | `b966c9f485827ce4e1d19046b26031a9c2813d98381d11361e21120a4595fb26` |
 | `transit-native-station-0.2.0.jar` | `70c1cc5e8f6612fb84c89cd64eedb5e024932a4588d3ed76627d902f9687b7d6` |
-| `gson-2.12.1.jar` | `ebee13d5fb7477cd7f1cc010e0c356df8ca80709715248da97f79e35ccb4fbec` |
+| `gson-2.12.1.jar`                  | `ebee13d5fb7477cd7f1cc010e0c356df8ca80709715248da97f79e35ccb4fbec` |
 
 `bindings::catalog-java` owns the focused installed schedule; the regular Java
 SDK regression also includes it. These are development and focused passes.
@@ -4846,11 +8514,11 @@ Logs are `/tmp/transit-sql-catalog-dotnet-build.log`,
 copied to `/tmp/transit-sql-catalog-dotnet-native.json`; native hashes match the
 rebased report below. Installed package hashes:
 
-| NuGet | SHA-256 |
-| --- | --- |
-| `Transit.Client.0.2.0.nupkg` | `9c1c8db6507b0a76e43fd17b3504c7d44c6cad7495e3ba09dd453820f970eb2a` |
-| `Transit.Native.Client.0.2.0.nupkg` | `9b906b7103a2fe0c27612a8bdda09fd6cf84ba6d8dc0612aca1d08d9cdc6d445` |
-| `Transit.Station.Sdk.0.2.0.nupkg` | `56576b6978e2fae0a340e7e6e6dbad314c761db4411809de4676e5c18066fc5b` |
+| NuGet                                | SHA-256                                                            |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `Transit.Client.0.2.0.nupkg`         | `9c1c8db6507b0a76e43fd17b3504c7d44c6cad7495e3ba09dd453820f970eb2a` |
+| `Transit.Native.Client.0.2.0.nupkg`  | `9b906b7103a2fe0c27612a8bdda09fd6cf84ba6d8dc0612aca1d08d9cdc6d445` |
+| `Transit.Station.Sdk.0.2.0.nupkg`    | `56576b6978e2fae0a340e7e6e6dbad314c761db4411809de4676e5c18066fc5b` |
 | `Transit.Native.Station.0.2.0.nupkg` | `b034cd99a5fbefc2b0c2227fec50a100e1e06be86d5190efbaeeeb61acaafdd6` |
 
 `bindings::catalog-dotnet` owns the focused installed schedule; the regular .NET
@@ -4936,13 +8604,13 @@ Logs are `/tmp/transit-sql-catalog-beam-build.log`,
 selected package hashes; earlier eight SDK identities and native binary hashes
 match the recorded checkpoints above/below. Final BEAM artifacts:
 
-| OTP artifact | SHA-256 |
-| --- | --- |
-| `transit_native_client-0.2.0.tar.gz` | `c4436c6ec88f4e0a838e88c0214521cced7d527a1bca8343a2eb43c5e0712529` |
-| `transit_client-0.2.0.tar.gz` | `7ef15b4c716177372dc39dcca2230ef2878e118bdf430176ce86e8e15a26e0aa` |
+| OTP artifact                          | SHA-256                                                            |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `transit_native_client-0.2.0.tar.gz`  | `c4436c6ec88f4e0a838e88c0214521cced7d527a1bca8343a2eb43c5e0712529` |
+| `transit_client-0.2.0.tar.gz`         | `7ef15b4c716177372dc39dcca2230ef2878e118bdf430176ce86e8e15a26e0aa` |
 | `transit_native_station-0.2.0.tar.gz` | `8e8aba003040a0924bc78b3383fcee833f3652ccf115f76c7a48de35b799c6d2` |
-| `transit_station_sdk-0.2.0.tar.gz` | `b60cb4c0eee515d4d8af515d23843a0fb54525e03d2fdb30668fc5d0a386493e` |
-| `transit_client_elixir-0.2.0.tar.gz` | `adc379bfc22a4027c5caf26bc2c03062981b2a4cc50500bc50d32d413a830b36` |
+| `transit_station_sdk-0.2.0.tar.gz`    | `b60cb4c0eee515d4d8af515d23843a0fb54525e03d2fdb30668fc5d0a386493e` |
+| `transit_client_elixir-0.2.0.tar.gz`  | `adc379bfc22a4027c5caf26bc2c03062981b2a4cc50500bc50d32d413a830b36` |
 | `transit_station_elixir-0.2.0.tar.gz` | `5a72442a18d3527740e4571f07ae0438c7a464b7c04f97b4d97298aa30de564d` |
 
 `bindings::catalog-beam` owns the focused installed schedule; the regular BEAM
@@ -4982,14 +8650,14 @@ proof. Its report is `/tmp/transit-sql-catalog-metadata-native-fixed.json` and l
 
 The native contract definition is unchanged. Binary SHA-256 identities:
 
-| Binary | SHA-256 |
-| --- | --- |
-| node | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
-| catalog proof | `19da6d30e2d6c792c285bf35bc1f3faf93f4c0ef92f6f78b82d6784ec06d5aa2` |
-| catalog host | `9545df46010fede16ed61231e508942b1b744c6285cfb0673656e3d034d6f1c6` |
-| native port | `4a31f186752ff355011f6952c59965baffd9c9efc1799347a47b24d7b219b993` |
+| Binary         | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| node           | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| catalog proof  | `19da6d30e2d6c792c285bf35bc1f3faf93f4c0ef92f6f78b82d6784ec06d5aa2` |
+| catalog host   | `9545df46010fede16ed61231e508942b1b744c6285cfb0673656e3d034d6f1c6` |
+| native port    | `4a31f186752ff355011f6952c59965baffd9c9efc1799347a47b24d7b219b993` |
 | native library | `34ae38b64593862311010b9d478324fc3a8103cc52a018677fcc0c46d854d398` |
-| CLI | `f66e7b11526f1e14006f6a43721f806af1f61916e360229d096ca7ae63991325` |
+| CLI            | `f66e7b11526f1e14006f6a43721f806af1f61916e360229d096ca7ae63991325` |
 
 Eight component seeds pass **40 package schedules / 1264 events** with identical
 replay in **13.719 s**, including the shared inspection code. The log and report
@@ -5095,14 +8763,14 @@ failure. It is corrected without changing protocol fields or limits.
 Final native binary hashes (the growth run uses the preceding helper hash
 `cc3c0b7046c631bca1ed2fb96154b148127aac94b897d0cf2fa44bc188c5f941`):
 
-| Binary | SHA-256 |
-| --- | --- |
-| node | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
-| catalog proof | `18a822862a38cc4a52a4edd0c5c42716a7795a2700ed4fc7d04c94ad637ffe6b` |
-| catalog host | `dc96313fc0d17aa038e34791c6ea7e2af527ee445172791555995fd27e9bc8eb` |
-| native port | `62442c92768565973e7879ad6e83328f3674add9406d560e1156447b80bad63d` |
+| Binary         | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| node           | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| catalog proof  | `18a822862a38cc4a52a4edd0c5c42716a7795a2700ed4fc7d04c94ad637ffe6b` |
+| catalog host   | `dc96313fc0d17aa038e34791c6ea7e2af527ee445172791555995fd27e9bc8eb` |
+| native port    | `62442c92768565973e7879ad6e83328f3674add9406d560e1156447b80bad63d` |
 | native library | `5fb61f939a4aacf5b5355196a5a78534689a7bdb160ce9e01a06746eeeceaad4` |
-| CLI | `f373d7886a3d0b696723441a974376834f6e0e86703ac76b6b74b618b98eea42` |
+| CLI            | `f373d7886a3d0b696723441a974376834f6e0e86703ac76b6b74b618b98eea42` |
 
 Full `just check` passes at `/tmp/transit-sql-catalog-metadata-batch-full-check.log`,
 including unchanged generated contracts and 4625 documentation links. All nine
@@ -5163,11 +8831,11 @@ The report is `/tmp/transit-sql-catalog-metadata-abi-cli-native.json`; the log i
 The report retains source/dirty status and all six binary hashes. Node, proof and
 catalog host hashes match the preceding batched-reader proof. Updated binaries:
 
-| Binary | SHA-256 |
-| --- | --- |
-| native port | `f8329121706cfb35e41af77aaf96df35c1389d384849fa8d980f7055401bcb62` |
+| Binary         | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| native port    | `f8329121706cfb35e41af77aaf96df35c1389d384849fa8d980f7055401bcb62` |
 | native library | `fac060c74e3f679858543451b494c1e1ebf4a3e5d7d5312897759be140539060` |
-| CLI | `7f427823c886cbd629b3325aaccbf98de48fbbb3dee92dad2f33563b4d9a993c` |
+| CLI            | `7f427823c886cbd629b3325aaccbf98de48fbbb3dee92dad2f33563b4d9a993c` |
 
 Protocol/catalog unit tests and **399 real CLI diagnostic cases** pass at
 `/tmp/transit-sql-catalog-metadata-ordinal-fix.log`. New cases check required
@@ -5566,12 +9234,12 @@ and the same six native binaries, with eight resident authority pages. The
 70 named definitions in nine pages, and repeats the metadata checks after
 node/store restart. Cleanup joins. Growth itself takes **112.669 s**:
 
-| Phase | Calls | Seconds | Caller reads |
-| --- | ---: | ---: | ---: |
-| Compile | 65 | 0.010 | 0 |
-| Prepare | 65 | 1.923 | 130 |
-| Admit | 65 | 10.595 | 0 |
-| Await application | 65 | 99.922 | 1089 |
+| Phase             | Calls | Seconds | Caller reads |
+| ----------------- | ----: | ------: | -----------: |
+| Compile           |    65 |   0.010 |            0 |
+| Prepare           |    65 |   1.923 |          130 |
+| Admit             |    65 |  10.595 |            0 |
+| Await application |    65 |  99.922 |         1089 |
 
 Growth-only upstream observations include 65 owner turns (**41.125 s**), 845
 owner entry reads (**38.810 s**) and 1170 caller entry reads (**89.375 s**).
@@ -5934,14 +9602,14 @@ execution output are retained in `/tmp/transit-sql-pr33-sdk-native.json` and
 
 Rebuilt native SHA-256 values:
 
-| Artifact | SHA-256 |
-| --- | --- |
-| `node` | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
-| `proof` | `03074b53ddcb92a57e63a00f2e2b53093fc61efaf5b8cdca4ae3214f1464340f` |
-| `host` | `64fd1efeeb6cee7a182271439cb429fa2fc4c68d31e8a68c2e82b74bb70faa72` |
-| `port` | `67db289ec20b1e2dc94ebe918694f17be34d5c33dc1e219e8bc72a723f284643` |
+| Artifact     | SHA-256                                                            |
+| ------------ | ------------------------------------------------------------------ |
+| `node`       | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| `proof`      | `03074b53ddcb92a57e63a00f2e2b53093fc61efaf5b8cdca4ae3214f1464340f` |
+| `host`       | `64fd1efeeb6cee7a182271439cb429fa2fc4c68d31e8a68c2e82b74bb70faa72` |
+| `port`       | `67db289ec20b1e2dc94ebe918694f17be34d5c33dc1e219e8bc72a723f284643` |
 | `library.so` | `85411c09a7e8bc832050fead3fc93c5eb54eeb37966f847ff6f2f7792dc9780c` |
-| `cli` | `ec1ee54bcf1e41a345b7a52e4398fbcfa012adc530240af943677aefc2d76351` |
+| `cli`        | `ec1ee54bcf1e41a345b7a52e4398fbcfa012adc530240af943677aefc2d76351` |
 
 Committed-HEAD `just ci-clean --lane core` passes **all 22 tasks at `08fd00a6`
 in 744.86 s**, including the added resource, shared-client, catalog/component and
@@ -6136,12 +9804,12 @@ resource reports identify `028e2f7b`; shared-client and component reports identi
 `2b9faa53`, whose intervening change corrects the separate state API polling fixture.
 All four retain clean-source identity, binary/oracle hashes and identical replay.
 
-| Expanded profile | Executed result | Simulation time |
-| --- | --- | ---: |
-| Authority: 32 seeds, 128 steps | 38 traces / 5,293 events | 119.304 s |
-| Resources: four seeds, every observed I/O boundary | 3,202 traces / 60,704 events | 1,744.224 s |
-| Shared client: 32 seeds, 128 steps | 36 traces / 6,490 events | 158.158 s |
-| Components: 32 seeds | 128 schedules across Document, Exchange, query/refresh and runtime owners | 38.139 s |
+| Expanded profile                                   | Executed result                                                           | Simulation time |
+| -------------------------------------------------- | ------------------------------------------------------------------------- | --------------: |
+| Authority: 32 seeds, 128 steps                     | 38 traces / 5,293 events                                                  |       119.304 s |
+| Resources: four seeds, every observed I/O boundary | 3,202 traces / 60,704 events                                              |     1,744.224 s |
+| Shared client: 32 seeds, 128 steps                 | 36 traces / 6,490 events                                                  |       158.158 s |
+| Components: 32 seeds                               | 128 schedules across Document, Exchange, query/refresh and runtime owners |        38.139 s |
 
 The resource checker rejects corrupted values, input progress, outputs and views,
 plus stalled and incomplete histories. The retained reports include the full trace
@@ -6818,17 +10486,17 @@ passes all thirteen discovery stages at clean `1f76bf3b`, using pinned Zig
 preserves the downloaded reports, source/binary/oracle identities, commands,
 trace hashes, job metadata and an SHA-256 manifest of the 492 artifact files.
 
-| Executed profile | Result |
-| --- | --- |
-| Finite model | 91,981 states; four removed guards detected and counterexamples replayed against Zig |
-| Single-process properties | 264 traces / 33,255 steps |
-| Authority/delivery simulation | 70 traces / 10,535 events, identical replay |
-| Resource simulation | 402 traces / 7,804 events, identical replay; four seeds with sampled fault points |
-| Session/courier simulation | 20 traces / 3,274 events, identical replay |
-| Component simulation | 80 schedules across five implementation owners, identical replay |
-| External supervisor | Seed 19, sixteen completed rounds against disk Ursula; cleanup passed |
-| Codec fuzzing | Registered `--fuzz=10K` command completed successfully |
-| Compiling production mutations | All nineteen mutants detected across five campaigns |
+| Executed profile               | Result                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| Finite model                   | 91,981 states; four removed guards detected and counterexamples replayed against Zig |
+| Single-process properties      | 264 traces / 33,255 steps                                                            |
+| Authority/delivery simulation  | 70 traces / 10,535 events, identical replay                                          |
+| Resource simulation            | 402 traces / 7,804 events, identical replay; four seeds with sampled fault points    |
+| Session/courier simulation     | 20 traces / 3,274 events, identical replay                                           |
+| Component simulation           | 80 schedules across five implementation owners, identical replay                     |
+| External supervisor            | Seed 19, sixteen completed rounds against disk Ursula; cleanup passed                |
+| Codec fuzzing                  | Registered `--fuzz=10K` command completed successfully                               |
+| Compiling production mutations | All nineteen mutants detected across five campaigns                                  |
 
 The resource campaign records `exhaustive: false`; it does not repeat the earlier
 exhaustive sweep. Authority/resource/scheduler reports retain trace digests and
@@ -11989,7 +15657,6 @@ paged aggregate medians are **2.6–2.8% higher**. This shared-host component ev
 is not a native throughput or complete performance pass. It predates merged #42
 and must be requalified with its shared logical/file primitives.
 
-
 ### Native Boolean SQL and compact owned syntax
 
 The Boolean-SQL continuation after `e07bd2c9` adds NOT/AND/OR and parentheses
@@ -12115,13 +15782,13 @@ compiler change.
 
 Medians across the three per-build run medians, in microseconds:
 
-| Compilation component | Control | Candidate |
-| --- | ---: | ---: |
-| Selected count | 1.073 | 0.725 |
-| Selected count with output name | 1.172 | 0.828 |
-| Row projection | 1.527 | 1.188 |
-| Renamed row projection | 1.747 | 1.412 |
-| Named sum over derived input | 1.841 | 1.723 |
+| Compilation component           | Control | Candidate |
+| ------------------------------- | ------: | --------: |
+| Selected count                  |   1.073 |     0.725 |
+| Selected count with output name |   1.172 |     0.828 |
+| Row projection                  |   1.527 |     1.188 |
+| Renamed row projection          |   1.747 |     1.412 |
+| Named sum over derived input    |   1.841 |     1.723 |
 
 The direct named cases show about 19–29% less compilation time in these samples.
 Execution timings overlap; no execution speedup is established. The derived
@@ -13734,6 +17401,7 @@ and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is i
 `/tmp/transit-local-writes-final.log`. These are working-tree executions, not
 clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
 installed SDK matrices were not run for this cutover.
+
 ## General Table schema foundation
 
 `just test::table-schema` checks independently generated Python schema bytes and
@@ -14481,7 +18149,6 @@ tarballs pass. Raw failed logs remain in the campaign. Documentation checks pass
 This is installed TypeScript evidence, not qualification of the other language
 callers, all logical-family value paths, the final definition cutover or clean CI.
 
-
 The repository `just check` passes after the ABI and TypeScript checkpoint
 (`table-public-callers-check1.log`). The Python general Table migration passes
 strict mypy for **25 source files**, including the installed example API owners
@@ -14508,7 +18175,6 @@ Documentation links, verification declarations and CI task ownership pass
 (`table-general-python-{docs,verification,ci}1.log`). Other language migrations,
 complete logical-family path coverage, the coordinated definition replacement
 and committed-HEAD clean CI remain open.
-
 
 Exact general historical-definition inspection passes **95/95 catalog tests**
 (`table-historical-catalog5.log`). Tests cover inline and chunked metadata through
@@ -14702,7 +18368,6 @@ the complete saved-intent bound to the generated **4,327,031 bytes**, distinct
 from the 4 MiB mutation body. These are local/installed codec results, not general
 .NET Table runtime, full-repository, performance or clean-CI qualification.
 
-
 The .NET general Table client passes the installed lifecycle in **167.021 seconds**
 (`table-dotnet-catalog-installed2.log`): nested typed INSERT, exact wide decimal,
 unchanged-value counts, ALTER/default and stale-basis rejection, DELETE,
@@ -14735,7 +18400,6 @@ verification retains 59 invariants, 53 bounds and 13 SDK scenarios. C/C++ and BE
 catalog migrations, other enabled query routes, the coordinated definition cutover
 and final clean/performance qualification remain required before issue completion.
 
-
 The BEAM generated-contract validator passes independent recursive nullable,
 signed-integer and array fixtures inside the installed Erlang raw-client
 boundary test. It rejects missing/external references, invalid siblings, nested
@@ -14746,7 +18410,6 @@ The public raw Erlang and Elixir schedules both pass recovery, seedless retry,
 owned I/O/disposal and revoked retry after rebuilding all eight OTP artifacts
 with warnings as errors (`table-beam-schema-{build,raw}1.log`). This qualifies the
 shared validator and raw callers, not the pending general BEAM Table API.
-
 
 Erlang and Elixir logical models pass `just bindings::logical-beam` from six
 independent installed OTP artifacts (`table-beam-logical-installed1.log`). The
@@ -14838,7 +18501,6 @@ requires those mappings at compilation and proves a foreign-definition logical
 symbol cannot link. Rebuilt installed C/C++ consumers and all 146 neutral fixtures
 pass (`table-c-logical-definition-installed1.log`); generated ABI/resources pass
 (`table-c-logical-definition-generate1.log`).
-
 
 The C11 and C++17 general Table callers pass the installed disk-backed lifecycle
 in **193.286 seconds** (`table-c-catalog-installed1.log`): SQL and typed CREATE,
@@ -15318,7 +18980,6 @@ shows large wall/CPU separation in cold acquisition with unchanged bytes and
 similar acquisition CPU; the unchanged repeat below tests reproducibility. These observations
 are not a passed performance gate or final committed-HEAD clean qualification.
 
-
 A complete unchanged repeat also fails seven capture/discovery timing limits in
 different cases. Both optional metadata changes are withdrawn at `cffa7b56`;
 none of these failures is waived and no budget is raised. The
@@ -15444,7 +19105,6 @@ runtime upgrade with a backend `ReadFailed` and `AuthorityUnavailable`. An
 unchanged focused reproduction passes; the initial cause is not established,
 and final clean qualification still must pass. Neither failed lane is complete.
 
-
 Hosted growth on the tracking PR's merge revision `2b53c1fc` passes twelve
 tasks, then the combined Table/query proof fails at its seal-only snapshot
 barrier. The fixture assumes small mutations upload before applying, but current
@@ -15462,7 +19122,6 @@ The corrected focused `just test::table-query-writer` run completes on ext4 in
 40.117 s, recovering both initialization receipts and preserving the four-mutation,
 256-byte-value and eight-resident-page bounds. The interactive snapshot is held
 for 0.302 s during the final apply. These are proof timings, not a latency budget.
-
 
 ### Integrated launcher recovery qualification
 
@@ -15497,7 +19156,6 @@ at `e870713e` passes KV/Table/Document recovery, but does not qualify the newly
 integrated transport implicitly. Hosted run `36815884722` starts no jobs because
 GitHub reports an account payment/spending restriction; it supplies no test result.
 
-
 ### Physical-disk captured query delivery
 
 The clean growth run at `be27b037` passed its first eight tasks, then exceeded
@@ -15523,7 +19181,6 @@ log hashes, and the passing dirty-tree fixture identity. It also retains the
 superseded full check and complete core/experience lanes at `be27b037`; these do
 not qualify later revisions implicitly. Final committed-HEAD qualification
 remains outstanding.
-
 
 ### Finite HTTP and gRPC saved-call marker checks
 
@@ -15552,7 +19209,6 @@ check omitted an explicit endpoint revision and failed with a fixture `KeyError`
 the report retains that failure and the corrected fixture source hashes.
 Compose and Substrate variants were not run for this correction. Final integrated
 qualification is recorded separately.
-
 
 ## Durable Table mutation latency
 
@@ -15626,7 +19282,6 @@ This is format/recovery evidence, not completed transport-pressure qualification
 The shared definition and independently signed/generated consumers cut over
 together; old installations reject rather than being reset or decoded as new.
 
-
 The isolated `just test::page-layout --output /var/tmp/page-layout.json` study
 uses the production immutable-tree algorithm in temporary modules. Four codec/
 geometry variants and monolithic/separate roots retain the old snapshots and
@@ -15643,7 +19298,6 @@ page objects grew from 8,480 to 16,952 bytes. Separate roots in that compact
 geometry used 938 reads, 550 stages and 696,327 bytes: partitioning is not selected
 as a latency optimization from this workload. Native qualification remains
 necessary before accepting any format change.
-
 
 Tracked by [issue #55](https://github.com/spoke-sh/transit/issues/55). The historical
 measurements below retain their original scope and failures. Completed clean
@@ -15741,15 +19395,15 @@ history and the requested idle gaps. The default control has eight resident page
 and adaptive workers; the idle control has 64 pages and a 1.5-second gap before
 each measured statement. They vary two controls and are not a cache-only comparison.
 
-| Case | Default p50 / p95 (ms) | Idle, 64 pages p50 / p95 (ms) |
-| --- | ---: | ---: |
-| INSERT one row | 933 / 1,232 | 1,679 / 2,533 |
-| UPDATE one row | 926 / 1,398 | 1,558 / 2,220 |
-| UPDATE same value | 919 / 1,837 | 1,604 / 2,002 |
-| UPDATE absent key | 897 / 2,249 | 1,568 / 4,154 |
-| DELETE one row | 980 / 1,677 | 1,681 / 2,967 |
-| DELETE absent key | 898 / 1,116 | 1,652 / 2,760 |
-| INSERT three rows | 955 / 2,419 | 1,698 / 2,276 |
+| Case              | Default p50 / p95 (ms) | Idle, 64 pages p50 / p95 (ms) |
+| ----------------- | ---------------------: | ----------------------------: |
+| INSERT one row    |            933 / 1,232 |                 1,679 / 2,533 |
+| UPDATE one row    |            926 / 1,398 |                 1,558 / 2,220 |
+| UPDATE same value |            919 / 1,837 |                 1,604 / 2,002 |
+| UPDATE absent key |            897 / 2,249 |                 1,568 / 4,154 |
+| DELETE one row    |            980 / 1,677 |                 1,681 / 2,967 |
+| DELETE absent key |            898 / 1,116 |                 1,652 / 2,760 |
+| INSERT three rows |            955 / 2,419 |                 1,698 / 2,276 |
 
 These are empirical nearest-rank percentiles from 20 samples per case on a shared
 host. They are neither an SLO nor a paired speedup against the earlier failed
@@ -15967,7 +19621,6 @@ recovery qualification remains open. Reproduce the signed profile with
 `zig build test-unified-query -Doptimize=ReleaseSafe
 -Dunified-sdk=python,node,ruby,rust -Dunified-source=kv` in the pinned shell.
 
-
 ### Typed predicate programs in Java, .NET, Erlang and Elixir
 
 The continuation from `30982a1e` adds owned typed program constructors and
@@ -16134,7 +19787,6 @@ authority pages and an 8 MiB hot store; the complete source phase records 138
 cold objects / 16,738,044 bytes, including the separate shell query. The log is
 `/tmp/transit-sql-boolean-compound-all-sources.log`. Table and Document phases
 are still running or unrun at this checkpoint; this is not an all-source pass.
-
 
 The same combined run subsequently **passes Table and Document**, and exits 0.
 Table completes in 305.80 seconds with 39 rows / five segments / 12,048 bytes,
@@ -16372,6 +20024,7 @@ Their logs are `/tmp/transit-sql-compiler-direct-clean-core.log` and
 `/tmp/transit-sql-boolean-sdk-clean-bindings.log`. Core predates the parser change;
 bindings predates the later native definition/SDK cutover. Neither qualifies
 those later changes or substitutes for all required lanes at one revision.
+
 ## File-query output aliases — 2026-10-01
 
 The separate `feat/sql-file-output-aliases` worktree starts at main `a4ba1124`.
@@ -16963,8 +20616,8 @@ definitions, canonical plan bytes, fingerprints and bounds do not change.
 The [completed full matrix](benchmarks/results/2026-10-01-count-values-plan-validation-full.json.gz)
 retains **3888 correct results** and all **216 pipeline gates passing**.
 **213 of 216 compiler gates pass**. Remaining failures are warm narrow/explicit
-projection **1.1592**, cold nested/explicit COUNT(*) **1.3123**, and cold
-pipe/explicit COUNT(*) **1.1763**. Each sample inventory and median is audited;
+projection **1.1592**, cold nested/explicit COUNT(_) **1.3123**, and cold
+pipe/explicit COUNT(_) **1.1763**. Each sample inventory and median is audited;
 all recorded source hashes match committed prototype `605e46ed`. Targeted
 success does not establish a complete timing pass. The shared-host run overlaps
 other qualification and the retained Station fixture shutdown below; it does not
@@ -17001,8 +20654,8 @@ retain **108 correct process results** for the three failing full-matrix cases.
 Each case first compares the current binary with itself, then with the frozen
 pre-COUNT binary, using nine alternating pairs, CPU 1, explicit discovery and
 the original input-cache conditions and 1.15 limit. Same-binary compiler ratios
-are **0.9835/0.9875/0.9476** for warm narrow projection, cold nested COUNT(*) and
-cold pipe COUNT(*), respectively. The corresponding pre-COUNT ratios are
+are **0.9835/0.9875/0.9476** for warm narrow projection, cold nested COUNT(_) and
+cold pipe COUNT(_), respectively. The corresponding pre-COUNT ratios are
 **0.9628/1.0066/0.9666**; all six pipeline comparisons also pass. Sample identities,
 medians, frozen binary hashes and prototype source hashes are independently
 audited. No source or benchmark change separates these observations from the
@@ -17275,7 +20928,6 @@ result stdout on rejection, exact key/row in JSON, `.status` parity, absence of
 uncertainty advice on terminal rejection, rollback and existing interruption,
 lost-reply and policy-race recovery schedules.
 
-
 ### Compiler and file diagnostic attribution
 
 On 2026-10-02, `just check` and `just test::file-query` pass with owned compiler
@@ -17292,7 +20944,6 @@ not presented as Unicode display columns or physical file lines.
 These results establish local compiler and file presentation. They do not
 establish retained runtime query causes or a shared structured diagnostic
 contract across remote adapters; those remain in M44.
-
 
 ### Offline application diagnostic attribution
 
@@ -17599,7 +21250,6 @@ original status and cannot become syntax failures.
 The final root unit run also passes with worst-case escaped JSON size validation:
 individually bounded fields cannot produce an envelope exceeding 32 KiB.
 Log: `/var/tmp/transit-diagnostic-escaped-bound.log`.
-
 
 ### Board semantic diagnostic transport and presentation
 
@@ -19162,7 +22812,6 @@ logical model, and Table sources carry catalog metadata commitments. These
 checks do not establish admitted-mutation cancellation or native query recovery;
 the latter still requires the common catalog query fixture migration.
 
-
 ### Erlang and Elixir logical query callers
 
 Fresh BEAM packages and examples compile with warnings as errors
@@ -19176,7 +22825,6 @@ recursive bounds, large frames, uncertain receipts and joined waiter loss
 lifetimes. These local codecs and boundary schedules do not establish native
 query recovery; the common catalog query fixture migration remains required.
 
-
 ### C and C++ catalog metadata commitments
 
 The C SDK ReleaseSafe build and C++ ownership/codec check pass after adding
@@ -19187,7 +22835,6 @@ C/C++ artifacts pass 46 actual native-library boundary cases
 missing/malformed commitments, bounded requests, uncertain receipts and deferred
 POSIX cancellation with close joining native work. This boundary schedule does
 not establish durable catalog or query recovery.
-
 
 ### C and C++ logical query callers
 
@@ -19272,7 +22919,6 @@ browser, expiry and the combined writer schedule require their separate runs.
 The combined fixture's Zig provisioning uses the new catalog owner, while its
 Python interleaving/fault schedule is still being migrated and is not qualified.
 
-
 ### Catalog-backed reactive observations and refresh authority
 
 ReleaseSafe serving checks pass all 48 tests (`serving-catalog-watch6.log` in the
@@ -19294,7 +22940,6 @@ local checks; the deployed native SSE/WebSocket/Follow examples still require
 migration and qualification. These checks do not qualify that remaining work or
 the coordinated shared-definition cutover.
 
-
 ### Logical parameter correction evidence
 
 All 257 Fuze ReleaseSafe tests pass (`fuze-logical-preview1.log` in the local
@@ -19306,7 +22951,6 @@ flag. Invalid values require no allocation or source reads to format. The actual
 CLI compiles with its 65-binding limit reflected in failure guidance
 (`typed-table-point-preview1.log`); that run's separate native lifecycle schedule
 failed a new residual-predicate scan-count assertion and is not a passed proof.
-
 
 ### Canonical comparison point routing
 
@@ -19322,7 +22966,6 @@ cases with the four-write and 256-byte native value bounds. The first run's new
 residual assertion incorrectly required key routing for an unqualified predicate;
 that failed assertion is retained in `typed-table-point-preview1.log`.
 
-
 The neutral SQL parameter boundary also preserves typed previews when decoding
 fails against the expected descriptor (`query-neutral-preview1.log`: all 114
 query ReleaseSafe tests pass; `console-neutral-preview-build1.log`: CLI builds).
@@ -19332,7 +22975,6 @@ and valid intervals remain typed; malformed intervals name the original failing
 component. Preview scratch is bounded to 64 bytes and reads no additional source
 state. The preceding console run exposed the quoted-number difference
 (`console-logical-kv2.log`) and was not a passed console qualification.
-
 
 ### Console logical-value recovery qualification
 
@@ -19348,7 +22990,6 @@ offline history proof passes (`console-logical-history1.log`) with a valid KV
 configuration and a network trap. Native Table lifecycle coverage remains in the
 Table schedule above; this console run does not qualify the remaining Table
 interactive, Board/browser or deployed reactive consumers.
-
 
 ### Exact-cut Table metadata reader
 
@@ -19370,7 +23011,6 @@ costs 231 requests for this 41-row scan, 63 for short LIMIT and 39 for a key poi
 lookup. Those measurements expose further batching work; they are not a passed
 performance qualification. The prior run failed Table capture with
 `UnrequestedResourceKey` (`interactive-logical-table2.log`).
-
 
 ### Recursive result-page bounds and real Board browser
 
@@ -19395,7 +23035,6 @@ started root test build was stopped after compile failures in the not-yet-migrat
 work-items example and the first schema-bound expression; its partial output in
 `protocol-matrix-bounds1.log` is not a root-check pass.
 
-
 ### General Table page acquisition batching
 
 All 87 Station and 115 query ReleaseSafe tests pass with bounded metadata/chunk
@@ -19407,7 +23046,6 @@ definition reads group four known record addresses only after catalog rights
 are checked. The actual console and Board builds pass
 (`table-prefetch-app-build1.log`). Native request measurements and Table Board
 integration are running separately and are not established by these local tests.
-
 
 ### Bounded Table index-node reuse
 
@@ -19687,7 +23325,6 @@ The complete SQL suite also passes after the diagnostic additions and Table
 completion reservation (`general-table-sql-full3.log`, seven build steps). This
 retains the separately recorded independent grammar/AST/schema/plan counts.
 
-
 ### Counter continuation across chunked Table indexes
 
 `general-counter-unit3.log` passes 4/4 ReleaseSafe tests. The new case inserts
@@ -19703,7 +23340,6 @@ application progress and reply boundary remains unchanged. The second run passed
 64 retained operations but reached the cold-disabled fixture's 64 MiB hot-store
 ceiling at operation 169. It is failed growth evidence, not a lifetime/growth pass;
 qualification with bounded hot storage and cold spill remains separate.
-
 
 ### General Table serving on Compose
 
@@ -19724,7 +23360,6 @@ because the runner expected the removed Docker cold-store API; the second failed
 native authentication because those signed fields were missing. Neither attempt
 passed. Reference placement and the combined cold-growth trace remain unqualified
 at this checkpoint.
-
 
 ### Staged application migration steps
 
@@ -19750,7 +23385,6 @@ reset the mandatory captured view as well as its proposal. The corrected
 local ledger proofs; they do not qualify a migrated work-item application or
 native placement. The coordinated current-definition cutover remains pending.
 
-
 ### Serving retained growth with bounded hot storage
 
 `general-serving-growth6.log` passes the combined ReleaseSafe lifetime/growth
@@ -19773,7 +23407,6 @@ caught a null diagnostic in that fixture helper. Only the sixth complete run is
 counted as passed. The hot-store ceiling was reduced from the cold-disabled
 fixture's 64 MiB to the existing cold fixture's eight MiB, not enlarged.
 
-
 ### Stored staged-migration evidence before caller attribution
 
 `application-staged-migration4.log` passes 42/42 ReleaseSafe Station application
@@ -19790,7 +23423,6 @@ gate, including the explicit invariant exception tied to that executable test.
 Its preceding run correctly failed because the newly surfaced stored-record error
 had no reviewed disposition. Native application and browser runs are separate
 qualification; these package results do not establish their completion.
-
 
 ### Work-item typed Tables and staged application migration
 
@@ -20270,15 +23902,15 @@ clean baseline `cc5f57e7`; `general-mutation-latency-staged1.json` records `be35
 plus the acquisition-cache changes and exact executable hashes. Both finish all
 21 samples with zero errors, unknown outcomes or supervisor restarts.
 
-| Case | Baseline median ms | Candidate median ms |
-| --- | ---: | ---: |
-| INSERT one | 84.929 | 834.129 |
-| UPDATE one | 92.991 | 921.899 |
-| UPDATE unchanged | 69.377 | 177.602 |
-| UPDATE absent | 76.444 | 166.060 |
-| DELETE one | 68.143 | 183.819 |
-| DELETE absent | 89.865 | 168.663 |
-| INSERT three | 70.212 | 3,866.094 |
+| Case             | Baseline median ms | Candidate median ms |
+| ---------------- | -----------------: | ------------------: |
+| INSERT one       |             84.929 |             834.129 |
+| UPDATE one       |             92.991 |             921.899 |
+| UPDATE unchanged |             69.377 |             177.602 |
+| UPDATE absent    |             76.444 |             166.060 |
+| DELETE one       |             68.143 |             183.819 |
+| DELETE absent    |             89.865 |             168.663 |
+| INSERT three     |             70.212 |           3,866.094 |
 
 Three samples do not establish tail percentiles. This is a measured regression,
 not passed performance qualification; worker read amplification and polling
@@ -20361,15 +23993,15 @@ an explicit experiment override; the server default remains eight. All four
 schedules complete their 21 samples without errors, unknown outcomes or
 supervisor restarts. These three-sample medians do not establish tails.
 
-| Case | Baseline, 8 pages ms | General, 8 pages ms | Baseline, 64 pages ms | General, 64 pages ms |
-| --- | ---: | ---: | ---: | ---: |
-| insert 1 | 78.361 | 554.492 | 59.061 | 344.574 |
-| update 1 | 82.478 | 559.577 | 65.181 | 366.765 |
-| update same | 75.129 | 157.041 | 60.408 | 105.876 |
-| update absent | 84.336 | 165.191 | 55.948 | 110.001 |
-| delete 1 | 70.191 | 181.481 | 58.373 | 113.229 |
-| delete absent | 95.081 | 153.869 | 62.287 | 113.296 |
-| insert 3 | 83.881 | 3262.655 | 58.743 | 1976.484 |
+| Case          | Baseline, 8 pages ms | General, 8 pages ms | Baseline, 64 pages ms | General, 64 pages ms |
+| ------------- | -------------------: | ------------------: | --------------------: | -------------------: |
+| insert 1      |               78.361 |             554.492 |                59.061 |              344.574 |
+| update 1      |               82.478 |             559.577 |                65.181 |              366.765 |
+| update same   |               75.129 |             157.041 |                60.408 |              105.876 |
+| update absent |               84.336 |             165.191 |                55.948 |              110.001 |
+| delete 1      |               70.191 |             181.481 |                58.373 |              113.229 |
+| delete absent |               95.081 |             153.869 |                62.287 |              113.296 |
+| insert 3      |               83.881 |            3262.655 |                58.743 |             1976.484 |
 
 Separate instrumented single repetitions (`baseline-probe1.json` and
 `working-probe1.json`) show the structural cost: the baseline uses one admitted
@@ -20436,15 +24068,15 @@ without errors, unknown outcomes or supervisor restarts. Reports
 `general-mutation-latency-key-prefix1.json` and `baseline4.json` retain exact source
 revisions, controls and binary hashes in the local Table-schema campaign.
 
-| Case | Baseline median / p95 ms | General median / p95 ms |
-| --- | ---: | ---: |
-| insert 1 | 112.845 / 126.055 | 197.453 / 237.981 |
-| update 1 | 127.008 / 164.999 | 222.542 / 256.279 |
-| update same | 113.702 / 125.521 | 173.805 / 198.112 |
-| update absent | 130.650 / 157.161 | 211.218 / 227.303 |
-| delete 1 | 115.978 / 128.972 | 188.129 / 207.016 |
-| delete absent | 133.193 / 172.776 | 205.886 / 257.363 |
-| insert 3 | 122.674 / 131.667 | 1946.881 / 2158.296 |
+| Case          | Baseline median / p95 ms | General median / p95 ms |
+| ------------- | -----------------------: | ----------------------: |
+| insert 1      |        112.845 / 126.055 |       197.453 / 237.981 |
+| update 1      |        127.008 / 164.999 |       222.542 / 256.279 |
+| update same   |        113.702 / 125.521 |       173.805 / 198.112 |
+| update absent |        130.650 / 157.161 |       211.218 / 227.303 |
+| delete 1      |        115.978 / 128.972 |       188.129 / 207.016 |
+| delete absent |        133.193 / 172.776 |       205.886 / 257.363 |
+| insert 3      |        122.674 / 131.667 |     1946.881 / 2158.296 |
 
 These empirical p95 values meet the fixture's minimum sample count; no p99 or
 latency SLO is claimed. Point-write overhead is substantially reduced, but the
@@ -20526,11 +24158,11 @@ Raw reports are retained in the local campaign (one sample, ten component
 compile iterations, one query execution; parameter/default probes retain their
 own fixed iteration counts):
 
-| Report | SHA-256 |
-| --- | --- |
-| `component-general-report1.json` | `dc6ffbc70fe2067da3bf70ac12ad1e9ed5754820f230c1c2cbcde8b1cc3b0702` |
-| `component-general-empty1.json` | `8790d3e3848f1b511a24e1625f381281a136b74adfff8dd1a034897d5cf55e95` |
-| `component-general-sql1.json` | `ddf50e7ab2cfcb1b2ed3971221743a5cd62560326b1593f6937f478a248c9af4` |
+| Report                               | SHA-256                                                            |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `component-general-report1.json`     | `dc6ffbc70fe2067da3bf70ac12ad1e9ed5754820f230c1c2cbcde8b1cc3b0702` |
+| `component-general-empty1.json`      | `8790d3e3848f1b511a24e1625f381281a136b74adfff8dd1a034897d5cf55e95` |
+| `component-general-sql1.json`        | `ddf50e7ab2cfcb1b2ed3971221743a5cd62560326b1593f6937f478a248c9af4` |
 | `component-general-parameters2.json` | `d599ce91049ebdd93fe0e0b1ab7003757b650c684888d4818b0125a6c2f0fbf2` |
 
 Documentation and diagnostic semantic mappings pass. The updated source
@@ -20664,7 +24296,6 @@ Raw `handler-query-bindings1.log` SHA-256: `09556090d8786e89f76c75df5abd471b7566
 
 Raw `handler-query-native5.log` SHA-256: `e22dea584887532f4e48b8cd359bd899be6367a04501eeb1de583ccbfe5e4227`.
 
-
 ### General typed handler Table boundary and TypeScript API
 
 The private handler bridge replaces the two-column Table actions with schema
@@ -20705,7 +24336,6 @@ Raw `handler-table-bridge-build3.log` SHA-256: `0097519a84734af8db38f1e62edf2e55
 
 Raw `handler-table-ts-final2.log` SHA-256: `77ac1efd7750b1d38b77c02f57cf3676cd6f12355bc0f0a95890510c2f8d0c35`.
 
-
 ### Python handler Table values and outcome identity checks
 
 The Python handler API replaces fixed key/value Tables with the shared general
@@ -20740,7 +24370,6 @@ Raw `handler-table-python-check2.log` SHA-256: `3bb73e17272862f0f3b1235f006dbaf9
 
 Raw `handler-table-ts-routing3.log` SHA-256: `9a27c26153e3fe41f1ac78f3c90ff9871bd00eaf3ff1d098cb6ab6f0673dee1c`.
 
-
 ### Ruby handler Table values and scoped read materialization
 
 Ruby handlers now use general catalog schemas and owned logical cells, stable
@@ -20769,7 +24398,6 @@ and documentation links pass. Query examples and the shared multi-turn installed
 scenario remain part of the continuing SDK migration.
 
 Raw `handler-table-ruby-final1.log` SHA-256: `d49edcf78bbffd0b2900554df4ce6f15b4e5f20776e79eb8dcf89ec263c23c7e`.
-
 
 ### Shared handler Table response budget
 
@@ -20806,7 +24434,6 @@ Raw `handler-table-result-build1.log` SHA-256: `0097519a84734af8db38f1e62edf2e55
 Raw `handler-table-result-ts1.log` SHA-256: `a29b4575553a19c361fe4435d35603361582aa52c2f8aebdb5d555724c49fb4f`.
 
 Raw `handler-table-result-sdk1.log` SHA-256: `d876dc783d4f558f953cf56a4cff8a4a677df9e269d17eec78c2f35879a3f3ad`.
-
 
 ### Rust general handler Table values
 
@@ -21195,7 +24822,6 @@ Raw `sdk-table-queue-beam-native2.log` SHA-256: `6b8fa667ee85374ba6fe8cad0261fcb
 
 Raw `sdk-table-queue-elixir-native3.log` SHA-256: `bdae68aab46636262919a14ee55f534acc4238dfca518e0856bbdf451f682629`.
 
-
 ### C and C++ queued general Table examples
 
 Fresh installed C and C++ archives pass both full Station and HTTP schedules
@@ -21222,7 +24848,6 @@ final shared-definition cutover measurements.
 
 Raw `sdk-table-queue-c-native3.log` SHA-256: `8f6252ec6c363a75b7dcf0a709080b9d1ad576b6e30ed64c663cf2444b86976a`.
 
-
 ### Ten-language queued Table interoperability
 
 `sdk-table-queue-interop2.log` and its JSON report complete successfully (exit 0):
@@ -21247,7 +24872,6 @@ separate.
 Raw `sdk-table-queue-interop2.log` SHA-256: `1ff494654e52d46550623dba3d1e14d16c5b50b2fcc98a97f1e6c88bfca489fd`.
 
 Report `sdk-table-queue-interop2.json` SHA-256: `097a49df926dbe6bd0a54d3861c167df3498d2bd1136fdbdad6adbbe0fe071d7`.
-
 
 ### General Zig Table helpers and native recovery
 
@@ -21339,7 +24963,6 @@ Generated host contracts, documentation links, diagnostic mappings and verificat
 registry checks pass. Typed language callbacks, installed-runtime negative-result
 proofs and the final shared-definition cutover remain separate qualification work;
 these unit results do not establish that those consumers are complete.
-
 
 ### Typed negative query callbacks in installed SDKs
 
@@ -21829,8 +25452,7 @@ passes do not constitute complete ordinary clean qualification.
 
 The clean bindings lane at `d4c4362f` passes contract/native qualification and the
 Python client, Station, retained query and HTTP/gRPC schedules, then fails the
-installed catalog CREATE. The earlier CLI schedule and first SDK both use object
-12001. DROP retains that original object, so the catalog correctly rejects its
+installed catalog CREATE. The earlier CLI schedule and first SDK both use object 12001. DROP retains that original object, so the catalog correctly rejects its
 reuse. The incomplete lane remains archived; its Python task is not a full pass.
 
 The CLI fixture now uses 22001/22002, separately from bridge 9001/9002 and SDK
@@ -21929,14 +25551,14 @@ execution; the successful prefix is not relabeled a complete bindings lane.
 The final clean task record (archived)
 covers all **75 ordinary tasks** with successful executions in clean checkouts:
 
-| Selection | Source revision | Passing tasks |
-| --- | --- | ---: |
-| Complete core prefix of the interrupted ordinary run | `436a0797` | 22 |
-| Complete growth lane, including the native 28-descriptor matrix | `e8585d6e` | 26 |
-| Complete experience lane | `72d9a6e3` | 7 |
-| Complete launcher lane | `d4c4362f` | 2 |
-| Completed bindings prefix, through .NET | `738ac2cc` | 10 |
-| Fresh selected bindings suffix, BEAM through connector preparation | `9537839a` | 8 |
+| Selection                                                          | Source revision | Passing tasks |
+| ------------------------------------------------------------------ | --------------- | ------------: |
+| Complete core prefix of the interrupted ordinary run               | `436a0797`      |            22 |
+| Complete growth lane, including the native 28-descriptor matrix    | `e8585d6e`      |            26 |
+| Complete experience lane                                           | `72d9a6e3`      |             7 |
+| Complete launcher lane                                             | `d4c4362f`      |             2 |
+| Completed bindings prefix, through .NET                            | `738ac2cc`      |            10 |
+| Fresh selected bindings suffix, BEAM through connector preparation | `9537839a`      |             8 |
 
 This is task coverage across the stated revisions, **not one complete ordinary
 run or five complete lanes at one revision**. The original interrupted runs
@@ -22061,7 +25683,6 @@ A fresh diagnostic reproduces libpq leaving OpenSSL error `0A000197` in the
 Python caller thread after an expected rejected login. Isolating those negative
 clients on a joined worker thread passes the unchanged capacity/cancellation
 checks. This changes test-client ownership, not gateway limits or TLS behavior.
-
 
 The committed-source configuration qualification record (archived)
 accounts for **all 88 ordinary recipes**: 28 core, 32 growth, seven experience,
@@ -22352,6 +25973,13 @@ framing change.
 
 ## Declarative data lifecycle, codecs and collations
 
+Source-audit correction (2026-10-22): the checks below exercise metadata
+transitions and standalone codec helpers. They do not prove resource-backed
+named provisioning, direct data-plane admission, verified computation completion
+or freshness after row changes. The current caller path and these limits are
+described in the [data model](../docs/handbook/reference/data-model.md).
+The earlier observations below are retained with this narrower attribution.
+
 Working-tree verification in the pinned Nix development shell exercises the
 shared state-declaration model (`Table`, `KV`, `Document`), orthogonal column
 encoding ($\epsilon$) and collation ($\kappa$) descriptors, direct idempotent
@@ -22374,6 +26002,13 @@ managed computation lifecycle tracking:
   schema, and SDK host binding contracts.
 
 ## Storage hierarchy, `.tseg` segments and multi-writer OCC
+
+Source-audit correction (2026-10-22): the earlier observations below are component
+evidence. Memory stores and provider loopbacks do not establish disk crash
+recovery, real S3 behavior, a disk-backed NVMe cache or independent-writer CAS.
+Paired codec round trips do not establish interchange conformance or correct
+collation throughout query execution. The recorded counts are historical;
+they are not a new execution of the suites.
 
 Working-tree verification in the pinned Nix development shell exercises the
 four-tier storage runtime (`TransitLog`, `TransitObjectStore`, `TableMemtable`,
@@ -22408,6 +26043,16 @@ streams (`UrsulaWal.zig`):
 
 ## Live storage engine and SQL execution cutover
 
+Source-audit correction (2026-10-22): the installed executables do not attach
+`TableStorageEngine` or the segment scan. `TableBehavior.attachStorageEngine`
+and `TableScan.openSegmentReader` are not implemented APIs. The component
+helpers and existing Ursula cache/gateway changes must be assessed separately.
+The previously reported gateway timing below does not prove `.tseg` use, and
+changes to cache/transport controls prevent attributing that comparison solely
+to a storage engine replacement. Preserve the reported observation without
+treating it as qualification of a live cutover. No new benchmark was run for
+this correction.
+
 Working-tree verification in the pinned Nix development shell exercises the live
 catalog and query `.tseg` storage integration (`TableStorageEngine`,
 `TableSegmentScan`), `PackedPageStore` candidate seal write-through, epoch-tracked
@@ -22437,3 +26082,735 @@ and low-latency worker polling in `transit-cli` / `transit-query-host`:
   fencing and pipelined-admission schedule in **55.770 seconds** (down from the
   **122.759-second** pre-cutover baseline on the same host, a **2.20x** wall-clock
   speedup).
+
+## Direct SQL Compose placement — 2026-10-24
+
+`nix develop --command just test::sql-wire-placement compose` passed in 544.664
+seconds on the working tree based on `b861597c4`. The deployment uses the local
+node's direct Table owner and separate native SQL progress storage. Verified TLS
+PostgreSQL/MySQL clients round-tripped six data types, checked Table counts and
+recovered after physical gateway/node replacement with a fresh fenced native
+generation. The SQL caller was denied raw-resource inspection.
+
+The first attempt failed compilation on a remaining removed-role reference in
+the query host; it supplied no deployment evidence. The corrected attempt above
+completed. This is a finite local Docker Compose recovery schedule, not a
+throughput comparison, power-loss proof or qualification of other placements.
+
+## Direct watch selected-role recovery — 2026-10-24
+
+`nix develop --command just test::authorization-serving` passed against native
+local storage and a direct Table. The restricted caller reads a private snapshot
+without raw process/resource inspection. The fixture verifies signed-proof
+integrity, exact control recovery, credential rotation with gateway replacement,
+SET membership revocation, Table SELECT revocation, SSE/WebSocket terminal denial
+and denial after a further gateway restart. The gateway's own scoped Table read
+grant does not substitute for its original viewer's current permission.
+
+The completed run's first snapshot took 0.195 seconds and gateway VmRSS was
+20,422,656 bytes; these are finite-run observations, not latency or resident-memory
+guarantees. Earlier migration attempts failed on stale fixture administration
+sequences, an owner inspection assumption, a missing gateway Table read grant,
+and the fixture's numeric encoding of the current decimal-string cursor. They
+provide no passing evidence. Report: `.cache/verification/authorization-serving.json`.
+The schedule does not qualify browser reload or every deployment placement.
+
+## Direct catalog SDK selected roles — 2026-10-24
+
+`nix develop .#bindings --command just bindings::authorization` qualified the
+installed Python, Node, Rust, Ruby, C/C++, Java and .NET catalog callers with a
+separate login that must explicitly select a non-inherited data role. The first
+BEAM attempt failed because its controller still asserted the former principal;
+`zig build test-direct-catalog-beam -Doptimize=ReleaseSafe` passed for Erlang and
+Elixir after correcting that assertion. All ten language callers exercised the
+selected role, its revocation/restoration, wide bulk staging, original uncertain
+receipts, lost pin/release replies and caller/node replacement. Raw native
+resource access remained denied.
+
+The direct ABI schedule also passed with the restricted selected role (235 public
+requests). ABI, Python and Node verified retained SQL after DROP/name reuse and
+current denial before cached or terminal result disclosure. The other language
+schedules verified retained metadata under current access; those runs do not
+establish equivalent retained SQL coverage. These are finite native-local
+schedules, not qualification of other storage providers.
+
+## Direct mutation measurement driver — 2026-10-24
+
+The persistent mutation measurement client now retains its exact direct Table
+intent and reference before staging/admission. It drives the direct owner and
+reports that owner's committed row counts. Independent SQL-session reads check
+the resulting values outside the timed interval.
+
+`just test::mutation-latency --output REPORT --repeat 1 --client CLIENT` passed
+all seven mutation cases against native local storage with the ReleaseSafe
+client (`transit-direct-mutation-client-smoke-2.json`). The first migrated attempt
+failed because its verifier supplied the removed console `execution` setting;
+it supplies no complete-run evidence. The corrected smoke run observed no unknown
+outcomes. One sample per case verifies the driver and oracle only: it does not
+establish percentiles, a comparative speedup, sustained load or instrumented
+native completion timelines. The four measurement-helper tests also passed.
+
+## Direct catalog hard cutover and retired owner — 2026-10-24
+
+The general actor-backed Table catalog/service, its query-host role, mediation
+schema and dedicated transport fixtures are removed. General caller, SQL and
+query paths use the direct owner. Private Station Table helpers retain their
+native-turn boundary. The shared definition is
+`7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f`;
+contracts, host/browser declarations and independent signing/encoded fixtures
+are regenerated together. Earlier artifacts require their matching build; no
+converter or automatic reset is supplied.
+
+The seeded catalog schedule now drives direct admission, publication, conflict,
+cancellation, current policy, paged inspection and original receipt recovery
+through volatile log/object adapters. Its two-seed run produced ten identical
+replayed domain schedules in 38.581 seconds before the final definition refresh.
+This is component state-machine evidence, not disk durability. The four catalog
+mutation probes now target these direct guards; their committed-source execution
+remains pending at this checkpoint.
+
+Current diagnostic checks pass 3,401 projections across 24 declared surfaces.
+The inventory records 578 production owners, 4,605 owner/error pairs, 687 qualified
+surfaces, 14 declared error sets and 4,769 error-return boundaries. Removed
+projection families and 23 dormant causes belonged only to the retired owner.
+The verification inventory passes 68 invariants, 68 classified bounds and 14 SDK
+scenarios; documentation checks pass 5,993 local links across 577 files.
+
+The first integrated check passed contract/binding checks, then found stale
+independent Unified source/bundle digests after the definition replacement. Their
+owning encoder regenerated those fixtures. That attempt is not a full-check pass;
+combined repository, committed-source mutation and clean-checkout validation
+remain required.
+
+## Direct catalog mutation checks — 2026-10-24
+
+`just test::domain-simulation-mutations` passes on committed source `b48875510`
+from an isolated checkout. The unmodified baseline executes five domain schedules
+with identical replay in 19.034 seconds. All nine compiling mutations are detected
+by executed assertions: Document conflicts, checkpoint floors, exchange holds,
+refresh generations, provider readiness, catalog CREATE policy, original Table
+receipt positions, metadata inspection rights and directory continuation bases.
+
+The earlier `fbaf0bff1` run stopped because the receipt mutation had invalid Zig
+syntax. It is inconclusive, not a detected semantic regression. The corrected
+probe compiles and fails the direct catalog schedule's original-receipt assertion.
+Evidence is retained in
+`.cache/verification/domain-simulation-mutations-b48875510/`, including baseline,
+per-mutation logs, replay traces and `evidence.json`. These are component guards
+over volatile adapters; physical recovery remains separately qualified.
+
+## Handbook cutover checks and dark diagram contrast — 2026-10-24
+
+The handbook check and all five production browser checks pass at both the root
+path and `/handbook/`. The first browser run found insufficient contrast on a
+dark-mode Mermaid edge label (4.43 against the required 4.5). The stylesheet now
+sets dark edge-label text to white; the unchanged accessibility assertions pass.
+The corrected root and prefixed browser runs took 26.4 and 23.9 seconds.
+
+Separately, the regenerated Unified fixtures pass all 142 query-package tests.
+The Board workspace check and CLI diagnostics (96 artifact/file and 193
+server/console cases) also pass. These scoped runs do not replace the pending
+combined repository check or committed-HEAD clean CI.
+
+## Direct Follow reload and credential recovery — 2026-10-24
+
+`just test::reactive-views-lifecycle` passes its native-local browser schedule in
+159.38 seconds. In addition to stream loss, independent shared-principal tabs,
+lease closure, watch-generation reset and retirement, Chromium now reloads a
+page and verifies that it starts paused with no private rows or snapshot basis.
+Explicit Follow reacquires an authorized result; the other tab keeps its own
+session. Rotating the viewer credential clears rows and basis, while Board's
+separate viewer remains current. Replacing the gateway with the current key and
+explicitly recovering/reopening controls restores the authorized result.
+
+Attempt 8 expired a session during the earlier stream-loss step and supplies no
+evidence for the new cases. Attempt 9 reached credential denial, then failed
+because the replacement gateway's readiness probe omitted its required Host
+header. Attempt 10 supplies that header and passes the complete schedule with
+unchanged deadlines and assertions. These are real native-local TLS/browser
+checks; reference-placement and final repository gates remain separate.
+
+## Combined repository check after direct-owner retirement — 2026-10-24
+
+`nix develop --command just check` completes after the independent Unified
+fixtures were regenerated for the shared definition. The run includes core
+units and contract/diagnostic checks, 96 CLI artifact/file cases, 193
+server/console cases, console history, frontend formatting/types/unit tests and
+the handbook production build. The earlier fixture-mismatch run remains a
+failure. This is working-tree repository validation, not clean-checkout evidence
+or a pass for the separately running resource-growth/reference schedules.
+
+## Opaque upstream availability responses — 2026-10-24
+
+The reference Follow run stopped both workers when an intermediary returned a
+95-byte, non-JSON HTTP 503 response. The native client previously classified that
+response as malformed authority data. It now reports availability for opaque
+502/503/504 responses without manufacturing a native rejection or receipt. The
+worker retains its original uncertain request; the client performs no retry.
+
+An independent TCP peer exercises eight status/body combinations, including
+empty and opaque 503, opaque 502/504, valid native capacity/access rejections and
+malformed successful/forbidden responses. It also checks that a previous parsed
+rejection cannot survive a later opaque response. The test fails on the original
+empty-503 classification and passes after the fix. All 37 client-package tests
+pass. Diagnostic inventory, semantic mappings, inferred error boundaries and
+3,401 outcome projections pass; documentation checks cover 5,995 local links.
+The reference-placement rerun and final repository/clean-checkout gates remain
+separate from this focused client evidence.
+
+The subsequent `nix develop --command just check` run also passes with the client
+fix, including contracts and independent fixtures, core units, CLI/console
+checks, frontend validation and the handbook build. This working-tree result
+does not establish the separately running growth/reference schedules or clean
+CI against committed HEAD.
+
+## Public dependency graph growth and restart — 2026-10-24
+
+`just test::direct-table-service dependency-growth` passes 577 typed calls with
+139 retained dependency edges, one native resident page and the direct catalog's
+16-page cache. The shared host boundary registers distinct captured-definition
+identities under one explicitly authorized native metadata resource. Four-edge
+forward pages and single-dependent reverse pages verify every identity and exact
+interpretation without accumulating the graph. Strict digest order, a fixed
+observation position and the exact identity range establish completeness.
+
+After node SIGKILL and disk restart, both graph directions, the byte-identical
+saved plan and original first receipt remain valid. Current metadata revocation
+redacts all pages and denies receipt inspection while DROP RESTRICT still holds;
+restored rights recover the same receipt. These are dependency metadata owners,
+not 139 executed captured queries or a distributed-provider test.
+
+The first attempt failed compilation because a cursor capture shadowed a
+parameter. The next functional run passed but reported temporary fixture string
+leaks. The corrected fixture owns those strings in a bounded preparation arena,
+retains only native fixed-size evidence, and passes the full run without allocator
+errors. The ordinary catalog task now includes this schedule and the separate
+139-resource growth/restart schedule; the latter has no completed run at this
+checkpoint.
+
+## Native worker contention and exact recovery — 2026-10-25
+
+Serving, Work Items and Station ledger workers now use the shared client's
+ordinary-contention classification. A contended native command retains its
+original signed identity; a contended read can discard only an unsubmitted
+private proposal. Stale credentials, conflicting retry identities and fences
+retain their distinct handling. The authority's bounded CAS reprepare contract
+and shared definition are unchanged.
+
+The serving proxy injects HTTP 409 `Conflict` before dispatching the ingress
+worker's first `open_view`, then verifies byte-identical recovery. The unchanged
+worker exits on that injection and the schedule fails. With the fix,
+`just test::reactive-views` passes its full native browser schedule in 387.36
+seconds, including exact query retry, bounded full-result verification, finite
+refresh and current denial before disclosure. Its observed mutation-to-visible
+time is 9,827 ms and query-refresh-to-verified-visible time is 57,518 ms; these
+single observations establish no latency distribution or performance target.
+An intermediate fixture attempt batched row setup despite the one-active-command
+policy and failed; restoring sequential setup yields the complete pass.
+
+`just test::work-items` also injects and verifies exact recovery of the first
+contended worker command. It passes in 88.52 seconds with 19 rows, 242 turns,
+at most four mutations and 244 value bytes per turn, 81 inspected pages, nine
+transport disconnects and one lost direct admission reply. Its original worker
+replacement, node restart, receipt and fencing assertions remain in the run.
+The complete `just test::station` recovery/services/lifetime task passes with
+the ledger change, but does not inject this contention schedule.
+
+The subsequent `nix develop --command just check` completes contracts, diagnostic
+checks, units, CLI/console checks, frontend checks and the handbook build. These
+working-tree results do not establish the separately running reference-placement,
+139-resource growth or committed-HEAD clean-checkout gates.
+
+## Direct Follow reference qualification checkpoints — 2026-10-25
+
+The direct-owner reference browser schedule remains unqualified at this
+checkpoint. Placement now selects an explicit IPv4 Docker bridge, retries the
+same signed native bytes within its existing ten-second recovery budget, and
+recreates only its own failed port-forward on the same local port. Transient
+non-JSON readiness replies remain within the existing readiness deadline.
+Failure diagnostics retain bounded current/previous direct-node logs before
+owned namespace cleanup. These fixture changes establish no runtime guarantee
+on their own.
+
+Earlier attempts exposed opaque intermediary 503 responses and an exhausted
+native CAS reprepare response; the client and worker fixes have separate focused
+evidence above. Attempt 9 kept both workers alive but exceeded the 120-second
+browser handshake while preparing 19 sequential rows. The row-setup handshake
+now allows the aggregate of the existing ten-second admission and 30-second
+outcome budgets per row. Individual operation deadlines and browser result,
+recovery, denial and memory assertions are unchanged. This is a finite correctness
+schedule; increasing its aggregate setup budget is not performance evidence.
+
+## Direct browser setup and clock contention recovery — 2026-10-25
+
+The clock observer now also retains its exact pending native command after an
+ordinary `Conflict`, using the shared client's classification. The browser proxy
+injects separate pre-dispatch conflicts for the ingress worker's first
+`open_view` and the running clock observer's first `send`; both must repeat their
+original bytes. Administration before observer startup cannot satisfy that check.
+
+`just test::reactive-views` passes the complete native schedule in 258.27 seconds
+with both exact-retry assertions. The 19 additional rows for the browser's
+20-row query are now prepared by the installer through one public direct bulk
+operation. Its saved intent/reference, original operation ID and authoritative
+matched/affected/live counts are checked. Application-command mutations before
+and after this setup, lost query submission, complete result verification,
+refresh, pause and current revocation remain exercised. Single-run observations
+are 5,558 ms for counter mutation visibility and 45,410 ms for verified refresh;
+no matched performance comparison or latency distribution is established.
+
+Reference attempt 10 used the prior sequential application-command setup. Its
+workers stayed alive, but operation 117 exceeded the 30-second outcome wait
+amid authority contention. It is a failed schedule, not qualified throughput.
+The new direct batch setup removes those 19 incidental application invocations
+from the browser schedule and restores the original 120-second stage handshake.
+It does not qualify the failed repeated-command workload under concurrent browser
+polling. The first native batch-setup attempt failed on a compilation capacity
+refusal; bounded retry of the same action now handles only that known capacity
+response, without re-preparing dispatched work. The complete native pass above
+includes the corrected fixture. Reference placement and clean CI remain open.
+
+## Lifecycle qualification failures and phase diagnostics — 2026-10-25
+
+The 139-resource named KV/Document schedule remains unqualified at this
+checkpoint. An early setup attempted to reuse an owned writer and failed;
+each later resource now has its own native writer. A one-page native-cache
+attempt was interrupted, and a subsequent setup exceeded its 1,800-second
+aggregate deadline. With the installed eight-page native cache, a further run
+exceeded 3,600 seconds. Its last saved declaration targeted resource 139, but
+the last periodic completion marker was 129. Neither that marker nor the saved
+declaration proves all resources initialized or recovered. The direct catalog
+still uses its 16-page cache with eight-entry leaves.
+
+The setup helper also performed a complete directory/value readback before
+returning. Setup and readback now have separate explicit phases: 3,600 seconds
+for provisioning and per-resource typed reads, then 900 seconds each for the
+complete readback before and after node SIGKILL/restart. The same original
+receipt, saved bytes, all 139 values and bounded directory assertions remain.
+Phase markers identify completed setup and each sixteen verified readback values.
+No successful full schedule or latency target follows from this fixture change.
+
+Reference Follow attempt 11 failed its first application mutation while an
+owned clean-checkout run was also performing disk-heavy unit work. That clean
+run was interrupted before any lane completed; neither run passed. Attempt 12
+ran without that clean-checkout process and still exceeded the initial query's
+180-second result deadline. This rules out treating the simultaneous clean run
+as an established explanation for every placement failure.
+
+Attempt 13 completed and fully verified the original 20-row query, recovered
+the same result after physical service replacement, and prepared all eight
+finite Follow captures. It then exceeded the unchanged 180-second refreshed
+result deadline. The last observed refresh was admitted; workers continued
+consuming inputs and the browser retained a frozen uncertain control through
+capacity refusals. The run's counter visibility and physical recovery observations
+were 15,140 ms and 57,888 ms respectively. These are partial observations from a
+failed schedule, not a qualified reference deployment or performance comparison.
+
+The browser now records bounded query and refresh phase changes. On failure it
+also makes one bounded public status read for the selected finite query, without
+activating, replacing or cancelling it. The next reference run retains the
+existing deadlines, result identity/coverage, recovery and denial assertions.
+
+## Follow reads during control recovery — 2026-10-25
+
+Reference attempt 14 again verified the original query and physical recovery,
+then exceeded the 180-second refresh deadline. The new diagnostic read, issued
+after that failed assertion, observed the selected finite query as complete while
+the last refresh observation was admitted. This does not establish that execution
+had completed before the deadline, or identify the only cause of the failed run.
+
+Independent client regression cases do establish a read-progress defect:
+`LiveView` blocked all result observation while a control was active or uncertain.
+Both cases fail on the previous implementation with the earlier result still
+displayed. Current status/result reads now progress with their own authority
+checks. New invalidation and acknowledgment controls wait for the original frozen
+control to settle. A verified immutable result is read once while acknowledgment
+is deferred, and the visible status preserves control uncertainty.
+
+Four new cases cover pending versus actively running controls, deferred exact
+acknowledgment, and current denial while the original request remains frozen.
+All 28 live-view/follow-recovery tests pass. The complete
+`just transit-board::check` also passes contracts, types, formatting/lint and
+consumer tests, including 101 Board tests. A subsequent status-wording assertion
+checks both pending and uncertain messages; all 28 focused tests still pass.
+
+`just test::reactive-views` passes the native browser schedule with the read-progress
+change in 255.84 seconds. It retains ingress/clock contention injections, exact
+query submission recovery, complete-result verification, finite refresh, pause
+and current revocation between verification and disclosure. Single observations
+are 16,956 ms for counter visibility and 41,416 ms for verified refresh; observed
+Board/counter heaps are 9,747,044/3,745,728 bytes. These values establish no matched
+performance comparison. The new client path still requires the separate reference
+deployment run and final combined repository/clean-checkout qualification.
+
+Reference attempt 15 includes the client fix and still exceeds the three-minute
+refresh deadline. Its post-failure query read observes `admitted`, with continued
+application input progress and capacity refusals. The failed run's counter and
+physical-recovery observations are 20,915 ms and 58,156 ms. The client regression
+fix therefore does not establish that the reference latency problem is resolved.
+
+The next reference correctness schedule permits six minutes for each finite
+query/result-denial observation and 25 minutes for the enclosing browser run.
+Its fixture service publication lasts 30 minutes so it contains that schedule.
+Eight-capture preparation retains its three-minute deadline; native and Compose
+query waits retain theirs. Per-request deadlines, 30-second session leases,
+native/direct cache sizes, current authorization, exact retry, full coverage,
+result identity, physical recovery and denial assertions are unchanged.
+Initial query/recovery and Follow preparation times are now observed separately.
+This longer aggregate observation tests eventual completion under the same bounded
+deployment, not compliance with the failed three-minute latency window. No pass
+is established by changing the fixture budget.
+
+## Public named resource growth and restart — 2026-10-25
+
+`nix develop --command just test::direct-table-service resource-growth` passes
+the complete ReleaseSafe schedule with 1,437 typed catalog calls. The phase
+separation and caller diagnostics are recorded in `47e7ae729`; the retained run
+log is `/var/tmp/transit-named-resource-growth-5.log`. The earlier failed and
+interrupted attempts above remain unqualified.
+
+The public host/caller path provisions and initializes 139 distinct resources:
+70 KV resources and 69 Documents, each with its own native writer. Every object
+passes typed data readback during setup. Publication remains absent until the
+owning initialization completes; the fixture also checks the denied intermediate
+allocation step before the required resource grants are supplied.
+
+The fixture then reads the entire directory and every value before node
+replacement, kills the actual node with SIGKILL, restarts it over the same local
+native/direct storage, and repeats the complete readback. KV values equal
+`durable named value`; Documents retain revision 1 and the integer value 42.
+Directory traversal preserves exact object order, names and its original
+position across bounded eight-entry pages. The original first operation's
+inspection and exact retry both reproduce its complete receipt. Saved profile
+and final declaration bytes remain unchanged across replacement.
+
+The node retains eight native resident pages and sixteen direct catalog pages;
+139 initialized objects exceed the direct cache's eight-entry leaf capacity.
+That passing run used a 3,600-second aggregate setup budget; each complete readback had 900 seconds,
+with the original per-request bounds unchanged. This is local process-recovery
+and bounded-cache evidence, not a host-loss, distributed-writer or latency result.
+Reference Follow and committed-HEAD clean-checkout qualification remain open.
+
+## Direct Follow reference recovery and disclosure — 2026-10-25
+
+`nix develop .#serving --command just test::reactive-views-placement reference`
+passes with the browser/client and fixture source at `c305cf405`. The retained
+log is `/var/tmp/transit-direct-follow-reference-16.log`. Browser qualification
+takes 823.88 seconds; deployment, qualification and recovery report 949.60 seconds
+in total. The enclosing command exits successfully after joined cleanup.
+
+The real browser verifies the initial 20-row query after a lost submission reply,
+navigation and explicit exact retry. Physical worker, gateway, node and store
+replacement preserves the same query namespace, displayed values and result
+identity over the retained local native and Table logs. Follow prepares all
+eight finite captures, then a committed mutation produces a distinct verified
+result with the same Table/schema binding and a later accepted data position.
+A further mutation checks current denial between full-result verification and
+the visible reread; protected rows are cleared. Pause, cookie/local-storage
+absence, bounded session recovery and both browser heap bounds also pass.
+
+Single-run observations are 25,652 ms for counter mutation visibility, 67,916 ms
+for the initial query including exact submission recovery, 54,029 ms for physical
+recovery, 160,025 ms for Follow preparation, and 205,614 ms for a verified refreshed
+result. Observed Board/counter heaps are 11,436,668/4,259,492 bytes. These are raw
+observations, not a distribution or matched performance comparison.
+
+This run uses the documented six-minute aggregate query/result-denial wait,
+25-minute browser budget and 30-minute fixture publication. The three-minute
+preparation budget, per-request deadlines, 30-second session leases, native/direct
+cache bounds and all recovery/authorization assertions remain unchanged. The
+205,614 ms refresh exceeds the earlier three-minute window: this correctness pass
+does not qualify that latency window or close broader performance obligations.
+The earlier failed schedules remain recorded above. Latest combined repository
+and committed-HEAD clean-checkout qualification remain open.
+
+## Clean-checkout packaging and maintenance repairs — 2026-10-25
+
+The full working-tree `just check` passes after the direct-owner and Follow
+changes, including contracts, diagnostics, Zig units, frontend checks and the
+handbook build. A second full check also passes during packaging repair. These
+checks do not replace the ordinary clean-checkout suite.
+
+The clean run at `6aad68b1a` passed its first 14 core tasks, then failed
+`bindings::runtime-boundary`: the Nix frontend-store hash still described the
+workspace before the handbook moved out of `apps/`. Updating that fixed-output
+hash exposed an obsolete `transit serve --help` install check. The current CLI
+provides `server` and `console`; the obsolete assertion is removed, with both
+supported command checks retained. No dependency version, lockfile or CLI alias
+changes. An intervening packaging attempt was interrupted and is not a pass.
+
+After the repair in `1db162d60`, `bindings::runtime-boundary` passes against the
+actual Nix runtime and SQL gateway packages, checking their SDK-free source
+boundary and installed executables. `just doctor` and the `transit-local` Nix
+bundle build also pass. The bundle build does not establish server startup. The
+subsequent clean core run at `81691d09d` passes this boundary again.
+
+That core run later stops at `test::service`. Maintenance emitted three bounded
+`MaintenanceTimeout` events, but the fixture searched for JSON fields while
+standalone services used their text default. `c9935bc2c` explicitly selects JSON
+and info logging for the fixture's children. Its original two-timeout assertion,
+two-second operation deadline and eight-second observation window are unchanged.
+The complete `test::service` then passes signed ingress, current/revoked reads,
+fencing, expiry, checkpoint/trim, stalled storage, synthetic I/O, payload deletion
+and disk recovery. The maintenance fixture separately passes with the parent
+environment set to `LOG_FORMAT=text LOG_LEVEL=off`, demonstrating that its own
+logging selection is effective. Applying that suppression to the entire service
+suite first failed an unrelated log assertion before maintenance ran; that attempt
+is not qualification of the fix.
+
+The failed clean runs retain their incomplete reports and checkouts. Neither is
+a completed core lane. The other isolated lanes continue qualifying the recorded
+revision; complete ordinary qualification still requires all six lane reports at
+one committed revision.
+
+## Launcher and SQL logging acceptance — 2026-10-25
+
+At `46d42df84`, the clean launcher lane builds successfully and passes installed
+persistence, exact retry, fencing, retirement, replacement, direct access and
+foreground control schedules. Its missing-WAL startup case then fails an obsolete
+`error:` assertion: the node correctly emits `service.failed` with `NotFound`,
+exits nonzero, and the manager preserves the installation. The clean experience
+lane passes Board, handbook, Node static and observability checks, then fails a
+blanket assertion forbidding SQL `unavailable` during startup. The retained log
+shows an actual `AuthorityTimeout`, followed by recovery of the same installation
+through `initializing`, `starting` and `accepting`. Neither lane is a pass.
+
+`7b48509ee` updates these fixture assertions to the existing operational logging
+contract. The launcher requires a structured `service.failed`/`NotFound` event
+and the manager's failure summary, retaining nonzero exit, owned cleanup and
+saved-state checks. The SQL proof still rejects an unexplained initial
+`unavailable` observation; a reported failure must carry a cause, and the final
+status must be `accepting` with its error cleared. Runtime behavior and deadlines
+are unchanged. The server guide distinguishes a pending first health check from
+an actual failed authority observation during startup.
+
+Both complete focused commands pass: `just launchers::local::test` covers the
+installed and foreground schedules, including streamed failures and termination
+cleanup; `just test::server-logging` covers text/JSON/off, terminal versus machine
+stdout, SHOW and environment precedence, admission pressure without role
+replacement, and gateway failure/recovery. An earlier standalone foreground
+invocation omitted its build preparation and timed out while building before
+reaching the repaired assertion; it is not a qualified run. The remaining
+experience tasks and the other clean lanes continue separately; their completion
+must be recorded before ordinary-suite acceptance.
+
+## Isolated lifecycle qualification after parallel-run failures — 2026-10-25
+
+The clean growth lane at `46d42df84` passes its first ten tasks, including growing
+service recovery and the local catalog. Direct Table provisioning and writes then
+pass, but its aggregate `recover` subprocess exceeds the existing 180-second
+deadline. `45b1c1209` adds progress messages after the seven recovery stages;
+it changes no runtime behavior, deadline, cache, operation count or assertion.
+The complete focused `just test::direct-table-service` passes with 1,418 typed
+calls, a 64 KiB point row, actual `.tseg` bulk publication, full CRUD/DDL and
+namespace evolution, retained reads/history, original receipts, current denial,
+three restarts and explicit pin closure. Every original phase deadline remains
+in force. The earlier timeout remains failed evidence.
+
+Two overlapping `test::server-direct-tables` attempts report `SqlOutcomeUnknown`
+during DDL with the query worker paused. Their supervisor logs record repeated
+incomplete health observations and authority timeouts; one restarts the node and
+joins the paused worker. After the remaining parallel clean jobs are interrupted
+and joined, the same task passes alone with unchanged runtime behavior and
+budgets. It covers direct CRUD/DDL and namespace lifecycle while the worker is
+stopped, inert preparation, stale schema rejection, RESTRICT, conditional
+outcomes, abrupt restart, deliberate default-Table deletion and name reuse.
+The isolated result qualifies this schedule, not behavior under arbitrary
+competing I/O or a latency target. The parallel failures are not relabeled as
+successful recovery tests.
+
+The server logging proof also passes alone after making its initial-readiness
+assertion precise: before the first `accepting` observation, `unavailable` must
+carry a reported cause. After confirmed readiness, loss of a health observation
+can itself establish `unavailable`. Final confirmed readiness, cleared error,
+current admission-pressure reporting and gateway replacement checks remain.
+
+The launcher clean lane completes both tasks at `f2b7f6116`. The other interrupted
+lanes do not complete; their partial reports include a 1,879.33-second Python SDK
+pass at `46d42df84`. This collection spans revisions and does not establish
+ordinary-suite completion. Final qualification runs the entire ordinary inventory
+sequentially from one committed clean checkout; CPU headroom alone did not
+establish independent disk latency for the earlier parallel schedules.
+
+## Clean lifecycle growth budget failure — 2026-10-25
+
+The complete sequential `just ci-clean` attempt at
+`1d534f9523dfc574f8dfb514a61b8d9f2dff61f4` passes all 28 core tasks and the
+first 19 growth tasks. The direct Table service passes 1,418 typed calls,
+actual `.tseg` publication and every original recovery-phase deadline in
+329.66 seconds. The catalog task then fails after 3,861.84 seconds: its named
+resource initialization subprocess exceeds the 3,600-second aggregate budget.
+The ordinary suite is incomplete; its later tasks do not run. Reports remain
+in `/var/tmp/transit-ci-fjvml5gc/src/.cache/ci/`, with the retained command log
+at `/var/tmp/transit-lifecycle-clean-ci-3.log`.
+
+The last periodic completion marker verifies 129 initialized resources. A later
+inspection observes the saved declaration for resource 134 and advancing native
+receipts; it does not establish that declaration's completion or any later
+resource. Full directory/value readback and SIGKILL/restart do not run. No
+individual request timeout or failed value assertion is reported before the
+aggregate timeout. This failed run does not replace the earlier complete
+139-resource pass or qualify this source revision's full schedule.
+
+A live process observation at resource 113 records about 31 minutes of node CPU
+time and roughly 335 GB in `/proc/<pid>/io`'s `rchar`, while `read_bytes` is about
+1 MB. `rchar` includes reads served from cache; it is not physical disk traffic.
+This single observation identifies substantial repeated cached-read work, not a
+controlled throughput benchmark or a complete bottleneck diagnosis. The growing
+metadata cost remains part of the open performance qualification.
+
+The fixture now gives provisioning and per-resource typed readback a 5,400-second
+aggregate setup budget. Both complete before/after-replacement readbacks keep
+their 900-second budgets. Each caller request retains its 30-second cap; the
+eight native resident pages, sixteen direct pages, 139 initialized resources,
+original receipts, saved bytes and every value assertion are unchanged. No
+runtime or cache change is made. Extending this correctness observation budget
+does not establish a pass or meet the failed one-hour setup window. Fresh
+committed-source ordinary qualification remains required.
+
+## Clean SDK schema projection failure and repair — 2026-10-25
+
+At `ccf5387f35006a23f5459d0b3d959c134d9da917`, the isolated clean experience
+lane completes all 13 tasks in 1,374.77 seconds. The bindings lane's first
+attempt fails during Nix shell setup, before any task executes, because a
+cached shell derivation is missing. Reevaluating that shell with the Nix
+evaluation cache disabled restores it; the normal shell then opens. No pinned
+dependency, compiler or lockfile changes.
+
+The fresh bindings retry passes native contracts and the full Python, Node,
+Rust and Ruby schedules, then fails in `bindings::sdk-interop` while installing
+the Elixir consumer. Its existing handler schema round-trip assertion exposes
+an adapter bug: the catalog converter matches a four-element logical-element
+tuple, while the shared Erlang record contains three elements. Nested list
+descriptors therefore retain an Erlang tuple instead of the public Elixir
+`Logical.Element` struct. The interoperability exchange does not run after this
+installation failure, and the lane is incomplete.
+
+The unchanged installed-artifact logical proof reproduces the failure with
+the failed checkout's artifacts. Correcting the tuple match makes
+`just bindings::logical-beam` pass after rebuilding independent OTP artifacts.
+The existing schema test now checks nested list, array, map and structure
+round trips as well as saved Table mutations. Elixir format checks pass.
+The correction changes host value projection, not the shared wire definition,
+storage formats or runtime authority. The full interoperability schedule and
+remaining clean qualification are still required.
+
+## Complete resource growth and installed SDK recovery — 2026-10-25
+
+At `0567c9841b36032f5fc6440539c99ded8ad36e0f`, the fresh committed-source
+growth lane passes its first 20 tasks. `just test::catalog` completes in
+4,600.69 seconds, including the 139-edge dependency schedule, partial native
+resource recovery and the complete 139-resource growth schedule. The latter
+initializes 70 KV and 69 Document resources, reads every typed value before
+SIGKILL, and reads every value again after node replacement. Its 1,437 typed
+catalog calls also verify bounded eight-entry directory pages, saved bindings
+and the original first receipt. The native/direct resident limits remain
+eight/sixteen pages. Provisioning uses the explicit 5,400-second aggregate cap;
+each full readback retains 900 seconds and individual caller requests retain
+30 seconds. This pass completes the previously incomplete growth observation;
+it does not establish completion within the earlier one-hour setup window.
+
+The preceding direct Table schedule also passes all 1,418 calls, including
+64 KiB point values, one actual initial `.tseg`, retained reads and three
+restarts, with its original 180-second phase budgets. The growth lane then
+fails at `test::sql-gateway` with `StaleStateResource`. The lane is incomplete;
+the first 20 task results are individual passes, not a whole-lane pass.
+
+At the same revision, `nix develop .#bindings --command just bindings::sdk-interop`
+passes all ten installed counter/query pairs, from Python through Node, Rust,
+Ruby, C, C++, Java, .NET, Erlang and Elixir and back to Python. It completes in
+989.576 seconds, including 135.863 seconds of independent consumer installation,
+and excludes artifact compilation. Ten lost replies reconcile, ten unavailable
+reads retry, and one lost delivery-administration receipt uses the original
+request. Nested Arrow/schema ownership, queued Table mutations and restarted
+workers pass through the repaired Elixir adapter. The authority uses 64 resident
+pages and an 8 MiB hot limit; 337 cold objects occupy 88,498,415 bytes. This is
+one correctness schedule, not a throughput or hosted CI budget measurement.
+
+## SQL admission and detached inspection revision races — 2026-10-25
+
+The clean growth attempt at `0567c9841` fails at the runtime UPDATE in
+`just test::sql-gateway` with `StaleStateResource`; an isolated unchanged rerun
+passes. Diagnostic fault injection then reproduces two independent gaps:
+the initial admission lookup propagates a stale-revision rejection, and, after
+that path is repaired, the fixture's final detached-control inspection does too.
+The natural failure does not identify which of those two reads lost its cut.
+
+`AccountRuntime.admit` now retries only its initial pure lookup under the
+original deadline, nonce and fingerprint. The final fixture inspection also
+reopens only its read while the worker remains active. The shared retry
+classification preserves denial, cancellation and conflicting-retry failures;
+neither repair repeats SQL admission or changes accepted work.
+
+The full focused schedule passes after both repairs. Its proxy injects one
+stale-revision rejection into each lookup, and retains the existing delayed
+detached reply, lost first upload receipt and successor-admission ordering.
+The run completes 33 operations, three fenced replacements, exact replay of
+all three lost control replies and direct outcome recovery without direct
+re-execution. The UPDATE reports one matched and one changed row, its value is
+read back, and the detached reservation is explicitly cancelled to abandonment.
+The workload takes 26.014 seconds, excluding compilation. The runtime's
+60-second deadline, native four-mutation/256-byte turn limits and existing
+receipt assertions are unchanged. This focused pass does not complete the
+remaining ordinary CI tasks.
+
+## Direct Table SQL wire diagnostics and current authority — 2026-10-25
+
+At `341365c62f8710e69c2949b792c3d991e420478f`, the fresh committed-source
+`just test::sql-gateway` completes in 287.34 seconds, including compilation.
+The following wire schedule fails because its revocation fixture inspects an
+arbitrary old operation and assumes SELECT controls mutation receipts. The
+direct Table owner instead checks CONNECT, USAGE and the original mutation
+privilege. The corrected fixture identifies the exact detached INSERT, checks
+its one matched/changed row, retains its receipt under SELECT revocation,
+suppresses it under INSERT revocation, and recovers the same receipt after
+restoration. Row and metadata disclosure remain denied without SELECT. These
+assertions complete in the subsequent wire run, which then fails at schema
+invalidation; neither invocation is a complete wire pass.
+
+That failure exposes a diagnostic gap: the HTTP client returns a status-class
+error while retaining the verified Table definition rejection separately.
+The SQL adapter now maps that verified cause to the prepared-source diagnostic.
+Ordinary current-state contention receives its own prerequisite-state diagnostic
+while preserving any admitted operation identity. Neither classification retries
+a write, retargets a prepared handle, or joins a new read to an earlier prefix.
+Unit assertions cover both remote status classes, retained operation details,
+denial precedence, unrelated failures and immediate stale-definition rejection.
+
+The focused wire schema schedule subsequently completes its assertions through
+both PostgreSQL and MySQL: ALTER invalidates the definition, DROP and same-name
+replacement deny the original retired identity, fresh lookup of the absent name
+reports a missing Table, and fresh preparation binds the empty replacement.
+The default full wire schedule is unchanged; its remaining qualification is
+still required.
+
+## Neutral index contracts — 2026-10-25
+
+The [index lifecycle contract](../contracts/INDEX_LIFECYCLE_V1.md) and protocol
+`IndexLifecycle` module implement offline declaration commitments, exact
+source/column/constraint bindings, build generations, maintenance observations
+and conditional coverage publication. They add no installed index operation,
+secondary structure, online build or planner eligibility decision.
+
+With the pinned Nix shell, `just contract::generate`, `just contract::check` and
+`zig build test` in `packages/zig/transit-protocol` pass. The new schema is
+reflected from the public types. An independent Python SHA-256 fixture agrees
+with Zig for ordinary and constraint-owned declarations, including full-width
+identities. Existing generated request/ABI schemas and signing fixtures remain
+unchanged; this additive descriptor family does not change an existing request
+or stored format.
+
+Six protocol tests cover declaration tampering, key order/NULL policy, source
+interpretation and constraint changes, cross-branch/self dependencies, empty
+and duplicate columns, the combined 128-column boundary, WAL-only bases and
+incomplete checkpoint refusal, backward/cross-partition progress, exact old/new
+query-cut mismatch, physically different checkpoints at the same logical cut,
+snapshot consistency and immutable publication retries. Missing/foreign shared
+definitions reject. Schema checks also reject unsupported key comparisons and
+undeclared predicate/collation/encoding extensions.
+
+These are deterministic contract checks. They do not prove that a claimed
+index root exists, contains every visible row, is retained or is authorized.
+The future catalog/query owner must establish those facts separately. Complete
+build progress does not publish coverage or enable a query. The repository and
+committed-checkout qualification review remains a separate gate.

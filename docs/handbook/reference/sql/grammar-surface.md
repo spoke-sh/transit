@@ -80,9 +80,11 @@ Use [INSERT](insert.md), [UPDATE](update.md), [DELETE](delete.md),
 [CREATE TABLE](create-table.md), [ALTER TABLE](alter-table.md),
 [DROP TABLE](drop-table.md) and [application declarations](application.md)
 for exact schemas and bounds. Query transports reject writes and administration.
-Table creation does not provision its native resource or implicitly grant query
-or mutation policy. Mutation callers retain admission, processing and application
-outcomes separately, including accepted work with a lost reply.
+Table CREATE reserves an object and performs recoverable native authorization
+registration before direct Table publication. Current ownership and applicable
+default grants determine access; compilation alone grants nothing. Mutation
+callers retain admission, processing and application outcomes separately,
+including accepted work with a lost reply.
 
 The [SDK matrix](../sdks.md#catalog-callers) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
@@ -97,7 +99,8 @@ other administrative SQL families retain their own stated support boundaries.
 | Form or family | Support | Semantic target and boundary |
 | --- | --- | --- |
 | `CREATE CONNECTION`, `CREATE SOURCE`, `CREATE SINK` | **Planned — checked grammar** | Typed options, secret references, dependencies and separately authorized activation; declarations confer no access |
-| Role/schema administration, `GRANT`, `REVOKE` | **Dedicated authorization compiler and explicit apply** | [Selected forms](authorization.md) lower to native policy or catalog schema operations; query-only interfaces reject administrative execution |
+| `CREATE SCHEMA`, `ALTER SCHEMA ... RENAME`, `DROP SCHEMA RESTRICT` | **Implemented — native SQL execution** | Exact direct-catalog bindings, current ownership, durable outcomes and bounded dependency checks; PostgreSQL/MySQL and query-only interfaces exclude these forms |
+| Role administration, ownership transfer, `GRANT`, `REVOKE` | **Dedicated authorization compiler and explicit apply** | [Selected forms](authorization.md) lower to native policy operations; console and query-only interfaces reject administrative execution |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
 | Further expressions and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |

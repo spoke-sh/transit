@@ -51,16 +51,19 @@ downloads for the three external Zig dependencies, verifies their Zig package
 identities and builds with an offline system package directory. No ambient Zig
 package cache or source checkout artifact is required. Runtime source excludes
 `sdks/` and the language SDK examples; builds pass `-Dsdk-examples=false`.
-The workspace relocation changes the fixed-output frontend dependency-store
-hash without changing package versions or toolchain pins. The boundary check
-builds both native runtime and SQL gateway derivations from that SDK-free source.
+The fixed-output frontend dependency-store hash follows the selected runtime
+workspace, including importer moves. The handbook lives outside the runtime
+source, so its move from `apps/transit-docs` to `docs/handbook` changes that store
+without changing package versions or toolchain pins. The boundary check builds
+both native runtime and SQL gateway derivations from that SDK-free source.
 
-On Linux x86_64, `nix build .#transit-local` adds the pinned Ursula and MinIO
-providers and matching SQL gateway to the closure. It places all executables together in `bin/`, so
+On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
+the Transit closure. Native local storage runs inside the node. The bundle
+places all executables together in `bin/`, so
 `transit server` finds dependencies beside itself before searching `PATH`. It
 also exposes a JSON executable map
 in `share/transit/local-executables.json` (including `board` and `sql_gateway`); downstream flakes can also use the
-`transit`, `transit-sql-gateway`, `ursula` and `minio` passthru packages to construct explicit server
+`transit` and `transit-sql-gateway` passthru packages to construct explicit server
 configuration. It does not initialize storage or start processes during a build
 or shell entry. Run `transit server` for both first startup and subsequent starts.
 Optional `transit.yaml` settings overlay the current defaults;
@@ -313,13 +316,17 @@ The [pre-split run](https://github.com/spoke-sh/transit/actions/runs/36073815381
 took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
 qualification accounted for 5m39s of those checks. The later three-lane
 [baseline](https://github.com/spoke-sh/transit/actions/runs/36181871580) took 17m42s
-and 40m11s of aggregate job time. Five concurrent lanes now separate
+and 40m11s of aggregate job time. Six ordinary lanes now separate
 `just ci::core` (foundation/library/protocol), `just ci::growth` (Arrow, pages
 and growing authority/service), `just ci::experience` (frontend, observability,
 Board and native Station), `just ci::launchers` (build smoke and native counter),
-and `just ci::bindings` (native boundary and languages). Chromium follows
-experience as `just ci::browser`. `just ci` runs all five inventories sequentially
-in the pinned bindings shell; `just check` uses the ordinary developer tools.
+and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages).
+`just ci::bindings` runs both bindings inventories sequentially. Chromium follows
+experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
+that additional inventory explicitly. `just ci` runs the six ordinary inventories
+sequentially in the pinned bindings shell; `just check` uses the ordinary
+developer tools. [The task inventory](../tests/verification/suite.json) owns the
+exact checks in each lane.
 
 The experience lane uses `nix develop .#ci-experience`, a shell without provider
 or Kubernetes tools and without PyArrow. Its Python environment includes PyYAML
@@ -336,22 +343,22 @@ for heavy toolchain/pin updates; the first new-key run pays that upload cost.
 New lane caches can fall back to the previous shared cache for their first run,
 so the split itself does not force rebuilding Ursula from Rust source.
 
-The bindings lane uses `nix develop .#ci-bindings`: the native tools, PyArrow and
+The bindings lanes use `nix develop .#ci-bindings`: the native tools, PyArrow and
 foreign SDKs and pinned native MinIO, without Kubernetes/provider management tools.
 Its previously measured environment closure was 6.1 GiB before adding native MinIO.
-Those SDKs are cached only in this lane; it installs only the Node
+Those SDKs are cached only in the bindings cache group; these lanes install the Node
 binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
 
-Execution caps account for the expanded task inventories: growth has 90 minutes,
-experience (including browser proofs) 60 minutes and bindings 180 minutes. Core
-and launchers retain 30 minutes, or 45 for explicit cold calibration. These are
+The [hosted workflow](../.github/workflows/ci.yml) gives core and experience
+(including browser proofs) 60 minutes each, growth 300 minutes, and each bindings
+lane 360 minutes. Launchers have 30 minutes, or 45 for explicit cold calibration. These are
 finite failure limits, not measured feedback budgets. The earlier warm/cold
 budget records remain historical; a larger cap does not qualify a slower run or
 change any accepted operation's deadline.
 
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
-Zig manifests. Only bindings writes it, including the C++ standard library.
+Zig manifests. Only `bindings-1` writes it, including the C++ standard library.
 It holds fetched packages and global compiler
 objects, excluding checkout objects, launchers, credentials and the Git archive
 transport cache. This avoids caching the tens of gigabytes accumulated by local

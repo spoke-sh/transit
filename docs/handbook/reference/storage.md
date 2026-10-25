@@ -1,9 +1,37 @@
 # Storage and recovery boundary
 
-Ursula supplies durable storage through the Zig backend adapter. Transit owns
+The local server stores native history and immutable objects through the
+[local backend](../../../packages/zig/transit-backend-local/README.md). Deployments
+configured with Ursula use its Zig backend adapter. Transit owns
 logical process/resource identities, accepted transitions, retained boundaries
 and retirement. Physical streams, buckets and offsets are not an alternate
 authority for execution or permissions.
+
+## Direct Table data
+
+The local SQL service uses the node's signed direct Table interface. The catalog
+owns names and immutable definitions, while each Table has its own acceptance
+partition. A complete row operation or DDL intent has one original identity and
+an inspectable admitted, committed, rejected or cancelled outcome. Direct rows
+are not limited by native actor frame or turn-block sizes. The
+[direct interface](../../../contracts/DIRECT_TABLE_V1.md) owns request budgets,
+authorization and exact-retry semantics.
+
+Point writes can remain in retained WAL records. Bulk ingestion publishes
+immutable `.tseg` objects before accepting the new Table state. A query's durable
+pin protects its original interpretation and accepted frontier, including
+unflushed data; independently retained Tables do not form one atomic catalog
+snapshot. Read-only current observations create no pin; conditional traversal
+rejects logical changes instead of preserving an earlier cut through them.
+Current database/schema/Table rights apply to both paths.
+
+The installed owner does not automatically flush point writes or expose physical
+Table garbage collection. Absence of a new `.tseg` after a point write does not
+imply that the write is missing: inspect its exact operation outcome and Table
+data position. The [Table reference](tables.md) and
+[direct owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
+describe the caller operations; native resource storage below has a separate
+acceptance and maintenance boundary.
 
 ## Durable history and derived state
 
@@ -45,9 +73,11 @@ immutable authority metadata so data scans cannot evict it. Its key includes the
 complete catalog root; a root change invalidates the records. Native reads still
 refresh authority and execute all current permission/lifetime checks. This cache
 holds at most about 35 KiB of record bytes and is independent of the configured
-page-cache slots. Pages and blocks first enter a bounded private segment. The
-backend reserves its bytes, verifies all stored frames and closes it before
-the final authority commit. Failed staging cannot publish a partial turn. The current v1 page encoding includes opaque storage locators.
+page-cache slots. Pages and blocks first enter private immutable storage: packed
+segments with Ursula, individual verified objects with the local backend.
+Each backend reserves storage and makes the bytes durable before the final
+authority commit. Failed staging cannot publish a partial turn. The current v1
+page encoding includes opaque storage locators.
 Application mutation quotas and durable payload publication bounds are unchanged.
 The [workload model](workloads.md#architectural-priorities) distinguishes hot
 keyed state, append-heavy history and analytical read structures; none bypass
@@ -97,7 +127,10 @@ explains allocation quotas, control reserve, configuration and provider limits.
 These quotas measure reserved encoded segment bytes; provider metadata, work
 ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
-The local CLI profile composes disk Ursula with S3 cold storage. Provider budgets,
+The local CLI profile composes the native log and object store inside the node.
+Lifecycle maintenance and accepted-floor trimming run in that owner; local
+immutable-object collection and compaction are unavailable. The physical
+collection and compaction mechanisms above apply to Ursula. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
 See [retention](retention.md) and [deployment](deployment.md).
@@ -109,35 +142,31 @@ requirements. A replacement provider must satisfy those same requirements.
 
 ## Four-tier storage hierarchy and `.tseg` segment architecture
 
-Alongside copy-on-write B-tree pages (`TPG1`) and `64 KiB` resource blocks (`SBR1`)
-in `PackedPageStore`, the [tiered storage runtime](../../../packages/zig/transit-storage/README.md),
-[storage format contract](../../../contracts/TRANSIT_STORAGE_V1.md) and
-[Storage, placement and observation](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
-provide two pluggable persistence primitives across a four-tier memory hierarchy:
+The architecture distinguishes active working state, accepted history, local
+read caches and immutable objects. The installed local owner uses
+`LocalWal` and `LocalSegmentStore`; its direct Table path uses `TablePartition`.
+The [storage package](../../../packages/zig/transit-storage/README.md) also
+contains separate memtable, cache, provider and manifest-coordination components.
+Their presence does not enable an installed four-tier deployment automatically.
 
-1. **`TransitLog` (Tier 1 Sequenced WAL & Activation Bus):** Sequences 64-byte-aligned
-   `"TWAL"` v1 binary frames (`CRC-32C` + 8-byte `SHA-256` payload prefix) and
-   streams `"TRDL"` v1 row deltas (`+row`/`-row`) to `TableMemtable`, `Fuze`
-   maintained views, reactive watches and `Station` processes. Backed by a
-   pure-Zig segmented local WAL (`LocalWal` with `sync` durability and torn-tail
-   crash truncation) or by long-lived **Ursula** partition streams (`UrsulaWal`).
-2. **`TransitObjectStore` (Tier 3 Immutable Segment & Manifest Store):** Stores
-   64-byte-aligned **`.tseg` (`"TSEG"` v1) hybrid OLTP/OLAP segments** (Arrow-compatible
-   column pages, 5-state cell tags, composable Zig codecs in `PhysicalCodecs.zig`
-   including `plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp`, `comp_3`,
-   `zoned`, `ibm_hfp` and `ebcdic`, collation-aware `ZoneMap`s with 64-bit Wyhash
-   Bloom masks, and an embedded primary-key B-tree index), **`.tdel` (`"TDEL"` v1)
-   deletion vectors**, and versioned **Table Manifests (`manifest/<object_id>/v<N>.tman`)**
-   committed via conditional CAS (`If-None-Match`). Backed by a local POSIX
-   directory (`LocalSegmentStore`) or S3-compatible object storage (`S3ObjectStore`
-   with AWS Signature Version 4 and byte-range requests) paired with a
-   content-verified **Tier 2 `NvmeCache`** (`64 KiB` range chunks with scan-resistant
-   eviction) and **Tier 0 `TableMemtable`** for immediate read-your-writes snapshot
-   visibility.
-3. **Partitioned Authority, Fenced Leases and Multi-Writer OCC:** Separates the
-   **Control & Policy Log** (`partition_id = 0`) from data-plane partitions
-   (`partition_id >= 1`), enforces `(writer_epoch, policy_epoch)` fencing on
-   `PartitionLease` records, and coordinates lock-free multi-writer commits via
-   `PartitionLease.OccCoordinator` (rebasing concurrent `.tseg` commits with
-   disjoint primary keys automatically onto `v{N+1}.tman` while rejecting
-   overlapping primary keys with `WriteWriteConflict`).
+| Layer | Components and current integration |
+| --- | --- |
+| Active working state | Native page/block caches and the direct Table's bounded operation work and data-index cache. `TableMemtable` is a separate component; it does not replace the installed Table owner. |
+| Accepted history | `TransitLog` supplies framed, fenced history. The local native backend and each direct Table preserve their own acceptance boundaries. Explicit history readers expose accepted changes; automatic activation of computations is separate. |
+| Local read cache | `NvmeCache` supplies verified range chunks as a component. The installed local owner does not configure a remote-object cache hierarchy. |
+| Immutable objects | `TransitObjectStore` supplies immutable and conditional object operations. Local bulk Table ingestion creates `.tseg` objects. The S3-compatible adapter is a separate provider component; the configured local Table service does not select it. |
+
+Exact WAL, segment, deletion-vector and manifest bytes belong to the
+[storage format contract](../../../contracts/TRANSIT_STORAGE_V1.md).
+[Table interpretation](tables.md#schemas-and-identities) specifies admitted
+codecs/collations and the limits of query execution. A physical layout descriptor
+alone does not establish decoder compatibility or an executable operator.
+
+`PartitionLease.OccCoordinator` tests optimistic manifest rebasing as a separate
+component. The installed local Table owner serializes acceptance under current
+native authorization; it does not expose independent multi-process Table writers.
+Conditional object publication can use process locks and synchronous I/O.
+Provider adapters and component conflict tests therefore do not establish a
+lock-free runtime, distributed atomicity or interchangeable durability guarantees.
+The [storage analysis](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
+explains the intended topology and its remaining integration boundaries.

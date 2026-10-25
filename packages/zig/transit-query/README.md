@@ -6,15 +6,26 @@ The console uses fresh interactive snapshots by default; explicitly durable
 queries retain frozen request and result recovery. The [v1 contract](../../../contracts/UNIFIED_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
-`TableChangeReader.open` captures a catalog Table snapshot. Consume
-`snapshotNext` through null, then save `checkpoint` with the complete snapshot.
-`openTail` takes that position and a fresh nonce; `next` yields paired row
-changes and complete transaction boundaries, including no-op progress. Save the
-next position only with the complete transaction's application. A caught-up
-event covers this lease; close it and open another tail to observe later work.
-The reader owns its lease and schemas; callers deinitialize returned row/change
-values, close explicitly and finally deinitialize the reader. Request budgets,
-cancellation and current native/catalog rights apply to every disclosure.
+`TableChangeReader.open` reads an explicitly retained direct Table history lease.
+Save the acquisition intent before dispatch and retain its original handle across
+backfill and disconnection. Supply a fixed exclusive upper log position and
+request budget. Consume `snapshotNext` through null, then save `checkpoint` with
+the complete snapshot. `openTail` takes that position and a selected upper bound;
+it does not reacquire retention or resolve a name. `next` yields paired row changes
+and complete transaction boundaries, including accepted no-ops and definition
+changes. The boundary includes the original acceptance receipt and both source
+bases. Save its next position only with the complete transaction's application.
+Physical maintenance advances a separate cursor and cannot fabricate a logical
+transaction. A caught-up event covers only the supplied upper bound.
+
+Each diff step owns at most two rows and uses at most two maximum-row buffers
+for exact canonical comparison. Values retain their original schema, including
+schema evolution; unchanged canonical rows do not become updates merely because
+the Table was renamed. Callers deinitialize returned rows/changes. Local `close`
+and `deinit` do not release durable retention. Explicitly close the original
+history acquisition when it is no longer required, preserving uncertain closure
+for retry. Request/row-byte budgets, cancellation and current native/catalog
+rights apply to every disclosure, including empty output and checkpoints.
 See [Table change capture](../../../docs/handbook/reference/tables.md#snapshot-and-change-capture).
 
 `UnifiedClient` owns signed description, finite upload, frozen submission,
@@ -23,23 +34,87 @@ committed-input observation, status, cancellation and verified result pages.
 replaced or retired declarations cannot masquerade as the live schema.
 `authorize` checks current rights for exact upload recovery and retained results
 without rebinding their captured schema.
+`recoverPreparation` returns the actual receipt for an exact frozen upload
+command and namespace. It admits begin/part/seal/prepare controls only, verifies
+the current definition and configured route, and checks current requester rights
+before and after lookup. Accepted requests retain their identity after key
+rotation; absent requests must verify under the current key. The Workspace
+`recover_preparation` operation exposes this read without preparing a replacement.
 `UnifiedBehavior.Requester` binds one query principal/source and admits one active
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.
 
-`TableQuery` executes [general typed Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
-through the catalog's signed connection, without a separately configured source
-or requester per Table. It owns a leased snapshot, typed plan and bounded native
-entry cache. Pull scans acquire at most eight immutable row references together,
-prefetch their bounded blocks, and decode owned rows on demand.
-Stopping at LIMIT does not allocate the remaining row values. `next()` returns
-one owned logical row; `nextBatch(maximum)` returns up to eight owned rows and
-16 MiB of canonical cells. Current catalog and native authorization is checked
-after materializing each requested batch, including completion and empty output.
-Release the batch with `deinit`. Private lookahead carries no permission into
-the next call. Explicit
-request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
-foreign-language routes retain their separately admitted profiles.
+`DirectTableQuery.openRetained` executes the shared finite Fuze SELECT compiler
+over an existing signed direct Table pin. The caller supplies the explicit SQL
+source name and retains the pin separately; opening, closing and destruction
+never acquire, replace or release it. The source fingerprint binds its original
+schema, accepted/logical-change positions, row count and pin content. Each result
+batch rechecks current rights after computation, including LIMIT 0, aggregates
+and repeated completion. Returned result batches own at most eight rows and
+16 MiB of canonical cells. Request limits charge both the current-credential read
+and direct Table call; result row/byte budgets are separate from source pages
+and compute memory. Cancellation and read failures leave incomplete results.
+
+`DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
+schema-bound template without acquiring a pin. Its preparation fingerprint
+includes the complete connection, selected role, namespace, name and declaration.
+`DirectTableQuery.openPreparedRetained` binds typed parameters to a separately
+retained source, verifies the original interpretation and uses the same finite
+executor and disclosure checks. It charges the additional current-definition
+check to the request budget. A released pin fails; failed opening cannot replace
+it. Template destruction and local query cleanup do not release the durable pin.
+See the [Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
+for fresh execution, current policy and definition-change rules.
+
+This direct caller accepts the finite Transit SELECT profile over one explicit
+retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
+collations reject before execution because the shared logical evaluator does
+not yet apply them. Closing a computation leaves its source available for other
+queries until the pin owner explicitly releases it. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
+for pin acquisition, authority and recovery.
+
+`CapturedTablePin` supplies native-state retention for durable computations.
+It commits the original grant and a permanent pin-owner claim before permitting
+direct acquisition. An independently committed closing decision precedes remote
+release; unknown replies retain the same grant, owner and frontier for recovery.
+Worker generation changes do not authorize closure. Its
+[retention guide](docs/captured-retention.md) defines the commit boundaries and
+bounds. `UnifiedCapture` uses this owner for Table admission, traversal and closure;
+native KV/Document capture retains native read versions.
+
+`DirectRelationalCompilation` prepares the finite relational profile against
+current direct definitions. `DirectRelationalQuery.openPreparedRetained` receives
+the original pins and owns the cloned plan, bounded readers and private spill.
+`DirectRelationalCompilation.fromRetained` binds a new explicit interactive query
+to supplied saved Table bindings and their retained schemas. It checks source
+names, exact interpretations and current snapshot rights without resolving live
+names or acquiring pins. This permits original sources after ALTER, DROP and
+name reuse; a different saved interpretation is rejected even when its columns
+match. Opening from retained work validates those snapshots rather than requiring
+the original interpretation to remain the live definition. It does not restore
+the row cursor or completion evidence of a lost query.
+It uses `independent_table_snapshots`; aliases of one Table must share the same
+pin. Every cut explicitly distinguishes a native resource revision from a direct
+Table's branch/object/partition frontier. Neither form is inferred from a v1
+label. Stable row-identity pages support rewinds over the retained source without
+another pin or name lookup. Current rights for all inputs are rechecked together
+before row and completion disclosure. Cleanup closes local execution only;
+the caller remains responsible for durable pin release.
+
+`DirectTableAssistance` uses the same production parser and suggestion builders
+as Table completion, obtaining metadata through direct lookups and paged lists.
+It completes the statement at the cursor, reports complete or limited candidate
+coverage, and distinguishes unsupported syntax from a cursor inside quoted text.
+The shortlist holds eight candidates; source enumeration visits at most 128
+pages. Ranking retains the exact definition of each selected name, including
+names that replace earlier candidates in a full shortlist.
+In console mode a fully typed, unique keyword advances to the next grammar
+token within the same page budget. Partial words, identifiers, limited
+shortlists and SQL editor mode keep their replacement range.
+It rechecks all disclosed definitions and current rights together. Its contract
+fingerprint binds that metadata vector; it supplies no native resource revision
+or data snapshot. Installed launcher/SQL recovery qualification and durable
+computation-source migration remain separate integration work.
 
 Table scans own their bounded entry, index-node and block caches in heap storage.
 Moving a scan into its query owner transfers that storage; it does not copy bulk
@@ -90,25 +165,30 @@ and repeatable one-row interactive pages through the Station query ABI/port.
 See [interactive relational callers](docs/relational-callers.md) for full-width
 values, source evidence, retry, close and host-loss semantics.
 `RelationalCaller` owns the configured clients and session for the ABI and
-Board. Its authorized workspace description reports the active reference and
-ordinal without rerunning or advancing a query.
+Board. Its authorized description reports the active reference and ordinal
+without rerunning or advancing a query. `RelationalWorkspace` journals Board's
+original retention requests and exposes explicit cleanup after service loss;
+it never resumes the lost executor or selects replacement source cuts.
 
 `RelationalCapture` admits a frozen `RelationalBundle` through an authenticated
 Station call, retains every source cut and advances one bounded execution step
 per checkpoint. `RelationalState` stages immutable group records, outputs and
 checkpoints through Station Publication; their acceptance is atomic with input
 progress. `RelationalResult` verifies complete results through public native
-reads and current rights to every dependency. The coordinator shares the first
-Table owner's PID and resource. See the [captured relational guide](docs/relational-capture.md)
+reads and current rights to every dependency. The coordinator owns independent
+native progress; exact Table grants and durable pin records preserve source
+retention across replacement. See the [captured relational guide](docs/relational-capture.md)
 for policy, host recovery, memory, closure and collection requirements.
 
-`RelationalMaintenance` records every complete Table-history basis, stages its
-result and paired delta, and atomically publishes a complete revision. A failed
+`RelationalMaintenance` retains direct Table history independently of native
+query progress. It persists physical traversal between logical acceptances,
+records each selected complete source basis, stages its result and paired delta, and atomically publishes a complete revision. A failed
 successor preserves the preceding result. `RelationalRevision` verifies full
 results or exact predecessor deltas under the reading caller's current source
 rights, using a fresh proof bound to the complete result selection; its saved
 position advances only after complete delivery. The host explicitly activates
-and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
+and wakes this typed owner. Terminal cleanup closes the original history leases;
+completed result reads still check current source rights. See [maintained relations](docs/relational-maintenance.md)
 for scheduling, recomputation costs, quotas, resume and retirement.
 
 `RelationalExchange` records producer eligibility, copies accepted segments into
@@ -124,14 +204,15 @@ preserves the original destination, and records receiver acknowledgements throug
 own-resource control. Workers reopen the frozen Table-history vector with their
 own current grants; native retained pins remain scoped to their capturing PID.
 
-`TableSource` provides canonical schema-bound declarations and bounded owned pages
-over supplied captured/retained readers. It checks a separately authenticated
-principal's current database, schema and Table rights before and after each page, preserving the
-original schema/root through ALTER, DROP and name reuse. Complete composite-key
-equality uses the existing collision-safe index. Its
-[source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
+`TableSource` provides canonical declarations bound to the complete direct Table
+interpretation and bounded owned pages over existing direct pins. It checks a
+separately authenticated principal's current database, schema and Table rights
+before and after each page, preserving the original schema/root through ALTER,
+DROP and name reuse. Traversal resumes from a stable row identity and the recorded
+number of consumed rows. Its
+[source contract](../../../contracts/TABLE_QUERY_V1.md#captured-direct-table-reads)
 keeps retention, requester-policy mapping and durable result publication with the
-host. `UnifiedCapture` retains the head/schema cut and `UnifiedResult` checks
+host. `UnifiedCapture` records the complete direct source cut and `UnifiedResult` checks
 current rights before returning owned logical Arrow rows.
 `UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
 target constrains the authenticated requester's original principal, scope and
@@ -143,20 +224,17 @@ Recovery retains the original proof; credential rotation never silently resigns
 accepted work. Completed-result disclosure uses a fresh, separately bound caller
 proof and checks that reader's current source rights. Internal refresh
 continuations instead retain the Follow input's accepted subject.
-`UnifiedClient.authorizeBundle` seals a newly constructed Table
-bundle once; SQL compilation does this before returning saved bytes. The neutral
-`authorize` operation accepts unsigned bundle hex and returns `authorized` hex.
+`UnifiedClient.authorizeCapture` seals a newly constructed Table bundle once,
+using the explicit executor, pin-operation identity and expected Table frontier.
+SQL compilation returns an unsigned description. The neutral `authorize`
+operation accepts unsigned bundle hex plus those capture fields and returns
+`authorized` hex. Native progress revisions and direct Table cuts remain distinct.
 
-`CatalogQueryOwner` composes Table lifecycle and query dispatch. Its administrator
-installs requester admission constraints and computational limits without
-creating a worker or policy per Table. Native grants remain the authorization
-source. See [catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
-
-`TableAssistance` reads current catalog metadata, derives continuations from the
-same general Table parsers and checks the metadata/policy revision again before
-returning. It bounds source searches to 128 pages and eight suggestions while
-retaining only one page. The terminal reacquires suggestions before accepting
-an edit. Completion is read-only and does not prepare or dispatch SQL.
+`DirectTableAssistance` reads current authorized metadata through the direct
+catalog. It uses the production parsers, retains at most eight suggestions,
+and bounds name discovery to 128 pages. Before disclosure it checks every
+retained definition and its current visibility. Completion opens no snapshot
+and prepares no mutation.
 
 This package imports Station's, Catalog's and Document's public modules and has no kernel, storage or
 provider dependency. SQL compiles in Fuze. Interactive execution runs over a
@@ -165,15 +243,9 @@ hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
-`CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
-operations. Administrator initialization and conditional requester delegation
-are separate bounded commits. Query access requires the signed original subject
-and current Table rights; mutation permissions remain independent.
-See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
-
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::unified-query`; `just test::typed-tables` exercises general Table DDL/DML against native authority and disk-backed Ursula, including
-exact frozen recovery, writer fencing and current grants.
+is `just test::unified-query`; `just test::direct-table-service` exercises direct Table DDL/DML with native
+local storage, exact frozen recovery and current grants.
 [Tests](../../../tests/README.md) record evidence and interface limits.
 
 `Interactive.open/next/close` owns one finite statement over a fresh
@@ -196,26 +268,15 @@ The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
-The local server initializes the catalog and requester, installs query delegation,
+The local server initializes the direct catalog and requester, installs query delegation,
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.
 See the [local server guide](../../../apps/transit-cli/docs/server.md).
-`TableService` mediates Table metadata, finite queries and original
-operation recovery with a private scoped resource reader. Every request binds
-the original caller's current credential, selected role, connection and action.
-`MediatedTableClient.call` returns an owned response; release it with `deinit`.
-`MediatedTableBridge` shares the catalog caller/ABI lifecycle, keeping pending
-mutation bytes with the caller. The caller signs and explicitly submits native
-mutations. See the [service guide](../../../apps/transit-table-service/README.md)
-for configuration, limits, trust and recovery.
-Configured relational spill enables the same bounded joins and aggregates as
-`RelationalQuery`, with the original subject checked across every source.
-
-`TablePrepared.prepare` resolves an authorized catalog Table and owns SELECT
-parameter/result metadata. `TableQuery.openPrepared` opens a new cut and checks
-that immutable identity for every execution. `LogicalPrepared.instantiate`
-binds that new cut without rebinding a saved plan. See the
-[Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation).
+`DirectRelationalQuery` executes bounded relational reads over explicit direct
+Table captures, including independent source positions and current authorization
+for every source. The service does not sign native mutations on the caller's
+behalf. Catalog SDKs use the shared direct caller documented in
+[Catalog callers](../transit-station-bindings/docs/catalog.md).
 
 `SqlTemplate` owns a typed parameter template and commits to the full source
 definition, including resource, decoders, paths and accepted Document revision.
@@ -278,6 +339,11 @@ source bundles, including a 512-byte predicate and their Publication commitments
 policy, Document lifecycle, publication publisher and complete manifest. Pages
 validate nested Arrow and ordered row/byte/digest coverage, rechecking current
 access before return. `Cursor` is owned continuation state, never a bearer token.
+For a direct Table, `Open.table_basis` exposes the exact original interpretation,
+accepted position and retained source commitment verified against that manifest.
+Other source kinds return null. This evidence remains available after pin closure
+but grants no permission; opening it repeats current disclosure checks. It does
+not claim that the current Table has the same data.
 For Tables, `Expected.disclosure` is mandatory. `Expected.authorize` obtains a
 fresh proof bound to the complete result reference, expected route and cursor;
 `UnifiedClient.page` supplies it. `RelationalResult.open` takes an explicit
@@ -299,7 +365,6 @@ Test builds expose `testing.Store`, the existing private-turn reference model,
 for dependent-package composition tests. It tracks entry revisions and retained
 cuts so serving can exercise actual finite capture alongside watch acquisition.
 This is test-only simulated storage, not a durability or authorization proof.
-
 
 A requester-scoped principal needs an explicit optional association and an
 independent current read grant for the source resource. That resource access
@@ -357,9 +422,9 @@ expectations. The replacement becomes the zero-width cursor range. Partial
 words, interior cursors, identifiers and limited results retain their original
 range. The ordinary SQL editor mode continues to replace the current token.
 
-`TableAssistance` handles the catalog console's Table and relational SQL.
+`DirectTableAssistance` handles the catalog console's Table and relational SQL.
 Relational completion discovers up to two declared aliases, reads their current
-authorized schemas, and rechecks the catalog revision/policy before disclosure.
+authorized schemas, and rechecks each displayed definition and current policy before disclosure.
 It qualifies shared column names, limits suggestions to the admitted int64
 profile, and suppresses predicate operators for unknown or ambiguous names.
 Partial projection discovery supplies editor metadata only; it does not establish
@@ -420,7 +485,11 @@ Native source hosts use separate 1 MiB source/plan decoding and 4 MiB logical
 Arrow workspaces. Exhausting either explicit buffer closes that query with
 `adapter_memory_budget` or `arrow_workspace_budget`, retaining its identity and
 releasing its captured source pin. Host/storage allocation failures keep their
-original infrastructure meaning. No required-byte measurement is invented.
+original infrastructure meaning. Direct Table HTTP allocations use the client's
+allocator; their failure leaves the query attempt retryable with unchanged
+durable progress. Only a failed allocation from the explicit adapter buffer
+establishes `adapter_memory_budget`; a declined in-place growth probe does not.
+No required-byte measurement is invented.
 Table persistence limits and query transport working sets are independent.
 
 The shared settings adapters use `SettingsSql` for classification and Fuze

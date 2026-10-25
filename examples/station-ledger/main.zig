@@ -72,8 +72,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var application: handler.Application = .{ .allocator = init.gpa, .resources = resources, .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry, .source_resource = config.source_resource, .peer_resource = config.peer_resource, .peer_principal = config.peer_principal };
     if (config.authorization) |authorization| {
         if (authorization.role == 0 or authorization.role > wire.protocol.max_counter) return error.InvalidApplicationAuthorization;
-        try authorization.profile.validate();
-        application.authority = .{ .profile = authorization.profile, .client = .{ .transport = &client, .realm = config.realm, .principal = config.principal, .role = authorization.role, .key = key } };
+        try authorization.data.validate();
+        if (authorization.data.scope.realm != config.realm or
+            (config.role == .ledger and authorization.data.executor != config.principal)) return error.InvalidLedgerDataBinding;
+        application.authority = .{ .data = authorization.data, .client = .{ .transport = &client, .realm = config.realm, .principal = config.principal, .role = authorization.role, .key = key } };
     } else if (config.role != .coordinator) return error.MissingApplicationAuthorization;
     defer if (application.authority) |*authority| std.crypto.secureZero(u8, std.mem.asBytes(&authority.client.key));
     const enabled = config.role == .ledger and config.destination != null;
@@ -86,31 +88,11 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (true) {
         const proposed_deadline: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30_000);
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {
-            error.CatalogRegistrationRequired => {
-                const action = application.registration orelse return err;
-                if (action != .register_object or behavior.pending != null) return err;
-                if (behavior.ready != null) try behavior.discard();
-                const registrar = (application.authority orelse return error.MissingApplicationAuthorization).client;
-                // Registration's native binding ledger retains its original
-                // action and in-flight sequence. A transient observation or
-                // lost submission reply must not terminate the worker.
-                const next = registrar.registration(action.register_object) catch |failure| {
-                    if (!wire.Client.unavailable(failure) and !client.contended(failure)) return failure;
-                    diagnostics.event(.{ .name = "station.retry", .level = .warn, .outcome = .failed, .error_type = @errorName(failure) });
-                    try init.io.sleep(.fromMilliseconds(100), .awake);
-                    continue;
-                };
-                if (next == .submit) _ = client.submit(next.submit) catch |failure| {
-                    if (!wire.Client.unavailable(failure) and failure != error.Conflict) return failure;
-                    diagnostics.event(.{ .name = "station.retry", .level = .warn, .outcome = .uncertain, .error_type = @errorName(failure) });
-                    try init.io.sleep(.fromMilliseconds(100), .awake);
-                    continue;
-                };
-                continue;
-            },
-            error.AccessDenied, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
+            error.InvalidLedgerDataBinding, error.LedgerDataBindingChanged, error.MissingLedgerDataBinding, error.IncompatibleDefinition, error.AccessDenied, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
             else => {
-                if (behavior.pending == null and (err == error.Rejected or err == error.Conflict)) {
+                if (client.contended(err)) {
+                    if (behavior.pending == null and behavior.ready != null) try behavior.discard();
+                } else if (behavior.pending == null and (err == error.Rejected or err == error.Conflict)) {
                     if (client.last_rejection != .StaleStateResource and client.last_rejection != .QueryExpired and client.last_rejection != .StateViewExpired) return err;
                     if (client.last_rejection == .StateViewExpired) behavior.view_id = null;
                     if (behavior.ready != null) try behavior.discard();

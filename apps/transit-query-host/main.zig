@@ -19,10 +19,10 @@ const Config = struct {
     interval_ms: u32 = 10,
     idle_max_interval_ms: u32 = 0,
     request_timeout_ms: u32 = 5000,
+    tables: ?q.UnifiedBehavior.TableEndpoint = null,
     role: union(enum) {
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
-        catalog: catalog.TableCatalogRecords.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: []const u64 = &.{}, all_destinations: bool = false },
     },
@@ -41,10 +41,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     var config = parsed.value;
     if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.idle_max_interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
-    if (config.role == .catalog) {
-        try config.role.catalog.validate();
-        if (config.role.catalog.scope.realm != config.realm or config.role.catalog.owner != config.pid) return error.CatalogOwnerChanged;
-    }
     var key = if (bootstrap) key: {
         if (config.seed_file != null or config.role == .courier) return error.InvalidBootstrapConfiguration;
         var seed: [32]u8 = undefined;
@@ -56,6 +52,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     wire.timeout_ms = config.request_timeout_ms;
+    var table_wire: ?q.wire.Client = if (config.tables) |tables| q.wire.Client.init(init.gpa, init.io, tables.url) else null;
+    defer if (table_wire) |*client| client.deinit();
+    const direct_tables: ?catalog.DirectTableClient = if (config.tables) |tables| table: {
+        if (tables.scope.realm != config.realm or config.role != .unified_source) return error.InvalidConfiguration;
+        table_wire.?.timeout_ms = config.request_timeout_ms;
+        const connection: catalog.DirectTableProtocol.Connection = .{ .scope = tables.scope, .branch = tables.branch, .audience = tables.audience, .principal = config.principal, .role = null };
+        try connection.validate();
+        break :table .{ .allocator = init.gpa, .authority = &wire, .service = &table_wire.?, .connection = connection, .key = key };
+    } else null;
     wire.observer = diagnostics;
     if (config.role == .courier) return courier(init, &wire, config, key);
     if (config.pid == 0 or config.generation == 0) return error.MissingActivation;
@@ -83,7 +88,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
     server.failure_policy = .stop;
-    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source or config.role == .catalog) q.UnifiedBehavior.adapter_bytes else 0);
+    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source) q.UnifiedBehavior.adapter_bytes else 0);
     defer init.gpa.free(adapter);
     var unified_source: q.UnifiedBehavior.Source = .{
         .peer = switch (config.role) {
@@ -95,17 +100,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             else => 0,
         },
         .resources = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key },
+        .tables = direct_tables,
         .adapter = adapter,
         .workspace = workspace,
         .cancellation = &cancellation,
     };
-    var declarations: q.CatalogQueryOwner = .{ .tables = .{ .allocator = init.gpa, .configuration = if (config.role == .catalog) config.role.catalog else undefined }, .resources = unified_source.resources, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
-        .catalog => blk: {
-            server.input_guard = declarations.guard();
-            break :blk declarations.interface();
-        },
         .finite_service => blk: {
             server.input_guard = finite.guard();
             break :blk finite.interface();
@@ -123,25 +124,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         defer wire.parent_context = null;
         const step = server.step(handler, now + 30000) catch |err| {
             observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (server.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (err == error.CatalogRegistrationRequired and config.role == .catalog and server.pending == null) {
-                const action = declarations.tables.registration orelse return err;
-                if (action != .register_object) return error.InvalidAuthorizationObject;
-                const registrar: q.wire.AuthorizationClient = .{ .transport = &wire, .realm = config.realm, .principal = config.principal, .key = key };
-                // The private Table turn was discarded. Register one native
-                // step, then reacquire the delivery's current sequence. The
-                // binding ledger reconstructs an identical in-flight retry.
-                const registration = registrar.registration(action.register_object) catch |failure| {
-                    if (!q.wire.Client.unavailable(failure) and !wire.contended(failure)) return failure;
-                    try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
-                    continue;
-                };
-                if (registration == .submit) _ = wire.submit(registration.submit) catch |failure| {
-                    if (!q.wire.Client.unavailable(failure) and failure != error.Conflict) return failure;
-                    try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
-                    continue;
-                };
-                continue;
-            }
             // An ambiguous mutation retains exact bytes in server.pending. Never
             // discard/recompute it under this activation. A restarted OS worker
             // requires fresh fenced ownership, even if it exited while idle.
@@ -186,27 +168,54 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
     var after: ?u64 = null;
     var pending: ?g.SignedRequest = null;
     var idle_ms = config.interval_ms;
+    var retry_ms = config.interval_ms;
     while (true) {
         if (pending) |signed| {
             _ = wire.submit(signed) catch |err| {
                 if (err == error.AccessDenied or err == error.Rejected or (err == error.Conflict and !wire.contended(err))) return err;
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             };
             after = signed.request.command.deliver;
             pending = null;
             idle_ms = config.interval_ms;
+            retry_ms = config.interval_ms;
             continue;
         }
-        const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
+        const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key) catch |err| {
             if (!q.wire.Client.unavailable(err) and !wire.contended(err)) return err;
-            try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+            try courierBackoff(init.io, &retry_ms, config.interval_ms);
             continue;
         };
+        // The pending index avoids walking retained, resolved history after a
+        // restart. A courier authorized for every visible destination can use
+        // that observation directly; filtered couriers still inspect destinations.
+        if (basis.body.delivery.next) |next| {
+            if (all) {
+                pending = try g.sign(.{ .realm = config.realm, .principal = config.principal, .sequence = basis.principal_sequence + 1, .command = .{ .deliver = next } }, key);
+                continue;
+            }
+            if (after == null or after.? < next) after = if (next == 1) null else next - 1;
+        } else {
+            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key, .{
+                .after = basis.position,
+                .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
+            }) catch |err| {
+                if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
+                continue;
+            };
+            idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
+            retry_ms = config.interval_ms;
+            continue;
+        }
         const page = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
-            if (err == error.Conflict and wire.last_rejection == .QueryExpired) continue;
+            if (err == error.Conflict and wire.last_rejection == .QueryExpired) {
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
+                continue;
+            }
             if (q.wire.Client.unavailable(err) or wire.contended(err)) {
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             }
             return err;
@@ -219,15 +228,24 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             after = output.id;
         };
         if (pending == null and page.body.outputs.next == null) {
-            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{} } }, key, .{
+            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key, .{
                 .after = page.position,
                 .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
             }) catch |err| {
                 if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             };
             idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
         } else idle_ms = config.interval_ms;
+        retry_ms = config.interval_ms;
     }
+}
+
+/// Retry the same pending delivery, or repeat a current read, at a bounded
+/// rate. Successful work resets this delay; capacity refusal cannot create a
+/// tight loop that competes with the destination's execution requests.
+fn courierBackoff(io: std.Io, interval: *u32, base: u32) !void {
+    try io.sleep(.fromMilliseconds(interval.*), .awake);
+    interval.* = @min(@max(base, 1000), interval.* * 2);
 }

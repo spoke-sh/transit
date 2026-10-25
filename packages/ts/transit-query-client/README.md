@@ -29,6 +29,35 @@ contain the finite identifier so a caller chooses explicitly when to display
 detailed names or values. `DraftSnapshot.diagnostic` retains the failed attempt
 or saved outcome and clears on a new state transition.
 
+`RefreshPreparation` prepares one to eight independent finite Table captures from
+a completed template before Follow opens. Each slot retains a distinct namespace,
+operation identity and signed bundle. Preparation stops at the requester's
+`prepared` phase; it does not execute a query. An uncertain submission retains the
+exact native token and caller lease; an accepted pending input is observed without
+another submission. Changed caller scope or a different unfinished plan rejects.
+Keep this owner above route lifetimes. Save `exportRecovery()` before leaving
+and import it into a fresh owner with `restoreRecovery(bytes)`. The application
+owns persistence. Import performs no I/O; an explicit `prepare` resumes the
+original tokens and rechecks saved readiness through the host. Malformed, oversized
+or differently scoped recovery data cannot dispatch work. Recovery files contain
+signed requests and bundles, not private keys or verified result rows. Prepared
+native requests remain durable and do not expire implicitly. A synchronous
+persistence callback saves allocated identities, compiled grants, pending tokens
+and observed progress before a mutation can dispatch. After import,
+`recover_preparation` locates the exact token's actual native receipt under
+current requester rights; a changed saved input rejects before observation.
+Board composes this recovery with its session and Follow intent in tab-local
+storage and requires explicit resume after reload.
+
+`prepareCapture(transport, compiled, operation, signal)` explicitly authorizes a
+new finite Table query before its first upload. The host uses its configured
+executor principal and the caller's current source rights. Returned source, plan
+and budget metadata must match the unsigned compilation. Save the returned signed
+bundle; recovery sends those bytes and never invokes capture again. Native
+KV/Document compilations pass through unchanged. `DraftSession` uses this step
+once per selected edit; coalesced edits and restored uploads cannot replace an
+accepted capture.
+
 `{ inspect: { sql } }` reads scoped `DESCRIBE`, `SHOW TABLES` or `EXPLAIN SELECT`
 metadata through the same transport. Its `inspection` response remains separate
 from compiled bundles and Arrow results. Validation checks full-width revisions,

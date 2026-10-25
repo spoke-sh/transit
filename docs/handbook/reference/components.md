@@ -51,7 +51,8 @@ the implementations listed below remain shared runtime libraries.
 | [transit-core](../../../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-client](../../../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
 | [transit-backend-ursula](../../../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion, `UrsulaWal` partition streams | transit-core, transit-observability, transit-storage, upstream ursula-zig |
-| [transit-storage](../../../packages/zig/transit-storage/README.md) / `transit_storage` | `TransitLog` (`LocalWal`), `TransitObjectStore` (`LocalSegmentStore`, `S3ObjectStore`), Tier 0 `TableMemtable`, Tier 2 `NvmeCache`, `TableManifest`, and multi-writer OCC coordinator | transit-fuze |
+| [transit-backend-local](../../../packages/zig/transit-backend-local/README.md) / `transit_backend_local` | Native authority WAL publication, immutable pages/blocks, direct data quota/epoch adapter, current authority fence and bounded caches | transit-core, transit-storage, transit-observability; transit-fuze for composition tests |
+| [transit-storage](../../../packages/zig/transit-storage/README.md) / `transit_storage` | `TransitLog`, `TransitObjectStore`, immutable data indexes, single-owner `TablePartition` acceptance/read pins, `TableMemtable`, `NvmeCache`, manifest/OCC components | transit-protocol, transit-core generic pages, transit-fuze |
 | [transit-board-api](../../../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol, transit-station (framework metadata), transit-query, transit-exchange, transit-station-http/grpc/document (allowlisted metadata) |
 | [transit-board-client](../../../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../../../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
@@ -78,7 +79,6 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-host](../../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../../../apps/transit-query-host/README.md) | Runnable source/requester workers and scoped courier |
-| [transit-table-service](../../../apps/transit-table-service/README.md) | Signed original-subject Table mediation with private storage credentials |
 | [transit-cli](../../../apps/transit-cli/README.md) (`transit`) | Local server lifecycle and shared local/remote SQL sessions |
 | [transit-board](../../../apps/transit-board/README.md) | Inspection API plus optional query capability with embedded [TanStack Router frontend](../../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |

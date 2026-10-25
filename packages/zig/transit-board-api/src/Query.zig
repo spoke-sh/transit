@@ -8,7 +8,7 @@ pub const Detail = union(enum) {
         result: u64,
         destination: u64,
         correlation: u64,
-        source: p.Growth.ReadVersionId,
+        source: current.UnifiedRecords.Retention,
         request_resource: u64,
         request_namespace: []const u8,
         phase: current.UnifiedRecords.Phase,
@@ -39,7 +39,7 @@ pub fn decode(allocator: std.mem.Allocator, writer: u64, resource: u64, key: p.V
         switch (key.data[2]) {
             'j' => {
                 const job = current.UnifiedRecords.Job.decode(value) catch return null;
-                if (job.id != identity or job.source.pid != writer) return null;
+                if (job.id != identity or job.source.worker() != writer) return null;
                 return .{ .execution = .{ .result = job.id, .destination = job.destination, .correlation = job.correlation, .source = job.source, .request_resource = job.request.resource, .request_namespace = try decimal(allocator, job.request.namespace), .phase = job.phase, .failure = if (job.failure) |failure| try current.Bridge.Failure.fromNative(allocator, failure) else null, .policy_revision = job.policy_revision } };
             },
             'u' => {
@@ -59,11 +59,18 @@ test "current query evidence requires exact key and resource identity without ex
     defer arena.deinit();
     const alloc = arena.allocator();
     const reference: current.station.PublicationReference = .{ .domain = .query_request, .resource = 7, .namespace = 9, .record = 1, .spec = .{ .format = current.Bundle.format, .length = current.Bundle.header_bytes, .digest = @splat(1) } };
-    const job: current.UnifiedRecords.Job = .{ .id = 5, .source = .{ .pid = 2, .input = 5, .index = 0 }, .destination = 8, .correlation = 9, .policy_revision = 1, .request = reference, .continuation = 1 };
+    const job: current.UnifiedRecords.Job = .{ .id = 5, .source = .{ .native = .{ .pid = 2, .input = 5, .index = 0 } }, .destination = 8, .correlation = 9, .policy_revision = 1, .request = reference, .continuation = 1 };
     const key = current.UnifiedRecords.key('j', 5, 0);
     const evidence = (try decode(alloc, 2, 6, key, try job.encode())).?.execution;
     try t.expectEqual(job.phase, evidence.phase);
     try t.expectEqualStrings("9", evidence.request_namespace);
+    var direct = job;
+    direct.source = .{ .table = .{ .worker = 2 } };
+    direct.phase = .admitted;
+    const admitted = (try decode(alloc, 2, 6, key, try direct.encode())).?.execution;
+    try t.expectEqualDeep(direct.source, admitted.source);
+    try t.expectEqual(.admitted, admitted.phase);
+    try t.expect(try decode(alloc, 3, 6, key, try direct.encode()) == null);
     var failed = job;
     failed.phase = .failed;
     failed.failure = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .pages, .limit = 1, .observed = 2 };

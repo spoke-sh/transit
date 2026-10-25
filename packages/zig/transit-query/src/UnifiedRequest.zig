@@ -5,15 +5,38 @@ const q = @import("root.zig");
 const p = q.protocol;
 const Ref = q.station.PublicationReference;
 pub const part_bytes = q.station.PublicationParts.part_bytes;
+pub const Cleanup = struct {
+    namespace: u64,
+    authorization: ?q.catalog.DirectReadDelegation.Closure = null,
+    pub fn write(self: Cleanup, writer: *std.Io.Writer) !void {
+        if (self.namespace == 0) return error.InvalidQueryUpload;
+        try writer.writeInt(u64, self.namespace, .little);
+        try writer.writeByte(@intFromBool(self.authorization != null));
+        if (self.authorization) |authorization| try writer.writeAll(&try authorization.encode());
+    }
+    pub fn read(reader: *std.Io.Reader) !Cleanup {
+        const namespace = try reader.takeInt(u64, .little);
+        const authorization = switch (try reader.takeByte()) {
+            0 => null,
+            1 => try q.catalog.DirectReadDelegation.Closure.decode(try reader.take(q.catalog.DirectReadDelegation.Closure.encoded_bytes)),
+            else => return error.InvalidQueryUpload,
+        };
+        if (namespace == 0) return error.InvalidQueryUpload;
+        return .{ .namespace = namespace, .authorization = authorization };
+    }
+};
 pub const Command = union(enum) {
     initialize,
     begin: Ref,
     part: struct { namespace: u64, ordinal: u32, second: bool, bytes: []const u8 },
     seal: u64,
+    prepare: u64,
+    activate: u64,
     submit: u64,
     cancel: u64,
     collect: u64,
     retire: u64,
+    retry_cleanup: Cleanup,
     draft_open: q.Draft.Open,
     draft_close: u64,
     draft_submit: q.Draft.Selection,
@@ -25,10 +48,13 @@ pub const Command = union(enum) {
             .begin => "UQB1",
             .part => "UQP1",
             .seal => "UQS1",
+            .prepare => "UQT1",
+            .activate => "UQA1",
             .submit => "UQX1",
             .cancel => "UQK1",
             .collect => "UQG1",
             .retire => "UQR1",
+            .retry_cleanup => "UQL1",
             .draft_open => "UQD1",
             .draft_close => "UQH1",
             .draft_submit => "UQE1",
@@ -52,7 +78,8 @@ pub const Command = union(enum) {
                 try writer.writeInt(u64, value.generation, .little);
                 try writer.writeInt(u64, value.namespace, .little);
             },
-            .seal, .submit, .cancel, .collect, .retire, .draft_close => |namespace| {
+            .retry_cleanup => |value| try value.write(&writer),
+            .seal, .prepare, .activate, .submit, .cancel, .collect, .retire, .draft_close => |namespace| {
                 if (namespace == 0) return error.InvalidQueryUpload;
                 try writer.writeInt(u64, namespace, .little);
             },
@@ -71,12 +98,12 @@ pub const Command = union(enum) {
             const second = try reader.takeByte();
             if (second > 1) return error.InvalidQueryUpload;
             break :blk .{ .part = .{ .namespace = namespace, .ordinal = ordinal, .second = second == 1, .bytes = try reader.take(reader.bufferedLen()) } };
-        } else if (std.mem.eql(u8, tag, "UQS1")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQX1")) .{ .submit = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQK1")) .{ .cancel = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQG1")) .{ .collect = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQR1")) .{ .retire = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQD1")) .{ .draft_open = try q.Draft.Open.read(&reader) } else if (std.mem.eql(u8, tag, "UQH1")) .{ .draft_close = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQE1")) .{ .draft_submit = .{ .generation = try reader.takeInt(u64, .little), .namespace = try reader.takeInt(u64, .little) } } else return error.InvalidQueryUpload;
+        } else if (std.mem.eql(u8, tag, "UQS1")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQT1")) .{ .prepare = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQA1")) .{ .activate = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQX1")) .{ .submit = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQK1")) .{ .cancel = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQG1")) .{ .collect = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQR1")) .{ .retire = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQL1")) .{ .retry_cleanup = try Cleanup.read(&reader) } else if (std.mem.eql(u8, tag, "UQD1")) .{ .draft_open = try q.Draft.Open.read(&reader) } else if (std.mem.eql(u8, tag, "UQH1")) .{ .draft_close = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQE1")) .{ .draft_submit = .{ .generation = try reader.takeInt(u64, .little), .namespace = try reader.takeInt(u64, .little) } } else return error.InvalidQueryUpload;
         if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value.*)) return error.InvalidQueryUpload;
         return result;
     }
 };
-pub const Phase = enum(u8) { uploading = 1, sealed = 2, admitted = 3, complete = 4, cancelled = 5, denied = 6, rejected = 7, retired = 8 };
+pub const Phase = enum(u8) { uploading = 1, sealed = 2, admitted = 3, complete = 4, cancelled = 5, denied = 6, rejected = 7, retired = 8, prepared = 9 };
 pub const Status = struct {
     reference: Ref,
     phase: Phase = .uploading,
@@ -86,7 +113,7 @@ pub const Status = struct {
     failure: ?q.QueryFailure = null,
     pub fn encode(self: Status) !p.Value {
         try q.Bundle.checkReference(self.reference);
-        if (self.correlation > p.max_counter or (self.phase == .uploading or self.phase == .sealed) and self.correlation != 0) return error.InvalidQueryUpload;
+        if (self.correlation > p.max_counter or (self.phase == .uploading or self.phase == .sealed or self.phase == .prepared) and self.correlation != 0) return error.InvalidQueryUpload;
         if ((self.phase == .admitted or self.phase == .complete or self.phase == .denied or self.phase == .rejected) and self.correlation == 0) return error.InvalidQueryUpload;
         if (self.phase == .complete and self.manifest == null) return error.InvalidQueryUpload;
         if (self.manifest) |reference| {

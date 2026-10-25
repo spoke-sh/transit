@@ -46,13 +46,15 @@ pub const Batch = struct {
 /// Decoder sources have no Table head. Table capture must resolve its exact head.
 pub fn basis(definition: Def, revision: u64) !q.Basis {
     if (definition.source == .table) return error.TableBasisRequired;
-    return q.Basis.from(definition, .{ .kind = std.meta.activeTag(definition.source), .resource = definition.resource, .revision = revision });
+    return q.Basis.from(definition, try q.Basis.Cut.native(std.meta.activeTag(definition.source), definition.resource, revision));
 }
 pub fn capture(definition: Def, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator) !q.Basis {
     return captureDiagnostic(definition, data, current, principal, allocator, null);
 }
 pub fn captureDiagnostic(definition: Def, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator, diagnostic: ?*?q.SourceWitness) !q.Basis {
-    if (definition.source == .table) return (try definition.source.table.captureDiagnostic(allocator, data, current, principal orelse return error.QueryDenied, diagnostic)).record();
+    _ = allocator;
+    _ = diagnostic;
+    if (definition.source == .table) return error.TableBasisRequired;
     try checkCurrent(definition, current, principal);
     if (data.view.resource != definition.resource) return error.SourceChanged;
     return basis(definition, data.view.revision);
@@ -63,6 +65,7 @@ pub fn checkCurrent(definition: Def, current: anytype, principal: ?u64) !void {
     return checkCurrentDiagnostic(definition, current, principal, null);
 }
 pub fn checkCurrentDiagnostic(definition: Def, current: anytype, principal: ?u64, diagnostic: ?*?q.SourceWitness) !void {
+    _ = principal;
     if (diagnostic) |detail| detail.* = null;
     if (current.view.resource != definition.resource) {
         if (diagnostic) |detail| detail.* = .{ .reason = .resource, .resource = definition.resource, .expected = definition.resource, .actual = current.view.resource };
@@ -70,9 +73,7 @@ pub fn checkCurrentDiagnostic(definition: Def, current: anytype, principal: ?u64
     }
     switch (definition.source) {
         .kv => {},
-        .table => |table| {
-            _ = try table.checkCurrent(current, principal orelse return error.QueryDenied);
-        },
+        .table => return error.TableBasisRequired,
         .document => |document| {
             const service = try document.reference.identity().service();
             try checkReference(document.reference, try service.open(current, document.reference.revision));
@@ -85,9 +86,9 @@ fn logicalCell(expected: m.Type, value: m.Cell, allocator: std.mem.Allocator) !t
 /// Call deinit on successful output. Other slices borrow the caller's bounded
 /// request arena; any error invalidates the whole page.
 pub fn page(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, cursor: Cursor, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator, output: *Batch) !void {
-    if (definition.source == .table) return tablePage(definition, plan, expected, cursor, data, current, principal orelse return error.QueryDenied, allocator, output);
+    if (definition.source == .table) return error.TableBasisRequired;
     if (cursor.done) return error.QueryComplete;
-    if (data.view.resource != definition.resource or data.view.revision != expected.cut.revision or !std.meta.eql(expected, try q.Basis.from(definition, expected.cut))) return error.SourceChanged;
+    if (data.view.resource != definition.resource or data.view.revision != try expected.cut.nativeRevision() or !std.meta.eql(expected, try q.Basis.from(definition, expected.cut))) return error.SourceChanged;
     try checkCurrent(definition, current, principal);
     const binding = try expected.fingerprint();
     if (!std.mem.eql(u8, &binding, &plan.source_basis)) return error.SourceChanged;
@@ -162,14 +163,14 @@ pub fn page(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, curso
     }
     try checkCurrent(definition, current, principal);
 }
-/// Table callers decorate both readers with original-subject authority. Keep
-/// this typed path separate from Document's exact current-reader requirement.
-pub fn tablePage(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, cursor: Cursor, data: anytype, current: anytype, principal: u64, allocator: std.mem.Allocator, output: *Batch) !void {
+/// Direct pages use the separately retained source proof and direct owner. The
+/// enclosing computation attaches its native publication guard independently.
+pub fn tablePage(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, retained: q.catalog.DirectTableReader.Basis, cursor: Cursor, client: q.catalog.DirectTableClient, allocator: std.mem.Allocator, output: *Batch) !void {
     if (definition.source != .table) return error.InvalidQuerySource;
     if (cursor.done) return error.QueryComplete;
-    if (data.view.resource != definition.resource or data.view.revision != expected.cut.revision or !std.meta.eql(expected, try q.Basis.from(definition, expected.cut))) return error.SourceChanged;
     const table = definition.source.table;
-    _ = try table.checkCurrent(current, principal);
+    const captured: q.TableSource.Basis = .{ .declaration = try table.fingerprint(), .schema = try table.row_type.fingerprint(), .retained = retained };
+    if (!std.meta.eql(try captured.record(), expected)) return error.SourceChanged;
     const binding = try expected.fingerprint();
     if (!std.mem.eql(u8, &binding, &plan.source_basis)) return error.SourceChanged;
     output.* = .{ .basis = expected, .binding = binding, .ordinal = cursor.ordinal, .next = cursor };
@@ -178,15 +179,13 @@ pub fn tablePage(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, 
     output.column_count = @intCast(schema.structure.len);
     @memcpy(output.columns[0..output.column_count], schema.structure);
     output.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);
-    const captured = try table.restore(allocator, data, current, principal, expected);
-    output.table = try table.page(allocator, captured, .{ .binding = binding, .ordinal = cursor.ordinal, .scanned = cursor.table_scanned, .after = cursor.table_after, .done = cursor.done }, plan, data, current, principal);
+    output.table = try table.page(allocator, captured, .{ .binding = binding, .ordinal = cursor.ordinal, .scanned = cursor.table_scanned, .after = cursor.table_after, .done = cursor.done }, plan, client);
     const rows = &output.table.?;
     output.count = rows.count;
     output.next.table_after = rows.next.after;
     output.next.table_scanned = rows.next.scanned;
     output.next.done = rows.next.done;
     for (rows.owned[0..rows.count], 0..) |row, index| output.keys[index] = .{ .table = row.?.identity };
-    _ = try table.checkCurrent(current, principal);
 }
 fn checkReference(reference: doc.Client.Reference, state: doc.Document) !void {
     if (state.document != reference.document or state.epoch != reference.epoch or state.type_revision != reference.type_revision or state.revision != reference.revision) return error.DocumentIdentityMismatch;

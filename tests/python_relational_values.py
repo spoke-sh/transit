@@ -11,6 +11,8 @@ from transit_client._worker import Worker
 from transit_client.errors import Busy, Closed, IncompatibleNative
 from transit_station import relational as r
 from transit_station.catalog_values import DEFINITION
+from transit_station import catalog_values as v
+from transit_client import ResourceRef
 
 REF = dict(definition=DEFINITION, id='01'*16, plan='02'*32, basis='03'*32)
 PAGE = dict(reference=REF, ordinal=str((1 << 64)-1), row=dict(identity=dict(group=[None, str(-(1 << 63))]), cells=[dict(value=dict(atom=dict(signed=str(-(1 << 63))))), dict(value=dict(atom=dict(unsigned=str((1 << 64)-1)))), {'null': {}}]), complete_coverage=False)
@@ -46,13 +48,43 @@ class Values(unittest.TestCase):
             with self.assertRaises(IncompatibleNative): r._decode(r._page, bad, r.Reference(**REF), (1 << 64)-1)
 
     def test_options_and_routes_are_exact(self):
-        options = r.Options('per_resource_snapshot_vector', 16777216, (1 << 64)-1, 1, 1, 1, 2, 1, 1, Path('/tmp'))
+        options = r.Options('independent_table_snapshots', 16777216, (1 << 64)-1, 1, 1, 1, 2, 1, 1, Path('/tmp'))
         self.assertEqual(options._wire()['spill_bytes'], str((1 << 64)-1))
         routes = [0, 1]
         statement = r.Statement('SELECT COUNT(*) FROM l JOIN r ON l.k=r.k', routes)
         routes.clear()
         self.assertEqual(statement.routes, (0, 1))
         with self.assertRaises(ValueError): r.Statement('SELECT k FROM t', (True,))
+
+    def test_retained_sources_preserve_complete_bindings_and_wide_cuts(self):
+        wide = (1 << 64)-1
+        connection = v.Connection(v.Scope(ResourceRef(42, 3), wide), 5)
+        obj = dict(scope=connection.scope._wire(), branch='1', object=str(wide-1))
+        interpretation = dict(object=obj, revision=str(wide), digest='ab'*32)
+        stored = dict(interpretation=interpretation, content=dict(bytes='100', sha256='ab'*32), schema_fingerprint='cd'*32, retired=False)
+        binding = dict(definition=DEFINITION, connection=connection._wire(7), namespace=1, name='items', interpretation=stored)
+        owner = dict(definition=DEFINITION, connection=connection._wire(7), object=obj, operation=str(wide))
+        snapshot = v.Snapshot.restore(json.dumps(dict(owner=owner, content=dict(bytes='200', sha256='ef'*32))))
+        original = r.RetainedSource(v.Basis.restore(json.dumps(binding)), snapshot)
+        position = dict(partition=str(wide), next_lsn=str(wide))
+        description = dict(definition=DEFINITION, plan=REF['plan'], sources=[dict(alias='i', binding=binding, position=position)],
+                           columns=[dict(name='id', type={'int64': {}}, nullable=False, optional=False)], join=None, grouped=False, executed=False)
+        opened = dict(reference=REF, description=description, cuts=[dict(object=obj, position=position, commitment='aa'*32, schema='cd'*32)], complete_coverage=False)
+        result = r._decode(r._opened, copy.deepcopy(opened), REF['id'], (original,))
+        self.assertEqual(result.cuts[0].position.next_lsn, wide)
+        self.assertEqual(result.description.sources[0].basis.object_id, wide-1)
+        for mutation in ('binding', 'cut', 'schema', 'definition', 'numeric_position', 'position'):
+            bad = copy.deepcopy(opened)
+            if mutation == 'binding': bad['description']['sources'][0]['binding']['name'] = 'other'
+            elif mutation == 'cut': bad['cuts'][0]['object'] = dict(obj, object='1')
+            elif mutation == 'schema': bad['cuts'][0]['schema'] = '00'*32
+            elif mutation == 'definition': del bad['description']['sources'][0]['binding']['definition']
+            elif mutation == 'numeric_position': bad['cuts'][0]['position'] = dict(position, next_lsn=wide)
+            elif mutation == 'position': bad['cuts'][0]['position'] = dict(position, next_lsn='1')
+            with self.subTest(mutation=mutation), self.assertRaises(IncompatibleNative):
+                r._decode(r._opened, bad, REF['id'], (original,))
+        changed = dict(binding, connection=dict(binding['connection'], principal=8))
+        with self.assertRaises(ValueError): r.RetainedSource(v.Basis.restore(json.dumps(changed)), snapshot)
 
 
 class AsyncOwnership(unittest.IsolatedAsyncioTestCase):

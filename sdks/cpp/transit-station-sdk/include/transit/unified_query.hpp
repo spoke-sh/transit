@@ -11,7 +11,14 @@ struct Column { std::string name; Type type; bool nullable = false, optional = f
 struct DecoderColumn { std::string name; DecoderType type; };
 struct Decoder { DecoderType type; uint8_t version = 1; };
 struct KvSource { ResourceRef resource; Bytes prefix; Decoder key, value; };
-struct TableSource { ProcessRef owner; catalog::Metadata metadata; catalog::Schema schema; };
+struct TableInterpretation { uint64_t revision; std::array<uint8_t,32> digest; uint64_t byte_count; std::array<uint8_t,32> schema_digest; };
+struct TableSource { catalog::Scope scope; uint64_t audience, branch, namespace_id; TableInterpretation interpretation; catalog::Schema schema; };
+struct Tables { std::string url; catalog::Scope scope; uint64_t branch, audience; };
+struct Capture { uint64_t executor, operation, partition, next_lsn; };
+struct TableDefinition {
+    TableSource source; uint64_t partition, next_lsn;
+    Capture capture(uint64_t executor,uint64_t operation) const { return {executor,operation,partition,next_lsn}; }
+};
 struct Projection {
     DecoderColumn column; std::vector<std::string> path;
     bool relative = false; ProjectionMode mode = ProjectionMode::Scalar;
@@ -42,7 +49,7 @@ struct SourceView {
     std::array<transit_station_unified_projection, 8> projections{};
     std::array<std::vector<const char *>, 8> paths;
     std::vector<const char *> expansion;
-    transit_station_catalog_metadata metadata{};transit_station_catalog_schema schema{};
+    transit_station_catalog_schema schema{};
     std::vector<transit_station_catalog_column> columns;
     SourceView(const SourceView &) = delete;
     explicit SourceView(const Source &source) {
@@ -52,15 +59,14 @@ struct SourceView {
                 value.kind = TRANSIT_UNIFIED_KV; value.resource = v.resource.native();
                 value.source.kv = {bytes_view(v.prefix), {v.key.version, static_cast<transit_station_unified_decoder_type>(v.key.type)}, {v.value.version, static_cast<transit_station_unified_decoder_type>(v.value.type)}};
             } else if constexpr (std::is_same_v<T, TableSource>) {
-                value.kind = TRANSIT_UNIFIED_TABLE; value.resource = v.metadata.scope.resource.native();
-                const auto &m=v.metadata;metadata.scope=catalog::detail::native(m.scope);metadata.namespace_id=m.namespace_id;metadata.object=m.object;metadata.revision=m.revision;
-                catalog::detail::text(m.name,metadata.name);std::copy(m.schema_fingerprint.begin(),m.schema_fingerprint.end(),metadata.schema_fingerprint);
-                metadata.principal=m.principal;metadata.operation=m.operation;metadata.admitted_input=m.admitted_input;metadata.commitment.bytes=m.commitment.bytes;
-                std::copy(m.commitment.digest.begin(),m.commitment.digest.end(),metadata.commitment.digest);
+                value.kind = TRANSIT_UNIFIED_TABLE; value.resource = v.scope.resource.native();
                 if(v.schema.columns.size()>128)throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-columns");
-                for(const auto &c:v.schema.columns)columns.push_back({c.id,catalog::detail::text(c.name),&c.type.native(),c.nullable,catalog::detail::cell(c.default_value),catalog::detail::characters(c.max_characters)});
+                for(const auto &c:v.schema.columns)columns.push_back({c.id,catalog::detail::text(c.name),&c.type.native(),c.nullable,catalog::detail::cell(c.default_value),catalog::detail::characters(c.max_characters),static_cast<uint32_t>(c.encoding),static_cast<uint32_t>(c.collation)});
                 schema={v.schema.object,v.schema.revision,v.schema.next_column,columns.data(),columns.size(),v.schema.primary_key.data(),v.schema.primary_key.size()};
-                value.source.table={v.owner.native(),&metadata,&schema};
+                auto &t=value.source.table;t.scope=catalog::detail::native(v.scope);t.audience=v.audience;t.branch=v.branch;t.namespace_id=v.namespace_id;t.schema=&schema;
+                t.interpretation.revision=v.interpretation.revision;t.interpretation.byte_count=v.interpretation.byte_count;
+                std::copy(v.interpretation.digest.begin(),v.interpretation.digest.end(),t.interpretation.digest);
+                std::copy(v.interpretation.schema_digest.begin(),v.interpretation.schema_digest.end(),t.interpretation.schema_digest);
             } else {
                 if (v.projections.size() > projections.size()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "query-projections");
                 value.kind = TRANSIT_UNIFIED_DOCUMENT; value.resource = v.reference.resource.native();
@@ -164,9 +170,20 @@ class Client {
 public:
     Client(Client &&) noexcept = default;
     Client &operator=(Client &&) noexcept = default;
-    static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection) {
+    static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection, const std::optional<Tables> &tables = {}) {
         const auto cfg = config.native(); const auto identity = credential.native(); transit_station_unified_client *out = nullptr;
-        check(transit_station_unified_open(&cfg, &identity, {connection.source.native(), connection.requester.native(), connection.resource.native(), connection.requests.native(), connection.role.has_value(), connection.role.value_or(0)}, &out)); return Client(out);
+        transit_station_unified_tables direct{};
+        if(tables){checked_string(tables->url);direct={tables->url.c_str(),catalog::detail::native(tables->scope),tables->branch,tables->audience};}
+        check(transit_station_unified_open(&cfg, &identity, {connection.source.native(), connection.requester.native(), connection.resource.native(), connection.requests.native(), connection.role.has_value(), connection.role.value_or(0)}, tables?&direct:nullptr, &out)); return Client(out);
+    }
+    std::optional<TableDefinition> lookup_table(uint64_t ns,const std::string &name) {
+        checked_string(name);transit_station_unified_table_definition *raw=nullptr;
+        check(transit_station_unified_lookup_table(value_.get(),ns,name.c_str(),&raw));if(!raw)return {};
+        std::unique_ptr<transit_station_unified_table_definition,decltype(&transit_station_unified_table_definition_destroy)> owner(raw,transit_station_unified_table_definition_destroy);
+        const transit_station_unified_table_definition_view *v=nullptr;check(transit_station_unified_table_definition_get(raw,&v));const auto &t=v->source.source.table;
+        TableInterpretation interpretation{t.interpretation.revision,{},t.interpretation.byte_count,{}};
+        std::copy_n(t.interpretation.digest,32,interpretation.digest.begin());std::copy_n(t.interpretation.schema_digest,32,interpretation.schema_digest.begin());
+        return TableDefinition{{catalog::detail::from(t.scope),t.audience,t.branch,t.namespace_id,interpretation,catalog::detail::from(*t.schema)},v->partition,v->next_lsn};
     }
     Description describe(const Source &source) { const detail::SourceView s(source); Description out{}; check(transit_station_unified_describe(value_.get(), &s.value, &out)); return out; }
     Inspection inspect_sql(const Source &source,const std::string &name,const std::string &sql,Budgets budgets) {
@@ -219,8 +236,12 @@ public:
         return Bundle(out);
     }
     // Seal new work before persistence; recover saved bundles unchanged.
-    Bundle authorize_bundle(const Bundle &bundle) {
-        transit_station_unified_bundle *out = nullptr; check(transit_station_unified_authorize_bundle(value_.get(), bundle.native(), &out)); return Bundle(out);
+    Bundle authorize_bundle(const Bundle &bundle,const std::optional<Capture> &capture = {}) {
+        transit_station_unified_capture binding{};if(capture)binding={capture->executor,capture->operation,capture->partition,capture->next_lsn};
+        transit_station_unified_bundle *out = nullptr; check(transit_station_unified_authorize_bundle(value_.get(), bundle.native(), capture?&binding:nullptr, &out)); return Bundle(out);
+    }
+    Prepared prepare_cleanup(uint64_t ns,const Bundle &bundle) {
+        transit_station_unified_prepared *out=nullptr;check(transit_station_unified_prepare_cleanup(value_.get(),ns,bundle.native(),&out));return Prepared(out);
     }
     std::optional<Prepared> prepare_next(uint64_t ns, const Bundle &bundle) {
         transit_station_unified_prepared *out = nullptr; check(transit_station_unified_prepare_next(value_.get(), ns, bundle.native(), &out));

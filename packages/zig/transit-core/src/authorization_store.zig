@@ -113,7 +113,7 @@ pub fn Store(comptime PageStore: type) type {
         }
         pub fn putDomain(self: *Self, value: a.Domain) !void {
             try self.current(value);
-            if (try self.domain(value.id)) |previous| if (previous.registrar != value.registrar or previous.actions != value.actions) return error.InvalidAuthorizationDomain;
+            if (try self.domain(value.id)) |previous| if (previous.registrar != value.registrar or previous.actions != value.actions or previous.lifetime_resource != value.lifetime_resource) return error.InvalidAuthorizationDomain;
             try self.catalog.put(idKey(.authorization_domain, value.id), value);
         }
         pub fn credential(self: *Self, principal: u64) !?a.Credential {

@@ -22,6 +22,10 @@ for request in ({'compile': {'sql': 'SELECT value FROM items'}},
     validator.validate(request)
 for parameters in ([{'unsigned': 18446744073709551615}], [{'signed': '1', 'utf8': '1'}], [None], '1'):
     assert list(validator.iter_errors({'compile': {'sql': 'SELECT value FROM items', 'parameters': parameters}}))
+validator.validate({'capture': {'bundle': '00', 'operation': '18446744073709551615'}})
+for capture in ({'bundle': '00'}, {'bundle': '00', 'operation': 18446744073709551615},
+                {'bundle': '00', 'operation': '1', 'executor': 9}):
+    assert list(validator.iter_errors({'capture': capture}))
 print('Query workspace: owning reflection, schema validity and Board transport agreement passed.')
 
 # Every recursive reference resolves inside its complete enclosing document.

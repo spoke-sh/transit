@@ -1,21 +1,21 @@
-//! Bounded catalog Table observations at one exact native resource cut.
-//! Head reservations may notify before publication; query/status bookkeeping
-//! cannot. A notification promises possible change, never an uncommitted row.
+//! Bounded read-only observations of one direct Table root. Notifications use
+//! its logical-change position; operation, pin and physical progress are not
+//! row changes. An observation carries no durable retention or continuation.
 const std = @import("std");
 const root = @import("root.zig");
 const q = root.query;
 const c = q.catalog;
-const s = root.station;
 const r = root.ReactiveModel;
 const p = root.protocol;
 const f = root.ServingFailure;
+pub const Reader = @import("TableWatchReader.zig");
 pub const Schema = struct {
     names: [2]c.TableMetadata.Name,
     value_type: enum { int64 } = .int64,
 };
 pub const Observation = struct {
-    data_revision: u64,
-    basis: q.Basis,
+    data_revision: q.TablePosition.Counter,
+    basis: q.TablePosition,
     schema: Schema,
 };
 pub const Snapshot = struct {
@@ -23,103 +23,99 @@ pub const Snapshot = struct {
     rows: [p.Growth.page_size]?struct { key: r.Integer, value: ?r.Integer } = @splat(null),
     more: bool = false,
 };
-/// Current catalog rights also protect retained refresh diagnostics. This check
-/// intentionally does not require the old Table name or metadata to remain live.
-pub fn authorize(reader: anytype, principal: u64, source: r.Source) !c.TableCatalog {
+const Definition = struct {
+    response: std.json.Parsed(c.DirectTableProtocol.Response),
+    schema: q.fuze.TableSchema.Owned,
+    fn deinit(self: *Definition) void {
+        self.schema.deinit();
+        self.response.deinit();
+        self.* = undefined;
+    }
+};
+/// Retained diagnostics require current source rights, even when the old name
+/// or interpretation is no longer live. This creates no pin or row observation.
+pub fn authorize(reader: anytype, principal: u64, source: r.Source) !c.DirectReadAuthority {
     try source.validate();
-    if (reader.view.resource != source.resource) return error.ReactiveResetRequired;
-    const config = try c.Records.decode(c.TableCatalogRecords.Configuration, 'C', (try reader.read(c.Records.key(source.catalog.value, 'c', 0, 0))) orelse return error.ReactiveResetRequired);
-    if (!std.meta.eql(config.scope, source.scope()) or config.owner != source.target) return error.ReactiveResetRequired;
-    const catalog: c.TableCatalog = .{ .configuration = config };
-    _ = try catalog.authorize(reader, principal, .inspect);
-    _ = try catalog.authorizeObject(reader, principal, source.object.value, .read);
-    return catalog;
+    const required = try reader.requirements(source);
+    try reader.check(principal, required);
+    return required;
 }
-fn resolve(allocator: std.mem.Allocator, reader: anytype, principal: u64, source: r.Source, context: ?*f.Context) !c.TableCatalog.Definition {
+fn resolve(allocator: std.mem.Allocator, reader: anytype, principal: u64, source: r.Source, rows: bool, context: ?*f.Context) !Definition {
     try source.validate();
+    // Denial wins over definition drift and no copied row is disclosed through
+    // the service identity's grant without this independent original subject.
+    const required = try authorize(reader, principal, source);
     if (!source.published) {
         f.remember(context, f.sourceWitness(source, source.revision));
         return error.ReactiveResetRequired;
     }
-    if (reader.view.resource != source.resource) {
-        f.remember(context, .{ .target = .{ .expected = source.resource, .actual = reader.view.resource, .kind = .resource } });
-        return error.ReactiveResetRequired;
-    }
-    const catalog = authorize(reader, principal, source) catch |err| {
-        if (err == error.TableNotFound) f.remember(context, .{ .table = .{ .value = source.object.value } });
+    const response = reader.observe(source, if (rows) c.storage.TablePartition.ReadLimits{} else null) catch |err| {
+        if (err == error.ReactiveResetRequired) f.remember(context, f.sourceWitness(source, source.revision));
         return err;
     };
-    var mismatch: ?c.TableCatalog.DefinitionMismatch = null;
-    var definition = catalog.readDefinitionDiagnostic(allocator, reader, principal, source.object.value, source.metadata(), &mismatch) catch |err| {
-        if (mismatch) |value| f.remember(context, .{ .basis = .{ .kind = .metadata, .expected = value.expected.spec.digest, .actual = value.actual.spec.digest } });
-        if (err == error.TableNotFound) f.remember(context, .{ .table = .{ .value = source.object.value } });
-        return if (err == error.CatalogDefinitionChanged or err == error.CatalogSourceChanged or err == error.TableRetired) error.ReactiveResetRequired else err;
-    };
-    errdefer definition.deinit();
-    // The watch transport deliberately exposes a key/int64-value page. General
-    // finite queries retain their complete logical schema/value admission.
-    const schema = definition.schema.schema;
-    if (schema.columns.len != 2 or schema.columns[0].nullable or schema.primary_key.len != 1 or schema.primary_key[0] != schema.columns[0].id) {
-        f.remember(context, .{ .watch_shape = .{ .columns = @intCast(schema.columns.len), .first_nullable = schema.columns[0].nullable, .primary_columns = @intCast(schema.primary_key.len), .primary_first = schema.primary_key.len == 1 and schema.primary_key[0] == schema.columns[0].id } });
+    errdefer response.deinit();
+    const found = response.value.result.observation;
+    try reader.check(principal, found.authority);
+    if (!std.meta.eql(required, found.authority) or !std.meta.eql(source.interpretation(), found.definition.interpretation.interpretation) or found.definition.namespace != source.namespace) return error.ReactiveResetRequired;
+    const bytes = try found.definition.schema.decode(allocator, q.fuze.TableSchema.max_bytes);
+    defer allocator.free(bytes);
+    var schema = try q.fuze.TableSchema.decode(allocator, bytes);
+    errdefer schema.deinit();
+    const declared = schema.schema;
+    // The watch transport retains its explicit key/int64-value shape. General
+    // direct queries keep their complete independently declared logical schema.
+    if (declared.columns.len != 2 or declared.columns[0].nullable or declared.primary_key.len != 1 or declared.primary_key[0] != declared.columns[0].id) {
+        f.remember(context, .{ .watch_shape = .{ .columns = @intCast(declared.columns.len), .first_nullable = declared.columns[0].nullable, .primary_columns = @intCast(declared.primary_key.len), .primary_first = declared.primary_key.len == 1 and declared.primary_key[0] == declared.columns[0].id } });
         return error.UnsupportedReactiveSource;
     }
-    for (schema.columns, 0..) |column, i| if (column.type != .int64) {
+    for (declared.columns, 0..) |column, i| if (column.type != .int64) {
         f.remember(context, .{ .watch_type = .{ .column = @intCast(i), .expected = .int64, .actual = std.meta.activeTag(column.type) } });
         return error.UnsupportedReactiveSource;
     };
-    return definition;
+    return .{ .response = response, .schema = schema };
 }
-fn observation(reader: anytype, source: r.Source, definition: c.TableCatalog.Definition, context: ?*f.Context) !Observation {
-    const key = s.TableHead.key(source.object.value);
-    const progress = (try reader.entry(key)) orelse {
-        f.remember(context, try f.progressWitness(key, null, reader.view.revision));
-        return error.ReactiveResetRequired;
-    };
-    if (progress.revision == 0 or progress.revision > reader.view.revision) {
-        f.remember(context, try f.progressWitness(key, progress.revision, reader.view.revision));
-        return error.InvalidReactiveProgress;
-    }
-    if (!progress.value.eql(try definition.head.encode())) return error.ReactiveResetRequired;
+fn observation(source: r.Source, definition: *const Definition) !Observation {
     var fields: [q.fuze.TableSchema.max_columns]q.fuze.Types.Field = undefined;
-    const declaration: q.TableSource = .{ .scope = source.scope(), .owner = source.target, .object = source.object.value, .metadata = source.metadata(), .row_type = try definition.schema.schema.rowType(&fields) };
-    const basis: q.TableSource.Basis = .{ .declaration = try declaration.fingerprint(), .resource = source.resource, .revision = reader.view.revision, .schema = try declaration.row_type.fingerprint(), .head = definition.head };
-    return .{ .data_revision = progress.revision, .basis = try basis.record(), .schema = .{ .names = .{ try .init(fields[0].name), try .init(fields[1].name) } } };
+    const metadata = definition.response.value.result.observation.definition;
+    const declaration: q.TableSource = .{ .scope = source.scope(), .owner = source.audience, .branch = source.branch, .namespace = source.namespace, .object = source.object.value, .interpretation = metadata.interpretation, .row_type = try definition.schema.schema.rowType(&fields) };
+    return .{ .data_revision = .{ .value = metadata.changed_lsn }, .basis = try q.TablePosition.current(declaration, metadata), .schema = .{ .names = .{ try .init(fields[0].name), try .init(fields[1].name) } } };
 }
 pub fn observe(allocator: std.mem.Allocator, reader: anytype, principal: u64, source: r.Source) !Observation {
     return observeDiagnostic(allocator, reader, principal, source, null);
 }
 pub fn observeDiagnostic(allocator: std.mem.Allocator, reader: anytype, principal: u64, source: r.Source, context: ?*f.Context) !Observation {
-    var definition = try resolve(allocator, reader, principal, source, context);
+    var definition = try resolve(allocator, reader, principal, source, false, context);
     defer definition.deinit();
-    return observation(reader, source, definition, context);
+    const result = try observation(source, &definition);
+    try reader.finish();
+    return result;
 }
 pub fn snapshot(allocator: std.mem.Allocator, reader: anytype, principal: u64, source: r.Source) !Snapshot {
-    var definition = try resolve(allocator, reader, principal, source, null);
+    var definition = try resolve(allocator, reader, principal, source, true, null);
     defer definition.deinit();
-    var result: Snapshot = .{ .observation = try observation(reader, source, definition, null) };
-    const table: s.TableData = .{ .schema = definition.schema.schema, .index = definition.head.index };
-    var pages: s.TablePages.Reader(@TypeOf(reader)) = .{ .pages = .{ .resource = source.resource, .object = source.object.value }, .source = reader };
-    var after: ?q.fuze.TableRow.Identity = null;
-    for (&result.rows) |*slot| {
-        var row = (try table.next(allocator, &pages, after)) orelse return result;
+    var result: Snapshot = .{ .observation = try observation(source, &definition) };
+    const page = definition.response.value.result.observation.page orelse return error.InvalidTableResponse;
+    if (page.rows.len > result.rows.len) return error.InvalidTableResponse;
+    for (page.rows, result.rows[0..page.rows.len]) |encoded, *slot| {
+        const bytes = try encoded.decode(allocator, q.fuze.TableRow.max_bytes);
+        defer allocator.free(bytes);
+        var row = try q.fuze.TableRow.decode(allocator, definition.schema.schema, bytes);
         defer row.deinit();
-        after = row.identity;
         const cells = row.row().cells;
         slot.* = .{ .key = .{ .value = @intCast(cells[0].value.atom.signed) }, .value = if (cells[1] == .null) null else .{ .value = @intCast(cells[1].value.atom.signed) } };
     }
-    result.more = definition.head.rows > result.rows.len;
+    result.more = page.more;
+    try reader.finish();
     return result;
 }
-/// Compare only the identical source contract/schema and native resource.
-pub fn covered(observed: Observation, captured: q.Basis) bool {
-    return captured.cut.kind == .table and captured.cut.resource == observed.basis.cut.resource and
-        std.mem.eql(u8, &captured.contract, &observed.basis.contract) and
-        std.mem.eql(u8, &captured.schema, &observed.basis.schema) and
-        captured.cut.revision >= observed.data_revision;
+/// This pure comparison grants no authority or verified-query status. The
+/// scheduler obtains captured positions only from the verified result reader.
+pub fn covered(observed: Observation, captured: q.TablePosition) bool {
+    return captured.covers(observed.basis, observed.data_revision.value);
 }
 pub fn validateResume(previous: r.Position, scope: r.Scope, source: r.Source, current: Observation, outcome_position: u64) !void {
     try previous.validate();
     if (!std.meta.eql(previous.scope, scope)) return error.InvalidReactiveCursor;
     if (previous.watch_revision != source.revision or previous.resource != source.resource or !std.mem.eql(u8, &previous.schema, &current.basis.schema)) return error.ReactiveResetRequired;
-    if (previous.data_revision > current.data_revision or previous.outcome_position > outcome_position) return error.InvalidReactiveCursor;
+    if (previous.data_revision.value > current.data_revision.value or previous.outcome_position > outcome_position) return error.InvalidReactiveCursor;
 }

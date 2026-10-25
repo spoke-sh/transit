@@ -19,11 +19,23 @@ supplies those permissions.
 Explicit `refresh` configuration enables preparation of follow, invalidate,
 acknowledge and pause for the composed finite-query owner. The generation and
 budget contract lives in the [refresh guide](../packages/zig/transit-serving/docs/refresh.md).
-Follow requires `resource_read_access` and signs the caller's identity and two
-resource read-access queries; the durable owner checks their current grants.
-Metadata-only resource inspection is insufficient. Status checks current resource
-read authority and returns view/query identities and progress, never rows.
+Follow carries a completed template and one to eight separately prepared query
+namespaces. Each prepared bundle has the same declaration, plan, limits and
+execution route, with its own caller-signed current-capture grant and durable pin
+identity. The owner authenticates the original accepted caller and every bundle,
+and checks current Table privileges before activation. Metadata-only resource
+inspection is insufficient. Status checks current resource and Table read
+authority and returns view/query identities and progress, never rows.
 The read-only inspection credential does not acquire send authority.
+
+The query host's `refresh` preparation returns a new signed bundle from a verified
+completed template and an explicit operation identity. `next.prepare_only` uploads
+that frozen bundle and stops at `prepared`, without admitting a source call or
+acquiring a pin. The browser retains the bundle, namespace and exact native token
+through uncertain replies before sending Follow. Its `captures` array has eight
+entries: the first `limit` are distinct nonzero namespaces, different from the
+template, and the remainder are zero. Scheduling activates those identities in
+order; it never copies a completed grant or asks an executor to renew signatures.
 
 Prepare returns an owned native signed send. Submit forwards precisely those
 bytes. Retain them through unknown replies, including component remounts; retry
@@ -32,6 +44,16 @@ checks the current ingress head and the service's committed disposition before
 reporting pending, committed or rejected. Only the committed control advances
 the client lifecycle. Session opening and subscription generations come from
 those actual committed input positions.
+
+The read-only `recover_control` operation takes those original signed bytes,
+validates the current definition and configured realm/principal/ingress/role,
+and returns the owning decoder's control and actual receipt input, or null input
+when absent. It checks current native and service read authority before and after
+receipt lookup. An absent request must verify under the current signing key;
+an accepted request is identified by its exact native receipt even after key
+rotation. It does not sign, submit, open or renew anything. Administrative,
+observer and application commands are rejected. Refresh decoding requires the
+host's explicit refresh capability. This operation uses reserved control capacity.
 
 Sign-read binds the configured realm/principal/service/ingress. The resulting
 signed read uses the reactive API's HTTP read, challenge and SSE bootstrap unchanged. Challenge
@@ -49,12 +71,14 @@ an invalidation and cannot skip one. Both observations retain their own basis.
 An explicitly configured application viewer may enable `snapshot_values` and
 read the reactive API's bounded int64 Table snapshot. This does not add a decoder to Board.
 
-`covered` delegates to `TableWatch.covered` for the same resource, contract and
-schema, comparing `basis.cut.revision` with the observed head-entry watermark;
-it is a deterministic relation, not an authorization decision. Catalog identity
-and immutable metadata revisions use decimal strings; captured resource cuts
-retain native safe-integer revisions and the exact Table-head commitment. Complete
-query verification and a current authorized visible-page reread remain required.
+`covered` delegates to `TableWatch.covered` for the same resource, partition,
+contract and schema, comparing the captured accepted position with the observed
+logical-change watermark. This deterministic relation is not an authorization
+decision. Catalog/object/interpretation IDs and Table positions use canonical
+unsigned decimal strings. Native process/resource revisions retain their native
+safe-integer representation. Complete query verification and a current authorized
+visible-page reread remain required. Query manifests expose a verified
+`table_position`; KV/Document results carry null for that field.
 
 The `/reactive/v1/client/control` route reserves listener/caller capacity for
 renew, unsubscribe, close, refresh pause and committed-input observation. It rejects opening,

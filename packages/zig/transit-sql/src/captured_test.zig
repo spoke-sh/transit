@@ -5,7 +5,7 @@ const ops = g.SessionOperations;
 const Store = @import("store_test.zig");
 const t = std.testing;
 const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9 };
-const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 8 * 1024 * 1024, .pending_quota = 4 };
+const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 8 * 1024 * 1024, .pending_quota = 4 };
 const ledger: g.Ledger = .{ .configuration = configuration };
 fn apply(store: *Store, command: c.Command) !void {
     var turn = try store.capture();
@@ -36,7 +36,7 @@ test "captured publication fences dispatch and serializes exact source requests 
     var store: Store = .{};
     defer store.deinit();
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = configuration.ingress;
     const id = try begin(&store, 1);
@@ -91,7 +91,7 @@ test "an incomplete captured admission can be cancelled without compiling or dis
     var store: Store = .{};
     defer store.deinit();
     var turn = try store.capture();
-    try ledger.initialize(&turn, 0);
+    try ledger.initialize(&turn);
     try store.commit(turn);
     store.origin = configuration.ingress;
     const id = try begin(&store, 4);

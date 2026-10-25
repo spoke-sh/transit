@@ -10,6 +10,7 @@ const Self = @This();
 wire: *q.wire.Client,
 connection: Connection,
 key: p.Ed25519.KeyPair,
+tables: ?q.catalog.DirectTableClient = null,
 batch_reads: ?q.wire.ResourceReader.Batches = null,
 snapshot_support: ?q.wire.SnapshotReader.Support = null,
 pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, requester: u64, requests: u64, role: ?u64 = null };
@@ -55,22 +56,68 @@ pub fn resources(self: *Self) q.wire.ResourceReader {
 pub fn authorizationClient(self: *Self) q.wire.AuthorizationClient {
     return .{ .transport = self.wire, .realm = self.connection.realm, .principal = self.connection.principal, .key = self.key, .role = self.connection.role };
 }
+/// Pure compilation returns an unsigned description. Table activation must
+/// explicitly supply its pin operation, executor and expected Table frontier.
 pub fn authorizeBundle(self: *Self, bundle: q.Bundle) !q.Bundle {
-    // KV/Document declarations retain their explicit native-peer admission
-    // profile. They do not claim original-subject Table authorization.
-    if (bundle.source.source != .table) return bundle;
-    return bundle.authorize(self.authorizationClient(), self.connection.source, self.connection.requester, self.connection.requests);
+    _ = self;
+    if (bundle.source.source == .table) return error.QueryCaptureRequired;
+    return bundle;
+}
+pub fn authorizeCapture(self: *Self, bundle: q.Bundle, capture: q.Bundle.Capture) !q.Bundle {
+    return bundle.authorizeCapture(self.authorizationClient(), self.tables orelse return error.QuerySourceUnavailable, self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests, capture);
+}
+/// Explicit authorization of a new finite Table read. The current observation
+/// supplies only a minimum frontier; the first acquisition selects and retains
+/// one cut. Save the returned bundle before uploading any part of it.
+pub fn authorizeCurrent(self: *Self, bundle: q.Bundle, executor: u64, operation: u64) !q.Bundle {
+    try bundle.validate();
+    if (bundle.authorization != null or bundle.retention != null) return error.QueryAlreadyAuthorized;
+    if (bundle.source.source != .table) return error.QueryCaptureRequired;
+    const table = bundle.source.source.table;
+    const direct = self.tables orelse return error.QuerySourceUnavailable;
+    try table.requireConnection(direct);
+    const current = try direct.call(.{ .observe = .{ .namespace = table.namespace, .interpretation = table.interpretation.interpretation, .rows = null } });
+    defer current.deinit();
+    return self.authorizeCapture(bundle, .{ .executor = executor, .operation = operation, .expected = current.value.result.observation.definition.position, .selection = .current });
+}
+/// Explicitly authorize a NEW finite read of a verified completed template.
+/// The caller must retain the returned bytes; retrying an accepted upload never
+/// calls this operation or substitutes another capture identity.
+pub fn authorizeRefresh(self: *Self, allocator: std.mem.Allocator, template: u64, operation: u64) !q.Bundle {
+    const status_value = (try self.status(template)) orelse return error.QueryUploadNotFound;
+    if (status_value.phase != .complete) return error.IncompleteResult;
+    const reference = status_value.manifest.?;
+    const expected: q.UnifiedResult.Expected = .{ .resource = self.connection.resource, .source = self.connection.source, .requester = self.connection.requester, .correlation = status_value.correlation, .request = status_value.reference };
+    const opened = try q.UnifiedResult.open(reference, try expected.authorize(reference, null, self.authorizationClient()), self.resources(), allocator);
+    var description = opened.bundle;
+    if (description.source.source != .table) return error.QueryCaptureRequired;
+    const original = description.retention orelse return error.QueryCaptureRequired;
+    if (operation == 0 or operation == original.binding.owner.operation) return error.QueryUploadIdentityConflict;
+    description.authorization = null;
+    description.retention = null;
+    return self.authorizeCurrent(description, original.binding.executor, operation);
+}
+/// Fresh permission closes the exact accepted pin; the original executable
+/// bundle and its credential epoch remain unchanged. Save/retry Prepared bytes.
+pub fn prepareCleanup(self: *Self, namespace: u64, bundle: q.Bundle) !Prepared {
+    try bundle.validate();
+    const grant = bundle.retention orelse return error.QueryCaptureRequired;
+    const original = bundle.authorization orelse return error.QueryDenied;
+    try original.caller(self.connection.principal, self.connection.role);
+    _ = try bundle.subject(self.connection.source, self.connection.requester, self.connection.requests);
+    if (!std.mem.eql(u8, &grant.binding.purpose, &try bundle.retentionPurpose(self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests))) return error.QueryDenied;
+    const permission = try q.catalog.DirectReadDelegation.Closure.prepare(self.tables orelse return error.QuerySourceUnavailable, grant);
+    return self.prepare(.{ .retry_cleanup = .{ .namespace = namespace, .authorization = permission } });
 }
 fn currentSource(self: *Self, data: q.wire.ResourceReader.Batch, definition: q.SourceDefinition, principal: ?u64, check_definition: bool) !void {
     if (definition.source == .table) {
         if (principal != self.connection.principal) return error.QueryDenied;
-        var cached = (try self.batchSupport()).cached(data);
-        const client = self.authorizationClient();
-        const authority: q.catalog.TableAuthority.Context = .{ .client = client, .subject = try client.proof(self.connection.source, try definition.fingerprint()) };
-        var current = authority.wrapAcquisition(&cached);
-        _ = try definition.source.table.checkCurrent(&current, self.connection.principal);
-        if (check_definition) try definition.source.table.checkDefinition(self.wire.http.allocator, &current, self.connection.principal);
-        try current.finish();
+        const client = self.tables orelse return error.QuerySourceUnavailable;
+        if (client.connection.principal != self.connection.principal or client.connection.role != self.connection.role) return error.QueryDenied;
+        try definition.source.table.requireConnection(client);
+        // Retained uploads validate the original pin grant below. Requiring the
+        // live definition here would incorrectly rebind accepted work after ALTER.
+        if (check_definition) try definition.source.table.checkDefinition(client);
     } else try q.UnifiedSource.checkCurrent(definition, &data, principal);
 }
 fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
@@ -100,18 +147,11 @@ pub fn inspectSql(self: *Self, allocator: std.mem.Allocator, request: q.SqlInspe
 /// The complete current source evidence for both inspection and interactive
 /// reads. These are generic keys to the authority, not retained source data.
 fn sourceMetadata(self: *Self, definition: q.SourceDefinition, keys: *[3]p.Value) ![]const p.Value {
-    if (definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
+    if (definition.source != .table and definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
     keys[0] = r.key('p', self.connection.requester, 0);
     switch (definition.source) {
         .kv => return keys[0..1],
-        .table => |table| {
-            const reader = try (try self.batchSupport()).read(definition.resource, null, keys[0..1]);
-            if (reader.resource.writer != self.connection.source) return error.QuerySourceUnavailable;
-            const grant = (try q.UnifiedCapture.policy(&reader, self.connection.requester)) orelse return error.QueryDenied;
-            if (try grant.tablePrincipal(table) != self.connection.principal) return error.QueryDenied;
-            keys[1] = q.catalog.Records.key(table.scope.catalog, 'c', 0, 0);
-            return keys[0..2];
-        },
+        .table => return keys[0..1],
         .document => |document| {
             const service = try document.reference.identity().service();
             keys[1] = service.key('h', 0);
@@ -149,7 +189,7 @@ pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, reque
 pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: []const u8, text: []const u8, limits: q.Bundle.Limits) !q.Bundle {
     const current = try self.describe(definition);
     if (!current.limits.permits(limits)) return error.QueryBudgetExceeded;
-    return self.authorizeBundle(try q.Bundle.fromSql(allocator, definition, name, text, limits));
+    return q.Bundle.fromSql(allocator, definition, name, text, limits);
 }
 /// A template retains exact source identity, not permission or a source pin.
 pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: []const u8, text: []const u8) !q.SqlTemplate {
@@ -158,10 +198,7 @@ pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.Sourc
 /// A new binding is a new finite query. Retry uncertain uploads using their
 /// original saved Bundle/Prepared commands instead of binding again.
 pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Types.Values.Atom, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
-    var result = try template.bindCurrent(allocator, self, definition, values, limits);
-    errdefer result.deinit();
-    result.bundle = try self.authorizeBundle(result.bundle);
-    return result;
+    return template.bindCurrent(allocator, self, definition, values, limits);
 }
 pub fn batchSupport(self: *Self) !q.wire.ResourceReader.Batches {
     if (self.batch_reads == null) {
@@ -211,6 +248,26 @@ pub fn submit(self: *Self, prepared: Prepared) !p.Receipt {
     // command. Node grants, requester identity and source policy remain live.
     return self.wire.submit(prepared.signed);
 }
+/// Recover a preparation upload's actual native receipt under current rights.
+/// Browser-saved input positions cannot substitute for this exact request.
+pub fn recoverPreparation(self: *Self, prepared: Prepared, namespace: u64) !?p.Receipt {
+    try self.validate(prepared);
+    try g.validate(prepared.signed.request);
+    const frame = try s.Frame.decode(prepared.signed.request.command.send.value);
+    const command = try q.UnifiedRequest.Command.decode(&frame.payload);
+    const target = switch (command) {
+        .begin => |value| value.namespace,
+        .part => |value| value.namespace,
+        .seal, .prepare => |value| value,
+        else => return error.InvalidQueryRequest,
+    };
+    if (target != namespace or namespace == 0) return error.QueryIdentityMismatch;
+    _ = try self.requester();
+    const receipt = (try self.authorizationClient().read(.{ .receipt = prepared.signed.request })).body.authorization.body.receipt;
+    if (receipt == null) try p.Ed25519.Signature.fromBytes(prepared.signed.signature).verify(&try g.digest(prepared.signed.request), self.key.public_key);
+    _ = try self.requester();
+    return receipt;
+}
 /// Receipt position is the requester input, not its ordinal. The public head
 /// can prove that input is still pending or that all earlier input has committed.
 pub fn observe(self: *Self, input: u64) !Observation {
@@ -252,13 +309,26 @@ pub fn prepareNext(self: *Self, namespace: u64, bundle: q.Bundle) !?Prepared {
 pub fn prepareNextWithDraft(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
     // Preparation has no mutation side effects. Restart a conflicted current
     // observation before freezing the next command; never replace a dispatched one.
-    return self.read(prepareNextOnce, .{ namespace, bundle, generation });
+    return self.read(prepareNextOnce, .{ namespace, bundle, generation, false });
 }
-fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
+/// Upload and retain a prepared query without admitting execution. The caller
+/// preserves its signed bundle and every uncertain command exactly as usual.
+pub fn prepareTemplateNext(self: *Self, namespace: u64, bundle: q.Bundle) !?Prepared {
+    return self.read(prepareNextOnce, .{ namespace, bundle, @as(?u64, null), true });
+}
+fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64, prepare_only: bool) !?Prepared {
     try bundle.validate();
     if (try bundle.subject(self.connection.source, self.connection.requester, self.connection.requests)) |original| {
         try bundle.authorization.?.caller(self.connection.principal, self.connection.role);
         _ = try self.authorizationClient().authenticate(original);
+    }
+    if (bundle.source.source == .table) {
+        const grant = bundle.retention orelse return error.QueryCaptureRequired;
+        try bundle.source.source.table.requireGrant(self.wire.http.allocator, grant);
+        if (!std.mem.eql(u8, &grant.binding.purpose, &try bundle.retentionPurpose(self.connection.source, self.connection.resource, self.connection.requester, self.connection.requests))) return error.QueryDenied;
+        const direct = self.tables orelse return error.QuerySourceUnavailable;
+        const checked_pin = try direct.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
+        defer checked_pin.deinit();
     }
     const description = try self.authorize(bundle.source);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
@@ -297,7 +367,8 @@ fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u
             const offset: usize = if (first != null) q.UnifiedRequest.part_bytes else 0;
             return try self.prepare(.{ .part = .{ .namespace = namespace, .ordinal = descriptor.written, .second = first != null, .bytes = chunk[offset..@min(offset + q.UnifiedRequest.part_bytes, chunk.len)] } });
         },
-        .sealed => return try self.prepare(if (generation) |selected| .{ .draft_submit = .{ .generation = selected, .namespace = namespace } } else .{ .submit = namespace }),
+        .sealed => return try self.prepare(if (prepare_only) .{ .prepare = namespace } else if (generation) |selected| .{ .draft_submit = .{ .generation = selected, .namespace = namespace } } else .{ .submit = namespace }),
+        .prepared => return if (prepare_only) null else try self.prepare(.{ .activate = namespace }),
         else => return null,
     }
 }

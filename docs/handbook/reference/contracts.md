@@ -23,7 +23,7 @@ same sources. They do not collect credentials or send live requests.
 | --- | --- | --- |
 | Native protocol types | [transit-v1.schema.json](../../../contracts/transit-v1.schema.json) | [Native v1](../../../contracts/TRANSIT_V1.md), [signed HTTP](../../../contracts/SERVICE_V1.md) |
 | SQL session routes and messages | [sql-session-v1.schema.json](../../../contracts/sql-session-v1.schema.json) | [SQL sessions](../../../contracts/SQL_SESSION_V1.md) |
-| Table mediation messages | [table-service-v1.schema.json](../../../contracts/table-service-v1.schema.json) | [Table service](../../../contracts/DECLARATIVE_CATALOG_V1.md) |
+| Direct Table messages | [direct-table-v1.schema.json](../../../contracts/direct-table-v1.schema.json) | [Direct Table requests](../../../contracts/DIRECT_TABLE_V1.md) |
 | Configuration service messages | [configuration-v1.schema.json](../../../contracts/configuration-v1.schema.json) | [Configuration](../../../contracts/CONFIGURATION_V1.md) |
 | Setting keys, defaults and bounds | [configuration-settings-v1.json](../../../contracts/configuration-settings-v1.json) | [Configuration reference](configuration.md) |
 | Structured diagnostics | [diagnostic-v1.schema.json](../../../contracts/diagnostic-v1.schema.json) | [Diagnostics](../../../contracts/DIAGNOSTICS_V1.md) |
@@ -39,3 +39,13 @@ upstream protocol pins remain in the [contract directory](../../../contracts).
 The [interface map](interfaces.md) connects each public surface to its usage
 reference and internals. Generated files are updated by their owners; the site
 does not maintain an independent protocol definition.
+
+## Neutral catalog descriptors
+
+| Description | Download | Exact contract |
+| --- | --- | --- |
+| Data identities and snapshot coverage | [data-lifecycle-v1.schema.json](../../../contracts/data-lifecycle-v1.schema.json) | [Data lifecycle](../../../contracts/DATA_LIFECYCLE_V1.md) |
+| Index definitions, build progress and coverage | [index-lifecycle-v1.schema.json](../../../contracts/index-lifecycle-v1.schema.json) | [Index lifecycle](../../../contracts/INDEX_LIFECYCLE_V1.md) |
+
+These descriptor groups are offline type schemas, not service requests. They
+establish no accepted publication, execution capability or current authority.

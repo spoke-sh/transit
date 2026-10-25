@@ -3,6 +3,7 @@ import io.transit.client.*;
 import io.transit.sdk.station.Catalog;
 import io.transit.sdk.station.Logical;
 import static io.transit.sdk.station.Catalog.*;
+import static io.transit.client.internal.Values.obj;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -12,97 +13,115 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Installed Java general Table lifecycle and immutable recovery after name reuse. */
+/** Installed direct Table lifecycle; exact retained metadata, not SQL row reads. */
 public final class JavaCatalogSdk {
     private JavaCatalogSdk() {}
     private static BigInteger n(long value) { return BigInteger.valueOf(value); }
-    private static void check(boolean value) { if (!value) throw new AssertionError("Installed Table assertion"); }
-    private static <T> T await(CompletableFuture<T> value) {
-        try { return value.join(); } catch (CompletionException e) { if (e.getCause() instanceof RuntimeException r) throw r; throw e; }
-    }
+    private static void check(boolean value) { if (!value) throw new AssertionError("Installed direct catalog assertion"); }
+    private static <T> T await(CompletableFuture<T> value) { try { return value.join(); } catch (CompletionException e) { if (e.getCause() instanceof RuntimeException r) throw r; throw e; } }
     private static Catalog.Client connect(JsonObject config) {
         JsonObject c = config.getAsJsonObject("connection"), s = c.getAsJsonObject("scope"); long realm = s.get("realm").getAsLong();
-        Connection connection = new Connection(new ProcessRef(realm, c.get("owner").getAsLong()), new Scope(new ResourceRef(realm, s.get("resource").getAsLong()), new BigInteger(s.get("catalog").getAsString())), c.has("role") && !c.get("role").isJsonNull() ? Optional.of(c.get("role").getAsLong()) : Optional.empty(), c.has("namespace") ? c.get("namespace").getAsLong() : 1);
-        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, config.has("table_service_url") && !config.get("table_service_url").isJsonNull() ? 30000 : 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection, config.has("table_service_url") && !config.get("table_service_url").isJsonNull() ? config.get("table_service_url").getAsString() : null);
+        Connection connection = new Connection(new Scope(new ResourceRef(realm, s.get("resource").getAsLong()), new BigInteger(s.get("catalog").getAsString())), c.get("audience").getAsLong(), new BigInteger(c.get("branch").getAsString()), c.get("role").isJsonNull() ? Optional.empty() : Optional.of(c.get("role").getAsLong()));
+        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection, config.get("service_url").getAsString());
     }
-    private static void persist(Path path, byte[] bytes) throws java.io.IOException {
+    private static void persist(Path path, String value) throws java.io.IOException {
         try (FileChannel file = FileChannel.open(path, Set.of(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE), PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
-            ByteBuffer data = ByteBuffer.wrap(bytes); while (data.hasRemaining()) file.write(data); file.force(true);
+            ByteBuffer data = ByteBuffer.wrap(value.getBytes(StandardCharsets.UTF_8)); while (data.hasRemaining()) file.write(data); file.force(true);
         }
     }
-    private static Outcome finish(Catalog.Client client, Compiled compiled, Path root) throws java.io.IOException {
-        JsonObject saved = new JsonObject(); saved.addProperty("definition", compiled.saved().definition()); saved.addProperty("bytes", HexFormat.of().formatHex(compiled.saved().bytes()));
-        persist(root.resolve("intent.json"), saved.toString().getBytes(StandardCharsets.UTF_8));
-        Reference reference = compiled.intent().reference(); long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(120);
-        for (;;) {
-            check(System.nanoTime() < deadline); Next step = await(client.next(reference));
-            if (step.kind() == NextKind.TERMINAL) return step.outcome().orElseThrow();
-            if (step.kind() == NextKind.RUNNING) continue;
-            check(step.kind() == NextKind.SEND); Prepared prepared = step.prepared().orElseThrow();
-            persist(root.resolve("step.json"), prepared.bytes().copy()); long position = await(client.submit(prepared)).position();
-            persist(root.resolve("receipt.json"), Long.toString(position).getBytes(StandardCharsets.UTF_8));
-            for (;;) {
-                check(System.nanoTime() < deadline); Progress progress = await(client.progress(reference, prepared, position, true));
-                if (progress.observation() == Observation.PENDING) continue;
-                check(progress.disposition().isEmpty());
-                if (progress.outcome().isPresent() && progress.outcome().get().terminal()) return progress.outcome().get();
-                break;
-            }
-        }
+    private static Observation complete(Catalog.Client client, Compiled work, Path directory) throws java.io.IOException {
+        persist(directory.resolve("work.json"), work.saved().save()); Reference original = await(client.stage(work.intent()));
+        persist(directory.resolve("work-reference.json"), original.save()); Observation observed = await(client.admit(original));
+        for (int i=0; i<16 && observed.state() == OperationState.ADMITTED; i++) observed = await(client.execute(original, 32));
+        check(observed.state() == OperationState.COMMITTED); return observed;
     }
-    private static Logical.Cell atom(Logical.Atom value) { return new Logical.Present(value); }
-    private static Assignment assignment(long column, Logical.Cell value) { return new Assignment(n(column), value); }
-    private static JsonObject scenario(Catalog.Client client, JsonObject config, Path root, int index) throws java.io.IOException {
-        long base = 1100 + index * 100L, object = 12001 + index * 10L; String name = "sdk_people_" + index;
-        java.util.function.IntFunction<Identity> id = offset -> new Identity(n(base + offset), n(base + offset + 100000));
-        Description description = await(client.describe()); check(description.configuration().scope().equals(client.connection().scope())); check(description.subject().principal() == config.getAsJsonObject("connection").get("principal").getAsLong());
-        Compiled create = await(client.compileSql("CREATE TABLE " + name + " (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", id.apply(0), Optional.of(n(object))));
-        check(finish(client, create, root).phase() == Phase.APPLIED);
-        Definition original = await(client.lookup(name)).orElseThrow(); check(original.schema().columns().size() == 3 && original.schema().columns().get(1).type() instanceof Logical.Structure);
-        Logical.Cell payload = new Logical.Present(new Logical.Sequence(Logical.SequenceKind.STRUCTURE, List.of(atom(new Logical.Binary(new Logical.BinaryData(new byte[]{0, (byte)128, (byte)255}))), atom(new Logical.Utf8("東京")))));
-        Logical.Cell amount = atom(new Logical.DecimalValue(new BigInteger("123456789012345678901234567890")));
-        Compiled insert = await(client.prepare(name, id.apply(1), new Mutate(original.metadata().basis(), new Insert(List.of(List.of(assignment(3, amount), assignment(1, atom(new Logical.Signed(n(1)))), assignment(2, payload)))))));
-        Outcome applied = finish(client, insert, root); check(applied.counts().orElseThrow().equals(new Counts(n(1), n(1))));
-        Optional<List<Predicate>> predicate = Optional.of(List.of(new Comparison(n(1), CompareOperator.EQ, new Logical.Signed(n(1)))));
-        Compiled update = await(client.prepare(name, id.apply(2), new Mutate(original.metadata().basis(), new Update(List.of(assignment(3, amount)), predicate))));
-        check(finish(client, update, root).counts().orElseThrow().equals(new Counts(n(1), n(0))));
-        Compiled alter = await(client.prepare(name, id.apply(3), new Alter(original.metadata().basis(), new AddColumn("enabled", Logical.Scalar.BOOLEAN, false, Optional.of(atom(new Logical.BooleanValue(true))), Optional.empty()))));
-        check(finish(client, alter, root).phase() == Phase.APPLIED);
-        try { await(client.prepare(name, id.apply(4), new Drop(original.metadata().basis()))); throw new AssertionError("Stale basis retargeted work"); } catch (TransitException expected) { }
-        Definition current = await(client.lookup(name)).orElseThrow();
-        Compiled delete = await(client.prepare(name, id.apply(5), new Mutate(current.metadata().basis(), new Delete(predicate))));
-        check(finish(client, delete, root).counts().orElseThrow().equals(new Counts(n(1), n(1))));
-        check(finish(client, await(client.prepare(name, id.apply(6), new Drop(current.metadata().basis()))), root).phase() == Phase.APPLIED);
-        check(finish(client, await(client.compileSql("CREATE TABLE " + name + " (replacement TEXT)", id.apply(7), Optional.of(n(object + 1)))), root).phase() == Phase.APPLIED);
-        client.close();
-        try (Catalog.Client replacement = connect(config)) {
-            Intent loaded = await(replacement.load(new SavedIntent(insert.saved().definition(), insert.saved().bytes()))); check(loaded.object().equals(n(object)));
-            check(await(replacement.status(loaded.reference())).outcome().orElseThrow().equals(applied));
-            check(await(replacement.lookup(name)).orElseThrow().metadata().object().equals(n(object + 1)));
-            HistoricalDefinition historical = await(replacement.definition(n(object), original.metadata().revision())).orElseThrow();
-            check(historical.metadata().equals(original.metadata()) && historical.schema().equals(original.schema()));
-            check(await(replacement.definition(n(object), n(999))).isEmpty()); check(!await(replacement.list()).entries().isEmpty());
+    private static Compiled compile(Catalog.Client client, String sql, long operation) { return await(client.compileSql(sql, new Identity(n(operation)))); }
+    private static void uncertain(Recovery original, Runnable action) {
+        try { action.run(); } catch (Uncertain error) {
+            check(error.original().save().equals(original.save()) && error.failure().status() == 6 && !error.failure().diagnosticInvalid() && error.failure().diagnostic().get("outcome").getAsString().equals("unknown")); return;
         }
-        JsonObject result = new JsonObject(); result.addProperty("profile", "installed-java-general-table"); result.addProperty("original_object", Long.toString(object)); result.addProperty("replacement_object", Long.toString(object + 1));
-        JsonObject counts = new JsonObject(); counts.addProperty("matched", "1"); counts.addProperty("changed", "1"); result.add("counts", counts); return result;
+        throw new AssertionError("Expected original operation uncertainty");
     }
+    private static Snapshot snapshot(Path directory) throws java.io.IOException { return Snapshot.restore(Files.readString(directory.resolve("snapshot.json"))); }
     public static void main(String[] args) throws Exception {
-        Path path = Path.of(args[0]); JsonObject config = new Gson().fromJson(Files.readString(path), JsonObject.class);
-        try (Catalog.Client client = connect(config)) {
-            System.out.println("{\"ready\":true}"); var reader = new java.io.BufferedReader(new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8));
-            for (String line; (line = reader.readLine()) != null;) {
-                JsonObject action = new Gson().fromJson(line, JsonObject.class); if (action.has("close")) break;
-                if (action.has("denied")) {
-                    try (Catalog.Client fresh = connect(config)) {
-                        boolean denied = false;
-                        try { await(fresh.describe()); } catch (TransitException e) { check(e.kind() == TransitException.Kind.ACCESS_DENIED); denied = true; }
-                        check(denied);
+        Path configPath = Path.of(args[0]); JsonObject config = new Gson().fromJson(Files.readString(configPath), JsonObject.class);
+        Path directory = configPath.getParent().resolve("java"); Files.createDirectories(directory);
+        String name = "java_items"; BigInteger object = BigInteger.ONE.shiftLeft(64).subtract(n(2));
+        check(Catalog.class.getProtectionDomain().getCodeSource().getLocation().toString().contains("transit-station-sdk-0.2.0.jar"));
+        try (Catalog.Client client = connect(config); Scanner input = new Scanner(System.in, StandardCharsets.UTF_8)) {
+            System.out.println(obj("ready", true));
+            while (input.hasNextLine()) {
+                JsonObject action = new Gson().fromJson(input.nextLine(), JsonObject.class); String command = action.keySet().iterator().next(); if (command.equals("close")) break;
+                JsonObject result;
+                switch (command) {
+                    case "prepare" -> {
+                        check(await(client.describe()).subject().principal() == config.getAsJsonObject("connection").get("principal").getAsLong());
+                        check(await(client.namespace(1)).orElseThrow().name().equals("public")); check(await(client.namespaces()).entries().stream().anyMatch(v -> v.id() == 1));
+                        complete(client, await(client.compileSql("CREATE TABLE " + name + " (id BIGINT PRIMARY KEY, payload BINARY)", new Identity(n(1)), Optional.of(object))), directory);
+                        Metadata current = await(client.lookup(name)).orElseThrow(); check(current.rowCount().signum() == 0 && current.basis().object().equals(object));
+                        List<List<Assignment>> rows = new ArrayList<>();
+                        for (int i=0; i<9; i++) {
+                            byte[] bytes = new byte[32768]; Arrays.fill(bytes, (byte)i);
+                            rows.add(List.of(new Assignment(n(1), new Logical.Present(new Logical.Signed(n(i)))), new Assignment(n(2), new Logical.Present(new Logical.Binary(new Logical.BinaryData(bytes))))));
+                        }
+                        Compiled work = await(client.prepare(name, new Identity(n(2)), new Mutate(current.basis(), new Insert(rows), Ingestion.BULK)));
+                        check(((CurrentBasis)await(client.preview(work.intent())).current().orElseThrow()).rowCount().signum() == 0);
+                        persist(directory.resolve("intent.json"), work.saved().save()); Intent loaded = await(client.load(SavedIntent.restore(Files.readString(directory.resolve("intent.json")))));
+                        Reference original = await(client.stage(loaded)); persist(directory.resolve("original.json"), original.save());
+                        check(await(client.admit(original)).state() == OperationState.ADMITTED); uncertain(original, () -> await(client.execute(original, 32)));
+                        result = obj("uncertain", true);
                     }
-                    System.out.println("{\"status\":0,\"value\":{\"denied\":true}}"); continue;
+                    case "recover" -> {
+                        Reference original = Reference.restore(Files.readString(directory.resolve("original.json"))); Observation observed = await(client.inspect(original));
+                        Commit committed = observed.commit().orElseThrow(); check(observed.state() == OperationState.COMMITTED && List.of(committed.matched(), committed.affected(), committed.liveRows()).equals(List.of(n(9),n(9),n(9))));
+                        check(await(client.execute(original, 32)).equals(observed)); Metadata current = await(client.lookup(name)).orElseThrow();
+                        SnapshotAcquisition acquisition = client.prepareSnapshot(current, n(90000)); persist(directory.resolve("basis.json"), current.basis().save()); persist(directory.resolve("acquisition.json"), acquisition.save());
+                        uncertain(acquisition, () -> await(client.acquireSnapshot(acquisition))); result = obj("retention_uncertain", true);
+                    }
+                    case "retained" -> {
+                        SnapshotAcquisition acquisition = SnapshotAcquisition.restore(Files.readString(directory.resolve("acquisition.json"))); SnapshotStatus status = await(client.snapshotStatus(acquisition.owner()));
+                        check(!status.released() && status.snapshot().isPresent()); Snapshot snapshot = status.snapshot().orElseThrow(); persist(directory.resolve("snapshot.json"), snapshot.save());
+                        SnapshotMetadata metadata = await(client.snapshotMetadata(snapshot)); check(metadata.accepted().equals(acquisition.expected()) && metadata.rowCount().equals(n(9)) && metadata.schema().columns().size() == 2);
+                        result = obj("retained", true);
+                    }
+                    case "denied" -> {
+                        try { await(client.snapshotMetadata(snapshot(directory))); throw new AssertionError("Revoked retained metadata disclosed"); }
+                        catch (TransitException error) { check(error.kind() == TransitException.Kind.ACCESS_DENIED && error.status() == 4 && error.diagnostic().get("category").getAsString().equals("access")); }
+                        result = obj("denied", true);
+                    }
+                    case "metadata" -> {
+                        SnapshotMetadata metadata = await(client.snapshotMetadata(snapshot(directory))); Basis basis = Basis.restore(Files.readString(directory.resolve("basis.json")));
+                        check(metadata.interpretation().equals(basis.interpretation())); result = obj("rows", metadata.rowCount(), "columns", metadata.schema().columns().size());
+                    }
+                    case "retire" -> {
+                        Commit unchanged = complete(client, compile(client, "UPDATE " + name + " SET id=0 WHERE id=0", 3), directory).commit().orElseThrow(); check(unchanged.matched().equals(n(1)) && unchanged.affected().equals(n(0)));
+                        Commit deleted = complete(client, compile(client, "DELETE FROM " + name + " WHERE id=8", 4), directory).commit().orElseThrow(); check(deleted.matched().equals(n(1)) && deleted.affected().equals(n(1)));
+                        Metadata old = await(client.lookup(name)).orElseThrow();
+                        complete(client, await(client.prepare(name, new Identity(n(5)), new Alter(old.basis(), new AddColumn("extra", Logical.Scalar.INT64)))), directory);
+                        try { await(client.prepare(name, new Identity(n(55)), new Drop(old.basis()))); throw new AssertionError("Stale basis retargeted newer definition"); }
+                        catch (TransitException error) { check(error.code().equals("TableDefinitionChanged")); }
+                        complete(client, compile(client, "ALTER TABLE " + name + " RENAME TO " + name + "_old", 6), directory);
+                        complete(client, compile(client, "DROP TABLE " + name + "_old", 7), directory);
+                        complete(client, await(client.compileSql("CREATE TABLE " + name + " (replacement BIGINT)", new Identity(n(8)), Optional.of(object.subtract(n(1))))), directory);
+                        check(await(client.lookup(name)).orElseThrow().basis().object().equals(object.subtract(n(1))) && await(client.snapshotMetadata(snapshot(directory))).rowCount().equals(n(9)));
+                        result = obj("original", true);
+                    }
+                    case "release" -> {
+                        Snapshot snapshot = snapshot(directory); check(!await(client.snapshotStatus(snapshot.owner())).released());
+                        uncertain(snapshot, () -> await(client.releaseSnapshot(snapshot))); result = obj("release_uncertain", true);
+                    }
+                    case "verify" -> {
+                        Snapshot snapshot = snapshot(directory); check(await(client.snapshotStatus(snapshot.owner())).released()); await(client.releaseSnapshot(snapshot));
+                        Reference original = Reference.restore(Files.readString(directory.resolve("original.json"))); check(await(client.inspect(original)).commit().orElseThrow().affected().equals(n(9)));
+                        check(await(client.load(SavedIntent.restore(Files.readString(directory.resolve("intent.json"))))).identity().operation().equals(n(2)));
+                        check(await(client.lookup(name)).orElseThrow().basis().object().equals(object.subtract(n(1))) && await(client.tables()).consistency().orElseThrow() == Consistency.INDEPENDENT);
+                        result = obj("recovered", true);
+                    }
+                    default -> throw new AssertionError("Unknown proof phase: " + command);
                 }
-                JsonObject result = new JsonObject(); result.addProperty("status", 0); result.add("value", scenario(client, config, path.getParent(), action.getAsJsonObject("scenario").get("index").getAsInt())); System.out.println(result);
+                System.out.println(obj("status", 0, "value", result));
             }
         }
-        System.out.println("{\"closed\":true}");
+        System.out.println(obj("closed", true));
     }
 }

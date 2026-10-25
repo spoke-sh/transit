@@ -23,13 +23,20 @@ function page(type: LogicalType, cell: LogicalCell): { page: ResultPage } {
         next: null,
         manifest: {
           job: 1,
-          source: { pid: 2, input: 3, index: 0 },
+          source: { table: { worker: 2 } },
           requester: 4,
           correlation: "5",
           policy_revision: "1",
           request: "00",
           basis: {
-            cut: { kind: "table", resource: 6, revision: 7, head: Array(32).fill(1) },
+            cut: { kind: "table", resource: 6, position: { table: Array(32).fill(1) } },
+            contract: Array(32).fill(2),
+            schema: Array(32).fill(3),
+          },
+          table_position: {
+            resource: 6,
+            partition: "1",
+            accepted: "7",
             contract: Array(32).fill(2),
             schema: Array(32).fill(3),
           },
@@ -282,7 +289,7 @@ test("the complete admitted query bundle fits the bounded browser request envelo
   try {
     await expect(
       httpTransport("/query")({
-        next: { namespace: "18446744073709551615", bundle: "00".repeat(25255) },
+        next: { namespace: "18446744073709551615", bundle: "00".repeat(25615) },
       }),
     ).resolves.toEqual({ prepared: null });
     const body = fetcher.mock.calls[0]![1].body as string;
@@ -294,5 +301,30 @@ test("the complete admitted query bundle fits the bounded browser request envelo
     expect(fetcher).toHaveBeenCalledTimes(1);
   } finally {
     vi.unstubAllGlobals();
+  }
+});
+
+test("verified Table positions require matching source evidence and full-width canonical counters", () => {
+  const result = page({ int64: {} }, atom({ signed: "7" }));
+  const manifest = result.page.evidence.manifest;
+  manifest.table_position!.partition = "18446744073709551615";
+  manifest.table_position!.accepted = "18446744073709551615";
+  expect(validateUnifiedQuery(result)).toBe(true);
+  for (const changed of [
+    null,
+    { ...manifest.table_position!, resource: 8 },
+    { ...manifest.table_position!, accepted: "18446744073709551616" },
+    { ...manifest.table_position!, partition: "01" },
+    { ...manifest.table_position!, contract: Array(32).fill(9) },
+    { ...manifest.table_position!, schema: Array(32).fill(9) },
+  ]) {
+    expect(
+      validateUnifiedQuery({
+        page: {
+          ...result.page,
+          evidence: { ...result.page.evidence, manifest: { ...manifest, table_position: changed } },
+        },
+      }),
+    ).toBe(false);
   }
 });

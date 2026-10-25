@@ -10,7 +10,7 @@ fn plan() r.Plan {
     return .{ .sources = &sources, .group_by = &.{.{ .source = 0, .id = 1 }}, .outputs = &.{ .{ .name = "key", .expression = .{ .column = .{ .source = 0, .id = 1 } } }, .{ .name = "n", .expression = .count_all } }, .lifetime = .interactive, .budgets = .{ .resident_bytes = 1024 * 1024, .spill_bytes = 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 1 } };
 }
 fn cut() !r.Cut {
-    return .{ .resource = 2, .revision = 9, .schema = try sources[0].schema.fingerprint(), .commitment = @splat(7) };
+    return .{ .domain = .native_resource, .resource = 2, .revision = 9, .schema = try sources[0].schema.fingerprint(), .commitment = @splat(7) };
 }
 fn group(key: ?i64, count: u64) e.Group {
     var result: e.Group = .{ .key = .{ .len = 1 } };

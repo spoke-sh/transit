@@ -78,7 +78,7 @@ pub fn project(realm: u64, resource: u64, view: root.RefreshModel.View) !?d {
         .result_unavailable => "A retained result needed by Follow was unavailable. No replacement coverage was established. Inspect the exact template or selected query and its retained result before continuing.",
         .result_unpublished => "The required result publication was incomplete at the check. No replacement coverage was established. Inspect its exact query and publication; a partially published result is not a completed snapshot.",
         .template_invalid => "The Follow template is not a complete result for the required source basis. Refresh progress stopped without establishing replacement coverage. Compare the original template and source commitments.",
-        .upload_closed => "The selected query upload is closed. Follow cannot continue copying or admitting that identity. Inspect its original query outcome; do not replace its saved bytes or repeat the SQL automatically.",
+        .upload_closed => "The selected query upload is closed. Follow cannot continue preparing or admitting that identity. Inspect its original query outcome; do not replace its saved bytes or repeat the SQL automatically.",
         .namespace_occupied => "The scheduler's proposed query namespace was already occupied. It preserved the existing work and did not select a replacement query. Inspect the retained conflicting namespace and this Follow generation.",
         .query_cancelled => "The selected query wait was cancelled, so this Follow generation stopped progressing. Previously disclosed results remain disclosed. Cancellation does not prove that source computation or external effects were undone; inspect the exact query outcome.",
         .query_retired => "The selected query was retired and its result is no longer available through that request. Follow established no replacement coverage. Inspect the retained query identity and choose further work explicitly.",
@@ -116,7 +116,7 @@ pub fn project(realm: u64, resource: u64, view: root.RefreshModel.View) !?d {
 test "every scheduler stop preserves bounded original evidence independently of query outcome" {
     const std = @import("std");
     const t = std.testing;
-    var view: root.RefreshModel.View = .{ .principal = p.max_counter, .session = .{ .session = p.max_counter, .generation = p.max_counter }, .generation = p.max_counter, .source = .{ .revision = p.max_counter, .target = p.max_counter, .resource = p.max_counter, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 200, .metadata_digest = @splat(255) }, .template = .{ .value = std.math.maxInt(u64) }, .namespace = .{ .value = std.math.maxInt(u64) }, .dirty = p.max_counter, .covered = p.max_counter, .limit = 8, .starts = 8 };
+    var view: root.RefreshModel.View = .{ .principal = p.max_counter, .session = .{ .session = p.max_counter, .generation = p.max_counter }, .generation = p.max_counter, .source = .{ .revision = p.max_counter, .audience = p.max_counter, .resource = p.max_counter, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .interpretation_revision = .{ .value = 1 }, .branch = 1, .namespace = 1, .interpretation_digest = @splat(255) }, .template = .{ .value = std.math.maxInt(u64) }, .namespace = .{ .value = std.math.maxInt(u64) }, .dirty = .{ .value = p.max_counter }, .covered = .{ .value = p.max_counter }, .limit = 8, .starts = 8 };
     const original: f.Witness = f.sourceWitness(view.source, p.max_counter);
     var max_bytes: usize = 0;
     for (std.enums.values(Reason)) |why| {
@@ -153,5 +153,5 @@ test "every scheduler stop preserves bounded original evidence independently of 
         try t.expect(std.mem.indexOf(u8, json, "18446744073709551615") != null);
         for (diagnostic.actions) |action| if (action) |value| try t.expect(value.kind == .inspect_status or value.kind == .inspect_scope);
     }
-    try t.expectEqual(@as(usize, 250), max_bytes);
+    try t.expectEqual(@as(usize, 255), max_bytes);
 }

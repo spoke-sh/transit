@@ -4,7 +4,8 @@ Start a local installation, define a task dataset, then inspect and change it
 from independent SQL sessions. The server supplies the catalog and execution
 services for this walkthrough. Use Linux x86_64 with the complete local bundle installed and
 `transit` available on `PATH` in both terminals. The bundle includes matching
-Transit, Board, the SQL gateway, Ursula and MinIO executables; Docker is not required at runtime.
+Transit, Board and SQL gateway executables. Native storage runs inside the node;
+no external storage service or Docker is required at runtime.
 Check that the command is available:
 
 ```sh

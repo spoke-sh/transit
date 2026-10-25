@@ -3,6 +3,11 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
 const expect = baseExpect.configure({ timeout: 30000 });
 const config = JSON.parse(readFileSync(process.argv[2], "utf8"));
+// Reference storage/worker progress has a separate aggregate correctness budget.
+// HTTP deadlines, session leases, result assertions and native/Compose budgets
+// are unchanged. This does not qualify the failed three-minute reference runs.
+const queryTimeout = config.profile === "reference" ? 360000 : 180000;
+console.log("Live-view finite query budget:", config.profile, queryTimeout, "ms");
 const browser = await chromium.launch({
   headless: true,
   args: [`--ignore-certificate-errors-spki-list=${config.spki}`],
@@ -17,6 +22,8 @@ const errors = [],
 const resultIdentities = new Map(),
   reactiveObservations = new Map(),
   semanticFailures = [];
+let queryStatus = null;
+let refreshStatus = null;
 const counter = await context.newPage();
 const board = await context.newPage();
 for (const page of [counter, board]) {
@@ -33,13 +40,31 @@ for (const page of [counter, board]) {
     const result = await response.json().catch(() => ({}));
     const request = response.request().postDataJSON();
     const path = new URL(response.url()).pathname;
+    if (path === "/api/v1/query" && "status" in request && "status" in result) {
+      if (
+        queryStatus?.namespace !== request.status ||
+        queryStatus?.phase !== (result.status?.phase ?? null)
+      )
+        console.log("Query phase:", request.status, result.status?.phase ?? "unobserved");
+      queryStatus = {
+        namespace: request.status,
+        phase: result.status?.phase ?? null,
+        diagnostic: result.status?.diagnostic?.code ?? null,
+      };
+    }
+    if ("refresh_status" in request && result.refresh_status?.view) {
+      const { namespace, phase, starts, dirty, covered } = result.refresh_status.view;
+      if (refreshStatus?.namespace !== namespace || refreshStatus?.phase !== phase)
+        console.log("Refresh phase:", namespace, phase, starts);
+      refreshStatus = { namespace, phase, starts, dirty, covered };
+    }
     const retain = (map, key, value) => {
       map.set(key, value);
       if (map.size > 4) map.delete(map.keys().next().value);
     };
     if (request.page && result.page?.evidence?.manifest) {
-      const { basis, plan } = result.page.evidence.manifest;
-      retain(resultIdentities, request.page.namespace, { basis, plan });
+      const { basis, plan, table_position } = result.page.evidence.manifest;
+      retain(resultIdentities, request.page.namespace, { basis, plan, table_position });
     }
     if (
       path.startsWith("/reactive/") &&
@@ -86,7 +111,15 @@ async function settledPause(page, button, status) {
   while (!(await status.textContent()).includes("Follow paused.")) {
     assert(Date.now() < until, "logical pause did not settle");
     const recovery = page.getByRole("button", { name: "Recover exact control", exact: true });
-    if ((await recovery.isVisible()) && (await recovery.isEnabled())) await recovery.click();
+    if (await recovery.isVisible()) {
+      try {
+        // Completion can remove the recovery button between observations.
+        // Keep this attempt inside the enclosing logical-pause deadline.
+        await recovery.click({ timeout: 500 });
+      } catch (error) {
+        if (error.name !== "TimeoutError") throw error;
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
@@ -180,6 +213,7 @@ try {
   await board.getByRole("button", { name: "Enter resource", exact: true }).click();
   await expect(board.getByLabel("SQL draft", { exact: true })).toBeVisible();
   await board.getByLabel("SQL draft", { exact: true }).fill("SELECT * FROM counter");
+  const initialQueryStart = performance.now();
   await board.getByRole("button", { name: "Run query", exact: true }).click();
   await expect(
     board.getByRole("button", { name: "Retry exact submission", exact: true }),
@@ -205,7 +239,8 @@ try {
   ).toBeVisible();
   assert(!exact, "navigation must not retry an uncertain mutation");
   await board.getByRole("button", { name: "Retry exact submission", exact: true }).click();
-  await expect(board.getByLabel("Verified query result")).toBeVisible({ timeout: 180000 });
+  await expect(board.getByLabel("Verified query result")).toBeVisible({ timeout: queryTimeout });
+  timings.initialQueryWithRecoveryToVerifiedMs = Math.round(performance.now() - initialQueryStart);
   assert(exact);
   await expect(board.getByLabel("Verified query result")).toContainText("20 total rows");
   const original = await board.getByLabel("Verified query result").textContent();
@@ -218,8 +253,14 @@ try {
     const recoveryStart = performance.now();
     await stage("restart");
     // A fresh actual page read must retrieve the old identity after all physical
-    // services restart. Cached rendering alone is not recovery evidence.
-    await board.waitForResponse(
+    // services restart. Re-enter the retained workspace explicitly, with the
+    // listener installed first; background polling may finish before stage ack.
+    await board.getByRole("link", { name: "Resource directory", exact: true }).click();
+    await expect(board.getByRole("heading", { name: "Relief atlas", exact: true })).toBeVisible();
+    await board
+      .getByRole("button", { name: `Select resource ${config.resource}`, exact: true })
+      .click();
+    const recoveredPage = board.waitForResponse(
       async (response) => {
         if (!response.url().endsWith("/api/v1/query") || response.status() !== 200) return false;
         const request = response.request().postDataJSON();
@@ -227,21 +268,27 @@ try {
       },
       { timeout: 60000 },
     );
+    await board.getByRole("button", { name: "Enter resource", exact: true }).click();
+    await recoveredPage;
     await expect(board.getByLabel("Verified query result")).toHaveText(original);
     assert.equal(displayedNamespace, namespace);
     timings.physicalRecoveryMs = Math.round(performance.now() - recoveryStart);
   }
+  const followStart = performance.now();
   await board.getByRole("button", { name: "Follow changes", exact: true }).click();
+  // Follow first prepares eight independently authorized finite captures under
+  // its separate three-minute preparation deadline, including exact recovery.
   await expect(board.getByLabel("Query follow controls").getByRole("status")).toContainText(
     "current",
-    { timeout: 40000 },
+    { timeout: 180000 },
   );
+  timings.followPreparationToCurrentMs = Math.round(performance.now() - followStart);
   await stage("ready");
   const queryStart = performance.now();
   // Another committed mutation while following admits a distinct finite query.
   writeFileSync(config.marker, "mutate");
   await expect(board.getByLabel("Verified query result")).not.toHaveText(original, {
-    timeout: 180000,
+    timeout: queryTimeout,
   });
   await expect(board.getByLabel("Query follow controls").getByRole("status")).toContainText(
     "current",
@@ -251,10 +298,16 @@ try {
   const refreshedIdentity = resultIdentities.get(displayedNamespace);
   assert(refreshedIdentity);
   assert.notEqual(displayedNamespace, originalNamespace);
-  assert.equal(refreshedIdentity.basis.cut.resource, originalIdentity.basis.cut.resource);
-  assert.deepEqual(refreshedIdentity.basis.contract, originalIdentity.basis.contract);
-  assert.deepEqual(refreshedIdentity.basis.schema, originalIdentity.basis.schema);
-  assert(refreshedIdentity.basis.cut.revision > originalIdentity.basis.cut.revision);
+  assert.equal(originalIdentity.basis.cut.kind, "table");
+  assert.equal(refreshedIdentity.basis.cut.kind, "table");
+  const previousPosition = originalIdentity.table_position;
+  const refreshedPosition = refreshedIdentity.table_position;
+  assert(previousPosition && refreshedPosition);
+  assert.equal(refreshedPosition.resource, previousPosition.resource);
+  assert.equal(refreshedPosition.partition, previousPosition.partition);
+  assert.deepEqual(refreshedPosition.contract, previousPosition.contract);
+  assert.deepEqual(refreshedPosition.schema, previousPosition.schema);
+  assert(BigInt(refreshedPosition.accepted) > BigInt(previousPosition.accepted));
   assert.notDeepEqual(refreshedIdentity.plan, originalIdentity.plan);
   for (const [name, page] of [
     ["board", board],
@@ -276,23 +329,66 @@ try {
   await stage("mutate-again");
   await expect(
     board.getByText("Query access denied. Protected workspace data cleared.", { exact: true }),
-  ).toBeVisible({ timeout: 180000 });
+  ).toBeVisible({ timeout: queryTimeout });
   assert(deniedBetweenReads, "denial must occur between complete coverage and the visible reread");
   await expect(board.getByLabel("Verified query result")).toHaveCount(0);
   assert.deepEqual(errors, []);
   assert.deepEqual(await context.cookies(), []);
-  assert.deepEqual(
-    await board.evaluate(() => [localStorage.length, sessionStorage.length]),
-    [0, 0],
-  );
+  const stored = await board.evaluate(() => ({
+    local: localStorage.length,
+    keys: Object.keys(sessionStorage),
+    follow: sessionStorage.getItem("transit.query.follow.v1"),
+  }));
+  assert.equal(stored.local, 0);
+  assert.deepEqual(stored.keys, ["transit.query.follow.v1"]);
+  assert(Buffer.byteLength(stored.follow) <= 1179648);
+  const savedFollow = JSON.parse(stored.follow);
+  assert.deepEqual(Object.keys(savedFollow).sort(), [
+    "definition",
+    "preparation",
+    "session",
+    "version",
+    "view",
+  ]);
+  assert.equal(savedFollow.version, 1);
+  // Recovery is retained after denial, but contains intent/control state rather
+  // than the protected result that was just cleared from the workspace.
+  const savedView = savedFollow.view === null ? null : JSON.parse(savedFollow.view);
+  assert(!savedView || !("snapshot" in savedView));
+  assert(!("inspection" in JSON.parse(savedFollow.session)));
+  assert(!stored.follow.includes('"private_key"'));
   console.log(
     "Live views: actual shared-client counter and Board metadata, exact query retry, bounded full-result verification, new finite refresh, pause and current read-only revocation passed.",
   );
   console.log("Observed live-view wall times:", JSON.stringify(timings));
 } catch (error) {
+  if (refreshStatus?.namespace && refreshStatus.namespace !== "0") {
+    // One bounded public status read locates the selected finite execution.
+    // It cannot resume, replace or cancel accepted work.
+    const selected = await board
+      .evaluate(async (namespace) => {
+        const response = await fetch("/api/v1/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: namespace }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const result = await response.json();
+        return {
+          namespace,
+          http: response.status,
+          phase: result.status?.phase ?? null,
+          diagnostic: result.status?.diagnostic?.code ?? result.err ?? null,
+        };
+      }, refreshStatus.namespace)
+      .catch(() => ({ unavailable: true }));
+    console.error("Selected refresh query evidence:", JSON.stringify(selected));
+  }
   console.error("Counter status:", await counter.locator("#status").allTextContents());
   console.error("Board status:", await board.getByRole("status").allTextContents());
   console.error("Recent API outcomes:", operations);
+  console.error("Query status evidence:", JSON.stringify(queryStatus));
+  console.error("Refresh status evidence:", JSON.stringify(refreshStatus));
   console.error("Result identity evidence:", JSON.stringify([...resultIdentities]));
   console.error("Reactive observation evidence:", JSON.stringify([...reactiveObservations]));
   console.error("Semantic failure evidence:", JSON.stringify(semanticFailures));

@@ -68,12 +68,17 @@ and DML resolve the published Table through the same configured owner.
 
 IF NOT EXISTS records an unchanged outcome for an existing name. It neither
 checks that the existing schema matches the proposed one nor alters or adopts
-that Table. An exact retry recovers the original outcome; changed intent under
-an occupied operation identity rejects. A native send receipt establishes input
-admission, not successful creation.
+that Table. In the shared direct runtime, the unchanged outcome is a catalog
+name assertion bound to that exact existing definition and the complete proposed
+SQL. A definition/name change before acceptance rejects the frozen condition.
+An exact retry recovers the original outcome; changed intent under
+an occupied operation identity rejects. Catalog admission and native registration
+are intermediate evidence; only the direct owner's applied outcome establishes
+successful creation.
 
-The SQL service saves exact intent and signed steps before sending. The console checks the original
-request after uncertainty and reports an unconfirmed outcome if necessary. A newly issued CREATE is new work. Current
+The SQL service saves the complete direct intent and commits its reference before
+dispatch. The console checks the original request after uncertainty and reports
+an unconfirmed outcome if necessary. A newly issued CREATE is new work. Current
 inspection rights govern outcome and metadata reads, including after later
 schema changes or name reuse.
 

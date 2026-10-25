@@ -78,12 +78,12 @@ system scheduling and host await-cancellation require the external suites.
 Component schedules exercise accepted Document edit sets and checkpoint floors,
 Exchange capture/closure and replay holds, query source cuts and refresh generation
 replacement, provider readiness/activation fencing, and conditional catalog
-publication. Catalog schedules check discarded proposals, point/page read faults,
-terminal conflicts, original receipts after replacement, current create/inspect
-policy and metadata page cuts. They reuse the real
-component implementations with private-turn stores and independent contract
-assertions. Seeded replay compares their event records; these stores establish
-logical publication boundaries, not disk or remote-effect durability.
+publication. Direct catalog schedules check lost admission/publication replies,
+terminal conflicts, cancellation, original receipts after replacement, current
+create/inspect policy and paginated metadata with a one-page cache. These use the
+real component implementations with volatile log/object adapters and independent
+contract assertions. Seeded replay compares their event records; these stores
+establish logical publication boundaries, not disk or remote-effect durability.
 
 The external fault supervisor runs the compiled node, counter worker and courier
 against disk-backed Ursula. It injects request/reply delay and loss, interrupts

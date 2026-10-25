@@ -32,21 +32,41 @@ listeners and deployment lifecycle. See the
 Run `zig build test` or `zig build check` inside `nix develop`; independent Python
 credential, scalar and stored-record fixtures are checked by `just test::sql-wire-contracts`.
 
-`SavedStep` retains exact signed Table sends in a bounded binary record and
-verifies them against the original intent and public key. `Upload` stages finite
-records through Station publication in 128-byte ingress parts, preserving
-unpublished/committed distinctions. `Ledger` supplies the
-[account operation state machine](docs/ledger.md): paged discovery, explicit
-reservations, fenced preparation, exact signed steps and separate native/SQL
-observations. It performs no dispatch; the host supplies actual observations and
-current native/catalog authorization.
+`IntentReference` stores a bounded reference to a complete immutable direct Table
+intent. `Upload` publishes that reference through the private Station ledger in
+128-byte ingress parts; row bytes remain with the direct data owner. `Ledger`
+supplies the [account operation state machine](docs/ledger.md): paged discovery,
+reservations, permanent dispatch eligibility and exact terminal binding. It
+performs no dispatch and does not provide Table acceptance authority.
 
 `Control` defines bounded current-definition native inputs. `Behavior` adapts the
 ledger to GenServer, with attributed rejection records and retryable source
-failures. `Client` prepares and retains exact signed controls and observes input
-progress. `Coordinator` proposes fenced transitions, reads published saved steps
-before dispatch, and observes original Table outcomes. Its caller serializes
-control requests and retains each exact request until its disposition is known.
+failures. `Client` retains exact signed ledger controls and observes their input
+progress. `Coordinator` checks the current native generation, reads a committed
+intent reference, observes its original direct operation and explicitly admits,
+executes or cancels that same work. A lost response never allocates a replacement
+intent or resolves its target name again.
+
+Temporary direct-operation transport failures, current direct-access denial and
+allocation pressure retain the original operation for another bounded recovery
+pass. They do not mark a healthy native ledger owner unavailable. The gateway
+reports changes in that condition as `sql.operation.recovery_blocked`; it does
+not log row values or credentials. Status, cancellation and unrelated reads
+still perform their own current checks. A lost native generation, invalid
+binding or malformed response continues to stop the account owner.
+
+Conditional CREATE on an existing Table and conditional DROP on an absent name
+retain an inline catalog name assertion. The catalog records unchanged, rejected
+or cancelled under the frozen condition and current rights. These outcomes carry
+a catalog acceptance position and zero row counts. Preparation and binding do
+not admit them; a changed condition rejects instead of selecting a new target.
+
+Native SQL CREATE SCHEMA, ALTER SCHEMA ... RENAME and DROP SCHEMA retain a
+namespace binding in the same ledger. Preparation freezes the exact schema and
+owner without allocating IDs; CREATE uses the accepted operation ID for its new
+namespace. Schema acceptance, cancellation and bounded RESTRICT belong to the
+direct catalog. Completion carries the catalog position and zero row counts.
+The PostgreSQL/MySQL profiles do not execute these schema statements.
 
 `AccountRuntime` composes that worker and coordinator with one bounded
 `ControlLane` per sequenced role. Connection cancellation releases its wait while
@@ -66,12 +86,10 @@ absent. The application keeps SQL listeners closed during that activation.
 sequence owners, TLS/key references and connection budgets. `Credential` binds a
 versioned verifier to an account identity, revision, native principal, stable
 login role and credential epoch. Database mappings retain an explicit schema
-namespace and optional selected role. A separate private reader supplies storage
-access while the Table caller supplies current object authority. Signed saved
-steps retain their signing key across rotation; exact receipt recovery precedes
-retry of the original bytes. File loading,
-atomic credential replacement and session revocation are host responsibilities;
-these types do not themselves supply a listener or credential-watching service.
+namespace and optional selected role. Direct Table metadata and data reads use
+the Table caller's current signed identity; they do not require a private raw
+storage reader. File loading, atomic credential replacement and session
+revocation are host responsibilities.
 
 `Statement` owns SQL text and immutable catalog metadata for typed single-Table
 SELECT/DML, literal CREATE and literal relational SELECT. Preparation and
@@ -79,15 +97,21 @@ SELECT/DML, literal CREATE and literal relational SELECT. Preparation and
 rechecks current rights and source identity before cached metadata disclosure;
 execution independently captures a new authorized cut or creates an exact typed
 Table intent. Every relational target uses the selected database's explicit
-catalog mapping. Captured relational descriptors must still match preparation
-before any executor step. Parameterized relational SQL is excluded.
+catalog mapping. Retained relational descriptors must still match preparation
+before any executor step. Independent Tables carry independent partition cuts;
+repeated aliases of one Table share a pin. Parameterized relational SQL is excluded.
 
 `Session` owns preparation, result iteration, settings and current-authorization
 checks independently of a database wire protocol. The supervised SQL application
 creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
 MySQL retain their protocol admission and scalar encoding rules in their adapters.
 Session cleanup releases reads and transports; durable account operations remain
-in the ledger.
+in the ledger. `ReadPins` records each original acquisition before its first
+request and marks closure before attempting release. A bounded recovery pass
+closes interrupted acquisitions and pins from earlier gateway generations using
+the original identity and current rights. Failed cleanup retains its record and
+reports `sql.read.cleanup_blocked`; it never expires a pin or silently recaptures
+a newer snapshot. See [pin recovery](docs/ledger.md#interactive-read-pin-recovery).
 
 `Registry` admits native HTTP/peer, PostgreSQL and MySQL sessions against shared
 account limits. `SourceSession` owns explicitly configured source reads.

@@ -3,6 +3,8 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
+    const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
     const fuze_dep = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const fuze_mod = fuze_dep.module("transit_fuze");
 
@@ -11,11 +13,14 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") },
+            .{ .name = "transit_core", .module = core.module("transit_core") },
             .{ .name = "transit_fuze", .module = fuze_mod },
         },
     });
 
-    const tests = b.addTest(.{ .root_module = module });
+    const filters = b.option([]const []const u8, "test-filter", "Run storage tests whose names contain a filter") orelse &.{};
+    const tests = b.addTest(.{ .root_module = module, .filters = filters });
     b.step("test", "Qualify TransitLog, TransitObjectStore, TableMemtable, NvmeCache, and OCC").dependOn(&b.addRunArtifact(tests).step);
     b.step("check", "Compile the tiered storage runtime library").dependOn(&tests.step);
 }

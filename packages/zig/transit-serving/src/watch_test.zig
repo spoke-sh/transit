@@ -5,46 +5,48 @@ const support = @import("table_watch_test_support.zig");
 const r = root.ReactiveModel;
 const watch = root.TableWatch;
 const p = root.protocol;
-test "catalog snapshot acquisition cannot mix concurrent cuts or follow renamed metadata" {
+test "direct snapshot acquisition is read-only and checks current caller rights after buffering" {
     var store: support.Store = .{};
     defer store.deinit();
     const declaration = try support.create(&store, "CREATE TABLE items (id INT64 PRIMARY KEY, \"count\" INT64)");
     try support.mutate(&store, "INSERT INTO items VALUES (7, 1)");
     var reader = try support.Reader.open(&store);
-    var reads: usize = 0;
-    reader.reads = &reads;
     const initial = try watch.snapshot(t.allocator, &reader, support.principal, declaration);
     try t.expectEqual(@as(i64, 1), initial.rows[0].?.value.?.value);
-    try t.expectEqual(store.revisions.get(root.station.TableHead.key(100)).?, initial.observation.data_revision);
-    const acquisitions = reads;
-    for (1..acquisitions + 1) |step| {
-        reads = 0;
+    var view = try store.resolve();
+    defer view.deinit();
+    try t.expectEqual(view.table.root.changed_lsn, initial.observation.data_revision.value);
+    const root_before = store.catalog.store.root;
+    const tail_before = try store.wal.log().tail(view.table.root.partition);
+    const puts_before = store.objects.puts;
+    // Deny at every subject check, including after buffering owned rows.
+    for (1..4) |step| {
+        store.checks = 0;
+        store.deny_at = step;
         reader = try support.Reader.open(&store);
-        reader.reads = &reads;
-        reader.mutate_at = step;
-        try t.expectError(error.StaleStateResource, watch.snapshot(t.allocator, &reader, support.principal, declaration));
-        reader = try support.Reader.open(&store);
-        const retried = try watch.snapshot(t.allocator, &reader, support.principal, declaration);
-        try t.expectEqual(initial.observation.data_revision, retried.observation.data_revision);
+        try t.expectError(error.CatalogDenied, watch.snapshot(t.allocator, &reader, support.principal, declaration));
     }
+    store.deny_at = std.math.maxInt(usize);
     for (0..64) |_| {
-        store.revision += 1; // query/retention/status bookkeeping only
         reader = try support.Reader.open(&store);
-        try t.expectEqual(initial.observation.data_revision, (try watch.observe(t.allocator, &reader, support.principal, declaration)).data_revision);
+        try t.expectEqualDeep(initial.observation, try watch.observe(t.allocator, &reader, support.principal, declaration));
     }
+    try t.expectEqualDeep(root_before, store.catalog.store.root);
+    try t.expectEqual(tail_before, try store.wal.log().tail(view.table.root.partition));
+    try t.expectEqual(puts_before, store.objects.puts);
     try support.mutate(&store, "DELETE FROM items");
     reader = try support.Reader.open(&store);
     const empty = try watch.snapshot(t.allocator, &reader, support.principal, declaration);
     for (empty.rows) |row| try t.expect(row == null);
     try t.expect(!empty.more);
-    try t.expect(empty.observation.data_revision > initial.observation.data_revision);
+    try t.expect(empty.observation.data_revision.value > initial.observation.data_revision.value);
     var changed = declaration;
-    changed.metadata_digest[0] ^= 1;
+    changed.interpretation_digest[0] ^= 1;
     try t.expectError(error.ReactiveResetRequired, watch.snapshot(t.allocator, &reader, support.principal, changed));
     // The service's own catalog grant is insufficient for another caller.
     try t.expectError(error.CatalogDenied, watch.snapshot(t.allocator, &reader, 18, declaration));
     store.denied = true;
-    try t.expectError(error.AccessDenied, watch.snapshot(t.allocator, &reader, support.principal, declaration));
+    try t.expectError(error.CatalogDenied, watch.snapshot(t.allocator, &reader, support.principal, declaration));
 }
 test "query coverage and resume compare exact contracts rather than unrelated numeric revisions" {
     var store: support.Store = .{};
@@ -54,8 +56,8 @@ test "query coverage and resume compare exact contracts rather than unrelated nu
     const initial = try watch.observe(t.allocator, &reader, support.principal, declaration);
     try t.expect(watch.covered(initial, initial.basis));
     var captured = initial.basis;
-    captured.cut.resource += 1;
-    captured.cut.revision = 999;
+    captured.resource += 1;
+    captured.accepted.value = 999;
     try t.expect(!watch.covered(initial, captured));
     captured = initial.basis;
     captured.contract[0] ^= 1;
@@ -70,9 +72,9 @@ test "query coverage and resume compare exact contracts rather than unrelated nu
     const scope: r.Scope = .{ .realm = 49, .principal = 65536, .service = 1, .ingress = 9, .session = 7, .generation = 10, .subscription = 3, .subscription_generation = 12 };
     var position: r.Position = .{ .scope = scope, .watch_revision = 1, .resource = 7, .schema = initial.basis.schema, .data_revision = initial.data_revision };
     try watch.validateResume(position, scope, declaration, newer, 0);
-    position.data_revision = newer.data_revision + 1;
+    position.data_revision.value = newer.data_revision.value + 1;
     try t.expectError(error.InvalidReactiveCursor, watch.validateResume(position, scope, declaration, newer, 0));
-    position.data_revision = 1;
+    position.data_revision.value = 1;
     position.scope.session += 1;
     try t.expectError(error.InvalidReactiveCursor, watch.validateResume(position, scope, declaration, newer, 0));
     position.scope = scope;
@@ -103,68 +105,44 @@ test "watch transport admits its explicit shape and preserves full column names"
     try t.expectEqualStrings(&name, observed.schema.names[1].slice());
 }
 
-test "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift" {
-    const c = root.query.catalog;
+test "direct DML admission and pin bookkeeping do not notify before atomic row publication" {
     var store: support.Store = .{};
     defer store.deinit();
     const source = try support.create(&store, "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)");
     try support.mutate(&store, "INSERT INTO items VALUES (1, 10)");
     var reader = try support.Reader.open(&store);
-    var definition = (try support.catalog.lookup(t.allocator, &reader, 17, try .init("items"))).?;
-    defer definition.deinit();
-    var statement = try root.query.fuze.TableDml.compile(t.allocator, "INSERT INTO items VALUES (2, 20), (3, 30)", "items", definition.schema.schema, null);
-    defer statement.deinit();
-    const request: c.TableDmlRequest = .{ .principal = 17, .operation = store.input, .metadata = source.metadata(), .plan = statement.plan };
     const original = try watch.snapshot(t.allocator, &reader, support.principal, source);
-    var previous = original.observation;
-    var reserved = false;
-    for (0..4000) |_| {
-        var turn = try store.capture();
-        turn.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };
-        const result = try support.catalog.mutate(t.allocator, &turn, request);
-        try store.commit(turn);
-        reader = try support.Reader.open(&store);
-        const snapshot = try watch.snapshot(t.allocator, &reader, support.principal, source);
-        try t.expect(snapshot.observation.data_revision >= previous.data_revision);
-        try t.expectEqual(@as(i64, 10), snapshot.rows[0].?.value.?.value);
-        if (result.state == .building) {
-            // No successful statement prefix, even when the head reservation
-            // itself emits a possible-change notification.
-            try t.expect(snapshot.rows[1] == null);
-            reserved = reserved or snapshot.observation.data_revision > original.observation.data_revision;
-            previous = snapshot.observation;
-            continue;
-        }
-        try t.expectEqual(.applied, result.state);
-        try t.expectEqual(@as(i64, 20), snapshot.rows[1].?.value.?.value);
-        try t.expectEqual(@as(i64, 30), snapshot.rows[2].?.value.?.value);
-        try t.expect(snapshot.rows[3] == null);
-        try t.expect(!watch.covered(snapshot.observation, previous.basis));
-        break;
-    } else return error.UnfinishedTestDml;
-    try t.expect(reserved);
-    try support.ddl(&store, .{ .principal = 17, .operation = store.input, .object = source.object.value, .expected_revision = source.metadata_revision.value, .name = try .init("items"), .action = .{ .alter = .{ .schema = definition.schema.schema, .change = .{ .rename = .{ .column = 2, .name = "renamed" } } } } });
-    reader = try support.Reader.open(&store);
+    var intent = try support.prepare(&store, "INSERT INTO items VALUES (2, 20), (3, 30)");
+    defer intent.deinit();
+    const binding = try support.admit(&store, intent);
+    const admitted = try watch.snapshot(t.allocator, &reader, support.principal, source);
+    try t.expectEqual(original.observation.data_revision.value, admitted.observation.data_revision.value);
+    try t.expect(admitted.observation.basis.accepted.value > original.observation.basis.accepted.value);
+    try t.expect(admitted.rows[1] == null);
+    _ = try store.catalog.performRows(binding, store.policy());
+    const published = try watch.snapshot(t.allocator, &reader, support.principal, source);
+    try t.expectEqual(@as(i64, 20), published.rows[1].?.value.?.value);
+    try t.expectEqual(@as(i64, 30), published.rows[2].?.value.?.value);
+    try t.expect(!watch.covered(published.observation, admitted.observation.basis));
+    try support.mutate(&store, "UPDATE items SET value = 10 WHERE id = 1");
+    const noop = try watch.observe(t.allocator, &reader, support.principal, source);
+    try t.expectEqual(published.observation.data_revision.value, noop.data_revision.value);
+    try t.expect(watch.covered(noop, published.observation.basis));
+    try support.alter(&store, .{ .alter = .{ .rename = .{ .column = 2, .name = "renamed" } } });
     try t.expectError(error.ReactiveResetRequired, watch.snapshot(t.allocator, &reader, support.principal, source));
-    // The original refresh's stop diagnostic can still be read after ALTER.
+    // Rights to inspect an original stop survive interpretation changes.
     _ = try watch.authorize(&reader, support.principal, source);
-    var policy = try c.testing.Authority.Rights.administrator(support.configuration.scope, support.principal);
-    policy.revision = 2;
-    policy.read = false;
-    var turn = try store.capture();
-    turn.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };
-    try store.setRights(policy);
-    try store.commit(turn);
-    reader = try support.Reader.open(&store);
+    store.denied = true;
     var context: root.ServingFailure.Context = .{};
     try t.expectError(error.CatalogDenied, watch.observeDiagnostic(t.allocator, &reader, support.principal, source, &context));
-    try t.expectError(error.CatalogDenied, watch.authorize(&reader, support.principal, source));
     try t.expectEqual(.none, context.witness);
-    // The administrator can inspect the new source, but cannot lend this right
-    // to the denied viewer. Already copied snapshot bytes remain self-contained.
+    store.denied = false;
     var latest = try support.declaration(&store);
     defer latest.deinit();
     const changed = try r.Source.from(2, latest.source);
     _ = try watch.observe(t.allocator, &reader, 17, changed);
     try t.expectEqualStrings("value", original.observation.schema.names[1].slice());
+    try support.alter(&store, .drop);
+    try t.expectError(error.ReactiveResetRequired, watch.snapshot(t.allocator, &reader, support.principal, changed));
+    _ = try watch.authorize(&reader, support.principal, changed);
 }

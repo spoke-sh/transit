@@ -25,6 +25,53 @@ pub fn parse(comptime T: type, allocator: Allocator, bytes: []const u8) !std.jso
 }
 pub const unsigned = d.unsigned;
 pub const unhex = d.unhex;
+/// Direct Table routing uses the service audience, independently of a query
+/// worker PID. Unrestricted data identities cross JSON as decimal strings.
+pub const DirectConnection = struct {
+    scope: q.catalog.TableValues.Scope,
+    branch: []const u8,
+    audience: u64,
+    principal: u64,
+    role: ?u64 = null,
+    pub fn native(self: DirectConnection) !q.catalog.DirectTableProtocol.Connection {
+        const result: q.catalog.DirectTableProtocol.Connection = .{ .scope = try self.scope.native(), .branch = try unsigned(self.branch), .audience = self.audience, .principal = self.principal, .role = self.role };
+        try result.validate();
+        return result;
+    }
+    pub fn foreign(allocator: Allocator, value: q.catalog.DirectTableProtocol.Connection) !DirectConnection {
+        try value.validate();
+        return .{ .scope = try q.catalog.TableValues.Scope.foreign(allocator, value.scope), .branch = try a.decimal(allocator, value.branch), .audience = value.audience, .principal = value.principal, .role = value.role };
+    }
+};
+pub const Capture = struct {
+    executor: u64,
+    operation: []const u8,
+    expected: struct { partition: []const u8, next_lsn: []const u8 },
+    selection: q.catalog.DirectTableProtocol.CaptureSelection = .exact,
+    pub fn native(self: Capture) !q.Bundle.Capture {
+        try q.UnifiedRecords.identity(self.executor);
+        const result: q.Bundle.Capture = .{ .executor = self.executor, .operation = try unsigned(self.operation), .expected = .{ .partition = try unsigned(self.expected.partition), .next_lsn = try unsigned(self.expected.next_lsn) }, .selection = self.selection };
+        if (result.operation == 0) return error.InvalidQueryAuthorization;
+        try result.expected.validate();
+        return result;
+    }
+};
+
+test "neutral capture preserves full-width cuts and rejects rounded JSON numbers" {
+    const t = std.testing;
+    const encoded = "{\"executor\":7,\"operation\":\"18446744073709551615\",\"expected\":{\"partition\":\"18446744073709551615\",\"next_lsn\":\"18446744073709551615\"}}";
+    const parsed = try parse(Capture, t.allocator, encoded);
+    defer parsed.deinit();
+    const value = try parsed.value.native();
+    try t.expectEqual(std.math.maxInt(u64), value.operation);
+    try t.expectEqual(std.math.maxInt(u64), value.expected.partition);
+    try t.expectEqual(std.math.maxInt(u64), value.expected.next_lsn);
+    const rounded = "{\"executor\":7,\"operation\":18446744073709551615,\"expected\":{\"partition\":\"1\",\"next_lsn\":\"1\"}}";
+    try t.expectError(error.UnexpectedToken, parse(Capture, t.allocator, rounded));
+    var bad = parsed.value;
+    bad.operation = "01";
+    try t.expectError(error.InvalidDocumentInteger, bad.native());
+}
 pub const Column = struct {
     name: []const u8,
     type: types.Type,
@@ -96,8 +143,10 @@ pub const Source = struct {
         table: struct {
             scope: q.catalog.TableValues.Scope,
             owner: u64,
+            branch: []const u8,
+            namespace: u64,
             object: []const u8,
-            metadata: struct { id: []const u8, spec: q.station.Publication.Spec },
+            interpretation: struct { revision: []const u8, digest: [32]u8, bytes: []const u8, schema: [32]u8 },
             row_type: types.Type,
         },
         document: struct {
@@ -111,7 +160,12 @@ pub const Source = struct {
     pub fn native(self: Source, alloc: Allocator) !q.SourceDefinition {
         const source: @FieldType(q.SourceDefinition, "source") = switch (self.source) {
             .kv => |v| .{ .kv = .{ .prefix = try q.protocol.Value.init(try unhex(alloc, v.prefix, q.protocol.Growth.key_bytes)), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .scope = try v.scope.native(), .owner = v.owner, .object = try unsigned(v.object), .metadata = .{ .id = try unsigned(v.metadata.id), .spec = v.metadata.spec }, .row_type = try v.row_type.cloneInto(alloc) } },
+            .table => |v| table: {
+                const scope = try v.scope.native();
+                const branch = try unsigned(v.branch);
+                const object = try unsigned(v.object);
+                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc) } };
+            },
             .document => |v| blk: {
                 if (v.projections.len == 0 or v.projections.len > m.max_columns) return error.InvalidProjection;
                 const projections = try alloc.alloc(q.SourceDefinition.Projection, v.projections.len);
@@ -127,7 +181,7 @@ pub const Source = struct {
     pub fn fromNative(alloc: Allocator, value: q.SourceDefinition) !Source {
         return .{ .version = value.version, .resource = value.resource, .source = switch (value.source) {
             .kv => |v| .{ .kv = .{ .prefix = try a.hex(alloc, v.prefix.slice()), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .object = try a.decimal(alloc, v.object), .metadata = .{ .id = try a.decimal(alloc, v.metadata.id), .spec = v.metadata.spec }, .row_type = try v.row_type.cloneInto(alloc) } },
+            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object), .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint }, .row_type = try v.row_type.cloneInto(alloc) } },
             .document => |v| blk: {
                 const projections = try alloc.alloc(Projection, v.projections.len);
                 for (projections, v.projections) |*out, in| out.* = .{ .column = try DecoderColumn.fromNative(alloc, in.column), .path = try foreignPath(alloc, in.path), .relative = in.relative, .mode = in.mode, .text_bytes = in.text_bytes, .text_steps = in.text_steps };

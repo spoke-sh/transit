@@ -1,4 +1,4 @@
-import { logicalTypeText } from "@transit/query-client";
+import { logicalTypeText, sourcePositionText } from "@transit/query-client";
 import { cellStates, pageProfile, type ResultPage } from "@transit/query-client";
 
 export function QueryProfile({ page }: { page: ResultPage }) {
@@ -9,8 +9,8 @@ export function QueryProfile({ page }: { page: ResultPage }) {
       <p>
         Exact counts for {page.evidence.rows} visible rows on page{" "}
         {BigInt(page.evidence.ordinal) + 1n} of the same verified result. Query{" "}
-        {manifest.correlation}; source revision {manifest.basis.cut.revision}. This page is not a
-        population sample or a whole-source summary.
+        {manifest.correlation}; source {sourcePositionText(manifest)}. This page is not a population
+        sample or a whole-source summary.
       </p>
       <table aria-label="Visible page cell-state profile">
         <thead>

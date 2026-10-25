@@ -55,8 +55,8 @@ static void inspection(const q::Inspection &value) {
 }
 static q::TableSource table_source(std::vector<catalog::Column> columns) {
     std::array<uint8_t,32> digest;digest.fill(1);
-    return {ProcessRef(1,3),{{ResourceRef(1,7),9},1,9,1,"items",digest,17,1,1,{200,digest}},
-        {9,1,columns.size()+1,columns,{}}};
+    std::array<uint8_t,32> schema_digest;schema_digest.fill(2);
+    return {{ResourceRef(1,7),9},3,1,1,{1,digest,200,schema_digest},{9,1,columns.size()+1,columns,{}}};
 }
 static q::Source source(ResourceRef resource,int kind,bool golden) {
     if(kind==0)return q::KvSource{resource,golden?Bytes{'d','a','t','a','/'}:Bytes{'k'},{q::DecoderType::Binary},{golden?q::DecoderType::UInt64:q::DecoderType::Utf8}};
@@ -120,7 +120,7 @@ static void codecs(const std::string &root) {
     bool rejected=false; try { q::decode_arrow(columns,read(root+"/malformed.ipc"),5); }catch(const Error &) { rejected=true; } assert(rejected);
     std::vector<catalog::Column> wide_columns;std::vector<uint8_t> projection;std::vector<std::optional<std::string>> names128;
     for(size_t i=0;i<128;++i){wide_columns.push_back({i+1,"列 "+std::to_string(i),logical::Type::scalar(TRANSIT_LOGICAL_UINT128),true,std::nullopt,std::nullopt});projection.push_back(static_cast<uint8_t>(i));names128.push_back("結果 "+std::to_string(i));}
-    auto wide=q::prepare(table_source(wide_columns),{projection,q::Compare{127,Comparison::Eq,q::Scalar::unsigned_integer({UINT64_MAX,UINT64_MAX})},Aggregate::Rows,std::nullopt,names128},{1,1,65536});assert(!wide.data().empty()&&wide.data().size()<=25255);
+    auto wide=q::prepare(table_source(wide_columns),{projection,q::Compare{127,Comparison::Eq,q::Scalar::unsigned_integer({UINT64_MAX,UINT64_MAX})},Aggregate::Rows,std::nullopt,names128},{1,1,65536});assert(!wide.data().empty()&&wide.data().size()<=25614);
     const auto nested=q::decode_arrow({{"value",logical::Type::list(logical::Type::scalar(TRANSIT_LOGICAL_UINT128),true),false,false}},read(root+"/nested.ipc"),1);
     const auto children=nested[0][0].children();assert(children.size()==2&&children[1].state()==TRANSIT_LOGICAL_NULL);const auto atom=children[0].atom().native();assert(atom.kind==TRANSIT_ATOM_UNSIGNED&&atom.as.unsigned_value.low==UINT64_MAX&&atom.as.unsigned_value.high==UINT64_MAX);
     std::cout<<"C++ installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned values, 128 columns, uint128, nested values and malformed rejection passed"<<std::endl;
@@ -129,9 +129,12 @@ static void serve(char **args) {
     const auto realm=std::stoull(args[6]); const ResourceRef resource(realm,std::stoull(args[9]));
     const q::Connection connection{ProcessRef(realm,std::stoull(args[8])),resource,ProcessRef(realm,std::stoull(args[10])),ResourceRef(realm,std::stoull(args[11]))};
     const int kind=std::string(args[4])=="kv"?0:std::string(args[4])=="table"?1:2;
-    const auto definition=[&]()->q::Source{if(kind!=1)return source(resource,kind,false);auto catalog= catalog::Client::open(ClientConfig::growing(args[2]).timeout(10000),Credential(realm,std::stoull(args[7]),args[3]),{connection.source,{resource,1}});auto table=catalog.lookup("items");assert(table);catalog.close();return q::TableSource{connection.source,table->metadata,table->schema};}();
-    std::optional<q::Client> owner(q::Client::open(ClientConfig::growing(args[2]).timeout(10000),Credential(realm,std::stoull(args[7]),args[3]),connection));
-    auto &client=*owner; assert(client.authorize_bundle(bundle(definition,kind,false,true,std::string(args[12])=="compound")).data()==read(args[5])); const auto description=client.describe(definition); assert(description.bundle_bytes==25255&&description.batch_rows==8);
+    std::optional<q::Tables> tables;std::optional<q::Capture> capture;
+    if(kind==1){tables=q::Tables{args[13],{ResourceRef(realm,std::stoull(args[14])),std::stoull(args[15])},std::stoull(args[16]),std::stoull(args[17])};capture=q::Capture{std::stoull(args[18]),std::stoull(args[19]),std::stoull(args[20]),std::stoull(args[21])};}
+    std::optional<q::Client> owner(q::Client::open(ClientConfig::growing(args[2]).timeout(10000),Credential(realm,std::stoull(args[7]),args[3]),connection,tables));
+    auto &client=*owner;
+    const auto definition=[&]()->q::Source{if(kind!=1)return source(resource,kind,false);auto table=client.lookup_table(1,"items");assert(table);return table->source;}();
+    assert(client.authorize_bundle(bundle(definition,kind,false,true,std::string(args[12])=="compound"),capture).data()==read(args[5])); const auto description=client.describe(definition); assert(description.bundle_bytes==25614&&description.batch_rows==8);
     std::optional<q::Page> saved; std::cout<<"{\"ready\":true}"<<std::endl;
     std::string line;
     while(std::getline(std::cin,line)) {
@@ -157,7 +160,7 @@ static void serve(char **args) {
             else if(command=="inspect"){
                 q::Budgets budgets{};input>>budgets.pages>>budgets.segments>>budgets.result_bytes;assert(input);
                 const auto bytes=unhex(token);const auto value=client.inspect_sql(definition,arg,std::string(bytes.begin(),bytes.end()),budgets);
-                assert(value.resource.resource()==resource.resource()&&static_cast<int>(value.source_kind)==kind);
+                assert(value.resource.resource()==(kind==1?tables->scope.resource.resource():resource.resource())&&static_cast<int>(value.source_kind)==kind);
                 std::cout<<"{\"status\":0,\"value\":";inspection(value);std::cout<<"}"<<std::endl;continue;
             }
             else if(command=="next")result="{\"prepared_hex\":"+maybe_hex(client.prepare_next(std::stoull(arg),q::Bundle::recover(unhex(token))))+"}";
@@ -176,7 +179,7 @@ static void serve(char **args) {
             }else {
                 assert(command=="page"); std::optional<q::Cursor> cursor; if(token!="-")cursor.emplace(q::Cursor::recover(unhex(token)));
                 auto page=client.page(std::stoull(arg),cursor?&*cursor:nullptr);
-                assert(page.manifest.source_kind==static_cast<transit_station_unified_source_kind>(kind) && page.manifest.resource.resource==resource.resource()); assert(page.decode().size()==page.rows);
+                assert(page.manifest.source_kind==static_cast<transit_station_unified_source_kind>(kind) && page.manifest.resource.resource==(kind==1?tables->scope.resource.resource():resource.resource())); assert(page.decode().size()==page.rows);
                 result="{\"page\":{\"ordinal\":\""+std::to_string(page.ordinal)+"\",\"ipc\":\""+hex(page.ipc)+"\",\"manifest\":{\"segments\":\""+std::to_string(page.manifest.segments)+"\",\"selected\":\""+std::to_string(page.manifest.selected)+"\",\"value_count\":\""+std::to_string(page.manifest.value_count)+"\"},\"next_hex\":"+(page.next?"\""+hex(page.next->data())+"\"":"null")+"}}";
                 saved=std::move(page);
             }

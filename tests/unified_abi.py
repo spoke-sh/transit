@@ -13,8 +13,26 @@ class Failure(Exception):
         self.status, self.detail = status, detail
 
 
+def bounded_read(function):
+    """Retry reads or pure preparation after capacity/stale-cut refusal; never send."""
+    def call(self, action):
+        operation = next(iter(action))
+        for attempt in range(12):
+            try:
+                return function(self, action)
+            except Failure as failure:
+                if (operation not in {'describe', 'inspect', 'compile', 'status', 'page', 'observe', 'next', 'prepare', 'authorize'}
+                        or not isinstance(failure.detail, dict)
+                        or failure.detail.get('protocol_error') not in {'HttpCapacity', 'QueryExpired', 'StaleStateResource'}
+                        or attempt == 11):
+                    raise
+                time.sleep(.05)
+        raise AssertionError('read retry budget exhausted')
+    return call
+
+
 class Native:
-    def __init__(self, library, url, connection):
+    def __init__(self, library, url, connection=None, *, relational=None, tables=None, seed_byte=10):
         self.api = api = c.CDLL(str(Path(library).resolve()))
         api.station_unified_query_create.argtypes = [c.c_uint32, c.c_char_p, c.c_size_t, c.c_void_p, c.c_char_p, c.c_size_t, c.POINTER(c.c_void_p)]
         api.station_unified_query_create.restype = c.c_uint32
@@ -30,12 +48,16 @@ class Native:
         api.station_buffer_destroy.restype = None
         self.pointer = c.c_void_p()
         endpoint = url.encode()
-        config = json.dumps(dict(connection=connection, timeout_ms=10000)).encode()
-        seed = c.create_string_buffer(bytes([10])*32, 32)
+        config = json.dumps(dict(connection=connection, relational=relational, tables=tables, timeout_ms=10000)).encode()
+        seed = c.create_string_buffer(bytes([seed_byte])*32, 32)
         status = api.station_unified_query_create(1, endpoint, len(endpoint), seed, config, len(config), c.byref(self.pointer))
         assert status == 0
-        assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        if connection is not None:
+            assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        else:
+            assert self.call({'relational': {'capabilities': {}}})['relational']['capabilities']['interactive']
 
+    @bounded_read
     def call(self, action):
         request = json.dumps(action).encode()
         output = c.c_void_p()
@@ -54,13 +76,17 @@ class Native:
 
 
 class Port:
-    def __init__(self, host, root, url, connection):
+    def __init__(self, host, root, url, connection=None, *, relational=None, tables=None):
         config = root / 'query-client-port.json'
         config.write_text(json.dumps(dict(url=url, seed_file=str(root / 'caller.seed'),
-            query_client=dict(connection=connection, timeout_ms=10000))))
+            query_client=dict(connection=connection, relational=relational, tables=tables, timeout_ms=10000))))
         self.child = subprocess.Popen([host, str(config)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        if connection is not None:
+            assert self.call({'capabilities': {}})['capabilities']['version'] == 1
+        else:
+            assert self.call({'relational': {'capabilities': {}}})['relational']['capabilities']['interactive']
 
+    @bounded_read
     def call(self, action):
         self.child.stdin.write(json.dumps({'unified_query': action})+'\n')
         self.child.stdin.flush()
@@ -81,6 +107,16 @@ class Port:
                 self.child.wait(timeout=10)
             self.child.stdin.close()
             self.child.stdout.close()
+
+
+def authorize_capture(client, root, operation, description=None):
+    """Authorize new work once; callers retain these bytes throughout upload."""
+    if description is None:
+        description = (root / 'bundle-description.bin').read_bytes().hex()
+    capture = json.loads((root / 'client.json').read_text()).get('capture')
+    if capture is not None:
+        capture = dict(capture, operation=str(operation), selection='current')
+    return client.call({'authorize': dict(bundle=description, capture=capture)})['authorized']
 
 
 def upload(client, root):

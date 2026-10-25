@@ -132,6 +132,13 @@ def generated():
         diagnostic['definition'] = definition
         results[FIXTURES / 'diagnostic-v1.json'] = diagnostic
 
+        lifecycle_path = FIXTURES / 'data-lifecycle-v1.json'
+        lifecycle = json.loads(lifecycle_path.read_text())
+        for item in (lifecycle['binding'], lifecycle['commit']['binding'],
+                     lifecycle['snapshot'], lifecycle['resource_initialization']):
+            item['definition'] = definition
+        results[lifecycle_path] = lifecycle
+
         serving_path = ROOT / 'packages/zig/transit-serving/src/fixtures/serving-v1.json'
         serving = json.loads(serving_path.read_text())
         serving_key = key

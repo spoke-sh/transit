@@ -11,15 +11,31 @@ is independent of resident cache, subject to explicit operation, admission and
 storage bounds. A turn mutates one resource owned by its writer PID. It does not
 supply arbitrary transactions across resources.
 
-Station Tables add typed schemas and rows within that commit boundary. Station
-Documents add accepted structured/text changes and immutable indexes. Neither
-introduces an alternate state authority or silently converts old history. Named
-KV and Document objects can also be registered in a shared catalog namespace
-through `DeclarativeCatalog`: `Declaration.compile` validates `CREATE KV` and
-`CREATE DOCUMENT` definitions and lowers them to two-phase catalog operations
-(`initializing` reservation followed by `live` resource binding and publication),
-with `rename`, `DROP RESTRICT` dependency enforcement, permanent retirement of
-dropped object IDs, and shared `inspectLifecycle` / `policyReferences` inspection.
+[Direct Tables](tables.md) accept typed schemas and rows through their own data
+partition. Table acceptance and native input progress are separate decisions.
+Station Documents add accepted structured/text changes and immutable indexes
+within the native resource boundary.
+
+Named KV and Document declarations use `DirectResourceClient` and the shared
+direct catalog. Save the complete declaration before admission. Its observable
+phases separate name reservation, preparation of the original caller's native
+allocation, accepted allocation and completed initialization/publication. The
+caller supplies an existing writer, explicit lifetime policy and kind-specific
+configuration. Preview and inspection publish nothing.
+
+`transit-station-app.NamedResource` initializes the actual resource through
+private Station turns. The catalog exposes the name after checking that accepted
+initialization against the original allocation and current native lifetime.
+Rename preserves object identity. Logical DROP removes the binding while native
+data retirement remains a separate authorized operation. Cancelling partial
+creation retains any allocated resource ID for cleanup; it does not undo native
+acceptance. See the [named resource API](../../../packages/zig/transit-station-app/docs/named-resources.md)
+for the sequence, permissions, recovery and bounds.
+
+A completed definition is publication evidence, not a continuing data-access
+grant. Current reads still enforce native rights, retirement and expiry.
+`Declaration.compile` validates offline `CREATE KV` and `CREATE DOCUMENT` syntax;
+console SQL does not execute these named-resource lifecycle operations.
 
 ## Identity, access and ownership
 

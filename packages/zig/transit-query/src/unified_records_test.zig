@@ -48,10 +48,10 @@ test "durable source records fit unchanged values and preserve all continuation 
     var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer test_arena.deinit();
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
-    const bundle: q.Bundle = .{ .source = source, .plan = try @import("catalog_store_test.zig").plan(test_arena.allocator(), source, &.{ 0, 1 }), .limits = .{ .pages = 1000, .segments = 500, .result_bytes = 1048576 } };
+    const bundle: q.Bundle = .{ .source = source, .plan = try plan(test_arena.allocator(), source, &.{ 0, 1 }), .limits = .{ .pages = 1000, .segments = 500, .result_bytes = 1048576 } };
     const policy: r.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .target = .{ .declaration = try q.Bundle.declaration(source) }, .allow = true, .limits = bundle.limits };
     try t.expectEqualDeep(policy, try r.Policy.decode(try policy.encode()));
-    const job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101 };
+    const job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .native = .{ .pid = 3, .input = 100, .index = 0 } }, .request = try bundle.reference(8, 2), .continuation = 101 };
     try t.expectEqualDeep(job, try r.Job.decode(try job.encode()));
     const basis = try q.UnifiedSource.basis(source, 42);
     const bound = try bundle.bind(try basis.fingerprint());
@@ -59,13 +59,16 @@ test "durable source records fit unchanged values and preserve all continuation 
     checkpoint.progress.pages = 1;
     checkpoint.cursor.ordinal = 1;
     checkpoint.cursor.after = try p.Value.init(&@as([32]u8, @splat('a')));
-    try t.expectEqual(@as(u16, 254), (try checkpoint.encode()).len);
+    try t.expectEqual(@as(u16, 222), (try checkpoint.encode()).len);
     try t.expectEqualDeep(checkpoint, try r.Checkpoint.decode(try checkpoint.encode()));
     for ([_]m.SourceKind{ .table, .document }) |kind| {
         var changed = checkpoint;
         changed.cut.kind = kind;
         changed.cursor.after = null;
-        if (kind == .table) changed.cursor.table_scanned = 8;
+        if (kind == .table) {
+            changed.cut.position = .{ .table = @splat(31) };
+            changed.cursor.table_scanned = 8;
+        }
         if (kind == .table) changed.cursor.table_after = .{ .origin = 1, .operation = std.math.maxInt(u64), .ordinal = 0 } else changed.cursor.traversal = .{ .current = .{ .counter = std.math.maxInt(u64), .replica = std.math.maxInt(u64) }, .phase = .siblings };
         try t.expectEqualDeep(changed, try r.Checkpoint.decode(try changed.encode()));
     }
@@ -86,7 +89,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const manifest: r.Manifest = .{ .job = complete, .checkpoint = checkpoint };
     var output: [r.Manifest.max_bytes]u8 = undefined;
     try t.expectEqualDeep(manifest, try r.Manifest.decode(try manifest.encode(&output)));
-    try t.expectEqual(@as(usize, 405), (try manifest.encode(&output)).len);
+    try t.expectEqual(@as(usize, 366), (try manifest.encode(&output)).len);
     for ([_]p.Value{ try policy.encode(), try job.encode(), try checkpoint.encode(), try segment.encode() }, 0..) |value, kind| {
         var bad = value;
         bad.data[0] = 'X';
@@ -126,8 +129,8 @@ test "failure records reject missing witnesses and preserve full-width budget ev
     invalid.code = .arithmetic_overflow;
     try t.expectError(error.InvalidQueryFailure, invalid.encode());
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
-    const bundle: q.Bundle = .{ .source = source, .plan = try @import("catalog_store_test.zig").plan(test_arena.allocator(), source, &.{1}), .limits = .{ .pages = 10, .segments = 10, .result_bytes = 1024 } };
-    var job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101, .phase = .failed };
+    const bundle: q.Bundle = .{ .source = source, .plan = try plan(test_arena.allocator(), source, &.{1}), .limits = .{ .pages = 10, .segments = 10, .result_bytes = 1024 } };
+    var job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .native = .{ .pid = 3, .input = 100, .index = 0 } }, .request = try bundle.reference(8, 2), .continuation = 101, .phase = .failed };
     try t.expectError(error.InvalidQueryRecord, job.encode());
     job.failure = failure;
     const stored = try job.encode();
@@ -196,4 +199,9 @@ test "query policies bind explicit catalog delegation and reject old foreign or 
     var old: [85]u8 = @splat(0);
     old[0..4].* = "UQA1".*;
     try t.expectError(error.IncompatibleDefinition, r.Policy.decode(try p.Value.init(&old)));
+}
+
+fn plan(allocator: std.mem.Allocator, source: q.SourceDefinition, projection: []const u8) !q.fuze.LogicalQuery.Plan {
+    var fields: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
+    return .{ .schema = try (try source.schema(&fields)).cloneInto(allocator), .source_basis = try source.fingerprint(), .projection = projection };
 }

@@ -8,23 +8,22 @@ pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const storage = catalog.storage;
 pub const TableSegmentScan = @import("TableSegmentScan.zig");
-pub const TableService = @import("TableService.zig");
-pub const MediatedTableClient = @import("MediatedTableClient.zig");
-pub const MediatedTableBridge = @import("MediatedTableBridge.zig");
-pub const TableQuery = @import("TableQuery.zig").Query(true);
-pub const TablePrepared = @import("TablePrepared.zig");
-/// Independent row evaluator for proofs and measurements, never a query mode.
-pub const ReferenceTableQuery = @import("TableQuery.zig").Query(false);
+pub const DirectTableQuery = @import("DirectTableQuery.zig");
+pub const DirectTablePrepared = @import("DirectTablePrepared.zig");
 pub const ComputePool = @import("ComputePool.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const TableSource = @import("TableSource.zig");
+pub const TablePosition = @import("TablePosition.zig");
+pub const CapturedTablePin = @import("CapturedTablePin.zig");
 pub const RelationalRevision = @import("RelationalRevision.zig");
 pub const RelationalResult = @import("RelationalResult.zig");
+pub const RelationalFreshness = @import("RelationalFreshness.zig");
 pub const RelationalCapture = @import("RelationalCapture.zig");
 pub const RelationalRecords = @import("RelationalRecords.zig");
 pub const RelationalBundle = @import("RelationalBundle.zig");
 pub const RelationalCaptured = @import("RelationalCaptured.zig");
 pub const RelationalHistory = @import("RelationalHistory.zig");
+pub const RelationalHistoryRecord = @import("RelationalHistoryRecord.zig");
 pub const RelationalMaintenance = @import("RelationalMaintenance.zig");
 pub const RelationalMaintenanceRecords = @import("RelationalMaintenanceRecords.zig");
 pub const RelationalState = @import("RelationalState.zig");
@@ -33,11 +32,9 @@ pub const RelationalExchange = @import("RelationalExchange.zig");
 pub const RelationalExchangeProducer = @import("RelationalExchangeProducer.zig");
 pub const ExchangeAuthorization = @import("ExchangeAuthorization.zig");
 pub const RelationalSpill = @import("RelationalSpill.zig");
-pub const RelationalTables = @import("RelationalTables.zig");
-pub const RelationalCompilation = @import("RelationalCompilation.zig");
 pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const RelationalCaller = @import("RelationalCaller.zig");
-pub const RelationalQuery = @import("RelationalQuery.zig");
+pub const RelationalWorkspace = @import("RelationalWorkspace.zig");
 pub const QueryMemory = @import("QueryMemory.zig");
 pub const Bundle = @import("Bundle.zig");
 pub const QueryAuthorization = @import("QueryAuthorization.zig");
@@ -48,7 +45,6 @@ pub const SavedSubmission = @import("SavedSubmission.zig");
 pub const UnifiedClient = @import("UnifiedClient.zig");
 pub const Interactive = @import("Interactive.zig");
 pub const UnifiedBehavior = @import("UnifiedBehavior.zig");
-pub const CatalogQueryOwner = @import("CatalogQueryOwner.zig");
 pub const UnifiedRequest = @import("UnifiedRequest.zig");
 pub const UnifiedUpload = @import("UnifiedUpload.zig");
 pub const Draft = @import("Draft.zig");
@@ -66,7 +62,6 @@ test {
     _ = @import("unified_capture_test.zig");
     _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
-    _ = @import("catalog_query_owner_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -74,7 +69,7 @@ pub const Values = @import("Values.zig");
 pub const Bridge = @import("Bridge.zig");
 pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
-pub const TableAssistance = @import("TableAssistance.zig");
+pub const TableCompletionGrammar = @import("TableCompletionGrammar.zig");
 pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
 pub const SqlCompilation = @import("SqlCompilation.zig");
@@ -104,3 +99,8 @@ test {
 }
 
 pub const SettingsJournal = @import("SettingsJournal.zig");
+
+pub const DirectRelationalCompilation = @import("DirectRelationalCompilation.zig");
+pub const DirectRelationalTables = @import("DirectRelationalTables.zig");
+pub const DirectRelationalQuery = @import("DirectRelationalQuery.zig");
+pub const DirectTableAssistance = @import("DirectTableAssistance.zig");

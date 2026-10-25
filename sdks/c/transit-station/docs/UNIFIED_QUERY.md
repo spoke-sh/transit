@@ -7,8 +7,8 @@ identity, decoder versions, projection budgets, five cell states and availabilit
 
 Build a `transit_station_unified_source`, typed plan and positive work budgets,
 then call `transit_station_unified_prepare_bundle`. KV declares both decoders;
-Table borrows its catalog owner, metadata and resolved schema; metadata includes
-the immutable publication commitment. Document binds an accepted reference and
+Table borrows its direct catalog scope, service audience, branch, namespace,
+interpretation and full resolved schema. Document binds an accepted reference and
 bounded path/list/text projections. Result columns carry full logical descriptors
 and nullable/optional flags. Predicates and parameters use `transit_logical_atom`,
 including exact two-limb 128-bit integers. Input pointers borrow only through the
@@ -37,7 +37,7 @@ with its matching build before changing definitions. Source, schema and plan com
 and source/resource/requester/request-resource connection. It owns a bounded
 native worker and copied credential; it acquires no process activation.
 `describe` checks current policy and the declared source. The maximum bundle is
-25,255 bytes, an Arrow segment is at most 64 KiB and a batch has at most eight
+25,614 bytes, an Arrow segment is at most 64 KiB and a batch has at most eight
 rows and 128 columns. Column/output names allow 255 UTF-8 bytes. Local capability support does not establish remote permission.
 
 `transit_station_unified_compile_sql(client, source, name, sql, budgets,
@@ -103,13 +103,43 @@ C++17 consumers against signed KV recovery. An optional source argument chooses
 measured runs and remaining qualification separately.
 
 Connections accept an optional selected native role; omission uses the login role.
-Local bundle construction produces a description. Call `transit_station_unified_authorize_bundle` once on the
-query client before persisting a newly constructed Table bundle or its fingerprint.
-The returned bytes bind the authenticated caller, role, credential epoch, source
-owner and requester to the exact query and budget. SQL compilation already returns
-an authorized bundle. An already authorized Table bundle rejects resealing.
+Configure the optional direct Table endpoint with its URL, catalog scope, branch
+and service audience when opening the query client. It uses the original caller's
+credential and selected role. The native query progress resource can differ from
+the Table's catalog resource in the same realm.
 
-Persist and recover the original bundle bytes unchanged, alongside each prepared
-command and receipt. Current authorization is checked again during progress and
-result disclosure. Credential or policy changes never justify replacing accepted
-work with a newly signed bundle. The complete bundle bound is 25,255 bytes.
+`transit_station_unified_lookup_table` returns the current direct Table source, full schema and exact
+partition frontier. A missing visible name returns no definition. Lookup takes no
+pin and starts no query. Construct `transit_station_unified_capture` from that frontier, the executor
+principal and a caller-chosen pin operation identity. A
+concurrent change can make the expected frontier stale before acquisition; saved
+work must retain its original source and expected position.
+
+Local preparation and SQL compilation return unsigned descriptions. Call
+`transit_station_unified_authorize_bundle` with the explicit capture before persisting a new Table
+bundle or fingerprint. The returned bytes bind the original caller, role,
+credential epoch, exact source, executor, pin owner, query route and budgets.
+Storage operation, partition and WAL counters retain their full uint64 range;
+native principal identities retain the native counter bound. An already signed
+Table bundle rejects resealing. KV and Document bundles take no direct capture.
+
+Persist and recover the original bundle bytes unchanged, alongside every prepared
+command and receipt. Current authority is checked during progress and result
+reads. Credential or policy changes never justify replacing accepted work.
+
+`transit_station_unified_prepare_cleanup` prepares separate terminal pin cleanup with the current
+credential. Persist, submit and observe it like other controls. It preserves the
+saved execution proof and cut, including after credential rotation, and grants no
+scan or query resumption. The worker commits this proof before remote closure.
+
+Manifest `source_kind` selects the `source` and `cut` unions: Tables use
+`source.table_worker` and `cut.table_commitment`; KV/Documents use
+`source.native_version` and `cut.native_revision`. A direct Table cut has no
+native resource revision. Verified result reads after pin closure still check
+current source and result authority.
+
+`transit_station_unified_open` takes an optional `transit_station_unified_tables`
+pointer before the output pointer; pass null for native-only sources. Lookup owns
+its returned schema until `transit_station_unified_table_definition_destroy`;
+`transit_station_unified_table_definition_get` returns a borrowed view.
+The optional capture pointer precedes the output pointer in `authorize_bundle`.

@@ -6,6 +6,7 @@ import hashlib
 from http.client import HTTPConnection, HTTPSConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -13,10 +14,11 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.request
+from types import SimpleNamespace
 
-from storage import Fixture, free_port, wait_ready
-from cold_storage import ColdStore
-from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter, provision_catalog
+from storage import free_port, wait_ready
+from serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
 
 REALM = 49
 TLS = {}
@@ -44,14 +46,14 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
     if 'send' in command:
         command['send'].setdefault('role', None)
-    request = dict(version=1, definition='c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -74,9 +76,9 @@ def policy(principal, revision=1, commands=True, reads=True, limit=1):
 
 def subject_proof(key, principal, ingress, context, credential_epoch=None, role=None, realm=REALM):
     if credential_epoch is None:
-        observation = post(key.authority_port, '/v1/query', native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
+        observation = key.authority_query(native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
         credential_epoch = observation['body']['authorization']['body']['identity']['credential_epoch']
-    claim = dict(definition='c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
+    claim = dict(definition='7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
     return dict(claim=claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest()))
 
 
@@ -104,41 +106,47 @@ def post(port, path, value, host=None, status=200, headers=None):
             connection.close()
         decoded = json.loads(body)
         # Cold recovery can temporarily exhaust authority request admission.
-        # Retry only the same serialized signed command, never a new sequence.
+        # Retry the same signed command or current-credential read, never a new sequence.
         # Explicit rejection/fault assertions (status=None/503) remain visible.
         serving_capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
                        for fact in (decoded.get('diagnostic') or {}).get('facts', []))
-        native_capacity = path == '/v1/command' and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
-        if (native_capacity or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
+        credential_read = (path == '/v1/query' and set(value['query']['kind']) == {'authorization'}
+                           and value['query']['kind']['authorization']['kind'] == {'identity': {}})
+        native_capacity = (path == '/v1/command' or credential_read) and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
+        native_contention = path in ('/v1/query', '/v1/command') and status == 200 and actual == 409 and decoded == {'err': 'Conflict'}
+        if (native_capacity or native_contention or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
             retries += 1
             time.sleep(.05)
             continue
         if retries:
-            print(f'Serving exact submission: {retries} temporary authority-capacity responses before status {actual}', flush=True)
+            print(f'Serving exact request: {retries} temporary native capacity/contention responses before status {actual}', flush=True)
         if status is None:
             return actual, decoded
         assert actual == status, (path, actual, body, status)
         return decoded
 
 
-def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, reactive_views_lifecycle=False, board=None):
+def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, reactive_views_lifecycle=False, board=None):
     reactive_views = reactive_views or reactive_views_lifecycle
     if (reactive_browser or reactive_limits or reactive_client or reactive_refresh or reactive_views) and not (reactive and tls):
         raise ValueError("reactive browser/limits proofs require --reactive --tls")
     live_profile = reactive_refresh or reactive_views
-    node, example, courier, cli = [str(Path(path).resolve()) for path in (node, example, courier, cli)]
+    node, example, courier, host = [str(Path(path).resolve()) for path in (node, example, courier, host)]
     started = time.monotonic()
-    with ColdStore() if growth else nullcontext() as cold, Fixture(cold.config() if cold else None) as store, ExitStack() as owned:
-        keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
+    with tempfile.TemporaryDirectory(prefix='transit-serving-') as directory, ExitStack() as owned:
+        store = SimpleNamespace(root=Path(directory), env={k: v for k, v in os.environ.items() if not k.startswith('OTEL_')},
+            http=urllib.request.build_opener(urllib.request.ProxyHandler({})))
+        keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (177, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
         port = free_port()
-        for key in keys.values(): key.authority_port = port
+        for key in keys.values(): key.authority_query = lambda message: post(port, '/v1/query', message)
         url = f'http://127.0.0.1:{port}'
         configuration = store.root / 'node.json'
-        configuration.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), ursula_url=store.url, bucket='serving', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
+        configuration.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), local_directory=str(store.root / 'native'), port=port, resident_pages=8, request_timeout_ms=10000)))
         children, logs = [], []
 
         def start(name, executable, config):
+            if name == 'clock-observer': fault['clock_contention_armed'] = True
             path = store.root / (name + '.json')
             path.write_text(json.dumps(config))
             log = (store.root / (name + '.log')).open('w+')
@@ -193,10 +201,12 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                 time.sleep(.03)
             raise AssertionError(('undrained', pid, value))
 
-        fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'blocked': 0,
+        fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'serialize_upstream': False, 'blocked': 0,
                  'ingress_commit': None, 'application_commit': None, 'destination_delivery': None,
-                 'reply_delivery': None, 'deliveries_armed': False, 'delivery_ids': {}, 'commit_retries': set()}
+                 'reply_delivery': None, 'data_commit': None, 'data_inspected': False, 'deliveries_armed': False, 'delivery_ids': {}, 'commit_retries': set(),
+                 'contention_requests': {}, 'contention_retried': set(), 'clock_contention_armed': False}
         fault_lock = threading.Lock()
+        upstream_lock = threading.Lock()
         release_reads = threading.Event()
 
         class FaultProxy(BaseHTTPRequestHandler):
@@ -205,16 +215,57 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             def do_POST(self):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 message = json.loads(body)
-                if self.path == '/v1/query' and message['query']['principal'] == 79 and 'resource' in message['query']['kind'] and fault['stall_reads']:
+                native = message.get('request') if self.path == '/v1/command' else None
+                contended = native and ((native['principal'] == 77 and 'open_view' in native['command']) or
+                                        (native['principal'] == 34 and fault['clock_contention_armed'] and 'send' in native['command']))
+                if reactive_views and contended:
+                    principal = native['principal']
                     with fault_lock:
-                        fault['blocked'] += 1
-                    release_reads.wait(timeout=4)
+                        reject = principal not in fault['contention_requests']
+                        if reject:
+                            fault['contention_requests'][principal] = body
+                        elif body == fault['contention_requests'][principal]:
+                            fault['contention_retried'].add(principal)
+                    if reject:
+                        # Model exhausted ordinary CAS reprepare before this
+                        # exact command is dispatched. Never substitute a new
+                        # request sequence or clock-bound view on recovery.
+                        result = b'{"err":"Conflict"}'
+                        self.send_response(409)
+                        self.send_header('Content-Length', str(len(result)))
+                        self.end_headers()
+                        self.wfile.write(result)
+                        return
                 connection = HTTPConnection('127.0.0.1', port, timeout=10)
                 try:
-                    connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
-                    response = connection.getresponse()
-                    result = response.read()
+                    # This schedule fills gateway work after authorization. Keep
+                    # its upstream exchanges sequential while the fault is armed
+                    # so the node's separate admission limit is not the bottleneck.
+                    with upstream_lock if fault['serialize_upstream'] else nullcontext():
+                        connection.request('POST', self.path, body, {'Content-Type': 'application/json', 'Connection': 'close'})
+                        response = connection.getresponse()
+                        result = response.read()
+                        connection.close()
+                    if response.status == 200 and self.path == '/v1/query' and message['query']['principal'] == 79 and 'read_entries' in message['query']['kind'] and fault['stall_reads']:
+                        # Delay the authorized reply after releasing the upstream
+                        # connection. This fills gateway work, not the node's
+                        # independent bounded keep-alive socket pool.
+                        connection.close()
+                        with fault_lock:
+                            fault['blocked'] += 1
+                        release_reads.wait(timeout=4)
                     message = json.loads(body)
+                    if self.path == '/table/v1' and response.status == 200:
+                        operation = message['action'].get('operation')
+                        rows = json.loads(result)['result'].get('rows', {})
+                        if operation and 'committed' in rows:
+                            if operation['command'] == 'execute' and fault['data_commit'] is None:
+                                fault['data_commit'] = operation['binding'], rows['committed']
+                                self.close_connection = True
+                                return
+                            if operation['command'] == 'inspect' and fault['data_commit'] and operation['binding'] == fault['data_commit'][0]:
+                                assert rows['committed'] == fault['data_commit'][1]
+                                fault['data_inspected'] = True
                     if fault['deliveries_armed'] and self.path == '/v1/query' and response.status == 200 and message['query']['principal'] == 80 and 'outputs' in message['query']['kind']:
                         for entry in json.loads(result)['body']['outputs']['entries']:
                             if entry is None: continue
@@ -275,18 +326,40 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                     send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
                     send({'own': dict(pid=pid, expected_generation=2, worker=worker)})
             grant(34, 20)
-            for principal in (65536, 65537): grant(principal, 20, ingress)
-            catalog_authority = provision_catalog(REALM, application_resource, keys[33], send, query,
-                readers=(65536, 65537) if reactive else ())
+            for principal in (65536, 65537):
+                if reactive_views and principal == 65536:
+                    # The query caller verifies proofs from both native owners;
+                    # its send permission still names only the requester.
+                    grant(principal, 16)
+                    role = query(principal, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']['login_role']
+                    authorize(send, query, {'grant': dict(object=dict(kind='process', id=ingress), grantee=role, privileges=4, grant_options=0)})
+                else:
+                    grant(principal, 20, ingress)
             grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
-            resource_grant(application_resource, 33, 3)
             grant(80, 148)
+            if live_profile:
+                grant(177, 16)
+                for resource in (ingress_resource, application_resource): resource_grant(resource, 177, 3)
+            catalog_authority = provision_catalog(REALM, application_resource, application, keys[33], send, query,
+                readers=((65536, 65537, 77, 79, 177) if live_profile else (65536, 65537, 79)) if reactive else ())
+            resource_grant(application_resource, 33, 3)
+            settings = json.loads(configuration.read_text())
+            settings['table'] = dict(catalog=catalog_authority['catalog'], registrar=dict(principal=0, seed_file=str(keys[0].seed)))
+            configuration.write_text(json.dumps(settings))
+            authority.terminate(); authority.wait(timeout=15)
+            authority = start('node-direct', node, settings)
+            wait_ready(store.http, authority, url + '/health')
+            counter_definition = bootstrap_counter(host, store.root, url, catalog_authority['data'], keys[33])
+            def populate_rows():
+                populate_query_rows(host, store.root, url, catalog_authority['data'])
+            sequences[0] = query(0, {'identity': {}})['principal_sequence']
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
-            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, table_limits=TABLE_LIMITS, **catalog_authority)})
+            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, data=catalog_authority['data'])})
             if live_profile:
+                ingress_config['inspection_principal'] = 177
                 ingress_config['generation'] = application_config['generation'] = 3
                 ingress_config['role'] = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)}
                 application_config['role']['application']['queries'] = True
@@ -300,7 +373,6 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             drained(application)
             courier_config = dict(url=worker_url, realm=REALM, principal=80, seed_file=str(keys[80].seed), role={'courier': dict(destinations=[ingress, application])})
             courier_worker = start('courier', courier, courier_config)
-            counter_definition = bootstrap_counter(cli, store.root, url, REALM, application, application_resource, keys[33], cast, drained, query, sequences, readers=(65536, 65537) if reactive else ())
             fault['deliveries_armed'] = True
             deadline_ms = int(time.time() * 1000) + (1800000 if growth else 600000)
             cast(ingress, publication(1, application, deadline_ms))
@@ -345,6 +417,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             if reactive_views:
                 from reactive_views import run as run_views
                 run_views(locals(), TLS)
+                assert set(fault['contention_requests']) == fault['contention_retried'] == {34, 77}, 'worker or clock observer replaced a contended native request'
                 return
             if reactive_refresh:
                 from reactive_refresh import run as run_refresh
@@ -405,6 +478,9 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                 raise AssertionError(('incomplete', operation, status))
 
             first = completed(1, 1)
+            assert fault['data_commit'] and fault['data_inspected'], 'lost data receipt was not recovered'
+            progress = query(0, {'read_entries': dict(resource=application_resource, revision=None, view=None, keys=[b'data-progress'.hex()] + [None] * 7)})['body']['read_entries']['entries'][0]
+            assert int(bytes.fromhex(progress['value'])) == 1, progress
             expected_retries = {'ingress_commit', 'application_commit', 'destination_delivery', 'reply_delivery'}
             until = time.monotonic() + 5
             while fault['commit_retries'] != expected_retries and time.monotonic() < until: time.sleep(.01)
@@ -412,6 +488,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             if capacity:
                 probe = signed_read(keys[65536], 65536, ingress, 'status', 1)
                 other = signed_read(keys[65537], 65537, ingress, 'discovery')
+                fault['serialize_upstream'] = True
                 fault['stall_reads'] = True
                 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as readers:
                     pending = [readers.submit(post, gateway_port, '/serving/v1/read', probe, public_host) for gateway_port in gateway_ports for _ in range(2)]
@@ -419,12 +496,12 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                         until = time.monotonic() + 2
                         while fault['blocked'] < 4 and time.monotonic() < until:
                             time.sleep(.005)
-                        assert fault['blocked'] == 4, fault
+                        assert fault['blocked'] == 4, ('blocked reads', fault['blocked'])
                         post(gateway_ports[0], '/serving/v1/read', probe, public_host, 429)
                         pending += [readers.submit(post, gateway_port, '/serving/v1/read', other, public_host) for gateway_port in gateway_ports for _ in range(2)]
                         while fault['blocked'] < 8 and time.monotonic() < until:
                             time.sleep(.005)
-                        assert fault['blocked'] == 8, fault
+                        assert fault['blocked'] == 8, ('blocked reads', fault['blocked'])
                         rss = sum(int(next(line for line in Path(f'/proc/{worker.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1]) * 1024 for worker in gateways)
                         assert rss <= 256 * 1024 * 1024, ('aggregate gateway RSS exceeded declared qualification ceiling', rss)
                         response = post(gateway_ports[0], '/serving/v1/read', probe, public_host, 503)
@@ -444,6 +521,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                         release_reads.set()
                     assert all(item.result()['operation'] == first['operation'] for item in pending[:4])
                     assert all(item.result()['binding']['revision'] == 1 for item in pending[4:])
+                fault['serialize_upstream'] = False
                 print(f'Serving capacity: per-caller refusal preserves unrelated callers, eight delayed authorized reads, ninth refused, health {elapsed:.3f}s; two-gateway RSS {rss} bytes <= 268435456 ceiling; private 2 MiB request buffers', flush=True)
             # Same operation with a later native sequence still has one destination call.
             duplicate = native_command(keys[65536], 65536, 2, frozen['request']['command'])
@@ -542,7 +620,6 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                 assert read('status', 8, principal=65537)['operation'] == terminal['operation']
             for process in (*gateways, ingress_worker, app_worker, authority):
                 process.kill(); process.wait(timeout=10)
-            store.stop(); store.start()
             authority = start('node-recovered', node, json.loads(configuration.read_text()))
             wait_ready(store.http, authority, url + '/health')
             for config in (ingress_config, application_config):
@@ -588,9 +665,10 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                     if (ordinal + 1) % 32 == 0: print(f'Serving growth: retained {ordinal + 1}/128 operations', flush=True)
                 for ordinal in (0, 31, 63, 127): completed(100 + ordinal, ordinal + 4)
                 completed(1, 1)
-                objects, retained_bytes = cold.data_objects(), cold.file_bytes()
-                assert objects > 0 and retained_bytes > 0
-                print(f'Serving growth: 8 MiB hot-store budget, {objects} cold objects / {retained_bytes} bytes', flush=True)
+                retained = [path for path in (store.root / 'native').rglob('*') if path.is_file()]
+                retained_bytes = sum(path.stat().st_size for path in retained)
+                assert retained_bytes > 0
+                print(f'Serving growth: {len(retained)} retained local files / {retained_bytes} bytes', flush=True)
                 rss = sum(int(next(line for line in Path(f'/proc/{worker.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1]) * 1024 for worker in (authority, ingress_worker, app_worker, gateways[0]))
                 assert rss <= 512 * 1024 * 1024, ('authority/workers/gateway exceeded finite growth profile ceiling', rss)
                 print(f'Serving growth: 128 additional retained operations and bounded old-result reads with 8 resident authority pages; authority/two workers/gateway RSS {rss} bytes <= 536870912 ceiling', flush=True)
@@ -606,9 +684,11 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             drained(ingress)
             completed(2, 3)
             assert read('disposition', conflict_input)['disposition'] == original_conflict
+            revoked_reads = [signed_read(keys[65536], 65536, ingress, kind, operation)
+                             for kind, operation in (('result', 2), ('disposition', conflict_input))]
             send({'revoke': 65536})
-            read('result', 2, expected=403)
-            read('disposition', conflict_input, expected=403)
+            for prepared_read in revoked_reads:
+                post(gateway_ports[0], '/serving/v1/read', prepared_read, public_host, 403)
             if lifetimes:
                 # An independently created finite ingress expires with no timer
                 # observer or courier delivering a notification. No retention
@@ -673,7 +753,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    for name in ('node', 'example', 'courier', 'cli'):
+    for name in ('node', 'example', 'courier', 'host'):
         parser.add_argument(name)
     parser.add_argument('--tls', action='store_true')
     parser.add_argument('--capacity', action='store_true')

@@ -43,6 +43,75 @@ merge rules and the accepted index. The
 
 ## Typed state and causality
 
+### Naming initialized native resources
+
+The question is how a catalog name can identify usable KV or Document state when
+metadata acceptance, native allocation and framework initialization have different
+commit owners. The implemented profile uses one direct catalog, one existing
+native resource writer and explicit caller-driven progress. It assumes authentic
+native receipts, fenced native commits, durable catalog WAL recovery and an
+application writer that implements the declared initializer. It does not assume
+that a supplied resource ID proves initialization or that protocol validation
+proves honest application computation.
+
+Let `B` be the frozen declaration, `A` its prepared original-caller allocation,
+`R` the native resource accepted by `A`, and `I` the initial interpretation of
+`B` and `R`. Catalog phases advance from admitted to prepared to allocated to
+complete. The native owner separately accepts `A`; the Station owner separately
+commits initialization of `R` under `I`. Catalog visibility requires the exact
+native receipt and initialization marker under a current native authority fence.
+The [neutral marker](../../../contracts/DATA_LIFECYCLE_V1.md#native-resource-initialization)
+and [resource request contract](../../../contracts/DIRECT_TABLE_V1.md#named-native-resources)
+specify the representations and checks.
+
+This gives three useful invariants. First, retry preserves `B` and `A`; a lost
+reply cannot select another native sequence or resource. Second, allocation alone
+cannot publish a name: missing initialization leaves the operation allocated.
+Third, logical cancellation or DROP does not erase the native allocation or
+retire its data. These properties follow from the separate retained receipts and
+the catalog's phase transitions, rather than a transaction spanning all owners.
+One prepared allocation per principal occupies a paged catalog index so two
+declarations cannot freeze the same next native sequence. Reconciliation or
+cancellation releases that reservation. Independent native activity can still
+conflict; the actual native receipt remains decisive.
+
+KV reservation and completion use one native commit. Document initialization
+needs three: reserve `I`, create the actual Document service state, then verify
+its empty accepted head and record completion. Restart between those commits
+reads the same reservation and never adopts an unrelated existing Document.
+Metadata registration does not grant data access; publication checks the original
+caller's current rights, and reads check them again after buffering. A completed
+catalog receipt remains historical publication evidence after later revocation,
+retirement or expiry.
+
+An explicit dependency edge binds exact source and consumer interpretations.
+For a named resource consumer, its allocated definition already fixes `I`, so
+registration can precede name publication without inventing a future resource ID.
+The catalog verifies its actual kind and definition and requires its metadata
+owner's authority. Requiring WRITE on the shared catalog backing resource would
+couple independent object owners and expose an unrelated authority; native data
+permissions would incorrectly make metadata cleanup depend on data availability.
+Source reads instead require their own current rights. Published named sources
+participate in the same paged forward/reverse graph and DROP restriction as Tables.
+Rename preserves old exact edges. Consumer retirement and edge removal remain
+separate explicit acceptances, so an interrupted cleanup leaves conservative
+DROP protection. These edges neither retain data cuts nor discover undeclared
+consumers. The [named computation workflow](query-engine.md#immutable-names-and-query-attribution)
+uses a saved registration plan before its separate native publication.
+
+The implementation is in
+[DirectCatalog](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),
+[LocalCatalogPolicy](../../../apps/transit-node/LocalCatalogPolicy.zig) and
+[NamedResource](../../../packages/zig/transit-station-app/src/NamedResource.zig).
+The [public caller fault schedule](../../../tests/direct_table_service.py) drives
+separate catalog and native callers. Reproduction commands, executed results
+and their source basis belong in the [proof ledger](../../../tests/README.md).
+The bounded directory/recovery tests exercise a one-page resident cache. Those
+checks do not establish distributed atomicity, automatic reconciliation, arbitrary
+writer honesty or a retained multi-resource snapshot. Reusing a supplied resource
+ID would avoid allocation steps but could silently adopt unrelated data; this
+profile instead requires a fresh exact native allocation.
+
 ### Complete Table history under a bounded turn
 
 The question is how a reader can finish a frozen backfill and later recover
@@ -91,7 +160,7 @@ records the pinned toolchain commands for the reference-store, codec and signed
 snapshot/tail schedules. The
 [reference-store tests](../../../packages/zig/transit-station/src/table_pages_test.zig)
 exercise missing/corrupt predecessors and allocation failures; the
-[native schedule](../../../tests/typed_table_native.py) uses disk-backed Ursula.
+[native schedule](https://github.com/spoke-sh/transit/blob/b861597c460896f0bfb7d8568f95ce549e94f38e/tests/typed_table_native.py) uses disk-backed Ursula.
 [Executed results](../../../tests/README.md#complete-table-history-and-snapshot-tail)
 state which revisions and schedules passed. These observations do not establish
 distributed history availability, automatic retention collection or maintained

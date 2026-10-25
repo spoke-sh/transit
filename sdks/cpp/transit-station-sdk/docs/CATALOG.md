@@ -1,79 +1,77 @@
 # General Table callers
 
-Include `transit/catalog.hpp` and use `transit::sdk::station::catalog` for typed
-catalog DDL, DML and controls. `Client::open` takes a configuration, credential
-and explicit catalog connection. The [C SDK](../../../c/transit-station/docs/CATALOG.md)
-owns bounded dispatch to shared Zig; C++ adds owned values and RAII handles.
-
-`Schema` contains stable column IDs, owned names, immutable [logical types and
-cells](LOGICAL.md), nullability, optional defaults/character limits and an explicit
-primary-key list. `Action` selects Create, Alter, Rename, Drop, Insert, Update or
-Delete. `Basis` binds existing objects to their exact revision/fingerprint.
-`Change` represents ADD/DROP/RENAME COLUMN, defaults, nullability and qualified
-type changes. ADD obtains its stable column ID at native admission. An absent
-`Assignment::value` means DEFAULT; `logical::Cell::null()` means SQL NULL.
-Optional predicates use typed postfix terms with a 64-instruction bound.
+Include `transit/catalog.hpp` and use `transit::sdk::station::catalog` for direct
+Table definitions, DDL/DML, catalog inspection and explicit snapshot retention.
+`Client::open(config, credential, connection, service_url)` selects a catalog
+scope, audience, branch and optional role. `Identity` selects an operation and
+namespace. The [C SDK](../../../c/transit-station/docs/CATALOG.md) owns bounded
+dispatch and shared native validation; C++ adds typed actions and RAII ownership.
 
 `compile_sql` and `prepare(name, identity, action)` return a move-only `Compiled`.
-`intent()` copies its attribution; `saved()` returns an independent `SavedIntent`
-owner. Save its exact `definition()` and `data()` before requesting progress.
-Restore with `SavedIntent::recover`, then `load`. `next` returns running,
-upload-cancelled, terminal, or a move-only prepared command. Persist `data()`
-before `submit`. `Prepared::recover` copies saved signed bytes; native validation
-checks them before transport. No operation silently rebinds saved work by name.
+Compilation accepts a dialect, point/bulk ingestion mode and optional new CREATE
+object identity. Typed `Action` selects Create, Alter, Rename, Drop, Insert, Update
+or Delete. Persist `compiled.saved().save()` before `stage(compiled.intent())`.
+Persist the returned `Reference::save()` before `admit`. Use `inspect`, `execute`
+and `cancel` with the exact reference. Admission and completed publication are
+distinct; committed row results report matched, affected and live row counts.
+`preview` reports the current definition and proposed work without applying it.
 
-`submit(const Prepared &)` returns admission. An `Error` with
-`TRANSIT_SDK_UNKNOWN_OUTCOME` leaves the original prepared command available for
-exact reconciliation. `observe`, `input_disposition`, `progress` and `status`
-distinguish input processing from the original terminal operation outcome.
-Applied DML results contain committed matched/changed counts and owned diagnostic
-JSON. Explicit initialize/dependency/resume/control methods return prepared
-commands. Close does not cancel durable
-work.
+`SavedIntent`, `Basis`, `Reference`, `Cursor`, `SnapshotOwner`,
+`SnapshotAcquisition` and `Snapshot` own complete immutable recovery values.
+`save()` returns copied JSON bytes; `restore(bytes)` validates and copies them,
+including the mandatory current definition. `copy(native())` explicitly copies a
+borrowed C value. These handles are move-only. An `Intent` shares immutable
+ownership with its compiled result, so it survives destruction of that result.
+`load(saved)` installs the original work in a fresh client without resolving its
+name again.
 
-`lookup(name)` returns an optional owned live `Definition` containing metadata,
-head and schema. `definition(object, revision)` returns an optional
-`HistoricalDefinition` containing accepted metadata/schema without a live head.
-Historical attribution remains tied to the original object after DROP/name reuse.
-`list` returns a dense ordered vector of at most eight entries and optional
-`next`. An empty page can have a continuation. Preserve its mandatory definition,
-scope, resource revision and last object. Changed cuts conflict; discard the
-partial listing before starting fresh. Every read checks current authority.
+Mutating calls throw `catalog::Uncertain` when dispatch has an unknown outcome.
+`failure()` retains the native failure and `original()` owns a `Recovery` variant:
+SavedIntent for staging, Reference for operation calls, SnapshotAcquisition for
+pin acquisition, or Snapshot for release. The wrapper captures this value before
+dispatch and moves it into the exception without allocating or re-signing after
+dispatch. The caller's input remains intact. Other failures throw `sdk::Error`.
+No method automatically retries or assigns a replacement operation identity.
 
-Table/catalog/application identities retain all 64 bits; native identities keep
-their separate safe-integer bound. Names admit 255 UTF-8 bytes. Schemas admit
-128 columns, inserts 1,024 rows, SQL 4,096 bytes, saved intents 4,327,031 bytes and
-signed progress commands 8,192 bytes. Complete catalog actions remain bounded to
-16,777,216 bytes independently of each logical cell; responses admit 16,793,600
-bytes. One native intent is resident per client. Aggregate action construction
-rejects before dispatch on overflow.
+`lookup(name, namespace)` returns optional owned `Metadata`; `basis()` preserves
+the complete object interpretation and `schema()` returns owned logical columns.
+Descriptions expose the current configuration, authenticated subject and policy
+revision. `namespace_read`, `namespaces` and `tables` inspect namespaces and bounded
+metadata pages. Each page has at most eight entries and an optional owned cursor;
+empty pages can continue. Preserve every cursor field, and restart a partial
+listing if its directory cut conflicts. Table data positions remain independent.
 
-`Client`, `Compiled`, `SavedIntent` and `Prepared` are move-only. Copied metadata,
-schemas and immutable logical trees outlive clients. Preparation copies the input
-before dispatch; subsequent edits cannot change prepared work. `close` and
-destruction join active work; overlap returns `BUSY`. Join caller threads before
-destroying their borrowed owners. POSIX cancellation waits for the owned call;
-it does not establish remote cancellation.
+`prepare_snapshot(metadata, operation)` constructs a durable ownership request.
+Persist it before `acquire_snapshot`. Recover a lost reply through
+`snapshot_status(acquisition.owner())`. Persist the discovered handle before
+reading or releasing it. `snapshot_metadata` preserves the original schema and
+accepted position after ALTER, DROP or name reuse, subject to current access
+checks. `release_snapshot` closes that explicit ownership; status resolves an
+uncertain release. Client close and destruction join local work without cancelling
+operations or releasing durable pins. There is no interactive relational SQL,
+namespace administration, dependency-control or named KV/Document publication
+wrapper in this catalog interface.
 
-The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns native
-semantics. Installed recovery and boundary evidence is recorded in the
-[proof ledger](../../../../tests/README.md).
+Schemas and changes use immutable [logical types and cells](LOGICAL.md), stable
+column IDs, defaults, nullability, character limits and primary keys. Encoding and
+collation remain separate descriptors; `SetPhysical` requests native validation.
+An absent `Assignment::value` means DEFAULT; `logical::Cell::null()` means SQL
+NULL. ADD obtains its column ID at native admission. `Insert`, `Update` and
+`Delete` select an `Ingestion` mode. Input trees are copied before native dispatch.
 
-Metadata retains the immutable publication commitment: its byte length and
-32-byte digest. Lookup, listing and history reject missing or malformed
-commitments. C metadata copies this evidence inline; C++ metadata retains it
-in `MetadataCommitment` independently of its client lifetime.
+Schemas admit 128 columns, inserts 1,024 rows and predicates 64 postfix terms.
+SQL admits 4,096 bytes; encoded intents 8,388,644 bytes; complete actions
+16,793,672 bytes; responses 16,810,056 bytes. Aggregate construction stops at its
+bound. Catalog, branch, object, operation and accepted positions preserve all
+64 bits; native realm/resource/principal/audience/namespace IDs keep their
+safe-integer bound. One native intent is resident per client.
 
-Connections select an optional native role and a positive schema namespace.
-C sets `has_role`, `role` and `namespace_id` explicitly; C++ defaults to the login
-role and namespace 1. `open` takes an optional Table-service URL (NULL in C,
-absent optional in C++ for direct infrastructure access). Mediation retains the
-caller's signing identity; the service's private resource identity is separate.
+Result owners and copied schemas outlive clients. `view()` exposes a read-only C
+SDK construction/result view borrowed from its owner; `native()` is for explicit
+C interoperation. Overlap returns `BUSY`; close and destruction join active calls.
+Deferred POSIX cancellation waits through receipt publication. Join caller threads
+before destroying their borrowed handles.
 
-Initialization requires the six-ID native authority profile and database name.
-Descriptions return the authenticated subject, credential epoch, selected role,
-audience, owned context digest and observed authorization revision. Returned
-subjects must match the connection. Live definitions include the native object
-identity; metadata includes its schema namespace and a commitment bounded to
-444 bytes. Lookup/list reject foreign namespaces. Historical definitions retain
-original object attribution and require its current disclosure privileges.
+The [direct catalog contract](../../../../contracts/DIRECT_TABLE_V1.md) owns
+native semantics. The [proof ledger](../../../../tests/README.md) records installed
+recovery and boundary evidence.

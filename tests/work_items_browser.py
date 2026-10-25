@@ -5,15 +5,18 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import tempfile
+from types import SimpleNamespace
 import urllib.error
 import urllib.request
-from storage import Fixture, free_port, wait_ready
-from cold_storage import ColdStore
+from storage import free_port, wait_ready
 
 
 def run(node, worker, query_host, gateway, caller):
     node, worker, query_host, gateway, caller = [str(Path(p).resolve()) for p in (node, worker, query_host, gateway, caller)]
-    with ColdStore() as cold, Fixture(cold.config()) as fixture:
+    with tempfile.TemporaryDirectory(prefix="transit-work-items-browser-") as directory:
+        fixture = SimpleNamespace(root=Path(directory), env=os.environ.copy(),
+            http=urllib.request.build_opener(urllib.request.ProxyHandler({})))
         started = time.monotonic()
         processes, logs, residents = [], [], {}
         def resident(name, process):
@@ -28,12 +31,14 @@ def run(node, worker, query_host, gateway, caller):
             processes.append(process)
             return process
         def invoke(phase):
-            subprocess.run([caller, url, phase, str(fixture.root)], check=True, timeout=180)
+            subprocess.run([caller, url, phase, str(fixture.root)], check=True, timeout=600)
         port, web_port = free_port(), free_port()
         url, origin = f'http://127.0.0.1:{port}', f'http://127.0.0.1:{web_port}'
         public = json.loads(subprocess.check_output([caller, 'public'], timeout=10))
         node_config = fixture.root/'node.json'
-        node_config.write_text(json.dumps(dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url=fixture.url,bucket='work-items-browser',journal='authority',port=port,resident_pages=16)))
+        settings = dict(genesis=dict(realm=51, root_key=public, max_clock_error_ms=10000),
+            local_directory=str(fixture.root / 'native'), port=port, resident_pages=16)
+        node_config.write_text(json.dumps(settings))
         def request(path, body=None, status=200, origin_header=origin):
             headers = {'Content-Type': 'application/json'}
             if origin_header is not None: headers['Origin'] = origin_header
@@ -45,10 +50,15 @@ def run(node, worker, query_host, gateway, caller):
                 assert response.status == status, (path,response.status,data)
                 return json.loads(data)
         try:
-            subprocess.run([node,str(node_config),'--initialize'],check=True,timeout=30)
-            authority=start('node',[node,str(node_config)])
+            authority=start('node',[node,str(node_config),'--bootstrap'])
             wait_ready(fixture.http,authority,url+'/health')
             invoke('setup')
+            authority.terminate(); authority.wait(timeout=15)
+            settings['table'] = json.loads((fixture.root / 'data-catalog.json').read_text())
+            node_config.write_text(json.dumps(settings))
+            authority = start('node', [node, str(node_config), '--bootstrap'])
+            wait_ready(fixture.http, authority, url + '/health')
+            invoke('initialize-data')
             for name,binary in [('data',worker),('publication',worker),('requester',query_host),('courier',query_host)]:
                 start(name,[binary,str(fixture.root/f'{name}.json')])
             invoke('seed')

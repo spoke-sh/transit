@@ -21,6 +21,7 @@ const Config = struct {
         service: u64,
         binding_revision: u64,
         definition: q.Values.Source,
+        capture: gateway.Capture,
     },
 };
 pub fn main(init: std.process.Init) !void {
@@ -43,11 +44,11 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer definitions.deinit();
     for (config.callers, 0..) |caller, index| {
         const definition = try caller.definition.native(definitions.allocator());
-        if (definition.source != .table or definition.resource != caller.connection.resource) return error.InvalidFlightConfiguration;
+        if (definition.source != .table or definition.resource != definition.source.table.scope.resource) return error.InvalidFlightConfiguration;
         const token = try std.Io.Dir.cwd().readFileAlloc(init.io, caller.credential_file, init.gpa, .limited(128));
         defer init.gpa.free(token);
         defer std.crypto.secureZero(u8, token);
-        callers[index] = .{ .credential = try gateway.credentialHash(token), .key = try q.wire.readKey(init.gpa, init.io, caller.seed_file), .connection = caller.connection, .service = caller.service, .ingress_resource = caller.connection.requests, .binding_revision = caller.binding_revision, .table = definition.source.table };
+        callers[index] = .{ .credential = try gateway.credentialHash(token), .key = try q.wire.readKey(init.gpa, init.io, caller.seed_file), .connection = caller.connection, .service = caller.service, .ingress_resource = caller.connection.requests, .binding_revision = caller.binding_revision, .table = definition.source.table, .capture = caller.capture };
     }
     var inspector_key = try q.wire.readKey(init.gpa, init.io, config.inspector_seed_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&inspector_key));

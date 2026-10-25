@@ -105,6 +105,7 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("vector-benchmark", "Build bounded vector operator and pipeline measurements").dependOn(&b.addInstallArtifact(vector_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    b.step("direct-table-contract", "Export signed direct Table envelopes").dependOn(&b.addRunArtifact(catalog.artifact("transit-direct-table-contract")).step);
     const diagnostic_cases = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostic_cases.addFileArg(b.path("tests/diagnostic_case_codes.py"));
     diagnostic_cases.addFileArg(b.path("contracts/diagnostics/mappings.json"));
@@ -147,7 +148,6 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("settings-reference", "Export the typed configuration registry").dependOn(&b.addRunArtifact(settings_reference).step);
     b.step("configuration-contract", "Export reflected configuration operations").dependOn(&b.addRunArtifact(query.artifact("transit-configuration-contract")).step);
-    b.step("table-service-contract", "Export reflected Table mediation envelopes").dependOn(&b.addRunArtifact(query.artifact("transit-table-service-contract")).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
     b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station_bindings.artifact("transit-station-contract")).step);
@@ -239,6 +239,7 @@ pub fn build(b: *std.Build) void {
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
+    const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
@@ -250,7 +251,7 @@ pub fn build(b: *std.Build) void {
     }) });
     const counter_test = b.addRunArtifact(counter_tests);
     test_step.dependOn(&counter_test.step);
-    b.step("test-serving-counter", "Check staged typed counter writes and original replies").dependOn(&counter_test.step);
+    b.step("test-serving-counter", "Check direct counter acceptance and original native progress").dependOn(&counter_test.step);
 
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
     const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = exampleModule(b, sdk, "transit_station_app", target, optimize) }, .{ .name = "transit_query", .module = exampleModule(b, sdk, "transit_query", target, optimize) } } });
@@ -315,6 +316,30 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
+    const local_native_tests = b.addRunArtifact(b.addTest(.{ .root_module = local_backend.module("transit_backend_local") }));
+    const local_catalog_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
+    }) }));
+    b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
+    test_step.dependOn(&local_catalog_tests.step);
+    test_step.dependOn(&local_native_tests.step);
+    b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
+    const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/local_objects.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+    }) });
+    const local_objects_test = b.addSystemCommand(&.{ "python3", "-B" });
+    local_objects_test.addFileArg(b.path("tests/local_objects.py"));
+    local_objects_test.addArtifactArg(local_objects);
+    local_objects_test.has_side_effects = true;
+    local_objects_test.stdio = .inherit;
+    test_step.dependOn(&local_objects_test.step);
+    b.step("test-local-objects", "Qualify local object CAS and immutable publication across processes").dependOn(&local_objects_test.step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
     unified_contract_test.has_side_effects = true;
@@ -555,6 +580,12 @@ pub fn build(b: *std.Build) void {
     const diagnostics_export = b.addRunArtifact(exporter);
     diagnostics_export.addArg("--diagnostic");
     b.step("diagnostic-contract", "Export bounded shared diagnostic JSON Schema").dependOn(&diagnostics_export.step);
+    const lifecycle_export = b.addRunArtifact(exporter);
+    lifecycle_export.addArg("--data-lifecycle");
+    b.step("data-lifecycle-contract", "Export neutral data lifecycle and snapshot schemas").dependOn(&lifecycle_export.step);
+    const index_export = b.addRunArtifact(exporter);
+    index_export.addArg("--index-lifecycle");
+    b.step("index-lifecycle-contract", "Export neutral index declaration and coverage schemas").dependOn(&index_export.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
     const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit_board_api.module("transit_board_api") })).step);
@@ -664,7 +695,9 @@ pub fn build(b: *std.Build) void {
             },
         }) });
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "transit-admin")) cli_artifact = app;
@@ -915,6 +948,18 @@ pub fn build(b: *std.Build) void {
     server_test.step.dependOn(&lifecycle_test.step);
     server_test.stdio = .inherit;
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
+    const direct_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_server_test.addFileArg(b.path("tests/server_direct_tables.py"));
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| direct_server_test.addArtifactArg(artifact);
+    direct_server_test.has_side_effects = true;
+    direct_server_test.stdio = .inherit;
+    b.step("test-server-direct-tables", "Prove installed SQL uses the direct Table owner and exact bootstrap recovery").dependOn(&direct_server_test.step);
+    const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_fault_test.addFileArg(b.path("tests/server_direct_faults.py"));
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| direct_fault_test.addArtifactArg(artifact);
+    direct_fault_test.has_side_effects = true;
+    direct_fault_test.stdio = .inherit;
+    b.step("test-server-direct-faults", "Prove installed direct Table recovery and control during data-owner failures").dependOn(&direct_fault_test.step);
     const logging_test = b.addSystemCommand(&.{ "python3", "-B" });
     logging_test.addFileArg(b.path("tests/server_logging.py"));
     for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| logging_test.addArtifactArg(artifact);
@@ -948,7 +993,7 @@ pub fn build(b: *std.Build) void {
     }
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, transit_cli }) |artifact| serving_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, station_host }) |artifact| serving_test.addArtifactArg(artifact);
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
@@ -964,7 +1009,6 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");
     if (b.option(bool, "serving-reactive-limits", "Qualify reactive capacity, cursor and expiry limits") orelse false) serving_test.addArg("--reactive-limits");
     if (b.option(bool, "serving-reactive-browser", "Qualify the real browser reactive bootstrap and transports") orelse false) serving_test.addArg("--reactive-browser");
-    serving_test.step.dependOn(&operation_install.step);
     serving_test.has_side_effects = true;
     serving_test.stdio = .inherit;
     b.step("test-serving", "Qualify durable HTTP service admission and recovery").dependOn(&serving_test.step);
@@ -979,10 +1023,6 @@ pub fn build(b: *std.Build) void {
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     build_test_step.dependOn(&flight_gateway.step);
-    const table_service = b.dependency("transit_table_service", .{ .target = target, .optimize = optimize }).artifact("transit-table-service");
-    b.step("transit-table-service", "Install the authenticated Table service").dependOn(&b.addInstallArtifact(table_service, .{}).step);
-    build_test_step.dependOn(&table_service.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = table_service.root_module })).step);
     const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});
     b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&install_sql_gateway.step);
     b.getInstallStep().dependOn(&install_sql_gateway.step);
@@ -1007,7 +1047,7 @@ pub fn build(b: *std.Build) void {
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, operations, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
-    b.step("test-public-query", "Qualify public query hosts and native callers over disk Ursula").dependOn(&public_query_test.step);
+    b.step("test-public-query", "Qualify public query hosts and native callers over local direct Tables").dependOn(&public_query_test.step);
     const unified_query = b.addExecutable(.{ .name = "transit-unified-query-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/unified_query.zig"),
         .target = target,
@@ -1122,6 +1162,149 @@ pub fn build(b: *std.Build) void {
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
+    const local_service = b.addSystemCommand(&.{ "python3", "-B" });
+    local_service.addFileArg(b.path("tests/growing_service.py"));
+    local_service.addArg("--local");
+    local_service.addArtifactArg(node_artifact);
+    local_service.addArtifactArg(growing_client);
+    local_service.has_side_effects = true;
+    local_service.stdio = .inherit;
+    b.step("test-local-native-service", "Prove the local native node with public signed callers and reply faults").dependOn(&local_service.step);
+    const direct_table_client = b.addExecutable(.{ .name = "transit-direct-table-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/direct_table_client.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
+    }) });
+    const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_table_service.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_table_service.addArtifactArg(node_artifact);
+    direct_table_service.addArtifactArg(direct_table_client);
+    direct_table_service.addPassthruArgs();
+    direct_table_service.has_side_effects = true;
+    direct_table_service.stdio = .inherit;
+    b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
+    const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_callers.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_callers.addArtifactArg(node_artifact);
+    direct_callers.addArtifactArg(direct_table_client);
+    direct_callers.addArg("callers");
+    direct_callers.has_side_effects = true;
+    direct_callers.stdio = .inherit;
+    b.step("test-direct-table-callers", "Prove shared SQL and typed host callers through the public Table owner").dependOn(&direct_callers.step);
+    const direct_catalog_abi = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_abi.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_abi.addArtifactArg(node_artifact);
+    direct_catalog_abi.addArtifactArg(direct_table_client);
+    direct_catalog_abi.addArg("abi");
+    direct_catalog_abi.addArtifactArg(station_bindings.artifact("transit_station"));
+    direct_catalog_abi.addArtifactArg(station_host);
+    direct_catalog_abi.has_side_effects = true;
+    direct_catalog_abi.stdio = .inherit;
+    b.step("test-direct-catalog-abi", "Prove direct catalog ABI and port recovery after accepted reply loss").dependOn(&direct_catalog_abi.step);
+    const direct_catalog_python = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_python.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_python.addArtifactArg(node_artifact);
+    direct_catalog_python.addArtifactArg(direct_table_client);
+    direct_catalog_python.addArgs(&.{ "sdk-python", ".cache/bindings/wheels" });
+    direct_catalog_python.has_side_effects = true;
+    direct_catalog_python.stdio = .inherit;
+    b.step("test-direct-catalog-python", "Prove installed Python direct lifecycle and retained SQL recovery").dependOn(&direct_catalog_python.step);
+    const direct_catalog_node = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_node.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_node.addArtifactArg(node_artifact);
+    direct_catalog_node.addArtifactArg(direct_table_client);
+    direct_catalog_node.addArgs(&.{ "sdk-node", ".cache/bindings/node" });
+    direct_catalog_node.has_side_effects = true;
+    direct_catalog_node.stdio = .inherit;
+    b.step("test-direct-catalog-node", "Prove installed Node direct lifecycle and retained SQL recovery").dependOn(&direct_catalog_node.step);
+    const direct_catalog_ruby = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_ruby.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_ruby.addArtifactArg(node_artifact);
+    direct_catalog_ruby.addArtifactArg(direct_table_client);
+    direct_catalog_ruby.addArgs(&.{ "sdk-ruby", ".cache/bindings/ruby" });
+    direct_catalog_ruby.has_side_effects = true;
+    direct_catalog_ruby.stdio = .inherit;
+    b.step("test-direct-catalog-ruby", "Prove installed Ruby direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_ruby.step);
+    const direct_catalog_java = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_java.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_java.addArtifactArg(node_artifact);
+    direct_catalog_java.addArtifactArg(direct_table_client);
+    direct_catalog_java.addArgs(&.{ "sdk-java", ".cache/bindings/java" });
+    direct_catalog_java.has_side_effects = true;
+    direct_catalog_java.stdio = .inherit;
+    b.step("test-direct-catalog-java", "Prove installed Java direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_java.step);
+    const direct_catalog_dotnet = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_dotnet.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_dotnet.addArtifactArg(node_artifact);
+    direct_catalog_dotnet.addArtifactArg(direct_table_client);
+    direct_catalog_dotnet.addArgs(&.{ "sdk-dotnet", ".cache/bindings/dotnet" });
+    direct_catalog_dotnet.has_side_effects = true;
+    direct_catalog_dotnet.stdio = .inherit;
+    b.step("test-direct-catalog-dotnet", "Prove installed .NET direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_dotnet.step);
+    const direct_catalog_rust = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_rust.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_rust.addArtifactArg(node_artifact);
+    direct_catalog_rust.addArtifactArg(direct_table_client);
+    direct_catalog_rust.addArgs(&.{ "sdk-rust", ".cache/bindings/rust" });
+    direct_catalog_rust.has_side_effects = true;
+    direct_catalog_rust.stdio = .inherit;
+    b.step("test-direct-catalog-rust", "Prove installed Rust direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_rust.step);
+    const direct_catalog_beam = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_beam.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_beam.addArtifactArg(node_artifact);
+    direct_catalog_beam.addArtifactArg(direct_table_client);
+    direct_catalog_beam.addArgs(&.{ "sdk-beam", ".cache/bindings/beam" });
+    direct_catalog_beam.has_side_effects = true;
+    direct_catalog_beam.stdio = .inherit;
+    b.step("test-direct-catalog-beam", "Prove installed Erlang and Elixir direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_beam.step);
+    const direct_catalog_c = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_catalog_c.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_c.addArtifactArg(node_artifact);
+    direct_catalog_c.addArtifactArg(direct_table_client);
+    direct_catalog_c.addArgs(&.{ "sdk-c", ".cache/bindings/c" });
+    direct_catalog_c.has_side_effects = true;
+    direct_catalog_c.stdio = .inherit;
+    b.step("test-direct-catalog-c", "Prove installed C and C++ direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_c.step);
+
+    const direct_board = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_board.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_board.addArtifactArg(node_artifact);
+    direct_board.addArtifactArg(direct_table_client);
+    direct_board.addArg(if (b.option(bool, "direct-board-browser", "Qualify direct relational Board in Chromium") orelse false) "board-browser" else "board");
+    direct_board.addArtifactArg(station_bindings.artifact("transit_station"));
+    direct_board.addArtifactArg(board);
+    direct_board.has_side_effects = true;
+    direct_board.stdio = .inherit;
+    b.step("test-direct-board", "Prove direct Board reads, original pin recovery and current authorization").dependOn(&direct_board.step);
+
+    const direct_dependencies = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_dependencies.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_dependencies.addArtifactArg(node_artifact);
+    direct_dependencies.addArtifactArg(direct_table_client);
+    direct_dependencies.addArg("dependencies");
+    direct_dependencies.has_side_effects = true;
+    direct_dependencies.stdio = .inherit;
+    b.step("test-direct-dependencies", "Prove direct dependency registration, RESTRICT and exact recovery across node loss").dependOn(&direct_dependencies.step);
+    const named_resources = b.addSystemCommand(&.{ "python3", "-B" });
+    named_resources.addFileArg(b.path("tests/direct_table_service.py"));
+    named_resources.addArtifactArg(node_artifact);
+    named_resources.addArtifactArg(direct_table_client);
+    named_resources.addArg("resources");
+    named_resources.has_side_effects = true;
+    named_resources.stdio = .inherit;
+    b.step("test-direct-named-resources", "Prove named KV and Document initialization and original receipt recovery across node loss").dependOn(&named_resources.step);
+    const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/direct_captured_query.py" });
+    direct_captured_query.addArtifactArg(node_artifact);
+    direct_captured_query.addArtifactArg(direct_table_client);
+    if (b.option(bool, "direct-query-example", "Run the finite SQL example through direct capture and restart recovery") orelse false) {
+        direct_captured_query.addArg("--example");
+        direct_captured_query.addArtifactArg(query_example);
+    }
+    direct_captured_query.addPassthruArgs();
+    direct_captured_query.has_side_effects = true;
+    direct_captured_query.stdio = .inherit;
+    b.step("test-direct-captured-query", "Prove captured direct Table queries with independent native progress and restart").dependOn(&direct_captured_query.step);
     const growing_load = b.addExecutable(.{ .name = "transit-growing-load-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_load.zig"),
         .target = target,
@@ -1234,28 +1417,16 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
-    const typed_table_proof = b.addExecutable(.{ .name = "transit-typed-table-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/typed_table_native.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
-    }) });
-    build_test_step.dependOn(&typed_table_proof.step);
     const relational_capacity_proof = b.step("relational-capacity-proof", "Build native relational physical-capacity fixtures");
     relational_capacity_proof.dependOn(&b.addInstallArtifact(node_artifact, .{}).step);
-    relational_capacity_proof.dependOn(&b.addInstallArtifact(typed_table_proof, .{}).step);
-    const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });
-    typed_table_native.addFileArg(b.path("tests/typed_table_native.py"));
-    typed_table_native.addArtifactArg(node_artifact);
-    typed_table_native.addArtifactArg(typed_table_proof);
-    typed_table_native.addArtifactArg(query_host);
-    typed_table_native.addArtifactArg(transit_cli);
-    typed_table_native.addArtifactArg(station_host);
-    typed_table_native.addPassthruArgs();
-    typed_table_native.step.dependOn(&operation_install.step);
-    typed_table_native.has_side_effects = true;
-    typed_table_native.stdio = .inherit;
-    b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    relational_capacity_proof.dependOn(&b.addInstallArtifact(direct_table_client, .{}).step);
+    const sql_catalog_proof = b.addExecutable(.{ .name = "transit-sql-catalog-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_catalog_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_sql", .module = b.dependency("transit_sql", .{ .target = target, .optimize = optimize }).module("transit_sql") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
+    }) });
+    build_test_step.dependOn(&sql_catalog_proof.step);
     const sql_gateway_proof = b.addExecutable(.{ .name = "transit-sql-gateway-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_gateway_native.zig"),
         .target = target,
@@ -1266,7 +1437,7 @@ pub fn build(b: *std.Build) void {
     const sql_gateway_native = b.addSystemCommand(&.{ "python3", "-B" });
     sql_gateway_native.addFileArg(b.path("tests/sql_gateway_native.py"));
     sql_gateway_native.addArtifactArg(node_artifact);
-    sql_gateway_native.addArtifactArg(typed_table_proof);
+    sql_gateway_native.addArtifactArg(sql_catalog_proof);
     sql_gateway_native.addArtifactArg(sql_gateway_proof);
     sql_gateway_native.has_side_effects = true;
     sql_gateway_native.stdio = .inherit;
@@ -1292,7 +1463,7 @@ pub fn build(b: *std.Build) void {
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, transit_cli }) |artifact| {
+    for ([_]*std.Build.Step.Compile{ node_artifact, sql_catalog_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, transit_cli }) |artifact| {
         sql_wire_gateway.addArtifactArg(artifact);
         sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
     }
@@ -1305,50 +1476,57 @@ pub fn build(b: *std.Build) void {
         const placed = b.addSystemCommand(&.{ "python3", "-B" });
         placed.addFileArg(b.path("examples/sql-wire/run.py"));
         placed.addArg(placement);
-        for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
+        for ([_]*std.Build.Step.Compile{ node_artifact, sql_catalog_proof, sql_gateway_proof, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
         placed.has_side_effects = true;
         placed.stdio = .inherit;
         b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
     }
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
+    relational_callers_native.addFileArg(b.path("tests/direct_table_service.py"));
     relational_callers_native.addArtifactArg(node_artifact);
-    relational_callers_native.addArtifactArg(typed_table_proof);
+    relational_callers_native.addArtifactArg(direct_table_client);
+    const relational_sdk = b.option(enum { python, node }, "relational-sdk", "Include installed relational SDK callers");
+    relational_callers_native.addArg(if (relational_sdk) |language| switch (language) {
+        .python => "relational-python",
+        .node => "relational-node",
+    } else "relational");
+    relational_callers_native.addArtifactArg(station_bindings.artifact("transit_station"));
     relational_callers_native.addArtifactArg(station_host);
-    if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) {
-        relational_callers_native.addArg("--board");
-        relational_callers_native.addArtifactArg(board);
-    }
-    relational_callers_native.addPassthruArgs();
     relational_callers_native.has_side_effects = true;
     relational_callers_native.stdio = .inherit;
-    b.step("test-relational-callers", "Prove repeatable relational caller pages on disk").dependOn(&relational_callers_native.step);
-    const relational_exchange_native = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_exchange_native.addFileArg(b.path("tests/relational_exchange_native.py"));
-    relational_exchange_native.addArtifactArg(node_artifact);
-    relational_exchange_native.addArtifactArg(typed_table_proof);
-    relational_exchange_native.has_side_effects = true;
-    relational_exchange_native.stdio = .inherit;
-    b.step("test-relational-exchanges", "Qualify bounded exchanges into maintained results on disk with worker and authority loss").dependOn(&relational_exchange_native.step);
+    const relational_callers_step = b.step("test-relational-callers", "Prove explicit retained relational callers against the direct owner");
+    relational_callers_step.dependOn(&relational_callers_native.step);
+    if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) relational_callers_step.dependOn(&direct_board.step);
+    const relational_exchanges = b.step("test-relational-exchanges", "Qualify direct exchanges through process loss and multiple producers");
+    var previous_exchange: ?*std.Build.Step = null;
+    for ([_][]const u8{ "--exchanges-only", "--exchange-workers-only" }) |mode| {
+        const exchange_proof = b.addSystemCommand(&.{ "python3", "-B" });
+        exchange_proof.addFileArg(b.path("tests/direct_captured_query.py"));
+        exchange_proof.addArtifactArg(node_artifact);
+        exchange_proof.addArtifactArg(direct_table_client);
+        exchange_proof.addArg(mode);
+        exchange_proof.has_side_effects = true;
+        exchange_proof.stdio = .inherit;
+        if (previous_exchange) |previous| exchange_proof.step.dependOn(previous);
+        previous_exchange = &exchange_proof.step;
+    }
+    relational_exchanges.dependOn(previous_exchange.?);
     const named_relational_native = b.addSystemCommand(&.{ "python3", "-B" });
-    named_relational_native.addFileArg(b.path("tests/named_relational_native.py"));
+    named_relational_native.addFileArg(b.path("tests/direct_captured_query.py"));
     named_relational_native.addArtifactArg(node_artifact);
-    named_relational_native.addArtifactArg(typed_table_proof);
+    named_relational_native.addArtifactArg(direct_table_client);
+    named_relational_native.addArg("--named-only");
     named_relational_native.has_side_effects = true;
     named_relational_native.stdio = .inherit;
     b.step("test-named-relational", "Prove separate named publication, activation and complete revision recovery on disk").dependOn(&named_relational_native.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
-    combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
+    combined_table_test.addFileArg(b.path("tests/direct_captured_query.py"));
     combined_table_test.addArtifactArg(node_artifact);
-    combined_table_test.addArtifactArg(query_host);
-    combined_table_test.addArtifactArg(unified_query);
-    combined_table_test.addArtifactArg(station_bindings.artifact("transit_station"));
-    combined_table_test.addArtifactArg(transit_cli);
-    combined_table_test.addPassthruArgs();
-    combined_table_test.step.dependOn(&operation_install.step);
+    combined_table_test.addArtifactArg(direct_table_client);
+    combined_table_test.addArg("--unified-boundaries-only");
     combined_table_test.has_side_effects = true;
     combined_table_test.stdio = .inherit;
-    b.step("test-table-query-writer", "Prove combined Table initialization and interleaved query/mutation recovery").dependOn(&combined_table_test.step);
+    b.step("test-table-query-writer", "Prove direct Table capture and independent native query progress").dependOn(&combined_table_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));

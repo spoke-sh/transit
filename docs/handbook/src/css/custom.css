@@ -32,6 +32,10 @@
   --docs-muted: #b0c0c5;
   --docs-panel: #1a282d;
 }
+/* Mermaid injects diagram-ID styles; keep its dark edge labels readable. */
+[data-theme="dark"] .docusaurus-mermaid-container .edgeLabel p {
+  color: #ffffff !important;
+}
 .navbar {
   border-bottom: 1px solid var(--docs-line);
 }

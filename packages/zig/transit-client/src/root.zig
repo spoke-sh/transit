@@ -4,7 +4,8 @@ pub const ResourceReader = @import("ResourceReader.zig");
 pub const BlockBatch = @import("BlockBatch.zig");
 pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const WorkerHandoff = @import("WorkerHandoff.zig");
-pub const AuthorizationClient = @import("AuthorizationClient.zig").Client;
+pub const AuthorizationClientWithTransport = @import("AuthorizationClient.zig").WithTransport;
+pub const AuthorizationClient = AuthorizationClientWithTransport(Client);
 pub const AuthorizationChange = @import("AuthorizationChange.zig");
 pub const AuthorizationSet = @import("AuthorizationSet.zig");
 pub const AuthorizationBridge = @import("AuthorizationBridge.zig");
@@ -118,14 +119,14 @@ pub const Client = struct {
         return if (owned) std.json.Parsed(T) else T;
     }
     fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
-        const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
+        const command = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().operation else if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
             inline for (.{ "/v1/command", "/v1/query", "/v1/blocks", "/table/v1" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
             break :route "unmatched";
         };
         observation.event.method = "POST";
-        const mutation = std.mem.eql(u8, path, "/v1/command");
+        const mutation = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().mutation else std.mem.eql(u8, path, "/v1/command");
         if (mutation) observation.event.protocol_outcome = .uncertain;
         defer observation.finish();
         self.call_context = observation.span.context;
@@ -135,11 +136,15 @@ pub const Client = struct {
             observation.fail(err);
             if (self.last_status) |status| observation.event.status = @backingInt(status);
             if (self.last_rejection) |rejection| observation.event.error_type = @tagName(rejection);
-            if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) observation.event.protocol_outcome = .rejected;
+            // Domain services can deny final disclosure after accepting work.
+            // Their typed owner, not this HTTP exchange, determines the outcome.
+            if (!@hasDecl(@TypeOf(signed), "transport") or !mutation) {
+                if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) observation.event.protocol_outcome = .rejected;
+            }
             return err;
         };
         if (self.last_status) |status| observation.event.status = @backingInt(status);
-        observation.event.protocol_outcome = if (mutation) .receipt else .read;
+        observation.event.protocol_outcome = if (!mutation) .read else if (@hasDecl(@TypeOf(signed), "transport")) .none else .receipt;
         if (@hasField(@TypeOf(signed), "request")) {
             observation.event.realm = signed.request.realm;
             observation.event.sequence = signed.request.sequence;
@@ -218,7 +223,12 @@ pub const Client = struct {
         const url = try allocator.print("{s}{s}", .{ self.url, path });
         defer allocator.free(url);
         const encoded: struct { storage: []u8, length: usize } = if (owned) bounded: {
-            const storage = try allocator.alloc(u8, limits.request_bytes);
+            var scratch: [256]u8 = undefined;
+            var count: std.Io.Writer.Discarding = .init(&scratch);
+            var counter: std.json.Stringify = .{ .writer = &count.writer };
+            try protocol.Json.write(signed, &counter);
+            if (count.fullCount() > limits.request_bytes) return error.HttpRequestBudget;
+            const storage = try allocator.alloc(u8, @intCast(count.fullCount()));
             errdefer allocator.free(storage);
             var request_writer: std.Io.Writer = .fixed(storage);
             var encoder: std.json.Stringify = .{ .writer = &request_writer };
@@ -231,9 +241,10 @@ pub const Client = struct {
         defer allocator.free(encoded.storage);
         const body = encoded.storage[0..encoded.length];
         var stack: [if (owned) 0 else max_body]u8 = undefined;
-        const buffer = if (owned) try allocator.alloc(u8, limits.response_bytes) else stack[0..];
-        defer if (owned) allocator.free(buffer);
-        var writer: std.Io.Writer = .fixed(buffer);
+        var bounded_body: @import("BoundedBody.zig") = .{ .allocator = allocator, .limit = limits.response_bytes };
+        defer bounded_body.deinit();
+        var fixed: std.Io.Writer = .fixed(&stack);
+        const writer = if (owned) &bounded_body.writer else &fixed;
         const parent_header = if (self.call_context) |context| context.header() else @as([55]u8, @splat(0));
         var headers: [3]std.http.Header = undefined;
         var header_count: usize = 0;
@@ -241,13 +252,13 @@ pub const Client = struct {
             headers[header_count] = .{ .name = "traceparent", .value = &parent_header };
             header_count += 1;
         }
-        const control = if (@TypeOf(signed) == protocol.Growth.SignedQuery) switch (signed.query.kind) {
-            .close_snapshot => true,
-            .snapshot_read => |read| read.finish,
-            else => false,
-        } else false;
-        if (control) {
-            headers[header_count] = .{ .name = "x-transit-control", .value = "snapshot" };
+        const control: ?[]const u8 = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().control else if (@TypeOf(signed) == protocol.Growth.SignedQuery) switch (signed.query.kind) {
+            .close_snapshot => "snapshot",
+            .snapshot_read => |read| if (read.finish) "snapshot" else null,
+            else => null,
+        } else null;
+        if (control) |hint| {
+            headers[header_count] = .{ .name = "x-transit-control", .value = hint };
             header_count += 1;
         }
         var wait_buffer: [32]u8 = undefined;
@@ -263,17 +274,27 @@ pub const Client = struct {
             .redirect_behavior = .not_allowed,
             .extra_headers = headers[0..header_count],
             .keep_alive = true,
-            .response_writer = &writer,
+            .response_writer = writer,
         }) catch |err| switch (err) {
             // The pinned socket API uses AccessDenied for a local firewall or
             // OS refusal. Reserve AccessDenied below for a validated authority
             // response; transport failure cannot establish command rejection.
             error.AccessDenied => return error.AuthorityTransportDenied,
+            error.WriteFailed => return if (bounded_body.allocation_failed) error.OutOfMemory else err,
             else => return err,
         };
         self.last_status = response.status;
         if (response.status != .ok) {
-            var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch return error.InvalidAuthorityResponse;
+            var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                // An intermediary can report availability without a native
+                // error envelope. This establishes no rejection or receipt;
+                // callers must retain the original uncertain mutation bytes.
+                return switch (response.status) {
+                    .bad_gateway, .service_unavailable, .gateway_timeout => error.AuthorityUnavailable,
+                    else => error.InvalidAuthorityResponse,
+                };
+            };
             defer failure.deinit();
             self.last_rejection = failure.value.err;
         }

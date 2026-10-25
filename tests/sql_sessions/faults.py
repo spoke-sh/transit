@@ -1,4 +1,4 @@
-"""Owned native hop for deterministic failure before snapshot acquisition."""
+"""Owned authority hop for deterministic metadata and pin acquisition failures."""
 import http.client
 import http.server
 import json
@@ -12,12 +12,14 @@ class Faults:
         target = urlsplit(url)
         self.fail_open = False
         self.fail_once = False
+        self.fail_snapshot_once = False
         self.fail_coordinator = None
         self.fail_source_once = None
         self.fail_result_once = None
         self.failures = 0
         self.requests = 0
         self.response_bytes = 0
+        self.rejections = []
         self.lock = threading.Lock()
         owner = self
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -26,19 +28,29 @@ class Faults:
             wbufsize = 65536
             def do_POST(self):
                 content = self.rfile.read(int(self.headers['Content-Length']))
-                envelope = json.loads(content).get('query', {})
+                request = json.loads(content)
+                envelope = request.get('query', {})
                 query = envelope.get('kind', {})
+                table = request.get('action', {}) if self.path == '/table/v1' else {}
                 source_failure = owner.fail_source_once is not None and envelope.get('principal') == owner.fail_source_once
                 # Retained Query publications use authorized read_entries
                 # batches. 00 50 + big-endian domain 3 is Publication's
                 # query_result key prefix, distinct from policy/status reads.
                 publication = query.get('read_entries', {})
                 result_failure = owner.fail_result_once == (envelope.get('principal'), publication.get('resource')) and any(isinstance(key, str) and key.startswith('005000000003') for key in publication.get('keys', []))
-                if source_failure or result_failure or ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
+                # Metadata is a pure observation and may be retried before any
+                # acquisition. A failed pin must preserve its original journal
+                # identity for cleanup, never silently capture another cut.
+                metadata_failure = owner.fail_once and 'lookup' in table
+                acquisition_failure = owner.fail_open and 'pin' in table
+                snapshot_failure = owner.fail_snapshot_once and 'snapshot' in table
+                if source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
                     if source_failure:
                         owner.fail_source_once = None
                     if result_failure:
                         owner.fail_result_once = None
+                    if snapshot_failure:
+                        owner.fail_snapshot_once = False
                     owner.fail_once = False
                     owner.failures += 1
                     status, body = 503, b'{"err":"HttpCapacity"}'
@@ -62,6 +74,11 @@ class Faults:
                 with owner.lock:
                     owner.requests += 1
                     owner.response_bytes += len(body)
+                    if status >= 400:
+                        # Only protocol action names and status, never SQL,
+                        # credentials or protected response bodies.
+                        owner.rejections.append(dict(route=self.path, action=list(table or query), status=status))
+                        del owner.rejections[:-32]
             def handle(self):
                 # Transport replacement and service shutdown can reset an idle
                 # keepalive connection. Failed POSTs still reach the client.
@@ -80,7 +97,7 @@ class Faults:
         before = self.failures
         self.fail_once = True
         result = client.execute('SELECT id FROM native_sessions')['batch']
-        assert self.failures == before + 1 and result['rows']
+        assert self.failures == before + 1 and result['rows'], (before, self.failures, result)
         client.call(dict(close_result=result['cursor']))
 
         # A real failed coordinator fence withdraws readiness. Login waits for
@@ -118,10 +135,17 @@ class Faults:
                 release.join()
         self.fail_open = True
         try:
+            before = self.failures
             client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AuthorityUnavailable')
-            assert self.failures > 0
+            assert self.failures > before
         finally:
             self.fail_open = False
+        # The retained pin exists before this failed source open. Its successful
+        # cleanup must not erase the capacity diagnosis from the read attempt.
+        before = self.failures
+        self.fail_snapshot_once = True
+        failure = client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AuthorityUnavailable')['err']
+        assert self.failures == before + 1 and failure['sqlstate'] == list(b'53000'), failure
         # A failed open must not publish a partially initialized cursor or
         # double-free its preparation. Reuse the same logical session.
         result = client.execute('SELECT id FROM native_sessions')['batch']

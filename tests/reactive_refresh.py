@@ -21,7 +21,19 @@ def run(env, _tls):
     last_clock = 0
 
     def client(operation, expected=200, control=False):
-        value = post(port, '/reactive/v1/client' + ('/control' if control else ''), operation, host, expected, {'Origin': 'https://' + host})
+        path = '/reactive/v1/client' + ('/control' if control else '')
+        deadline = time.monotonic() + 5
+        while True:
+            status_code, value = post(port, path, operation, host, None, {'Origin': 'https://' + host})
+            diagnostic = value.get('diagnostic', {})
+            if (expected == 200 and status_code == 503 and set(operation) <= {'refresh_status', 'observe'}
+                    and diagnostic.get('category') == 'unavailable'
+                    and any(action and action['kind'] == 'retry_read' for action in diagnostic.get('actions', []))
+                    and time.monotonic() < deadline):
+                time.sleep(.05)
+                continue
+            assert status_code == expected, (path, status_code, value, expected)
+            break
         if expected == 200:
             trace.extend([dict(type='HostRequest', value=operation), dict(type='HostResponse', value=value)])
         return value
@@ -97,17 +109,17 @@ def run(env, _tls):
     # Independent schema-bound Table declaration and FQP1 plan.
     limits = struct.pack('<QQQ', 100, 100, 1048576)
     epoch = query(principal, {'authorization': {'role': None, 'kind': {'identity': {}}}})['body']['authorization']['body']['identity']['credential_epoch']
-    source, declaration, bundle = query_bytes(env['counter_definition'], application, limits,
-        requester=ingress, requests=requests,
-        proof=lambda context: subject_proof(env['keys'][principal], principal, application, context, credential_epoch=epoch))
     cast(application, query_policy(env['counter_definition'], application, ingress, requests, principal, limits, revision=1, allow=True))
     drained(application)
     mutate(1)
-    digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
-    for ordinal, offset in enumerate(range(0, len(bundle), 256)):
-        part = bundle[offset:offset+256]
-        digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', ordinal, len(part)) + part).digest()
-    def complete_template(namespace):
+    def complete_template(namespace, prepared_only=False):
+        source, declaration, bundle = query_bytes(env['counter_definition'], application, limits,
+            requester=ingress, requests=requests, principal=principal, executor=78, operation=int(namespace),
+            proof=lambda context: subject_proof(env['keys'][principal], principal, application, context, credential_epoch=epoch))
+        digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
+        for ordinal, offset in enumerate(range(0, len(bundle), 256)):
+            part = bundle[offset:offset+256]
+            digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', ordinal, len(part)) + part).digest()
         reference = b'SPF1' + struct.pack('<QIQQII', requests, 2, namespace, 1, 0x31425155, len(bundle)) + digest
         cast(ingress, b'UQB1' + reference, principal)
         drained(ingress)
@@ -118,12 +130,12 @@ def run(env, _tls):
                 drained(ingress)
         cast(ingress, b'UQS1' + struct.pack('<Q', namespace), principal)
         drained(ingress)
-        cast(ingress, b'UQX1' + struct.pack('<Q', namespace), principal)
+        cast(ingress, (b'UQT1' if prepared_only else b'UQX1') + struct.pack('<Q', namespace), principal)
         def completed():
             current = status(namespace)
             if current is None: return False
-            assert current[76] < 5, ('template terminal failure', current[76], current[85:].hex())
-            return current[76] == 4
+            assert current[76] not in (5, 6, 7, 8), ('template terminal failure', current[76], current[85:].hex())
+            return current[76] == (9 if prepared_only else 4)
         wait(completed)
 
     complete_template(1)
@@ -139,7 +151,9 @@ def run(env, _tls):
         identity = dict(session=identifier, generation=generation)
         leases[identifier] = identity, now + 28000
         command({'subscribe': dict(identity=identity, expected=0, subscription=1, operation=0)})
-        followed = command({'follow': dict(session=identity, expected=0, template='1', limit=2)}, refresh=True, lost=identifier == 1)
+        captures = [(1 << 63) + identifier * 100 + index for index in range(1, 3)]
+        for namespace in captures: complete_template(namespace, prepared_only=True)
+        followed = command({'follow': dict(session=identity, expected=0, template='1', captures=[str(namespace) for namespace in captures] + ['0'] * 6, limit=2)}, refresh=True, lost=identifier == 1)
         selections.append(dict(session=identity, generation=followed))
         assert view(selections[-1])['starts'] == 0
     mutate(2)
@@ -222,7 +236,9 @@ def run(env, _tls):
     generation = command({'open': dict(session=3, source_revision=1, lease_before_ms=now + 28000)})
     identity = dict(session=3, generation=generation)
     leases[3] = identity, now + 28000
-    selected = dict(session=identity, generation=command({'follow': dict(session=identity, expected=0, template='2', limit=1)}, refresh=True))
+    capture = (1 << 63) + 301
+    complete_template(capture, prepared_only=True)
+    selected = dict(session=identity, generation=command({'follow': dict(session=identity, expected=0, template='2', captures=[str(capture)] + ['0'] * 7, limit=1)}, refresh=True))
     assert view(selected)['starts'] == 0
     cast(application, query_policy(env['counter_definition'], application, ingress, requests, principal, limits, revision=2, allow=False))
     drained(application)

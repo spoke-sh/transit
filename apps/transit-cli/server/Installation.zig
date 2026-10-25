@@ -12,6 +12,7 @@ pub const courier = 22;
 pub const maintenance = 23;
 pub const installer = 24;
 pub const board = 25;
+pub const table_registrar = 26;
 pub const read_permissions = p.State.permission(.inspect) | p.State.permission(.read);
 pub const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 128, .result_bytes = 1048576 };
 pub const Record = struct {
@@ -27,15 +28,17 @@ pub const Record = struct {
     provision: [14]?u64 = @splat(null),
     authorization_steps: [10]?u64 = @splat(null),
     authorization_change: ?u64 = null,
-    initialized: [3]bool = .{ false, false, false },
+    initialized: [2]bool = .{ false, false },
     default_table_complete: bool,
+    default_table: ?q.catalog.DirectTableIntent.Reference,
+    table_registrar_receipt: ?u64,
     complete: bool,
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
     pending: ?Pending = null,
     installer_receipt: ?u64 = null,
     board_receipts: [3]?u64 = @splat(null),
 };
-const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer, board, authority }, index: u8 };
+const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer, board, authority, table_registrar }, index: u8 };
 const Self = @This();
 init: std.process.Init,
 config: Config,
@@ -122,6 +125,7 @@ pub fn flush(self: *Self) !void {
         },
         .installer => self.record.installer_receipt = receipt.position,
         .board => self.record.board_receipts[pending.index] = receipt.position,
+        .table_registrar => self.record.table_registrar_receipt = receipt.position,
     }
     self.record.position = @max(self.record.position, receipt.position);
     self.record.pending = null;
@@ -144,8 +148,25 @@ pub fn connectionFrom(record: Record, realm: u64) q.UnifiedClient.Connection {
     const done = record.provision;
     return .{ .realm = realm, .principal = caller, .requester = done[0].?, .requests = done[1].?, .source = done[4].?, .resource = done[5].? };
 }
-pub fn catalogFor(c: q.UnifiedClient.Connection, record: Record) q.catalog.TableCatalogRecords.Configuration {
-    return .{ .scope = .{ .realm = c.realm, .resource = c.resource, .catalog = 1 }, .owner = c.source, .administrator = caller, .database_name = q.catalog.TableAuthority.Name.init("transit") catch unreachable, .authority = .{ .database_domain = record.authorization_steps[3].?, .schema_domain = record.authorization_steps[4].?, .table_domain = record.authorization_steps[5].?, .database = record.authorization_steps[6].?, .initial_schema = 1, .initial_schema_authority = record.authorization_steps[7].? }, .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
+pub fn directCatalog(self: *Self) q.catalog.DirectCatalog.Configuration {
+    const installed = self.connection();
+    const authority = self.record.authorization_steps;
+    return .{
+        .scope = .{ .realm = installed.realm, .resource = installed.resource, .catalog = 1 },
+        .branch = 1,
+        .partition = 1,
+        .audience = installed.source,
+        .authority = .{
+            .database_domain = authority[3].?,
+            .schema_domain = authority[4].?,
+            .table_domain = authority[5].?,
+            .database = authority[6].?,
+            .initial_schema = 1,
+            .initial_schema_authority = authority[7].?,
+        },
+        .database_name = q.catalog.TableAuthority.Name.init("transit") catch unreachable,
+        .initial_schema_name = q.catalog.TableAuthority.Name.init("public") catch unreachable,
+    };
 }
 pub fn provision(self: *Self) !void {
     try self.flush();
@@ -153,6 +174,11 @@ pub fn provision(self: *Self) !void {
         if (self.record.provision[i] != null) continue;
         if (@import("../Signals.zig").interrupted()) return error.ServerStopped;
         if (i == 9) {
+            if (self.record.table_registrar_receipt == null) {
+                var key = try q.wire.readKey(self.init.gpa, self.init.io, try self.path("table-registrar.seed"));
+                defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+                try self.submit(0, .{ .create_principal = .{ .subject = table_registrar, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) } }, .table_registrar, 0);
+            }
             try self.provisionAuthorization();
             self.record.provision[i] = self.record.position;
             try self.save();
@@ -197,7 +223,7 @@ fn provisionAuthorization(self: *Self) !void {
                 0 => .{ .create_role = .{ .name = try .init("local_owner"), .login = true } },
                 1 => .{ .bind_credential = .{ .principal = caller, .role = done[0].?, .public_key = self.caller_key.public_key.toBytes() } },
                 2 => .{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = done[0].?, .privileges = p.permission(.inspect) | p.permission(.send) } },
-                3, 4, 5 => .{ .register_domain = .{ .registrar = source, .actions = tables.actions(switch (index) {
+                3, 4, 5 => .{ .register_domain = .{ .registrar = table_registrar, .lifetime_resource = scope.resource, .actions = tables.actions(switch (index) {
                     3 => .database,
                     4 => .schema,
                     else => .table,
@@ -256,59 +282,10 @@ pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration)
 }
 pub fn initializeBehaviors(self: *Self) !void {
     const c = self.connection();
-    for ([_]u64{ c.source, c.requester, c.source }, 0..) |pid, i| if (!self.record.initialized[i]) {
-        const payload = switch (i) {
-            0 => try (q.catalog.TableControl.Command{ .initialize = catalogFor(c, self.record) }).encode(),
-            1 => try q.UnifiedRequest.Command.encode(.initialize),
-            2 => try (q.CatalogQueryOwner.PolicyChange{ .expected_revision = 0, .policy = .{ .peer = c.requester, .requests = c.requests, .revision = 1, .allow = true, .target = .{ .catalog = .{ .scope = catalogFor(c, self.record).scope, .owner = c.source, .principal = c.principal } }, .limits = limits } }).encode(),
-            else => unreachable,
-        };
+    for ([_]u64{ c.source, c.requester }, 0..) |pid, i| if (!self.record.initialized[i]) {
+        const payload = try q.UnifiedRequest.Command.encode(.initialize);
         try self.submit(caller, .{ .send = .{ .pid = pid, .value = try (q.station.Frame{ .kind = .cast, .payload = payload }).encode() } }, .initialize, @intCast(i));
     };
-}
-/// Default data is an explicit recoverable catalog operation, not a host side
-/// effect. The completion marker prevents recreating items after an explicit DROP.
-pub fn ensureDefaultTable(self: *Self, catalog: *q.catalog.TableClient) !void {
-    if (self.record.default_table_complete) return;
-    var saved = try @import("../TableRecovery.zig").open(self.init.io, self.init.gpa, try self.path("default-table.json"), catalog);
-    defer saved.close();
-    errdefer {
-        if (saved.failed) self.failed = true;
-    }
-    var original = try catalog.compile(self.init.gpa, "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)", .{ .operation = 1, .namespace = 1, .create_object = 1 }, null);
-    defer original.deinit();
-    if (saved.intent == null) try saved.install(catalog, &original);
-    if (!std.mem.eql(u8, original.bytes, saved.intent.?.bytes)) return error.InstallationIdentityMismatch;
-    if (saved.record.pending) |pending| {
-        if (saved.record.input == null) {
-            saved.record.input = (try catalog.submit(pending)).position;
-            try saved.save(catalog);
-        }
-        const progress = try catalog.waitProgress(&saved.intent.?, pending, saved.record.input.?);
-        if (progress == .pending) return error.TableWriterNotReady;
-        if (progress.processed.disposition != null) return error.InstallationDefaultTableRejected;
-        saved.record.pending = null;
-        saved.record.input = null;
-    }
-    switch (try catalog.next(&saved.intent.?)) {
-        .send => |pending| {
-            saved.record.pending = pending;
-            saved.record.input = null;
-            try saved.save(catalog);
-            saved.record.input = (try catalog.submit(pending)).position;
-            try saved.save(catalog);
-            return error.TableWriterNotReady;
-        },
-        .running => return error.TableWriterNotReady,
-        .upload_cancelled => return error.InstallationDefaultTableRejected,
-        .terminal => |outcome| {
-            if (outcome != .ddl or outcome.ddl.operation.state != .applied or outcome.ddl.operation.actual_object != 1) return error.InstallationDefaultTableRejected;
-            saved.record.complete = true;
-            try saved.save(catalog);
-            self.record.default_table_complete = true;
-            try self.save();
-        },
-    }
 }
 pub const DirectoryState = enum { missing, empty, populated };
 /// Examine only the installation directory, never infer newness from a missing
@@ -346,12 +323,12 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity, sta
     try std.Io.Dir.cwd().createDir(init.io, temporary, .fromMode(0o700));
     const directory = try std.Io.Dir.cwd().openDir(init.io, temporary, .{ .iterate = true });
     defer directory.close(init.io);
-    for ([_][]const u8{ "wal", "cold", "activations", "provider-home", "certs", "applications", "management-recovery" }) |name| {
+    for ([_][]const u8{ "data", "activations", "applications", "management-recovery" }) |name| {
         try directory.createDir(init.io, name, .fromMode(0o700));
-        if (std.mem.eql(u8, name, "wal") or std.mem.eql(u8, name, "cold")) try Files.write(init.io, try std.fs.path.join(allocator, &.{ temporary, name, "transit-installation" }), &std.fmt.bytesToHex(random, .lower));
+        if (std.mem.eql(u8, name, "data")) try Files.write(init.io, try std.fs.path.join(allocator, &.{ temporary, name, "transit-installation" }), &std.fmt.bytesToHex(random, .lower));
     }
     var root_public: [32]u8 = undefined;
-    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "cold", "installer", "board" }) |name| {
+    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "installer", "board", "table-registrar" }) |name| {
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);
@@ -359,7 +336,7 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity, sta
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .complete = false });
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .default_table = null, .table_registrar_receipt = null, .complete = false });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     // Remove only an empty directory, never its contents. If anything appeared
     // since classification, rmdir refuses it. Nonreplacing publication also
@@ -372,7 +349,7 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity, sta
     if (std.c.fsync(parent.handle) != 0) return error.InstallationSyncFailed;
 }
 pub fn checkStorage(self: *Self) !void {
-    for ([_][]const u8{ "wal", "cold" }) |name| {
+    for ([_][]const u8{"data"}) |name| {
         const marker = try std.Io.Dir.cwd().readFileAlloc(self.init.io, try std.fmt.allocPrint(self.init.arena.allocator(), "{s}/{s}/transit-installation", .{ self.config.installation, name }), self.init.gpa, .limited(33));
         defer self.init.gpa.free(marker);
         if (!std.mem.eql(u8, marker, &std.fmt.bytesToHex(self.record.installation, .lower))) return error.StorageIdentityMismatch;
@@ -396,8 +373,8 @@ test "startup creates only absent or empty directories and preserves recorded id
         .version = 1,
         .realm = 1,
         .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
-        .ports = .{ .cold = 19101, .cold_console = 19102, .store = 19103, .node = 19104, .gateway = 19105 },
-        .executables = .{ .minio = "unused", .ursula = "unused", .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+        .ports = .{ .node = 19104, .gateway = 19105 },
+        .executables = .{ .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
     };
     const identity = std.mem.zeroes(Config.Identity);
     config.startup.require_existing = true;
@@ -448,8 +425,8 @@ test "initialization refuses links files and contents appearing before publicati
         .version = 1,
         .realm = 1,
         .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
-        .ports = .{ .cold = 19101, .cold_console = 19102, .store = 19103, .node = 19104, .gateway = 19105 },
-        .executables = .{ .minio = "unused", .ursula = "unused", .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+        .ports = .{ .node = 19104, .gateway = 19105 },
+        .executables = .{ .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
     };
     const state = try directoryState(t.io, config.installation);
     const marker = try std.fs.path.join(a, &.{ config.installation, "unrecognized" });

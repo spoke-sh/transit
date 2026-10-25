@@ -2,24 +2,24 @@
 require_relative 'catalog_values'
 module Transit
   module Station
-    # Owned values and scheduling; Zig owns compilation, authority and recovery.
+    # Owned language values and scheduling; Zig owns publication and recovery.
     module Catalog
       class Uncertain < UnknownOutcome
-        attr_reader :prepared
-        def initialize(prepared, cause)
-          @prepared = prepared
-          super('Table admission is uncertain; retain the identical prepared command', status: 6,
-            code: cause.respond_to?(:code) ? cause.code : nil, phase: :submit_catalog,
+        attr_reader :original
+        def initialize(original, cause)
+          @original = original
+          super('Catalog outcome is uncertain; retain the identical saved work or reference', status: 6,
+            code: cause.respond_to?(:code) ? cause.code : nil, phase: :catalog,
             diagnostic: cause.respond_to?(:diagnostic) ? cause.diagnostic : nil,
             diagnostic_invalid: cause.respond_to?(:diagnostic_invalid) && cause.diagnostic_invalid)
         end
       end
       class Client
         attr_reader :connection
-        def self.open(config, credential, connection, table_service_url: nil)
-          return new(config, credential, connection, table_service_url: table_service_url) unless block_given?
+        def self.open(config, credential, connection, service_url: nil)
+          return new(config, credential, connection, service_url: service_url) unless block_given?
           Thread.handle_interrupt(Object => :never) do
-            owner = new(config, credential, connection, table_service_url: table_service_url)
+            owner = new(config, credential, connection, service_url: service_url)
             begin
               Thread.handle_interrupt(Object => :immediate) { yield owner }
             ensure
@@ -27,19 +27,22 @@ module Transit
             end
           end
         end
-        def initialize(config, credential, connection, table_service_url: nil)
+        def initialize(config, credential, connection, service_url: nil)
           unless config.is_a?(ClientConfig) && credential.is_a?(Credential) && connection.is_a?(Connection) && credential.realm == connection.scope.resource.realm
             raise ArgumentError, 'Expected configuration and credential matching the catalog realm'
           end
           @connection, @principal = connection, credential.principal
           target = connection.wire(@principal)
-          service_url = table_service_url.nil? ? nil : ClientConfig.new(url: Values.text(table_service_url, 2048), profile: :native_v1).url
+          url = service_url.nil? ? nil : ClientConfig.new(url: Values.text(service_url, 2048), profile: :native_v1).url
           @worker = Internal::Worker.new do
             bridge = Bridge.new({ 'url' => config.url, 'seed_file' => credential.seed_file,
-              'catalog_client' => { 'connection' => target, 'timeout_ms' => config.timeout_ms, 'table_service_url' => service_url } }, config.native_host)
+              'catalog_client' => { 'definition' => DEFINITION, 'connection' => target, 'timeout_ms' => config.timeout_ms, 'service_url' => url } }, config.native_host)
             begin
-              caps = decode { Values.capabilities(Values.result(bridge.catalog({ 'capabilities' => {} }), 'capabilities')) }
-              raise UnsupportedCapability, 'Native catalog client lacks general Tables' unless Values.supported?(caps)
+              decode do
+                response = bridge.catalog({ 'catalog' => { 'capabilities' => {} } })
+                Values.validate('CatalogResult', response)
+                Values.capabilities(response.fetch('catalog').fetch('capabilities'))
+              end
               bridge
             rescue Exception
               bridge.close
@@ -47,96 +50,153 @@ module Transit
             end
           end
         end
-        def capabilities = read({ 'capabilities' => {} }, 'capabilities') { |v| Values.capabilities(v) }
-        def describe = read({ 'describe' => {} }, 'description') { |v| Values.description(v, connection, @principal) }
-        def lookup(name)
-          name = Values.name(name)
-          read({ 'lookup' => name }, 'definition') { |v| Values.resolved(v, connection.scope, connection.namespace, name) }
-        end
-        def definition(object, revision)
-          action = { 'definition' => { 'object' => Values.wide(object).to_s, 'revision' => Values.wide(revision).to_s } }
-          read(action, 'historical') { |v| Values.historical(v, connection.scope, object, revision) }
-        end
-        def list(cursor = nil)
-          if cursor
-            Values.typed(cursor, Cursor)
-            raise ArgumentError, 'Foreign catalog cursor' unless cursor.scope == connection.scope
-          end
-          read({ 'list' => cursor&.wire }, 'page') do |v|
-            page = Values.page(v, connection.scope, cursor)
-            raise IncompatibleNative, 'Foreign schema namespace' unless page.entries.all? { |entry| entry.metadata.namespace == connection.namespace }
-            page
+        def capabilities = read({ 'catalog' => { 'capabilities' => {} } }, %w[catalog capabilities]) { |v| Values.capabilities(v) }
+        def describe = read({ 'catalog' => { 'describe' => {} } }, %w[catalog description]) { |v| Values.description(v, connection, @principal) }
+        def namespace(id)
+          id = Internal.integer(id)
+          read({ 'catalog' => { 'namespace' => id } }, %w[catalog namespace]) do |v|
+            result = Values.namespace(v)
+            raise IncompatibleNative, 'Changed namespace' if result && (result.id != id || result.scope != connection.scope)
+            result
           end
         end
-        def compile_sql(sql, identity, create_object = nil)
+        def namespaces(cursor = nil) = list_page({ 'namespaces' => {} }, cursor)
+        def tables(namespace: 1, cursor: nil) = list_page({ 'tables' => Internal.integer(namespace) }, cursor)
+        def lookup(name, namespace: 1)
+          name = Values.name(name); namespace = Internal.integer(namespace)
+          read({ 'lookup' => { 'namespace' => namespace, 'name' => name } }, ['metadata']) { |v| Values.metadata(v, connection, @principal, namespace, name) }
+        end
+        def compile_sql(sql, identity, create_object = nil, dialect: :transit, ingestion: :point)
           Values.typed(identity, Identity)
-          action = { 'compile' => { 'sql' => Values.text(sql, 4096), 'identity' => identity.wire,
-            'create_object' => create_object.nil? ? nil : Values.wide(create_object).to_s } }
-          read(action, 'compiled') { |v| Values.compiled(v, connection, @principal, identity, create_object.nil? ? nil : :create, create_object) }
+          action = { 'compile' => { 'sql' => Values.text(sql, 4096), 'namespace' => identity.namespace, 'operation' => identity.operation.to_s,
+            'create_object' => create_object.nil? ? nil : Values.wide(create_object).to_s,
+            'dialect' => Values.symbol(dialect, %i[transit mysql]), 'ingestion' => Values.symbol(ingestion, %i[point bulk]) } }
+          compiled(action, identity)
         end
         def prepare(name, identity, operation)
           Values.typed(identity, Identity)
           raise ArgumentError, 'Expected typed Table operation' unless [Create, Alter, Rename, Drop, Mutate].any? { |type| operation.is_a?(type) }
-          action = { 'prepare' => { 'definition' => DEFINITION, 'identity' => identity.wire, 'name' => Values.name(name), 'action' => operation.wire } }
-          read(action, 'compiled') { |v| Values.compiled(v, connection, @principal, identity, operation.kind, operation.object) }
+          action = { 'prepare' => { 'definition' => DEFINITION, 'namespace' => identity.namespace, 'operation' => identity.operation.to_s,
+            'name' => Values.name(name), 'action' => operation.wire } }
+          compiled(action, identity)
         end
         def load(saved)
-          read({ 'load' => Values.typed(saved, SavedIntent).wire }, 'loaded') { |v| Values.intent(v, connection, @principal) }
+          Values.typed(saved, SavedIntent)
+          read({ 'load' => saved.wire }, ['loaded']) { |v| Values.summary(v, saved, connection, @principal) }
         end
-        def forget(intent)
-          read({ 'forget' => reference(intent) }, 'forgotten') { |v| Values.object(v, []); nil }
-        end
-        def next(intent) = read({ 'next' => reference(intent) }, 'next') { |v| Values.next_step(v) }
-        def status(intent) = read({ 'status' => reference(intent) }, 'state') { |v| Values.state(v) }
-        def prepare_resume(intent) = prepared('prepare_resume', reference(intent))
-        def prepare_control(intent, control)
-          prepared('prepare_control', { 'intent' => reference(intent), 'control' => Values.symbol(control, %i[cancel_operation cleanup_operation cancel_upload collect_upload]) })
-        end
-        def prepare_initialize(configuration) = prepared('prepare_initialize', Values.typed(configuration, Configuration).wire)
-        def prepare_dependency(dependency, present) = prepared('prepare_dependency', Values.typed(dependency, Dependency).wire(present))
-        def submit(prepared)
-          value = call({ 'submit' => Values.typed(prepared, Prepared).data })
-          begin
-            receipt = Values.result(value, 'receipt'); Values.object(receipt, %w[position])
-            Internal.integer(receipt.fetch('position'))
-          rescue ArgumentError, TypeError, KeyError, IncompatibleNative => error
-            raise Uncertain.new(prepared, error), cause: error
+        def forget(intent) = read({ 'forget' => Values.typed(intent, Intent).id }, ['forgotten']) { nil }
+        def preview(intent) = read({ 'preview' => Values.typed(intent, Intent).id }, ['preview']) { |v| Values.preview(v, intent) }
+        def stage(intent)
+          Values.typed(intent, Intent)
+          read({ 'stage' => intent.id }, ['staged'], original: intent.saved) do |v|
+            reference = Reference.restore(JSON.generate(v))
+            check_owner(reference)
+            raise IncompatibleNative, 'Changed staged work' unless reference.kind == intent.kind && reference.binding == intent.binding && v.values.first.fetch('namespace') == intent.namespace
+            reference
           end
-        rescue UnknownOutcome, NoMemoryError => error
-          raise if error.is_a?(Uncertain)
-          raise Uncertain.new(prepared, error), cause: error
         end
-        def observe(prepared, position, wait: false)
-          read({ (Internal.boolean(wait) ? 'wait_observe' : 'observe') => input(prepared, position) }, 'observation') { |v| Values.enum(v, %i[pending processed]) }
+        def admit(reference)
+          check_reference(reference)
+          read({ 'admit' => reference.wire }, ['observation'], original: reference) { |v| Values.observation(v, reference) }
         end
-        def input_disposition(prepared, position)
-          read({ 'input_disposition' => input(prepared, position) }, 'disposition') { |v| Values.disposition(v) }
+        def inspect(reference) = operation(reference, :inspect, 1)
+        def execute(reference, steps: 256) = operation(reference, :execute, Internal.integer(steps, max: 65535))
+        def cancel(reference) = operation(reference, :cancel, 1)
+        def prepare_snapshot(basis, position, operation)
+          Values.typed(basis, Basis); Values.typed(position, Position); check_owner(basis)
+          SnapshotAcquisition.restore(JSON.generate({ 'owner' => { 'definition' => DEFINITION, 'connection' => connection.wire(@principal),
+            'object' => basis.interpretation.interpretation.object.wire, 'operation' => Values.wide(operation).to_s }, 'expected' => position.wire }))
         end
-        def progress(intent, prepared, position, wait: false)
-          action = { (Internal.boolean(wait) ? 'wait_progress' : 'progress') => { 'intent' => reference(intent) }.merge(input(prepared, position)) }
-          read(action, 'progress') { |v| Values.progress(v) }
+        def acquire_snapshot(acquisition)
+          Values.typed(acquisition, SnapshotAcquisition); check_owner(acquisition.owner)
+          read({ 'retention' => { 'acquire' => acquisition.wire } }, %w[retention acquired], original: acquisition) do |v|
+            snapshot = Snapshot.restore(JSON.generate(v))
+            raise IncompatibleNative, 'Changed retention owner' unless snapshot.owner == acquisition.owner
+            snapshot
+          end
+        end
+        def snapshot_status(owner)
+          Values.typed(owner, SnapshotOwner); check_owner(owner)
+          read({ 'retention' => { 'status' => owner.wire } }, %w[retention status]) do |v|
+            raise IncompatibleNative, 'Changed retention owner' unless v.fetch('owner') == owner.wire
+            current = Values.interpretation(v.fetch('current_interpretation'))
+            raise IncompatibleNative, 'Changed retention object' unless current.object == owner.object
+            snapshot = Values.optional(v.fetch('snapshot')) { |s| Snapshot.restore(JSON.generate(s)) }
+            raise IncompatibleNative, 'Changed original snapshot' if snapshot && snapshot.owner != owner
+            SnapshotStatus.new(owner: owner, current_interpretation: current, current_position: Values.position(v.fetch('current_position')),
+              retired: v.fetch('retired'), snapshot: snapshot, released: v.fetch('released'), authority: Values.read_authority(v.fetch('authority')))
+          end
+        end
+        def snapshot_metadata(snapshot)
+          Values.typed(snapshot, Snapshot); check_owner(snapshot.owner)
+          read({ 'retention' => { 'metadata' => snapshot.wire } }, %w[retention metadata]) do |v|
+            raise IncompatibleNative, 'Changed snapshot content' unless v.fetch('snapshot') == snapshot.wire
+            stored = Values.stored(v.fetch('interpretation')); schema = Values.schema(v.fetch('schema'))
+            raise IncompatibleNative, 'Changed retained interpretation' unless stored.interpretation.object == snapshot.owner.object && schema.object == snapshot.owner.object.object
+            SnapshotMetadata.new(snapshot: snapshot, interpretation: stored, accepted: Values.position(v.fetch('accepted')), changed_lsn: Values.decimal(v.fetch('changed_lsn'), min: 0),
+              row_count: Values.decimal(v.fetch('row_count'), min: 0), schema: schema, authority: Values.read_authority(v.fetch('authority')))
+          end
+        end
+        def release_snapshot(snapshot)
+          Values.typed(snapshot, Snapshot); check_owner(snapshot.owner)
+          read({ 'retention' => { 'release' => snapshot.wire } }, %w[retention released], original: snapshot) do |v|
+            raise IncompatibleNative, 'Changed released snapshot' unless v == snapshot.wire
+            snapshot
+          end
         end
         def close = @worker.close
         private
+        def check_owner(value)
+          raise ArgumentError, 'Foreign catalog connection' unless value.connection == connection && value.principal == @principal
+        end
+        def check_reference(value)
+          Values.typed(value, Reference); check_owner(value)
+        end
+        def operation(reference, command, steps)
+          check_reference(reference)
+          read({ 'operation' => { 'reference' => reference.wire, 'command' => command.to_s, 'steps' => steps } }, ['observation'],
+            original: command == :inspect ? nil : reference) { |v| Values.observation(v, reference) }
+        end
+        def compiled(action, identity)
+          read(action, ['compiled']) do |v|
+            saved = SavedIntent.restore(JSON.generate(v.fetch('saved')))
+            Compiled.new(intent: Values.summary(v.fetch('summary'), saved, connection, @principal, identity), saved: saved)
+          end
+        end
+        def list_page(selection, cursor)
+          if cursor
+            Values.typed(cursor, Cursor); cursor.check(connection, @principal, selection)
+          end
+          action = selection.key?('namespaces') ? { 'namespaces' => cursor&.wire } : { 'tables' => { 'namespace' => selection.fetch('tables'), 'cursor' => cursor&.wire } }
+          read({ 'catalog' => action }, ['catalog', selection.keys.first]) { |v| Values.page(v, connection, @principal, selection, cursor) }
+        end
         def decode
           yield
         rescue ArgumentError, TypeError, KeyError
           raise IncompatibleNative, 'Invalid catalog response'
         end
-        def call(action)
-          # Encode before handing ownership to a worker that can outlive its waiter.
+        def read(action, path, original: nil)
+          # Validate and encode before scheduling; caller-owned objects cannot
+          # mutate a request after the worker accepts it.
+          Values.action(action)
           data = JSON.generate(action)
-          raise ArgumentError, 'Table action exceeds its bound' if data.bytesize > LIMITS.fetch('catalog_action_bytes')
-          @worker.call { |bridge| bridge.catalog(JSON.parse(data)) }
-        end
-        def read(action, tag)
-          value = call(action)
-          decode { yield Values.result(value, tag) }
-        end
-        def prepared(name, value) = read({ name => value }, 'prepared') { |v| Prepared.new(data: v) }
-        def reference(intent) = Values.typed(intent, Reference).wire
-        def input(prepared, position)
-          { 'prepared' => Values.typed(prepared, Prepared).data, 'input' => Internal.integer(position) }
+          raise ArgumentError, 'Catalog action exceeds its bound' if data.bytesize > LIMITS.fetch('catalog_action_bytes')
+          begin
+            response = @worker.call { |bridge| bridge.catalog(JSON.parse(data)) }
+          rescue UnknownOutcome, NoMemoryError => error
+            raise unless original
+            raise Uncertain.new(original, error), cause: error
+          end
+          begin
+            decode do
+              Values.validate('CatalogResult', response)
+              value = path.reduce(response) { |v, key| Values.result(v, key) }
+              yield value
+            end
+          rescue IncompatibleNative, NoMemoryError => error
+            raise unless original
+            raise Uncertain.new(original, error), cause: error
+          end
         end
       end
     end

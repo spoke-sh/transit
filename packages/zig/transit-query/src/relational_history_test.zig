@@ -1,117 +1,100 @@
+//! Offline vector/cursor contracts. Runtime recovery, no-op, gap and current
+//! permission schedules run through tests/direct_maintained_query.zig and
+//! tests/direct_relational_failures.zig against the public direct service.
 const std = @import("std");
 const t = std.testing;
 const q = @import("root.zig");
-const s = q.station;
-const f = q.fuze;
-const r = f.Relational;
-const tables = @import("catalog_store_test.zig");
 const History = q.RelationalHistory;
-const budgets: r.Budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 10000, .source_pins = 1 };
-fn integer(value: i64) f.Types.Values.Cell {
-    return .{ .value = .{ .atom = .{ .signed = value } } };
+const Fixture = @import("direct_query_fixture_test.zig");
+
+test "direct history vectors preserve independent Table cuts and exact alias identity" {
+    for ([_]bool{ false, true }) |independent| {
+        var fixture = try Fixture.init(t.allocator, .maintained, independent);
+        defer fixture.deinit();
+        const bundle = fixture.bundle;
+        const initial = fixture.vector;
+        var after = initial;
+        after.entries[0].position += 2;
+        after.entries[0].record.basis.accepted.next_lsn += 2;
+        after.entries[0].record.record.?[0] ^= 1;
+        if (!independent) {
+            try t.expectError(error.InconsistentRelationalCut, after.validate(bundle));
+            after.entries[1] = after.entries[0];
+        }
+        try after.validate(bundle);
+        // An accepted no-op changes the selected acceptance commitment without
+        // claiming that the row-change frontier advanced.
+        try t.expectEqual(initial.entries[0].record.basis.changed_lsn, after.entries[0].record.basis.changed_lsn);
+        try t.expect(!std.mem.eql(u8, &try initial.fingerprint(bundle), &try after.fingerprint(bundle)));
+        if (independent) try t.expectEqualDeep(initial.entries[1], after.entries[1]);
+        var cuts: [q.fuze.Relational.max_sources]q.fuze.Relational.Cut = undefined;
+        try after.boundCuts(bundle, &cuts);
+        try t.expectEqual(independent, !std.meta.eql(cuts[0].domain, cuts[1].domain));
+        try t.expectEqual(after.entries[0].position, cuts[0].revision);
+        var bytes: [History.Vector.max_bytes]u8 = undefined;
+        const encoded = try after.encode(bundle, &bytes);
+        try t.expectEqualDeep(after, try History.Vector.decode(bundle, encoded));
+        for (0..encoded.len) |length| {
+            _ = History.Vector.decode(bundle, encoded[0..length]) catch continue;
+            return error.AcceptedTruncatedHistory;
+        }
+        bytes[4] ^= 1;
+        try t.expectError(error.IncompatibleDefinition, History.Vector.decode(bundle, encoded));
+        var shifted = after;
+        shifted.entries[0].position -= 1;
+        try t.expectError(error.InvalidRelationalHistory, shifted.validate(bundle));
+    }
 }
-test "history vectors preserve consecutive transactions and one native cut across aliased Tables" {
-    var store: q.testing.Store = .{};
-    defer store.deinit();
-    try tables.create(&store, "CREATE TABLE items (k BIGINT, v BIGINT)");
-    try tables.mutate(&store, 2, .{ .insert = &.{&.{ integer(7), integer(10) }} });
-    var first = try tables.definition(&store);
-    defer first.deinit();
-    var second_schema = first.schema.schema;
-    second_schema.object = 200;
-    _ = try tables.ddl(&store, .{ .principal = 17, .operation = 20, .object = 200, .expected_revision = 0, .name = try q.catalog.TableMetadata.Name.init("other"), .action = .{ .create = .{ .schema = second_schema } } });
-    var turn = try tables.turn(&store);
-    var second = (try tables.catalog.lookup(t.allocator, &turn, 17, try q.catalog.TableMetadata.Name.init("other"))).?;
-    defer second.deinit();
-    var left = try q.TableSource.from(t.allocator, tables.configuration, first);
-    defer left.deinit();
-    var right = try q.TableSource.from(t.allocator, tables.configuration, second);
-    defer right.deinit();
-    const declarations = [_]r.Source{
-        .{ .alias = "l", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = first.schema.schema },
-        .{ .alias = "r", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = second.schema.schema },
-    };
-    const sources = [_]q.TableSource{ left.source, right.source };
-    const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } }, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .maintained, .budgets = budgets } };
-    const initial = try History.capture(&turn, t.allocator, bundle, 17);
-    // A finite exchange freezes the same complete Table-history evidence.
-    // Its distinct prepared lifetime cannot be advanced as a maintained job,
-    // nor can its vector be reinterpreted under that other lifetime.
-    var finite_bundle = bundle;
-    finite_bundle.plan.lifetime = .captured;
-    const finite_vector = try History.capture(&turn, t.allocator, finite_bundle, 17);
-    try t.expectError(error.InvalidRelationalHistory, History.successor(&turn, finite_bundle, 17, finite_vector, 0));
-    try t.expectError(error.InvalidRelationalHistory, finite_vector.validate(bundle));
-    for (turn.decision.retain) |version| try t.expect(version == null);
-    try t.expectEqual(turn.view.id, turn.decision.current_views[0].?);
-    // Two Table heads can change in one native resource transaction. No vector
-    // may expose only one side of this accepted four-write decision.
-    for ([_]u64{ 100, 200 }) |object| {
-        const before = try s.TableHead.load(&turn, object);
-        var after = before;
-        after.revision += 1;
-        try before.replace(&turn, after);
-    }
-    try store.commit(turn);
-    turn = try tables.turn(&store);
-    const together = (try History.successor(&turn, bundle, 17, initial, 1)).?;
-    for (together.entries[0..2], initial.entries[0..2]) |after, before| {
-        try t.expectEqual(before.record.head.revision + 1, after.record.head.revision);
-        try t.expectEqual(store.revision, after.position);
-        try t.expectEqual(after.position, after.record.committed);
-    }
-    try t.expect(try History.successor(&turn, bundle, 17, together, 0) == null);
-    var bytes: [History.Vector.max_bytes]u8 = undefined;
-    const encoded = try together.encode(bundle, &bytes);
-    const restored = try History.Vector.decode(bundle, encoded);
-    try t.expectEqualSlices(History.Entry, together.entries[0..2], restored.entries[0..2]);
+
+test "direct history scan cursors bind the preceding vector and fixed independent upper bounds" {
+    var fixture = try Fixture.init(t.allocator, .maintained, true);
+    defer fixture.deinit();
+    const bundle = fixture.bundle;
+    const vector = fixture.vector;
+    var scan: History.Scan = .{ .basis = try vector.fingerprint(bundle), .count = 2, .preference = 1, .cursors = .{ 10, 12 }, .uppers = .{ 30, 12 } };
+    const encoded = try scan.encode(bundle, vector);
+    try t.expectEqualDeep(scan, try History.Scan.decode(bundle, vector, encoded));
     for (0..encoded.len) |length| {
-        if (History.Vector.decode(bundle, encoded[0..length])) |_| return error.AcceptedTruncatedHistory else |_| {}
+        _ = History.Scan.decode(bundle, vector, try q.protocol.Value.init(encoded.slice()[0..length])) catch continue;
+        return error.AcceptedTruncatedHistory;
     }
-    bytes[4] ^= 1;
-    try t.expectError(error.IncompatibleDefinition, History.Vector.decode(bundle, encoded));
-    bytes[4] ^= 1;
-    var shifted = together;
-    shifted.entries[1].position -= 1;
-    try t.expectError(error.InvalidRelationalHistory, shifted.validate(bundle));
-    // Arrivals after capture do not replace the backfill basis or collapse
-    // framework/no-op head revisions into the last observed mutation.
-    try tables.mutate(&store, 3, .{ .insert = &.{&.{ integer(7), integer(20) }} });
-    try tables.mutate(&store, 4, .{ .insert = &.{&.{ integer(8), integer(30) }} });
-    turn = try tables.turn(&store);
-    var backfill = try History.open(&turn, t.allocator, bundle, 17, initial, 10);
-    try t.expectEqual(@as(?i64, 10), (try backfill.next(0, null)).?.values[1]);
-    try t.expect(try backfill.next(1, null) == null);
-    var finite_backfill = try History.open(&turn, t.allocator, finite_bundle, 17, finite_vector, 10);
-    try t.expectEqualDeep((try backfill.next(0, null)).?, (try finite_backfill.next(0, null)).?);
-    try t.expectEqualSlices(u8, &backfill.bound().cuts[0].commitment, &backfill.bound().cuts[1].commitment);
-    var previous = together;
-    var count: usize = 0;
-    while (try History.successor(&turn, bundle, 17, previous, 0)) |after| {
-        try t.expectEqual(previous.entries[0].record.head.revision + 1, after.entries[0].record.head.revision);
-        try t.expect(after.entries[0].position > previous.entries[0].position);
-        try t.expectEqualDeep(previous.entries[1].record, after.entries[1].record);
-        try t.expectEqual(after.entries[0].position, after.entries[1].position);
-        var data = try History.open(&turn, t.allocator, bundle, 17, after, 10);
-        try data.validate(data.bound());
-        try t.expectEqualDeep(after, (try History.successor(&turn, bundle, 17, previous, 0)).?);
-        previous = after;
-        count += 1;
-    }
-    try t.expectEqual(@as(usize, 2), count);
-    const address = s.TableHistory.key(100, initial.entries[0].record.head.revision);
-    const original = store.blocks.records.fetchRemove(address).?.value;
-    turn = try tables.turn(&store);
-    try t.expectError(error.TableHistoryGap, History.open(&turn, t.allocator, bundle, 17, initial, 1));
-    try store.blocks.records.put(t.allocator, address, original);
-    // A cached data root never grants continuing read permission.
-    var policy = try q.catalog.testing.Authority.Rights.administrator(tables.configuration.scope, 17);
-    policy.revision = 2;
-    policy.read = false;
-    turn = try tables.turn(&store);
-    try store.setRights(policy);
-    try store.commit(turn);
-    turn = try tables.turn(&store);
-    try t.expectError(error.CatalogDenied, History.open(&turn, t.allocator, bundle, 17, initial, 1));
-    try t.expectError(error.CatalogDenied, History.successor(&turn, bundle, 17, previous, 0));
+    scan.cursors[0] = 31;
+    try t.expectError(error.InvalidRelationalHistory, scan.validate(bundle, vector));
+    scan.cursors[0] = 9;
+    try t.expectError(error.InvalidRelationalHistory, scan.validate(bundle, vector));
+    scan.cursors[0] = 10;
+    scan.preference = 2;
+    try t.expectError(error.InvalidRelationalHistory, scan.validate(bundle, vector));
+    scan.preference = 1;
+    var other = vector;
+    other.entries[0].record.record.?[0] ^= 1;
+    try t.expectError(error.InvalidRelationalHistory, scan.validate(bundle, other));
+}
+
+test "direct finite exchange vectors cannot be advanced as maintained history" {
+    var fixture = try Fixture.init(t.allocator, .captured, false);
+    defer fixture.deinit();
+    const bundle = fixture.bundle;
+    const vector = fixture.vector;
+    var bytes: [History.Vector.max_bytes]u8 = undefined;
+    try t.expectEqualDeep(vector, try History.Vector.decode(bundle, try vector.encode(bundle, &bytes)));
+    try t.expect(vector.entries[0].record.point() == null);
+    const scan: History.Scan = .{ .basis = try vector.fingerprint(bundle), .count = 2, .preference = 0, .cursors = .{ 10, 10 }, .uppers = .{ 10, 10 } };
+    try t.expectError(error.InvalidRelationalHistory, scan.validate(bundle, vector));
+    var changed = vector;
+    changed.entries[0].record.basis.accepted.next_lsn += 1;
+    changed.entries[0].position += 1;
+    changed.entries[1] = changed.entries[0];
+    try t.expectError(error.TableDelegationDenied, changed.validate(bundle));
+}
+
+test "direct history vectors reject schema reinterpretation and retired definitions" {
+    var fixture = try Fixture.init(t.allocator, .maintained, true);
+    defer fixture.deinit();
+    var changed = fixture.vector;
+    changed.entries[0].record.basis.interpretation.schema_fingerprint[0] ^= 1;
+    try t.expectError(error.TableSchemaChanged, changed.validate(fixture.bundle));
+    changed = fixture.vector;
+    changed.entries[0].record.basis.interpretation.retired = true;
+    try t.expectError(error.TableRetired, changed.validate(fixture.bundle));
 }

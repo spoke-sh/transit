@@ -76,11 +76,11 @@ Arrow segments and publication chunks are unchanged and are not batch sizes.
 `FileQuery.execute` checks the frozen binding and preserves its borrowed immutable
 plan contract; changed names or literals reject before the next disclosure.
 `executeWith` additionally accepts physical limits and a host runner. Buffered
-outputs check source access and cancellation. General Table `TableQuery.open`
-uses the same signed snapshot, schema, request/result budgets and disclosure
-gates; `openWith` accepts compute configuration. Current native/catalog rights
-are checked after computation before every row and completion. Reference row
-executors remain available to independent proofs and measurements.
+outputs check source access and cancellation. `DirectTableQuery.openRetained`
+uses an explicitly supplied direct Table pin, compute configuration and bounded
+request/result budgets. Current source rights gate each returned batch and
+completion. The reader owns decoded rows while borrowing the retained pin;
+closing the reader does not release that durable pin.
 
 `transit-query.ComputePool` is a stable, host-owned allocation. `init` takes the
 host allocator and `std.Io`, one to four workers (one by default), a resident

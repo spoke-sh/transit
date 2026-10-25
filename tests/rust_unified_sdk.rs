@@ -58,21 +58,15 @@ fn projection(
 }
 fn table_source(columns: Vec<c::Column>) -> transit_client::Result<q::Source> {
     Ok(q::Source::Table {
-        owner: ProcessRef::new(1, 3)?,
-        metadata: c::Metadata {
-            namespace: 1,
-            scope: c::Scope::new(ResourceRef::new(1, 7)?, 9)?,
-            object: 9,
+        scope: c::Scope::new(ResourceRef::new(1, 7)?, 9)?,
+        audience: 3,
+        branch: 1,
+        namespace: 1,
+        interpretation: q::TableInterpretation {
             revision: 1,
-            name: "items".into(),
-            schema_fingerprint: [1; 32],
-            principal: 17,
-            operation: 1,
-            admitted_input: 1,
-            commitment: c::MetadataCommitment {
-                bytes: 200,
-                digest: [1; 32],
-            },
+            digest: [1; 32],
+            byte_count: 200,
+            schema_digest: [2; 32],
         },
         schema: c::Schema {
             object: 9,
@@ -559,6 +553,28 @@ fn serve(config: &Value) -> AnyResult<()> {
         ResourceRef::new(realm, number(v, "requests"))?,
     )?;
     let kind = text(config, "kind");
+    let tables = if kind == "table" {
+        let t = &config["tables"];
+        let scope = &t["connection"]["scope"];
+        Some(q::Tables {
+            url: text(t, "url").into(),
+            scope: c::Scope::new(
+                ResourceRef::new(realm, number(scope, "resource"))?,
+                text(scope, "catalog").parse()?,
+            )?,
+            branch: text(&t["connection"], "branch").parse()?,
+            audience: number(&t["connection"], "audience"),
+        })
+    } else {
+        None
+    };
+    let mut client = q::Client::open(
+        ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
+        Credential::new(realm, number(v, "principal"), text(config, "seed_file"))?,
+        connection.clone(),
+        tables,
+    )?;
+    let mut capture = None;
     let source = match kind {
         "kv" => q::Source::KV {
             resource,
@@ -567,19 +583,13 @@ fn serve(config: &Value) -> AnyResult<()> {
             value: q::Decoder::v1(q::DecoderType::Utf8),
         },
         "table" => {
-            let owner = connection.source();
-            let mut catalog = c::Client::open(
-                ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
-                Credential::new(realm, number(v, "principal"), text(config, "seed_file"))?,
-                c::Connection::new(owner, c::Scope::new(resource, 1)?)?,
-            )?;
-            let definition = catalog.lookup("items")?.expect("Missing catalog Table");
-            catalog.close()?;
-            q::Source::Table {
-                owner,
-                metadata: definition.metadata,
-                schema: definition.schema,
-            }
+            let definition = client
+                .lookup_table(1, "items")?
+                .expect("Missing direct Table");
+            let saved = &config["capture"];
+            capture = Some(q::Capture { executor: number(saved,"executor"), operation: text(saved,"operation").parse()?,
+                partition: text(&saved["expected"],"partition").parse()?, next_lsn: text(&saved["expected"],"next_lsn").parse()? });
+            definition.source
         }
         _ => q::Source::Document {
             reference: reference(resource, 17, 1, 13)?,
@@ -676,16 +686,14 @@ fn serve(config: &Value) -> AnyResult<()> {
         },
         None,
     )?;
-    let mut client = q::Client::open(
-        ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
-        Credential::new(realm, number(v, "principal"), text(config, "seed_file"))?,
-        connection,
-    )?;
-    assert_eq!(client.authorize_bundle(&bundle)?.data(), fs::read(text(config, "bundle"))?);
+    assert_eq!(
+        client.authorize_bundle(&bundle, capture)?.data(),
+        fs::read(text(config, "bundle"))?
+    );
     let description = client.describe(&source)?;
     assert_eq!(
         (description.bundle_bytes, description.batch_rows),
-        (25255, 8)
+        (25614, 8)
     );
     println!("{}", json!({"ready":true}));
     io::stdout().flush()?;
@@ -770,7 +778,7 @@ fn serve(config: &Value) -> AnyResult<()> {
                     .map(|s| q::Cursor::from_data(s.into()))
                     .transpose()?;
                 let page = client.page(text(v, "namespace").parse().unwrap(), cursor.as_ref())?;
-                assert_eq!(page.manifest.resource, resource);
+                assert_eq!(page.manifest.resource, match &source { q::Source::Table { scope, .. } => scope.resource(), _ => resource });
                 assert_eq!(
                     page.manifest.source_kind,
                     match kind {

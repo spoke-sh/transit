@@ -1,84 +1,82 @@
-# General Table callers
+# Direct Table lifecycle
 
-Serialization charges each converted column, assignment and predicate before
-building the next owned value. Neutral schemas share 2 MiB and actions share
-16 MiB; complete frame admission also counts enclosing fields. Oversized input
-rejects before constructing the complete JSON batch or dispatching native work.
-
-`Transit.Station.Sdk.Catalog` exposes the shared
-[general Table lifecycle](../../transit-station-sdk/docs/catalog.md) through
-Elixir structs and tagged operation tuples. Shared Erlang owns the bounded native
-worker; shared Zig owns signing, authorization, schema validation, execution and
-exact recovery. Provision the catalog host, resource, ownership and grants
-explicitly. A query connection does not enable catalog administration.
+`Transit.Station.Sdk.Catalog` exposes the shared Erlang direct Table caller with
+Elixir structs and ordinary `{:ok, value}`, `{:error, error}` and
+`{:uncertain, original, error}` results. The shared Zig implementation owns
+compilation, publication, current authorization and durable recovery.
 
 ```elixir
 alias Transit.Station.Sdk.Catalog, as: C
 
-{:ok, client} = C.open(config, credential, connection)
-identity = %C.Identity{operation: operation, namespace: namespace}
-{:ok, compiled} = C.compile_sql(client,
-  "CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(120), active BOOL)",
-  identity, object)
-save_intent.(compiled.saved.definition, compiled.saved.bytes)
-{:ok, step} = C.next(client, compiled.intent.reference)
-%C.Next{kind: :send, prepared: prepared} = step
-save_prepared.(prepared.bytes)
-{:ok, admitted} = C.submit(client, prepared)
-save_receipt.(admitted.position)
-{:ok, progress} = C.progress(client, compiled.intent.reference, prepared, admitted.position, true)
+connection = %C.Connection{scope: scope, audience: audience}
+{:ok, client} = C.open(config, credential, connection, service_url)
+{:ok, work} = C.compile_sql(client,
+  "CREATE TABLE people (id BIGINT PRIMARY KEY, name VARCHAR(80))",
+  %C.Identity{operation: operation_id}, object_id)
+{:ok, bytes} = C.save(work.saved)
+:ok = persist_intent(bytes) # Application-owned durable persistence.
+{:ok, original} = C.stage(client, work.intent)
+{:ok, bytes} = C.save(original)
+:ok = persist_reference(bytes)
+{:ok, observation} = C.admit(client, original)
 ```
 
-Persistence functions are application-owned durable writes. The example sends one
-step; continue to a terminal outcome before claiming publication. Functions
-return `{:ok, value}` or `{:error, %Transit.Client.Error{}}`. Submission can return
-`{:uncertain, original_prepared, error}`; retain and reconcile the exact original
-bytes with the original connection and credential.
+The connection names a catalog scope, audience, branch (default 1) and optional
+role. It grants no access or catalog ownership. Namespace selection belongs to
+each identity or lookup. Provision catalog and authorization identities through
+the owning public operations. Opening checks matching package/native definitions
+and capabilities without initializing the service. The optional service URL
+selects the direct endpoint; otherwise requests use the configured node URL.
 
-Public structs correspond to the shared guide's records: `Scope`, `Connection`,
-`TableLimits`, `Configuration`, `Authority`, `Subject`, `Column`,
-`Schema`, `Identity`, `Basis`, `Metadata`, `Head`, `Entry`, `Definition`,
-`HistoricalDefinition`, `Cursor`, `Page`, `Reference`, `SavedIntent`, `Prepared`,
-`Intent`, `Compiled`, `Counts`, `Outcome`, `Upload`, `State`, `Disposition`, `Next`,
-`Progress`, `Capabilities`, `Description`, `Assignment` and `Dependency`.
-Missing optional values are `nil`. Columns default nullable
-with no default or length bound, and schema primary keys default to an empty list.
-[Logical values](logical.md) retain recursive descriptors and separate cell states.
+`compile_sql` accepts optional create-object, dialect (`:transit | :mysql`) and
+ingestion (`:point | :bulk`) arguments. `prepare` accepts typed schemas, lifecycle
+changes and logical mutations; typed mutations use
+`{:mutate, basis, mutation, :point | :bulk}`. Preparation and `preview` do not
+admit work. `stage` stores intent content; persist its reference before `admit`.
+`execute(client, original, steps)` advances accepted work; `inspect` observes the
+original operation and `cancel` requests cancellation. Only a committed
+observation carries accepted position, resulting definition and exact mutation
+counts. Neither preview nor admission implies completion.
 
-`prepare(client, name, identity, operation)` takes the same tuples as the shared
-guide, using Elixir structs inside them and atoms for tags. Obtain a captured
-`Basis` with `C.basis(definition.metadata)`. `compile_sql` accepts an optional
-CREATE object ID. `load`, `forget`, `next`, `status`, `prepare_resume`,
-`prepare_control`, `prepare_initialize`, `prepare_dependency`,
-`submit`, `observe`, `input_disposition` and `progress` preserve explicit staging,
-processing, publication and recovery distinctions. The optional final wait flag
-on `observe` and `progress` defaults false.
+`lookup(client, name, namespace \\ 1)` returns metadata with a complete basis,
+schema, authorization ID, row count and accepted position. The basis preserves
+connection, namespace, name, object, branch, immutable definition and schema
+commitment. Old work cannot retarget a same-name replacement. Logical types,
+physical encoding and collation remain separate. Schemas allow at most 128
+columns, INSERT at most 1,024 rows and predicates at most 64 instructions. SQL is
+bounded to 4,096 UTF-8 bytes and names to 255 bytes. Logical values preserve exact
+decimals and recursive shapes within the shared conversion bounds. Native
+counter bounds remain distinct from full-width catalog and operation identities.
 
-`lookup` returns a definition with metadata, head and schema or nil; `definition`
-returns an accepted historical definition with metadata and schema or nil.
-`list(client, cursor)` defaults to a new listing. Continue through empty pages
-while `page.next` exists. Keep mandatory cursor definition, scope, resource cut
-and after-object ID intact. A changed cut rejects continuation; current native
-and catalog rights are checked again. DROP/name reuse does not retarget original
-saved operations or historical definitions.
+`save` and `restore(kind, bytes)` preserve a `:basis`, `:intent`, `:reference`,
+`:cursor`, `:snapshot_owner`, `:snapshot_acquisition` or `:snapshot`. `load`
+restores original saved work without recompiling; `forget` releases local loaded
+work. Saved values require the current definition and reject ambiguous or
+incomplete JSON. An uncertain mutation returns its original recovery value and
+error. Inspect that identity after loss; do not replace it with newly compiled
+work. No implicit retry occurs.
 
-One client owns one active native job; overlap returns `:busy`. A Task's death
-abandons only its wait. `close` joins active work and native cleanup. Structs and
-binaries are immutable, and no external text becomes a BEAM atom. Host projection
-is bounded before request validation. Complete saved intents permit 4,327,031
-bytes; prepared commands permit 8192 bytes. Catalog frames and nesting use their
-own declared limits while raw callers retain their smaller bounds. See the shared
-guide for all operation limits and the [proof ledger](../../../../tests/README.md)
-for executed qualification.
+`prepare_snapshot(client, metadata, operation)` creates an explicit acquisition.
+Persist it before `acquire_snapshot`; resolve uncertainty using `snapshot_status`
+on its owner. Persist the returned snapshot before `snapshot_metadata` or
+`release_snapshot`. Retained metadata survives ALTER, DROP and name reuse but
+rechecks current rights. Owner status resolves uncertain release, and repeated
+original release is idempotent. Closing a client does not release snapshots or
+authorize physical deletion. The catalog API exposes retained metadata, without
+an interactive relational SQL cursor.
 
-Catalog metadata retains the immutable metadata publication commitment: its
-byte length and 32-byte digest. Missing or malformed commitments are rejected;
-query sources use this evidence with the catalog owner and resolved schema.
+`describe`, `namespace`, `namespaces` and `tables` expose current authorized
+inspection. Pages have at most eight entries and a complete continuation cursor.
+Changed directory cuts fail; start a fresh listing. Table entries use independent
+accepted positions. Namespace administration, dependency controls and named
+KV/Document declarations use their owning public operations; this typed adapter
+does not expose them.
 
-`Connection` accepts an optional selected `role` and a schema `namespace`
-(default 1). `open` accepts a fourth optional Table-service URL, preserving the
-original caller's signing identity while the service owns its resource identity.
-`Configuration` requires `Authority` and `database_name`. `Description` retains
-an authenticated `Subject` and `authorization_revision`; subjects and namespaces
-are checked against the connection before returning owned values. Metadata's
-commitment permits at most 444 bytes; live definitions include `authorization`.
+The immutable Elixir structs project to shared Erlang values with bounded depth
+and total nodes. They do not create another protocol or permission authority.
+Decoded schemas preserve public `Logical.Field` and `Logical.Element` structs
+inside nested structure, list, array and map descriptors.
+One active native operation is allowed per client. Task loss does not abandon
+that operation; the worker remains busy until completion. `close` joins active
+work and port cleanup. Returned values outlive the caller. Importing packages
+does not start workers or read credentials.

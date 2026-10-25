@@ -13,6 +13,7 @@ from storage import free_port, wait_ready
 def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     inspector = invoke('board-provision', direct=True)
     caller = json.loads((root/'shell.json').read_text())
+    data_resource = caller['workspace']['source']['resource']
     port = free_port()
     origin = f'http://127.0.0.1:{port}'
     options = dict(upstream=caller['url'], realm=46, principal=55, profile='native_v1',
@@ -42,7 +43,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
             with response:
                 data = json.loads(response.read())
                 if response.status == 429 and status != 429: continue
-                read = operation is None or next(iter(operation)) in ('describe', 'inspect', 'status', 'page', 'observe', 'draft_status', 'compile', 'next', 'suggest', 'assist')
+                read = operation is None or next(iter(operation)) in ('describe', 'inspect', 'status', 'page', 'observe', 'draft_status', 'compile', 'next', 'suggest', 'assist', 'capture', 'refresh')
                 # A 503 leaves a signed submission uncertain. Retry the exact
                 # frozen body, never call next/prepare for replacement bytes.
                 # The scenarios below still require the original receipt.
@@ -64,7 +65,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert atlas['query_resource'] == caller['connection']['resource']
     description = api({'describe': {}})['description']
     inspected = api({'inspect': {'sql': 'DESCRIBE items'}})['inspection']
-    assert inspected['resource'] == caller['connection']['resource']
+    assert inspected['resource'] == data_resource
     assert inspected['source_kind'] == kind and inspected['name'] == 'items'
     listed = api({'inspect': {'sql': 'SHOW TABLES'}})['inspection']
     assert listed['details'] == {'tables': ['items'] if kind == 'table' else []}
@@ -81,13 +82,13 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert any(f and f['field'] == 'column' and f['value'] == {'text': 'missing'} for f in unknown['facts'])
     assisted = api({'assist': {'sql':'SELECT * FROM it','cursor':16,'generation':7}})['assistance']
     assert assisted['version'] == 1 and assisted['generation'] == 7 and assisted['profile'] == 'unified_v1'
-    assert assisted['resource'] == caller['connection']['resource']
+    assert assisted['resource'] == data_resource
     assert assisted['range'] == dict(start=14,end=16,quoted=False)
     assert [item['text'] for item in assisted['items']] == ['"items"']
     assert api({'assist': {'sql':'SELECT hidden','cursor':13,'generation':8}})['assistance']['items'] == []
     api({'assist': {'sql':'SELECT','cursor':7,'generation':8}}, status=400)
     suggestions = api({'suggest': {'search': 'count'}})['suggestions']
-    assert suggestions['resource'] == caller['connection']['resource']
+    assert suggestions['resource'] == data_resource
     assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM "items"'}, suggestions
     assert len(suggestions['items']) <= 8  # Document column names can also contain 'count'.
     api({'compile': {'sql': suggestions['items'][0]['sql']}})
@@ -117,7 +118,8 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     deadline = time.monotonic()+300
     # Independent instances have disposable locks. The native sequence and
     # requester-owned active slot must arbitrate their actual competing work.
-    prepared = [api({'next': {'namespace': str(namespace_base+i), 'bundle': compiled['bundle']}}, instance=i)['prepared'] for i in range(2)]
+    bundles = [api({'capture': {'bundle': compiled['bundle'], 'operation': str(namespace_base+i)}})['compiled']['bundle'] if kind == 'table' else compiled['bundle'] for i in range(2)]
+    prepared = [api({'next': {'namespace': str(namespace_base+i), 'bundle': bundles[i]}}, instance=i)['prepared'] for i in range(2)]
     with ThreadPoolExecutor(max_workers=2) as pool:
         admissions = list(pool.map(lambda i: api({'submit': prepared[i]}, instance=i, status=None), range(2)))
     assert sorted(code for code, _ in admissions) == [200, 409], admissions
@@ -129,14 +131,14 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert retries == [receipt, receipt]
     while 'pending' in api({'observe': receipt['position']})['observation']:
         assert time.monotonic() < deadline
-    contender = api({'next': {'namespace': refused, 'bundle': compiled['bundle']}}, instance=1)['prepared']
+    contender = api({'next': {'namespace': refused, 'bundle': bundles[1-winner]}}, instance=1)['prepared']
     refused_receipt = api({'submit': contender}, instance=1)['receipt']
     while 'pending' in (observed := api({'observe': refused_receipt['position']})['observation']):
         assert time.monotonic() < deadline
     assert bytes.fromhex(observed['rejected']) == b'QueryBusy', observed
     assert api({'status': refused})['status'] is None
     while True:
-        prepared = api({'next': {'namespace': namespace, 'bundle': compiled['bundle']}})['prepared']
+        prepared = api({'next': {'namespace': namespace, 'bundle': bundles[winner]}})['prepared']
         if prepared is None: break
         receipt = api({'submit': prepared})['receipt']
         assert api({'submit': prepared})['receipt'] == receipt
@@ -186,6 +188,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
         draft = api({'draft_status': None})['draft']
         assert draft['generation'] == '1' and draft['starts'] == 0 and draft['enabled']
         draft_bundle = api({'compile': {'sql': 'SELECT value FROM items LIMIT 1'}})['compiled']
+        if kind == 'table': draft_bundle = api({'capture': {'bundle': draft_bundle['bundle'], 'operation': '20'}})['compiled']
         while True:
             prepared = api({'next_draft': {'namespace': '20', 'generation': '1', 'bundle': draft_bundle['bundle']}})['prepared']
             if prepared is None: break

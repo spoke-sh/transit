@@ -5,7 +5,11 @@
 -record(transit_unified_decoder_column, {name :: binary(), type :: int64 | uint64 | float64 | boolean | utf8 | binary}).
 -record(transit_unified_decoder, {type, version = 1}).
 -record(transit_unified_kv, {resource :: #transit_resource{}, prefix = <<>>, key :: #transit_unified_decoder{}, value :: #transit_unified_decoder{}}).
--record(transit_unified_table, {owner :: #transit_process{}, metadata :: #transit_catalog_metadata{}, schema :: #transit_catalog_schema{}}).
+-record(transit_unified_table_interpretation, {revision, digest :: binary(), byte_count, schema_digest :: binary()}).
+-record(transit_unified_table, {scope :: #transit_catalog_scope{}, audience, branch, namespace, interpretation :: #transit_unified_table_interpretation{}, schema :: #transit_catalog_schema{}}).
+-record(transit_unified_tables, {url :: binary(), scope :: #transit_catalog_scope{}, branch, audience}).
+-record(transit_unified_capture, {executor, operation, partition, next_lsn}).
+-record(transit_unified_table_definition, {source :: #transit_unified_table{}, partition, next_lsn}).
 -record(transit_unified_projection, {column :: #transit_unified_decoder_column{}, path = [], relative = false, mode = scalar, text_bytes = 4096, text_steps = 4096}).
 -record(transit_unified_document, {reference :: #transit_document_reference{}, projections = [], expand = undefined}).
 -record(transit_unified_predicate_program, {instructions = []}).
@@ -23,6 +27,6 @@
 -record(transit_unified_failure, {code, stage, dimension, limit, observed}).
 -record(transit_unified_status, {phase, correlation, reference, manifest = undefined, collected = false, failure = undefined, diagnostic = undefined}).
 -record(transit_unified_observation, {state, reason = undefined}).
--record(transit_unified_manifest, {job, source, requester, correlation, policy_revision, request, kind, resource, revision, source_head, source_digest, schema_digest, plan_digest, pages, scanned, selected, value_count, segments, rows, byte_count, sum = undefined, finished, chain}).
+-record(transit_unified_manifest, {job, source, requester, correlation, policy_revision, request, kind, resource, cut, source_digest, schema_digest, plan_digest, pages, scanned, selected, value_count, segments, rows, byte_count, sum = undefined, finished, chain}).
 -record(transit_unified_page, {manifest, columns, ordinal, rows, ipc, next = undefined}).
 -endif.

@@ -30,12 +30,19 @@ typedef struct transit_station_unified_projection {
     uint16_t text_bytes, text_steps; /* Explicit budgets, normally 4096 each. */
 } transit_station_unified_projection;
 typedef enum transit_station_unified_source_kind { TRANSIT_UNIFIED_KV, TRANSIT_UNIFIED_TABLE, TRANSIT_UNIFIED_DOCUMENT } transit_station_unified_source_kind;
+typedef struct transit_station_unified_table_interpretation {
+    uint64_t revision; uint8_t digest[32]; uint64_t byte_count; uint8_t schema_digest[32];
+} transit_station_unified_table_interpretation;
 typedef struct transit_station_unified_source {
     transit_station_unified_source_kind kind;
     transit_sdk_resource resource;
     union {
         struct { transit_sdk_bytes prefix; transit_station_unified_decoder key, value; } kv;
-        struct { transit_sdk_process owner; const transit_station_catalog_metadata *metadata; const transit_station_catalog_schema *schema; } table;
+        struct {
+            transit_station_catalog_scope scope; uint64_t audience, branch, namespace_id;
+            transit_station_unified_table_interpretation interpretation;
+            const transit_station_catalog_schema *schema;
+        } table;
         struct {
             transit_station_document_reference reference;
             const transit_station_unified_projection *projections; size_t projection_count;
@@ -96,6 +103,22 @@ typedef struct transit_station_unified_connection {
     transit_sdk_resource resource, requests;
     bool has_role; uint64_t role;
 } transit_station_unified_connection;
+/* Optional direct Table service; uses the query caller's credential and role. */
+typedef struct transit_station_unified_tables {
+    const char *url; transit_station_catalog_scope scope; uint64_t branch, audience;
+} transit_station_unified_tables;
+typedef struct transit_station_unified_capture {
+    uint64_t executor, operation, partition, next_lsn;
+} transit_station_unified_capture;
+typedef struct transit_station_unified_table_definition transit_station_unified_table_definition;
+typedef struct transit_station_unified_table_definition_view {
+    transit_station_unified_source source; uint64_t partition, next_lsn;
+} transit_station_unified_table_definition_view;
+/* NULL definition means no visible name. Views borrow the definition owner,
+ * independently of the client. Lookup takes no pin and admits no query. */
+transit_sdk_error transit_station_unified_lookup_table(transit_station_unified_client *, uint64_t namespace_id, const char *name, transit_station_unified_table_definition **out);
+transit_sdk_error transit_station_unified_table_definition_get(const transit_station_unified_table_definition *, const transit_station_unified_table_definition_view **out);
+void transit_station_unified_table_definition_destroy(transit_station_unified_table_definition *);
 typedef struct transit_station_unified_description {
     uint64_t resource_revision, policy_revision;
     transit_station_unified_budgets budgets;
@@ -141,7 +164,7 @@ transit_sdk_error transit_station_unified_inspection_get(const transit_station_u
 void transit_station_unified_inspection_destroy(transit_station_unified_inspection *);
 /* No activation or writer ownership. One in-flight operation; close joins.
  * Join all caller threads before destroying any public owner. */
-transit_sdk_error transit_station_unified_open(const transit_sdk_config *, const transit_sdk_credential *, transit_station_unified_connection, transit_station_unified_client **out);
+transit_sdk_error transit_station_unified_open(const transit_sdk_config *, const transit_sdk_credential *, transit_station_unified_connection, const transit_station_unified_tables *, transit_station_unified_client **out);
 transit_sdk_error transit_station_unified_close(transit_station_unified_client *);
 void transit_station_unified_client_destroy(transit_station_unified_client *);
 transit_sdk_error transit_station_unified_describe(transit_station_unified_client *, const transit_station_unified_source *, transit_station_unified_description *out);
@@ -155,7 +178,9 @@ transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_cl
 typedef struct transit_station_unified_bindings { const transit_station_unified_scalar *values; size_t count; } transit_station_unified_bindings;
 transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, const transit_station_unified_bindings *, transit_station_unified_bundle **out);
 /* Seal newly constructed work before persistence. Never reseal a recovered bundle. */
-transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unified_client *, const transit_station_unified_bundle *, transit_station_unified_bundle **out);
+transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unified_client *, const transit_station_unified_bundle *, const transit_station_unified_capture *, transit_station_unified_bundle **out);
+/* Fresh closure authority never replaces the original accepted read grant. */
+transit_sdk_error transit_station_unified_prepare_cleanup(transit_station_unified_client *, uint64_t namespace_id, const transit_station_unified_bundle *, transit_station_unified_prepared **out);
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *, uint64_t namespace_id, const transit_station_unified_bundle *, transit_station_unified_prepared **out); /* NULL: inspect status, not completion. */
 typedef enum transit_station_unified_control { TRANSIT_UNIFIED_CANCEL, TRANSIT_UNIFIED_RETIRE, TRANSIT_UNIFIED_COLLECT } transit_station_unified_control;
 transit_sdk_error transit_station_unified_prepare_control(transit_station_unified_client *, transit_station_unified_control, uint64_t namespace_id, transit_station_unified_prepared **out);
@@ -181,10 +206,14 @@ typedef struct transit_station_unified_status {
 transit_sdk_error transit_station_unified_status_read(transit_station_unified_client *, uint64_t namespace_id, transit_station_unified_status *out);
 typedef enum transit_station_unified_finished { TRANSIT_UNIFIED_SOURCE_END, TRANSIT_UNIFIED_LIMIT } transit_station_unified_finished;
 typedef struct transit_station_unified_manifest {
-    uint64_t job; transit_station_read_version source; transit_sdk_process requester;
+    uint64_t job;
+    /* source_kind selects TABLE members; KV/DOCUMENT use native members. */
+    union { transit_station_read_version native_version; transit_sdk_process table_worker; } source;
+    transit_sdk_process requester;
     uint64_t correlation, policy_revision; uint8_t request[72];
-    transit_station_unified_source_kind source_kind; transit_sdk_resource resource; uint64_t revision;
-    uint8_t source_head[32], source_digest[32], schema_digest[32], plan_digest[32];
+    transit_station_unified_source_kind source_kind; transit_sdk_resource resource;
+    union { uint64_t native_revision; uint8_t table_commitment[32]; } cut;
+    uint8_t source_digest[32], schema_digest[32], plan_digest[32];
     uint64_t pages, scanned, selected, value_count, segments, rows, byte_count;
     bool has_sum; int64_t sum; transit_station_unified_finished finished; uint8_t chain[32];
 } transit_station_unified_manifest;

@@ -23,7 +23,7 @@ transit_station_catalog_schema transit_example_table(void) {
         {.state=TRANSIT_LOGICAL_VALUE,.as.value={.kind=TRANSIT_VALUE_ATOM,.as.atom={.kind=TRANSIT_ATOM_SIGNED,.as.signed_value={2,0}}}}
     };
     static const transit_logical_cell_view tags = {.state=TRANSIT_LOGICAL_VALUE,.as.value={.kind=TRANSIT_VALUE_LIST,.as.cells={children,2}}};
-    static const transit_station_catalog_column columns[] = {{1,"id",&int64_type,false,NULL,0},{2,"value",&int64_type,true,NULL,0},{3,"label",&utf8_type,false,&label,0},{4,"tags",&list_type,false,&tags,0}};
+    static const transit_station_catalog_column columns[] = {{1,"id",&int64_type,false,NULL,0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE},{2,"value",&int64_type,true,NULL,0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE},{3,"label",&utf8_type,false,&label,0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE},{4,"tags",&list_type,false,&tags,0, TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_NONE}};
     static const uint64_t primary[] = {1}; return (transit_station_catalog_schema){1,1,5,columns,4,primary,1};
 }
 static transit_sdk_error required(transit_station_turn *turn, const transit_station_key *key, uint64_t *out) {

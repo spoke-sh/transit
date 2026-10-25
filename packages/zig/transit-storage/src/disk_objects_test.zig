@@ -1,0 +1,177 @@
+const std = @import("std");
+const t = std.testing;
+const Store = @import("LocalSegmentStore.zig").LocalSegmentStore;
+const Disk = @import("DiskObjects.zig");
+
+fn hash(bytes: []const u8) [32]u8 {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    return digest;
+}
+fn open(dir: std.Io.Dir) !Store {
+    return Store.openDiskAt(t.allocator, t.io, dir, "objects");
+}
+test "independent disk handles cannot publish using a stale cached precondition" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var first = try open(tmp.dir);
+    defer first.deinit();
+    var second = try open(tmp.dir);
+    defer second.deinit();
+    const key = "manifest/17/head.tman";
+    try t.expect(try first.objectStore().putConditional(key, .if_none_match, "initial"));
+    const a = (try first.objectStore().head(key)).?;
+    const b = (try second.objectStore().head(key)).?;
+    try t.expectEqualDeep(a, b);
+    try t.expect(try first.objectStore().putConditional(key, .{ .if_match = a.sha256 }, "winner"));
+    try t.expect(!try second.objectStore().putConditional(key, .{ .if_match = b.sha256 }, "lost-update"));
+    try t.expect(!try second.objectStore().putConditional(key, .if_none_match, "duplicate"));
+    var out: [64]u8 = undefined;
+    try t.expectEqualStrings("winner", try second.objectStore().getRange(key, 0, out.len, &out));
+    try t.expectEqual(@as(usize, 0), first.objects.items.len);
+    try t.expectEqual(@as(usize, 0), second.objects.items.len);
+}
+
+test "concurrent local publishers have exactly one winner for each precondition" {
+    const Writer = struct {
+        fn run(store: *Store, value: []const u8) !bool {
+            return store.objectStore().putConditional("manifest/race", .if_none_match, value);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var a = try open(tmp.dir);
+    defer a.deinit();
+    var b = try open(tmp.dir);
+    defer b.deinit();
+    var first = try t.io.concurrent(Writer.run, .{ &a, "first" });
+    defer _ = first.cancel(t.io) catch {};
+    var second = try t.io.concurrent(Writer.run, .{ &b, "second" });
+    defer _ = second.cancel(t.io) catch {};
+    const left = try first.await(t.io);
+    const right = try second.await(t.io);
+    try t.expect(left != right);
+    var out: [64]u8 = undefined;
+    try t.expectEqualStrings(if (left) "first" else "second", try a.objectStore().getRange("manifest/race", 0, out.len, &out));
+}
+
+test "immutable identity and conditional kind survive restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const key = "segments/1/seg-1.tseg";
+    {
+        var store = try open(tmp.dir);
+        defer store.deinit();
+        _ = try store.objectStore().putImmutable(key, "TSEG bytes", hash("TSEG bytes"));
+        _ = try store.objectStore().putImmutable(key, "TSEG bytes", hash("TSEG bytes"));
+    }
+    var store = try open(tmp.dir);
+    defer store.deinit();
+    try t.expectError(error.ImmutableObjectConflict, store.objectStore().putImmutable(key, "different", hash("different")));
+    try t.expectError(error.ImmutableObjectConflict, store.objectStore().putConditional(key, .{ .if_match = hash("TSEG bytes") }, "different"));
+    try t.expectError(error.ObjectDigestMismatch, store.objectStore().putImmutable("bad", "bytes", hash("other")));
+    try t.expect(try store.objectStore().head("bad") == null);
+    var out: [64]u8 = undefined;
+    try t.expectEqualStrings("TSEG bytes", try store.objectStore().getRange(key, 0, out.len, &out));
+}
+
+test "bounded range reads cross chunks and detect touched data and checksum corruption" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const bytes = try t.allocator.alloc(u8, 3 * Disk.chunk_bytes + 73);
+    defer t.allocator.free(bytes);
+    for (bytes, 0..) |*byte, i| byte.* = @truncate(i * 137);
+    var store = try open(tmp.dir);
+    defer store.deinit();
+    const key = "segments/1/big.tseg";
+    _ = try store.objectStore().putImmutable(key, bytes, hash(bytes));
+    var out: [1024]u8 = undefined;
+    const offset = Disk.chunk_bytes - 13;
+    try t.expectEqualSlices(u8, bytes[offset..][0..out.len], try store.objectStore().getRange(key, offset, out.len, &out));
+    try t.expectEqualSlices(u8, bytes[bytes.len - 5 ..], try store.objectStore().getRange(key, bytes.len - 5, out.len, &out));
+    try t.expectError(error.RangeOutOfBounds, store.objectStore().getRange(key, bytes.len + 1, 1, &out));
+    const key_hex = std.fmt.bytesToHex(hash(key), .lower);
+    const data_hex = std.fmt.bytesToHex(hash(bytes), .lower);
+    var path: [200]u8 = undefined;
+    const data = try tmp.dir.openFile(t.io, try std.fmt.bufPrint(&path, "objects/objects/{s}-{s}.tseg", .{ key_hex, data_hex }), .{ .mode = .read_write });
+    defer data.close(t.io);
+    try data.writePositionalAll(t.io, "bad", offset);
+    try t.expectError(error.ObjectDigestMismatch, store.objectStore().getRange(key, offset, out.len, &out));
+    try data.writePositionalAll(t.io, bytes[offset..][0..3], offset);
+    const checks = try tmp.dir.openFile(t.io, try std.fmt.bufPrint(&path, "objects/objects/{s}-{s}.checks", .{ key_hex, data_hex }), .{ .mode = .read_write });
+    defer checks.close(t.io);
+    try checks.writePositionalAll(t.io, "bad", 0);
+    try t.expectError(error.ObjectDigestMismatch, store.objectStore().getRange(key, offset, out.len, &out));
+}
+
+test "object count and total bytes do not populate the disk owner's allocator" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var resident: [16 * 1024]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&resident);
+    var store = try Store.openDiskAt(fixed.allocator(), t.io, tmp.dir, "objects");
+    defer store.deinit();
+    var bytes: [8192]u8 = @splat(42);
+    for (0..513) |i| {
+        var key: [64]u8 = undefined;
+        const name = try std.fmt.bufPrint(&key, "segments/{d}.tseg", .{i});
+        _ = try store.objectStore().putImmutable(name, &bytes, hash(&bytes));
+        try t.expectEqualStrings(&bytes, try store.objectStore().getRange(name, 0, bytes.len, &bytes));
+    }
+    try t.expectEqual(@as(usize, 0), store.objects.items.len);
+    try store.objectStore().delete("segments/0.tseg");
+    try t.expect(try store.objectStore().head("segments/0.tseg") == null);
+    try t.expectError(error.ObjectNotFound, store.objectStore().getRange("segments/0.tseg", 0, 1, &bytes));
+}
+
+test "missing and foreign object store definitions do not reinitialize retained data" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    {
+        var store = try open(tmp.dir);
+        defer store.deinit();
+        _ = try store.objectStore().putImmutable("retained", "value", hash("value"));
+    }
+    const marker = try tmp.dir.openFile(t.io, "objects/.definition", .{ .mode = .read_write });
+    defer marker.close(t.io);
+    try marker.writePositionalAll(t.io, &@as([32]u8, @splat(0)), 0);
+    try t.expectError(error.IncompatibleDefinition, open(tmp.dir));
+    try tmp.dir.deleteFile(t.io, "objects/.definition");
+    try t.expectError(error.IncompatibleDefinition, open(tmp.dir));
+}
+
+test "object publication sync failures leave a complete old or complete new descriptor" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var remaining: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
+            }
+            return real.fileSync(context, file);
+        }
+    };
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for (1..7) |failure| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+        defer owner.deinit();
+        try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "before"));
+        Fault.remaining = failure;
+        try t.expectError(error.InputOutput, owner.objectStore().putConditional("head", .{ .if_match = hash("before") }, "after"));
+        try t.expectEqual(@as(usize, 0), Fault.remaining);
+        var reopened = try open(tmp.dir);
+        defer reopened.deinit();
+        const expected: []const u8 = if (failure == 6) "after" else "before";
+        var bytes: [16]u8 = undefined;
+        try t.expectEqualStrings(expected, try reopened.objectStore().getRange("head", 0, bytes.len, &bytes));
+        try t.expectEqualDeep(hash(expected), (try owner.objectStore().head("head")).?.sha256);
+        try t.expect(try reopened.objectStore().putConditional("head", .{ .if_match = hash(expected) }, "reconciled"));
+    }
+}

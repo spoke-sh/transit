@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.assistance-coverage.2026-10-24.
+/// SHA-256 of transit.native.v1.direct-storage-lifecycle.2026-10-24.
 pub const Definition = enum {
-    c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b,
+    @"7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -34,6 +34,12 @@ pub const Definition = enum {
     }
 };
 pub const current_definition: Definition = @fromBackingInt(0);
+/// Binary artifact fingerprint. There is no implicit definition for persisted bytes.
+pub const definition_bytes: [32]u8 = blk: {
+    var bytes: [32]u8 = undefined;
+    _ = std.fmt.hexToBytes(&bytes, @tagName(current_definition)) catch unreachable;
+    break :blk bytes;
+};
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
 pub const query_domain = "transit.query.v1\x00";
@@ -700,7 +706,7 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
 
 test "contract definitions reject numeric enum aliases in both JSON decoders" {
     const t = std.testing;
-    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
+    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"dec0151b4f9d664f75113d65fd43b3ba9a47f07ffb28fdda7e4b91b3d369bb60\"", "\"e8677230beea38e3f824c3413009a123a2386f7c6c7a1cfcaa7efe51e8486c78\"", "\"9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56\"", "\"e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a\"", "\"554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa\"", "\"c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b\"", "\"312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0\"", "\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, t.allocator, bytes, .{}));
         const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
         defer value.deinit();
@@ -809,8 +815,41 @@ test "native responses require the current contract definition even with a v1 la
     const incomplete_output_names = "{\"version\":1,\"definition\":\"34f920f3044133818431378d99c1db55f7c714e43c6966acb71197b0a4d69090\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
+        // Before tagged catalog assertions and SQL unchanged outcomes.
+        "b08ae0e187823f4f869791e8b1cab5d42dbe8a54db6652855eca8562cf6404b9",
+        // Before prepared finite requests and current-capture selection.
+        "1d30f28e62da251490d698d6ccd67d4baeeb128fca3478f6518b6aa131f9bf20",
+        // Before direct Table watches and explicit retained result positions.
+        "38fb0433e2dbce32b39167abb988460d09b813d8f2de519e78fbb8ca732b40e8",
+        // Before mandatory direct-Table bootstrap and dedicated registration.
+        "c0fdedd9d2abcfd2c2ab0d0bfccf9bb9bd67c3c8eb29f8e9dc0a10e9a4ee42ba",
+        // Before mandatory Table operation roots and matched/changed outcomes.
+        "361f2e32d404b9fd77db6e4ca004472e8c58c44d7786f49daf622008a3012d4a",
+        "b801d844954d7d395d6af53ac922cc07f39dd158f77d9c45ce62c6624178e47e",
+        "a6ca7686cc7bdd39ff47373f000221d6e0ccf91ed1ac2cf4c56e0f60fb250f92",
+        "04fb672449029157eed66ce316d0d55d0b12bbbeddb07c3f337fb9f7b95ab036",
+        "b4c2e47f8dac6fff59724ee96a6e95af0134c065b9895eb5303c4a1155f09b04",
+        "ca3da62f10ff4dbe279871b62429d49d235b7f821c23cf0dee497b02c683485b",
+        "03cfbcd3ac01907b74674fd0877c0a718d76974e1ea320fa1f9dc7ab15ccd488",
+        "25f5ba20fd4d8dc23f8be8713b2b8468dc23a65b0aa58bb99f983face981d9c7",
+        // Before exact Table declarations, schema-independent names and retirement.
+        "9ecf03c83a3bd5e82dc87da5756ba71a1a2ed3d7ab1e8a9dbbb2033f6f87d66c",
+        "228a44d0a7345601f87f99d680751ca3ece4a59aaab980b80bba2dfb2a0d1830",
         // Fixed two-column Tables, before general schema/lifecycle and ABI cutover.
         "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+        // Before retained sources carried exact native publication authority.
+        "64510390ce1d02e9e93fc04bf00554ca4625ae8b895134fc8cb04e3f5143a96c",
+        // Before mandatory neutral encoding/collation fields and native SDK layouts.
+        "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964",
+        // Before mandatory scoped read delegations and executor authentication.
+        "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982",
+        // Before lossless column codecs and mandatory physical page definitions.
+        "dbeaf8ee99483d030ed06e8779be25af19f74d7c794591e180c8906a55b456dd",
+        // Before mandatory binary storage definitions and keyless row identity.
+        "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262",
+        "9438134d5552df1afc0043aab73220112135bc05c260525d7598f6ba694cc31b",
+        // Before mandatory local WAL metadata and exact data lifecycle bindings.
+        "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
         // Pre-compact immutable page definition.
         "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9",
         // Previous publication input dispositions omitted retained typed witnesses.
@@ -873,6 +912,10 @@ test "native responses require the current contract definition even with a v1 la
         "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc",
         // TLS-only SQL records before explicit local trust and owner bootstrap.
         "1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10",
+        // Before retained direct Table change-reader checkpoints.
+        "819b12b133443f6c0a269c818da0698cb222ac4cad1d7010da3ac602000a0f55",
+        // Before SQL namespace references and namespace terminal/completion kinds.
+        "f444c2a15245cf6a5852c727ebf3922f214a7fb8d3e078ea2d92b6b1eb668463",
     }) |definition| {
         const previous = "{\"version\":1,\"definition\":\"" ++ definition ++ "\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, previous, .{}));

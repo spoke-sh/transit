@@ -26,6 +26,9 @@ pub const Expected = struct {
 pub const Open = struct {
     manifest: r.Manifest,
     bundle: q.Bundle,
+    /// Exact retained Table evidence verified against the completed manifest.
+    /// It grants no permission and does not keep a released pin live.
+    table_basis: ?q.TableSource.Basis,
     pub fn outputSchema(self: Open, columns: *[q.SourceDefinition.max_columns]t.Field) !t.Type {
         return self.bundle.plan.outputSchema(columns);
     }
@@ -36,14 +39,14 @@ fn checkReference(reference: Ref, expected: Expected) !void {
     try q.Bundle.checkReference(expected.request);
     if (reference.domain != .query_result or reference.resource != expected.resource or reference.record != r.manifest_record or reference.spec.format != r.manifest_format or reference.spec.length == 0 or reference.spec.length > r.Manifest.max_bytes) return error.InvalidQueryManifest;
 }
-fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, source: anytype) !void {
+fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, source: anytype) !?q.TableSource.Basis {
     try checkReference(reference, expected);
     const job = opened.manifest.job;
-    if (job.source.pid != expected.source or job.destination != expected.requester or job.correlation != expected.correlation or !std.meta.eql(job.request, expected.request) or job.namespace() != reference.namespace) return error.QueryIdentityMismatch;
+    if (job.source.worker() != expected.source or job.destination != expected.requester or job.correlation != expected.correlation or !std.meta.eql(job.request, expected.request) or job.namespace() != reference.namespace) return error.QueryIdentityMismatch;
     var reader = try source.open(reference.resource);
     if (!std.meta.eql(try q.UnifiedCapture.job(&reader, job.id), job) or job.phase != .complete) return error.ResultUnavailable;
     const grant = (try q.UnifiedCapture.permitted(&reader, job)) orelse return error.QueryDenied;
-    if (opened.bundle.source.resource != reference.resource or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
+    if ((opened.bundle.source.source != .table and opened.bundle.source.resource != reference.resource) or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
     const descriptor = try reference.publication().inspect(&reader, reference.record);
     if (descriptor.state != .published or descriptor.publisher != expected.source or !std.meta.eql(descriptor.spec, reference.spec)) return error.ResultUnavailable;
     try q.Bundle.checkPublisher(job.request, source, job.destination);
@@ -52,7 +55,15 @@ fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, sourc
         const table = opened.bundle.source.source.table;
         if (original.principal() != try grant.tablePrincipal(table)) return error.QueryDenied;
         const current = try q.ResultDisclosure.check(expected.disclosure orelse return error.QueryDenied, expected.selection(reference, cursor), table.scope.realm);
-        try q.QueryAuthorization.checkTable(table, &reader, current, current.principal());
+        var bytes: [16384]u8 = undefined;
+        var scratch: std.heap.FixedBufferAllocator = .init(&bytes);
+        const retained = try q.CapturedTablePin.source(scratch.allocator(), &reader, .{ .job = job.id, .source = 0 }, expected.source);
+        if (!std.meta.eql(table.interpretation, retained.interpretation) or
+            opened.manifest.checkpoint.cut.position != .table or
+            !std.mem.eql(u8, &opened.manifest.checkpoint.cut.position.table, &try retained.fingerprint())) return error.SourceChanged;
+        try q.QueryAuthorization.checkAuthority(retained.authority, &reader, current, current.principal());
+        const basis = try opened.manifest.checkpoint.basis(opened.bundle.source);
+        return .{ .declaration = basis.contract, .schema = basis.schema, .retained = retained };
     } else {
         // A read-only composition may expose its current reader separately
         // from Table subject mediation. Document still checks the concrete
@@ -60,6 +71,7 @@ fn live(reference: Ref, expected: Expected, cursor: ?Cursor, opened: Open, sourc
         const current = if (comptime @hasDecl(@TypeOf(reader), "currentReader")) reader.currentReader() else &reader;
         try q.UnifiedSource.checkCurrent(opened.bundle.source, current, try grant.principal(opened.bundle.source));
     }
+    return null;
 }
 /// Borrowed definition/plan data belongs to allocator. The finite manifest is
 /// owned by value. No source pin or current policy is cached by this handle.
@@ -73,8 +85,8 @@ fn openAt(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype, 
     if (!std.meta.eql(manifest.job.request, expected.request)) return error.QueryIdentityMismatch;
     const request_bytes = try allocator.alloc(u8, manifest.job.request.spec.length);
     const bundle = try q.Bundle.decode(allocator, try manifest.job.request.read(source, request_bytes));
-    const opened: Open = .{ .manifest = manifest, .bundle = bundle };
-    try live(reference, expected, cursor, opened, source);
+    var opened: Open = .{ .manifest = manifest, .bundle = bundle, .table_basis = null };
+    opened.table_basis = try live(reference, expected, cursor, opened, source);
     _ = try manifest.checkpoint.bound(bundle);
     const progress = manifest.checkpoint.progress;
     if (progress.pages > bundle.limits.pages or progress.segments > bundle.limits.segments or manifest.checkpoint.bytes > bundle.limits.result_bytes or (progress.finished == .source_end and !manifest.checkpoint.cursor.done)) return error.InvalidQueryManifest;
@@ -90,6 +102,7 @@ pub const Cursor = struct {
 pub const Page = struct {
     manifest: r.Manifest,
     basis: q.Basis,
+    table_position: ?q.TablePosition,
     next: ?Cursor,
     arrow: []const u8,
     schema: t.Type,
@@ -126,8 +139,8 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     if (complete) try completeCoverage(next, manifest.checkpoint.progress.rows, manifest.checkpoint.bytes, manifest.checkpoint.chain);
     // Recheck current policy, Document lifecycle, request and result disposition
     // after all reads/decoding, before the caller may disclose this page.
-    try live(reference, expected, cursor, opened, source);
-    return .{ .manifest = manifest, .basis = try manifest.checkpoint.basis(opened.bundle.source), .next = if (complete) null else next, .arrow = bytes, .schema = try schema.cloneInto(allocator), .plan = opened.bundle.plan };
+    _ = try live(reference, expected, cursor, opened, source);
+    return .{ .manifest = manifest, .basis = try manifest.checkpoint.basis(opened.bundle.source), .table_position = if (opened.table_basis) |basis| try q.TablePosition.captured(basis) else null, .next = if (complete) null else next, .arrow = bytes, .schema = try schema.cloneInto(allocator), .plan = opened.bundle.plan };
 }
 
 fn completeCoverage(cursor: Cursor, rows: u64, bytes: u64, chain: [32]u8) !void {

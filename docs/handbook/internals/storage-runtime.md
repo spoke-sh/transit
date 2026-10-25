@@ -12,8 +12,13 @@ and operational behavior.
 
 ## Persistence model
 
-In the current baseline, the backend supplies conditional durability through
-Ursula. Transit owns logical identities, accepted transitions, retained
+The local server supplies conditional native durability through its exclusive
+[local backend](../../../packages/zig/transit-backend-local/README.md), a
+partition-zero WAL and immutable page/block objects. Ursula deployments retain
+their backend mapping. The local path preserves the existing native root model. The
+[native persistence proofs](../../../tests/README.md#native-authority-over-local-storage--2026-10-22)
+cover restart and lost replies, with the physical collection and power-loss
+limits stated there. Transit owns logical identities, accepted transitions, retained
 boundaries and retirement. Recovery uses validated history/checkpoints; indexes
 and resident caches accelerate access without becoming an independent source of
 permission or execution rights.
@@ -22,6 +27,93 @@ Immutable catalog/resource roots permit bounded page reads at a stable basis.
 The current realm journal remains a serialization point. Separating durable
 cardinality from cache size therefore does not establish horizontal authority
 throughput. It answers a memory-growth question, not every scaling question.
+
+### Direct Table acceptance alongside native resources
+
+The local SQL service uses a separate direct Table owner. Its control catalog
+reserves names and records frozen DDL work; each Table's acceptance log determines
+whether the new definition or row state is visible. Immutable operation bindings
+prevent a retry from changing its target or intent. Native authorization supplies
+the current permission fence, while direct row bytes bypass actor turn limits.
+See the [direct contract](../../../contracts/DIRECT_TABLE_V1.md) and
+[catalog implementation](../../../packages/zig/transit-catalog/src/DirectCatalog.zig).
+
+This separation answers an acceptance and recovery question, not a claim of
+distributed write throughput. The installed local owner has exclusive storage
+ownership. Point writes may remain in retained WAL records, while bulk ingestion
+publishes `.tseg` data before its atomic acceptance. Durable pins preserve the
+original definition and unflushed frontier; separate Tables retain independent
+cuts. The [installed execution proof](../../../tests/README.md#installed-direct-execution-recovery--2026-10-23)
+and [direct CRUD/DDL proof](../../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+record exact-retry, restart, revocation and name-replacement schedules and their
+reproduction commands. Those runs do not establish arbitrary power-loss safety,
+cloud storage placement or physical Table collection. Automatic point flushing,
+cache tiering and distributed OCC remain design work in the model below.
+
+### Optimistic current reads and retained cuts
+
+Can a caller read one row or traverse a stable Table without creating durable
+retention work? In the serialized local-owner model, `read_current` uses an
+optimistic logical-change fence. Let `e` be the caller's original exclusive
+accepted frontier, `a` the current frontier and `c` the most recent logical
+change frontier. A request requires the same partition, the exact original
+definition, and `c <= e <= a`. A no-op or physical publication advances `a`
+without advancing `c`; a row mutation advances both. Even changing a value back
+cannot make an older basis valid again. Definition equality separately prevents
+reinterpretation after schema or name changes.
+
+[`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+checks that condition before reading the current immutable root. Ordered suffixes
+use stable row identities and bounded row/byte budgets. The service's Table lock
+excludes publication during each call, while its final native authorization fence
+protects already-buffered rows, absence and completion metadata. Across calls,
+the unchanged original expectation detects logical drift; a caller must reject
+its incomplete prefix on failure rather than splice in a newer basis. Checking
+strict identity order and the original row count is necessary for a consumer
+claiming complete coverage. A supplied seek key alone does not establish that
+earlier rows were consumed.
+
+This trades read availability during mutation for avoiding durable pin acquisition
+and release. It suits conditional application reads and migrations whose source
+is expected to remain unchanged. Retained queries use explicit pins instead,
+because they need the original data after writes. Neither mechanism provides a
+cross-Table atomic cut. The
+[request contract](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
+and [`DirectTableResponse`](../../../packages/zig/transit-catalog/src/DirectTableResponse.zig)
+define wire attribution and consumer checks. The
+[scoped proof](../../../tests/README.md#optimistic-current-table-reads--2026-10-23)
+records disk-reopen, physical-progress, logical-drift and disclosure schedules;
+it does not establish distributed read locking or physical collection safety.
+
+### Namespace retirement and retained authority
+
+Namespace retirement must exclude live or admitted Table declarations without
+loading the catalog into memory. In the exclusive local-owner model,
+[`LocalTableHost`](../../../apps/transit-node/LocalTableHost.zig) serializes catalog
+mutations. Namespace admission records a durable fence against new Table DDL;
+[`DirectCatalog`](../../../packages/zig/transit-catalog/src/DirectCatalog.zig)
+then scans one object-directory page per explicit execution. Existing Table
+admissions either still block retirement or have an authoritative terminal
+Table outcome. A committed DROP with unsettled catalog bookkeeping is therefore
+distinct from an uncommitted declaration.
+
+The fence makes the saved scan cursor sound across requests and recovery: a new
+declaration cannot appear behind an already examined cursor. Each scan is
+bounded by eight object entries, although validating a Table's retained history
+has its own recovery cost. Scanning the shared object directory costs work
+proportional to total catalog objects; a namespace membership index could reduce
+that work but would add another index to maintain through Table acceptance and
+recovery. The implemented choice bounds resident directory state and preserves
+one Table acceptance authority. It does not establish distributed namespace
+locking or discover external consumers.
+
+Logical retirement retains the original native permission object. Otherwise
+retiring an empty namespace after its Tables were dropped would strand their
+still-pinned snapshots, operation receipts and result evidence. Names control
+new admissions; current native references control disclosure of retained data.
+The [namespace request contract](../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
+defines those separate lifetimes. Catalog, signed native and HTTP evidence is
+recorded in the [proof ledger](../../../tests/README.md#direct-namespace-lifecycle--2026-10-23).
 
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 
@@ -35,7 +127,7 @@ local development (`transit server`) and disaggregated cloud/Kubernetes topologi
 
 ### Diagnosis: quadruple B-tree indirection over an HTTP stream store
 
-In the implemented baseline, inserting a single Table row incurs `806 ms` from
+In the measured earlier baseline, inserting a single Table row incurred `806 ms` from
 the local console (`13,238 ms` over PostgreSQL wire), staging `29` immutable
 pages and issuing `1,072` HTTP requests to Ursula. Formalizing the storage stack
 explains why:
@@ -212,90 +304,65 @@ flowchart TB
 
 ### De-monolithing authority: partitioned logs, fenced leases and multi-writer OCC
 
-To eliminate the single global realm B-tree sequencer without losing immediate
-permission revocation or conflict detection, concurrency progresses through three
-composable levels:
+The question is how separate writers can preserve one acceptance boundary and
+current permissions. The installed answer is the exclusive local owner described
+above; distributed leases and optimistic manifest rebasing are separate component
+experiments. Their records do not establish a distributed authorization service.
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant Policy as Control & Policy Log<br/>(transit-node)
-  participant W1 as Data Writer A<br/>(Partition Lease / OCC)
-  participant W2 as Data Writer B<br/>(Concurrent OCC Writer)
-  participant Log as TransitLog Partition<br/>(LocalWal / Ursula / Kafka)
-  participant Obj as TransitObjectStore<br/>(S3 / LocalSegmentStore)
+| Boundary | Implemented model | Limit of the inference |
+| --- | --- | --- |
+| Native authority | Partition zero preserves native history, including control, process and resource transitions. Immutable roots and bounded caches serve current authorization. | The entire policy graph need not fit in RAM. Separate Table partitions do not remove the native journal's serialization point. |
+| Direct Table acceptance | The owner stages immutable bytes, validates the original expected definition/head and current native fence, then conditionally appends the Table acceptance record. Point and bulk writes use that same authority. | A staged `.tseg` or component manifest is not an accepted Table operation. The local host serializes publication; this does not qualify independent distributed writers. |
+| Lease and manifest components | `PartitionLease` encodes epoch/expiry fields; `OccCoordinator` retries conditional manifest publication and checks overlapping primary keys. | Those mechanisms do not establish current grants, immediate revoke/append ordering, predicate isolation or native turn atomicity. |
 
-  Policy->>W1: Issue Lease (partition_id, writer_epoch=4, policy_epoch=12)
-  W1->>Log: Append TWAL1 batch (writer_epoch=4, policy_epoch=12)
-  W1->>Obj: put_immutable(seg_uuid_A.tseg, sha256)
-  W2->>Obj: put_immutable(seg_uuid_B.tseg, sha256)
-  W1->>Obj: put_conditional(manifest/v10, If-None-Match) -> 200 OK
-  W2->>Obj: put_conditional(manifest/v10, If-None-Match) -> 412 Precondition Failed
-  W2->>Obj: Read manifest/v10 & check PK overlap (seg_A vs seg_B)
-  Note over W2,Obj: Disjoint PK ranges / append-only: O(1) manifest rebase
-  W2->>Obj: put_conditional(manifest/v11 = v10 + seg_B, If-None-Match) -> 200 OK
-```
+The [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md) and
+[partition caller contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
+identify the acceptance and recovery transitions. A future independent-writer
+profile must retain one decision that governs visibility and exact outcomes.
+Treating both a WAL append and a later competing manifest CAS as independent
+acceptance points would leave conflict and crash recovery ambiguous. Broadcasting
+a new policy epoch alone is also insufficient: a disconnected writer must not
+continue accepting under an obsolete grant. The acceptance owner needs an
+explicit current-authority fence or a separately specified revocation protocol.
 
-1. **Level 1 — Partitioned Authority (Control Log vs. Data/Process Partitions):**
-   - The **Control & Policy Log** holds only principals, role memberships, grants,
-     the monotonic `policy_epoch` counter, the catalog directory (`CatalogId`,
-     `DefinitionId`), and partition lease assignments. Because control plane
-     mutations (`GRANT`, `REVOKE`, `CREATE TABLE`) are low-frequency and small,
-     the entire policy graph stays pinned in Tier 0 RAM on every node.
-   - Each Table partition and each `Station` process group owns an independent
-     **`TransitLog` partition** and **`Manifest` chain**. Writes to Table A and
-     Table B never contend on a shared B-tree root.
-2. **Level 2 — Epoch-Fenced Partition Leases for Direct Data-Plane Writes:**
-   - `transit-node` issues a scoped **Partition Lease**
-     `(partition_id, writer_epoch, policy_epoch)` to an authorized writer.
-   - While `policy_epoch` remains current, the writer appends `TWAL1` batches
-     directly to the partition's `TransitLog` and flushes `.tseg` segments and
-     `manifest/v{N}` directly to `TransitObjectStore` without proxying row bytes
-     through `transit-node`.
-   - If a privilege is revoked (`REVOKE`), the Control Log increments
-     `policy_epoch` and broadcasts the invalidation; any in-flight write or
-     manifest commit carrying a stale `policy_epoch` or superseded `writer_epoch`
-     is rejected before acceptance.
-3. **Level 3 — Lock-Free Multi-Writer Optimistic Concurrency Control (OCC):**
-   - Multiple writers on the same table stage immutable `.tseg` files in parallel
-     to `TransitObjectStore` under collision-free UUIDv7 keys (`put_immutable`).
-   - Each writer attempts to publish `manifest/v{N+1}` via conditional CAS
-     (`If-None-Match` on `manifest/v{N+1}`).
-   - If Writer B loses the CAS race to `manifest/v{N+1}` committed by Writer A:
-     - **Pure append or disjoint primary-key ranges:** Writer B verifies via the
-       manifest's segment PK `min`/`max` bounds and embedded B-tree footer
-       indexes that $\text{keys}(\text{seg}_A) \cap \text{keys}(\text{seg}_B) = \emptyset$,
-       and rebases its manifest commit to `manifest/v{N+2}` in $O(1)$ metadata
-       work without rewriting `.tseg` data bytes.
-     - **Overlapping primary-key mutation / serializable conflict:** Writer B
-       detects the intersecting key in $\text{seg}_A$'s PK B-tree index and
-       either regenerates its `.tdel` bitmap against `v{N+1}` or returns a
-       deterministic serialization conflict.
+The [manifest coordinator](../../../packages/zig/transit-storage/src/PartitionLease.zig)
+is an alternative component path, not that installed protocol. It copies the
+manifest's segment descriptors and can read complete overlapping segments to
+compare primary keys. Rebase work therefore depends on manifest and conflict
+size; avoiding a rewrite of immutable segments does not make metadata work
+constant-time. It bounds retries at eight, but neither bounded retries nor an
+optimistic algorithm establishes lock-free progress when provider operations
+use locks or blocking I/O. Read-set, predicate and absence conflicts require
+additional transaction semantics beyond disjoint write keys.
+
+These deductions follow from the component's allocation, object-read and
+conditional-publication paths. Its unit checks and the separate local public
+[CRUD/DDL recovery schedule](../../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+are reproducible through the pinned tasks recorded in the proof ledger. They
+qualify their respective component and local failure domains. No independent
+writer, distributed revocation, fairness or throughput result follows from
+those passes; such claims require an implemented protocol and adversarial
+concurrent-provider histories.
 
 ### Live catalog, query and authority cache integration
 
-- **Catalog storage engine (`TableStorageEngine`):**
-  [`TableStorageEngine`](../../../packages/zig/transit-catalog/src/TableStorageEngine.zig)
-  binds `TableBehavior` definitions (`CatalogId`, `DefinitionId`, `TableSchema`)
-  to a live `TableMemtable`, `LocalWal`, `LocalSegmentStore`, `TableManifest`,
-  `PartitionLease.OccCoordinator` and optional Tier 2 `NvmeCache`. Row inserts,
-  updates and deletes append `"TWAL"` v1 frames before mutating the Tier 0
-  memtable; `flush()` writes 64-byte-aligned `.tseg` and `.tdel` objects and
-  advances `manifest/<object_id>/v<N>.tman` via conditional CAS with disjoint-key
-  OCC rebasing.
-- **Pruned segment query scan (`TableSegmentScan`):**
-  [`TableSegmentScan`](../../../packages/zig/transit-query/src/TableSegmentScan.zig)
-  and [`TableScan.openSegmentReader`](../../../packages/zig/transit-query/src/TableScan.zig)
-  evaluate equality and range predicates against each `.tseg` footer's
-  collation-aware `ZoneMap` (`min_sort_key`, `max_sort_key`) and 64-bit Wyhash
-  Bloom filter (`bloom_mask`), skipping pruned row groups before decoding column
-  buffers and feeding active rows directly into `Fuze` `Batch` (`VectorBatch`) and
-  `LogicalQuery.Execution`.
+The installed local owner is [`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig),
+composed by `DirectCatalog` and the node's `LocalTableService`. Its acceptance
+records govern visibility, original outcomes and retained cuts. Point data can
+remain accepted in the WAL without a `.tseg`; explicit bounded flush and bulk
+publication create segments. A durable pin includes accepted unflushed data.
+
+`TableStorageEngine` and `TableSegmentScan` are separate composition helpers.
+Their tests exercise memtables, manifests, segment pruning and cache mechanisms;
+they are not the installed caller path and do not establish multi-writer or
+provider safety. The [executed proof ledger](../../../tests/README.md) separates
+these component results from direct public operation and restart schedules.
+
 - **Verified candidate write-through and epoch-tracked cross-lane cache sharing:**
   In [`PackedPageStore`](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig),
   `finish()` populates the verified resident page cache (`rememberCandidate`) as
   soon as the candidate segment stream is read back, verified and sealed. In
-  [`Native.zig`](../../../apps/transit-node/Native.zig), all 10 request lanes
+  [`NativeServer.zig`](../../../apps/transit-node/NativeServer.zig), all 10 request lanes
   synchronize their verified page caches and journal head entries through an
   epoch-tracked shared cache (`shared_pages_epoch`), propagating newly staged or
   fetched pages across lanes without copying unchanged 17 KiB page slots on every
@@ -329,7 +396,7 @@ bounded admitted requests and a trusted clock for expiring read pins. It assumes
 the provider implements atomic conditional append and does not roll back
 acknowledged history. Parallel preparation does not create another authority.
 
-The [native host](../../../apps/transit-node/Native.zig) assigns each admitted
+The [native host](../../../apps/transit-node/NativeServer.zig) assigns each admitted
 request an exclusively owned execution lane: engine head, verified caches,
 transport client, working buffers and observation counters. Provider I/O runs
 without the host's shared registry mutex. Preparation validates at a published
@@ -404,12 +471,10 @@ request. Eight verified index nodes can be cached at one exact cut. Cached bytes
 have no authority: hosts bind the source identity, propagate read failures and
 validate current rights before disclosure or commit.
 
-The [Table scan](../../../packages/zig/transit-query/src/TableScan.zig) fetches a
-record's known metadata keys and first block in one snapshot request. Both
-indexes resolve at the same leased cut. This avoids adding separate round trips
-for the manifest, budget and immutable body when opening a small query. Missing
-bytes still reject, request budgets count the combined fetch, and cached data
-does not replace the later current-authority disclosure check.
+The private Station Table block path retains these bounded publication and
+read rules. Direct Tables instead read their accepted `TablePartition` state
+through `DirectTableReader`; their row data does not travel through native
+small-value mutations. Each owner supplies its own current-authority checks.
 
 The alternative of increasing small-value size would enlarge every control
 record and authority journal entry. Sending each 256-byte part independently
@@ -530,16 +595,12 @@ telemetry are volatile; neither establishes the mutation outcome.
 
 The implementation combines three independent mechanisms:
 
-- The [shared mutation caller](../../../packages/zig/transit-catalog/src/TableClient.zig)
-  prepares compatible metadata in one authorized batch and observes processed
-  input with disposition/status evidence. The console keeps the acknowledged
-  input until a next-request or terminal checkpoint atomically replaces it.
-  A crash between observation and checkpoint therefore leaves an exact recovery
-  basis; it does not require a new SQL operation.
-  After a pending observation it can wait for a process notification for at most
-  50 ms. The remembered position is bound to the exact signed input. Wait-capacity
-  refusal backs off and makes an ordinary authorized read; denial and uncertain
-  transport errors do not become permission or a repeated mutation.
+- The [direct mutation caller](../../../packages/zig/transit-catalog/src/DirectTableBridge.zig)
+  saves immutable work before staging and a complete reference before admission.
+  Table acceptance records supply its original result; native SQL progress and
+  response publication remain separate commits. A failed response preserves the
+  original operation for inspection. The caller does not regenerate SQL or
+  substitute a new native send after uncertainty.
 - The [catalog candidate](../../../packages/zig/transit-core/src/catalog.zig)
   overlays a command-bounded set of changed records, including receipts/control
   state. Repeated keys collapse before one tree rewrite. Reads see pending

@@ -30,15 +30,49 @@ descriptor shares the [logical descriptor budgets](FUZE_TYPES_V1.md); defaults
 count toward schema bytes. One row shares the logical value byte/child/depth
 budgets across every column. These limits never bound total Table cardinality.
 
+## Physical representation and collation
+
+Logical types, physical encodings and collations are separate descriptors.
+The supported encoding/type pairs are:
+
+| Encoding | Admitted logical types and value constraints |
+| --- | --- |
+| `plain` | Every admitted Table type |
+| `bitpacked` | Signed/unsigned integers through 64 bits and boolean |
+| `rle`, `dictionary` | Scalar key types; floating zero signs remain distinct stored values |
+| `fsst` | UTF-8 or binary; Transit's bounded symbol-table page format, without upstream FSST wire compatibility |
+| `comp` | Signed 8/16/32/64-bit integers; 16/32-bit types use 2/4 bytes and other admitted widths use 8 bytes, big-endian |
+| `comp_3`, `zoned` | Signed integers through 64 bits or decimal precision at most 31; 16-byte packed decimal or 31-byte zoned decimal |
+| `ibm_hfp` | Float32/64 exactly representable in normalized 8-byte HFP; nonzero magnitude from `2^-260` inclusive to `2^252` exclusive; signed zero preserved |
+| `ebcdic` | UTF-8 containing only U+0000–U+00FF, transcoded exactly to CP037 |
+
+Unsupported combinations reject at schema validation. Value constraints also
+apply to defaults and every inserted or transformed row before acceptance.
+HFP underflow/overflow and unmappable CP037 characters reject without rounding,
+replacement characters or successful-prefix publication. Physical page decoding
+does not turn an incompatible schema into another codec.
+
+`none` uses the type's ordinary order. Text supports `utf8_binary` (unsigned
+UTF-8 byte order), `ascii_ci` (ASCII A–Z folded only) and `ebcdic_cp037` (unsigned
+CP037 weights after UTF-8 decoding). All use NO PAD; trailing spaces remain
+significant. CP037 collation has the same U+0000–U+00FF repertoire restriction
+even with another physical codec. `icu_root` is a reserved descriptor rejected
+by validation and comparison; no Unicode collation version or locale is implied.
+These descriptors do not extend SQL grammar or query evaluator admission.
+
 ## Canonical envelope
 
 The envelope contains magic `FTS1`, a u8-length mandatory definition
-`transit.table.schema.v1.2026-10-05`, three u64 identities (object, revision,
+`transit.table.schema.v1.2026-10-23`, three u64 identities (object, revision,
 next-column), and a u16 column count. Each column contains its u64 ID, u8-length
 UTF-8 name, u16-length `FTY1` descriptor, boolean nullable byte, u32 character
 limit (zero means absent), and boolean default-present byte. A present default
 is a u32-length `FVL1` value with matching type/nullability and optional=false.
-The envelope ends with a u16 key count followed by ordered u64 column IDs.
+After the u16 key count and ordered u64 column IDs, schemas with non-default
+physical attributes include `FTP1` followed by each column's u8 encoding and u8
+collation in column order. All-default schemas omit the trailer; a redundant
+all-default trailer rejects. Enum values follow `TableSchema.Encoding` and
+`TableSchema.Collation` in the owning Zig types.
 All integers are little-endian; strings and blobs follow their length directly.
 
 Booleans are exactly 0 or 1. Decode rejects missing/foreign definitions,
@@ -55,12 +89,21 @@ requires the current shared Transit `definition`, decimal-string `object`,
 `primary_key` array of decimal-string column IDs. Integer identity strings are
 canonical unsigned u64 values: no signs, leading zeroes or precision loss.
 
-Each column has `id`, `name`, a shared logical `type`, `nullable`, `default` and
-`max_characters`. All fields are present. JSON null for `default` means no default;
+Each column has `id`, `name`, a shared logical `type`, `nullable`, `default`,
+`max_characters`, `encoding` and `collation`. All fields are present, including
+explicit `plain` and `none` for default physical descriptors. JSON null for `default` means no default;
 a logical cell containing SQL NULL remains an explicit default. Logical defaults
 use the shared neutral cell representation: exact integer/decimal strings,
 floating-point bits, binary hex and recursive typed constructors. A schema never
 turns rich values into an untyped string.
+
+Encoding and collation use the owning `TableSchema.Encoding` and
+`TableSchema.Collation` enum names, including `comp_3` for packed decimal.
+Conversion preserves every descriptor and the exact `FTS1` fingerprint. The
+shared validator rejects unsupported type/codec pairs and reserved collations;
+structural JSON acceptance does not establish executable support. The direct
+Table interface carries the same information in complete `FTS1` schema bytes,
+including `FTP1` attributes.
 
 The standalone JSON decoder accepts at most 2 MiB of input before applying the
 same 128-column, 64 KiB encoded-schema and complete descriptor/default constraints.
@@ -87,6 +130,8 @@ descriptors under shared descriptor limits. The layout fingerprint is SHA-256 of
 `transit.table.layout.v1` followed by NUL, the schema definition string without a
 length, the object u64 little-endian and the physical type's 32-byte fingerprint.
 Names, defaults, schema revision and key declarations do not change this digest.
+When physical attributes are present, append `FTP1` and each column's encoding
+and collation bytes to the hash input, preserving their interpretation.
 It describes physical interpretation, never admission to a newer schema revision.
 Prepared and saved operations still require the complete schema fingerprint.
 

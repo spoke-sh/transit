@@ -9,10 +9,10 @@ renew a lease. The gateway keeps this capability disabled by default.
 
 Provision the gateway reader with inspect scope covering ingress and source plus
 explicit read/inspect grants on both resources. A watch publication identifies the
-exact target, realm/resource/catalog/object and immutable metadata commitment.
-Each caller also needs current catalog inspect/read rights. The observation
-tracks the Table head at an authorized native resource cut; a reservation can
-notify possible change before the successor rows are published. The administrator
+exact Table audience, realm/resource/catalog/branch/namespace/object and immutable
+interpretation. Each caller also needs current database CONNECT, schema USAGE and
+Table SELECT rights. The observation tracks accepted data changes at a direct
+partition position; unrelated native progress does not advance its watermark. The administrator
 publishes it through `Model.Command.reactive.publish`; the configured observer
 records time; the caller opens a finite session and subscribes. Each is an ordinary
 signed native command with a separately observable commit/disposition. Four live

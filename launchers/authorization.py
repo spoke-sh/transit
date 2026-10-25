@@ -44,7 +44,7 @@ class Changes:
         raise RuntimeError('Authorization change remains pending; repeat the same provisioning')
 
 
-def station(changes, realm, workers):
+def station(changes, realm, workers, registrar):
     """Create stable worker login roles and an explicitly selected data role.
 
     Workers contain principal, pid, resource and initial public_key. They are
@@ -67,19 +67,31 @@ def station(changes, realm, workers):
         'name': f'station/{ledger["pid"]}/data'.encode().hex(), 'login': False}})
     for name, role in roles.items():
         changes.apply(name + '-data-role', {'membership': dict(member=role, role=data, inherit=False, set=True)})
-    domains = [changes.apply('domain-' + name, {'register_domain': dict(registrar=ledger['principal'], actions=mask)})
+    registrar_role = changes.apply('registrar-login', {'create_role': dict(name=f'station/{ledger["pid"]}/registrar'.encode().hex(), login=True)})
+    changes.apply('registrar-credential', {'bind_credential': dict(principal=registrar['principal'], role=registrar_role, public_key=registrar['public_key'], pid=None)})
+    domains = [changes.apply('domain-' + name, {'register_domain': dict(registrar=registrar['principal'], actions=mask, lifetime_resource=ledger['resource'])})
                for name, mask in (('database', 1), ('schema', 3), ('table', 15))]
 
     def binding(kind, identity):
         return list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(changes.definition)
             + struct.pack('<QQQBQ', realm, ledger['resource'], 1, kind, identity)).digest())
 
-    database = changes.apply('database', {'register_object': dict(domain=domains[0], owner=0, schema=None, binding=binding(1, 0))})
-    schema = changes.apply('schema', {'register_object': dict(domain=domains[1], owner=0,
+    database = changes.apply('database', {'register_object': dict(domain=domains[0], owner=roles['ledger'], schema=None, binding=binding(1, 0))})
+    schema = changes.apply('schema', {'register_object': dict(domain=domains[1], owner=roles['ledger'],
         schema={'kind': 'domain', 'id': database}, binding=binding(2, 1))})
     for name, identity in (('connect', database), ('usage', schema)):
         changes.apply(name, {'grant': dict(object={'kind': 'domain', 'id': identity}, grantee=data, privileges=1)})
-    changes.apply('table-defaults', {'default_grant': dict(creator=0, schema={'kind': 'domain', 'id': schema},
+    for name, identity, privileges in (('connect', database, 1), ('create', schema, 3)):
+        changes.apply('owner-' + name, {'grant': dict(object={'kind': 'domain', 'id': identity}, grantee=roles['ledger'], privileges=privileges)})
+    changes.apply('table-defaults', {'default_grant': dict(creator=roles['ledger'], schema={'kind': 'domain', 'id': schema},
         domain=domains[2], grantee=data, privileges=7)})
-    return dict(role=data, profile=dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2],
-        database=database, initial_schema=1, initial_schema_authority=schema))
+    profile = dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2],
+        database=database, initial_schema=1, initial_schema_authority=schema)
+    scope = dict(realm=realm, resource=ledger['resource'], catalog=1)
+    def name(value):
+        return dict(len=len(value), bytes=list(value.encode()) + [0] * (63 - len(value)))
+    catalog = dict(scope=scope, branch=1, partition=1, audience=ledger['pid'], authority=profile,
+        database_name=name('ledger'), initial_schema_name=name('public'))
+    binding = dict(definition=changes.definition, scope=scope, branch=1, audience=ledger['pid'],
+        namespace=1, object=1, owner_role=roles['ledger'], executor=ledger['principal'])
+    return dict(authorization=dict(role=data, data=binding), catalog=catalog)

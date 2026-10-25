@@ -7,7 +7,7 @@ import time
 
 import pyarrow as pa
 
-from unified_abi import Failure
+from unified_abi import Failure, authorize_capture
 
 
 def check(native, port, callers, root, invoke, restart, fault, kind):
@@ -40,10 +40,10 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
                         if not item or not bytes.fromhex(item['key']).startswith(b'\0Uc') or item['value'] is None: continue
                         checkpoint = bytes.fromhex(item['value'])
                         assert checkpoint[:4] == b'UQC1'
-                        # UQC1: magic, kind, resource/revision u64s and head.
+                        # UQC1: magic, source kind, resource and its typed position.
                         # FQS1: magic, binding/plan digests, six u64 counters,
                         # optional sum (tag + i64), finish tag.
-                        progress_offset = 4 + 1 + 8 + 8 + 32
+                        progress_offset = 4 + 1 + 8 + (32 if kind == 'table' else 8)
                         assert checkpoint[progress_offset:progress_offset + 4] == b'FQS1'
                         pages, scanned, selected, counted, segments, rows = struct.unpack_from('<6Q', checkpoint, progress_offset + 68)
                         if selected and checkpoint[progress_offset + 125] == 0:
@@ -81,8 +81,9 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
             time.sleep(.02)
 
     def upload(namespace, bundle):
+        accepted = authorize_capture(native, root, namespace, bundle)
         for _ in range(132):
-            prepared = uploader.call({'next': dict(namespace=namespace, bundle=bundle)})['prepared']
+            prepared = uploader.call({'next': dict(namespace=namespace, bundle=accepted)})['prepared']
             if prepared is None: return
             observe(uploader, prepared)
         raise AssertionError('COUNT upload exceeded the existing finite command budget')

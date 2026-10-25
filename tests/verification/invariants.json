@@ -514,6 +514,8 @@
       "owner": "docs/handbook/reference/callers.md",
       "implementation": [
         "apps/transit-node/Native.zig",
+        "apps/transit-node/NativeServer.zig",
+        "apps/transit-node/Local.zig",
         "packages/zig/transit-client/src/root.zig",
         "packages/zig/transit-protocol/src/Growth.zig",
         "tests/growing_client.zig",
@@ -1385,9 +1387,9 @@
         "packages/zig/transit-serving/src/refresh_test.zig",
         "packages/zig/transit-core/src/growing_test.zig",
         "tests/verification/domain_simulation.py",
-        "packages/zig/transit-catalog/src/simulation_test.zig"
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
       ],
-      "profile": "Seeded real-component tests with atomic private-turn stores",
+      "profile": "Seeded real-component schedules with private-turn stores and volatile direct catalog log/object adapters",
       "tasks": [
         "test::domain-simulation",
         "test::domain-simulation-mutations"
@@ -1398,9 +1400,9 @@
         "Captured completion versus unknown outcome; outstanding replay holds fence retirement",
         "Refresh replacement, current source denial, retained basis and in-flight mutation",
         "Provider unknown/stale evidence, exact activation retry and retained backlog",
-        "Catalog point/page failures and discarded proposals, conditional conflicts, exact retry after replacement, current create/inspect denial and revision-bound metadata pages"
+        "Direct catalog current CREATE/inspection denial, admission and publication reply loss, reconstruction, cancellation/name conflicts, original receipts and changed-directory refusal"
       ],
-      "limits": "Twelve four-edit Document rounds, one bounded checkpoint, sixteen Exchange rounds, four refresh rounds and eight activations and 64 catalog requests per seed; at most 64 seeds. No physical provider, connector dispatch, arbitrary edited-trace replay or automated minimization.",
+      "limits": "Twelve four-edit Document rounds, one bounded checkpoint, sixteen Exchange rounds, four refresh rounds, eight activations and forty catalog operations per seed; at most 64 seeds. No disk/provider durability, connector dispatch, arbitrary edited-trace replay or automated minimization.",
       "model": null,
       "qualification": "Executed results and compiling mutation outcomes belong in tests/README.md; artifacts preserve incomplete status."
     },
@@ -1431,73 +1433,63 @@
     },
     {
       "id": "SQL-MUTATION-01",
-      "claim": "A general Table owner publishes all row and index changes with terminal counts and input progress, preserving immutable request identity and current authority through bounded staging",
-      "owner": "contracts/TABLE_DML_V1.md",
+      "claim": "Direct Table row and index changes publish atomically with exact matched/affected counts, immutable intent and current authority; native computation progress has its own commit",
+      "owner": "contracts/DIRECT_TABLE_V1.md",
       "implementation": [
-        "packages/zig/transit-catalog/src/TableClient.zig",
-        "packages/zig/transit-catalog/src/TableBridge.zig",
-        "packages/zig/transit-catalog/src/TableBehavior.zig",
-        "packages/zig/transit-catalog/src/TableUpload.zig",
-        "packages/zig/transit-catalog/src/TableTyped.zig",
-        "packages/zig/transit-station/src/TableWrite.zig",
-        "packages/zig/transit-station/src/TableStatement.zig",
+        "packages/zig/transit-catalog/src/DirectTableClient.zig",
+        "packages/zig/transit-catalog/src/DirectTableBridge.zig",
+        "packages/zig/transit-catalog/src/DirectTableIntent.zig",
+        "packages/zig/transit-catalog/src/DirectTableTyped.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
-        "tests/operations/Catalog.zig",
-        "apps/transit-station-host/main.zig"
+        "tests/direct_table_client.zig",
+        "tests/direct_table_predicates.zig"
       ],
-      "profile": "transit-v1/state-v1/station-v1/table-dml-v1",
+      "profile": "direct-table-v1/native-local",
       "tasks": [
         "test::unit",
-        "test::sql",
-        "test::typed-tables",
-        "test::cli-diagnostics",
-        "bindings::python-test",
-        "bindings::node-sdk-test",
-        "bindings::ruby-sdk-test",
-        "bindings::rust-sdk-test",
-        "bindings::c-sdk-test",
-        "bindings::java-sdk-test",
-        "bindings::dotnet-sdk-test",
-        "bindings::beam-sdk-test"
+        "test::direct-table-service",
+        "test::direct-catalog-abi",
+        "bindings::authorization"
       ],
       "scenarios": [
-        "Independent schema-bound typed DML bytes and complete-input SQL rejection",
-        "Point and finite statement all-or-none publication, composite/no-key identities, precise matched/changed counts and immutable original outcomes",
-        "Interrupted upload/publication, changed-intent rejection, allocation/limit failure and sticky read poison",
-        "Exact caller/owner native receipt recovery, node/store restart and retained schema-bound rows",
-        "Current read/write/policy revocation, scoped initializer authorization and fenced owners",
-        "Catalog ABI/port and CLI replacement preserve saved intent, prepared command, input disposition and terminal outcome separately",
-        "Selected installed Catalog SDK callers exercise typed multi-row INSERT/UPDATE/DELETE, exact saved recovery, changed identity rejection and current disclosure denial"
+        "Schema-bound typed DML and complete-input SQL validation",
+        "Point/bounded batch publication, composite/no-key rows, atomic failing statements and original matched/affected counts",
+        "Saved intent/reference recovery, unknown replies, node replacement and current rights after DROP/name reuse",
+        "Prepared typed parameters, exact original interpretation and cancellation distinct from accepted work",
+        "Installed callers share full-width values and the direct owner without raw-resource permission"
       ],
-      "limits": "One mutated resource; at most four native writes and 256-byte values per turn. Finite plans and private batches have explicit resident budgets independent of Table cardinality. Staged progress is not a visible statement prefix. Cancellation preserves original terminal evidence and cannot undo an applied statement. Installed language execution and physical placements are qualified separately in the proof ledger.",
+      "limits": "One serialized direct Table owner; row, statement, schema and response budgets are independent of collection cardinality. No atomic cross-owner commit. Current language and placement runs are recorded separately.",
       "model": null,
-      "qualification": "The general native/CLI/port proof and component tests replace the fixed writer. See tests/README.md for exact executed revisions. Prior installed fixed-writer results do not qualify the general Catalog callers; each selected installed-language schedule must run separately."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "SQL-TABLE-OWNER-01",
-      "claim": "One catalog owner gates queries and Table lifecycle operations on committed initialization and explicit delegation while preserving independent permissions and captured schema/head cuts",
-      "owner": "contracts/CATALOG_QUERY_OWNER_V1.md",
+      "claim": "Separate direct Table storage and native computation progress preserve current caller rights and exact captured interpretation/position",
+      "owner": "contracts/TABLE_QUERY_V1.md",
       "implementation": [
-        "packages/zig/transit-query/src/CatalogQueryOwner.zig",
-        "packages/zig/transit-catalog/src/TableBehavior.zig",
         "packages/zig/transit-query/src/UnifiedBehavior.zig",
-        "apps/transit-query-host/main.zig"
+        "packages/zig/transit-query/src/UnifiedCapture.zig",
+        "packages/zig/transit-query/src/DirectTableQuery.zig",
+        "packages/zig/transit-catalog/src/DirectReadDelegation.zig",
+        "tests/direct_captured_query.zig",
+        "tests/direct_captured_query.py"
       ],
-      "profile": "transit-v1/state-v1/station-v1/catalog-query-owner-v1",
+      "profile": "direct-table-v1/unified-query/native-local",
       "tasks": [
         "test::unit",
         "test::table-query-writer"
       ],
       "scenarios": [
-        "Four-write administrator initialization; requester delegation is a separate conditional commit",
-        "Independent definition-bound delegation bytes, exact owner configuration and multiple requester mappings",
-        "Whole-proposal rollback after write exhaustion; sticky read poison; undelegated calls do not access request bodies",
-        "Authenticated external administrator versus same-number process identity; stale revision and current revocation",
-        "Native durable queries retain the admitted schema/head through ALTER, DROP and name reuse, and require current read rights for disclosure"
+        "Independent data and query progress resources",
+        "Explicit original-subject capture with exact pin identities and expected source positions",
+        "Retained original rows and schema through ALTER/DROP/name reuse",
+        "Current source denial gates admission, continuation and cached/terminal disclosure",
+        "Partial query recovery and explicit cancellation/release preserve original outcomes"
       ],
-      "limits": "Component tests use private turns over an in-memory reference store. Native host, SDK and disk recovery qualification for the catalog composition is pending; historical two-column owner proofs do not qualify this replacement.",
+      "limits": "Configured local direct Table sources and separately provisioned requester/source actors. No implicit scheduler, cross-Table atomic snapshot or distributed write authority.",
       "model": null,
-      "qualification": "See tests/README.md for current catalog query component results and separately recorded native qualification."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "SQL-DECLARATION-01",
@@ -1539,15 +1531,12 @@
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
         "apps/transit-station-host/main.zig",
         "tests/catalog_abi.py",
-        "tests/operations/Catalog.zig",
         "tests/operations/CatalogOptions.zig",
         "tests/operations/RecoveryFiles.zig",
-        "tests/catalog_helpers.py",
         "tests/cli_diagnostics.py",
         "sdks/python/transit-station/transit_station/catalog.py",
         "tests/python_catalog_sdk.py",
         "tests/python_catalog_values.py",
-        "tests/sdk_catalog.py",
         "sdks/ts/transit-station-sdk/src/catalog.ts",
         "sdks/ts/transit-station-sdk/src/catalog.test.ts",
         "sdks/ts/transit-station-sdk/src/bridge.ts",
@@ -1559,7 +1548,6 @@
         "sdks/ruby/transit-station/lib/transit/station/bridge.rb",
         "tests/ruby_catalog_sdk.rb",
         "tests/ruby_catalog_values.rb",
-        "packages/zig/transit-catalog/src/simulation_test.zig",
         "sdks/c/transit-station/src/catalog.cpp",
         "sdks/cpp/transit-station-sdk/include/transit/catalog.hpp",
         "tests/c_catalog_sdk.c",
@@ -1580,21 +1568,19 @@
         "tests/beam_catalog_controller.erl",
         "tests/beam_catalog_values.erl",
         "tests/elixir_catalog_adapter.ex",
-        "packages/zig/transit-catalog/src/TableCatalog.zig",
-        "packages/zig/transit-catalog/src/TableCatalogRecords.zig",
-        "packages/zig/transit-catalog/src/TableMetadata.zig",
-        "packages/zig/transit-catalog/src/TableMetadataStore.zig",
-        "packages/zig/transit-catalog/src/TableClient.zig",
-        "packages/zig/transit-catalog/src/TableBehavior.zig",
-        "packages/zig/transit-catalog/src/TableBridge.zig",
-        "packages/zig/transit-catalog/src/TableIntent.zig",
-        "packages/zig/transit-catalog/src/TableAttempt.zig",
-        "tests/typed_table_native.py",
-        "tests/typed_table_native.zig",
-        "tests/table_catalog.py",
-        "tests/table_growth.py"
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogRecords.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogInspection.zig",
+        "packages/zig/transit-catalog/src/DirectTableClient.zig",
+        "packages/zig/transit-catalog/src/DirectTableBridge.zig",
+        "packages/zig/transit-catalog/src/DirectTableIntent.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "tests/direct_catalog_abi.py",
+        "tests/direct_sdk_catalog.py",
+        "tests/direct_table_service.py",
+        "tests/direct_table_growth.zig"
       ],
-      "profile": "declarative-catalog-v1/native-v1",
+      "profile": "declarative-catalog-v1/direct-table-v1/native-local",
       "tasks": [
         "test::unit",
         "test::catalog",
@@ -1612,20 +1598,19 @@
         "test::catalog-growth"
       ],
       "scenarios": [
-        "Independent metadata, command, control, upload and intent bytes with full-width identities and mandatory current definitions",
-        "Staged CREATE, ALTER, RENAME and DROP publish complete heads, bindings and original receipts with at most four native mutations per turn",
-        "Independent inspect/create/read/insert/update/delete/alter/drop rights, conditional administrator controls and current denial on continuation or disclosure",
-        "Stable object/column/row identities, exact historical schema lookup and original outcomes after rename/drop/recreate",
-        "Typed atomic point and finite DML preserve matched/changed counts and reject a failing statement without publishing a prefix",
-        "Caller/owner receipt loss, exact signed replay, authority/store replacement and fresh worker ownership",
-        "Metadata-only pages bind the exact native cut, validate object ordering and continuation, and reject authorization or cursor changes",
-        "CLI, native ABI/port and enabled SDKs share typed schemas, intents, neutral full-width values and precise uncertainty",
-        "Seeded publication/recovery schedules and compiling guard mutations verify permission, receipt and cursor invariants",
-        "Cold growth beyond resident metadata pages and disk restart retain original receipt identity and typed rows"
+        "Mandatory current definitions, full-width identities and saved exact bindings",
+        "DDL admission, native registration, Table publication and catalog settlement remain distinct",
+        "Current CREATE/inspect/read/write/ownership requirements, selected roles and future-only default grants",
+        "Stable identity across schema changes, retirement and name reuse",
+        "Unknown replies preserve exact operation and snapshot owners through node/caller replacement",
+        "Bounded filtered metadata pages reject changed directory positions and report independent Table observations",
+        "Shared SQL/typed/ABI/port/language actions expose uncertainty and explicit recovery",
+        "Seeded direct publication/recovery oracle and guard-mutation detection",
+        "139 Tables and 139 retained rows exceed resident page bounds and survive physical node restart"
       ],
-      "limits": "One configured catalog resource and owner; no native cross-resource transaction. At most eight metadata entries per page and four mutations per native turn. Schema, row, operation and upload budgets are independent of total Table/catalog/history cardinality. Failure-injection and disk-restart evidence do not establish host power-loss recovery.",
+      "limits": "One local catalog owner with independent Table acceptance logs. Eight metadata entries per page; explicit resident/work budgets. No cross-owner transaction, automatic expiry, cold-provider or power-loss guarantee.",
       "model": null,
-      "qualification": "See tests/README.md#general-catalog-seeded-publication-and-recovery-oracle and #general-catalog-cli-lifecycle-and-metadata-retry. The proof ledger distinguishes executed SDK, cold-growth and recovery schedules from pending qualification."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "HOST-02",
@@ -1650,36 +1635,32 @@
     },
     {
       "id": "TABLE-75",
-      "claim": "General typed Table commands retain atomic publication and exact native recovery across schema lifecycle changes",
-      "owner": "packages/zig/transit-catalog/docs/table-metadata.md",
+      "claim": "Direct Table declarations and typed mutations retain atomic acceptance and exact recovery across schema lifecycle changes",
+      "owner": "contracts/DIRECT_TABLE_V1.md",
       "implementation": [
-        "packages/zig/transit-catalog/src/TableBehavior.zig",
-        "packages/zig/transit-catalog/src/TableClient.zig",
-        "packages/zig/transit-catalog/src/TableIntent.zig",
-        "packages/zig/transit-query/src/TableQuery.zig",
-        "apps/transit-query-host/main.zig",
-        "tests/typed_table_native.zig",
-        "tests/typed_table_native.py"
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectTableClient.zig",
+        "packages/zig/transit-catalog/src/DirectTableIntent.zig",
+        "packages/zig/transit-query/src/DirectTableQuery.zig",
+        "tests/direct_table_lifecycle.zig",
+        "tests/direct_table_client.zig",
+        "tests/direct_table_service.py"
       ],
-      "profile": "general typed Table coordinator/native-v1",
+      "profile": "direct-table-v1/native-local",
       "tasks": [
-        "test::typed-tables"
+        "test::direct-table-service"
       ],
       "scenarios": [
-        "Five-column CREATE, aliases, defaults, nullable cells and decimal values",
-        "Exact matched/changed counts and atomic rejection of a multi-row insert",
-        "ADD, RENAME and DROP COLUMN, finite DELETE, DROP/name reuse and unkeyed duplicate rows",
-        "Lost accepted send and turn replies recover their original receipts after node/store replacement",
-        "Authorized courier delivers recorded continuations with at most four native mutations per turn",
-        "Actual SQL SELECT, typed primary-key lookup, aggregates and request/row/result-byte budgets",
-        "Current read-policy denial blocks retained snapshots including LIMIT 0; ALTER/DROP/name reuse retain original captured rows",
-        "Authority replacement invalidates old snapshots without silently reopening a new cut",
-        "Supplied catalog host and single-destination courier execute wide DDL/DML, reject reused activations and retain outcomes across fresh ownership",
-        "Killing the supplied host after native acceptance but before receipt delivery preserves the original staged operation through fresh fenced activation"
+        "CREATE, INSERT/UPDATE/DELETE, typed parameters and exact matched/affected counts",
+        "ADD COLUMN, RENAME, DROP and same-name replacement preserve original interpretation",
+        "Lost admission/publication responses recover original receipts through node replacement",
+        "Retained reads include unflushed accepted data and preserve old schema after retirement",
+        "Current grants and selected roles gate retained rows and terminal outcomes",
+        "Bulk writes publish real .tseg objects without native actor upload loops"
       ],
-      "limits": "One signed Zig fixture and disk-backed store, eight resident authority pages; actual general Table SQL reads and supplied catalog/courier binaries. Console, SDKs, all families/ALTER operations, memory growth, latency and host power loss require separate qualification.",
+      "limits": "Finite native-local fault/restart schedule. No hardware power-loss, automatic point flushing, distributed writer or sustained throughput claim.",
       "model": null,
-      "qualification": "See tests/README.md#general-table-schema-foundation for passing and failed runs."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "HOST-03",
@@ -1740,10 +1721,10 @@
         "packages/zig/transit-query/src/RelationalExchange.zig",
         "packages/zig/transit-query/src/RelationalExchangeProducer.zig",
         "packages/zig/transit-query/src/RelationalMaintenance.zig",
-        "tests/relational_exchange_native.py",
+        "tests/direct_captured_query.py",
         "tests/relational_capacity.py"
       ],
-      "profile": "Manual producer placement against one native authority, disk Ursula and bounded cold storage",
+      "profile": "Manual producer placement over independent direct Tables and native local progress storage",
       "tasks": [
         "test::relational-exchanges",
         "test::relational-capacity"
@@ -1756,9 +1737,9 @@
         "Corrupt segments and truncated reads reject before acknowledgement; current receiver denial preserves its accepted head",
         "Real ext4 ENOSPC refuses captured/exchange advancement; reserve release and node/store reconstruction preserve exact accepted heads before continued work"
       ],
-      "limits": "Small two-resource int64 input and explicit serial host scheduling; physical capacity owns a fresh ext4 image. Coordinated single-authority handoff has its own invariant. No distributed write authority, sustained throughput or power-loss claim.",
+      "limits": "Two direct Table inputs; explicit serial scheduling of one or three logical producers in one executor process. Separate physical worker handoff and ext4 ENOSPC schedules. No concurrent producer hosts, distributed write authority, sustained throughput or power-loss claim.",
       "model": null,
-      "qualification": "Executed passes and failed attempts are recorded separately in tests/README.md."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "WORKER-HANDOFF-01",
@@ -1766,9 +1747,9 @@
       "owner": "docs/handbook/reference/deployment.md",
       "implementation": [
         "packages/zig/transit-client/src/WorkerHandoff.zig",
-        "tests/worker_handoff_native.zig",
+        "tests/direct_worker_handoff.zig",
         "tests/worker_handoff.py",
-        "tests/relational_exchange_native.py"
+        "tests/direct_captured_query.py"
       ],
       "profile": "One trusted manager with durable private records, one unbound PID and writer-owned resource, one native authority",
       "tasks": [
@@ -1786,7 +1767,7 @@
       ],
       "limits": "Native producer checkpoints contain 270 entries, including application padding; the pure state scan covers 10003 entries. No distributed manager, provider-bound PID, authority movement, TTL expiry or physical power-loss claim.",
       "model": null,
-      "qualification": "Actual commands, passing runs and remaining gates are recorded in tests/README.md."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "QUERY-CALLER-01",
@@ -1830,9 +1811,9 @@
       "implementation": [
         "packages/zig/transit-station-app/src/NamedRelational.zig",
         "packages/zig/transit-station-app/src/NamedRelationalRecords.zig",
-        "tests/named_relational_native.py"
+        "tests/direct_captured_query.py"
       ],
-      "profile": "Typed application-owned naming and authenticated Station controls over one native authority and disk Ursula",
+      "profile": "Application-owned names, immutable definitions and native Station controls with direct Table input and native local progress",
       "tasks": [
         "test::named-relational",
         "test::unit"
@@ -1848,7 +1829,7 @@
       ],
       "limits": "Selected int64 Table profile with one native coordinator; no SQL declaration syntax, foreign naming transport, automatic retention or connector dispatch.",
       "model": null,
-      "qualification": "Actual executions and remaining gates are recorded in tests/README.md."
+      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "HOST-04",

@@ -30,7 +30,7 @@ fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
     if (frame.kind != .cast) return error.UninitializedGateway;
     const command = try g.Control.Command.decode(frame.payload);
     if (!self.initializer(turn, command)) return error.UninitializedGateway;
-    try self.ledger.initialize(turn, command.initialize);
+    try self.ledger.initialize(turn);
 }
 fn failure(self: *Self, turn: *s.Turn, cause: anyerror) !bool {
     _ = self;
@@ -73,7 +73,7 @@ pub fn apply(self: *Self, turn: *s.Turn, command: g.Control.Command) !void {
         },
         .external_ready => |value| try g.SessionOperations.ready(ledger, turn, value.operation, value.generation, value.length, value.digest),
         .external_complete => |value| try g.SessionOperations.complete(ledger, turn, value.operation, value.generation, value.summary),
-        .initialize => |sequence| try ledger.initialize(turn, sequence),
+        .initialize => try ledger.initialize(turn),
         .begin => |value| {
             _ = try ledger.begin(turn, value.nonce, value.binding, value.fingerprint);
         },
@@ -84,19 +84,11 @@ pub fn apply(self: *Self, turn: *s.Turn, command: g.Control.Command) !void {
         .activate => |generation| {
             _ = try ledger.activate(turn, generation);
         },
-        .begin_step => |value| {
-            _ = try ledger.beginStep(turn, value.target.operation, value.target.generation, value.spec);
-        },
-        .step_part => |value| try ledger.stepPart(turn, value.target.operation, value.target.generation, value.target.record, value.part.offset, value.part.bytes[0..value.part.length]),
-        .publish_step => |value| try ledger.publishStep(self.allocator, turn, value.operation, value.generation, value.record),
-        .receipt => |value| try ledger.recordReceipt(turn, value.target.operation, value.target.generation, value.target.record, .{ .position = value.input }),
-        .processed => |value| try ledger.recordProcessed(self.allocator, turn, value.target.operation, value.target.generation, value.target.record, value.disposition),
+        .dispatch => |value| try ledger.authorizeDispatch(turn, value.operation, value.generation),
         .reconcile => |id| try ledger.request(turn, id, .reconcile),
         .cancel => |id| try ledger.request(turn, id, .cancel),
         .session_cancel => |id| try ledger.sessionRequest(turn, id, .cancel),
         .session_resume => |id| try ledger.sessionRequest(turn, id, .reconcile),
-        .abandon_step => |value| try ledger.abandonStep(turn, value.operation, value.generation, value.record),
-        .collect_step => |value| try ledger.collectAbandonedStep(turn, value.operation, value.generation, value.record),
         .cancel_unsent => |value| try ledger.cancelUnsent(turn, value.operation, value.generation),
         .capacity => |value| try ledger.increaseCapacity(turn, value.operations, value.bytes, value.pending),
         .reserve => |value| try ledger.reserveRecovery(turn, value.operation, value.bytes),
@@ -108,9 +100,9 @@ test "native behavior records attributed rejection without committing partial ap
     const Store = @import("store_test.zig");
     var store: Store = .{};
     defer store.deinit();
-    var behavior: Self = .{ .allocator = t.allocator, .ledger = .{ .configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{.{ .resource = 8, .catalog = 1, .owner = 9 }}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 } } };
+    var behavior: Self = .{ .allocator = t.allocator, .ledger = .{ .configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{.{ .resource = 8, .catalog = 1, .owner = 9 }}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 } } };
     var turn = try store.capture();
-    const init_frame: s.Frame = .{ .kind = .cast, .payload = try (g.Control.Command{ .initialize = 0 }).encode() };
+    const init_frame: s.Frame = .{ .kind = .cast, .payload = try (g.Control.Command{ .initialize = {} }).encode() };
     turn.delivery.input.value = try init_frame.encode();
     try initialize(&behavior, &turn);
     try handle(&behavior, &turn, init_frame);

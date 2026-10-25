@@ -13,6 +13,18 @@ permission bits and rejection codes. `State` supplies state permission constants
 batch codec; [its contract](../../../contracts/BLOCK_V1.md) separates content
 identity from resource authority and physical placement.
 
+[`DataLifecycle`](src/DataLifecycle.zig) supplies neutral data identities,
+operation bindings and snapshot coverage descriptors. Its
+[contract](../../../contracts/DATA_LIFECYCLE_V1.md) separates validation from
+authorized durable acceptance. The generated schema describes those types;
+it does not add a native route or implement a storage cutover.
+
+[`IndexLifecycle`](src/IndexLifecycle.zig) supplies offline index declarations,
+build identities, exact source coverage and conditional publication bindings.
+Its [contract](../../../contracts/INDEX_LIFECYCLE_V1.md) pins column comparison
+and constraint dependencies independently of physical layout. Validation adds
+no index service operation or planner capability.
+
 ## Contract and generation
 
 The [native contract](../../../contracts/TRANSIT_V1.md),

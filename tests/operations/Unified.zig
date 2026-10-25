@@ -45,7 +45,8 @@ pub fn run(init: std.process.Init, path: []const u8, diagnostic: *@import("cli_s
     defer wire.deinit();
     wire.timeout_ms = config.request_timeout_ms;
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = config.connection, .key = try q.wire.readKey(init.gpa, init.io, config.seed_file) };
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
+    client.tables = try w.directTables(init.arena.allocator(), &client, config.workspace);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&client));
     var session: Session = .{ .diagnostic = diagnostic };
     defer session.clear();
     var input_buffer: [65536]u8 = undefined;
@@ -176,10 +177,11 @@ pub fn executeSql(init: std.process.Init, session: *Session, client: *q.UnifiedC
     const id = session.namespace orelse return error.NamespaceRequired;
     if (session.length != 0 or try client.status(id) != null) return error.QueryUploadIdentityConflict;
     var binding: q.fuze.Sql.Binding = .{};
-    const compiled = (w.applyDiagnostic(allocator, client, config, .{ .compile = request }, &binding) catch |err| {
+    var compiled = (w.applyDiagnostic(allocator, client, config, .{ .compile = request }, &binding) catch |err| {
         if (session.diagnostic) |diagnostic| diagnostic.sql = q.fuze.SqlDiagnostic.bound(request.sql, err, true, binding);
         return err;
     }).compiled;
+    if (compiled.source.source == .table) compiled = (try w.apply(allocator, client, config, .{ .capture = .{ .bundle = compiled.bundle, .operation = try q.document.JsonValues.decimal(allocator, id) } })).compiled;
     const bytes = try q.Values.unhex(allocator, compiled.bundle, q.Bundle.max_bytes);
     @memcpy(session.bundle[0..bytes.len], bytes);
     session.length = bytes.len;

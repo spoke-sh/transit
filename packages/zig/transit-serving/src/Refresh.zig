@@ -49,7 +49,7 @@ fn ownedSession(turn: *Turn, principal: u64, identity: r.SessionIdentity, contex
     }
     return value;
 }
-fn live(turn: *Turn, principal: u64, identity: r.SessionIdentity, upper_ms: u64, context: ?*f.Context) !r.Source {
+fn live(self: Self, turn: *Turn, principal: u64, identity: r.SessionIdentity, upper_ms: u64, context: ?*f.Context) !r.Source {
     try policy(turn, principal, context);
     const owner = try ownedSession(turn, principal, identity, context);
     if (owner.phase != .open) {
@@ -71,8 +71,8 @@ fn live(turn: *Turn, principal: u64, identity: r.SessionIdentity, upper_ms: u64,
         f.remember(context, f.bindingWitness(binding, 0, 0));
         return error.ServiceUnpublished;
     }
-    if (binding.?.target != watch.?.target) {
-        f.remember(context, .{ .target = .{ .expected = watch.?.target, .actual = binding.?.target, .kind = .source } });
+    if (binding.?.target != self.source) {
+        f.remember(context, .{ .target = .{ .expected = self.source, .actual = binding.?.target, .kind = .source } });
         return error.ReactiveResetRequired;
     }
     return watch.?;
@@ -93,14 +93,17 @@ fn selected(turn: *Turn, principal: u64, selection: m.Selection, context: ?*f.Co
 fn proof(turn: *Turn, value: m.View) !m.Proof {
     return c.decode(m.Proof, 'I', (try turn.read(m.proofKey(value.principal, value.generation))) orelse return error.InvalidServingRecord);
 }
-fn sameBasis(watch: root.TableWatch.Observation, captured: q.Basis, context: ?*f.Context) !void {
-    var basis = captured;
-    basis.cut.revision = watch.data_revision;
-    if (!root.TableWatch.covered(watch, basis)) {
-        const witness: f.Witness = if (captured.cut.kind != .table)
-            .{ .source_kind = .{ .expected = .table, .actual = captured.cut.kind } }
-        else if (captured.cut.resource != watch.basis.cut.resource)
-            .{ .target = .{ .expected = watch.basis.cut.resource, .actual = captured.cut.resource, .kind = .resource } }
+fn captures(turn: *Turn, value: m.View) !m.Captures {
+    const result = try c.decode(m.Captures, 'K', (try turn.read(m.capturesKey(value.principal, value.generation))) orelse return error.InvalidServingRecord);
+    try m.validateCaptures(result, value.limit, value.template);
+    return result;
+}
+fn sameBasis(watch: root.TableWatch.Observation, captured: q.TablePosition, context: ?*f.Context) !void {
+    if (!captured.sameSource(watch.basis)) {
+        const witness: f.Witness = if (captured.resource != watch.basis.resource)
+            .{ .target = .{ .expected = watch.basis.resource, .actual = captured.resource, .kind = .resource } }
+        else if (captured.partition.value != watch.basis.partition.value)
+            .{ .target = .{ .expected = watch.basis.partition.value, .actual = captured.partition.value, .kind = .partition } }
         else if (!std.mem.eql(u8, &captured.contract, &watch.basis.contract))
             .{ .basis = .{ .kind = .contract, .expected = watch.basis.contract, .actual = captured.contract } }
         else
@@ -119,12 +122,8 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
     if (principal != self.principal or turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != principal) return error.ServingDenied;
     switch (command) {
         .follow => |input| {
-            if (input.view.limit == 0 or input.view.limit > m.max_starts or input.view.template.value == 0) return error.InvalidRefreshBudget;
-            const watch = try live(turn, principal, input.view.session, upper_ms, self.diagnostic);
-            if (watch.target != self.source) {
-                f.remember(self.diagnostic, .{ .target = .{ .expected = self.source, .actual = watch.target, .kind = .source } });
-                return error.InvalidRefreshTemplate;
-            }
+            try m.validateCaptures(input.view.captures, input.view.limit, input.view.template);
+            const watch = try self.live(turn, principal, input.view.session, upper_ms, self.diagnostic);
             const generation = try head(turn, principal, input.view.session.session);
             if (input.view.expected != generation) {
                 f.remember(self.diagnostic, .{ .revision = .{ .kind = .refresh, .expected = input.view.expected, .actual = generation, .proposed = turn.delivery.input.position, .present = generation != 0 } });
@@ -135,13 +134,15 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
             const captured = try reader.result(turn, input.view.template.value, watch, original);
             const observed = try reader.observe(principal, watch, original);
             try sameBasis(observed, captured, self.diagnostic);
-            const value: m.View = .{ .principal = principal, .session = input.view.session, .generation = turn.delivery.input.position, .source = watch, .template = input.view.template, .namespace = input.view.template, .dirty = observed.data_revision, .covered = captured.cut.revision, .limit = input.view.limit };
+            try reader.templates(turn, input.view, watch, original);
+            const value: m.View = .{ .principal = principal, .session = input.view.session, .generation = turn.delivery.input.position, .source = watch, .template = input.view.template, .namespace = input.view.template, .dirty = observed.data_revision, .covered = captured.accepted, .limit = input.view.limit };
             try save(turn, value);
             try turn.write(m.proofKey(principal, value.generation), try c.encode('I', original));
             try turn.write(m.headKey(principal, value.session.session), try c.encode('F', value.generation));
+            try turn.write(m.capturesKey(principal, value.generation), try c.encode('K', input.view.captures));
         },
         .invalidate => |selection| {
-            const watch = try live(turn, principal, selection.session, upper_ms, self.diagnostic);
+            const watch = try self.live(turn, principal, selection.session, upper_ms, self.diagnostic);
             var value = try selected(turn, principal, selection, self.diagnostic);
             if (!std.meta.eql(watch, value.source)) {
                 f.remember(self.diagnostic, f.sourceWitness(watch, value.source.revision));
@@ -150,7 +151,7 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
             if (!value.enabled) return;
             try reader.authorize(turn, principal, watch, try proof(turn, value));
             const observed = try reader.observe(principal, watch, try proof(turn, value));
-            if (observed.data_revision > value.dirty) {
+            if (observed.data_revision.value > value.dirty.value) {
                 value.dirty = observed.data_revision;
                 try save(turn, value);
             }
@@ -166,8 +167,8 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
             const captured = try reader.result(turn, value.namespace.value, value.source, try proof(turn, value));
             const observed = try reader.observe(principal, value.source, try proof(turn, value));
             try sameBasis(observed, captured, self.diagnostic);
-            value.covered = captured.cut.revision;
-            value.dirty = @max(value.dirty, observed.data_revision);
+            value.covered = captured.accepted;
+            value.dirty.value = @max(value.dirty.value, observed.data_revision.value);
             value.phase = if (!value.enabled) .paused else if (value.starts >= value.limit) .exhausted else .idle;
             if (value.phase == .exhausted) value.failure = failure.record(turn.delivery.input.position, .budget_exhausted, .{});
             try save(turn, value);
@@ -206,7 +207,7 @@ fn denial(err: anyerror) bool {
 }
 /// Returns true when one further self-wakeup can make progress. A waiting source
 /// call, spacing bound or quiescent source requires an actual external event.
-/// Admission/copy/source call/result transition each has its own four-write turn.
+/// Selection/activation/source call/result each has its own four-write turn.
 pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
     const before = turn.decision;
     errdefer turn.decision = before;
@@ -215,7 +216,15 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         var value = (try view(turn, state.principal, state.generation)) orelse return error.InvalidServingRecord;
         const active = try q.UnifiedUpload.status(turn, value.namespace.value);
         if (active) |work| switch (work.phase) {
-            .admitted => return false,
+            .admitted => {
+                // The same caller can explicitly activate the selected request
+                // between scheduler turns. Adopt its original call identity.
+                if (value.phase != .admitted) {
+                    value.phase = .admitted;
+                    try save(turn, value);
+                }
+                return false;
+            },
             .complete, .denied, .rejected => {
                 value.phase = if (work.phase == .complete) .ready else if (work.failure.?.category() == .access) .denied else .failed;
                 if (work.phase != .complete) {
@@ -231,7 +240,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
             .cancelled, .retired => {
                 const previous = value;
                 value.enabled = false;
-                if (value.phase == .copying or value.phase == .admitted or value.phase == .ready) value.phase = .paused;
+                if (value.phase == .preparing or value.phase == .admitted or value.phase == .ready) value.phase = .paused;
                 if (value.failure == .none) value.failure = failure.record(turn.delivery.input.position, if (work.phase == .cancelled) .query_cancelled else .query_retired, .{});
                 if (!std.meta.eql(previous, value)) {
                     // Record the stop separately from bounded upload cleanup,
@@ -248,7 +257,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
                 try saveScheduler(turn, state);
                 return true;
             },
-            .uploading, .sealed => {},
+            .uploading, .sealed, .prepared => {},
         };
         // Already selected work is independent of pause/socket/session closure.
         // Current caller, service and resource grants still gate source admission.
@@ -279,9 +288,9 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         const slot = slots[index];
         if (slot.principal != self.principal) continue;
         var value = (try view(turn, slot.principal, try head(turn, slot.principal, slot.session))) orelse continue;
-        if (!value.enabled or value.phase != .idle or value.dirty <= value.covered or value.next_start_ms > now) continue;
+        if (!value.enabled or value.phase != .idle or value.dirty.value <= value.covered.value or value.next_start_ms > now) continue;
         var context: f.Context = .{};
-        const watch = live(turn, slot.principal, value.session, upper_ms, &context) catch |err| {
+        const watch = self.live(turn, slot.principal, value.session, upper_ms, &context) catch |err| {
             if (turn.read_error != null or (!denial(err) and err != error.ReactiveSessionClosed and err != error.ReactiveSessionExpired and err != error.ReactiveResetRequired and err != error.ServiceUnpublished)) return err;
             value.enabled = false;
             const why = failure.reason(err) orelse return err;
@@ -312,10 +321,11 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
             try save(turn, value);
             return true;
         };
-        // Reserved high-bit namespace domain plus the globally unique committed
-        // input position. Explicit old user choices can collide, never overwrite.
-        const namespace = (@as(u64, 1) << 63) | turn.delivery.input.position;
-        if (try q.UnifiedUpload.status(turn, namespace) != null or try turn.read(root.station.Publication.key(.query_request, namespace, 'b', 0, 0)) != null) {
+        // Each selection owns an already prepared immutable query and a distinct
+        // caller-signed capture. A completed query is never a fresh request.
+        const namespace = (try captures(turn, value))[value.starts].value;
+        const candidate = try q.UnifiedUpload.status(turn, namespace);
+        if (candidate == null or candidate.?.phase != .prepared) {
             value.enabled = false;
             value.phase = .failed;
             value.failure = failure.record(turn.delivery.input.position, .namespace_occupied, .{ .witness = .{ .refresh = .{ .expected = .{ .value = namespace }, .actual = .{ .value = namespace }, .phase = value.phase } } });
@@ -325,7 +335,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
             return true;
         }
         value.namespace = .{ .value = namespace };
-        value.phase = .copying;
+        value.phase = .preparing;
         value.starts += 1;
         value.next_start_ms = try std.math.add(u64, now, m.start_interval_ms);
         state.next = @intCast((index + 1) % slots.len);
@@ -341,7 +351,11 @@ fn advance(self: Self, turn: *Turn, value: m.View, reader: anytype) !bool {
     try policy(turn, value.principal, self.diagnostic);
     try reader.authorize(turn, value.principal, value.source, try proof(turn, value));
     if (try q.UnifiedUpload.active(turn)) |other| if (other != value.namespace.value) return false; // Explicit manual query won the intervening turn.
-    if (!try q.UnifiedUpload.copyNext(turn, value.template.value, value.namespace.value)) return true;
+    const prepared = (try q.UnifiedUpload.status(turn, value.namespace.value)) orelse return error.InvalidRefreshTemplate;
+    if (prepared.phase == .prepared) {
+        try q.UnifiedUpload.activate(turn, value.namespace.value);
+        return true;
+    }
     _ = try q.UnifiedUpload.submitWithObserver(turn, value.namespace.value, self.source, self.principal);
     var updated = value;
     updated.phase = .admitted;

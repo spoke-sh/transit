@@ -1,12 +1,12 @@
 # Transit public Station C SDK
 
-M11's public [transit/station.h](include/transit/station.h)
+The public [transit/station.h](include/transit/station.h)
 defines codec callbacks, a sequential handler runner, mutation recovery hooks,
 scoped KV/Table helpers, retained read versions and original query IPC. The
 runner and typed operations delegate protocol/framework behavior to Zig's
-growing Station ABI. Clean installed examples and the shared runner authority
-schedule pass on pinned Zig/Linux x86_64. Other M11 targets and the public
-mixed-language matrix remain separate qualification work.
+Station ABI. The installed native artifacts target Linux x86_64; the
+[proof ledger](../../../tests/README.md) records the executed runner and caller
+schedules.
 
 The C11 interface has explicit owned handles and typed result structures; its
 implementation uses C++17. It directly depends on the independent
@@ -14,8 +14,8 @@ implementation uses C++17. It directly depends on the independent
 packages declared in `build.zig.zon`. Build from this package with `zig build`.
 Native artifact lookup and the 8 MiB bounded worker follow the client SDK.
 See [installation, ownership and recovery](docs/USAGE.md) for the public contract.
-M15 adds [HTTP request publication, correlated calls and owned replay](docs/HTTP.md)
-through the shared Zig bindings package.
+[HTTP request publication, correlated calls and owned replay](docs/HTTP.md) use
+the shared Zig bindings package.
 
 Callbacks borrow turns and decoded messages. Retaining a turn keeps its local
 handle safe to inspect after the handler turn, where operations fail with
@@ -41,24 +41,23 @@ stop/block policies, exact seedless recovery, current grants and six original IP
 segments independently decoded after close. [Proof details](../../../tests/README.md)
 distinguish shared native allocation checks from this SDK's host error paths.
 
-M16 adds [finite RPC requests and owned replay](docs/GRPC.md), using the same
+[Finite RPC requests and owned replay](docs/GRPC.md) use the same
 shared Zig exchange and native ownership boundary.
 
-M17 adds [typed Document changes, scoped jobs and authorized reads](docs/DOCUMENTS.md)
-with explicit owned values and bounded continuations.
+[Typed Document changes, scoped jobs and authorized reads](docs/DOCUMENTS.md) use explicit owned values and bounded continuations.
 
-M18 adds [typed unified KV/Table/Document queries](docs/UNIFIED_QUERY.md),
-with explicit signed recovery, owned nested Arrow and current-source checks.
+[Typed unified KV/Table/Document queries](docs/UNIFIED_QUERY.md) use explicit signed recovery, owned nested Arrow and current-source checks.
 
 The [catalog caller](docs/CATALOG.md) provides general typed Table schemas, DDL,
-DML, accepted historical definitions and exact saved-intent recovery.
+DML, explicit retained snapshots and exact saved-operation recovery through the
+direct data owner. It includes bounded namespace/Table inspection and current
+authorization checks.
 
 [Logical values](docs/LOGICAL.md) provide owned recursive descriptors and cells,
 exact wide numbers and bounded neutral codecs through explicit C ownership.
 
 [General handler Tables](docs/TABLES.md) use catalog schemas, owned logical rows,
 stable identities and explicit saved creation/mutation steps.
-
 
 Handler query failures use a typed callback with the authenticated origin,
 correlation, result identity and reason. See

@@ -25,6 +25,14 @@ object above disposable components. Call `recover` explicitly before preparing
 more controls when `pending` is present. A committed rejection clears uncertainty
 and observes current scope to report denial, expiry or reset before another
 control. It cannot become an endless renewal/reconnection loop.
+`exportRecovery` saves at most 64 KiB of control metadata and exact signed
+requests. `restoreRecovery` accepts only the current definition and performs no
+I/O. A synchronous persistence callback runs before dispatch and after receipt,
+commit and cursor progress. A failed save prevents dispatch. Recovery asks the
+Zig host to decode the original token and locate its actual native receipt;
+saved command metadata and input positions cannot substitute for that evidence.
+Current caller/service rights still apply. The original accepted Follow token
+remains available through `recoverSelection`, including after its control settles.
 `follow` owns one abortable stream;
 consumers own pause/hide, reconnect/backoff and visible refresh scheduling. A
 reconnect observes the existing session and does not implicitly reopen an expired
@@ -44,14 +52,13 @@ durable owner; namespace strings preserve all 64 bits.
 `inspect` returns metadata/progress through the qualified Table adapter.
 `snapshot` requires an explicitly enabled application viewer. Board's default
 private profile does not allow it. Neither method verifies an entire finite
-query result; the shared query reader and M21 refresh lifecycle own that work.
+query result; the shared query reader and finite refresh lifecycle own that work.
 
 Run `just transit-board::check` for generated drift, strict types and consumer
 checks. `just test::reactive-client` exercises the real Zig host, TLS, exact
 lost-reply recovery and metadata-only boundary. The
-[M21 proof ledger](../../../tests/README.md#m21-qualification) records the separate
-native/Compose/reference browser and multi-tab lifecycle qualification; M20's
-browser harness remains protocol evidence.
+[proof ledger](../../../tests/README.md) records the separate native, Compose,
+reference browser and multi-tab lifecycle qualification.
 
 `LiveView<T>` owns a single joined stream/read lifecycle and one newest dirty
 revision outside rendering. `start` is explicit; reconnect observes the same
@@ -62,7 +69,20 @@ and reread the visible page before returning; this generic owner does not decode
 or verify finite query segments itself. One listener set (at most four), snapshot,
 refresh record and frozen control are resident; event history is not accumulated.
 Renewal runs independently of bounded result verification and shares the single
-control owner. Pause joins both tasks before releasing the session.
+control owner. Current status and result reads also progress while a control is
+pending; each read still checks current authority. A frozen control blocks new
+invalidation/acknowledgment commands. Once it settles, the owner acknowledges the
+same verified result without reading its immutable pages again. Known denial
+clears the result while preserving the original uncertain control.
+Pause joins both tasks before releasing the session.
+
+`LiveView.exportRecovery` retains its template, capture pool, finite budget and
+closure intent, with no result rows. Import leaves it paused. Explicit `resume`
+checks the original accepted Follow payload and current status before scheduling;
+it cannot replenish an exhausted budget or replace consumed captures. A saved
+closure finishes closing the original session. Hiding an imported view performs
+no I/O. The host composes this record with `Session` and `RefreshPreparation`
+recovery and saves all three atomically before dispatch.
 
 Private descriptions carry the committed observer clock. Open/renew deadlines
 use that recorded value, leaving margin within the 30-second bound; browser wall

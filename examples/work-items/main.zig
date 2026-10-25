@@ -57,10 +57,14 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     wire.observer = diagnostics;
     if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, 120000);
     var host = try s.GenServer.init(.{ .client = &wire, .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+    // Direct data calls can fail independently of Turn's native reader. Their
+    // unavailable outcomes must discard the private proposal, never persist a
+    // failed input. Domain rejections use the behavior's recorded dispositions.
+    host.failure_policy = .stop;
     const starting = std.Io.Clock.awake.now(init.io);
     while (true) {
         _ = host.session.receive() catch |err| {
-            if (!s.client.Client.unavailable(err) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
+            if ((!s.client.Client.unavailable(err) and !wire.contended(err)) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
             try init.io.sleep(.fromMilliseconds(25), .awake);
             continue;
         };
@@ -72,7 +76,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         return err;
     };
     file.close(init.io);
-    var behavior: W.Behavior = .{ .owner = .{ .allocator = init.gpa, .configuration = config.application } };
+    var data: W.Data.Http = .{ .allocator = init.gpa, .resources = .{ .wire = &wire, .realm = config.application.realm, .principal = config.principal, .key = key }, .select_owner = true };
+    var behavior: W.Behavior = .{ .owner = .{ .allocator = init.gpa, .configuration = config.application, .transport = data.transport() } };
     const adapter: []u8 = if (config.query_peer != null) try init.gpa.alloc(u8, W.query.UnifiedBehavior.adapter_bytes) else &.{};
     defer if (adapter.len != 0) init.gpa.free(adapter);
     const workspace: []u8 = if (config.query_peer != null) try init.gpa.alloc(u8, W.query.fuze.Unified.Arrow.working_bytes) else &.{};
@@ -86,17 +91,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (true) {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         const step = host.step(handler, now + 30000) catch |err| {
-            if (err == error.CatalogRegistrationRequired) {
-                const action = behavior.registration orelse return err;
-                if (action != .register_object or host.pending != null) return err;
-                if (host.ready != null) try host.discard();
-                const registrar: s.client.AuthorizationClient = .{ .transport = &wire, .realm = config.application.realm, .principal = config.principal, .key = key };
-                const next = try registrar.registration(action.register_object);
-                if (next == .submit) _ = try wire.submit(next.submit);
-                continue;
-            }
             diagnostics.event(.{ .name = "worker.step", .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (s.client.Client.unavailable(err)) {
+            if (s.client.Client.unavailable(err) or wire.contended(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
                 if (wire.last_rejection == .StateViewExpired) host.view_id = null;

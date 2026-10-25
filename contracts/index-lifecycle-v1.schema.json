@@ -1,0 +1,580 @@
+{
+  "$ref": "#/$defs/T0",
+  "$defs": {
+    "T0": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "declaration",
+        "constraint_declaration",
+        "progress",
+        "coverage",
+        "publication"
+      ],
+      "properties": {
+        "declaration": {
+          "$ref": "#/$defs/T1"
+        },
+        "constraint_declaration": {
+          "$ref": "#/$defs/T1"
+        },
+        "progress": {
+          "$ref": "#/$defs/T21"
+        },
+        "coverage": {
+          "$ref": "#/$defs/T30"
+        },
+        "publication": {
+          "$ref": "#/$defs/T31"
+        }
+      },
+      "required": [
+        "declaration",
+        "constraint_declaration",
+        "progress",
+        "coverage",
+        "publication"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T1": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "interpretation",
+        "source",
+        "keys",
+        "included",
+        "purpose"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "interpretation": {
+          "$ref": "#/$defs/T3"
+        },
+        "source": {
+          "$ref": "#/$defs/T3"
+        },
+        "keys": {
+          "$ref": "#/$defs/T9"
+        },
+        "included": {
+          "$ref": "#/$defs/T15"
+        },
+        "purpose": {
+          "$ref": "#/$defs/T16"
+        }
+      },
+      "required": [
+        "definition",
+        "interpretation",
+        "source",
+        "keys",
+        "included",
+        "purpose"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T2": {
+      "type": "string",
+      "enum": [
+        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
+      ]
+    },
+    "T3": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "object",
+        "revision",
+        "digest"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/$defs/T4"
+        },
+        "revision": {
+          "$ref": "#/$defs/T6"
+        },
+        "digest": {
+          "$ref": "#/$defs/T7"
+        }
+      },
+      "required": [
+        "object",
+        "revision",
+        "digest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T4": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "scope",
+        "branch",
+        "object"
+      ],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/T5"
+        },
+        "branch": {
+          "$ref": "#/$defs/T6"
+        },
+        "object": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "scope",
+        "branch",
+        "object"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T5": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "realm",
+        "resource",
+        "catalog"
+      ],
+      "properties": {
+        "realm": {
+          "$ref": "#/$defs/T6"
+        },
+        "resource": {
+          "$ref": "#/$defs/T6"
+        },
+        "catalog": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "realm",
+        "resource",
+        "catalog"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T6": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "x-transit-bits": 64,
+      "x-transit-signed": false
+    },
+    "T7": {
+      "type": "array",
+      "minItems": 32,
+      "maxItems": 32,
+      "items": {
+        "$ref": "#/$defs/T8"
+      }
+    },
+    "T8": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-transit-bits": 8,
+      "x-transit-signed": false
+    },
+    "T9": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/T10"
+      }
+    },
+    "T10": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "column",
+        "direction",
+        "nulls",
+        "comparison"
+      ],
+      "properties": {
+        "column": {
+          "$ref": "#/$defs/T11"
+        },
+        "direction": {
+          "$ref": "#/$defs/T12"
+        },
+        "nulls": {
+          "$ref": "#/$defs/T13"
+        },
+        "comparison": {
+          "$ref": "#/$defs/T14"
+        }
+      },
+      "required": [
+        "column",
+        "direction",
+        "nulls",
+        "comparison"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T11": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "x-transit-bits": 64,
+      "x-transit-signed": false
+    },
+    "T12": {
+      "type": "string",
+      "enum": [
+        "ascending",
+        "descending"
+      ]
+    },
+    "T13": {
+      "type": "string",
+      "enum": [
+        "first",
+        "last"
+      ]
+    },
+    "T14": {
+      "type": "string",
+      "enum": [
+        "declared_column"
+      ]
+    },
+    "T15": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/T11"
+      }
+    },
+    "T16": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "acceleration"
+          ],
+          "properties": {
+            "acceleration": {
+              "$ref": "#/$defs/T17"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "constraint"
+          ],
+          "properties": {
+            "constraint": {
+              "$ref": "#/$defs/T18"
+            }
+          }
+        }
+      ]
+    },
+    "T17": {
+      "type": "object",
+      "maxProperties": 0
+    },
+    "T18": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "interpretation",
+        "kind",
+        "nulls"
+      ],
+      "properties": {
+        "interpretation": {
+          "$ref": "#/$defs/T3"
+        },
+        "kind": {
+          "$ref": "#/$defs/T19"
+        },
+        "nulls": {
+          "$ref": "#/$defs/T20"
+        }
+      },
+      "required": [
+        "interpretation",
+        "kind",
+        "nulls"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T19": {
+      "type": "string",
+      "enum": [
+        "primary_key",
+        "unique"
+      ]
+    },
+    "T20": {
+      "type": "string",
+      "enum": [
+        "forbidden",
+        "distinct",
+        "equal"
+      ]
+    },
+    "T21": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "build",
+        "phase",
+        "through"
+      ],
+      "properties": {
+        "build": {
+          "$ref": "#/$defs/T22"
+        },
+        "phase": {
+          "$ref": "#/$defs/T28"
+        },
+        "through": {
+          "$ref": "#/$defs/T29"
+        }
+      },
+      "required": [
+        "build",
+        "phase",
+        "through"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T22": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "declaration",
+        "generation",
+        "operation",
+        "base"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "declaration": {
+          "$ref": "#/$defs/T3"
+        },
+        "generation": {
+          "$ref": "#/$defs/T6"
+        },
+        "operation": {
+          "$ref": "#/$defs/T23"
+        },
+        "base": {
+          "$ref": "#/$defs/T24"
+        }
+      },
+      "required": [
+        "definition",
+        "declaration",
+        "generation",
+        "operation",
+        "base"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T23": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "scope",
+        "principal",
+        "operation"
+      ],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/T5"
+        },
+        "principal": {
+          "$ref": "#/$defs/T6"
+        },
+        "operation": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "scope",
+        "principal",
+        "operation"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T24": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "interpretation",
+        "manifest",
+        "checkpoint_lsn",
+        "accepted"
+      ],
+      "properties": {
+        "interpretation": {
+          "$ref": "#/$defs/T3"
+        },
+        "manifest": {
+          "$ref": "#/$defs/T25"
+        },
+        "checkpoint_lsn": {
+          "$ref": "#/$defs/T6"
+        },
+        "accepted": {
+          "$ref": "#/$defs/T27"
+        }
+      },
+      "required": [
+        "interpretation",
+        "manifest",
+        "checkpoint_lsn",
+        "accepted"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T25": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/T26"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "T26": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/T6"
+        },
+        "sha256": {
+          "$ref": "#/$defs/T7"
+        }
+      },
+      "required": [
+        "bytes",
+        "sha256"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T27": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "partition",
+        "next_lsn"
+      ],
+      "properties": {
+        "partition": {
+          "$ref": "#/$defs/T6"
+        },
+        "next_lsn": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "partition",
+        "next_lsn"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T28": {
+      "type": "string",
+      "enum": [
+        "backfill",
+        "catch_up",
+        "validating",
+        "complete"
+      ]
+    },
+    "T29": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/T27"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "T30": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "build",
+        "source",
+        "root"
+      ],
+      "properties": {
+        "build": {
+          "$ref": "#/$defs/T22"
+        },
+        "source": {
+          "$ref": "#/$defs/T24"
+        },
+        "root": {
+          "$ref": "#/$defs/T26"
+        }
+      },
+      "required": [
+        "build",
+        "source",
+        "root"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T31": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "operation",
+        "coverage",
+        "expected"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "operation": {
+          "$ref": "#/$defs/T23"
+        },
+        "coverage": {
+          "$ref": "#/$defs/T30"
+        },
+        "expected": {
+          "$ref": "#/$defs/T25"
+        }
+      },
+      "required": [
+        "definition",
+        "operation",
+        "coverage",
+        "expected"
+      ],
+      "x-transit-defaults": {}
+    }
+  }
+}

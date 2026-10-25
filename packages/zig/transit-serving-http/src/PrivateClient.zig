@@ -86,7 +86,7 @@ const Clock = struct {
 
 fn isControl(request: serving.ReactiveClient.Request, attempt: *serving.ServingDiagnostic.Attempt) !bool {
     return switch (request) {
-        .observe, .clock => true,
+        .observe, .recover_control, .clock => true,
         .prepare => |command| serving.ReactiveWire.isControl(.{ .reactive = command.native() }),
         .refresh_prepare => |command| command == .pause,
         .submit => |signed| blk: {

@@ -64,6 +64,18 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
+The shared definition binds local WAL directory and partition metadata, every
+WAL frame, segment footer, deletion vector and Table manifest. It also binds
+keyless segment ordering by stable row identity. Table acceptance roots require
+exact immutable declarations, separate row-schema fingerprints, retirement and
+monotonic segment identities. Name revisions cannot substitute for row-schema
+revisions. Earlier roots missing these fields reject without a default or reset. Readers reject missing or
+foreign artifact definitions before interpretation. The local disk owner rejects its earlier unmarked layout and missing
+or foreign definitions. It does not convert old logs. Preserve them with their
+matching build before an explicitly chosen fresh installation or a separately
+qualified converter. The default local installation uses the native local owner;
+backend selection does not establish compatibility with an earlier definition.
+
 The current definition uses Transit domains for immutable payload locations and
 Substrate resource/workload identities. It requires matching node, client, SDK,
 controller and launcher builds. Older installations and saved operations reject
@@ -99,13 +111,18 @@ Authorization operation records retain the original admission public key and
 canonical request digest. Recovery requires both fields; records from earlier
 definitions cannot acquire admission identity from the current credential.
 
-The current definition includes general typed Tables, immutable schema and
+The current definition includes direct Table acceptance, immutable schema and
 metadata identities, CREATE/ALTER/DROP lifecycle, exact typed DML recovery,
-compact immutable index nodes and schema-bound catalog command payloads. The
-previous fixed key/value Table representation is incompatible. Matching node,
-worker, CLI and SDK builds are required. No automatic converter, fallback
-decoder or installation reset is supplied. Recover earlier pending work with
-its matching build before an explicit cutover.
+compact immutable index nodes and saved direct intents. It binds retained query
+sources to independent Table cuts and native computation progress. General
+catalog callers use the direct owner; the former actor-backed catalog service,
+query-host catalog role and mediation schema are removed. Private Station Table
+helpers keep their separate native-turn semantics.
+
+Matching node, worker, CLI and SDK builds are required. Earlier actor-backed
+catalogs, saved commands and retained query bundles are incompatible. No automatic
+converter, fallback decoder or installation reset is supplied. Recover earlier
+pending work with its matching build before an explicit cutover.
 
 The local configuration checkpoint also includes the startup policy registry.
 Installations from before this definition are rejected; automatic first startup
@@ -129,3 +146,28 @@ The current definition also requires typed assistance coverage and context statu
 in SQL session replies and shared query assistance. Matching console, service and
 query-client builds are required. Missing fields or an earlier definition reject;
 a short candidate list alone never establishes complete matching coverage.
+
+## Current artifact inventory
+
+The current definition covers the following stored and caller interpretation.
+Each owner still validates its own framing, digests, identities and permissions;
+matching the shared definition alone is insufficient.
+
+| Artifact family | Current interpretation and owning contract |
+| --- | --- |
+| Native requests, authority and caller ABI | Signed command/query envelopes, saved requests, admission identity, authority heads, generated ABI declarations and port capabilities retain one matching definition. See the [native contract](../../../contracts/TRANSIT_V1.md) and [caller boundary](callers.md#language-neutral-boundary). |
+| Local WAL, objects and native recovery | Directory/owner markers, WAL frames, object envelopes and native page/block references bind the shared definition. The accepted native WAL root includes policy, resource state, input progress, outputs and effect/retry evidence. See the [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#native-authority-on-local-storage). |
+| Table storage and interpretation | Acceptance records, immutable declarations, row-schema fingerprints, index nodes, `.tseg`/`.tdel` objects and manifests bind exact interpretation. Logical types, physical codecs and collations remain distinct. See the [Table schema](../../../contracts/TABLE_SCHEMA_V1.md) and [storage formats](../../../contracts/TRANSIT_STORAGE_V1.md). |
+| Direct operations and catalog lifecycle | Frozen intents, operation claims, DDL reservations, named resource initialization and dependency records retain exact object/definition identities and accepted outcomes. See the [direct Table](../../../contracts/DIRECT_TABLE_V1.md) and [declarative catalog](../../../contracts/DECLARATIVE_CATALOG_V1.md) contracts. |
+| Retained sources and logical history | Durable Table pins, accepted WAL frontiers, independent source vectors and saved history-reader positions preserve their original basis across restart. See [snapshot coverage](../../../contracts/DATA_LIFECYCLE_V1.md) and [retained reads](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads). |
+| Computation and result records | Saved direct sources, native progress, captured/maintained results, exchange records and named attribution use the current owners and exact source/result evidence. See the [relational](../../../contracts/RELATIONAL_V1.md), [exchange](../../../contracts/RELATIONAL_EXCHANGE_V1.md) and [named computation](../../../contracts/NAMED_RELATIONAL_V1.md) contracts. |
+| SQL and reactive callers | Saved commands, preparation/recovery, result references, assistance coverage and Follow controls require matching service and caller contracts. See [SQL sessions](../../../contracts/SQL_SESSION_V1.md) and [reactive clients](../../../contracts/REACTIVE_CLIENT_V1.md). |
+| Installation and deployment | Local installation/configuration checkpoints, startup policy, selected artifacts and launcher records reject incompatible retained installations. See [installation](../../../contracts/APPLICATION_INSTALLATION_V1.md). |
+| Logical values and Arrow layouts | Existing logical descriptors and Arrow metadata keep their own mandatory identifiers and validation. The direct-owner cutover does not redefine upstream Arrow IPC or add a general encoded-array layout. See [logical Arrow](../../../contracts/FUZE_ARROW_V1.md) and [Arrow interfaces](arrow.md). |
+
+Cross-Table transaction decisions and catalog-consistent snapshot acquisition,
+additional native checkpoint representations, general changefeed consumer formats
+and new encoded-array layouts require their own definition review before use.
+They are not admitted merely because a current artifact contains an identity or
+position field. An incompatible extension replaces the shared definition and
+its affected owning formats, consumers and fixtures together.

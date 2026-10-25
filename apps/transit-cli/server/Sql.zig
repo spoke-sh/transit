@@ -190,11 +190,7 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
     defer std.crypto.secureZero(u8, std.mem.asBytes(&control_key));
     var client: g.Client = .{ .transport = installation.wire, .ledger = .{ .configuration = config.accounts[0].ledger }, .principal = entry.record.principals.control, .key = control_key };
     if (entry.record.initialization == null) {
-        var table_key = try q.wire.readKey(allocator, installation.init.io, config.accounts[0].keys.table);
-        defer std.crypto.secureZero(u8, std.mem.asBytes(&table_key));
-        const identity: q.wire.AuthorizationClient = .{ .transport = installation.wire, .realm = installation.config.realm, .principal = entry.record.principals.table, .key = table_key };
-        const sequence = (try identity.read(.identity)).principal_sequence;
-        const prepared = try client.prepare(.{ .initialize = sequence });
+        const prepared = try client.prepare(.{ .initialize = {} });
         entry.record.initialization = .{ .prepared = prepared };
         try self.saveAccount(allocator, &entry.record);
     }

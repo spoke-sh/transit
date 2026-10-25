@@ -13,8 +13,7 @@ internal static class CatalogValues
 {
     static void Check(bool value) => Program.Check(value);
     static E Reject<E>(Action action) where E : Exception {
-        try { action(); } catch (E error) { return error; }
-        throw new Exception("Expected catalog failure");
+        try { action(); } catch (E error) { return error; } throw new Exception("Expected catalog failure");
     }
     static object? Invoke(Type type, string name, params object?[] args) {
         try { return type.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, args); }
@@ -27,135 +26,98 @@ internal static class CatalogValues
     }
     static JsonObject Wire(object value) {
         var method = value.GetType().GetMethod("Wire", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        try { return JsonNode.Parse(((JsonObject)method.Invoke(value,null)!).ToJsonString())!.AsObject(); }
+        try { return ((JsonObject)method.Invoke(value,null)!).DeepClone().AsObject(); }
         catch (TargetInvocationException error) { ExceptionDispatchInfo.Capture(error.InnerException!).Throw(); throw; }
     }
     static async Task Expect(ErrorKind kind, Func<Task> action) {
-        try { await action(); } catch (TransitException error) { Check(error.Kind == kind); return; }
-        throw new Exception("Expected catalog task failure");
+        try { await action(); } catch (TransitException error) { Check(error.Kind == kind); return; } throw new Exception("Expected catalog task failure");
     }
-    static JsonObject Metadata() { var value=JsonNode.Parse("""
-        {"namespace":1,"scope":{"realm":46,"resource":7,"catalog":"18446744073709551615"},
-         "object":"18446744073709551615","revision":"18446744073709551615","name":"items",
-         "schema_fingerprint":"abababababababababababababababababababababababababababababababab",
-         "principal":17,"operation":"18446744073709551615","admitted_input":9}
-        """)!.AsObject(); value["commitment"]=Wire(new C.MetadataCommitment(200,new Bytes(new byte[32])));return value; }
+    static JsonObject Obj(params (string Key,object? Value)[] fields) => Program.Obj(fields);
+    static C.Scope Scope() => new(new ResourceRef(46,7),ulong.MaxValue);
+    static C.Connection Connection() => new(Scope(),3);
+    static JsonObject ConnectionWire() => Obj(("scope",Wire(Scope())),("branch","1"),("audience",3),("principal",17),("role",null));
+    static JsonObject ObjectIdentity() => Obj(("scope",Wire(Scope())),("branch","1"),("object",ulong.MaxValue.ToString()));
+    static JsonObject Interpretation() => Obj(("object",ObjectIdentity()),("revision","1"),("digest",string.Concat(Enumerable.Repeat("ab",32))));
+    static JsonObject Stored() => Obj(("interpretation",Interpretation()),("content",Obj(("bytes","300"),("sha256",string.Concat(Enumerable.Repeat("ab",32))))),("schema_fingerprint",string.Concat(Enumerable.Repeat("cd",32))),("retired",false));
+    static JsonObject Basis() => Obj(("definition",C.ContractDefinition),("connection",ConnectionWire()),("namespace",1),("name","items"),("interpretation",Stored()));
+    static JsonObject Position() => Obj(("partition",ulong.MaxValue.ToString()),("next_lsn",ulong.MaxValue.ToString()));
+    static JsonObject Binding() => Obj(("definition",C.ContractDefinition),("identity",Obj(("scope",Wire(Scope())),("principal",17),("operation","10"))),("target",ObjectIdentity()),("action","insert"),("expected_definition",Interpretation()),("expected_data",null),("intent",new string('a',64)),("prerequisite",null));
+    static JsonObject Saved() => Obj(("table",Obj(("definition",C.ContractDefinition),("namespace",1),("bytes","aabb"))));
+    static JsonObject Reference() => Obj(("table",Obj(("definition",C.ContractDefinition),("connection",ConnectionWire()),("namespace",1),("binding",Binding()),("content",Obj(("bytes","200"),("sha256",new string('2',64)))))));
+    static JsonObject Summary() => Obj(("id",Obj(("definition",C.ContractDefinition),("digest",new string('1',64)))),("namespace",1),("binding",Obj(("table",Binding()))));
+    static JsonObject Observation() => Obj(("rows",Obj(("committed",Obj(("binding",Binding()),("resulting",Stored()),("outcome",Obj(("position",Position()),("matched","9"),("affected","9"),("live_rows","9"))))))));
     static C.Schema Schema() => new(ulong.MaxValue,1,2,[new C.Column(1,"id",new L.Scalar(L.ScalarKind.Int128))]);
-    static JsonObject Entry() => Program.Obj(("metadata",Metadata()),("head",JsonNode.Parse("{\"revision\":\"1\",\"rows\":\"0\",\"pending\":\"0\"}")));
-    static JsonObject Definition() { var value = Entry(); value.Add("schema",Wire(Schema())); value.Add("authorization",30); return JsonNode.Parse(value.ToJsonString())!.AsObject(); }
-    static JsonObject MetadataPage() {
-        JsonArray entries = new(Entry()); while (entries.Count < 8) entries.Add((JsonNode?)null);
-        return JsonNode.Parse(Program.Obj(("resource_revision",9),("entries",entries),("next",Program.Obj(("definition",C.ContractDefinition),("scope",Metadata()["scope"]!.DeepClone()),("resource_revision",9),("after_object",ulong.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture))))).ToJsonString())!.AsObject();
+    static JsonObject Page() {
+        JsonArray entries = new(Obj(("interpretation",Interpretation()),("namespace",1),("name","items"),("position",Position()),("changed_lsn","3")));
+        while (entries.Count < 8) entries.Add((JsonNode?)null);
+        return Obj(("position",Position()),("entries",entries),("next",Obj(("definition",C.ContractDefinition),("connection",ConnectionWire()),("selection",Obj(("tables",1))),("position",Position()),("after",ulong.MaxValue.ToString()))),("consistency","independent"));
     }
-    static void MetadataValues(C.Scope scope) {
-        var wire = Definition(); var original = (C.Definition)Decode("Resolved",wire,scope,1ul,"items")!;
-        Check(original.Metadata.Commitment==new C.MetadataCommitment(200,new Bytes(new byte[32])));
-        Check(original.Metadata.ObjectId == ulong.MaxValue && original.Metadata.Revision == ulong.MaxValue && original.Schema == Schema());
-        wire["metadata"]!["name"] = "changed"; wire["schema"]!["columns"]![0]!["name"] = "changed";
-        Check(original.Metadata.Name == "items" && original.Schema.Columns[0].Name == "id");
-        Check(Decode("Resolved",null,scope,1ul,"missing") is null);
-        var historical = Program.Obj(("metadata",Metadata()),("schema",Wire(Schema())));
-        Check(((C.HistoricalDefinition)Decode("Historical",historical,scope,ulong.MaxValue,ulong.MaxValue)!).Schema == original.Schema);
-        foreach (Action action in new Action[] {
-            () => Decode("Resolved",Definition(),scope,1ul,"wrong"), () => Decode("Historical",historical,scope,1ul,ulong.MaxValue),
-            () => Decode("Historical",historical,scope,ulong.MaxValue,1ul), () => Decode("Resolved",Definition(),new C.Scope(scope.Resource,1),1ul,"items") })
-            Check(Reject<TransitException>(action).Kind == ErrorKind.IncompatibleNative);
-        var source = MetadataPage(); var page = (C.Page)Decode("ParsePage",source,scope,null)!; source["entries"]![0] = null;
-        Check(page.Entries.Count == 1 && page.Entries[0].Metadata == original.Metadata);
-        Check(page.Entries is not IList<C.Entry>);
-        List<C.Entry> input = [page.Entries[0]]; C.Page copy = new(9,input,page.Next); input.Clear(); Check(copy == page && copy.GetHashCode() == page.GetHashCode());
-        for (int index = 0; index < 15; index++) {
-            var malformed = MetadataPage(); var entries = malformed["entries"]!.AsArray(); var next = malformed["next"]!; var first = entries[0]!["metadata"]!;
-            switch (index) {
+    static void Values() {
+        var basis = C.Basis.Restore(Basis().ToJsonString()); Check(basis.ObjectId == ulong.MaxValue && basis.Connection == Connection());
+        Reject<Exception>(() => C.Basis.Restore(basis.Save()[..^1] + ",\"name\":\"other\"}")); Check(!basis.ToString().Contains("items"));
+        foreach (bool missing in new[] {true,false}) {
+            var value = Reference(); if (missing) value["table"]!.AsObject().Remove("definition"); else value["table"]!["definition"] = new string('0',64);
+            Reject<Exception>(() => C.Reference.Restore(value.ToJsonString()));
+        }
+        var physical = Wire(Schema()); physical["columns"]![0]!["type"] = Obj(("utf8",Obj())); physical["columns"]![0]!["encoding"] = "ebcdic"; physical["columns"]![0]!["collation"] = "ebcdic_cp037";
+        Check(((C.Schema)Decode("ParseSchema",physical)!).Columns[0].Collation == C.Collation.EbcdicCp037);
+        foreach (string field in new[] {"encoding","collation"}) {
+            var bad = physical.DeepClone(); bad["columns"]![0]!.AsObject().Remove(field); Reject<TransitException>(() => Decode("ParseSchema",bad));
+        }
+        L.Cell large = new L.Present(new L.Binary(new L.BinaryData(new byte[1024*1024]))); L.Cell invalid = new L.Present(new L.Sequence(L.SequenceKind.List,[large,large]));
+        C.Schema oversized = new(1,1,3,[new C.Column(1,"data",new L.Scalar(L.ScalarKind.Binary),defaultValue:large),new C.Column(2,"later",new L.Scalar(L.ScalarKind.Binary),defaultValue:invalid)]);
+        Check(Reject<ArgumentException>(() => Wire(oversized)).Message == "Table wire budget exceeded");
+        List<IReadOnlyList<C.Assignment>> rows = Enumerable.Repeat<IReadOnlyList<C.Assignment>>([new C.Assignment(1,large)],9).ToList(); rows.Add([new C.Assignment(1,invalid)]);
+        Check(Reject<ArgumentException>(() => Wire(new C.Insert(rows))).Message == "Table wire budget exceeded");
+        JsonArray context = new(); for (int i=0;i<32;i++) context.Add(1);
+        var description = Obj(("configuration",Obj(("scope",Wire(Scope())),("branch","1"),("partition",ulong.MaxValue.ToString()),("audience",3),("authority",Wire(new C.AuthorityProfile(10,11,12,20,1,21))),("database_name","ledger"),("initial_schema_name","public"))),
+            ("subject",Obj(("principal",17),("login_role",17),("role",17),("credential_epoch",1),("audience",3),("context",context))),("policy_revision",2));
+        Invoke(typeof(C),"ValidateResponse",Obj(("catalog",Obj(("description",description)))));
+        Check(((C.Description)Decode("ParseDescription",description,Connection(),17ul)!).Configuration.Partition == ulong.MaxValue);
+        foreach (string field in new[] {"principal","audience","credential_epoch"}) {
+            var bad = description.DeepClone(); bad["subject"]![field] = field == "credential_epoch" ? 0 : 18; Reject<TransitException>(() => Decode("ParseDescription",bad,Connection(),17ul));
+        }
+        var source = Page(); Invoke(typeof(C),"ValidateResponse",Obj(("catalog",Obj(("tables",source)))));
+        var page = (C.Page<C.Entry>)Decode("ParseTables",source,Connection(),17ul,1ul,null)!; source["entries"]![0] = null;
+        Check(page.Entries[0].Interpretation.Object.ObjectId == ulong.MaxValue && page.Entries[0].Name == "items");
+        Reject<NotSupportedException>(() => ((IList<C.Entry>)page.Entries).Clear());
+        for (int i=0;i<9;i++) {
+            var bad = Page(); var entries = bad["entries"]!.AsArray(); var next = bad["next"]!; var first = entries[0]!;
+            switch (i) {
                 case 0: entries.RemoveAt(7); break;
                 case 1: entries[1] = entries[0]!.DeepClone(); entries[0] = null; break;
                 case 2: entries[1] = entries[0]!.DeepClone(); break;
-                case 3: first["scope"]!["catalog"] = "1"; break;
+                case 3: first["interpretation"]!["object"]!["scope"]!["catalog"] = "1"; break;
                 case 4: next.AsObject().Remove("definition"); break;
-                case 5: next["definition"] = new string('0',64); break;
-                case 6: next["after_object"] = "1"; break;
-                case 7: next["resource_revision"] = 10; break;
-                case 8: first["object"] = ulong.MaxValue; break;
-                case 9: first["revision"] = "01"; break;
-                case 10: malformed["extra"] = true; break;
-                case 11: first.AsObject().Remove("commitment"); break;
-                case 12: first["commitment"]!["format"]=0; break;
-                case 13: first["commitment"]!["length"]=445; break;
-                case 14: first["commitment"]!["digest"]![0]=256; break;
+                case 5: next["after"] = "1"; break;
+                case 6: next["position"]!["next_lsn"] = "1"; break;
+                case 7: first["namespace"] = 2; break;
+                case 8: first["interpretation"]!["object"]!["object"] = ulong.MaxValue; break;
             }
-            Check(Reject<TransitException>(() => Decode("ParsePage",malformed,scope,null)).Kind == ErrorKind.IncompatibleNative);
+            Reject<TransitException>(() => { Invoke(typeof(C),"ValidateResponse",Obj(("catalog",Obj(("tables",bad))))); Decode("ParseTables",bad,Connection(),17ul,1ul,null); });
         }
-        Check(Reject<TransitException>(() => Decode("ParsePage",MetadataPage(),scope,page.Next)).Kind == ErrorKind.IncompatibleNative);
-        var empty = MetadataPage(); empty["entries"]![0] = null; empty["next"] = null;
-        Check(((C.Page)Decode("ParsePage",empty,scope,page.Next)!).Entries.Count == 0);
-        empty["next"] = Wire(new C.Cursor(C.ContractDefinition,scope,9,9));
-        Check(((C.Page)Decode("ParsePage",empty,scope,new C.Cursor(C.ContractDefinition,scope,9,8))!).Next!.AfterObject == 9);
-    }
-    static void AuthorityValues(C.Scope scope) {
-        C.AuthorityProfile authority = new(10, 11, 12, 20, 1, 21);
-        Reject<ArgumentException>(() => new C.AuthorityProfile(10, 10, 12, 20, 1, 21));
-        Reject<ArgumentException>(() => new C.AuthorityProfile(10, 11, 12, 20, 1, 20));
-        C.Connection connection = new(new ProcessRef(46, 3), scope, 7);
-        C.Configuration configuration = new(scope, connection.Owner, 0, new C.TableLimits(4096, 32768, 8), authority, "ledger");
-        var subject = Program.Obj(("principal", 17), ("login_role", 8), ("role", 7), ("credential_epoch", 1), ("audience", 3), ("context", new JsonArray(Enumerable.Range(0, 32).Select(_ => (JsonNode?)JsonValue.Create(1)).ToArray())));
-        var value = Program.Obj(("configuration", Wire(configuration)), ("subject", subject), ("authorization_revision", 2), ("resource_revision", 3));
-        var parsed = (C.Description)Decode("ParseDescription", JsonNode.Parse(value.ToJsonString()), connection, 17ul)!;
-        Check(parsed.Subject.Role == 7 && parsed.Configuration.Authority == authority && parsed.AuthorizationRevision == 2);
-        subject["context"]![0] = 2;
-        Check(parsed.Subject.Context.Copy()[0] == 1);
-        foreach (var (field, invalid) in new[] { ("principal", 18), ("role", 8), ("audience", 4), ("credential_epoch", 0) }) {
-            var bad = value.DeepClone(); bad["subject"]![field] = invalid;
-            Check(Reject<TransitException>(() => Decode("ParseDescription", bad, connection, 17ul)).Kind == ErrorKind.IncompatibleNative);
-        }
-        Check(Reject<TransitException>(() => Decode("Resolved", Definition(), scope, 2ul, "items")).Kind == ErrorKind.IncompatibleNative);
+        Reject<TransitException>(() => Decode("ParseTables",Page(),Connection(),17ul,1ul,page.Next));
+        var reference = C.Reference.Restore(Reference().ToJsonString()); Check(((C.Observation)Decode("ParseObservation",Observation(),reference)!).Commit!.Position.NextLsn == ulong.MaxValue);
+        var wrong = Observation(); wrong["rows"]!["committed"]!["binding"]!["identity"]!["operation"] = "11"; Reject<TransitException>(() => Decode("ParseObservation",wrong,reference));
+        var acquisition = C.SnapshotAcquisition.Restore(Obj(("owner",Obj(("definition",C.ContractDefinition),("connection",ConnectionWire()),("object",ObjectIdentity()),("operation",ulong.MaxValue.ToString()))),("expected",Position())).ToJsonString());
+        Check(acquisition.Owner.Operation == ulong.MaxValue);
+        var snapshot = C.Snapshot.Restore(Obj(("owner",Wire(acquisition.Owner)),("content",Obj(("bytes","500"),("sha256",new string('4',64))))).ToJsonString());
+        var metadata = Obj(("snapshot",Wire(snapshot)),("interpretation",Stored()),("accepted",Position()),("changed_lsn","3"),("row_count","9"),("schema",Wire(Schema())),("authority",Obj(("database",31),("schema",32),("table",33))));
+        Invoke(typeof(C),"ValidateResponse",Obj(("retention",Obj(("metadata",metadata)))));
+        Check(((C.SnapshotMetadata)Decode("ParseSnapshotMetadata",metadata,snapshot)!).RowCount == 9);
+        metadata["snapshot"]!["content"]!["sha256"] = new string('5',64); Reject<TransitException>(() => Decode("ParseSnapshotMetadata",metadata,snapshot));
+        var loaded = (C.Intent)Decode("ParseSummary",Summary(),C.SavedIntent.Restore(Saved().ToJsonString()),Connection(),17ul,new C.Identity(10))!;
+        Check(loaded.Identity.Operation == 10);
     }
     internal static async Task Run(string root) {
-        L.Cell large = new L.Present(new L.Binary(new L.BinaryData(new byte[1024 * 1024])));
-        L.Cell laterInvalid = new L.Present(new L.Sequence(L.SequenceKind.List, [large, large]));
-        C.Schema oversizedSchema = new(1, 1, 3, [new C.Column(1, "data", new L.Scalar(L.ScalarKind.Binary), defaultValue: large), new C.Column(2, "later", new L.Scalar(L.ScalarKind.Binary), defaultValue: laterInvalid)]);
-        Check(Reject<ArgumentException>(() => Wire(oversizedSchema)).Message == "Table wire budget exceeded");
-        List<IReadOnlyList<C.Assignment>> oversizedRows = Enumerable.Repeat<IReadOnlyList<C.Assignment>>([new C.Assignment(1, large)], 9).ToList();
-        oversizedRows.Add([new C.Assignment(1, laterInvalid)]);
-        Check(Reject<ArgumentException>(() => Wire(new C.Insert(oversizedRows))).Message == "Table wire budget exceeded");
-        C.Scope scope = new(new ResourceRef(46,7),ulong.MaxValue); MetadataValues(scope); AuthorityValues(scope);
-        Reject<ArgumentException>(() => new C.Scope(scope.Resource,0)); Reject<ArgumentException>(() => new C.Connection(new ProcessRef(47,3),scope));
-        foreach (byte[] bytes in new[] { Array.Empty<byte>(),new byte[8193],new byte[]{255} }) Reject<ArgumentException>(() => new C.Prepared(new Bytes(bytes)));
-        byte[] original = [1,2]; C.Prepared prepared = new(new Bytes(original)); C.SavedIntent saved = new(C.ContractDefinition,original);
-        original[0] = 0; prepared.Bytes.Copy()[0] = 0; saved.Copy()[0] = 0; Check(prepared.Bytes.Copy()[0] == 1 && saved.Copy()[0] == 1);
-        Reject<ArgumentException>(() => new C.SavedIntent(new string('0',64),[1]));
-        foreach (string json in new[] { "null","{}","{\"receipt\":{\"position\":0}}","{\"receipt\":{\"position\":\"1\"}}","{\"receipt\":{\"position\":1.5}}","{\"receipt\":{\"position\":1,\"extra\":true}}","{\"receipt\":{\"position\":1},\"extra\":true}" })
-            Check(Reject<TransitException>(() => Decode("Admission",JsonNode.Parse(json))).Kind == ErrorKind.UnknownOutcome);
-        Check(((AdmissionReceipt)Decode("Admission",JsonNode.Parse("{\"receipt\":{\"position\":7}}"))!).Position == 7);
-        var diagnostic = JsonNode.Parse(File.ReadAllText("../diagnostic.json"))!.AsObject();
-        var result = JsonNode.Parse("""
-            {"kind":"insert","operation":"18446744073709551615","object":"18446744073709551615","actual_object":"18446744073709551615",
-             "phase":"applied","terminal":true,"counts":{"matched":"1","changed":"1"},"admitted_input":7,"completed_input":8}
-            """)!.AsObject(); result.Add("diagnostic",diagnostic);
-        var retained = (C.Outcome)Decode("ParseOutcome",result)!; diagnostic["message"] = ""; retained.Diagnostic.Copy()["message"] = "";
-        Check(retained.Diagnostic.Copy()["message"]!.GetValue<string>().Length > 0);
-        foreach (string field in new[] { "counts","terminal","phase","object","diagnostic" }) { var bad = result.DeepClone(); bad[field] = null; Reject<TransitException>(() => Decode("ParseOutcome",bad)); }
-        var connection = new C.Connection(new ProcessRef(46,3),scope); C.Identity identity = new(10,100);
-        var summary = Program.Obj(("reference",Wire(new C.Reference(C.ContractDefinition,new Bytes(new byte[32])))),("scope",Metadata()["scope"]!.DeepClone()),("owner",3),("principal",17),("operation","10"),("namespace","100"),("object","1"),("kind","insert"));
-        var compiled = JsonNode.Parse(Program.Obj(("intent",summary),("saved",Program.Obj(("definition",C.ContractDefinition),("bytes",new string('a',600000))))).ToJsonString())!;
-        Check(((C.Compiled)Decode("ParseCompiled",compiled,connection,17ul,identity,C.Kind.Insert,1ul)!).Saved.Copy().Length == 300000);
-        foreach (string field in new[] { "owner","principal","operation","namespace","object","kind" }) {
-            var bad = compiled.DeepClone(); if (field is "owner" or "principal") bad["intent"]![field] = 18; else bad["intent"]![field] = field == "kind" ? "update" : "11";
-            Reject<TransitException>(() => Decode("ParseCompiled",bad,connection,17ul,identity,C.Kind.Insert,1ul));
-        }
-        L.Cell deep = new L.Null(); for (int i = 0; i < 15; i++) deep = new L.Present(new L.MapValue([new L.MapEntry(new L.Utf8("k"),deep)]));
-        JsonNode wrapped = L.CellWire(deep); for (int i = 0; i < 5; i++) wrapped = new JsonObject { ["wrapper"] = wrapped };
-        byte[] encoded = System.Text.Encoding.UTF8.GetBytes(wrapped.ToJsonString(new JsonSerializerOptions { MaxDepth = 96 }));
-        var rawValues = typeof(Transit.Client.Client).Assembly.GetType("Transit.Client.Internal.Value")!;
-        Check(Invoke(rawValues,"Parse",encoded,96) is JsonObject); Reject<TransitException>(() => Invoke(rawValues,"Parse",encoded,64));
-
-        // Block an actual native HTTP read. Cancellation releases only the wait;
-        // the public client remains busy, and disposal must join its ABI worker.
-        string seed = Path.Combine(root, "seed"); File.WriteAllText(seed, new string('1', 64));
-        using TcpListener listener = new(IPAddress.Loopback, 0); listener.Start();
+        Values();
+        // Block an actual native HTTP read. Cancelling the wait cannot disown it.
+        string seed = Path.Combine(root,"seed"); File.WriteAllText(seed,new string('1',64));
+        using TcpListener listener = new(IPAddress.Loopback,0); listener.Start();
         var endpoint = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}");
-        var client = await C.Client.OpenAsync(new ClientConfig(endpoint, Profile.NativeV1, 10000), new Credential(46, 17, seed), new C.Connection(new ProcessRef(46, 3), scope));
-        var worker = typeof(C.Client).GetField("worker", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(client)!;
-        var thread = (Thread)worker.GetType().GetField("thread", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(worker)!;
+        var client = await C.Client.OpenAsync(new ClientConfig(endpoint,Profile.NativeV1,10000),new Credential(46,17,seed),Connection());
+        var worker = typeof(C.Client).GetField("worker",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(client)!;
+        var thread = (Thread)worker.GetType().GetField("thread",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(worker)!;
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         try { await client.DescribeAsync(cancelled.Token); throw new Exception("Precancelled work admitted"); } catch (OperationCanceledException) { }
         Check(!listener.Pending());
@@ -165,13 +127,11 @@ internal static class CatalogValues
         Task? closing = null;
         try {
             cancellation.Cancel(); try { await pending; throw new Exception("Cancellation did not release wait"); } catch (OperationCanceledException) { }
-            await Expect(ErrorKind.Busy, () => client.CapabilitiesAsync());
-            closing = client.DisposeAsync().AsTask();
+            await Expect(ErrorKind.Busy,() => client.CapabilitiesAsync()); closing = client.DisposeAsync().AsTask();
             try { await closing.WaitAsync(TimeSpan.FromMilliseconds(100)); throw new Exception("Close abandoned native work"); } catch (TimeoutException) { }
-            Check(thread.IsAlive && prepared.Bytes.Copy()[0] == 1);
+            Check(thread.IsAlive);
         } finally { peer.Dispose(); await (closing ?? client.DisposeAsync().AsTask()).WaitAsync(TimeSpan.FromSeconds(15)); }
-        Check(!thread.IsAlive); await Expect(ErrorKind.Closed, () => client.CapabilitiesAsync());
-        File.Delete(seed);
-        Console.WriteLine(".NET general Table values, schema history, recursive budgets, uncertain receipts and native read cancellation/join passed.");
+        Check(!thread.IsAlive); await Expect(ErrorKind.Closed,() => client.CapabilitiesAsync()); File.Delete(seed);
+        Console.WriteLine(".NET direct catalog: owned logical values, complete bindings, strict metadata, retained snapshots and native cancellation/join passed.");
     }
 }

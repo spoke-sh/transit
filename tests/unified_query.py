@@ -35,6 +35,11 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             node_config = root / "node.json"
             resident_pages = 64 if kind == "document" else 8
             node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
+            if kind == 'table':
+                settings = json.loads(node_config.read_text())
+                for field in ('ursula_url', 'bucket', 'journal'): settings.pop(field)
+                settings['local_directory'] = str(root/'authority')
+                node_config.write_text(json.dumps(settings))
             processes, logs = [], []
             native, port_client = None, None
             callers = []
@@ -158,9 +163,17 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 courier = start('courier-' + label, [host, str(root / 'courier.json')])
 
             try:
-                subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30, env=fixture.env)
+                subprocess.run([node, str(node_config), "--initialize"], check=True, timeout=30, env=fixture.env)
                 authority = start("node", [node, str(node_config)])
                 wait_ready(fixture.http, authority, url + "/health")
+                if kind == 'table':
+                    invoke('catalog-bootstrap', direct=True, timeout=300)
+                    authority.terminate(); authority.wait(timeout=10)
+                    settings = json.loads(node_config.read_text())
+                    settings['table'] = json.loads((root/'catalog-node.json').read_text())
+                    node_config.write_text(json.dumps(settings))
+                    authority = start('node-catalog', [node, str(node_config)])
+                    wait_ready(fixture.http, authority, url+'/health')
                 connection = invoke("provision-compound" if compound else "provision", kind, timeout=1800)
                 assert fault['seed_phase'] == 3, 'seed unavailable/lost-reply schedule did not finish'
                 fault['seeding'] = False
@@ -170,15 +183,21 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     path = root / f"{name}.json"
                     config = json.loads(path.read_text())
                     config["url"] = proxy_url
+                    if config.get("tables"): config["tables"]["url"] = proxy_url
                     path.write_text(json.dumps(config))
                 requester = start("requester", [host, str(root / "requester.json")])
                 source = start("source", [host, str(root / "source.json")])
                 courier = start("courier", [host, str(root / "courier.json")])
-                native = Native(library, proxy_url, connection)
-                port_client = Port(port_host, root, proxy_url, connection)
+                client_settings = json.loads((root/'client.json').read_text())
+                tables = client_settings.get('tables')
+                if tables:
+                    tables['url'] = proxy_url
+                    (root/'client.json').write_text(json.dumps(client_settings))
+                native = Native(library, proxy_url, connection, tables=tables)
+                port_client = Port(port_host, root, proxy_url, connection, tables=tables)
                 for factory in factories: callers.extend(factory(proxy_url, connection, root, kind))
                 inspectors = (native, port_client, *(caller for caller in callers if caller.inspection))
-                scope = json.loads((root / 'shell.json').read_text())['workspace']
+                scope = {key: value for key, value in json.loads((root / 'shell.json').read_text())['workspace'].items() if key != 'executor'}
                 inspection_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
                     'DESCRIBE items;', 'SHOW TABLES;', 'EXPLAIN SELECT count(*) FROM items;',
                     "EXPLAIN SELECT value FROM items WHERE value = 'redacted-literal' LIMIT 18446744073709551615;",
@@ -205,7 +224,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     expected = None
                     for owner in inspectors:
                         value = owner.call(action)['inspection']
-                        assert value['resource'] == connection['resource'] and value['name'] == 'items'
+                        assert value['resource'] == (tables['connection']['scope']['resource'] if tables else connection['resource']) and value['name'] == 'items'
                         assert value['source_kind'] == kind and len(value['contract']) == len(value['schema']) == 32
                         assert int(value['policy_revision']) > 0
                         assert 'redacted-literal' not in json.dumps(value)
@@ -231,7 +250,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     expected = None
                     for owner in program_inspectors:
                         value = owner.call(action)['inspection']
-                        assert value['resource'] == connection['resource'] and value['name'] == 'items'
+                        assert value['resource'] == (tables['connection']['scope']['resource'] if tables else connection['resource']) and value['name'] == 'items'
                         assert value['source_kind'] == kind and 'redacted-literal' not in json.dumps(value)
                         plan = value['details']['explanation']
                         assert plan['predicate'] == predicate and plan['operators'] == ['scan', 'filter', 'project']
@@ -381,6 +400,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     serialized = json.dumps(records, ensure_ascii=False)
                     assert '東京' not in serialized and 'UQP1' not in serialized
                     for seed in ('08', '09', '0a', '0b'): assert seed*32 not in serialized
+                if kind == 'table': invoke('released-pins', direct=True)
                 after = None
                 position = None
                 while True:
@@ -409,8 +429,11 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         raise AssertionError('retired source disclosed a completed result')
                     except Failure as failure:
                         assert failure.detail['err'] in retired_errors, failure
-                assert cold.data_objects() > 0
-                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / predicate={'compound' if compound else 'atom'} / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
+                if kind != 'table': assert cold.data_objects() > 0
+                else:
+                    assert not any((root/'authority').rglob('*.tseg')), 'this point-write proof must recover unflushed rows'
+                    print('Unified table: exact point-write recovery and released-pin refusal passed without any flushed .tseg segment.', flush=True)
+                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / native backend={'local_directory' if kind == 'table' else 'ursula'} / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / predicate={'compound' if compound else 'atom'} / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:
                 for log in logs:
                     log.flush(); log.seek(0)

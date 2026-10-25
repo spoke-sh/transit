@@ -1,9 +1,14 @@
 # Station ledger
 
 `example-station-ledger` is a Zig Station application: a ledger, requester and
-coordinator exchange durable calls, use associated Tables, and capture finite
-Arrow replies. The coordinator supplies a scoped registry and bounded supervisor.
+coordinator exchange durable calls, use direct Tables with separate associated
+progress, and capture finite Arrow replies. The coordinator supplies a scoped
+registry and bounded supervisor.
 Each role is a separate Transit process and worker.
+Ordinary native publication contention preserves the exact pending command.
+Before a command is frozen, a contended read discards only its private proposal
+and observes current authority again. Expiry, fencing and conflicting retry
+identities are separate outcomes under the shared client classification.
 
 For an interactive installation with Board:
 
@@ -25,29 +30,37 @@ Substrate, configuration, updates, capacity and recovery limits.
 
 Build with `just build::debug`; run the isolated end-to-end example/proof with
 `just test::station`. The proof provisions two real PIDs, associated resources,
-scoped worker identities and an automatic courier against disk-backed Ursula.
+scoped worker identities and an automatic courier against the native local owner.
 It checks 7 + 5 - 2 = 10, a lost receipt, worker/store restart, stale ownership
 and a poisoned input that remains inspectable after its handler is blocked.
 The total is a general typed Table with an explicit INT64 primary key and
 nullable INT64 amount. Immutable application KV entries record each input's delta
-and resulting total. A terminal turn publishes the Table head, exact Table
-outcome, audit entry, pending-work removal and original call reply together using
-four native writes. Earlier staging is private; accepting a call does not claim
-that its Table mutation has completed.
+and resulting total. A native turn freezes an immutable direct intent and commits
+dispatch eligibility before admission. The direct Table owner records its own
+acceptance and outcome.
+Only after confirming that original receipt does the application atomically
+publish its audit entry, remove pending work and reply to the original call.
+These are separate commits: accepting a call does not establish Table completion,
+and Table acceptance alone does not establish that its reply was delivered.
 
 The proof independently reads the query's typed Arrow IPC, replaces both query
-hosts after capture, and orders query policy revocation ahead of publication. Root-origin `allow-query`/`deny-query`
-casts configure the demo's explicit sharing policy for `destination`.
+hosts after capture, and orders query policy revocation ahead of publication.
+Root-origin `allow-query`/`deny-query` casts configure the demo's explicit sharing
+policy for `destination`.
 
 The executable accepts a JSON configuration path, or `--once <path>` to stop
 after one committed turn. Configuration fields are `url`, `realm`, `principal`,
 `pid`, `generation`, `seed_file`, `association` (default `data`), `role`
 (`ledger`, `requester` or `coordinator`), optional `destination`, `registry`
 and trusted `observer` principal. Ledger and requester also require `authorization`:
-the explicitly selected native `role` and the catalog's `profile` binding.
+the explicitly selected native `role` and a `data` binding with the current
+contract `definition`, catalog `scope`, `branch`, service `audience`, `namespace`,
+stable Table `object`, `owner_role` and query `executor` principal.
+Each worker persists this binding; replacement cannot redirect accepted work to
+another object or reinterpret an earlier definition.
 A requester sets `source_resource` to the
-ledger's resource; a query-serving ledger sets `peer_principal` and `peer_resource` to the requester's
-resource. Each PID has an optional `query-peer` association to that foreign
+ledger's resource; a query-serving ledger sets `peer_principal` and `peer_resource`
+to the requester's resource. Each PID has an optional `query-peer` association to that foreign
 resource, and each worker needs a separate current native read grant. The
 association neither grants access nor makes the peer a lifetime dependency.
 The ledger's query policy names the configured requester principal. Each worker
@@ -62,14 +75,13 @@ wait for its complete publication. A courier must deliver those self-messages as
 well as calls and replies. Provisioning must establish a required association, resource permissions,
 execute/inspect/publish grants, and fresh ownership before starting a worker.
 The launcher creates stable LOGIN identities, SET-only membership in a NOLOGIN
-data role, database CONNECT, schema USAGE and default SELECT/INSERT/UPDATE for
-the root-created Table. The ledger principal is its explicit domain registrar.
-Restart reads this binding and rotates credentials without reapplying data grants.
-Never put root credentials in this configuration.
-Table object registration recovers through the native binding ledger when an
-authority observation is unavailable or a submission reply is lost. The worker
-reobserves the original registration; transient capacity does not terminate it
-or allocate a replacement object. Denied authority remains an error.
+data role, database CONNECT, schema USAGE and default SELECT/INSERT/UPDATE.
+Explicit root-origin creation selects the ledger's owner role; ordinary
+computations select its data role. The node uses a separate registrar credential
+for object registration. Native binding receipts recover registration independently
+of the application worker. Restart retains these identities and rotates worker
+credentials without reapplying data grants. Never put root credentials in worker
+configuration.
 
 The provider form, `--bootstrap-json '<configuration>'`, omits `seed_file` and
 `generation`. It creates a fresh in-memory key, emits one public registration,
@@ -81,8 +93,9 @@ and key. Merely cold-booting within the old pod cannot establish that activation
 
 The host proposes a short state-view deadline and drives the framework. It
 supplies bounded workspace and an authenticated public resource reader for
-cross-resource query uploads/results. Table computation uses the committed turn
-reader and performs no raw storage access. A lost submission retains
+cross-resource query uploads/results. Table computation uses the typed direct
+Table client. Native readers own only application progress, audit and query
+publications; no worker reads raw storage. A lost submission retains
 the exact proposal before any subsequent handler. The [Station package](../../packages/zig/transit-station/README.md)
 owns the behavior and recovery contract. This executable is an application,
 not a service required to operate Transit.

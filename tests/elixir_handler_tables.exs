@@ -39,6 +39,40 @@ mutation =
 {:ok, ^intent} = TableMutation.load(saved)
 %{"schema" => actual} = :transit_sdk_value.json(saved, 96)
 ^schema = actual |> :transit_catalog_value.parse_schema() |> Catalog.convert()
+
+# Catalog schema decoding must restore public logical structs at every depth,
+# including element records shared by list, array and map descriptors.
+for type <- [
+      {:list, %Logical.Element{type: :utf8, nullable: true}},
+      {:array, %Logical.Element{type: :int128}, 2},
+      {:map, :utf8,
+       %Logical.Element{
+         type: {:list, %Logical.Element{type: {:decimal, 20, 2}, nullable: true}}
+       }},
+      {:structure,
+       [
+         %Logical.Field{
+           name: "nested",
+           type: {:list, %Logical.Element{type: :utf8}},
+           optional: true
+         }
+       ]}
+    ] do
+  nested_schema = %Catalog.Schema{
+    object: max,
+    revision: 1,
+    next_column: 2,
+    columns: [%Catalog.Column{id: 1, name: "nested", type: type}]
+  }
+
+  ^nested_schema =
+    nested_schema
+    |> Catalog.native()
+    |> :transit_catalog_value.schema()
+    |> :transit_catalog_value.parse_schema()
+    |> Catalog.convert()
+end
+
 {:error, _} = TableMutation.load(" " <> saved)
 {:error, _} = TableMutation.prepare(resource, 17, 0, schema, mutation)
 

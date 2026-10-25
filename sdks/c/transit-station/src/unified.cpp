@@ -1,5 +1,5 @@
 #include "internal.hpp"
-#include "logical_internal.hpp"
+#include "catalog_internal.hpp"
 #include <transit/unified_query.h>
 #include <cmath>
 #include <limits>
@@ -10,6 +10,7 @@ namespace logical = transit::sdk::logical_detail;
 struct transit_station_unified_bundle { Bytes bytes; };
 struct transit_station_unified_prepared { Bytes bytes; };
 struct transit_station_unified_cursor { Bytes bytes; };
+struct transit_station_unified_table_definition { logical::Arena arena; transit_station_catalog_schema schema{}; transit_station_unified_table_definition_view value{}; };
 struct transit_station_unified_inspection { logical::Arena arena; transit_station_unified_inspection_info info{}; };
 namespace {
 const char *types[] = {"int64","uint64","float64","boolean","utf8","binary"};
@@ -32,22 +33,23 @@ std::string columns_wire(const transit_station_unified_column *columns,size_t co
     require(columns && count>0 && count<=128,"query-columns");std::string out="[";
     for(size_t i=0;i<count;++i){if(i)out+=',';out+=column_wire(columns[i]);}return out+"]";
 }
+logical::Json digest_array(const uint8_t (&bytes)[32]) {
+    auto out=logical::Json::array();for(const auto b:bytes)out.items.push_back(logical::Json::integer(b));return out;
+}
 std::string table_wire(const transit_station_unified_source &source) {
-    const auto &t=source.source.table;require(t.metadata && t.schema,"query-table-definition");
-    const auto &m=*t.metadata;const auto &s=*t.schema;const auto scope=m.scope;
-    process(t.owner);counter(scope.resource.realm);counter(scope.resource.resource);
-    require(t.owner.realm==scope.resource.realm && source.resource.realm==scope.resource.realm && source.resource.resource==scope.resource.resource && scope.catalog && m.object && m.revision && s.object==m.object,"query-table-identity");
+    const auto &t=source.source.table;require(t.schema,"query-table-definition");
+    const auto &s=*t.schema;const auto scope=t.scope;const auto &i=t.interpretation;
+    counter(t.audience);counter(t.namespace_id);counter(scope.resource.realm);counter(scope.resource.resource);
+    require(source.resource.realm==scope.resource.realm && source.resource.resource==scope.resource.resource && scope.catalog && t.branch && s.object && s.revision && i.revision && i.byte_count,"query-table-identity");
     require(s.columns && s.column_count>0 && s.column_count<=128,"query-table-columns");
-    require(m.commitment.bytes>0 && m.commitment.bytes<=444,"query-table-metadata");
     std::vector<transit_logical_field> fields;fields.reserve(s.column_count);
-    for(size_t i=0;i<s.column_count;++i){const auto &c=s.columns[i];const auto name=query_name(c.name);fields.push_back({{reinterpret_cast<const uint8_t*>(c.name),name.size()},c.type,c.nullable,false});}
+    for(size_t n=0;n<s.column_count;++n){const auto &c=s.columns[n];const auto name=query_name(c.name);fields.push_back({{reinterpret_cast<const uint8_t*>(c.name),name.size()},c.type,c.nullable,false});}
     transit_logical_type_view row{};row.kind=TRANSIT_LOGICAL_STRUCTURE;row.as.fields={fields.data(),fields.size()};
-    auto digest=logical::Json::array();for(const auto b:m.commitment.digest)digest.items.push_back(logical::Json::integer(b));
     using J=logical::Json;
     return logical::encode(J::object({{"table",J::object({
-        {"scope",J::object({{"realm",J::integer(scope.resource.realm)},{"resource",J::integer(scope.resource.resource)},{"catalog",J::string(decimal(scope.catalog))}})},
-        {"owner",J::integer(t.owner.pid)},{"object",J::string(decimal(m.object))},
-        {"metadata",J::object({{"id",J::string(decimal(m.revision))},{"spec",J::object({{"format",J::integer(0x54434d01)},{"length",J::integer(m.commitment.bytes)},{"digest",digest}})}})},
+        {"scope",transit::sdk::catalog_detail::scope_wire(scope)},
+        {"owner",J::integer(t.audience)},{"branch",J::string(decimal(t.branch))},{"namespace",J::integer(t.namespace_id)},{"object",J::string(decimal(s.object))},
+        {"interpretation",J::object({{"revision",J::string(decimal(i.revision))},{"digest",digest_array(i.digest)},{"bytes",J::string(decimal(i.byte_count))},{"schema",digest_array(i.schema_digest)}})},
         {"row_type",logical::type_json(row)}})}}));
 }
 std::string path_wire(const char *const *names,size_t count) {
@@ -192,12 +194,17 @@ void inspected_predicate(const Raw &raw,const Bytes &bytes,const std::string &pa
 struct NativeQuery {
     Local local;
     std::unique_ptr<station_query_client,decltype(&::station_unified_query_destroy)> handle;
-    NativeQuery(const transit_sdk_config &config,const transit_sdk_credential &identity,transit_station_unified_connection c)
+    NativeQuery(const transit_sdk_config &config,const transit_sdk_credential &identity,transit_station_unified_connection c,const transit_station_unified_tables *tables)
         :local(config.native_directory),handle(nullptr,local.station_unified_query_destroy) {
         require(config.sdk_version==TRANSIT_SDK_VERSION,"query-sdk-version");credential(identity);process(c.source);process(c.requester);resource_check(c.resource);resource_check(c.requests);
         require(identity.realm==c.source.realm && c.source.realm==c.resource.realm && c.source.realm==c.requester.realm && c.source.realm==c.requests.realm,"query-realm");
         if(c.has_role)counter(c.role,true);
-        const auto url=text(config.url,2048);const auto json="{\"connection\":{\"realm\":"+decimal(identity.realm)+",\"principal\":"+decimal(identity.principal)+",\"source\":"+decimal(c.source.pid)+",\"resource\":"+decimal(c.resource.resource)+",\"requester\":"+decimal(c.requester.pid)+",\"requests\":"+decimal(c.requests.resource)+",\"role\":"+(c.has_role?decimal(c.role):"null")+"},\"timeout_ms\":"+decimal(config.timeout_ms)+"}";
+        std::string direct="null";
+        if(tables) {
+            require(tables->scope.resource.realm==identity.realm && tables->branch,"query-table-realm");counter(tables->audience);
+            direct="{\"url\":"+quote(text(tables->url,2048))+",\"connection\":{\"scope\":"+logical::encode(transit::sdk::catalog_detail::scope_wire(tables->scope))+",\"branch\":"+quote(decimal(tables->branch))+",\"audience\":"+decimal(tables->audience)+",\"principal\":"+decimal(identity.principal)+",\"role\":"+(c.has_role?decimal(c.role):"null")+"}}";
+        }
+        const auto url=text(config.url,2048);const auto json="{\"connection\":{\"realm\":"+decimal(identity.realm)+",\"principal\":"+decimal(identity.principal)+",\"source\":"+decimal(c.source.pid)+",\"resource\":"+decimal(c.resource.resource)+",\"requester\":"+decimal(c.requester.pid)+",\"requests\":"+decimal(c.requests.resource)+",\"role\":"+(c.has_role?decimal(c.role):"null")+"},\"tables\":"+direct+",\"timeout_ms\":"+decimal(config.timeout_ms)+"}";
         Seed seed(identity.seed_file);station_query_client *pointer=nullptr;
         const auto status=local.station_unified_query_create(STATION_ABI_VERSION,reinterpret_cast<const uint8_t*>(url.data()),url.size(),seed.data(),reinterpret_cast<const uint8_t*>(json.data()),json.size(),&pointer);
         handle.reset(pointer);local.raw.check(status,{},"open-query");require(pointer,"query-handle");
@@ -227,9 +234,17 @@ std::unique_ptr<transit_station_unified_prepared> prepared(const Raw &raw,const 
 }
 std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const Bytes &v,uint64_t realm) {
     auto out=std::make_unique<transit_station_unified_page>();auto &m=out->info.manifest;const std::string p="page/manifest/",b=p+"basis/";
-    m.job=raw.number(v,p+"job");m.source=read_version(raw,v,p+"source");m.requester={realm,raw.number(v,p+"requester")};m.correlation=wide(raw,v,p+"correlation");m.policy_revision=wide(raw,v,p+"policy_revision");fixed_bytes(raw,v,p+"request",m.request,72);
-    const char *kinds[]={"kv","table","document"};m.source_kind=static_cast<transit_station_unified_source_kind>(select_name(raw.field(v,b+"cut/kind",true),kinds,3));m.resource={realm,raw.number(v,b+"cut/resource")};m.revision=raw.number(v,b+"cut/revision",true);
-    digest(raw,v,b+"cut/head",m.source_head);digest(raw,v,b+"contract",m.source_digest);digest(raw,v,b+"schema",m.schema_digest);digest(raw,v,p+"plan",m.plan_digest);digest(raw,v,p+"chain",m.chain);
+    m.job=raw.number(v,p+"job");m.requester={realm,raw.number(v,p+"requester")};m.correlation=wide(raw,v,p+"correlation");m.policy_revision=wide(raw,v,p+"policy_revision");fixed_bytes(raw,v,p+"request",m.request,72);
+    const char *kinds[]={"kv","table","document"};m.source_kind=static_cast<transit_station_unified_source_kind>(select_name(raw.field(v,b+"cut/kind",true),kinds,3));m.resource={realm,raw.number(v,b+"cut/resource")};
+    const auto root=logical::parse(v);const auto &manifest=root.at("page").at("manifest");const auto &position=manifest.at("basis").at("cut").at("position");
+    if(m.source_kind==TRANSIT_UNIFIED_TABLE) {
+        manifest.at("source").fields({"table"});position.fields({"table"});
+        m.source.table_worker={realm,raw.number(v,p+"source/table/worker")};digest(raw,v,b+"cut/position/table",m.cut.table_commitment);
+    } else {
+        manifest.at("source").fields({"native"});position.fields({"native_revision"});
+        m.source.native_version=read_version(raw,v,p+"source/native");m.cut.native_revision=raw.number(v,b+"cut/position/native_revision",true);
+    }
+    digest(raw,v,b+"contract",m.source_digest);digest(raw,v,b+"schema",m.schema_digest);digest(raw,v,p+"plan",m.plan_digest);digest(raw,v,p+"chain",m.chain);
     m.pages=wide(raw,v,p+"pages");m.scanned=wide(raw,v,p+"scanned");m.selected=wide(raw,v,p+"selected");m.value_count=wide(raw,v,p+"value_count");m.segments=wide(raw,v,p+"segments");m.rows=wide(raw,v,p+"rows");m.byte_count=wide(raw,v,p+"bytes");
     m.has_sum=raw.field(v,p+"sum")!="null";if(m.has_sum)m.sum=signed_number(raw,v,p+"sum");const char *finished[]={"source_end","limit"};m.finished=static_cast<transit_station_unified_finished>(select_name(raw.field(v,p+"finished",true),finished,2));
     out->info.ordinal=wide(raw,v,"page/ordinal");const auto rows=raw.number(v,"page/rows",true);require(rows<=8,"query-row-bound");out->info.rows=static_cast<uint8_t>(rows);
@@ -245,9 +260,9 @@ std::string query_plan_wire(const transit_station_unified_plan &value) { return 
 }
 extern "C" {
 transit_sdk_error transit_station_unified_prepare_bundle(const transit_station_unified_source *source,const transit_station_unified_plan *plan,transit_station_unified_budgets budgets,const char *directory,transit_station_unified_bundle **out){
-    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25255);});*out=bundle.release();});
+    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25614);});*out=bundle.release();});
 }
-transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25255)};});}
+transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25614)};});}
 transit_sdk_error transit_station_unified_bundle_bytes(const transit_station_unified_bundle *v,transit_sdk_bytes *out){if(out)*out={};return boundary([&]{require(v&&out,"query-bundle");*out=view(v->bytes);});}
 void transit_station_unified_bundle_destroy(transit_station_unified_bundle *v){delete v;}
 transit_sdk_error transit_station_unified_prepared_import(transit_sdk_bytes bytes,transit_station_unified_prepared **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-prepared");*out=new transit_station_unified_prepared{copy(bytes,8192)};});}
@@ -256,27 +271,53 @@ void transit_station_unified_prepared_destroy(transit_station_unified_prepared *
 transit_sdk_error transit_station_unified_cursor_import(transit_sdk_bytes bytes,transit_station_unified_cursor **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-cursor");*out=new transit_station_unified_cursor{copy(bytes,4096)};});}
 transit_sdk_error transit_station_unified_cursor_bytes(const transit_station_unified_cursor *v,transit_sdk_bytes *out){if(out)*out={};return boundary([&]{require(v&&out,"query-cursor");*out=view(v->bytes);});}
 void transit_station_unified_cursor_destroy(transit_station_unified_cursor *v){delete v;}
-transit_sdk_error transit_station_unified_open(const transit_sdk_config *config,const transit_sdk_credential *credential,transit_station_unified_connection connection,transit_station_unified_client **out){
-    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(config && credential && out,"query-open");auto owner=std::make_unique<transit_station_unified_client>(connection);owner->worker.run([&]{owner->native=std::make_unique<NativeQuery>(*config,*credential,connection);});*out=owner.release();});
+transit_sdk_error transit_station_unified_open(const transit_sdk_config *config,const transit_sdk_credential *credential,transit_station_unified_connection connection,const transit_station_unified_tables *tables,transit_station_unified_client **out){
+    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(config && credential && out,"query-open");auto owner=std::make_unique<transit_station_unified_client>(connection);owner->worker.run([&]{owner->native=std::make_unique<NativeQuery>(*config,*credential,connection,tables);});*out=owner.release();});
 }
 transit_sdk_error transit_station_unified_close(transit_station_unified_client *v){Uninterruptible guard;return boundary([&]{require(v,"query-client");v->worker.close([&]{v->native.reset();});});}
 void transit_station_unified_client_destroy(transit_station_unified_client *v){Uninterruptible guard;delete v;}
+transit_sdk_error transit_station_unified_lookup_table(transit_station_unified_client *client,uint64_t ns,const char *name,transit_station_unified_table_definition **out){
+    Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
+        require(out,"query-table-output");counter(ns);
+        const auto bytes=n.call("{\"table\":{\"namespace\":"+decimal(ns)+",\"name\":"+quote(query_name(name))+"}}");
+        const auto root=logical::parse(bytes);const auto &v=root.at("table");if(v.is_null())return;
+        v.fields({"source","schema","expected"});const auto &envelope=v.at("source");envelope.fields({"version","resource","source"});
+        envelope.at("source").fields({"table"});const auto &direct=envelope.at("source").at("table");
+        direct.fields({"scope","owner","branch","namespace","object","interpretation","row_type"});
+        direct.at("scope").fields({"realm","resource","catalog"});direct.at("interpretation").fields({"revision","digest","bytes","schema"});v.at("expected").fields({"partition","next_lsn"});
+        const auto &r=n.local.raw;const std::string p="table/source/source/table/";
+        auto owner=std::make_unique<transit_station_unified_table_definition>();auto &source=owner->value.source;auto &table=source.source.table;
+        source.kind=TRANSIT_UNIFIED_TABLE;source.resource={r.number(bytes,p+"scope/realm"),r.number(bytes,p+"scope/resource")};
+        table.scope={source.resource,wide(r,bytes,p+"scope/catalog")};table.audience=r.number(bytes,p+"owner");table.branch=wide(r,bytes,p+"branch");table.namespace_id=r.number(bytes,p+"namespace");
+        auto &i=table.interpretation;i.revision=wide(r,bytes,p+"interpretation/revision");i.byte_count=wide(r,bytes,p+"interpretation/bytes");digest(r,bytes,p+"interpretation/digest",i.digest);digest(r,bytes,p+"interpretation/schema",i.schema_digest);
+        owner->schema=transit::sdk::catalog_detail::schema(v.at("schema"),owner->arena);table.schema=&owner->schema;
+        require(r.number(bytes,"table/source/version")==1 && source.resource.realm==client->connection.resource.realm && source.resource.resource==r.number(bytes,"table/source/resource") && table.namespace_id==ns && owner->schema.object==wide(r,bytes,p+"object"),"query-table-definition");
+        // Normalize logical descriptors before comparison; JSON key order is not identity.
+        const auto row=logical::type_from(direct.at("row_type"),owner->arena);
+        const auto expected=logical::JsonParser(table_wire(source)).parse();
+        require(logical::encode(logical::type_json(row))==logical::encode(expected.at("table").at("row_type")),"query-table-row-type");
+        owner->value.partition=wide(r,bytes,"table/expected/partition");owner->value.next_lsn=wide(r,bytes,"table/expected/next_lsn");
+        require(owner->value.partition,"query-table-partition");*out=owner.release();
+    });
+}
+transit_sdk_error transit_station_unified_table_definition_get(const transit_station_unified_table_definition *v,const transit_station_unified_table_definition_view **out){if(out)*out=nullptr;return boundary([&]{require(v&&out,"query-table-definition");*out=&v->value;});}
+void transit_station_unified_table_definition_destroy(transit_station_unified_table_definition *v){delete v;}
 transit_sdk_error transit_station_unified_describe(transit_station_unified_client *client,const transit_station_unified_source *source,transit_station_unified_description *out){
-    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(source&&out,"query-description");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");const auto v=n.call("{\"describe\":"+source_wire(*source)+"}");const auto &r=n.local.raw;const std::string p="description/";transit_station_unified_description result{};
+    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(source&&out,"query-description");require(source->resource.realm==client->connection.resource.realm&&(source->kind==TRANSIT_UNIFIED_TABLE||source->resource.resource==client->connection.resource.resource),"query-source-resource");const auto v=n.call("{\"describe\":"+source_wire(*source)+"}");const auto &r=n.local.raw;const std::string p="description/";transit_station_unified_description result{};
         result.resource_revision=r.number(v,p+"resource_revision",true);result.policy_revision=wide(r,v,p+"policy_revision");result.budgets={wide(r,v,p+"limits/pages"),wide(r,v,p+"limits/segments"),wide(r,v,p+"limits/result_bytes")};result.has_active=r.field(v,p+"active")!="null";if(result.has_active)result.active=wide(r,v,p+"active");result.bundle_bytes=r.number(v,p+"capabilities/bundle_bytes");result.segment_bytes=r.number(v,p+"capabilities/segment_bytes");result.batch_rows=r.number(v,p+"capabilities/batch_rows");*out=result;});
 }
 transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,const transit_station_unified_bindings *parameters,transit_station_unified_bundle **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
-        require(source&&out,"query-compilation");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");
+        require(source&&out,"query-compilation");require(source->resource.realm==client->connection.resource.realm&&(source->kind==TRANSIT_UNIFIED_TABLE||source->resource.resource==client->connection.resource.resource),"query-source-resource");
         std::string values="null";
         if(parameters){require(parameters->count<=65 && (parameters->values || !parameters->count),"query-parameters");values="[";for(size_t i=0;i<parameters->count;++i){if(i)values+=',';values+=scalar_wire(parameters->values[i]);}values+=']';}
         const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+",\"parameters\":"+values+"}}");
-        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),25255)};
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),25614)};
     });
 }
 transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
-        require(source&&out,"query-inspection");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");
+        require(source&&out,"query-inspection");require(source->resource.realm==client->connection.resource.realm&&(source->kind==TRANSIT_UNIFIED_TABLE||source->resource.resource==client->connection.resource.resource),"query-source-resource");
         const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+"}}");
         const auto &r=n.local.raw;const std::string p="inspection/",d=p+"details/";auto owner=std::make_unique<transit_station_unified_inspection>();auto &result=owner->info;
         require(r.number(v,p+"version")==1&&r.field(v,p+"scope",true)=="configured_source"&&r.number(v,p+"resource")==source->resource.resource,"inspection-scope");
@@ -299,12 +340,17 @@ transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_cl
 }
 transit_sdk_error transit_station_unified_inspection_get(const transit_station_unified_inspection *v,const transit_station_unified_inspection_info **out){if(out)*out=nullptr;return boundary([&]{require(v&&out,"query-inspection");*out=&v->info;});}
 void transit_station_unified_inspection_destroy(transit_station_unified_inspection *v){delete v;}
-transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unified_client *client,const transit_station_unified_bundle *bundle,transit_station_unified_bundle **out){
+transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unified_client *client,const transit_station_unified_bundle *bundle,const transit_station_unified_capture *capture,transit_station_unified_bundle **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
         require(bundle&&out,"query-authorization");
-        const auto result=n.call("{\"authorize\":"+quote(hex(bundle->bytes))+"}");
-        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"authorized",true),25255)};
+        std::string binding="null";
+        if(capture){counter(capture->executor);require(capture->operation && capture->partition,"query-capture");binding="{\"executor\":"+decimal(capture->executor)+",\"operation\":"+quote(decimal(capture->operation))+",\"expected\":{\"partition\":"+quote(decimal(capture->partition))+",\"next_lsn\":"+quote(decimal(capture->next_lsn))+"}}";}
+        const auto result=n.call("{\"authorize\":{\"bundle\":"+quote(hex(bundle->bytes))+",\"capture\":"+binding+"}}");
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"authorized",true),25614)};
     });
+}
+transit_sdk_error transit_station_unified_prepare_cleanup(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
+    Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&bundle&&out,"query-cleanup");auto result=prepared(n.local.raw,n.call("{\"cleanup\":{\"namespace\":"+quote(decimal(ns))+",\"bundle\":"+quote(hex(bundle->bytes))+"}}"));require(bool(result),"query-cleanup-command");*out=result.release();});
 }
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&bundle&&out,"query-next");auto value=prepared(n.local.raw,n.call("{\"next\":{\"namespace\":"+quote(decimal(ns))+",\"bundle\":"+quote(hex(bundle->bytes))+"}}"));*out=value.release();});

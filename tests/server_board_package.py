@@ -26,13 +26,13 @@ def defaults(package):
         for listener in listeners: listener.bind(('127.0.0.1', 0))
         selected = [listener.getsockname()[1] for listener in listeners]
         for listener in listeners: listener.close()
-        ports = dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), selected[:5]))
+        ports = dict(zip(('node', 'gateway'), selected[:5]))
         env.update({f'TRANSIT_PORTS__{key.upper()}': str(value) for key, value in ports.items()})
         env.update(TRANSIT_APPLICATIONS__PORT=str(selected[5]), TRANSIT_BOARD__PORT=str(selected[6]))
         tools = root/'bin'; tools.mkdir()
         cli = tools/'transit'
         shutil.copy2(package/'bin/transit', cli)
-        for name in ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway'):
+        for name in ('transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway'):
             (tools/name).symlink_to(package/'bin'/name)
         assert not (root/'share/transit/local-executables.json').exists()
         prior = None
@@ -79,11 +79,9 @@ def run(package):
     package = Path(package).resolve()
     defaults(package)
     executables = json.loads((package / 'share/transit/local-executables.json').read_text())
-    assert set(executables) == {'minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'}
+    assert set(executables) == {'node', 'query_host', 'board', 'sql_gateway'}
     assert all(Path(path).is_file() for path in executables.values())
-    # Select the packaged provider before constructing the shared fixture:
-    # the source proof's Docker-based MinIO extraction is never invoked here.
-    server.minio_binary = lambda: Path(executables['minio'])
+    assert not (package / 'bin/minio').exists() and not (package / 'bin/ursula').exists()
     fixture = Board(package / 'bin/transit', executables['node'], executables['query_host'], executables['board'])
     fixture.config['executables'] = executables
     fixture.path.write_text(json.dumps(fixture.config))

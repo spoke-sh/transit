@@ -1,0 +1,862 @@
+{
+  "declaration": {
+    "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
+    "interpretation": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 18446744073709551614
+      },
+      "revision": 1,
+      "digest": [
+        209,
+        128,
+        234,
+        236,
+        146,
+        134,
+        129,
+        156,
+        15,
+        98,
+        241,
+        131,
+        22,
+        200,
+        203,
+        35,
+        119,
+        190,
+        96,
+        225,
+        12,
+        147,
+        139,
+        231,
+        20,
+        121,
+        17,
+        145,
+        160,
+        247,
+        119,
+        143
+      ]
+    },
+    "source": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 42
+      },
+      "revision": 3,
+      "digest": [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23
+      ]
+    },
+    "keys": [
+      {
+        "column": 11,
+        "direction": "ascending",
+        "nulls": "last",
+        "comparison": "declared_column"
+      },
+      {
+        "column": 19,
+        "direction": "descending",
+        "nulls": "first",
+        "comparison": "declared_column"
+      }
+    ],
+    "included": [
+      23
+    ],
+    "purpose": {
+      "acceleration": {}
+    }
+  },
+  "constraint_declaration": {
+    "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
+    "interpretation": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 18446744073709551614
+      },
+      "revision": 2,
+      "digest": [
+        11,
+        12,
+        10,
+        198,
+        231,
+        23,
+        199,
+        109,
+        245,
+        17,
+        127,
+        24,
+        136,
+        15,
+        20,
+        38,
+        191,
+        160,
+        76,
+        147,
+        79,
+        46,
+        53,
+        121,
+        95,
+        116,
+        7,
+        38,
+        50,
+        24,
+        122,
+        212
+      ]
+    },
+    "source": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 42
+      },
+      "revision": 3,
+      "digest": [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23
+      ]
+    },
+    "keys": [
+      {
+        "column": 11,
+        "direction": "ascending",
+        "nulls": "last",
+        "comparison": "declared_column"
+      },
+      {
+        "column": 19,
+        "direction": "descending",
+        "nulls": "first",
+        "comparison": "declared_column"
+      }
+    ],
+    "included": [
+      23
+    ],
+    "purpose": {
+      "constraint": {
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 18446744073709551613
+          },
+          "revision": 1,
+          "digest": [
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41
+          ]
+        },
+        "kind": "unique",
+        "nulls": "distinct"
+      }
+    }
+  },
+  "progress": {
+    "build": {
+      "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
+      "declaration": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 18446744073709551614
+        },
+        "revision": 1,
+        "digest": [
+          209,
+          128,
+          234,
+          236,
+          146,
+          134,
+          129,
+          156,
+          15,
+          98,
+          241,
+          131,
+          22,
+          200,
+          203,
+          35,
+          119,
+          190,
+          96,
+          225,
+          12,
+          147,
+          139,
+          231,
+          20,
+          121,
+          17,
+          145,
+          160,
+          247,
+          119,
+          143
+        ]
+      },
+      "generation": 18446744073709551615,
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 101
+      },
+      "base": {
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 42
+          },
+          "revision": 3,
+          "digest": [
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23
+          ]
+        },
+        "manifest": null,
+        "checkpoint_lsn": 0,
+        "accepted": {
+          "partition": 8,
+          "next_lsn": 11
+        }
+      }
+    },
+    "phase": "complete",
+    "through": {
+      "partition": 8,
+      "next_lsn": 13
+    }
+  },
+  "coverage": {
+    "build": {
+      "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
+      "declaration": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 18446744073709551614
+        },
+        "revision": 1,
+        "digest": [
+          209,
+          128,
+          234,
+          236,
+          146,
+          134,
+          129,
+          156,
+          15,
+          98,
+          241,
+          131,
+          22,
+          200,
+          203,
+          35,
+          119,
+          190,
+          96,
+          225,
+          12,
+          147,
+          139,
+          231,
+          20,
+          121,
+          17,
+          145,
+          160,
+          247,
+          119,
+          143
+        ]
+      },
+      "generation": 18446744073709551615,
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 101
+      },
+      "base": {
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 42
+          },
+          "revision": 3,
+          "digest": [
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23
+          ]
+        },
+        "manifest": null,
+        "checkpoint_lsn": 0,
+        "accepted": {
+          "partition": 8,
+          "next_lsn": 11
+        }
+      }
+    },
+    "source": {
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 42
+        },
+        "revision": 3,
+        "digest": [
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23
+        ]
+      },
+      "manifest": null,
+      "checkpoint_lsn": 0,
+      "accepted": {
+        "partition": 8,
+        "next_lsn": 13
+      }
+    },
+    "root": {
+      "bytes": 8192,
+      "sha256": [
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15
+      ]
+    }
+  },
+  "publication": {
+    "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
+    "operation": {
+      "scope": {
+        "realm": 1,
+        "resource": 7,
+        "catalog": 18446744073709551615
+      },
+      "principal": 0,
+      "operation": 102
+    },
+    "coverage": {
+      "build": {
+        "definition": "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f",
+        "declaration": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 18446744073709551614
+          },
+          "revision": 1,
+          "digest": [
+            209,
+            128,
+            234,
+            236,
+            146,
+            134,
+            129,
+            156,
+            15,
+            98,
+            241,
+            131,
+            22,
+            200,
+            203,
+            35,
+            119,
+            190,
+            96,
+            225,
+            12,
+            147,
+            139,
+            231,
+            20,
+            121,
+            17,
+            145,
+            160,
+            247,
+            119,
+            143
+          ]
+        },
+        "generation": 18446744073709551615,
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 0,
+          "operation": 101
+        },
+        "base": {
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 42
+            },
+            "revision": 3,
+            "digest": [
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23
+            ]
+          },
+          "manifest": null,
+          "checkpoint_lsn": 0,
+          "accepted": {
+            "partition": 8,
+            "next_lsn": 11
+          }
+        }
+      },
+      "source": {
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 42
+          },
+          "revision": 3,
+          "digest": [
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23
+          ]
+        },
+        "manifest": null,
+        "checkpoint_lsn": 0,
+        "accepted": {
+          "partition": 8,
+          "next_lsn": 13
+        }
+      },
+      "root": {
+        "bytes": 8192,
+        "sha256": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ]
+      }
+    },
+    "expected": {
+      "bytes": 256,
+      "sha256": [
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21
+      ]
+    }
+  }
+}

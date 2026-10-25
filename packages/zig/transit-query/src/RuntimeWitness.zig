@@ -11,7 +11,7 @@ pub const Operation = enum(u8) { validate = 1, predicate = 2, count = 3, sum = 4
 pub const KeyKind = enum(u8) { none = 0, kv = 1, table = 2, element = 3 };
 pub const Decoding = enum(u8) { none = 0, invalid_utf8 = 1, invalid_length = 2, invalid_boolean = 3, nonfinite_float = 4 };
 resource: u64,
-revision: u64,
+revision: ?u64,
 binding: [32]u8,
 row: u64,
 kind: m.SourceKind,
@@ -39,7 +39,10 @@ pub fn capture(bound: q.fuze.LogicalQuery.Plan, page: *const q.UnifiedSource.Bat
     while (!std.unicode.utf8ValidateSlice(name[0..length])) length -= 1;
     var value: Self = .{
         .resource = page.basis.cut.resource,
-        .revision = page.basis.cut.revision,
+        .revision = switch (page.basis.cut.position) {
+            .native_revision => |revision| revision,
+            .table => null,
+        },
         .binding = try bound.fingerprint(),
         .row = failed.row,
         .kind = page.basis.cut.kind,
@@ -101,7 +104,8 @@ fn keyPrefixMut(self: *Self) []u8 {
     return self.detail[self.column_length..][0..@min(self.key_length, self.detail.len - self.column_length)];
 }
 pub fn validate(self: Self) !void {
-    if (self.resource == 0 or self.resource > p.max_counter or self.revision > p.max_counter or self.row == 0 or self.column >= q.SourceDefinition.max_columns or self.column_length == 0 or self.column_length > 23) return error.InvalidRuntimeWitness;
+    if (self.resource == 0 or self.resource > p.max_counter or (self.revision orelse 0) > p.max_counter or self.row == 0 or self.column >= q.SourceDefinition.max_columns or self.column_length == 0 or self.column_length > 23) return error.InvalidRuntimeWitness;
+    if ((self.kind == .table) != (self.revision == null)) return error.InvalidRuntimeWitness;
     if (!std.unicode.utf8ValidateSlice(self.columnName()) or std.mem.indexOfScalar(u8, self.columnName(), 0) != null) return error.InvalidRuntimeWitness;
     const maximum: u8 = if (self.kind == .table) 19 else 23;
     if (self.column_length > maximum or (self.column_truncated and self.column_length < maximum - 3)) return error.InvalidRuntimeWitness;
@@ -138,7 +142,7 @@ pub fn encode(self: Self) ![encoded_bytes]u8 {
     var bytes: [encoded_bytes]u8 = undefined;
     var out: std.Io.Writer = .fixed(&bytes);
     try out.writeInt(u56, @intCast(self.resource), .little);
-    try out.writeInt(u56, @intCast(self.revision), .little);
+    try out.writeInt(u56, @intCast(self.revision orelse 0), .little);
     try out.writeAll(&self.binding);
     try out.writeInt(u64, self.row, .little);
     try out.writeAll(&.{ @backingInt(self.kind), @backingInt(self.operation), self.column, self.instruction orelse 255, @backingInt(self.key_kind) | (@backingInt(self.decoding) << 2), @backingInt(self.expected), self.column_length | (if (self.column_truncated) @as(u8, 128) else 0) });
@@ -152,6 +156,10 @@ pub fn decode(bytes: []const u8) !Self {
     if (bytes.len != encoded_bytes) return error.InvalidRuntimeWitness;
     var in: std.Io.Reader = .fixed(bytes);
     var value: Self = .{ .resource = try in.takeInt(u56, .little), .revision = try in.takeInt(u56, .little), .binding = (try in.takeArray(32)).*, .row = try in.takeInt(u64, .little), .kind = std.enums.fromInt(m.SourceKind, try in.takeByte()) orelse return error.InvalidRuntimeWitness, .operation = std.enums.fromInt(Operation, try in.takeByte()) orelse return error.InvalidRuntimeWitness, .column = try in.takeByte(), .instruction = null, .key_kind = .none, .expected = undefined, .decoding = .none, .key_length = 0, .actual_bytes = 0, .column_length = 0, .column_truncated = false, .detail = undefined };
+    if (value.kind == .table) {
+        if (value.revision.? != 0) return error.InvalidRuntimeWitness;
+        value.revision = null;
+    }
     const instruction = try in.takeByte();
     value.instruction = if (instruction == 255) null else instruction;
     const flags = try in.takeByte();
@@ -177,7 +185,7 @@ pub fn enrich(self: Self, value: *d) !void {
     try value.text(.expected_type, .schema, @tagName(self.expected));
     try value.text(.source_kind, .execution, @tagName(self.kind));
     try value.fact(.object, .execution, .{ .unsigned = .init(self.resource) });
-    try value.fact(.expected_revision, .execution, .{ .unsigned = .init(self.revision) });
+    if (self.revision) |revision| try value.fact(.expected_revision, .execution, .{ .unsigned = .init(revision) }) else try value.absent(.expected_revision, .execution, .inapplicable);
     try value.fact(.source_basis, .execution, .{ .digest = self.binding });
     if (self.instruction) |instruction| try value.fact(.expression, .execution, .{ .unsigned = .init(instruction) });
     const key = self.keyPrefix();
@@ -199,7 +207,7 @@ test "compact runtime witness preserves extreme keys and marks bounded details" 
     const t = std.testing;
     const name = &@as([32]u8, @splat('a'));
     const schema: q.fuze.Types.Type = .{ .structure = &.{.{ .name = name, .type = .int64 }} };
-    const basis: q.Basis = .{ .cut = .{ .kind = .table, .resource = p.max_counter, .revision = p.max_counter, .head = @splat(1) }, .contract = @splat(7), .schema = try schema.fingerprint() };
+    const basis: q.Basis = .{ .cut = .{ .kind = .table, .resource = p.max_counter, .position = .{ .table = @splat(1) } }, .contract = @splat(7), .schema = try schema.fingerprint() };
     const bound: q.fuze.LogicalQuery.Plan = .{ .schema = schema, .source_basis = try basis.fingerprint(), .projection = &.{0}, .aggregate = .sum };
     var page: q.UnifiedSource.Batch = .{ .basis = basis, .count = 1, .column_count = 1 };
     page.keys[0] = .{ .table = .{ .origin = std.math.maxInt(u64), .operation = 17, .ordinal = std.math.maxInt(u32) } };
@@ -221,6 +229,7 @@ test "compact runtime witness preserves extreme keys and marks bounded details" 
     malformed[60] = 24;
     try t.expectError(error.InvalidRuntimeWitness, decode(&malformed));
     witness.kind = .kv;
+    witness.revision = 1;
     witness.column_length = 23;
     @memset(witness.detail[0..23], 'a');
     witness.key_kind = .kv;
@@ -237,7 +246,7 @@ test "runtime column prefixes retain complete UTF-8 at each source boundary" {
     const name = "あいうえおかきくけこ";
     const schema: q.fuze.Types.Type = .{ .structure = &.{.{ .name = name, .type = .int64 }} };
     for ([_]m.SourceKind{ .table, .kv, .document }) |kind| {
-        const basis: q.Basis = .{ .cut = .{ .kind = kind, .resource = 7, .revision = 1, .head = if (kind == .table) @splat(1) else @splat(0) }, .contract = @splat(7), .schema = try schema.fingerprint() };
+        const basis: q.Basis = .{ .cut = .{ .kind = kind, .resource = 7, .position = if (kind == .table) .{ .table = @splat(1) } else .{ .native_revision = 1 } }, .contract = @splat(7), .schema = try schema.fingerprint() };
         const bound: q.fuze.LogicalQuery.Plan = .{ .schema = schema, .source_basis = try basis.fingerprint(), .projection = &.{0} };
         var page: q.UnifiedSource.Batch = .{ .basis = basis, .count = 1, .column_count = 1 };
         page.keys[0] = switch (kind) {

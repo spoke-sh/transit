@@ -8,7 +8,7 @@ const r = q.RelationalExchangeRecords;
 const x = q.RelationalExchange;
 const codec = f.RelationalExchange;
 pub const scan_rows = 8;
-pub const Options = struct { partitions: u64, workers: u64, worker: u64, batch: u8, epoch: u64, quota: u64 };
+pub const Options = struct { receiver: r.Receiver, partitions: u64, workers: u64, worker: u64, batch: u8, epoch: u64, quota: u64 };
 pub const Cursor = struct {
     id: u64,
     binding: [32]u8,
@@ -81,7 +81,7 @@ pub fn create(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u6
     const count = std.math.mul(u64, options.partitions, bound.plan.sources.len) catch return error.InvalidRelationalExchange;
     const value: Cursor = .{ .id = id, .binding = try bound.fingerprint(), .partitions = options.partitions, .workers = options.workers, .worker = options.worker, .channel = @min(options.worker, count), .epoch = options.epoch, .batch = options.batch };
     const encoded = try value.encode(bound);
-    _ = try x.createProducer(turn, bound, sources, id, options.quota);
+    _ = try x.createProducer(turn, bound, sources, id, options.receiver, options.quota);
     const budget_key = try r.key('b', id, 0, 0, 0);
     var budget = try r.Producer.decode((try turn.read(budget_key)).?);
     const charge = @as(u64, encoded.len) + (try value.address()).len;
@@ -123,7 +123,7 @@ pub fn step(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64)
         return .progress;
     }
     const publication: s.Publication = .{ .resource = turn.view.resource, .domain = .query_exchange, .namespace = id };
-    const outcome = try x.offer(turn, bound, sources, segment, publication, stored.record, bound.plan.sources[0].owner);
+    const outcome = try x.offer(turn, bound, sources, segment, publication, stored.record);
     if (outcome != .accepted and outcome != .duplicate) return outcome;
     stored.record = std.math.add(u64, stored.record, 1) catch return error.RelationalSpillBudget;
     if (segment.terminal) {
@@ -135,7 +135,7 @@ pub fn step(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64)
     return .accepted;
 }
 /// Exact retry from the eligibility ledger, without rereading retired producer
-/// chunks. The immutable bound fixes the destination; placement cannot redirect
+/// chunks. The saved producer fixes the destination; placement cannot redirect
 /// previously accepted output to another logical PID.
 pub fn retry(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64, notice: r.Pending) !void {
     try sources.validate(bound);
@@ -143,13 +143,13 @@ pub fn retry(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64
     if (notice.remote.resource != turn.view.resource or notice.remote.namespace != id) return error.InvalidRelationalExchange;
     const recorded = (try turn.read(try r.key('p', id, notice.source, notice.partition, notice.sequence))) orelse return error.RelationalExchangePending;
     if (!recorded.eql(try notice.encode())) return error.RelationalExchangeConflict;
-    try turn.cast(bound.plan.sources[0].owner, try notice.encode());
+    try turn.cast((try x.producerState(turn, bound, id)).receiver.owner, try notice.encode());
 }
 /// Own-resource acknowledgement handling remains possible after source denial.
 /// It grants no disclosure right, returns no credit and erases no source bytes.
 pub fn acknowledge(turn: *s.Turn, bound: f.Relational.Bound, id: u64, notice: r.Pending) !void {
     _ = try cursor(turn, bound, id);
-    if (try s.Frame.source(turn.delivery.input) != bound.plan.sources[0].owner) return error.UnexpectedQueryPublisher;
+    if (try s.Frame.source(turn.delivery.input) != (try x.producerState(turn, bound, id)).receiver.owner) return error.UnexpectedQueryPublisher;
     const frame = try s.Frame.decode(turn.delivery.input.value);
     if (frame.kind != .cast or !frame.payload.eql(try notice.encode())) return error.InvalidRelationalExchange;
     const original = (try turn.read(try r.key('p', id, notice.source, notice.partition, notice.sequence))) orelse return error.RelationalExchangePending;

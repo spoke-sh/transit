@@ -104,11 +104,11 @@ fn acquirePublished(self: *Self, allocator: std.mem.Allocator, wire: *client.Cli
     return app.Host.published(allocator, .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.inspection.principal, .key = self.inspection_key }, self.config.application.scope);
 }
 fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, current: bool, diagnostic: *?app.protocol.Diagnostic) !q.Workspace.Config {
-    const owner: W = .{ .allocator = allocator, .configuration = self.config.data };
     const resources: client.ResourceReader = .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.query.connection.principal, .key = self.query_key };
+    var data: W.Data.Http = .{ .allocator = allocator, .resources = resources, .role = self.config.query.connection.role };
+    const owner: W = .{ .allocator = allocator, .configuration = self.config.data, .transport = data.transport() };
     var source = try resources.open(self.config.data.resource);
-    var tables: q.catalog.TableClient = .{ .transport = wire, .connection = .{ .scope = .{ .realm = self.config.data.realm, .resource = self.config.data.resource, .catalog = 1 }, .owner = self.config.data.owner, .principal = self.config.query.connection.principal, .role = self.config.query.connection.role }, .key = self.query_key };
-    var reader = (try tables.authorizationContext()).wrap(&source);
+    var reader = (try data.authorization(try owner.data(&source))).wrap(&source);
     const selected_table = if (current) try owner.selected(&reader) else 1;
     var table_source = try owner.source(&reader, self.config.query.connection.principal, selected_table);
     defer table_source.deinit();
@@ -127,7 +127,8 @@ fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, cu
         const contract = try definition.fingerprint();
         if (selected.resource != definition.resource or selected.source_kind != .table or selected.profile != .unified_v1 or !std.mem.eql(u8, selected.name, "items") or !std.mem.eql(u8, &selected.schema, &contract) or !std.mem.eql(u8, &head.contract, &try owner.contract(selected_table))) return error.QueryIdentityMismatch;
     }
-    return .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = self.config.query.limits };
+    const process = try resources.query(.{ .process = self.config.data.owner });
+    return .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = self.config.query.limits, .executor = process.body.process.process.owner };
 }
 fn dispatch(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, diagnostic: *?app.protocol.Diagnostic) !void {
     try http.validateHead(request);
@@ -187,7 +188,7 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
     if (signing and !self.lock.tryLock()) return error.RateLimited;
     defer if (signing) self.lock.unlock(io);
     const current = switch (input.value) {
-        .describe, .compile, .suggest, .assist, .next, .next_draft, .draft_open, .page => true,
+        .describe, .compile, .suggest, .assist, .inspect, .capture, .refresh, .next, .next_draft, .draft_open, .page => true,
         else => false,
     };
     const config = self.workspace(alloc, wire, current, diagnostic) catch |err| {
@@ -195,6 +196,7 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
         return err;
     };
     var caller: q.UnifiedClient = .{ .wire = wire, .connection = self.config.query.connection, .key = self.query_key };
+    caller.tables = try q.Workspace.directTables(alloc, &caller, config);
     const result = try q.Workspace.applyStructured(alloc, &caller, config, input.value, diagnostic);
     return json(alloc, request, .ok, result);
 }

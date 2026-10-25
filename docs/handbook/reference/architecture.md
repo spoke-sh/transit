@@ -46,7 +46,9 @@ flowchart TD
   App --> Station[Station behaviors and state helpers]
   Station --> Client
   Client --> Node[Transit authority]
-  Node --> Storage[Ursula storage adapter]
+  Node --> Storage[Local or Ursula native storage]
+  Node --> Tables[Direct Table catalog and acceptance partitions]
+  Tables --> Objects[Local WAL and immutable objects]
   Query[Fuze query execution] --> Sources[Authorized source adapters]
   Sources --> Client
   SQLClients[Console and PostgreSQL/MySQL clients] --> SQL[Shared SQL sessions]
@@ -62,7 +64,8 @@ flowchart TD
 | --- | --- | --- |
 | Protocol and core | Identity, ordering, current grants, fencing, lifecycle and atomic commit decisions | No application handlers, provider types or query execution |
 | Client | Canonical requests, signatures, bounded reads, private proposals and exact retry | Application code still validates its domain rules |
-| Station | Behaviors, durable calls, names, supervision, typed Tables and Documents | Builds above the client; no alternate execution authority |
+| Direct Table owner | Names, immutable definitions, row acceptance and retained data cuts | Reuses current native authorization; direct rows do not pass through actor turns |
+| Station | Behaviors, durable calls, names, supervision and Document services | Builds above the client; no alternate execution authority |
 | Fuze | Typed finite plans, source adapters, bounded execution and Arrow output | No raw storage credentials or kernel authority; no DataFusion/Acero runtime |
 | Shared SQL service | Independent logical sessions, account coordination and durable operation recovery for console and database clients | Temporary connection/session state is separate from accepted operation history |
 | Connectors | Authorized external attempts and durable capture | Replay reads outcomes; it does not redispatch |
@@ -86,16 +89,19 @@ Durable accepted data does not require every reader to be a recoverable job.
 The shared SQL service gives each console SELECT a fresh result and source
 snapshot. Closing the logical session releases active reads; a lease handles
 abnormal disconnection. Explicit captured jobs survive session loss. Fuze runs
-in the SQL service over generic leased native snapshots; low-level Query SDK
-callers can also execute Fuze in their own process.
+in the SQL service over retained direct Table cuts and supported native resource
+snapshots; low-level Query SDK callers can also execute Fuze in their own process.
 [Query execution](queries.md#interactive-sessions) defines that
 distinction and the cancellation/cleanup contract.
 
-Authorized snapshots, generic immutable block publication and independently
-owned native request engines provide the current shared storage boundary. Table
-records use those blocks, and bounded result batches check current access before
-disclosure. Physical collection follows explicit roots, storage epochs and
-read-lifetime fences; quota pressure does not authorize expiry. See
+The local direct Table owner has a separate acceptance partition per Table.
+Point data can remain in retained WAL records; bulk writes publish immutable
+`.tseg` objects before acceptance. Queries retain the original interpretation
+and data frontier, including accepted unflushed rows. Native resources use their
+own immutable page/block roots. Bounded result reads check current access before
+disclosure. Native physical collection follows explicit roots, storage epochs
+and read-lifetime fences. Direct Table physical collection and automatic point
+flushing are not exposed; quota pressure does not authorize expiry. See
 [storage](storage.md).
 
 To eliminate the write amplification of nesting row records inside copy-on-write
@@ -115,8 +121,8 @@ records measured improvements, regressions and remaining limits.
 A successful [turn](processes.md) commits state, input progress and outputs
 together. Materialized indexes and caches are derived from accepted history.
 Validated checkpoints may become essential recovery evidence after a prefix is
-trimmed; they are not disposable caches. [Ursula](storage.md) supplies conditional
-durability through the backend; it does not choose Transit identities or grants.
+trimmed; they are not disposable caches. The configured [storage backend](storage.md)
+supplies conditional durability; it does not choose Transit identities or grants.
 
 Execution ownership and permissions are separate. Current authorization applies
 to writes, reads and replay. A process association names accessible state but

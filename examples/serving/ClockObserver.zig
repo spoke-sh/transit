@@ -20,7 +20,7 @@ pub fn run(io: std.Io, wire: *client.Client, realm: u64, principal: u64, key: p.
     while (true) {
         step(wire, realm, principal, key, configuration, &state, io) catch |err| {
             if (err == error.AccessDenied or err == error.InvalidClockInterval or err == error.RetiredProcess) return err;
-            if ((err == error.Rejected or err == error.Conflict) and wire.last_rejection != .StaleStateResource and wire.last_rejection != .QueryExpired and wire.last_rejection != .AuthorityUnavailable) return err;
+            if ((err == error.Rejected or err == error.Conflict) and !wire.contended(err) and wire.last_rejection != .StaleStateResource and wire.last_rejection != .QueryExpired and wire.last_rejection != .AuthorityUnavailable) return err;
             // Retain exactly one frozen command through unavailable/unknown I/O.
         };
         // Receipt polling cannot double the sampling interval when an owner is

@@ -3,15 +3,10 @@ const t = std.testing;
 const q = @import("root.zig");
 const m = q.fuze.Unified;
 const Definition = q.SourceDefinition;
-const tables = @import("catalog_store_test.zig");
 fn pageSource(definition: Definition, basis: q.Basis, cursor: q.UnifiedSource.Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, batch: *q.UnifiedSource.Batch) !void {
-    var plan = try tables.plan(allocator, definition, &.{0});
-    plan.source_basis = try basis.fingerprint();
+    var fields: [Definition.max_columns]q.fuze.Types.Field = undefined;
+    const plan: q.fuze.LogicalQuery.Plan = .{ .schema = try (try definition.schema(&fields)).cloneInto(allocator), .source_basis = try basis.fingerprint(), .projection = &.{0} };
     return q.UnifiedSource.page(definition, plan, basis, cursor, data, current, if (definition.source == .table) 17 else null, allocator, batch);
-}
-fn matches(plan: q.fuze.LogicalQuery.Plan, cells: []const q.fuze.Types.Values.Cell) !bool {
-    var failed: ?q.fuze.LogicalQuery.Plan.PredicateFailure = null;
-    return plan.matches(cells, &failed);
 }
 test "declared KV decoders retain full values and distinguish malformed bytes" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
@@ -40,12 +35,10 @@ test "UQS1 binds decoder versions exact Document references and projection budge
     const expected = "UQS1" ++ q.catalog.TableMetadata.definition() ++ "\x07\x00\x00\x00\x00\x00\x00\x00\x01\x05data/\x01\x06\x01\x02";
     try t.expectEqualSlices(u8, expected, try kv.encode(&output));
     try t.expectEqualSlices(u8, &try kv.fingerprint(), &try (try Definition.decode(allocator, expected)).fingerprint());
-    var table_store: tables.Store = .{};
-    defer table_store.deinit();
-    try tables.create(&table_store, "CREATE TABLE items(id INT64 PRIMARY KEY, label UTF8)");
-    var owned = try tables.source(&table_store);
-    defer owned.deinit();
-    const table: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
+    var fixture = try @import("direct_query_fixture_test.zig").init(t.allocator, .captured, false);
+    defer fixture.deinit();
+    const prepared = fixture.bundle.sources[0];
+    const table: Definition = .{ .resource = prepared.scope.resource, .source = .{ .table = prepared } };
     const projections = [_]Definition.Projection{
         .{ .column = .{ .name = try m.Name.init("title"), .type = .utf8 }, .path = &.{try q.document.Model.Name.init("title")} },
         .{ .column = .{ .name = try m.Name.init("body"), .type = .utf8 }, .path = &.{try q.document.Model.Name.init("body")}, .mode = .text },
@@ -71,7 +64,7 @@ test "UQS1 binds decoder versions exact Document references and projection budge
     try t.expectError(error.UnsupportedDecoder, changed.encode(&output));
 }
 
-test "KV and Table adapters page exact cuts and reject source or decoder substitution" {
+test "KV adapters page exact cuts and reject source or decoder substitution" {
     const Memory = @import("source_store_test.zig");
     const source = q.UnifiedSource;
     var store: Memory = .{};
@@ -116,34 +109,6 @@ test "KV and Table adapters page exact cuts and reject source or decoder substit
     store.denied = true;
     try t.expectError(error.AccessDenied, pageSource(definition, cut, .{}, &data, &data, arena.allocator(), &batch));
     store.denied = false;
-    try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, label UTF8)");
-    var owned = try tables.source(&store);
-    defer owned.deinit();
-    for (0..19) |index| {
-        const row: [2]q.fuze.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = @as(i128, @intCast(index)) - 9 } } }, if (index == 0) .null else .{ .value = .{ .atom = .{ .bytes = "café🙂" } } } };
-        try tables.mutate(&store, index + 2, .{ .insert = &.{&row} });
-    }
-    var old = try store.clone();
-    defer old.deinit();
-    const table_definition: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
-    var snapshot = try tables.turn(&old);
-    const table_cut = try source.capture(table_definition, &snapshot, &snapshot, 17, arena.allocator());
-    try tables.mutate(&store, 30, .{ .update = &.{.{ .column = 2, .value = .{ .cell = .{ .value = .{ .atom = .{ .bytes = "new" } } } } }} });
-    var current = try tables.turn(&store);
-    cursor = .{};
-    count = 0;
-    while (!cursor.done) {
-        try pageSource(table_definition, table_cut, cursor, &snapshot, &current, arena.allocator(), &batch);
-        for (batch.engine().rows) |row| {
-            try t.expectEqual(@as(i64, @intCast(count)) - 9, row.cells[0].value.atom.signed);
-            if (count == 0) try t.expect(row.cells[1] == .null) else try t.expectEqualStrings("café🙂", row.cells[1].value.atom.bytes);
-            count += 1;
-        }
-        cursor = batch.next;
-        batch.deinit();
-    }
-    try t.expectEqual(@as(usize, 19), count);
-    try t.expectError(error.SourceChanged, pageSource(table_definition, table_cut, .{}, &current, &current, arena.allocator(), &batch));
 }
 
 pub fn changeDocument(store: *@import("source_store_test.zig"), service: q.document.Service, job: u64, replica: u64, first: u64, operations: []const q.document.Operation) !void {
@@ -320,83 +285,5 @@ test "independent UQS1 fixtures preserve all three source declarations" {
     }
 }
 
-test "Table primary-key access matches full predicate evaluation at signed boundaries" {
-    const Memory = @import("source_store_test.zig");
-    const source = q.UnifiedSource;
-    var store: Memory = .{};
-    defer store.deinit();
-    try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, value INT64)");
-    var owned = try tables.source(&store);
-    defer owned.deinit();
-    var keys: [43]i64 = undefined;
-    keys[0] = std.math.minInt(i64);
-    for (keys[1..42], 0..) |*key, i| key.* = @as(i64, @intCast(i)) - 20;
-    keys[42] = std.math.maxInt(i64);
-    for (keys, 0..) |key, i| {
-        const row: [2]q.fuze.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = key } } }, if (key == 0) .null else .{ .value = .{ .atom = .{ .signed = key } } } };
-        try tables.mutate(&store, i + 2, .{ .insert = &.{&row} });
-    }
-    const definition: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
-    var snapshot = try tables.turn(&store);
-    const cut = try source.capture(definition, &snapshot, &snapshot, 17, t.allocator);
-    for (0..2) |column| for (std.enums.values(m.Plan.Comparison)) |op| for ([_]i64{ std.math.minInt(i64), -21, -1, 0, 19, 21, std.math.maxInt(i64) }) |bound| {
-        const plan: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = @intCast(column), .op = op, .value = .{ .signed = bound } } } };
-        var expected: [keys.len]i64 = undefined;
-        var expected_count: usize = 0;
-        for (keys) |key| {
-            const cells: [2]q.fuze.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = key } } }, if (key == 0) .null else .{ .value = .{ .atom = .{ .signed = key } } } };
-            if (try matches(plan, &cells)) {
-                expected[expected_count] = key;
-                expected_count += 1;
-            }
-        }
-        var cursor: source.Cursor = .{};
-        var count: usize = 0;
-        var pages: usize = 0;
-        while (!cursor.done) {
-            var arena: std.heap.ArenaAllocator = .init(t.allocator);
-            defer arena.deinit();
-            var batch: source.Batch = .{};
-            try source.page(definition, plan, cut, cursor, &snapshot, &snapshot, 17, arena.allocator(), &batch);
-            for (batch.engine().rows) |row| if (try matches(plan, row.cells)) {
-                try t.expect(count < expected_count);
-                try t.expectEqual(expected[count], row.cells[0].value.atom.signed);
-                count += 1;
-            };
-            pages += 1;
-            cursor = batch.next;
-            batch.deinit();
-        }
-        try t.expectEqual(expected_count, count);
-        if (column == 0 and op == .eq) try t.expectEqual(@as(usize, 1), pages);
-        // Tuple digest lookup only qualifies complete primary-key equality.
-        if (op != .eq or column != 0) try t.expect(pages > 1);
-    };
-    var batch: source.Batch = .{};
-    const point: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = 1 } } } };
-    // A comparison inside a program is not a safe range by itself. This OR
-    // must retain every primary key, including those outside its first atom.
-    const compound: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .program = .{ .instructions = &.{
-        .{ .atom = .{ .compare = point.predicate.compare } },
-        .{ .atom = .all },
-        .disjunction,
-    } } } };
-    var cursor: source.Cursor = .{};
-    var selected: usize = 0;
-    while (!cursor.done) {
-        var arena: std.heap.ArenaAllocator = .init(t.allocator);
-        defer arena.deinit();
-        try source.page(definition, compound, cut, cursor, &snapshot, &snapshot, 17, arena.allocator(), &batch);
-        for (batch.engine().rows) |row| {
-            try t.expect(try matches(compound, row.cells));
-            try t.expectEqual(keys[selected], row.cells[0].value.atom.signed);
-            selected += 1;
-        }
-        cursor = batch.next;
-        batch.deinit();
-    }
-    try t.expectEqual(keys.len, selected);
-    store.denied = true;
-    try t.expectError(error.AccessDenied, source.page(definition, point, cut, .{}, &snapshot, &snapshot, 17, t.allocator, &batch));
-    try t.expectError(error.AccessDenied, source.page(definition, compound, cut, .{}, &snapshot, &snapshot, 17, t.allocator, &batch));
-}
+// Direct Table page, exact-interpretation and predicate checks run against the
+// public service in tests/direct_table_predicates.zig and direct_captured_query.zig.

@@ -73,19 +73,51 @@ public static class UnifiedQuery
         }
         internal override JsonObject Definition() => V.Obj(("kv",V.Obj(("prefix",Hex(Prefix)),("key",Key.Wire()),("value",Value.Wire()))));
     }
+    private static Bytes Commitment(Bytes value) { ArgumentNullException.ThrowIfNull(value); if(value.Length!=32)throw new ArgumentException("Expected 32-byte commitment"); return value; }
+    private static JsonArray DigestArray(Bytes value) { JsonArray result=new(); foreach(byte b in Commitment(value).Copy())result.Add((uint)b); return result; }
+    public sealed record TableInterpretation {
+        public ulong Revision { get; } public Bytes Digest { get; } public ulong ByteCount { get; } public Bytes SchemaDigest { get; }
+        public TableInterpretation(ulong revision,Bytes digest,ulong byteCount,Bytes schemaDigest) { Revision=Positive(revision); Digest=Commitment(digest); ByteCount=Positive(byteCount); SchemaDigest=Commitment(schemaDigest); }
+        internal JsonObject Wire() => V.Obj(("revision",Turn.Decimal(Revision)),("digest",DigestArray(Digest)),("bytes",Turn.Decimal(ByteCount)),("schema",DigestArray(SchemaDigest)));
+    }
     public sealed record TableSource : Source {
-        public ProcessRef Owner { get; } public Catalog.Metadata Metadata { get; } public Catalog.Schema Schema { get; }
-        public override ResourceRef Resource => Metadata.Scope.Resource;
-        public TableSource(ProcessRef owner,Catalog.Metadata metadata,Catalog.Schema schema) {
-            ArgumentNullException.ThrowIfNull(owner); ArgumentNullException.ThrowIfNull(metadata); ArgumentNullException.ThrowIfNull(schema);
-            if(owner.Realm!=metadata.Scope.Resource.Realm || metadata.ObjectId!=schema.ObjectId) throw new ArgumentException("Table query requires one catalog identity and realm");
-            Owner=owner; Metadata=metadata; Schema=schema;
+        public Catalog.Scope Scope { get; } public ulong Audience { get; } public ulong Branch { get; } public ulong Namespace { get; } public TableInterpretation Interpretation { get; } public Catalog.Schema Schema { get; }
+        public override ResourceRef Resource => Scope.Resource;
+        public TableSource(Catalog.Scope scope,ulong audience,ulong branch,ulong schemaNamespace,TableInterpretation interpretation,Catalog.Schema schema) {
+            ArgumentNullException.ThrowIfNull(scope); ArgumentNullException.ThrowIfNull(interpretation); ArgumentNullException.ThrowIfNull(schema);
+            Scope=scope; Audience=V.Counter(audience); Branch=Positive(branch); Namespace=V.Counter(schemaNamespace); Interpretation=interpretation; Schema=schema;
         }
         internal override JsonObject Definition() {
             var rowType=new Logical.Structure(Schema.Columns.Select(c=>new Logical.Field(c.Name,c.Type,c.Nullable,false)).ToArray());
-            return V.Obj(("table",V.Obj(("scope",Metadata.Scope.Wire()),("owner",Owner.Pid),("object",Turn.Decimal(Metadata.ObjectId)),
-                ("metadata",V.Obj(("id",Turn.Decimal(Metadata.Revision)),("spec",Metadata.Commitment.Wire()))),("row_type",Logical.TypeWire(rowType)))));
+            return V.Obj(("table",V.Obj(("scope",Scope.Wire()),("owner",Audience),("branch",Turn.Decimal(Branch)),("namespace",Namespace),("object",Turn.Decimal(Schema.ObjectId)),
+                ("interpretation",Interpretation.Wire()),("row_type",Logical.TypeWire(rowType)))));
         }
+    }
+    public sealed record Tables {
+        public string Url { get; } public Catalog.Scope Scope { get; } public ulong Branch { get; } public ulong Audience { get; }
+        public Tables(string url,Catalog.Scope scope,ulong branch,ulong audience) { Url=V.Text(url,2048); ArgumentNullException.ThrowIfNull(scope); Scope=scope; Branch=Positive(branch); Audience=V.Counter(audience); }
+        internal JsonObject Wire(Credential identity,Connection connection) {
+            if(Scope.Resource.Realm!=identity.Realm)throw new ArgumentException("Different direct Table realm");
+            return V.Obj(("url",Url),("connection",V.Obj(("scope",Scope.Wire()),("branch",Turn.Decimal(Branch)),("audience",Audience),("principal",identity.Principal),("role",connection.Role))));
+        }
+    }
+    public sealed record Capture {
+        public ulong Executor { get; } public ulong Operation { get; } public ulong Partition { get; } public ulong NextLsn { get; }
+        public Capture(ulong executor,ulong operation,ulong partition,ulong nextLsn) { Executor=V.Counter(executor); Operation=Positive(operation); Partition=Positive(partition); NextLsn=nextLsn; }
+        internal JsonObject Wire() => V.Obj(("executor",Executor),("operation",Turn.Decimal(Operation)),("expected",V.Obj(("partition",Turn.Decimal(Partition)),("next_lsn",Turn.Decimal(NextLsn)))));
+    }
+    public sealed record TableDefinition {
+        public TableSource Source { get; } public ulong Partition { get; } public ulong NextLsn { get; }
+        public TableDefinition(TableSource source,ulong partition,ulong nextLsn) { ArgumentNullException.ThrowIfNull(source); Source=source; Partition=Positive(partition); NextLsn=nextLsn; }
+        public Capture Capture(ulong executor,ulong operation) => new(executor,operation,Partition,NextLsn);
+    }
+    private static TableDefinition? ParseTable(JsonNode? value) {
+        if(value is null)return null;
+        var v=V.Object(value); var envelope=V.Object(v["source"]); var direct=V.Object(V.Object(envelope["source"])["table"]); var interpretation=V.Object(direct["interpretation"]); var expected=V.Object(v["expected"]);
+        TableSource source=new(Catalog.ParseScope(direct["scope"]),V.Number(direct["owner"],1),NativeValues.Wide(direct["branch"]),V.Number(direct["namespace"],1),
+            new(NativeValues.Wide(interpretation["revision"]),NativeValues.Digest(interpretation["digest"]),NativeValues.Wide(interpretation["bytes"]),NativeValues.Digest(interpretation["schema"])),Catalog.ParseSchema(v["schema"]));
+        if(!JsonNode.DeepEquals(source.Wire(),envelope))throw V.Incompatible("direct-table-definition");
+        return new(source,NativeValues.Wide(expected["partition"]),NativeValues.Wide(expected["next_lsn"]));
     }
     public sealed record DocumentSource : Source {
         public Document.Reference Reference { get; } public override ResourceRef Resource => Reference.Resource; public IReadOnlyList<Projection> Projections { get; } public IReadOnlyList<string>? Expand { get; }
@@ -126,9 +158,9 @@ public static class UnifiedQuery
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {
         public Bytes Bytes { get; }
-        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>25255) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
+        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>25614) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
         public static async Task<Bundle> PrepareAsync(Source source,Plan plan,Budgets budgets,string? nativeDirectory=null) {
-            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],25255));
+            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],25614));
         }
     }
     public sealed record Prepared {
@@ -241,8 +273,14 @@ public static class UnifiedQuery
     public enum Control { Cancel,Retire,Collect }
     public enum SourceKind { Kv,Table,Document }
     public enum Finished { SourceEnd,Limit }
-    public sealed record Manifest(ulong Job,ReadVersion Source,ProcessRef Requester,ulong Correlation,ulong PolicyRevision,Bytes Request,
-        SourceKind Kind,ResourceRef Resource,ulong Revision,Bytes SourceHead,Bytes SourceDigest,Bytes SchemaDigest,Bytes PlanDigest,
+    public abstract record Retention { private protected Retention() {} }
+    public sealed record NativeRetention(ReadVersion Version) : Retention;
+    public sealed record TableRetention(ProcessRef Worker) : Retention;
+    public abstract record Cut { private protected Cut() {} }
+    public sealed record NativeCut : Cut { public ulong Revision { get; } public NativeCut(ulong revision) { Revision=V.Counter(revision,0); } }
+    public sealed record TableCut : Cut { public Bytes Commitment { get; } public TableCut(Bytes commitment) { Commitment=UnifiedQuery.Commitment(commitment); } }
+    public sealed record Manifest(ulong Job,Retention Source,ProcessRef Requester,ulong Correlation,ulong PolicyRevision,Bytes Request,
+        SourceKind Kind,ResourceRef Resource,Cut Cut,Bytes SourceDigest,Bytes SchemaDigest,Bytes PlanDigest,
         ulong Pages,ulong Scanned,ulong Selected,ulong ValueCount,ulong Segments,ulong Rows,ulong ByteCount,long? Sum,Finished Finished,Bytes Chain);
     public sealed record Page {
         public Manifest Manifest { get; } public IReadOnlyList<Column> Columns { get; } public ulong Ordinal { get; } public byte Rows { get; } public Bytes Ipc { get; } public Cursor? Next { get; }
@@ -251,41 +289,58 @@ public static class UnifiedQuery
     }
     private static Manifest ParseManifest(JsonNode? value,ulong realm) {
         var v=V.Object(value); var b=V.Object(v["basis"]); var cut=V.Object(b["cut"]);
-        return new(V.Number(v["job"],1),NativeValues.ReadVersion(v["source"]),new(realm,V.Number(v["requester"],1)),NativeValues.Wide(v["correlation"]),NativeValues.Wide(v["policy_revision"]),Fixed(v["request"],72),
-            Variant<SourceKind>(cut["kind"]),new(realm,V.Number(cut["resource"],1)),V.Number(cut["revision"]),NativeValues.Digest(cut["head"]),NativeValues.Digest(b["contract"]),NativeValues.Digest(b["schema"]),NativeValues.Digest(v["plan"]),
+        var retained=V.Object(v["source"]); var position=V.Object(cut["position"]); var kind=Variant<SourceKind>(cut["kind"]);
+        Retention retention; Cut captured;
+        if(kind==SourceKind.Table) {
+            if(retained.Count!=1 || !retained.ContainsKey("table") || position.Count!=1 || !position.ContainsKey("table"))throw V.Incompatible("direct-table-cut");
+            retention=new TableRetention(new(realm,V.Number(V.Object(retained["table"])["worker"],1))); captured=new TableCut(NativeValues.Digest(position["table"]));
+        } else {
+            if(retained.Count!=1 || !retained.ContainsKey("native") || position.Count!=1 || !position.ContainsKey("native_revision"))throw V.Incompatible("native-source-cut");
+            retention=new NativeRetention(NativeValues.ReadVersion(retained["native"])); captured=new NativeCut(V.Number(position["native_revision"]));
+        }
+        return new(V.Number(v["job"],1),retention,new(realm,V.Number(v["requester"],1)),NativeValues.Wide(v["correlation"]),NativeValues.Wide(v["policy_revision"]),Fixed(v["request"],72),
+            kind,new(realm,V.Number(cut["resource"],1)),captured,NativeValues.Digest(b["contract"]),NativeValues.Digest(b["schema"]),NativeValues.Digest(v["plan"]),
             NativeValues.Wide(v["pages"]),NativeValues.Wide(v["scanned"]),NativeValues.Wide(v["selected"]),NativeValues.Wide(v["value_count"]),NativeValues.Wide(v["segments"]),NativeValues.Wide(v["rows"]),NativeValues.Wide(v["bytes"]),v["sum"] is null?null:NativeValues.Signed(v["sum"]),Variant<Finished>(v["finished"]),NativeValues.Digest(v["chain"]));
     }
     /// <summary>One admitted native operation; dispose joins after local cancellation.</summary>
     public sealed class Client : IAsyncDisposable {
         private readonly Worker<StationBridge,object?> worker; private readonly Connection connection;
         private Client(Worker<StationBridge,object?> worker,Connection connection) { this.worker=worker; this.connection=connection; }
-        public static async Task<Client> OpenAsync(ClientConfig config,Credential identity,Connection connection) {
-            connection.Wire(identity); return new(await Worker<StationBridge,object?>.OpenAsync(() => StationBridge.OpenQuery(config,identity,connection),StationApi.MinimumStackBytes).ConfigureAwait(false),connection);
+        public static async Task<Client> OpenAsync(ClientConfig config,Credential identity,Connection connection,Tables? tables=null) {
+            connection.Wire(identity); return new(await Worker<StationBridge,object?>.OpenAsync(() => StationBridge.OpenQuery(config,identity,connection,tables),StationApi.MinimumStackBytes).ConfigureAwait(false),connection);
+        }
+        public Task<TableDefinition?> LookupTableAsync(ulong schemaNamespace,string name,CancellationToken cancellation=default) {
+            var action=V.Obj(("table",V.Obj(("namespace",V.Counter(schemaNamespace)),("name",ColumnName(name)))));
+            return worker.Invoke(b=>ParseTable(b.UnifiedQuery(action)["table"]),cancellation);
         }
         public Task<Description> DescribeAsync(Source source,CancellationToken cancellation=default) {
-            if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource"); var action=V.Obj(("describe",source.Wire()));
+            if(source.Resource.Realm!=connection.Resource.Realm || (source is not TableSource && source.Resource!=connection.Resource)) throw new ArgumentException("Different query resource"); var action=V.Obj(("describe",source.Wire()));
             return worker.Invoke(b => { var v=V.Object(b.UnifiedQuery(action)["description"]); var l=V.Object(v["limits"]); var c=V.Object(v["capabilities"]); return new Description(V.Number(v["resource_revision"]),NativeValues.Wide(v["policy_revision"]),new(NativeValues.Wide(l["pages"]),NativeValues.Wide(l["segments"]),NativeValues.Wide(l["result_bytes"])),v["active"] is null?null:NativeValues.Wide(v["active"]),checked((int)V.Number(c["bundle_bytes"],1)),checked((int)V.Number(c["segment_bytes"],1)),checked((int)V.Number(c["batch_rows"],1))); },cancellation);
         }
         public Task<Inspection> InspectSqlAsync(Source source,string name,string sql,Budgets budgets,CancellationToken cancellation=default) {
-            if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource");
+            if(source.Resource.Realm!=connection.Resource.Realm || (source is not TableSource && source.Resource!=connection.Resource)) throw new ArgumentException("Different query resource");
             var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)))));
-            return worker.Invoke(b=>ParseInspection(b.UnifiedQuery(action)["inspection"],connection.Resource),cancellation);
+            return worker.Invoke(b=>ParseInspection(b.UnifiedQuery(action)["inspection"],source.Resource),cancellation);
         }
         /// <summary>New owned finite bundle; no upload or admission. Await cancellation retains native ownership.</summary>
         public Task<Bundle> CompileSqlAsync(Source source,string name,string sql,Budgets budgets,IReadOnlyList<Logical.Atom>? parameters=null,CancellationToken cancellation=default) {
-            if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource");
+            if(source.Resource.Realm!=connection.Resource.Realm || (source is not TableSource && source.Resource!=connection.Resource)) throw new ArgumentException("Different query resource");
             JsonArray? values=null;
             if(parameters is not null) {
                 if(parameters.Count>65) throw new ArgumentException("Expected at most 65 parameter atoms");
                 values=new();foreach(var scalar in parameters)values.Add(Wire(scalar));
             }
             var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
-            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],25255)),cancellation);
+            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],25614)),cancellation);
         }
         /// <summary>Seal new work before persistence; recover saved bundles unchanged.</summary>
-        public Task<Bundle> AuthorizeBundleAsync(Bundle bundle,CancellationToken cancellation=default) {
-            var action=V.Obj(("authorize",Hex(bundle.Bytes)));
-            return worker.Invoke(b=>new Bundle(Encoded(b.UnifiedQuery(action)["authorized"],25255)),cancellation);
+        public Task<Bundle> AuthorizeBundleAsync(Bundle bundle,Capture? capture=null,CancellationToken cancellation=default) {
+            var action=V.Obj(("authorize",V.Obj(("bundle",Hex(bundle.Bytes)),("capture",capture?.Wire()))));
+            return worker.Invoke(b=>new Bundle(Encoded(b.UnifiedQuery(action)["authorized"],25614)),cancellation);
+        }
+        public Task<Prepared> PrepareCleanupAsync(ulong ns,Bundle originalBundle,CancellationToken cancellation=default) {
+            var action=V.Obj(("cleanup",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(originalBundle.Bytes)))));
+            return worker.Invoke(b=>new Prepared(new Bytes(V.Utf8.GetBytes(V.String(b.UnifiedQuery(action)["prepared"])))),cancellation);
         }
         public Task<Prepared?> PrepareNextAsync(ulong ns,Bundle bundle,CancellationToken cancellation=default) {
             var action=V.Obj(("next",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(bundle.Bytes)))));

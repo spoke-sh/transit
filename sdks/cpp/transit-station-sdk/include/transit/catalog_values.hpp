@@ -6,24 +6,34 @@
 #include <optional>
 
 namespace transit::sdk::station::catalog {
+enum class Encoding : uint32_t { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp3, Zoned, IbmHfp, Ebcdic };
+enum class Collation : uint32_t { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot };
 enum class Kind : uint32_t { Create, Alter, Rename, Drop, Insert, Update, Delete };
-enum class Phase : uint32_t { Preparing, Delegated, Building, Applied, Unchanged, Rejected, Cancelled };
-enum class Observation : uint32_t { Pending, Processed };
-enum class UploadPhase : uint32_t { Uploading, Sealed, Ready, Cancelled };
-enum class DispositionKind : uint32_t { Initialized, PolicyApplied, DependencyApplied, InvalidCommand, Blocked, Denied, IdentityConflict, StalePolicy };
-enum class Control : uint32_t { CancelOperation, CleanupOperation, CancelUpload, CollectUpload };
-enum class DependencyKind : uint32_t { QuerySource, Writer, Watch, MaintainedRelation, History };
 enum class CompareOp : uint32_t { Eq, Ne, Lt, Le, Gt, Ge };
-enum class NextKind : uint32_t { Send, Running, Terminal, UploadCancelled };
+enum class Ingestion : uint32_t { Point, Bulk };
+enum class Dialect : uint32_t { Transit, Mysql };
+enum class WorkKind : uint32_t { Table, NameAssertion };
+enum class ObservationKind : uint32_t { Ddl, Rows, NameAssertion };
+enum class OperationState : uint32_t { NotObserved, Admitted, Rejected, Cancelled, Committed, Unchanged };
+enum class Phase : uint32_t { Admitted, Ready, Settled, Rejected, Cancelled };
+enum class Reason : uint32_t { None, NameConflict, ObjectConflict, StaleDefinition, StaleData, Dependency, Constraint, DefinitionChanged, DataChanged, DuplicateKey, MissingRow, InvalidRows, WorkLimit, ConditionChanged };
 struct Scope { ResourceRef resource; uint64_t catalog; };
-struct Connection { ProcessRef owner; Scope scope; std::optional<uint64_t> role = {}; uint64_t namespace_id = 1; };
-struct Authority { uint64_t database_domain, schema_domain, table_domain, database, initial_schema_authority, initial_schema; };
-struct Subject { uint64_t principal, login_role, role, credential_epoch, audience; std::array<uint8_t, 32> context; };
+struct Connection { Scope scope; uint64_t audience; uint64_t branch = 1; std::optional<uint64_t> role = {}; };
+struct Identity { uint64_t operation; uint64_t namespace_id = 1; };
 struct Limits { uint32_t record_bytes; uint64_t staging_bytes; uint32_t staging_records; };
-struct Configuration { Scope scope; ProcessRef owner; uint64_t administrator; Limits table_limits; Authority authority; std::string database_name; };
-struct Identity { uint64_t operation, namespace_id; };
-struct Basis { uint64_t object, revision; std::array<uint8_t, 32> schema_fingerprint; };
-struct Column { uint64_t id; std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; };
+struct Counts { uint64_t matched, changed; };
+using Position = transit_station_catalog_position;
+using ObjectIdentity = transit_station_catalog_object;
+using Interpretation = transit_station_catalog_interpretation;
+using Content = transit_station_catalog_content;
+using StoredDefinition = transit_station_catalog_stored;
+using ReadAuthority = transit_station_catalog_read_authority;
+using Capabilities = transit_station_catalog_capabilities;
+using Description = transit_station_catalog_description;
+using Namespace = transit_station_catalog_namespace;
+using Entry = transit_station_catalog_entry;
+using Commit = transit_station_catalog_commit;
+struct Column { uint64_t id; std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; Encoding encoding = Encoding::Plain; Collation collation = Collation::None; };
 struct Schema { uint64_t object, revision, next_column; std::vector<Column> columns; std::vector<uint64_t> primary_key; };
 struct Assignment { uint64_t column; std::optional<logical::Cell> value; }; // absent means DEFAULT
 struct All {};
@@ -34,41 +44,15 @@ struct Conjunction {};
 struct Disjunction {};
 using PredicateTerm = std::variant<All, IsState, Compare, Negate, Conjunction, Disjunction>;
 using Predicate = std::vector<PredicateTerm>;
-struct AddColumn { std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; };
+struct AddColumn { std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; Encoding encoding = Encoding::Plain; Collation collation = Collation::None; };
 struct DropColumn { uint64_t column; };
 struct RenameColumn { uint64_t column; std::string name; };
 struct SetDefault { uint64_t column; std::optional<logical::Cell> value; };
 struct SetNullable { uint64_t column; bool value; };
 struct ChangeType { uint64_t column; logical::Type type; std::optional<uint32_t> max_characters; };
-using Change = std::variant<AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, ChangeType>;
-struct Create { Schema schema; bool if_not_exists = false; };
-struct Alter { Basis basis; Change change; };
-struct Rename { Basis basis; std::string name; };
-struct Drop { std::optional<Basis> basis; bool if_exists = false; };
-struct Insert { Basis basis; std::vector<std::vector<Assignment>> rows; };
-struct Update { Basis basis; std::vector<Assignment> assignments; std::optional<Predicate> predicate; };
-struct Delete { Basis basis; std::optional<Predicate> predicate; };
-using Action = std::variant<Create, Alter, Rename, Drop, Insert, Update, Delete>;
-struct Dependency { Scope scope; uint64_t object, identity; ProcessRef owner; DependencyKind kind; };
-struct MetadataCommitment { uint32_t bytes; std::array<uint8_t, 32> digest; };
-struct Metadata { Scope scope; uint64_t namespace_id, object, revision; std::string name; std::array<uint8_t, 32> schema_fingerprint; uint64_t principal, operation, admitted_input; MetadataCommitment commitment; };
-inline Basis basis(const Metadata &v) { return {v.object, v.revision, v.schema_fingerprint}; }
-struct Head { uint64_t revision, rows, pending; };
-struct Entry { Metadata metadata; Head head; };
-struct Definition { Metadata metadata; Head head; Schema schema; uint64_t authorization; };
-struct HistoricalDefinition { Metadata metadata; Schema schema; };
-struct Cursor { std::string definition; Scope scope; uint64_t resource_revision, after_object; };
-struct Page { uint64_t resource_revision; std::vector<Entry> entries; std::optional<Cursor> next; };
-struct Reference { std::string definition; std::array<uint8_t, 32> digest; };
-struct Intent { Reference reference; Scope scope; ProcessRef owner; uint64_t principal; Identity identity; uint64_t object; Kind kind; };
-struct Counts { uint64_t matched, changed; };
-struct Outcome { Kind kind; uint64_t operation, object; std::optional<uint64_t> actual_object; Phase phase; bool terminal; std::optional<Counts> counts; uint64_t admitted_input; std::optional<uint64_t> completed_input; std::string diagnostic; };
-struct Upload { UploadPhase phase; uint32_t received, total; };
-struct State { std::optional<Outcome> outcome; std::optional<Upload> upload; };
-struct Disposition { uint64_t input; DispositionKind outcome; std::string diagnostic; };
-struct Progress { Observation observation; std::optional<Disposition> disposition; State state; };
-struct Capabilities { uint8_t version; std::string definition; uint16_t max_columns, max_rows, max_sql_bytes; uint32_t max_intent_bytes, max_action_bytes; uint16_t max_prepared_bytes; uint8_t resident_intents; };
-struct Description { Configuration configuration; Subject subject; uint64_t authorization_revision, resource_revision; };
+struct SetPhysical { uint64_t column; Encoding encoding; Collation collation; };
+using Change = std::variant<AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, ChangeType, SetPhysical>;
+
 namespace detail {
 inline void require(bool yes) { if (!yes) { transit_sdk_error e{}; e.kind = TRANSIT_SDK_INVALID_ARGUMENT; throw Error(e); } }
 inline Bytes copy(transit_sdk_bytes v) { return v.size ? Bytes(v.data, v.data + v.size) : Bytes{}; }
@@ -79,49 +63,211 @@ inline const transit_logical_cell_view *cell(const std::optional<logical::Cell> 
 inline transit_station_catalog_scope native(const Scope &v) { return {v.resource.native(), v.catalog}; }
 inline Scope from(transit_station_catalog_scope v) { return {ResourceRef(v.resource.realm, v.resource.resource), v.catalog}; }
 inline transit_station_catalog_identity native(Identity v) { return {v.operation, v.namespace_id}; }
-inline transit_station_catalog_basis native(const Basis &v) { transit_station_catalog_basis out{v.object, v.revision, {}}; std::copy(v.schema_fingerprint.begin(), v.schema_fingerprint.end(), out.schema_fingerprint); return out; }
-inline transit_station_catalog_reference native(const Reference &v) { transit_station_catalog_reference out{}; text(v.definition, out.definition); std::copy(v.digest.begin(), v.digest.end(), out.digest); return out; }
-inline transit_station_catalog_cursor native(const Cursor &v) { transit_station_catalog_cursor out{}; text(v.definition, out.definition); out.scope = native(v.scope); out.resource_revision = v.resource_revision; out.after_object = v.after_object; return out; }
-inline transit_station_catalog_authority native(const Authority &v) { return {v.database_domain, v.schema_domain, v.table_domain, v.database, v.initial_schema_authority, v.initial_schema}; }
-inline Authority from(const transit_station_catalog_authority &v) { return {v.database_domain, v.schema_domain, v.table_domain, v.database, v.initial_schema_authority, v.initial_schema}; }
-inline Subject from(const transit_station_catalog_subject &v) { Subject out{v.principal, v.login_role, v.role, v.credential_epoch, v.audience, {}}; std::copy_n(v.context, 32, out.context.begin()); return out; }
-inline transit_station_catalog_configuration native(const Configuration &v) { transit_station_catalog_configuration out{native(v.scope), v.owner.native(), v.administrator, {v.table_limits.record_bytes, v.table_limits.staging_bytes, v.table_limits.staging_records}, native(v.authority), {}}; text(v.database_name, out.database_name); return out; }
-inline transit_station_catalog_dependency native(const Dependency &v) { return {native(v.scope), v.object, v.identity, v.owner.native(), static_cast<uint32_t>(v.kind)}; }
-inline Configuration from(const transit_station_catalog_configuration &v) { return {from(v.scope), ProcessRef(v.owner.realm, v.owner.pid), v.administrator, {v.table_limits.record_bytes, v.table_limits.staging_bytes, v.table_limits.staging_records}, from(v.authority), v.database_name}; }
-inline Cursor from(const transit_station_catalog_cursor &v) { return {v.definition, from(v.scope), v.resource_revision, v.after_object}; }
-inline Metadata from(const transit_station_catalog_metadata &v) {
-    Metadata out{from(v.scope), v.namespace_id, v.object, v.revision, v.name, {}, v.principal, v.operation, v.admitted_input, {v.commitment.bytes, {}}}; std::copy_n(v.schema_fingerprint, 32, out.schema_fingerprint.begin()); std::copy_n(v.commitment.digest, 32, out.commitment.digest.begin()); return out;
-}
-inline Head from(transit_station_catalog_head v) { return {v.revision, v.rows, v.pending}; }
 inline Schema from(const transit_station_catalog_schema &v) {
     Schema out{v.object, v.revision, v.next_column, {}, {}};
     if (v.primary_key_count) out.primary_key.assign(v.primary_key, v.primary_key + v.primary_key_count);
     for (size_t i = 0; i < v.column_count; ++i) {
-        const auto &c = v.columns[i]; Column value{c.id, c.name, logical::Type(*c.type), c.nullable, {}, {}};
+        const auto &c = v.columns[i]; Column value{c.id, c.name, logical::Type(*c.type), c.nullable, {}, {}, static_cast<Encoding>(c.encoding), static_cast<Collation>(c.collation)};
         if (c.default_value) value.default_value = logical::Cell(*c.default_value); if (c.max_characters) value.max_characters = c.max_characters; out.columns.push_back(std::move(value));
     }
     return out;
 }
-inline Reference from(const transit_station_catalog_reference &v) { Reference out{v.definition, {}}; std::copy_n(v.digest, 32, out.digest.begin()); return out; }
-inline Intent from(const transit_station_catalog_intent &v) { return {from(v.reference), from(v.scope), ProcessRef(v.owner.realm, v.owner.pid), v.principal, {v.identity.operation, v.identity.namespace_id}, v.object, static_cast<Kind>(v.kind)}; }
-inline std::string from(const transit_sdk_diagnostic &v) { return std::string(v.json, v.size); }
-inline Outcome from(const transit_station_catalog_outcome &v) {
-    Outcome out{static_cast<Kind>(v.kind), v.operation, v.object, {}, static_cast<Phase>(v.phase), v.terminal, {}, v.admitted_input, {}, from(v.diagnostic)};
-    if (v.has_actual_object) out.actual_object = v.actual_object; if (v.has_counts) out.counts = Counts{v.counts.matched, v.counts.changed}; if (v.has_completed_input) out.completed_input = v.completed_input; return out;
+
+inline transit_station_catalog_connection native(const Connection &v) { return {native(v.scope), v.audience, v.branch, v.role.has_value(), v.role.value_or(0)}; }
+inline Connection from(transit_station_catalog_connection v) { return {from(v.scope), v.audience, v.branch, v.has_role ? std::optional<uint64_t>(v.role) : std::nullopt}; }
+template<class T, void (*Destroy)(T *)> class Owned {
+    std::unique_ptr<T, decltype(Destroy)> value_;
+public:
+    explicit Owned(T *value) noexcept : value_(value, Destroy) {}
+    Owned(Owned &&) noexcept = default;
+    Owned &operator=(Owned &&) noexcept = default;
+    Owned(const Owned &) = delete;
+    Owned &operator=(const Owned &) = delete;
+    const T *native() const noexcept { return value_.get(); }
+};
 }
-inline State from(const transit_station_catalog_state &v) {
-    State out; if (v.has_outcome) out.outcome = from(v.outcome); if (v.has_upload) out.upload = Upload{static_cast<UploadPhase>(v.upload.phase), v.upload.received, v.upload.total}; return out;
-}
-inline std::optional<Disposition> from(const transit_station_catalog_disposition &v) { if (!v.found) return {}; return Disposition{v.input, static_cast<DispositionKind>(v.outcome), from(v.diagnostic)}; }
-// Short-lived C construction views point into the caller's owned values and
-// these bounded vectors. The synchronous C call validates/copies before dispatch.
+class Basis : public detail::Owned<transit_station_catalog_basis, transit_station_catalog_basis_destroy> {
+    using Base = detail::Owned<transit_station_catalog_basis, transit_station_catalog_basis_destroy>;
+public:
+    using Base::Base;
+    static Basis restore(const Bytes &bytes) { transit_station_catalog_basis *out = nullptr; check(transit_station_catalog_basis_restore(bytes_view(bytes), &out)); return Basis(out); }
+    static Basis copy(const transit_station_catalog_basis *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_basis_export(v, &bytes)); transit_station_catalog_basis *out = nullptr; check(transit_station_catalog_basis_restore(bytes, &out)); return Basis(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_basis_export(native(), &out)); return detail::copy(out); }
+    const transit_station_catalog_basis_view &view() const { const transit_station_catalog_basis_view *out = nullptr; check(transit_station_catalog_basis_get(native(), &out)); return *out; }
+    Connection connection() const { return detail::from(view().connection); }
+    uint64_t principal() const { return view().principal; }
+    uint64_t namespace_id() const { return view().namespace_id; }
+    std::string name() const { return view().name; }
+    StoredDefinition interpretation() const { return view().interpretation; }
+};
+class SavedIntent : public detail::Owned<transit_station_catalog_saved_intent, transit_station_catalog_saved_intent_destroy> {
+    using Base = detail::Owned<transit_station_catalog_saved_intent, transit_station_catalog_saved_intent_destroy>;
+public:
+    using Base::Base;
+    static SavedIntent restore(const Bytes &bytes) { transit_station_catalog_saved_intent *out = nullptr; check(transit_station_catalog_saved_intent_restore(bytes_view(bytes), &out)); return SavedIntent(out); }
+    static SavedIntent copy(const transit_station_catalog_saved_intent *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_saved_intent_export(v, &bytes)); transit_station_catalog_saved_intent *out = nullptr; check(transit_station_catalog_saved_intent_restore(bytes, &out)); return SavedIntent(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_saved_intent_export(native(), &out)); return detail::copy(out); }
+};
+class Reference : public detail::Owned<transit_station_catalog_reference, transit_station_catalog_reference_destroy> {
+    using Base = detail::Owned<transit_station_catalog_reference, transit_station_catalog_reference_destroy>;
+public:
+    using Base::Base;
+    static Reference restore(const Bytes &bytes) { transit_station_catalog_reference *out = nullptr; check(transit_station_catalog_reference_restore(bytes_view(bytes), &out)); return Reference(out); }
+    static Reference copy(const transit_station_catalog_reference *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_reference_export(v, &bytes)); transit_station_catalog_reference *out = nullptr; check(transit_station_catalog_reference_restore(bytes, &out)); return Reference(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_reference_export(native(), &out)); return detail::copy(out); }
+    const transit_station_catalog_reference_view &view() const { const transit_station_catalog_reference_view *out = nullptr; check(transit_station_catalog_reference_get(native(), &out)); return *out; }
+    WorkKind kind() const { return static_cast<WorkKind>(view().kind); }
+    Identity identity() const { return {view().identity.operation, view().identity.namespace_id}; }
+};
+class Cursor : public detail::Owned<transit_station_catalog_cursor, transit_station_catalog_cursor_destroy> {
+    using Base = detail::Owned<transit_station_catalog_cursor, transit_station_catalog_cursor_destroy>;
+public:
+    using Base::Base;
+    static Cursor restore(const Bytes &bytes) { transit_station_catalog_cursor *out = nullptr; check(transit_station_catalog_cursor_restore(bytes_view(bytes), &out)); return Cursor(out); }
+    static Cursor copy(const transit_station_catalog_cursor *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_cursor_export(v, &bytes)); transit_station_catalog_cursor *out = nullptr; check(transit_station_catalog_cursor_restore(bytes, &out)); return Cursor(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_cursor_export(native(), &out)); return detail::copy(out); }
+    const transit_station_catalog_cursor_view &view() const { const transit_station_catalog_cursor_view *out = nullptr; check(transit_station_catalog_cursor_get(native(), &out)); return *out; }
+    Position position() const { return view().position; }
+    uint64_t after() const { return view().after; }
+};
+class SnapshotOwner : public detail::Owned<transit_station_catalog_snapshot_owner, transit_station_catalog_snapshot_owner_destroy> {
+    using Base = detail::Owned<transit_station_catalog_snapshot_owner, transit_station_catalog_snapshot_owner_destroy>;
+public:
+    using Base::Base;
+    static SnapshotOwner restore(const Bytes &bytes) { transit_station_catalog_snapshot_owner *out = nullptr; check(transit_station_catalog_snapshot_owner_restore(bytes_view(bytes), &out)); return SnapshotOwner(out); }
+    static SnapshotOwner copy(const transit_station_catalog_snapshot_owner *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_snapshot_owner_export(v, &bytes)); transit_station_catalog_snapshot_owner *out = nullptr; check(transit_station_catalog_snapshot_owner_restore(bytes, &out)); return SnapshotOwner(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_snapshot_owner_export(native(), &out)); return detail::copy(out); }
+    const transit_station_catalog_snapshot_owner_view &view() const { const transit_station_catalog_snapshot_owner_view *out = nullptr; check(transit_station_catalog_snapshot_owner_get(native(), &out)); return *out; }
+    ObjectIdentity object() const { return view().object; }
+    uint64_t operation() const { return view().operation; }
+};
+class SnapshotAcquisition : public detail::Owned<transit_station_catalog_snapshot_acquisition, transit_station_catalog_snapshot_acquisition_destroy> {
+    using Base = detail::Owned<transit_station_catalog_snapshot_acquisition, transit_station_catalog_snapshot_acquisition_destroy>;
+public:
+    using Base::Base;
+    static SnapshotAcquisition restore(const Bytes &bytes) { transit_station_catalog_snapshot_acquisition *out = nullptr; check(transit_station_catalog_snapshot_acquisition_restore(bytes_view(bytes), &out)); return SnapshotAcquisition(out); }
+    static SnapshotAcquisition copy(const transit_station_catalog_snapshot_acquisition *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_snapshot_acquisition_export(v, &bytes)); transit_station_catalog_snapshot_acquisition *out = nullptr; check(transit_station_catalog_snapshot_acquisition_restore(bytes, &out)); return SnapshotAcquisition(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_snapshot_acquisition_export(native(), &out)); return detail::copy(out); }
+    const transit_station_catalog_snapshot_acquisition_view &view() const { const transit_station_catalog_snapshot_acquisition_view *out = nullptr; check(transit_station_catalog_snapshot_acquisition_get(native(), &out)); return *out; }
+    SnapshotOwner owner() const { return SnapshotOwner::copy(view().owner); }
+    Position expected() const { return view().expected; }
+};
+class Snapshot : public detail::Owned<transit_station_catalog_snapshot, transit_station_catalog_snapshot_destroy> {
+    using Base = detail::Owned<transit_station_catalog_snapshot, transit_station_catalog_snapshot_destroy>;
+public:
+    using Base::Base;
+    static Snapshot restore(const Bytes &bytes) { transit_station_catalog_snapshot *out = nullptr; check(transit_station_catalog_snapshot_restore(bytes_view(bytes), &out)); return Snapshot(out); }
+    static Snapshot copy(const transit_station_catalog_snapshot *v) { transit_sdk_bytes bytes{}; check(transit_station_catalog_snapshot_export(v, &bytes)); transit_station_catalog_snapshot *out = nullptr; check(transit_station_catalog_snapshot_restore(bytes, &out)); return Snapshot(out); }
+    Bytes save() const { transit_sdk_bytes out{}; check(transit_station_catalog_snapshot_export(native(), &out)); return detail::copy(out); }
+    const transit_station_catalog_snapshot_view &view() const { const transit_station_catalog_snapshot_view *out = nullptr; check(transit_station_catalog_snapshot_get(native(), &out)); return *out; }
+    SnapshotOwner owner() const { return SnapshotOwner::copy(view().owner); }
+    Content content() const { return view().content; }
+};
+class Intent {
+    std::shared_ptr<const transit_station_catalog_intent> value_;
+    explicit Intent(std::shared_ptr<const transit_station_catalog_intent> value) noexcept : value_(std::move(value)) {}
+    friend class Compiled;
+public:
+    explicit Intent(transit_station_catalog_intent *value) : value_(value, transit_station_catalog_intent_destroy) {}
+    const transit_station_catalog_intent *native() const noexcept { return value_.get(); }
+    const transit_station_catalog_intent_view &view() const { const transit_station_catalog_intent_view *out = nullptr; check(transit_station_catalog_intent_get(native(), &out)); return *out; }
+    WorkKind kind() const { return static_cast<WorkKind>(view().kind); }
+    Identity identity() const { return {view().identity.operation, view().identity.namespace_id}; }
+    SavedIntent saved() const { return SavedIntent::copy(view().saved); }
+};
+class Compiled {
+    std::shared_ptr<const transit_station_catalog_compiled> value_;
+public:
+    explicit Compiled(transit_station_catalog_compiled *value) : value_(value, transit_station_catalog_compiled_destroy) {}
+    Compiled(Compiled &&) noexcept = default;
+    Compiled &operator=(Compiled &&) noexcept = default;
+    Compiled(const Compiled &) = delete;
+    Compiled &operator=(const Compiled &) = delete;
+    Intent intent() const { const transit_station_catalog_intent *i = nullptr; const transit_station_catalog_saved_intent *s = nullptr; check(transit_station_catalog_compiled_get(value_.get(), &i, &s)); return Intent(std::shared_ptr<const transit_station_catalog_intent>(value_, i)); }
+    SavedIntent saved() const { return intent().saved(); }
+};
+class Metadata : public detail::Owned<transit_station_catalog_metadata, transit_station_catalog_metadata_destroy> {
+    using Base = detail::Owned<transit_station_catalog_metadata, transit_station_catalog_metadata_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_metadata_view &view() const { const transit_station_catalog_metadata_view *out = nullptr; check(transit_station_catalog_metadata_get(native(), &out)); return *out; }
+    Basis basis() const { return Basis::copy(view().basis); }
+    Schema schema() const { return detail::from(view().schema); }
+    Position position() const { return view().position; }
+    uint64_t row_count() const { return view().row_count; }
+};
+class NamespacePage : public detail::Owned<transit_station_catalog_namespace_page, transit_station_catalog_namespace_page_destroy> {
+    using Base = detail::Owned<transit_station_catalog_namespace_page, transit_station_catalog_namespace_page_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_namespace_page_view &view() const { const transit_station_catalog_namespace_page_view *out = nullptr; check(transit_station_catalog_namespace_page_get(native(), &out)); return *out; }
+    std::vector<Namespace> entries() const { const auto &v = view(); return {v.entries, v.entries + v.count}; }
+    Position position() const { return view().position; }
+    std::optional<Cursor> next() const { return view().next ? std::optional<Cursor>(Cursor::copy(view().next)) : std::nullopt; }
+};
+class TablePage : public detail::Owned<transit_station_catalog_table_page, transit_station_catalog_table_page_destroy> {
+    using Base = detail::Owned<transit_station_catalog_table_page, transit_station_catalog_table_page_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_table_page_view &view() const { const transit_station_catalog_table_page_view *out = nullptr; check(transit_station_catalog_table_page_get(native(), &out)); return *out; }
+    std::vector<Entry> entries() const { const auto &v = view(); return {v.entries, v.entries + v.count}; }
+    Position position() const { return view().position; }
+    std::optional<Cursor> next() const { return view().next ? std::optional<Cursor>(Cursor::copy(view().next)) : std::nullopt; }
+};
+class Observation : public detail::Owned<transit_station_catalog_observation, transit_station_catalog_observation_destroy> {
+    using Base = detail::Owned<transit_station_catalog_observation, transit_station_catalog_observation_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_observation_view &view() const { const transit_station_catalog_observation_view *out = nullptr; check(transit_station_catalog_observation_get(native(), &out)); return *out; }
+    ObservationKind kind() const { return static_cast<ObservationKind>(view().kind); }
+    OperationState state() const { return static_cast<OperationState>(view().state); }
+    Reference reference() const { return Reference::copy(view().reference); }
+    std::optional<Commit> commit() const { return view().has_commit ? std::optional<Commit>(view().commit) : std::nullopt; }
+    std::optional<Reason> reason() const { return view().has_reason ? std::optional<Reason>(static_cast<Reason>(view().reason)) : std::nullopt; }
+};
+class Preview : public detail::Owned<transit_station_catalog_preview, transit_station_catalog_preview_destroy> {
+    using Base = detail::Owned<transit_station_catalog_preview, transit_station_catalog_preview_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_preview_view &view() const { const transit_station_catalog_preview_view *out = nullptr; check(transit_station_catalog_preview_get(native(), &out)); return *out; }
+    ObservationKind kind() const { return static_cast<ObservationKind>(view().kind); }
+    std::optional<Reason> reason() const { return view().has_reason ? std::optional<Reason>(static_cast<Reason>(view().reason)) : std::nullopt; }
+};
+class SnapshotStatus : public detail::Owned<transit_station_catalog_snapshot_status, transit_station_catalog_snapshot_status_destroy> {
+    using Base = detail::Owned<transit_station_catalog_snapshot_status, transit_station_catalog_snapshot_status_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_snapshot_status_view &view() const { const transit_station_catalog_snapshot_status_view *out = nullptr; check(transit_station_catalog_snapshot_status_get(native(), &out)); return *out; }
+    SnapshotOwner owner() const { return SnapshotOwner::copy(view().owner); }
+    std::optional<Snapshot> snapshot() const { return view().snapshot ? std::optional<Snapshot>(Snapshot::copy(view().snapshot)) : std::nullopt; }
+    bool released() const { return view().released; }
+};
+class SnapshotMetadata : public detail::Owned<transit_station_catalog_snapshot_metadata, transit_station_catalog_snapshot_metadata_destroy> {
+    using Base = detail::Owned<transit_station_catalog_snapshot_metadata, transit_station_catalog_snapshot_metadata_destroy>;
+public:
+    using Base::Base;
+    const transit_station_catalog_snapshot_metadata_view &view() const { const transit_station_catalog_snapshot_metadata_view *out = nullptr; check(transit_station_catalog_snapshot_metadata_get(native(), &out)); return *out; }
+    Snapshot snapshot() const { return Snapshot::copy(view().snapshot); }
+    Schema schema() const { return detail::from(view().schema); }
+    StoredDefinition interpretation() const { return view().interpretation; }
+    Position accepted() const { return view().accepted; }
+    uint64_t row_count() const { return view().row_count; }
+};
+struct Create { Schema schema; bool if_not_exists = false; };
+struct Alter { Basis basis; Change change; };
+struct Rename { Basis basis; std::string name; };
+struct Drop { std::optional<Basis> basis; bool if_exists = false; };
+struct Insert { Basis basis; std::vector<std::vector<Assignment>> rows; Ingestion ingestion = Ingestion::Point; };
+struct Update { Basis basis; std::vector<Assignment> assignments; std::optional<Predicate> predicate; Ingestion ingestion = Ingestion::Point; };
+struct Delete { Basis basis; std::optional<Predicate> predicate; Ingestion ingestion = Ingestion::Point; };
+using Action = std::variant<Create, Alter, Rename, Drop, Insert, Update, Delete>;
+namespace detail {
 class RequestView {
     transit_station_catalog_schema schema_{};
     std::vector<transit_station_catalog_column> columns_;
     std::vector<transit_station_catalog_assignments> rows_;
     std::vector<std::vector<transit_station_catalog_assignment>> assignments_;
     std::vector<transit_station_catalog_predicate_term> predicate_;
-    std::optional<transit_station_catalog_basis> drop_basis_;
     transit_station_catalog_assignments assignments(const std::vector<Assignment> &values) {
         require(values.size() <= 128); assignments_.emplace_back(); auto &out = assignments_.back(); out.reserve(values.size());
         for (const auto &v : values) out.push_back({v.column, cell(v.value)}); return {out.data(), out.size()};
@@ -146,13 +292,14 @@ class RequestView {
         transit_station_catalog_change out{};
         std::visit([&](const auto &v) {
             using T = std::decay_t<decltype(v)>;
-            if constexpr (std::is_same_v<T, AddColumn>) { out.kind = TRANSIT_CATALOG_ADD_COLUMN; out.as.add = {text(v.name), &v.type.native(), v.nullable, cell(v.default_value), characters(v.max_characters)}; }
+            if constexpr (std::is_same_v<T, AddColumn>) { out.kind = TRANSIT_CATALOG_ADD_COLUMN; out.as.add = {text(v.name), &v.type.native(), v.nullable, cell(v.default_value), characters(v.max_characters), static_cast<uint32_t>(v.encoding), static_cast<uint32_t>(v.collation)}; }
             else {
                 out.column = v.column;
                 if constexpr (std::is_same_v<T, DropColumn>) out.kind = TRANSIT_CATALOG_DROP_COLUMN;
                 else if constexpr (std::is_same_v<T, RenameColumn>) { out.kind = TRANSIT_CATALOG_RENAME_COLUMN; out.as.name = text(v.name); }
                 else if constexpr (std::is_same_v<T, SetDefault>) { out.kind = TRANSIT_CATALOG_DEFAULT; out.as.default_value = cell(v.value); }
                 else if constexpr (std::is_same_v<T, SetNullable>) { out.kind = TRANSIT_CATALOG_NULLABLE; out.as.nullable = v.value; }
+                else if constexpr (std::is_same_v<T, SetPhysical>) { out.kind = TRANSIT_CATALOG_PHYSICAL; out.as.physical = {static_cast<uint32_t>(v.encoding), static_cast<uint32_t>(v.collation)}; }
                 else { out.kind = TRANSIT_CATALOG_TYPE; out.as.type = {&v.type.native(), characters(v.max_characters)}; }
             }
         }, change); return out;
@@ -165,60 +312,20 @@ public:
             using T = std::decay_t<decltype(v)>; auto &out = value.action;
             if constexpr (std::is_same_v<T, Create>) {
                 out.kind = TRANSIT_CATALOG_CREATE; const auto &s = v.schema; require(!s.columns.empty() && s.columns.size() <= 128 && s.primary_key.size() <= s.columns.size());
-                for (const auto &c : s.columns) columns_.push_back({c.id, text(c.name), &c.type.native(), c.nullable, cell(c.default_value), characters(c.max_characters)});
+                for (const auto &c : s.columns) columns_.push_back({c.id, text(c.name), &c.type.native(), c.nullable, cell(c.default_value), characters(c.max_characters), static_cast<uint32_t>(c.encoding), static_cast<uint32_t>(c.collation)});
                 schema_ = {s.object, s.revision, s.next_column, columns_.data(), columns_.size(), s.primary_key.data(), s.primary_key.size()}; out.as.create = {&schema_, v.if_not_exists};
-            } else if constexpr (std::is_same_v<T, Alter>) { out.kind = TRANSIT_CATALOG_ALTER; out.as.alter = {native(v.basis), change(v.change)}; }
-            else if constexpr (std::is_same_v<T, Rename>) { out.kind = TRANSIT_CATALOG_RENAME; out.as.rename = {native(v.basis), text(v.name)}; }
-            else if constexpr (std::is_same_v<T, Drop>) { out.kind = TRANSIT_CATALOG_DROP; if (v.basis) drop_basis_ = native(*v.basis); out.as.drop = {drop_basis_ ? &*drop_basis_ : nullptr, v.if_exists}; }
+            } else if constexpr (std::is_same_v<T, Alter>) { out.kind = TRANSIT_CATALOG_ALTER; out.as.alter = {v.basis.native(), change(v.change)}; }
+            else if constexpr (std::is_same_v<T, Rename>) { out.kind = TRANSIT_CATALOG_RENAME; out.as.rename = {v.basis.native(), text(v.name)}; }
+            else if constexpr (std::is_same_v<T, Drop>) { out.kind = TRANSIT_CATALOG_DROP; out.as.drop = {v.basis ? v.basis->native() : nullptr, v.if_exists}; }
             else if constexpr (std::is_same_v<T, Insert>) {
-                out.kind = TRANSIT_CATALOG_INSERT; require(!v.rows.empty() && v.rows.size() <= 1024); assignments_.reserve(v.rows.size()); rows_.reserve(v.rows.size());
-                for (const auto &row : v.rows) rows_.push_back(assignments(row)); out.as.insert = {native(v.basis), rows_.data(), rows_.size()};
-            } else if constexpr (std::is_same_v<T, Update>) { out.kind = TRANSIT_CATALOG_UPDATE; out.as.update = {native(v.basis), assignments(v.assignments), predicate(v.predicate)}; }
-            else { out.kind = TRANSIT_CATALOG_DELETE; out.as.remove = {native(v.basis), predicate(v.predicate)}; }
+                out.kind = TRANSIT_CATALOG_INSERT; out.ingestion = static_cast<uint32_t>(v.ingestion); require(!v.rows.empty() && v.rows.size() <= 1024); assignments_.reserve(v.rows.size()); rows_.reserve(v.rows.size());
+                for (const auto &row : v.rows) rows_.push_back(assignments(row)); out.as.insert = {v.basis.native(), rows_.data(), rows_.size()};
+            } else if constexpr (std::is_same_v<T, Update>) { out.kind = TRANSIT_CATALOG_UPDATE; out.ingestion = static_cast<uint32_t>(v.ingestion); out.as.update = {v.basis.native(), assignments(v.assignments), predicate(v.predicate)}; }
+            else { out.kind = TRANSIT_CATALOG_DELETE; out.ingestion = static_cast<uint32_t>(v.ingestion); out.as.remove = {v.basis.native(), predicate(v.predicate)}; }
         }, action);
     }
     RequestView(const RequestView &) = delete;
     RequestView(RequestView &&) = delete;
 };
 }
-class SavedIntent {
-    std::unique_ptr<transit_station_catalog_saved_intent, decltype(&transit_station_catalog_saved_destroy)> value_;
-    explicit SavedIntent(transit_station_catalog_saved_intent *value) : value_(value, transit_station_catalog_saved_destroy) {}
-public:
-    SavedIntent(SavedIntent &&) noexcept = default;
-    SavedIntent &operator=(SavedIntent &&) noexcept = default;
-    static SavedIntent recover(const std::string &definition, const Bytes &bytes) {
-        transit_station_catalog_saved_intent *out = nullptr; check(transit_station_catalog_saved_import(detail::text(definition), bytes_view(bytes), &out)); return SavedIntent(out);
-    }
-    static SavedIntent copy(const transit_station_catalog_saved_intent *value) {
-        const char *definition = nullptr; transit_sdk_bytes bytes{}; check(transit_station_catalog_saved_get(value, &definition, &bytes));
-        transit_station_catalog_saved_intent *out = nullptr; check(transit_station_catalog_saved_import(definition, bytes, &out)); return SavedIntent(out);
-    }
-    std::string definition() const { const char *definition = nullptr; transit_sdk_bytes bytes{}; check(transit_station_catalog_saved_get(value_.get(), &definition, &bytes)); return definition; }
-    Bytes data() const { const char *definition = nullptr; transit_sdk_bytes bytes{}; check(transit_station_catalog_saved_get(value_.get(), &definition, &bytes)); return detail::copy(bytes); }
-    const transit_station_catalog_saved_intent *native() const { return value_.get(); }
-};
-class Compiled {
-    std::unique_ptr<transit_station_catalog_compiled, decltype(&transit_station_catalog_compiled_destroy)> value_;
-public:
-    explicit Compiled(transit_station_catalog_compiled *value) : value_(value, transit_station_catalog_compiled_destroy) {}
-    Compiled(Compiled &&) noexcept = default;
-    Compiled &operator=(Compiled &&) noexcept = default;
-    Intent intent() const { transit_station_catalog_intent out{}; const transit_station_catalog_saved_intent *saved = nullptr; check(transit_station_catalog_compiled_get(value_.get(), &out, &saved)); return detail::from(out); }
-    SavedIntent saved() const { transit_station_catalog_intent out{}; const transit_station_catalog_saved_intent *saved = nullptr; check(transit_station_catalog_compiled_get(value_.get(), &out, &saved)); return SavedIntent::copy(saved); }
-};
-class Prepared {
-    std::unique_ptr<transit_station_catalog_prepared, decltype(&transit_station_catalog_prepared_destroy)> value_;
-public:
-    explicit Prepared(transit_station_catalog_prepared *value) : value_(value, transit_station_catalog_prepared_destroy) {}
-    Prepared(Prepared &&) noexcept = default;
-    Prepared &operator=(Prepared &&) noexcept = default;
-    static Prepared recover(const Bytes &bytes) { transit_station_catalog_prepared *out = nullptr; check(transit_station_catalog_prepared_import(bytes_view(bytes), &out)); return Prepared(out); }
-    static Prepared copy(const transit_station_catalog_prepared *value) {
-        transit_sdk_bytes bytes{}; check(transit_station_catalog_prepared_bytes(value, &bytes)); transit_station_catalog_prepared *out = nullptr; check(transit_station_catalog_prepared_import(bytes, &out)); return Prepared(out);
-    }
-    Bytes data() const { transit_sdk_bytes out{}; check(transit_station_catalog_prepared_bytes(value_.get(), &out)); return detail::copy(out); }
-    const transit_station_catalog_prepared *native() const { return value_.get(); }
-};
-struct Next { NextKind kind; std::optional<Prepared> prepared; std::optional<Outcome> outcome; };
 }

@@ -38,6 +38,6 @@ def run(postgres,mysql_options,native,probe):
         prepared.close()
     assert all(item['counters'].get('work:responses',0)>0 for item in observations[1:])
     result=dict(profile='database_wire_native_costs',observations=observations,
-                limits='One cold preparation/read per path through a bounded HTTP diagnostic proxy; this changes transport costs and is separate from unproxied timings. Counts cover gateway and explicit native caller attempts during each wall-clock window, including concurrent account maintenance; Catalog worker/courier requests bypass the proxy. Provider and authority work come from completed x-transit-work responses. Byte counters are native JSON payloads, not TLS/database-wire traffic. No payloads or credentials are retained; no causal subtraction or speedup claim.')
+                limits='One cold preparation/read per path through a bounded HTTP diagnostic proxy; this changes transport costs and is separate from unproxied timings. Counts cover gateway and explicit native caller attempts during each wall-clock window, including concurrent account maintenance. Data and authority work come from completed x-transit-work responses. Byte counters are HTTP JSON payloads, not TLS/database-wire traffic. No payloads or credentials are retained; no causal subtraction or speedup claim.')
     print(json.dumps(result),flush=True)
     return result

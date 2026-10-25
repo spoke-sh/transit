@@ -24,8 +24,8 @@ static class Program
     }
     static Q.TableSource TableSource(IReadOnlyList<C.Column> columns) {
         byte[] hash=Enumerable.Repeat((byte)1,32).ToArray();
-        var metadata=new C.Metadata(new C.Scope(new ResourceRef(1,7),9),1,9,1,"items",new Bytes(hash),17,1,1,new C.MetadataCommitment(200,new Bytes(hash)));
-        return new Q.TableSource(new ProcessRef(1,3),metadata,new C.Schema(9,1,(ulong)columns.Count+1,columns));
+        return new Q.TableSource(new C.Scope(new ResourceRef(1,7),9),3,1,1,
+            new Q.TableInterpretation(1,new Bytes(hash),200,new Bytes(Enumerable.Repeat((byte)2,32).ToArray())),new C.Schema(9,1,(ulong)columns.Count+1,columns));
     }
     static async Task<Q.Source> Source(ResourceRef r,string kind,bool golden) {
         if(kind=="kv") return new Q.KvSource(r,new Bytes(Encoding.UTF8.GetBytes(golden?"data/":"k")),new(Q.DecoderType.Binary),new(golden?Q.DecoderType.UInt64:Q.DecoderType.Utf8));
@@ -130,15 +130,21 @@ static class Program
     static async Task Serve(JsonNode config) {
         var c=config["connection"]!; ulong realm=Number(c,"realm"); ResourceRef resource=new(realm,Number(c,"resource"));
         Q.Connection connection=new(new(realm,Number(c,"source")),resource,new(realm,Number(c,"requester")),new(realm,Number(c,"requests")));
-        string kind=Text(config,"kind"); Q.Source source;
+        string kind=Text(config,"kind"); Q.Tables? tables=null;
         if(kind=="table") {
-            await using var catalog=await C.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),new C.Connection(connection.Source,new C.Scope(resource,1)));
-            var definition=await catalog.LookupAsync("items")??throw new Exception("Missing catalog Table"); source=new Q.TableSource(connection.Source,definition.Metadata,definition.Schema);
-        } else source=await Source(resource,kind,false);
+            var t=config["tables"]!; var route=t["connection"]!; var scope=route["scope"]!;
+            tables=new(Text(t,"url"),new C.Scope(new ResourceRef(realm,Number(scope,"resource")),ulong.Parse(Text(scope,"catalog"))),ulong.Parse(Text(route,"branch")),Number(route,"audience"));
+        }
         Q.Page? saved=null;
-        await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection)) {
-            Check((await client.AuthorizeBundleAsync(await Bundle(source,kind,false,true,config["compound"]!.GetValue<bool>()))).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
-            var description=await client.DescribeAsync(source); Check(description.BundleBytes==25255 && description.BatchRows==8);
+        await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection,tables)) {
+            Q.Source source; Q.Capture? capture=null;
+            if(kind=="table") {
+                source=(await client.LookupTableAsync(1,"items")??throw new Exception("Missing direct Table")).Source;
+                var spec=config["capture"]!; var expected=spec["expected"]!;
+                capture=new(Number(spec,"executor"),ulong.Parse(Text(spec,"operation")),ulong.Parse(Text(expected,"partition")),ulong.Parse(Text(expected,"next_lsn")));
+            } else source=await Source(resource,kind,false);
+            Check((await client.AuthorizeBundleAsync(await Bundle(source,kind,false,true,config["compound"]!.GetValue<bool>()),capture)).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
+            var description=await client.DescribeAsync(source); Check(description.BundleBytes==25614 && description.BatchRows==8);
             // A cancelled wait cannot manufacture query state or dispose ownership.
             using var cancelled=new CancellationTokenSource(); cancelled.Cancel(); bool stopped=false;
             try { await client.StatusAsync(1,cancelled.Token); }catch(OperationCanceledException) { stopped=true; } Check(stopped);
@@ -157,7 +163,7 @@ static class Program
                     } else if(action["inspect"] is {} inspection) {
                         var scope=inspection["scope"]!; var limits=scope["limits"]!;
                         var value=await client.InspectSqlAsync(source,Text(scope,"name"),Text(inspection,"sql"),new(ulong.Parse(Text(limits,"pages")),ulong.Parse(Text(limits,"segments")),ulong.Parse(Text(limits,"result_bytes"))));
-                        Check(value.Resource==resource && Name(value.SourceKind)==kind); result=Inspection(value);
+                        Check(value.Resource==source.Resource && Name(value.SourceKind)==kind); result=Inspection(value);
                     }
                     else if(action["next"] is {} next) { var p=await client.PrepareNextAsync(ulong.Parse(Text(next,"namespace")),new(new Bytes(Convert.FromHexString(Text(next,"bundle"))))); result=Obj(("prepared",p is null?null:Encoding.UTF8.GetString(p.Bytes.Copy()))); }
                     else if(action["submit"] is not null) {
@@ -167,7 +173,7 @@ static class Program
                     else if(action["status"] is not null) { var v=await client.StatusAsync(ulong.Parse(Text(action,"status"))); result=Obj(("status",v is null?null:Obj(("phase",v.Phase.ToString().ToLowerInvariant()),("correlation",v.Correlation.ToString()),("diagnostic",v.Diagnostic?.DeepClone()),("failure",v.Failure is {} f ? Obj(("code",f.Code),("stage",f.Stage),("dimension",f.Dimension),("limit",f.Limit.ToString()),("observed",f.Observed.ToString())):null)))); }
                     else {
                         var args=action["page"]!; var page=await client.PageAsync(ulong.Parse(Text(args,"namespace")),args["cursor"] is null?null:new(Text(args,"cursor")));
-                        Check(page.Manifest.Resource==resource && page.Manifest.Kind.ToString().ToLowerInvariant()==kind); Check((await page.DecodeAsync()).Count==page.Rows); saved=page;
+                        Check(page.Manifest.Resource==source.Resource && page.Manifest.Kind.ToString().ToLowerInvariant()==kind); Check((await page.DecodeAsync()).Count==page.Rows); saved=page;
                         result=Obj(("page",Obj(("ordinal",page.Ordinal.ToString()),("ipc",Hex(page.Ipc)),("manifest",Obj(("segments",page.Manifest.Segments.ToString()),("selected",page.Manifest.Selected.ToString()),("value_count",page.Manifest.ValueCount.ToString()))),("next",page.Next?.Opaque))));
                     }
                     Console.WriteLine(Obj(("status",0),("value",result)).ToJsonString());

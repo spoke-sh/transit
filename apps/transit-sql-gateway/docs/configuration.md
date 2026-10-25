@@ -28,7 +28,7 @@ and supplies `name`, `verifier_file`, `ledger`, `generation`, optional
 state `association` (default `state`), `enabled` (default true), `keys` and
 `databases`. Setting `enabled` false rejects account selection while keeping its
 retained ledger worker and coordinator available. Key references are
-`worker`, `ingress`, `coordinator`, `table` and `reader`; key files contain the native seed
+`worker`, `ingress`, `coordinator` and `table`; key files contain the native seed
 format. Protect configuration, keys, verifier and recovery files with deployment
 file permissions. The operator control key is separate from the running service.
 
@@ -47,15 +47,13 @@ rejects before requesting a password on plaintext. Disabled TLS with an enabled
 MySQL password account is invalid configuration. Native ledger recovery remains
 independent of all listener authentication and TLS material.
 
-`ledger` defines the realm, private resource, owner process, six distinct
+`ledger` defines the realm, private resource, owner process, five distinct
 principals, account fingerprint, admitted catalog bindings and
-durable quotas. The identities are worker, ingress, control, coordinator, Table caller and
-private reader. Give the worker execution and private resource write access;
-give each control role its scoped send/read rights. Give the Table caller scoped SEND and explicit database/schema/Table grants.
-Give the private reader scoped process inspection and raw-resource read rights
-for the admitted catalogs. SQL callers receive no backing-resource access. The
-reader supplies bytes; every catalog and query operation checks the separately
-authenticated Table caller and its selected role. Associations and local configuration grant no rights.
+durable quotas. The identities are worker, ingress, control, coordinator and Table caller.
+Give the worker execution and private resource write access;
+give each control role its scoped send/read rights. Give the Table caller explicit database/schema/Table grants. Direct Table reads
+and operation evidence use that caller; they require no private catalog-storage
+read grant. Each operation checks the authenticated caller and selected role. Associations and local configuration grant no rights.
 Each database binding includes its catalog resource/owner, schema `namespace`
 and optional selected `role` (the login role when omitted). It must exactly match
 the ledger's immutable ordered binding. Role selection requires current SET
@@ -132,10 +130,9 @@ activation marker or repeatedly restarting the same generation.
 
 Use `transit-sql-gateway control /private/sql-control.json ACTION`. The private
 operator configuration contains `version`, `definition`, `native_url`, the same
-`ledger`, `control_key_file`, `table_key_file`, `reader_key_file`, `pending_file` and optional
-`timeout_ms` (default 30000, maximum 270000). The Table key supplies the current subject for terminal disclosure and initial
-sequence inspection. The reader key supplies private storage access. Neither
-inspection path dispatches Table writes.
+`ledger`, `control_key_file`, `table_key_file`, `pending_file` and optional
+`timeout_ms` (default 30000, maximum 270000). The Table key supplies the current subject for direct terminal disclosure.
+Inspection does not dispatch Table writes.
 Dedicate one pending file and exclusive operator owner to each control principal.
 
 | Action | Behavior |
@@ -143,7 +140,7 @@ Dedicate one pending file and exclusive operator owner to each control principal
 | `list [cursor.json]` | Reads at most eight operation summaries and a next cursor; exposes no stored counts or values |
 | `status OPERATION` | Reads the ledger and freshly authorized original Table outcome; counts require matching terminal evidence |
 | `pending` | Shows the saved control's receipt and processed disposition without sending |
-| `prepare initialize` | Reads the dedicated Table principal sequence and saves the initialization request |
+| `prepare initialize` | Saves the exact private-ledger initialization request |
 | `prepare reconcile OPERATION` | Saves an exact-reconciliation request for existing work |
 | `prepare cancel OPERATION` | Saves qualified cancellation intent; completion still requires original native evidence |
 | `prepare capacity OPERATIONS BYTES PENDING` | Saves an explicit ledger capacity change |
@@ -165,6 +162,11 @@ new listing. Retained history has no automatic expiry.
 List/status observations retry a concurrent current-revision read conflict within
 the configured timeout, before printing a result. Terminal inspection batches
 finite intent reads and checks the original Table result under current rights.
+For INSERT, UPDATE and DELETE, that check requires the original action's
+privilege as well as CONNECT and USAGE. Revoking SELECT suppresses row reads;
+it does not suppress an INSERT receipt while INSERT remains authorized. Revoking
+INSERT suppresses that receipt, including its terminal counts, until access is
+restored. The retained outcome itself is unchanged.
 A SQL command can exhaust
 its wait while an admitted operation continues; discover and inspect that
 operation instead of sending the SQL again.

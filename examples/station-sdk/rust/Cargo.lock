@@ -138,6 +138,7 @@ name = "transit-station-sdk"
 version = "0.2.0"
 dependencies = [
  "libloading",
+ "serde",
  "serde_json",
  "transit-client",
  "transit-native-station",

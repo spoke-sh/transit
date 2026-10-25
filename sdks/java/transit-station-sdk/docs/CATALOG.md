@@ -1,170 +1,120 @@
-# General Table callers
+# Direct catalog lifecycle
 
-Serialization charges each converted column, assignment and predicate before
-building the next owned value. Neutral schemas share 2 MiB and actions share
-16 MiB; complete frame admission also counts enclosing fields. Oversized input
-rejects before constructing the complete JSON batch or dispatching native work.
-
-`Catalog.Client` exposes authorized schema discovery, typed Table creation,
-mutations, schema evolution and retirement through the shared native caller.
-Provision the catalog host, resource, ownership and caller grants explicitly;
-a query connection does not enable catalog administration.
+`Catalog.Client` exposes direct Table definitions, row changes, current inspection
+and explicit retention through the shared Zig caller. Compilation and typed
+preparation produce frozen work without reserving names or accepting changes.
+Provision the catalog service and native grants first.
 
 ```java
-var scope = new Catalog.Scope(resource, catalogId);
-var connection = new Catalog.Connection(owner, scope);
-try (var client = Catalog.Client.open(config, credential, connection)) {
-    var compiled = client.compileSql(
-        "CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(120), active BOOL)",
-        new Catalog.Identity(operationId, stagingNamespace), Optional.of(objectId)).join();
-    saveIntent(compiled.saved().definition(), compiled.saved().bytes());
-    var step = client.next(compiled.intent().reference()).join();
-    if (step.kind() == Catalog.NextKind.SEND) {
-        var prepared = step.prepared().orElseThrow();
-        savePrepared(prepared.bytes().copy());
-        long position = client.submit(prepared).join().position();
-        saveReceipt(position);
-        var progress = client.progress(compiled.intent().reference(), prepared, position, true).join();
+Catalog.Connection connection = new Catalog.Connection(scope, audience);
+try (Catalog.Client client = Catalog.Client.open(config, credential, connection, serviceUrl)) {
+    Catalog.Compiled work = client.compileSql(
+        "CREATE TABLE people (id BIGINT PRIMARY KEY, name UTF8)",
+        new Catalog.Identity(operationId, 1), Optional.of(objectId)).join();
+    saveDurably("intent", work.saved().save());
+    inspectPreview(client.preview(work.intent()).join());
+    Catalog.Reference original = client.stage(work.intent()).join();
+    saveDurably("reference", original.save());
+    Catalog.Observation observed = client.admit(original).join();
+    while (observed.state() == Catalog.OperationState.ADMITTED) {
+        observed = client.execute(original, 32).join();
     }
+    inspectOutcome(observed);
 }
 ```
 
-The persistence functions are application-owned durable writes. This example
-sends one step; continue to a terminal outcome before claiming publication.
-`owner` and `resource` are `ProcessRef` and `ResourceRef` in one realm; the
-`Credential` must match. `ClientConfig` selects the native profile, URL, timeout
-and optional trusted executable. The separate native Station JAR is selected by
-default. Opening owns a port, worker and completion publisher and checks the exact
-shared definition and capabilities.
+Persistence and inspection functions in the example belong to the application.
+The application supplies distinct operation IDs and continuation budgets. Staging,
+admission and completion are separate. Committed Table work reports the resulting
+definition, accepted position and exact `matched`, `affected` and `liveRows`.
+Conditional name assertions report a catalog position and `UNCHANGED`, `REJECTED`
+or `CANCELLED`, without inventing a Table commit.
 
-Resolved `Metadata` carries a `MetadataCommitment(bytes, digest)` identifying its
-immutable publication. The length is one to 444 bytes and the digest is an
-immutable 32-byte `Bytes` value. Query declarations use it with the metadata
-revision and schema. It does not grant access or prove current name resolution.
+`Connection(scope, audience, branch, role)` contains no actor PID. Its two-argument
+constructor selects branch one with no explicit role. Credentials supply the
+principal. Catalog, branch, object, operation, definition, position and row-count
+values use exact uint64 `BigInteger` values. Realm, resource, principal and
+namespace counters use validated native safe-integer `long` values.
 
-## Types and operations
+`ClientConfig` selects `NATIVE_V1`, the authority endpoint, timeout and optional
+trusted native executable. `serviceUrl` defaults to the authority URL. Both URLs
+exclude user information, query strings and fragments; native catalog timeouts
+range from 1 through 60000 milliseconds. Opening checks the current definition
+and capabilities, owns a native worker and child, and loads the supplied key. It
+initializes no catalog and grants no rights.
 
-`Schema(object, revision, nextColumn, columns, primaryKey)` owns one to 128
-ordered `Column` records. Each column has a stable positive `id`, UTF-8 `name`,
-[logical descriptor](LOGICAL.md), nullability, optional logical-cell default and
-optional `maxCharacters`. The three-argument column constructor defaults to
-nullable with no default/length bound. The schema convenience constructor omits
-primary keys. Empty keys preserve duplicate rows with internal row identities;
-explicit single/composite keys reference column IDs. Shared Zig validates key,
-nullability, default and schema semantics.
+## Typed work and current observations
 
-Catalog, object, column, operation, staging namespace and revision values are
-exact positive uint64 `BigInteger` values. Native resource/process/principal/input
-IDs retain their separate safe-integer bounds. Names allow at most 255 UTF-8
-bytes; SQL allows at most 4096 bytes. No physical key/value Table ID is required.
+`Schema` owns one to 128 columns with stable IDs, [logical types](LOGICAL.md),
+nullability, optional defaults and character bounds. Encoding and collation are
+independent descriptors. New columns default to `PLAIN` and `NONE`; returned
+schemas require both fields explicitly. Shared Zig validates supported
+combinations and conversion semantics. Empty primary keys allow duplicate
+unkeyed rows. Names are at most 255 UTF-8 bytes; SQL is at most 4096 bytes.
 
-`compileSql(sql, identity, createObject)` binds SQL through the authorized catalog
-and returns `Compiled(intent, saved)`. Supply an object identity for CREATE; the
-two-argument overload omits it. Compilation admits no work. `prepare(name,
-identity, operation)` exposes the same semantics through sealed operation types:
+`prepare(name, identity, operation)` accepts `Create`, `Alter`, `Rename`, `Drop`
+and `Mutate`. Existing-object actions require the complete `Metadata.basis()`
+returned by `lookup`. `Basis.save()` preserves connection, namespace, name and
+stored interpretation; restore it with `Basis.restore(text)`. Stale bases reject
+without retargeting a newer definition or a same-named replacement. ALTER supports
+adding, dropping and renaming columns, defaults, nullability, logical types and
+physical descriptors.
 
-- `Create(schema, ifNotExists)`.
-- `Mutate(basis, mutation)` with `Insert(rows)`,
-  `Update(assignments, predicate)` or `Delete(predicate)`.
-- `Alter(basis, change)` with `AddColumn`, `DropColumn`, `RenameColumn`,
-  `SetDefault`, `SetNullable` or `SetType`.
-- `Rename(basis, name)` and `Drop(basis, ifExists)`.
+`Mutate(basis, mutation, ingestion)` accepts `Insert`, `Update` and `Delete` with
+`POINT` or `BULK` ingestion. The two-argument constructor selects `POINT`.
+INSERT owns one to 1024 rows with at most 128 assignments each. UPDATE and DELETE
+accept at most 64 postfix predicate instructions; an absent predicate selects
+all rows. Assignments address stable column IDs with a logical cell or default.
+SQL compilation accepts an optional create-object ID, `Dialect.TRANSIT` or
+`MYSQL`, and the ingestion selection. The shared owner enforces atomicity,
+constraints and current authorization.
 
-Obtain the immutable object/revision/fingerprint `Basis` from
-`lookup(name).join().orElseThrow().metadata().basis()`. A stale basis rejects
-without retargeting work. Assignments take a column ID and logical cell, or
-`Default.VALUE`. INSERT owns one to 1024 rows of at most 128 assignments each.
-UPDATE/DELETE predicates are optional postfix lists of at most 64 instructions:
-`Comparison`, `StatePredicate` and `BooleanOperator.ALL`, `NEGATE`, `CONJUNCTION`
-or `DISJUNCTION`. Empty Optional selects all rows. Zig owns predicate validation,
-frozen selection, atomic publication and exact conversions.
+Schema and mutation conversion charge fragments before constructing further
+values. Schemas are at most 2 MiB; complete saved work and actions obey generated
+`catalog_intent_bytes` and `catalog_action_bytes` limits. Direct catalog frames
+can exceed actor frame limits. The [Table reference](../../../../docs/handbook/reference/tables.md)
+describes executable storage and codec profiles.
 
-## Explicit progression and recovery
+`capabilities`, `describe`, `namespace`, `namespaces`, `tables` and `lookup` return
+futures for current observations. Descriptions distinguish authenticated subject
+from native policy revision. Metadata pages contain at most eight entries, and
+cursors bind the original connection, selection and directory position. A changed
+directory requires a fresh scan. Table observations have `INDEPENDENT`
+consistency; they do not establish a common transactional snapshot.
 
-A client owns at most one resident intent. Persist `SavedIntent.definition()` and
-its owned binary bytes before any send. Restore both through the constructor,
-then `load(saved)`. Missing/foreign definitions reject. `forget(reference)` drops
-only local intent ownership; it does not cancel accepted work. Saved intents are
-bounded to the generated 4,327,031-byte limit, action JSON to 16 MiB and prepared commands
-to 8192 bytes. Catalog frames use their own generated limit and 96-level JSON
-nesting limit; raw callers retain their smaller frame and nesting limits.
+## Recovery and retention
 
-`next(reference)` returns `SEND`, `RUNNING`, `TERMINAL` or `UPLOAD_CANCELLED`.
-Persist each SEND's exact `Prepared.bytes()` before `submit` and the admitted
-position after receiving it. `observe(prepared, position, true)` waits for input
-processing; `progress(reference, prepared, position, true)` observes processing
-plus separate disposition, operation outcome and upload state. Neither processed
-input nor sealed upload establishes successful application. `status(reference)`
-reads `State(outcome, upload)` without sending a command.
+Save `SavedIntent.save()` before staging and restore it with
+`SavedIntent.restore(text)`, then `load`. Save `Reference.save()` before admission.
+`Reference.restore(text)` supports exact `inspect`, `execute` and `cancel`,
+including after DROP/name reuse. Missing or foreign definitions reject. One
+local intent can be loaded at a time; `forget(intent)` releases only that local
+ownership. `NOT_OBSERVED` remains distinct from admission, rejection,
+cancellation and commitment.
 
-Terminal phases are `APPLIED`, `UNCHANGED`, `REJECTED` and `CANCELLED`. Only applied
-INSERT/UPDATE/DELETE outcomes carry `Counts(matched, changed)`; a matched row with
-unchanged values can yield one matched and zero changed. Original outcomes remain
-bound to their saved object/operation after ALTER, DROP and name reuse. Current
-rights still gate diagnostic disclosure. Diagnostic access returns an owned copy.
+A mutating future can fail with `Catalog.Uncertain`. Its `original()` is the
+saved intent, operation reference, snapshot acquisition or snapshot required for
+recovery. `failure()` preserves the native `TransitException`, including status,
+code and optional structured diagnostic. `join()` wraps failures in
+`CompletionException`; inspect its cause. Save the original value explicitly;
+Java object serialization of this exception is refused. Malformed successful
+replies and transport loss after dispatch do not establish mutation failure.
 
-`prepareResume(reference)` and `prepareControl(reference, control)` return
-explicit signed commands. Controls are `CANCEL_OPERATION`, `CLEANUP_OPERATION`,
-`CANCEL_UPLOAD` and `COLLECT_UPLOAD`. Their meaning depends on durable state;
-cleanup does not erase retained accepted evidence. A cancelled future does not
-request durable cancellation.
+`prepareSnapshot(metadata, operationId)` creates an exact acquisition. Save its
+`save()` result before `acquireSnapshot`, and save the returned snapshot before
+using it. After a lost reply, restore the acquisition and inspect
+`snapshotStatus(acquisition.owner())`. Status reports current interpretation and
+position separately from retained metadata. `snapshotMetadata(snapshot)` returns
+the accepted interpretation, schema and row count after ALTER, DROP and name
+reuse. Its authorization object IDs confer no rights; remote reads recheck current
+access. This Java API exposes retained metadata, not an interactive SQL cursor.
 
-After `UNKNOWN_OUTCOME`, retain and reconcile the exact original `Prepared` with
-the original connection and credential. Do not recompile, re-sign or replace its
-intent. Malformed success receipts, transport loss and result-allocation failure
-preserve uncertainty. Definite native rejections retain their category, status,
-code and diagnostic. The client performs no automatic submission retry; durable
-recovery material belongs to the application, independently of a future or JVM.
+`releaseSnapshot(snapshot)` explicitly releases the original handle. Save cleanup
+responsibility first. After a lost reply, inspect the same owner's status and
+retry that release. Closing the client does not release durable snapshots or
+assign an expiry. Applications retain cleanup responsibility.
 
-## Authority, dependencies and metadata
-
-`prepareInitialize(Configuration(scope, owner, administrator, tableLimits,
-authority, databaseName))` prepares immutable host configuration. `TableLimits`
-requires explicit deployment quotas. `AuthorityProfile(databaseDomain,
-schemaDomain, tableDomain, database, initialSchema, initialSchemaAuthority)`
-contains the six registered native bindings. Provision them explicitly; startup
-does not invent objects or restore grants.
-
-`Connection(owner, scope, role, namespace)` selects an optional eligible active
-role and a schema namespace. The two-argument constructor selects the login role
-and namespace 1. `Client.open` accepts a fourth `tableServiceUrl` argument for
-trusted Table mediation. The caller keeps its own signing credential; the service
-holds its separate infrastructure identity. Table-restricted users receive no
-raw-resource access. The three-argument form uses direct reads and requires
-separately granted infrastructure rights.
-
-`prepareDependency(Dependency(scope, object, identity, owner, kind), present)`
-registers/removes a dependency. Kinds are `QUERY_SOURCE`, `WRITER`, `WATCH`,
-`MAINTAINED_RELATION` and `HISTORY`; registration grants no access. DROP RESTRICT
-retains the original blocking dependency evidence. `inputDisposition` reads an
-administrator-control or rejected-input result. Absence proves no outcome.
-`describe` returns current configuration, authenticated `Subject` and
-`authorizationRevision`; `capabilities` returns typed native limits. The subject
-carries principal, login role, selected role, credential epoch, audience and an
-owned context digest. It grants no authority. Protected disclosures and owner
-continuations check current rights; accepted write identities survive revocation.
-
-`lookup(name)` returns optional `Definition(authorization, metadata, head, schema)`.
-`definition(object, revision)` returns optional accepted `HistoricalDefinition`
-with metadata and schema, including after retirement; it has no current head.
-Metadata includes its schema `namespace`, and `authorization` identifies the
-stable native Table object. Current CONNECT, USAGE and SELECT govern history.
-Missing/unaccepted definitions are absent. `list` returns a `Page` with a resource
-revision, at most eight ordered `Entry(metadata, head)` values and optional `next`.
-Continue while the cursor exists, including empty pages with continuation. Restore
-all `Cursor` fields: definition, scope, resource revision and after-object ID.
-A cursor grants neither authority nor a snapshot lease; a changed cut rejects
-continuation. Discard partial results before restarting that listing.
-
-Operations return `CompletableFuture`; one client admits one job at a time and
-rejects overlap with `BUSY`. Cancelling a future leaves admitted native work owned.
-`close` joins native work and cleanup and preserves caller interruption. Do not
-block a synchronous completion callback waiting for the same publisher. Owned
-lists and binary values outlive the client; mutable inputs are copied before work
-can outlive their caller. Generated recursive schemas and typed decoders validate
-fields, identities, canonical integers, budgets and continuations.
-
-The [Table reference](../../../../docs/handbook/reference/tables.md) and
-[catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
-publication and retention. The [proof ledger](../../../../tests/README.md) records
-executed installed-JAR and recovery evidence.
+One worker admits one operation at a time. Cancelling a `CompletableFuture`
+abandons the local wait without cancelling native ownership. `close()` joins
+active work and child cleanup before returning. Responses own their nested data;
+mutable JSON values remain behind the SDK boundary.

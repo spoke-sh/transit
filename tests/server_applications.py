@@ -45,15 +45,26 @@ class Applications(Fixture):
 
     def app(self, mode, *args, expect=None):
         deadline = time.monotonic() + 15
+        saved = None
+        if mode in ('install', 'replace', 'retry') and '--operation' in args:
+            operation = args[args.index('--operation') + 1]
+            saved = self.installation / 'management-recovery' / (str(operation) + '.json')
+        frozen = saved.read_bytes() if saved and saved.exists() else None
         while True:
+            if frozen is not None:
+                assert saved.read_bytes() == frozen, 'Saved management request changed during recovery'
             result = subprocess.run([operations(), 'app', mode, '--config', str(self.management), *map(str, args)],
                 capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()), env={'PATH': '/unavailable'})
-            # Status and connection export only read native authority. During
-            # deliberate storage/authority loss the
-            # manager can be reachable before that observation is available.
-            # Mutation retries must instead use their saved operation identity.
+            # Read retries obtain a fresh observation. Mutation retries use the
+            # public client's saved signed request for this exact operation;
+            # the fixture checks that its bytes stay unchanged.
+            if saved and saved.exists():
+                current = saved.read_bytes()
+                if frozen is not None:
+                    assert current == frozen, 'Management retry replaced the original request'
+                frozen = current
             first = result.stderr.splitlines()[0] if result.stderr else ''
-            if mode not in ('status', 'connect') or expect or result.returncode == 0 or first not in (
+            if (mode not in ('status', 'connect') and frozen is None) or (expect and expect in result.stderr) or result.returncode == 0 or first not in (
                     'application: AuthorityUnavailable', 'application: AuthorityTimeout',
                     'application: HttpConnectionClosing', 'application: ConnectionRefused') or time.monotonic() >= deadline:
                 break
@@ -93,9 +104,35 @@ def provision_authority(fixture, operator, connections):
     administrator.chmod(0o600)
     recovery = fixture.root / 'authorization-recovery'
     recovery.mkdir(mode=0o700)
-    profile = fixture.root / 'catalog-authority.json'
+    # Explicit deployment input over the neighborhood's configured direct owner.
+    # Resolve the installed worker's private role through public root inspection;
+    # the application helper receives a chosen role ID, never a worker key.
+    from server_application_faults import ExistingKey, native, post
+    root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    worker = next(role for role in fixture.status()['roles'] if role['name'] == 'data')
+    after, worker_role = None, None
+    while True:
+        query = dict(authorization=dict(role=None, kind=dict(roles=after)))
+        roles = post(fixture.config['ports']['node'], '/v1/query',
+            native(root, caller['realm'], 0, query), retry_unavailable=True)['body']['authorization']['body']['roles']
+        for role in roles['records']:
+            if role and role['native'] and role['enabled'] and not role['retired'] and bytes.fromhex(role['name']).decode() == f"native/{worker['principal']}/{role['id']}":
+                assert worker_role is None
+                worker_role = role['id']
+        after = roles['next']
+        if after is None:
+            break
+    assert worker_role is not None
+    installation = fixture.record()
+    connection = installation['default_table']['connection']
+    target = fixture.root / 'data-target.json'
+    target.write_text(json.dumps(dict(definition=capabilities['capabilities']['definition'],
+        connection=connection, seed_file=str(fixture.installation / 'caller.seed'),
+        namespace=1, first_object=1000, worker_login_role=worker_role)))
+    target.chmod(0o600)
+    profile = fixture.root / 'data-binding.json'
     provisioning = [operator, 'provision-authority', str(administrator),
-        *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(profile)]
+        *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(target), str(profile)]
     def invoke(timeout):
         deadline = time.monotonic() + timeout
         while True:
@@ -222,19 +259,24 @@ def run(cli, node, host, worker, operator):
         domain(connections['operator'], 'step', 'step-1')
         before = domain(connections['operator'], 'inspect')
         assert before['cursor']['copied'] == 1
+        # A prior node recovery can legitimately fence every application host.
+        # Compare rejection against the active generation immediately before it,
+        # while still requiring the original logical identities and data.
+        before_replacement = fixture.active()
+        assert (before_replacement['roles'][0]['pid'], before_replacement['resources'][0]['id'], before_replacement['roles'][0]['principal']) == ids
         # A compatible configuration revision uses an explicit expected revision.
-        replacement = {'application': 'work-items', 'role': 'data', 'expected_revision': first['roles'][0]['revision'],
+        replacement = {'application': 'work-items', 'role': 'data', 'expected_revision': before_replacement['roles'][0]['revision'],
             'contract': 'work-items-v1', 'artifact': {'path': worker}, 'configuration': '{ "application": 9 }'}
         path = fixture.root / 'replacement.yaml'
         path.write_text('\n'.join(f'{key}: {json.dumps(value)}' for key, value in replacement.items()))
         incompatible = dict(replacement, contract='incompatible-v2')
         refused.write_text(json.dumps(incompatible))
         fixture.app('replace', '--file', refused, '--operation', 'incompatible', expect='IncompatibleApplicationReplacement')
-        assert fixture.status()['roles'][0]['generation'] == first['roles'][0]['generation']
+        assert fixture.status()['roles'][0]['generation'] == before_replacement['roles'][0]['generation']
         fixed_children = {pid for pid in children(fixture.process.pid) if 'data.bootstrap.json' not in command(pid)}
         fixture.app('replace', '--file', path, '--operation', 'replace-1')
-        second = fixture.active(previous=first['roles'][0]['generation'])
-        assert second['roles'][0]['revision'] != first['roles'][0]['revision']
+        second = fixture.active(previous=before_replacement['roles'][0]['generation'])
+        assert second['roles'][0]['revision'] != before_replacement['roles'][0]['revision']
         assert fixed_children | neighbor_workers <= children(fixture.process.pid), 'Replacement restarted unrelated roles'
         assert (second['roles'][0]['pid'], second['resources'][0]['id'], second['roles'][0]['principal']) == ids
         assert domain(connections['operator'], 'inspect')['migration'] == before['migration']
@@ -263,7 +305,7 @@ def run(cli, node, host, worker, operator):
         recovered = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
         assert json.loads(recovered.stdout) == rejected, 'original input rejection changed after activation'
         domain(connections['writer'], 'put', 'released-put', 1, 10)
-        for physical in ('/transit-node ', 'ursula server'):
+        for physical in ('/transit-node ', '"unified_requester":'):
             prior = fixture.status()['roles'][0]['generation']
             fixture.kill_role(physical)
             fixture.ready()

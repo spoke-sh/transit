@@ -10,6 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def definition_bytes():
+    # Only the compatibility identifier comes from the public contract. Field
+    # layouts and canonical bytes below remain independently authored.
+    schema = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())
+    return bytes.fromhex(schema['x-transit']['definition'])
+
+
 def authentication():
     password = 'pencil'
     salt = bytes(range(16))
@@ -65,7 +72,7 @@ def length(n):
 
 
 def records():
-    definition = hashlib.sha256(b'transit.native.v1.project-identity.2026-10-21').digest()
+    definition = definition_bytes()
     def record(magic, value, fields):
         encoded = magic.encode() + definition
         for name, layout in fields:
@@ -79,19 +86,21 @@ def records():
         return dict(value=value, bytes=encoded.hex())
     head = dict(configuration=[7]*32, operations=42, unsettled=0, used_bytes=2**64-2,
                 reserved_bytes=0, operation_quota=2**64-1, byte_quota=2**64-1,
-                pending_quota=16, active=0, sequence=1)
+                pending_quota=16, active=0)
     operation = dict(id=7, nonce=list(range(16)), resource=9, catalog=2**64-1, owner=11, namespace=1, role_present=0, role=0,
-                     phase='reserved', intent_length=0, intent_digest=[0]*32, records=0,
-                     staging=0, pending=0, published=0, pending_sequence=0, input=0,
+                     phase='reserved', intent_length=0, intent_digest=[0]*32, published=0,
                      stored_bytes=0, reservation=1024, cancel=0, reconcile=0, blocked=0,
                      summary='none', matched=0, changed=0)
     terminal = dict(kind='dml', identity=[13]*32, resource=9, principal=11, operation=7,
-                    object=99, admitted_input=32, completed_input=33, state='applied',
-                    reason=0, matched=2**64-1, changed=2**64-2, actual_object=0, route=2)
+                    object=2**64-1, state='applied', reason=0, matched=2**64-1, changed=2**64-2,
+                    partition=32, next_lsn=33, resulting_revision=1)
+    assertion = dict(terminal, kind='catalog_assertion', object=0, state='unchanged',
+                     matched=0, changed=0, partition=2**64-1, next_lsn=2**64-1, resulting_revision=0)
     return dict(
+        assertion=record('GST1', assertion, [(k, {'catalog_assertion':3} if k == 'kind' else {'unchanged':4} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k == 'reason' else 'Q') for k in assertion]),
         head=record('GSH1', head, [(k, 'bytes' if k == 'configuration' else 'I' if k == 'pending_quota' else 'Q') for k in head]),
-        operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('cancel','reconcile','blocked','role_present') else 'Q') for k in operation]),
-        terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k in ('reason','route') else 'Q') for k in terminal]),
+        operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('published','cancel','reconcile','blocked','role_present') else 'Q') for k in operation]),
+        terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k == 'reason' else 'Q') for k in terminal]),
     )
 
 
@@ -149,14 +158,14 @@ def mysql_backend():
 
 
 def controls():
-    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.project-identity.2026-10-21').digest()
+    prefix = b'GSQ1' + definition_bytes()
     terminal = records()['terminal']
     cases = [
         (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None), fingerprint=[0]*32)),
          b'\x02' + bytes(range(16)) + struct.pack('<QQQQB', 9, 2**64-1, 11, 1, 0) + bytes(32)),
-        (dict(step_part=dict(target=dict(operation=99, generation=2, record=3),
+        (dict(intent_part=dict(operation=99,
                              part=dict(offset=128, length=3, bytes=[1, 2, 3]+[0]*125))),
-         b'\x09' + struct.pack('<QQQIB', 99, 2, 3, 128, 3) + bytes([1, 2, 3])+bytes(125)),
+         b'\x04' + struct.pack('<QIB', 99, 128, 3) + bytes([1, 2, 3])+bytes(125)),
         (dict(complete=dict(target=dict(operation=7, generation=2), outcome=terminal['value'])),
          b'\x14' + struct.pack('<QQ', 7, 2) + bytes.fromhex(terminal['bytes'])[36:]),
     ]

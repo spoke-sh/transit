@@ -121,7 +121,7 @@ def exercise(profile, name=None, base=None, existing=False):
     try:
         if not existing:
             invoke("up", "--example", "station", "--base-port", str(installation.base_port), "--detach")
-        await_value(lambda: total() == 12, "Initial Station Tables did not materialize")
+        await_value(lambda: total() == 12, "Initial direct Table operations did not complete")
         records = installation.records()
         before = {role: installation.process(role) for role in installation.workloads}
         lookup = json.loads(invoke("send", "lookup", "--request-id", "proof-lookup"))["admitted_at"]
@@ -130,7 +130,7 @@ def exercise(profile, name=None, base=None, existing=False):
         assert int.from_bytes(entry("requester", resolved_key)[24:32], "little") == records["ledger"]["pid"]
         invoke("send", "-2", "--request-id", "proof-delta")
         invoke("send", "-2", "--request-id", "proof-delta")
-        await_value(lambda: total() == 10 and entry("requester", b"answer") == b"10", "Correlated delta/retry was not atomic")
+        await_value(lambda: total() == 10 and entry("requester", b"answer") == b"10", "Original delta/retry did not settle its audit and reply")
         if profile == "local":
             from courier_readiness import ReadinessOutage
             fault = ReadinessOutage(installation, launcher)
@@ -208,7 +208,8 @@ def exercise(profile, name=None, base=None, existing=False):
         kinds = set()
         for role, record in records.items():
             kinds.update(framework(record))
-        assert {"behavior", "table", "wait", "registry_scope", "registry_binding", "child"} <= kinds, kinds
+        assert {"behavior", "wait", "registry_scope", "registry_binding", "child"} <= kinds, kinds
+        assert "table" not in kinds, "Direct Table rows leaked into actor Table storage"
         queries = query_evidence(records['ledger']) | query_evidence(records['requester'])
         assert {'execution', 'request'} <= queries, queries
         assert board(f'processes/{recovered["pid"]}')["observation"]["processes"][0]["generation"] == recovered["generation"]

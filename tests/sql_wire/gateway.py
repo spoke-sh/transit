@@ -1,4 +1,4 @@
-"""Pinned database drivers against the real TLS gateway and disk-backed owners."""
+"""Pinned database drivers against the real TLS gateway and local durable owners."""
 import json
 import os
 from pathlib import Path
@@ -6,26 +6,29 @@ import socket
 import signal
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from storage import Fixture, free_port, wait_ready
-from cold_storage import ColdStore
+from storage import free_port, wait_ready
 import psycopg
 import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions","sessions-basic","sessions-kv")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
-    with ColdStore() as cold, Fixture(cold.config()) as store:
-        root = store.root
+    with tempfile.TemporaryDirectory(prefix='transit-direct-sql-wire-') as directory:
+        root = Path(directory)
+        http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         session_port = free_port()
         native_port, sql_port, mysql_port, health_port = free_port(), free_port(), free_port(), free_port()
         url = f'http://127.0.0.1:{native_port}'
         public = json.loads(subprocess.check_output([catalog, 'public'], timeout=10))
         node_config = root / 'node.json'
-        node_config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=store.url, bucket='sql-wire-gateway', journal='authority', port=native_port, resident_pages=8, request_timeout_ms=30000,request_metrics=True)))
+        node_settings = dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), local_directory=str(root/'native'), port=native_port, resident_pages=8, request_timeout_ms=30000,request_metrics=True)
+        node_config.write_text(json.dumps(node_settings))
         processes, logs = [], []
         probe = None
         session_faults = None
@@ -76,9 +79,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
-                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv') else []
+                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
                     configuration['native_url'] = session_faults.url
             configuration['health_port'] = health_port
@@ -93,12 +96,16 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
         try:
             subprocess.run([node, str(node_config), '--initialize'], capture_output=True, check=True, timeout=30)
             authority = start(node, node_config)
-            wait_ready(store.http, authority, url + '/health')
+            wait_ready(http, authority, url + '/health')
             call(catalog, 'provision')
+            authority.terminate()
+            authority.wait(timeout=10)
+            node_settings['table'] = json.loads((root/'catalog-node.json').read_text())
+            node_config.write_text(json.dumps(node_settings))
+            authority = start(node, node_config)
+            wait_ready(http, authority, url + '/health')
             call(catalog, 'initialize')
-            call(catalog, 'pump')
             call(catalog, 'external-provision')
-            call(catalog, 'pump')
             # Catalog administration and external DDL retain principal 1234;
             # this gateway alone sequences Table principal 1235.
             call(ledger, 'provision-empty', 1235)
@@ -107,16 +114,13 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             from settings import start_configuration
             settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
 
-            call(catalog, 'host')
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from sql_sessions.faults import Faults
                 session_faults = Faults(url)
-            if slice in ('sessions', 'sessions-kv'):
-                call(ledger, 'session-sources', *(['kv'] if slice == 'sessions-kv' else []))
+            if slice in ('sessions', 'sessions-kv', 'sessions-table'):
+                call(ledger, 'session-sources', *([slice.removeprefix('sessions-')] if slice in ('sessions-kv', 'sessions-table') else []))
             configure()
             certificate()
-            start(host, root/'host.json')
-            start(host, root/'courier-config.json')
             bootstrap = start(gateway, root/'sql-gateway.json', '--initialize')
             assert controls('prepare','initialize')['state'] == 'prepared'
             assert controls('submit')['processed']
@@ -134,7 +138,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     assert time.monotonic() < deadline
                     time.sleep(.02)
             from clients import run as clients, run_cli, connection_options as client_options
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from sql_sessions.native import run as sessions
                 source_processes = {}
                 def select_source(name):
@@ -189,7 +193,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                         except (ConnectionRefusedError, FileNotFoundError):
                             assert server.poll() is None and time.monotonic() < deadline
                             time.sleep(.02)
-                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, () if slice == 'sessions-basic' else (('kv', 41),) if slice == 'sessions-kv' else None, session_faults, lambda: server.pid)
+                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, lambda: call(ledger, 'source-pin-status'), {'sessions-basic': (), 'sessions-kv': (('kv', 41),), 'sessions-table': (('table', 9),)}.get(slice), session_faults, lambda: server.pid)
                 return
             if slice == 'cli':
                 run_cli(root,sql_port,mysql_port)
@@ -201,6 +205,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
+            if slice == 'schema':
+                from schema import run as schema
+                schema(options,mysql_options,lambda operation,sql:call(catalog,'external-ddl-admin',operation,sql))
+                return
             if slice == 'benchmark':
                 with psycopg.connect(**options) as connection:
                     connection.execute('INSERT INTO wire_rows (id) VALUES (101),(102),(103),(104)')
@@ -219,7 +227,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 drain(server,options,health_port)
                 return
             # Both adapters select the NOLOGIN data role through SET-only
-            # membership. Neither the verifier nor the private reader can
+            # membership. The verifier cannot
             # preserve that authority after membership revocation.
             with psycopg.connect(**options) as pg, mysql.connector.connect(**mysql_options) as my:
                 assert pg.execute('SELECT 1').fetchone() == (1,)
@@ -236,12 +244,14 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                                            (lambda: mysql.connector.connect(**mysql_options), mysql.connector.Error)):
                         try: connect().close()
                         except error: pass
-                        else: raise AssertionError('SQL login substituted private reader authority')
+                        else: raise AssertionError('SQL login bypassed selected-role authority')
                 finally:
                     assert call(catalog, 'external-role', 'allow')['selected']
             print(json.dumps(dict(profile='database_wire_selected_role',set_only=True,revoked_sessions=True,revoked_logins=True,raw_reader_denied=True)),flush=True)
             from faults import run as faults
-            faults(root, options, mysql_options, controls, lambda allowed:call(ledger,'native-read-allow' if allowed else 'native-read-deny'))
+            faults(root, options, mysql_options, controls, inventory,
+                   lambda allowed:call(catalog,'external-read-grants','allow' if allowed else 'deny'),
+                   lambda allowed:call(catalog,'external-write-grants','allow' if allowed else 'deny'))
             from authority import run as authority_checks
             authority_checks(options,mysql_options,lambda allowed:call(catalog,'external-write-grants','allow' if allowed else 'deny'),inventory)
             page = controls('list')
@@ -322,9 +332,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             from lifecycle import capacity, drain
             capacity(options,health_port)
             drain(server,options,health_port)
-            objects = cold.data_objects()
-            assert objects > 0, 'No data reached the cold-store fixture'
-            print(json.dumps(dict(profile='database_wire_cold_storage',data_objects=objects,file_bytes=cold.file_bytes(),hot_bytes=8*1024*1024,cache_bytes=8*1024*1024,resident_pages=8)),flush=True)
+            assert any(path.is_file() for path in (root/'native').rglob('*'))
+            print(json.dumps(dict(profile='database_wire_local_storage',resident_pages=8,
+                                  tseg_segments=sum(1 for _ in (root/'native').rglob('*.tseg')))),flush=True)
             print(json.dumps(dict(profile='database_native_gateway', slice=slice, psycopg=psycopg.__version__, connector=mysql.connector.__version__, driver_matrix=slice=='all',wide_values=slice!='controls', seconds=round(time.monotonic()-started, 3))))
         finally:
             if sys.exc_info()[0]:
@@ -338,6 +348,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 probe.close()
             if session_faults is not None:
                 session_faults.close()
+                if sys.exc_info()[0]:
+                    print('Recent session authority rejections:', session_faults.rejections, file=sys.stderr)
             if sys.exc_info()[0]:
                 for log in logs:
                     log.flush()

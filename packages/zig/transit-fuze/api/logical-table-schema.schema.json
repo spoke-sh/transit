@@ -22,7 +22,7 @@
           "$ref": "#/$defs/T3"
         },
         "primary_key": {
-          "$ref": "#/$defs/T33"
+          "$ref": "#/$defs/T35"
         }
       },
       "required": [
@@ -37,7 +37,7 @@
     "T1": {
       "type": "string",
       "enum": [
-        "c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b"
+        "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
       ]
     },
     "T2": {
@@ -72,6 +72,12 @@
         },
         "max_characters": {
           "$ref": "#/$defs/T32"
+        },
+        "encoding": {
+          "$ref": "#/$defs/T33"
+        },
+        "collation": {
+          "$ref": "#/$defs/T34"
         }
       },
       "required": [
@@ -80,7 +86,9 @@
         "type",
         "nullable",
         "default",
-        "max_characters"
+        "max_characters",
+        "encoding",
+        "collation"
       ]
     },
     "T5": {
@@ -1023,6 +1031,31 @@
       ]
     },
     "T33": {
+      "type": "string",
+      "enum": [
+        "plain",
+        "bitpacked",
+        "rle",
+        "dictionary",
+        "fsst",
+        "comp",
+        "comp_3",
+        "zoned",
+        "ibm_hfp",
+        "ebcdic"
+      ]
+    },
+    "T34": {
+      "type": "string",
+      "enum": [
+        "none",
+        "utf8_binary",
+        "ascii_ci",
+        "ebcdic_cp037",
+        "icu_root"
+      ]
+    },
+    "T35": {
       "type": "array",
       "maxItems": 65536,
       "items": {

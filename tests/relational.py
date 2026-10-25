@@ -183,7 +183,7 @@ def identity_fixture():
         encoded = s.encode()
         return bytes([len(encoded)]) + encoded
     def schema(object_id):
-        encoded = b'FTS1' + text('transit.table.schema.v1.2026-10-05') + struct.pack('<QQQH', object_id, 1, 3, 2)
+        encoded = b'FTS1' + text('transit.table.schema.v1.2026-10-23') + struct.pack('<QQQH', object_id, 1, 3, 2)
         descriptor = b'FTY1' + text('transit.fuze.types.v1.2026-09-30') + b'\1'
         for identity, label in [(1, 'key'), (2, 'value')]:
             encoded += struct.pack('<Q', identity) + text(label) + struct.pack('<H', len(descriptor)) + descriptor
@@ -206,7 +206,7 @@ def identity_fixture():
     prepared = hashlib.sha256(encoded).digest()
     bound = DEFINITION + b'\0bound\0' + prepared
     for resource, revision, marker, fingerprint in zip([101, 202], [7, 12], [17, 34], schemas):
-        bound += struct.pack('<QQ', resource, revision) + bytes([marker]) * 32 + fingerprint
+        bound += b'\0' + struct.pack('<QQ', resource, revision) + bytes([marker]) * 32 + fingerprint
     return {'prepared': prepared.hex(), 'bound': hashlib.sha256(bound).hexdigest()}
 
 

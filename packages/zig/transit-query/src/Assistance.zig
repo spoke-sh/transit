@@ -25,10 +25,10 @@ pub const Response = struct {
     generation: u32,
     coverage: Coverage,
     status: Status,
-    profile: enum { unified_v1, catalog_v1, configuration_v1 } = .unified_v1,
+    profile: enum { unified_v1, catalog_v1, configuration_v1, direct_table_v1 } = .unified_v1,
     resource: u64,
     contract: [32]u8,
-    resource_revision: u64,
+    resource_revision: ?u64,
     policy_revision: []const u8,
     range: ?input.Range,
     items: []const Item,
@@ -385,7 +385,7 @@ pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
         try builder.add("writer", .meta, "Inspect the configured authorized Table writer");
     } else if (std.mem.eql(u8, request.sql[1..end], "help")) {
         inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add(command, .meta, metaSummary(@field(Meta, command)));
-        for ([_][]const u8{ "--all", "sql", "settings", "shortcuts", "INSERT", "UPDATE", "DELETE", "CREATE TABLE", "ALTER TABLE", "DROP TABLE" }) |topic| try builder.add(topic, .meta, "Local help topic");
+        for ([_][]const u8{ "--all", "sql", "settings", "shortcuts", "INSERT", "UPDATE", "DELETE", "CREATE TABLE", "ALTER TABLE", "DROP TABLE", "CREATE SCHEMA", "ALTER SCHEMA", "DROP SCHEMA" }) |topic| try builder.add(topic, .meta, "Local help topic");
     } else if (std.mem.eql(u8, request.sql[1..end], "timer")) {
         try builder.add("on", .meta, "Enable query timing");
         try builder.add("off", .meta, "Disable query timing");

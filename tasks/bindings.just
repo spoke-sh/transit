@@ -74,8 +74,8 @@ python-test: python-build
     zig build transit-station-grpc-worker
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
-    just test::typed-tables --cold --sdk python
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
+    just bindings::direct-catalog-python
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
@@ -83,12 +83,12 @@ node-build: build
 
 # Qualify installed relational SQL callers through the shared Zig owner.
 relational-node: node-build node-check
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 relational-python: python-build
     PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_relational_values.py
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 
 # Qualify public Node clients/runners through the shared real-authority schedules.
 node-sdk-test: node-build
@@ -104,8 +104,8 @@ node-sdk-test: node-build
     zig build transit-station-grpc-worker
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
-    just test::typed-tables --cold --sdk node
-    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
+    just bindings::direct-catalog-node
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
 logical-test: python-build node-build
@@ -135,7 +135,7 @@ rust-sdk-test: rust-build
     zig build transit-station-grpc-worker
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
-    just test::typed-tables --cold --sdk rust
+    just bindings::direct-catalog-rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build
@@ -168,7 +168,7 @@ ruby-sdk-test: ruby-build
     zig build transit-station-grpc-worker
     python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
-    just test::typed-tables --cold --sdk ruby
+    just bindings::direct-catalog-ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build
@@ -187,7 +187,7 @@ c-sdk-test: c-build
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
-    just test::typed-tables --cold --sdk c --sdk cpp
+    just bindings::direct-catalog-c
     python3 -B tests/c_logical_values.py .cache/bindings/c
 
 # Qualify owned recursive models through installed C11 and C++17 consumers.
@@ -204,7 +204,7 @@ java-sdk-test: java-build
     python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java
     python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
-    just test::typed-tables --cold --sdk java
+    just bindings::direct-catalog-java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
 dotnet-build: build
@@ -221,7 +221,7 @@ dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
-    just test::typed-tables --cold --sdk dotnet
+    just bindings::direct-catalog-dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build
@@ -239,16 +239,15 @@ beam-sdk-test: beam-build
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
-    just test::typed-tables --cold --sdk erlang --sdk elixir
+    just bindings::direct-catalog-beam
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
     zig build transit-node transit-admin
     python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
 
-# Every installed SDK uses only native send and its selected Table data role.
-authorization: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
-    just test::authorization-tables --sdk python --sdk node --sdk ruby --sdk rust --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir
+# Every installed catalog caller explicitly selects a non-inherited data role.
+authorization: direct-catalog-python direct-catalog-node direct-catalog-rust direct-catalog-ruby direct-catalog-c direct-catalog-java direct-catalog-dotnet direct-catalog-beam
 
 # Qualify installed HTTP/gRPC outcome diagnostics and recovery in every SDK.
 connector-outcomes: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
@@ -318,6 +317,32 @@ document-beam: beam-build
     zig build transit-node transit-admin
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language beam
 
+# Python sync/async direct capture, independent native progress and rotated-credential results.
+direct-captured-python:
+    zig build client-abi station-abi -Doptimize=ReleaseSafe
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --python-native zig-out/lib
+
+# Ruby public port caller over direct Table lookup, capture and recovered results.
+direct-captured-ruby:
+    zig build transit-station-host -Doptimize=ReleaseSafe
+    RUBYLIB=sdks/ruby/transit-client/lib:sdks/ruby/transit-station/lib zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --ruby-host zig-out/bin/transit-station-host
+
+# Installed JAR/NuGet callers share the direct capture and cleanup fault schedule.
+direct-captured-managed: java-build dotnet-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --java-packages .cache/bindings/java --dotnet-packages .cache/bindings/dotnet
+
+# Installed C11/C++17 callers own direct definitions independently of the client.
+direct-captured-c: c-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --c-packages .cache/bindings/c
+
+# Installed Erlang/Elixir callers retain independent direct cuts through recovery.
+direct-captured-beam: beam-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --beam-packages .cache/bindings/beam
+
+# Every installed language resolves, seals and reads the same retained Table query.
+direct-captured-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
+    zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --python-packages .cache/bindings/wheels --ruby-packages .cache/bindings/ruby --node-packages .cache/bindings/node --rust-packages .cache/bindings/rust --c-packages .cache/bindings/c --java-packages .cache/bindings/java --dotnet-packages .cache/bindings/dotnet --beam-packages .cache/bindings/beam
+
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
@@ -369,43 +394,88 @@ unified-compound: python-build node-build ruby-build rust-build c-build java-bui
 unified-codecs: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     python3 -B tests/sdk_unified.py
 
-# Installed Python sync/async catalog clients and exact saved command recovery.
-catalog-python: python-build
+# Build matching ReleaseSafe wheels and qualify direct lifecycle and retained SQL.
+direct-catalog-python:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_python.py .cache/bindings/wheels transit-native-client transit-native-station transit-client transit-station
+    zig build test-direct-catalog-python -Doptimize=ReleaseSafe
+
+# Build matching ReleaseSafe packages and qualify the TypeScript direct caller.
+direct-catalog-node:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_node.py .cache/bindings/node transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-node -Doptimize=ReleaseSafe
+
+# Installed Python sync/async direct catalog and exact saved-operation recovery.
+catalog-python: direct-catalog-python
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
-    just test::typed-tables --cold --sdk python
 
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
-catalog-node: node-build node-check
-    just test::typed-tables --cold --sdk node
+catalog-node: node-check direct-catalog-node
+
+# Build matching ReleaseSafe crates and qualify installed Rust direct recovery.
+direct-catalog-rust:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_rust.py .cache/bindings/rust transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-rust -Doptimize=ReleaseSafe
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
-catalog-rust: rust-build
+catalog-rust: direct-catalog-rust
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
-    just test::typed-tables --cold --sdk rust
+
+# Build matching ReleaseSafe gems and qualify the Ruby direct caller.
+direct-catalog-ruby:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_ruby.py .cache/bindings/ruby transit-native-client transit-client transit-native-station transit-station
+    zig build test-direct-catalog-ruby -Doptimize=ReleaseSafe
 
 # Installed Ruby catalog caller with immutable values and joined worker ownership.
-catalog-ruby: ruby-build
+catalog-ruby: direct-catalog-ruby
     ruby -c sdks/ruby/transit-station/lib/transit/station/catalog_values.rb
     ruby -c sdks/ruby/transit-station/lib/transit/station/logical.rb
     ruby -c sdks/ruby/transit-station/lib/transit/station/catalog.rb
-    just test::typed-tables --cold --sdk ruby
+
+# Build matching ReleaseSafe prefixes and qualify both direct C/C++ callers.
+direct-catalog-c:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    cd sdks/c/transit-client && zig build -Doptimize=ReleaseSafe
+    cd sdks/c/transit-station && zig build -Doptimize=ReleaseSafe
+    cd sdks/cpp/transit-station-sdk && zig build check -Doptimize=ReleaseSafe
+    cd examples/station-sdk/c && zig build -Doptimize=ReleaseSafe
+    cd examples/station-sdk/cpp && zig build -Doptimize=ReleaseSafe
+    python3 -B bindings/build_c.py .cache/bindings/c
+    zig build test-direct-catalog-c -Doptimize=ReleaseSafe
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
-catalog-c: c-build
-    just test::typed-tables --cold --sdk c --sdk cpp
+catalog-c: direct-catalog-c
+
+# Build matching ReleaseSafe JARs and qualify Java direct lifecycle recovery.
+direct-catalog-java:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_java.py .cache/bindings/java transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-java -Doptimize=ReleaseSafe
 
 # Installed Java catalog futures, generated port validation and owned recovery.
-catalog-java: java-build
-    just test::typed-tables --cold --sdk java
+catalog-java: direct-catalog-java
+
+# Build matching ReleaseSafe NuGet packages and qualify direct lifecycle recovery.
+direct-catalog-dotnet:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_dotnet.py .cache/bindings/dotnet transit-native-client transit-client transit-native-station transit-station-sdk
+    zig build test-direct-catalog-dotnet -Doptimize=ReleaseSafe
 
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
-catalog-dotnet: dotnet-build
-    just test::typed-tables --cold --sdk dotnet
+catalog-dotnet: direct-catalog-dotnet
+
+# Build matching ReleaseSafe OTP artifacts and qualify both direct callers.
+direct-catalog-beam:
+    zig build client-abi station-abi transit-client-host transit-station-host -Doptimize=ReleaseSafe
+    python3 -B bindings/build_beam.py .cache/bindings/beam transit-native-client transit-client transit-client-elixir transit-native-station transit-station-sdk transit-station-elixir
+    zig build test-direct-catalog-beam -Doptimize=ReleaseSafe
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
-catalog-beam: beam-build
+catalog-beam: direct-catalog-beam
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
-    just test::typed-tables --cold --sdk erlang --sdk elixir
 
 # Compile and run the public Zig SDK and a separately built application.
 zig-test:

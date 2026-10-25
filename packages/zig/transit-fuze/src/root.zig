@@ -78,6 +78,7 @@ test {
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
+    _ = @import("column_codec_test.zig");
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");
     _ = @import("logical_stream_test.zig");

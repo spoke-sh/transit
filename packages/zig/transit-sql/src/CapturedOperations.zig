@@ -67,8 +67,6 @@ pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []co
     const source = host.source orelse return error.UnknownSqlSource;
     var bound = try source.bind(prepared, values);
     defer bound.deinit();
-    var buffer: [q.Bundle.max_bytes]u8 = undefined;
-    const compiled = try bound.bundle.encode(&buffer);
     var original: [16]u8 = @splat(0);
     for (0..8) |_| {
         try host.io.randomSecure(original[0..8]);
@@ -76,6 +74,15 @@ pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []co
         std.mem.writeInt(u64, original[0..8], id, .little);
         if (id != 0 and try host.fresh(q.UnifiedClient.status, .{ &source.client, id }) == null) break;
     } else return error.QueryUploadIdentityConflict;
+    // Freeze the explicit Table cut and pin operation before publishing the
+    // bundle. Authorization prepares a delegation; the source owns acquisition.
+    // Recovery below reads these exact bytes and never captures current data.
+    bound.bundle = if (bound.bundle.source.source == .table)
+        try source.client.authorizeCurrent(bound.bundle, source.configuration.workspace.executor orelse return error.QuerySourceUnavailable, std.mem.readInt(u64, original[0..8], .little))
+    else
+        try source.client.authorizeBundle(bound.bundle);
+    var buffer: [q.Bundle.max_bytes]u8 = undefined;
+    const compiled = try bound.bundle.encode(&buffer);
     try host.runtime.control(.{ .external_begin = .{ .nonce = token, .fingerprint = fingerprint, .kind = .captured, .binding = try host.account.database(host.database), .original = original, .source = source.fingerprint, .expected_generation = host.account.generation, .reservation = 1024 * 1024 } }, host.deadline);
     const reference = (try host.fresh(g.ConfigurationOperations.find, .{ host, token, @as(?[32]u8, fingerprint) })) orelse return error.MissingGatewayOperation;
     const item = try host.fresh(load, .{ host, reference.id });

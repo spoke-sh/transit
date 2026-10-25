@@ -31,7 +31,7 @@ pub const Page = struct {
     pub const json_schema_sequence_bounds = .{ .rows = s.TableReader.max_page_rows };
 };
 pub const Definition = struct { schema: v.Schema, basis: Basis };
-pub const Mutation = struct { realm: u64, resource: u64, principal: u64, operation: []const u8, schema: v.Schema, mutation: c.TableTyped.Mutation };
+pub const Mutation = struct { realm: u64, resource: u64, principal: u64, operation: []const u8, schema: v.Schema, mutation: c.TableLowering.Mutation };
 pub const Reference = struct {
     definition: p.Growth.Definition,
     realm: u64,
@@ -81,7 +81,7 @@ pub const Status = struct {
     }
 };
 pub const Action = union(enum) {
-    create: struct { realm: u64, resource: u64, schema: v.Schema, limits: v.Configuration.Limits },
+    create: struct { realm: u64, resource: u64, schema: v.Schema, limits: v.PublicationLimits },
     schema: Source,
     get: struct { source: Source, identity: []const u8 },
     get_key: struct { source: Source, key: []const Cell },
@@ -185,7 +185,7 @@ fn applyInner(arena: *std.heap.ArenaAllocator, turn: *s.Turn, action: Action) !R
         .mutate => |value| {
             if (value.realm != turn.delivery.realm or value.resource != turn.view.resource) return error.WrongResource;
             const schema = try f.TableSchemaJson.native(arena, value.schema);
-            const plan = try c.TableTyped.plan(arena, schema, "table", value.mutation);
+            const plan = try c.TableLowering.plan(arena, schema, "table", value.mutation);
             const request: s.TableStatement.Request = .{ .resource = turn.view.resource, .principal = value.principal, .operation = try v.unsigned(value.operation), .plan = plan };
             return .{ .mutation = try Status.foreign(allocator, turn.delivery.realm, try s.TableStatement.step(allocator, turn, request)) };
         },

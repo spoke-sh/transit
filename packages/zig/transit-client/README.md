@@ -6,9 +6,13 @@ activation for the same PID. A failed read or uncertain deadline is never proof
 that a PID has expired.
 
 `Client.unavailable` classifies temporary transport failures, including DNS,
-connection and incomplete I/O failures. It performs no retry. Worker loops can
-retry observations and exactly frozen proposals through these failures; access,
-fencing, malformed responses and rejected commands remain separate decisions.
+connection and incomplete I/O failures. HTTP 502, 503 and 504 also report
+`AuthorityUnavailable` when an intermediary supplies an empty or opaque body.
+Only a validated native error envelope sets `last_rejection`; an upstream status
+never proves that a mutation was rejected. The client performs no retry. Worker
+loops can retry observations and exactly frozen proposals through availability
+failures. Access, fencing, malformed successful/rejection responses and rejected
+commands remain separate decisions.
 
 Zig caller library, exported as `transit_client`. Applications receive ordered
 input and committed state, compute their own logic, and submit signed proposals.
@@ -58,7 +62,9 @@ the base path and its escaping. Foreign SDKs use this same transport behavior.
 `Client.call` returns fixed native values. Domain responses containing strings or
 collections use `callOwned`, whose parsed arena owns the complete result until
 `deinit`, independently of the transport lifetime. Request and response limits
-default to 1 MiB each and cannot exceed 16 MiB. This path preserves shared JSON
+default to 1 MiB each and cannot exceed 16 MiB. Requests allocate their checked
+serialized size; response storage grows with received bytes up to its limit.
+A small exchange does not allocate its maximum wire budgets. This path preserves shared JSON
 array shapes, rejects redirects, and drains/frees a response that races a timeout.
 It performs one HTTP attempt; it does not retry uncertain work.
 

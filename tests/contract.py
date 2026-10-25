@@ -5,6 +5,30 @@ import sys
 
 root = Path(__file__).resolve().parents[1]
 actual = sys.stdin.buffer.read()
+if sys.argv[1:] == ["--data-lifecycle"]:
+    import copy
+    import jsonschema
+    expected = (root / "contracts/data-lifecycle-v1.schema.json").read_bytes()
+    assert actual == expected, "Data lifecycle schema drift: run just contract::generate"
+    schema = json.loads(actual)
+    jsonschema.Draft202012Validator.check_schema(schema)
+    validator = jsonschema.Draft202012Validator(schema)
+    fixture = json.loads((root / "packages/zig/transit-protocol/src/fixtures/data-lifecycle-v1.json").read_text())
+    validator.validate(fixture)
+    for path in (("binding",), ("commit", "binding"), ("snapshot",), ("resource_initialization",)):
+        changed = copy.deepcopy(fixture)
+        item = changed
+        for name in path:
+            item = item[name]
+        del item['definition']
+        assert not validator.is_valid(changed), f"missing definition accepted at {path}"
+    changed = copy.deepcopy(fixture)
+    changed['binding']['definition'] = '0' * 64
+    assert not validator.is_valid(changed)
+    assert fixture['binding']['identity']['operation'] == 2**64 - 1
+    assert fixture['source_cut']['checkpoint_lsn'] < fixture['source_cut']['accepted']['next_lsn']
+    print("Data lifecycle: reflected schema, independent fixture and mandatory definitions passed.")
+    raise SystemExit(0)
 if sys.argv[1:] == ["--installation"]:
     expected = (root / "contracts/application-installation-v1.schema.json").read_bytes()
     if actual != expected:

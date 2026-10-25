@@ -34,11 +34,12 @@ public final class JavaUnifiedSdk {
     private static Projection projection(String name,DecoderType type,List<String> path,boolean relative,ProjectionMode mode) { return new Projection(new DecoderColumn(name,type),path,relative,mode,4096,4096); }
     private static TableSource tableSource(List<Catalog.Column> columns) {
         byte[] hash=new byte[32];Arrays.fill(hash,(byte)1);
-        var metadata=new Catalog.Metadata(new Catalog.Scope(new ResourceRef(1,7),n(9)),1,n(9),n(1),"items",new Bytes(hash),17,n(1),1,new Catalog.MetadataCommitment(200,new Bytes(hash)));
-        return new TableSource(new ProcessRef(1,3),metadata,new Catalog.Schema(n(9),n(1),n(columns.size()+1),columns));
+        byte[] schemaHash=new byte[32];Arrays.fill(schemaHash,(byte)2);
+        return new TableSource(new Catalog.Scope(new ResourceRef(1,7),n(9)),3,n(1),1,
+            new TableInterpretation(n(1),new Bytes(hash),n(200),new Bytes(schemaHash)),new Catalog.Schema(n(9),n(1),n(columns.size()+1),columns));
     }
     private static TableSource goldenTable() {
-        return tableSource(List.of(new Catalog.Column(n(1),"id",Logical.Scalar.INT64,false,Optional.empty(),Optional.empty()),new Catalog.Column(n(2),"label",Logical.Scalar.UTF8)));
+        return tableSource(List.of(new Catalog.Column(n(1),"id",Logical.Scalar.INT64,false,Optional.empty(),Optional.empty(), Catalog.Encoding.PLAIN, Catalog.Collation.NONE),new Catalog.Column(n(2),"label",Logical.Scalar.UTF8)));
     }
     private static Source source(ResourceRef r,String kind,boolean golden) {
         return switch(kind) {
@@ -156,16 +157,21 @@ public final class JavaUnifiedSdk {
     private static void serve(JsonObject config) throws Exception {
         var c=config.getAsJsonObject("connection"); long realm=c.get("realm").getAsLong(); ResourceRef resource=new ResourceRef(realm,c.get("resource").getAsLong());
         var connection=new Connection(new ProcessRef(realm,c.get("source").getAsLong()),resource,new ProcessRef(realm,c.get("requester").getAsLong()),new ResourceRef(realm,c.get("requests").getAsLong()));
-        String kind=string(config,"kind"); Source source;
+        String kind=string(config,"kind"); Tables tables=null;
         if(kind.equals("table")) {
-            try(var catalog=Catalog.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),new Catalog.Connection(connection.source(),new Catalog.Scope(resource,n(1))))) {
-                var definition=await(catalog.lookup("items")).orElseThrow(); source=new TableSource(connection.source(),definition.metadata(),definition.schema());
-            }
-        } else source=source(resource,kind,false);
+            var t=config.getAsJsonObject("tables"); var route=t.getAsJsonObject("connection"); var scope=route.getAsJsonObject("scope");
+            tables=new Tables(string(t,"url"),new Catalog.Scope(new ResourceRef(realm,scope.get("resource").getAsLong()),new BigInteger(string(scope,"catalog"))),new BigInteger(string(route,"branch")),route.get("audience").getAsLong());
+        }
         Page saved=null;
-        try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection)) {
-            check(await(client.authorizeBundle(bundle(source,kind,false,true,config.get("compound").getAsBoolean()))).bytes().equals(read(config,"bundle")));
-            var description=await(client.describe(source)); check(description.bundleBytes()==25255 && description.batchRows()==8);
+        try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection,tables)) {
+            Source source; Capture capture=null;
+            if(kind.equals("table")) {
+                source=await(client.lookupTable(1,"items")).orElseThrow().source();
+                var spec=config.getAsJsonObject("capture"); var expected=spec.getAsJsonObject("expected");
+                capture=new Capture(spec.get("executor").getAsLong(),new BigInteger(string(spec,"operation")),new BigInteger(string(expected,"partition")),new BigInteger(string(expected,"next_lsn")));
+            } else source=source(resource,kind,false);
+            check(await(client.authorizeBundle(bundle(source,kind,false,true,config.get("compound").getAsBoolean()),capture)).bytes().equals(read(config,"bundle")));
+            var description=await(client.describe(source)); check(description.bundleBytes()==25614 && description.batchRows()==8);
             System.out.println("{\"ready\":true}");
             try(var reader=new java.io.BufferedReader(new java.io.InputStreamReader(System.in,StandardCharsets.UTF_8))) {
                 for(String line;(line=reader.readLine())!=null;) {
@@ -186,7 +192,7 @@ public final class JavaUnifiedSdk {
                         } else if(action.has("inspect")) {
                             var request=action.getAsJsonObject("inspect"); var scope=request.getAsJsonObject("scope"); var limits=scope.getAsJsonObject("limits");
                             var value=await(client.inspectSql(source,string(scope,"name"),string(request,"sql"),new Budgets(new BigInteger(string(limits,"pages")),new BigInteger(string(limits,"segments")),new BigInteger(string(limits,"result_bytes")))));
-                            check(value.resource().equals(resource) && name(value.sourceKind()).equals(kind)); result=inspection(value);
+                            check(value.resource().equals(source.resource()) && name(value.sourceKind()).equals(kind)); result=inspection(value);
                         }
                         else if(action.has("next")) { var v=action.getAsJsonObject("next"); var p=await(client.prepareNext(new BigInteger(string(v,"namespace")),new Bundle(new Bytes(HexFormat.of().parseHex(string(v,"bundle")))))); result=json("prepared",p.map(item -> new String(item.bytes().copy(),StandardCharsets.UTF_8)).orElse(null)); }
                         else if(action.has("submit")) {
@@ -196,7 +202,7 @@ public final class JavaUnifiedSdk {
                         else if(action.has("status")) { var v=await(client.status(new BigInteger(string(action,"status")))); result=json("status",v.map(item -> json("phase",item.phase().name().toLowerCase(Locale.ROOT),"correlation",item.correlation().toString(),"diagnostic",item.diagnostic().orElse(null),"failure",item.failure().map(f -> json("code",f.code(),"stage",f.stage(),"dimension",f.dimension(),"limit",f.limit().toString(),"observed",f.observed().toString())).orElse(null))).orElse(null)); }
                         else {
                             var v=action.getAsJsonObject("page"); Page page=await(client.page(new BigInteger(string(v,"namespace")),!v.has("cursor")||v.get("cursor").isJsonNull()?Optional.empty():Optional.of(new Cursor(string(v,"cursor")))));
-                            check(page.manifest().resource().equals(resource) && page.manifest().kind().name().equalsIgnoreCase(kind)); check(page.decode().size()==page.rows()); saved=page;
+                            check(page.manifest().resource().equals(source.resource()) && page.manifest().kind().name().equalsIgnoreCase(kind)); check(page.decode().size()==page.rows()); saved=page;
                             result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString(),"selected",page.manifest().selected().toString(),"value_count",page.manifest().valueCount().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
                         }
                         System.out.println(json("status",0,"value",result));

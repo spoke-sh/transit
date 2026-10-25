@@ -18,8 +18,8 @@ SELECT key, COUNT(*) AS rows, SUM(value) AS total
 FROM observations WHERE value >= 0 GROUP BY key;
 ```
 
-The console uses the selected account's service-owned catalog, per-resource
-snapshot-vector consistency and bounded execution; see
+The console uses the selected account's service-owned catalog, independent
+retained Table snapshots and bounded execution; see
 [configuration and results](../../../../apps/transit-cli/docs/console.md#finite-relational-queries).
 The Zig query API accepts one authorized catalog route per source in SQL order.
 Routes share a realm and caller. A Table alias is local to the query and grants
@@ -41,8 +41,11 @@ not widen to PostgreSQL's numeric result. Ungrouped empty input returns zero
 counts and null sums; grouped empty input returns no rows. Group output is
 lexicographic with NULL first. This canonical order does not enable `ORDER BY`.
 
-Sources in one resource share a captured cut. Different resources form an exact
-per-resource vector, without atomic or causal cross-resource guarantees. Current
+Direct Tables have separate partition cuts even within one catalog resource.
+Repeated aliases of the same Table share one retained pin. This independent
+vector provides no common catalog frontier or causal cross-Table guarantee.
+Native-resource query sources retain their separate per-resource cut contract;
+the result basis identifies which atomic domain each source uses. Current
 source access is required even when a source contributes no output rows. The
 [query reference](../queries.md#relational-boundary) describes interactive leases,
 captured jobs, complete coverage and cleanup. A delivered prefix cannot replace

@@ -61,6 +61,13 @@ instruction to keep bulk data in the superseded actor/page path.
 
 ## Installed lifecycle integration
 
+The implementation branch now has direct Table, named KV/Document and explicit
+computation owners, migrated callers and a coordinated current-v1 cutover. The
+[current lifecycle review](01-declarative-data-lifecycle.md#current-implementation-review--2026-10-24)
+links the delivered slices, executed evidence and still-open qualification.
+This milestone remains In Progress: those results do not complete every storage
+maintenance, performance or installed integration gate below.
+
 The sequencing review transfers executable lifecycle delivery from milestone 1
 to this installed integration owner. Preserve #108's original acceptance gates:
 
@@ -196,7 +203,7 @@ these measurements; it cannot replace this cutover's existing matched controls
 with library-only timings or defer a missing bounded access path.
 
 Require passing end-to-end proofs across `transit-node`, `transit-sql-gateway`,
-`transit-query-host`, `transit server` and `psql`/`mysql`/`transit sql` callers,
+`transit-query-host`, `transit server` and `psql`/`mysql`/`transit console` callers,
 preserving exact recovery, fencing, permission revocation and bounded resumable
 direct ingestion for oversized statements while demonstrating measured
 wall-clock improvement under matched controls.
@@ -218,3 +225,43 @@ memtable visibility precede asynchronous flushing in the point-write profile.
 Do not flush every INSERT just to satisfy the artifact test. Qualification must
 distinguish accepted WAL-only state from flushed state and exercise both recovery
 paths, with observable progress explaining the difference.
+
+
+## Native local persistence implementation contract
+
+The local adapter keeps the existing deterministic native authority engine and
+its paged copy-on-write catalogs. This delivery changes persistence, not the
+meaning of a native turn or its one-KV-resource boundary. The adapter owns one
+exclusive local directory and serializes access to its local WAL handle. Native
+control/process transitions initially retain their current shared sequencing;
+direct Table data partitions have a separate acceptance owner. A Table-only
+mirror cannot satisfy this contract.
+
+| Durable owner | Local representation | Visibility / recovery authority |
+| --- | --- | --- |
+| Native catalog, policy, sequences and operation receipts | Immutable verified native pages | Roots in the accepted native WAL entry |
+| Process input progress, outputs, effects and retirement | Existing core records in the same paged catalog | The same native entry atomically publishes the complete transition |
+| KV and Document state | Existing resource roots and immutable blocks | Native resource mutations and input/output progress retain their existing commit boundary |
+| Captured versions and views | Existing durable records and referenced roots | No object collection without accounting for these retained roots |
+| Staged pages/blocks | Private immutable objects | Staging never publishes a resource; failed/conflicting candidates remain unreachable |
+
+Each accepted native entry uses partition zero of `TransitLog`; the latest
+complete entry supplies the published catalog/policy roots. Epochs and expected
+LSNs bind append. Log trim requires the already accepted native history floor,
+retains the latest entry, and does not collect referenced objects. Restart opens
+the existing authority; missing, corrupt or incompatible history is an error.
+Replay reads state and never dispatches effects.
+
+Pages and blocks use bounded verified object reads and a configured page cache.
+Operation candidate bounds and an explicit physical allocation quota apply
+before staging. A control reserve remains available after ordinary data
+admission stops. Uncertain writes retain their reservation until restart can
+recount actual files; quota pressure never permits expiry or cleanup. Staged and
+superseded objects remain until a separately qualified retained-root collector
+can reclaim them. The adapter and `transit-node` `local_directory` composition
+pass native turn/restart and signed public-caller fault proofs. The local CLI
+now selects that backend with maintenance inside the node; its bundle no longer
+includes Ursula or MinIO. The bundle still composes multiple Transit executables;
+the single-binary target remains part of #122. Standalone payload ownership
+and direct Table SQL integration remain incomplete. See the scoped
+[executed evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22).

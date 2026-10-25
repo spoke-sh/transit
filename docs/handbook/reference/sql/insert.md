@@ -49,8 +49,8 @@ rights; they do not require rereading a possibly changed Table. A primary-key
 conflict never authorizes disclosure of the existing row's other values.
 
 The console's [SQL service](../sql-sessions.md)
-saves the original intent and exact signed steps before sending. After an
-uncertain response, the console checks the original request; repeating SQL
+saves the complete direct intent and commits its reference before dispatch. After
+an uncertain response, the console checks the original request; repeating SQL
 creates new work. Ctrl-C cannot undo a published operation. Saved work remains bound to
 its original object and schema across ALTER, DROP and name reuse.
 

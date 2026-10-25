@@ -25,6 +25,18 @@ test("explicit relational pages recover the same host and clear on current denia
   await page.getByLabel("Relational SQL", { exact: true }).fill(process.env.BOARD_RELATIONAL_SQL!);
   expect(opens).toBe(0);
   await page.getByRole("button", { name: "Inspect relational workspace", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Close interrupted query", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Run relational query", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Close interrupted query", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Close interrupted query", exact: true }),
+  ).toHaveCount(0);
+  expect(opens).toBe(0);
+  await page.getByRole("button", { name: "Inspect relational workspace", exact: true }).click();
   await expect(worksheet).toContainText("Catalog routes");
   await page.getByRole("button", { name: "Add JOIN route", exact: true }).click();
   await page.getByLabel("JOIN route", { exact: true }).selectOption("1");
@@ -76,17 +88,10 @@ test("explicit relational pages recover the same host and clear on current denia
   await page.getByRole("button", { name: "Read current relational page", exact: true }).click();
   await expect(page.getByRole("table", { name: "One current authorized row" })).toBeVisible();
   const policy = (allow: boolean) => {
-    const root = `${process.env.BOARD_RELATIONAL_ROOT!}/secondary`;
     execFileSync(process.env.BOARD_RELATIONAL_PROOF!, [
       process.env.BOARD_RELATIONAL_AUTHORITY!,
-      "policy",
-      root,
-      allow ? "allow" : "deny",
-    ]);
-    execFileSync(process.env.BOARD_RELATIONAL_PROOF!, [
-      process.env.BOARD_RELATIONAL_AUTHORITY!,
-      "pump",
-      root,
+      allow ? "caller-allow" : "caller-deny",
+      process.env.BOARD_RELATIONAL_PROFILE!,
     ]);
   };
   try {
@@ -94,12 +99,22 @@ test("explicit relational pages recover the same host and clear on current denia
     await expect(worksheet).toContainText("Forbidden", { timeout: 15000 });
     await expect(page.getByRole("table", { name: "One current authorized row" })).toHaveCount(0);
     await expect(page.getByLabel("Relational SQL", { exact: true })).toHaveValue("");
-    await page.getByRole("button", { name: "Close relational query", exact: true }).click();
-    await expect(
-      page.getByRole("button", { name: "Close relational query", exact: true }),
-    ).toBeDisabled();
   } finally {
     policy(true);
   }
+  const closed = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/relational") &&
+      response.request().method() === "POST" &&
+      !!response.request().postDataJSON().query?.close,
+  );
+  await page.getByRole("button", { name: "Close relational query", exact: true }).click();
+  expect((await closed).status()).toBe(200);
+  await expect(
+    page.getByRole("button", { name: "Close relational query", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Close interrupted query", exact: true }),
+  ).toHaveCount(0);
   expect(errors).toEqual([]);
 });

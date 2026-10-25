@@ -61,12 +61,12 @@ internal sealed class Bridge : IWorkerState<object?>
         } catch (Exception) { bridge.Dispose(); throw; }
     }
     internal int Limit(string name) => checked((int)Value.Number(Caps[name], 1));
-    internal static Bridge OpenQuery(ClientConfig config, Credential identity, UnifiedQuery.Connection connection)
+    internal static Bridge OpenQuery(ClientConfig config, Credential identity, UnifiedQuery.Connection connection, UnifiedQuery.Tables? tables)
     {
         Bridge bridge = new(config.NativeDirectory);
         try {
             byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
-            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis)));
+            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis), ("tables", tables?.Wire(identity, connection))));
             byte[] seed = RawBridge.Seed(identity.SeedFile);
             try {
                 uint status = bridge.Api.station_unified_query_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.queryClient);
@@ -88,20 +88,19 @@ internal sealed class Bridge : IWorkerState<object?>
         uint status = Api.station_unified_query_codec(bytes, (nuint)bytes.Length, out var buffer);
         return Result(status, buffer, "query-codec", schema: "UnifiedQueryCodecResult");
     }
-    internal static Bridge OpenCatalog(ClientConfig config, Credential identity, Catalog.Connection connection, string? tableServiceUrl)
+    internal static Bridge OpenCatalog(ClientConfig config, Credential identity, Catalog.Connection connection, string? serviceUrl)
     {
         Bridge bridge = new(config.NativeDirectory);
         try {
             byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
-            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis), ("table_service_url", tableServiceUrl)));
+            byte[] document = Value.Json(Value.Obj(("definition", Sdk.Catalog.ContractDefinition), ("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis), ("service_url", serviceUrl)));
             byte[] seed = RawBridge.Seed(identity.SeedFile);
             try {
                 uint status = bridge.Api.station_catalog_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.catalogClient);
                 if (status != 0) throw Value.NativeError(status, null, "catalog-create");
                 if (bridge.catalogClient == IntPtr.Zero) throw Value.Incompatible("catalog-create");
             } finally { CryptographicOperations.ZeroMemory(seed); }
-            var caps = Sdk.Catalog.ParseCapabilities(bridge.Catalog(Value.Obj(("capabilities", Value.Obj())))["capabilities"]);
-            if (!Sdk.Catalog.Supported(caps)) throw new TransitException(ErrorKind.UnsupportedCapability, "catalog-capabilities");
+            Sdk.Catalog.ParseCapabilities(Value.Object(bridge.Catalog(Value.Obj(("catalog", Value.Obj(("capabilities", Value.Obj())))))["catalog"])["capabilities"]);
             return bridge;
         } catch (Exception) { bridge.Dispose(); throw; }
     }
@@ -112,7 +111,10 @@ internal sealed class Bridge : IWorkerState<object?>
         var action = Value.Object(Value.Parse(bytes, 96));
         Schema.Require(Value.Object(Schemas["CatalogAction"]), action);
         uint status = Api.station_catalog_call(catalogClient, bytes, (nuint)bytes.Length, out var buffer);
-        return Result(status, buffer, "catalog", action.ContainsKey("submit") && (status is 0 or 6), "CatalogResult", Sdk.Catalog.Limit("catalog_action_bytes"), 96);
+        bool mutation = action.ContainsKey("stage") || action.ContainsKey("admit") ||
+            (action["operation"] is JsonObject operation && Value.String(operation["command"]) != "inspect") ||
+            (action["retention"] is JsonObject retention && (retention.ContainsKey("acquire") || retention.ContainsKey("release")));
+        return Result(status, buffer, "catalog", mutation && (status is 0 or 6), "CatalogResult", Sdk.Catalog.Limit("catalog_action_bytes"), 96);
     }
     internal JsonObject UnifiedQuery(JsonObject action, bool mutation = false)
     {

@@ -3,7 +3,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 const expect = baseExpect.configure({ timeout: 60000 });
-const [origin, marker, spki] = process.argv.slice(2);
+const [origin, marker, spki, recoveryWait = "180000"] = process.argv.slice(2);
+const recoveryWaitMs = Number(recoveryWait);
+assert(
+  Number.isSafeInteger(recoveryWaitMs) && recoveryWaitMs >= 180000 && recoveryWaitMs <= 600000,
+);
 if (origin.startsWith("https:")) assert(spki && /^[A-Za-z0-9+/]{43}=$/.test(spki));
 const browser = await chromium.launch({
   headless: true,
@@ -22,6 +26,7 @@ page.on("response", async (r) => {
     Object.keys(r.request().postDataJSON())[0],
     r.status(),
     body.err ?? Object.keys(body)[0],
+    body.status?.diagnostic ?? null,
   ]);
   if (observations.length > 20) observations.shift();
 });
@@ -61,15 +66,18 @@ await page.route("**/api/v1/query", async (route) => {
   await route.continue();
 });
 async function waitPhase(value) {
-  await expect.poll(() => readFileSync(marker, "utf8"), { timeout: 180000 }).toBe(value);
+  // Physical replacement is an external fixture step, separate from the
+  // unchanged query/read deadlines. Kubernetes also re-registers three owners.
+  await expect.poll(() => readFileSync(marker, "utf8"), { timeout: recoveryWaitMs }).toBe(value);
 }
 try {
   await page.goto(origin + "/items");
   await expect(page.locator("#interface-status")).toContainText("revision 1");
   await page.locator("#run").click();
-  await expect(page.locator("#coverage")).toContainText("19 rows");
+  const firstQueryStarted = Date.now();
+  await expect(page.locator("#coverage")).toContainText("19 rows", { timeout: 180000 });
   await expect(page.locator("#rows tr")).toHaveCount(8);
-  console.log("Original query verified");
+  console.log(`Original query verified in ${Date.now() - firstQueryStarted}ms`);
   await expect(page.locator("#basis")).toContainText("status schema");
   assert.deepEqual(await page.locator("#rows td:nth-child(2)").allTextContents(), [
     "Open",
@@ -124,8 +132,10 @@ try {
   await expect(page.locator("#run")).toBeEnabled();
   fault = false;
   await page.locator("#run").click();
+  const nextQueryStarted = Date.now();
+  await expect(page.locator("#coverage")).toContainText("19 rows", { timeout: 180000 });
   await expect(page.locator("#basis")).toContainText("state schema");
-  await expect(page.locator("#coverage")).toContainText("19 rows");
+  console.log(`New query verified in ${Date.now() - nextQueryStarted}ms`);
   assert.equal(namespaces.size, 2, "Only the explicit new Run may allocate a query");
   await page.locator("#density").selectOption("comfortable");
   for (const width of [1440, 320]) {

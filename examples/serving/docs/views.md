@@ -1,7 +1,9 @@
 # Live consumer placement
 
 The live composition uses the real embedded Board and counter application,
-`transit-serving-http`, one durable live requester, and a separate Table source.
+`transit-serving-http`, one durable live requester, and a separate direct Table
+source. The native owner's local directory persists control history and direct
+Table storage; their acceptance boundaries remain independent.
 Browser code is identical in native, Compose and reference placements. The
 [reactive guide](reactive.md) owns the underlying transport/lease contract.
 
@@ -49,19 +51,16 @@ identity. Lost admission replies preserve the exact original signed request.
 The selected profile has four sessions/service, two/caller, one subscription per
 session, at most eight starts per explicit Follow generation and one active query
 per requester. It verifies a complete query a page at a time, discards those
-prefixes, then rereads the visible page with current authority. The first Compose
-schedule measured 7.2 seconds to a counter update and 102 seconds to a verified
-20-row refresh; these are single-run observations, not freshness guarantees.
+prefixes, then rereads the visible page with current authority.
 No retention opt-in is implicit: clock/control records and accepted results stay
 retained. The [test ledger](../../../tests/README.md) owns current proof status,
 failure schedules, durations and storage observations.
 
-The extended reference schedule passed in 518.32 seconds (663.06 seconds with
-packaging/placement): counter visibility 6,223 ms, same-result physical recovery
-18,338 ms, and complete finite refresh 155,111 ms. Observed browser heaps were
-10,397,376 bytes for Board and 4,637,604 bytes for the counter, below the fixture's
-128 MiB per-page ceiling. It revoked only entry reads after verifying the last
-candidate page and before the visible reread, then observed protected-state
-clearance. The cold backend retained 504 objects / 57,849,285 bytes. These finite
-measurements do not establish sustainable throughput or peak heap across all
-browser execution.
+Reloading the counter page starts paused without rows or a retained snapshot
+basis. Follow is an explicit action. Its sessions are independent across tabs,
+including tabs using the same principal. Credential rotation revokes disclosure
+through the old gateway key and clears protected state. After the operator
+replaces that key, the viewer explicitly recovers any uncertain control and
+reopens Follow. Board's separate viewer retains its own authority. The
+[native browser schedule](../../../tests/README.md#direct-follow-reload-and-credential-recovery--2026-10-24)
+qualifies these transitions; physical placement is a separate schedule.

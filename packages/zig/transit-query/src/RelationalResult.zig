@@ -35,12 +35,12 @@ pub const Options = struct {
         return .{ .relational = .{ .request = try bundle.fingerprint(), .owner = self.owner, .peer = self.peer, .resource = self.resource, .job = self.job, .requests = self.requests } };
     }
 };
-/// client must hold current native read grants to the result and both sources.
-/// The selected profile keeps result state in the first Table owner's resource.
+/// Native reads cover the independent computation resource. Source disclosure
+/// uses exact authority references retained with each direct Table pin.
 pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !Self {
     try bundle.validate();
     if (options.requests < 2) return error.QueryPageBudget;
-    if (bundle.sources[0].scope.realm != client.realm or bundle.sources[0].scope.resource != options.resource or bundle.sources[0].owner != options.owner) return error.RelationalSourceChanged;
+    if (bundle.sources[0].scope.realm != client.realm) return error.RelationalSourceChanged;
     const current = try q.ResultDisclosure.check(disclosure, try options.selection(bundle), client.realm);
     var self: Self = .{ .bundle = bundle, .disclosure = current, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .stored = undefined, .vector = undefined, .cuts = undefined, .progress = undefined, .canonical_bytes = 0, .requests = 2, .request_limit = options.requests };
     errdefer {
@@ -54,11 +54,11 @@ pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: 
     if (self.stored.phase != .complete) return error.IncompleteResult;
     const reference = try bundle.reference(self.stored.request.resource, self.stored.request.namespace);
     if (!std.meta.eql(reference, self.stored.request)) return error.RelationalSourceChanged;
-    // Every source policy, the job and coordinator policy are checked together.
-    try self.authorize(false);
     const vector_value = (try reader.read(r.key('v', self.stored.id, 0))) orelse return error.MissingQueryProgress;
     self.vector = try q.RelationalCaptured.Vector.decode(bundle, vector_value);
     try self.vector.boundCuts(bundle, &self.cuts);
+    // Every source policy, the job and coordinator policy are checked together.
+    try self.authorize(false);
     const pages: q.RelationalState = .{ .publication = self.stored.publication(options.resource) };
     var bytes: [r.Manifest.max_bytes]u8 = undefined;
     const manifest = try r.Manifest.decode(try pages.read(&reader, self.stored.manifest, r.manifest_format, &bytes));
@@ -125,11 +125,21 @@ fn authorize(self: *Self, finish: bool) !void {
     if (!grant.allow or grant.revision != self.stored.policy_revision or grant.requests != self.stored.request.resource or !std.mem.eql(u8, &grant.request, &try self.bundle.fingerprint())) return error.QueryDenied;
     const original = try self.bundle.subject(self.stored.request_version.pid, self.stored.destination, self.stored.request.resource);
     if (original.principal() != grant.principal) return error.QueryDenied;
-    var observed: ?p.Authorization.Guard = null;
-    var authority = q.QueryAuthorization.readerContext(self.source.client, self.disclosure, &observed);
+    var authority = q.QueryAuthorization.readerContext(self.source.client, self.disclosure, null);
     authority.budget = .{ .used = &self.requests, .limit = self.request_limit };
-    for (self.bundle.sources) |source| {
-        try add(&selections, source.scope.resource, c.Records.key(source.scope.catalog, 'c', 0, 0));
+    var required: ?p.Authorization.Guard = null;
+    for (self.bundle.sources, self.bundle.plan.sources, self.vector.entries[0..self.vector.count], 0..) |source, declared, cut, i| {
+        if (try self.bundle.sourceOrdinal(i) != i) continue;
+        var storage: [16384]u8 = undefined;
+        var fixed: std.heap.FixedBufferAllocator = .init(&storage);
+        const pin_slot = try q.RelationalCaptured.slot(self.bundle, self.stored.id, i);
+        const pin = (try q.CapturedTablePin.observe(fixed.allocator(), &reader, pin_slot, self.stored.request_version.pid)) orelse return error.IncompleteSource;
+        if (!std.meta.eql(pin.grant, self.bundle.retention[i])) return error.RelationalSourceChanged;
+        const retained = try q.CapturedTablePin.source(fixed.allocator(), &reader, pin_slot, self.stored.request_version.pid);
+        _ = try source.basis(retained, declared.schema);
+        if (retained.accepted.partition != cut.partition or retained.accepted.next_lsn != cut.position or !std.mem.eql(u8, &try retained.fingerprint(), &cut.commitment)) return error.RelationalSourceChanged;
+        const guard = try retained.authority.guard(self.disclosure);
+        required = if (required) |previous| try previous.merge(guard) else guard;
     }
     const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = selections, .finish = finish });
     for (result.current) |slot| if (slot) |value| {
@@ -138,18 +148,29 @@ fn authorize(self: *Self, finish: bool) !void {
             const live = (try q.RelationalCapture.policy(&current, self.stored.destination)) orelse return error.QueryDenied;
             if (!std.meta.eql(live, grant) or !std.meta.eql(try q.RelationalCapture.job(&current, self.stored.id), self.stored)) return error.QueryDenied;
         }
-        var data: q.wire.ResourceReader.Reader = .{ .client = self.source.client, .view = .{ .resource = value.resource.id, .revision = value.resource.revision } };
-        var authorized = authority.wrap(&data);
-        for (self.bundle.sources) |source| if (source.scope.resource == value.resource.id) {
-            _ = try source.checkCurrent(&authorized, self.disclosure.principal());
-        };
     };
-    _ = try authority.requireAuthorization(observed orelse return error.QueryDenied);
+    _ = try authority.requireAuthorization(required orelse return error.QueryDenied);
 }
 pub fn schema(self: *Self, fields: []f.Types.Field) !f.Types.Type {
     if (self.failed or self.complete) return error.QueryClosed;
     try self.authorize(false);
     return self.bundle.plan.outputSchema(fields);
+}
+/// Recheck current disclosure rights without consuming output. Composed readers
+/// use this around their own bounded metadata reads at this retained snapshot.
+pub fn check(self: *Self) !void {
+    if (self.failed or self.complete or self.source.closed) return error.QueryClosed;
+    try self.authorize(false);
+}
+/// Compare the manifest's retained cuts with current logical Table progress.
+/// This schedules no execution and does not verify an unfinished result prefix.
+/// Call before exhaustion; next()'s terminal check establishes full coverage.
+pub fn freshness(self: *Self, clients: []const c.DirectTableClient) !q.RelationalFreshness {
+    if (self.failed or self.complete) return error.QueryClosed;
+    try self.authorize(false);
+    const result = try q.RelationalFreshness.captured(self.bundle, self.vector, clients, self.disclosure);
+    try self.authorize(false);
+    return result;
 }
 /// One owned scalar row. A failed/unfinished prefix remains incomplete until
 /// the final null has checked counts, digest chain, canonical bytes and rights.

@@ -107,7 +107,7 @@ def boolean_bundle_fixtures():
         plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest() +
                       hashlib.sha256(b'transit.query.source.v1\0' + source_bytes).digest() + hashlib.sha256(descriptor(schema)).digest() +
                       bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0) + bytes([3, len(program)]) + code)
-        wire = b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + b'\0' + source_bytes + plan_bytes
+        wire = b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + b'\0\0' + source_bytes + plan_bytes
         digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
         for chunk_index, offset in enumerate(range(0, len(wire), 256)):
             chunk = wire[offset:offset+256]
@@ -143,7 +143,7 @@ def run(host, library, producer):
         return dict(column=dict(name=name, type='utf8'), path=[name], mode=mode)
 
     sources = [dict(resource=7, source=dict(kv=dict(prefix=b'data/'.hex(), key=dict(type='binary'), value=dict(type='uint64')))),
-        dict(resource=7, source=dict(table=dict(scope=dict(realm=1, resource=7, catalog='9'), owner=3, object='9', metadata=dict(id='1', spec=dict(format=0x54434d01, length=200, digest=[1]*32)), row_type=dict(structure=[dict(name='id', type={'int64': {}}), dict(name='label', type={'utf8': {}}, nullable=True)])))),
+        dict(resource=7, source=dict(table=dict(scope=dict(realm=1, resource=7, catalog='9'), owner=3, branch='1', namespace=1, object='9', interpretation=dict(revision='1', digest=[1]*32, bytes='200', schema=[2]*32), row_type=dict(structure=[dict(name='id', type={'int64': {}}), dict(name='label', type={'utf8': {}}, nullable=True)])))),
         dict(resource=7, source=dict(document=dict(reference=dict(resource=7, document=str(2**64-1), epoch='3', type_revision=1, revision='42'),
             projections=[project('title', 'scalar'), project('body', 'text')])))]
     fixtures = json.loads((ROOT / 'packages/zig/transit-query/src/fixtures/bundles.json').read_text())

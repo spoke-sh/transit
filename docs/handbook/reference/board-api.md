@@ -22,6 +22,10 @@ The query workspace's `inspect` request accepts `DESCRIBE`, `SHOW TABLES` and
 It returns current metadata within the configured source scope, separate from
 compiled query bundles or submitted results. It creates no query or snapshot.
 The worksheet's Run action retains its explicit SELECT submission interface.
+An Atlas query entry identifies the worker's progress resource; a declared
+worksheet binds its data source. Direct Table data and query progress can have
+different resource IDs. SQL inspection, suggestions and result source evidence
+refer to the data declaration, while query recovery retains its execution route.
 
 Resource-entry inspection interprets a typed Table head only when its current
 format, object key and resource identity agree. It reports the recorded head
@@ -54,8 +58,12 @@ remain text with exact numeric lexemes; they do not become JavaScript numbers.
 The separately configured `POST /api/v1/relational` route exposes the shared
 interactive Table query owner. Its typed request wraps capabilities, metadata-only
 explanation, open, one-row page and close. A `describe` request reads configured
-catalog routes and the same host's active query reference/current ordinal under
-current source rights. Inspection does not advance execution or rerun lost work.
+catalog routes, the same host's active query reference/current ordinal and
+pending recovery under current source rights. Open saves complete source
+bindings and accepted positions; a private service journal preserves original
+pin requests before dispatch. `recover` explicitly closes the matching original
+query's pins after interruption. Inspection advances no execution and reruns
+no lost work.
 
 The Operations screen's [relational worksheet](../../../apps/transit-board/docs/relational.md)
 distinguishes draft, proposed plan, captured source vector and incomplete/complete
@@ -63,7 +71,9 @@ output. Run is explicit; editing creates no query. The route admits 16 KiB JSON
 requests and returns at most one 128-column row, with a 256 KiB browser response
 limit. It uses a separate configured principal and one active session shared by
 this instance's viewers. A browser reload can inspect that session; a Board
-restart loses it. Current rights apply to repeated pages and terminal coverage.
+restart loses its executor and exposes the original retention for explicit
+cleanup. New work waits for that cleanup. Current rights apply to repeated pages
+and terminal coverage.
 
 ## Query diagnostics
 
@@ -82,6 +92,11 @@ denial returns 403 and unavailability returns 503. Invalid remote result evidenc
 returns 502; an invalid locally supplied frame remains 400. Internal failures
 return 500. An unknown submission always remains 503 with its exact recovery
 identity. The diagnostic's stable code supplies the specific reason.
+
+A native `TableDefinitionChanged` response reports
+`inspection.observation_changed` and permits a fresh observation. It does not
+establish an empty Table, complete a previous read or restart a saved query.
+Results from the earlier and newer definitions remain separate.
 
 The worksheet displays the semantic message, byte location, exact counters,
 provided or unavailable facts and permitted recovery guidance. Saved query

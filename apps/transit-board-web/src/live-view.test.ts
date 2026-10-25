@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { LiveView, ReactiveError, Session, type Snapshot } from "@transit/reactive-client";
 const scope = {
@@ -26,7 +26,9 @@ function attachedSession() {
 const snapshot: Snapshot<string> = {
   value: "protected",
   basis: {
-    cut: { kind: "table", resource: 9, revision: 10, head: Array(32).fill(0) },
+    resource: 9,
+    partition: "1",
+    accepted: "10",
     contract: Array(32).fill(0),
     schema: Array(32).fill(0),
   },
@@ -134,6 +136,98 @@ test("renewal progresses while complete-result acquisition is pending", async ()
   expect(view.getSnapshot().snapshot).toBeNull();
 });
 
+test.each([
+  { active: false, denied: false },
+  { active: true, denied: false },
+  { active: false, denied: true },
+  { active: true, denied: true },
+])(
+  "completed result reads progress through an uncertain control (busy=$active, denied=$denied)",
+  async ({ active, denied }) => {
+    vi.useFakeTimers();
+    const session = attachedSession();
+    let busy = false;
+    const busyState = vi.spyOn(session, "busy", "get").mockImplementation(() => busy);
+    const selection = { session: { session: 5, generation: 6 }, generation: 9 };
+    session.open = async () => {
+      session.scope = scope;
+    };
+    session.close = async () => {
+      session.scope = null;
+      session.selection = null;
+    };
+    session.inspect = async () =>
+      ({ observation: { data_revision: "10", basis: snapshot.basis } }) as never;
+    let ready = false;
+    let refused = false;
+    session.refreshStatus = async () => {
+      if (refused) throw new ReactiveError(403, "denied");
+      return { phase: ready ? "ready" : "idle", namespace: ready ? "200" : "100" } as never;
+    };
+    const controls: string[] = [];
+    session.refresh = async (command) => {
+      controls.push(Object.keys(command)[0]!);
+      if ("follow" in command) session.selection = selection;
+      if ("acknowledged" in command) {
+        expect(command.acknowledged).toEqual({ selection, namespace: "200" });
+        ready = false;
+      }
+      return 9;
+    };
+    session.recover = async () => {
+      throw new ReactiveError(503, "unavailable");
+    };
+    const reads: string[] = [];
+    const view = new LiveView(
+      session,
+      async (_signal, namespace) => {
+        reads.push(namespace!);
+        return { ...snapshot, namespace };
+      },
+      async () => ["200", ...Array<string>(7).fill("0")],
+    );
+    try {
+      await view.start("100", 1);
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(view.getSnapshot().snapshot?.namespace).toBe("100");
+      const before = [...controls];
+      const pending = {
+        signed: { retained: "original renewal" } as never,
+        command: null,
+        input: 19,
+      };
+      session.pending = pending;
+      busy = active;
+      ready = true;
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(view.getSnapshot().snapshot?.namespace).toBe("200");
+      expect(reads).toEqual(["100", "200"]);
+      expect(controls).toEqual(before);
+      expect(session.pending).toBe(pending);
+      expect(view.getSnapshot().detail).toMatch(/control (remains pending|outcome uncertain)/i);
+      if (denied) {
+        refused = true;
+        await vi.advanceTimersByTimeAsync(1100);
+        expect(view.getSnapshot()).toMatchObject({ phase: "denied", snapshot: null });
+        expect(session.pending).toBe(pending);
+        expect(controls).toEqual(before);
+      } else {
+        session.pending = null;
+        busy = false;
+        await vi.advanceTimersByTimeAsync(1100);
+        expect(controls).toEqual([...before, "acknowledged"]);
+      }
+      expect(reads).toEqual(["100", "200"]);
+    } finally {
+      session.pending = null;
+      busy = false;
+      await view.pause();
+      busyState.mockRestore();
+      vi.useRealTimers();
+    }
+  },
+);
+
 test("a new query template cannot publish the previous paused candidate", async () => {
   const session = attachedSession();
   session.open = async () => {
@@ -144,27 +238,27 @@ test("a new query template cannot publish the previous paused candidate", async 
   };
   session.inspect = async () =>
     ({
-      observation: { data_revision: 10, basis: snapshot.basis, schema: { columns: [] } },
+      observation: { data_revision: "10", basis: snapshot.basis, schema: { columns: [] } },
     }) as never;
   session.refresh = async () => 1;
   const first = deferred<void>();
   const second = deferred<Snapshot<string>>();
   let reads = 0;
   const view = new LiveView(session, async () => {
-    if (++reads === 1) return { ...snapshot, namespace: "old" };
+    if (++reads === 1) return { ...snapshot, namespace: "100" };
     return second.promise;
   });
   view.subscribe(() => {
-    if (view.getSnapshot().snapshot?.namespace === "old") first.resolve();
+    if (view.getSnapshot().snapshot?.namespace === "100") first.resolve();
   });
   await view.start();
   await first.promise;
   await view.pause();
-  expect(view.getSnapshot().snapshot?.namespace).toBe("old");
-  await view.start("new");
+  expect(view.getSnapshot().snapshot?.namespace).toBe("100");
+  await view.start("200");
   expect(view.getSnapshot().snapshot).toBeNull();
   const stopped = view.pause();
-  second.resolve({ ...snapshot, namespace: "new" });
+  second.resolve({ ...snapshot, namespace: "200" });
   await stopped;
   expect(view.getSnapshot().snapshot).toBeNull();
 });
@@ -256,30 +350,88 @@ test.each([new ReactiveError(0, "control_uncertain"), new ReactiveError(503, "un
   },
 );
 
-test("later denial clears protected state and presents the original rejected control separately", async () => {
+test.each(["ReactiveLeaseConflict", "ReactiveResetRequired"])(
+  "later denial clears protected state and presents the original rejected control separately (%s)",
+  async (reason) => {
+    const session = attachedSession();
+    session.open = async () => {
+      session.scope = scope;
+    };
+    session.close = async () => {
+      session.scope = null;
+    };
+    const observed = deferred<void>();
+    const failure = new ReactiveError(409, reason);
+    failure.scopeFailure = new ReactiveError(403, "denied");
+    const view = new LiveView(session, async () => {
+      throw failure;
+    });
+    view.subscribe(() => {
+      if (view.getSnapshot().phase === "denied") observed.resolve();
+    });
+    await view.start();
+    await observed.promise;
+    expect(view.getSnapshot()).toMatchObject({
+      snapshot: null,
+      refresh: null,
+      detail: `${reason}\nCurrent scope: denied.`,
+    });
+    await view.pause();
+  },
+);
+
+test("a retained watch-change rejection stops renewal and preserves the original snapshot", async () => {
   const session = attachedSession();
+  let opens = 0,
+    renewals = 0,
+    reads = 0;
   session.open = async () => {
+    ++opens;
     session.scope = scope;
   };
   session.close = async () => {
     session.scope = null;
   };
-  const observed = deferred<void>();
-  const failure = new ReactiveError(409, "ReactiveLeaseConflict");
-  failure.scopeFailure = new ReactiveError(403, "denied");
-  const view = new LiveView(session, async () => {
+  const failure = new ReactiveError(409, "ReactiveResetRequired", {
+    ...structuredClone(diagnosticFixture),
+    code: "reactive.watch_changed",
+    category: "conflict",
+    stage: "admission",
+    outcome: "input_rejected",
+    evidence: "domain_status",
+    message: "The committed watch changed.",
+    identity: { ...diagnosticFixture.identity, domain: "reactive" },
+    actions: [{ kind: "inspect_status", target: null }, null, null, null],
+  });
+  session.inspect = async () =>
+    ({ observation: { data_revision: "10", basis: snapshot.basis } }) as never;
+  session.renew = async () => {
+    ++renewals;
     throw failure;
+  };
+  const current = deferred<void>();
+  const reset = deferred<void>();
+  const view = new LiveView(session, async () => {
+    ++reads;
+    return snapshot;
   });
   view.subscribe(() => {
-    if (view.getSnapshot().phase === "denied") observed.resolve();
+    if (view.getSnapshot().phase === "current") current.resolve();
+    if (view.getSnapshot().phase === "reset_required") reset.resolve();
   });
   await view.start();
-  await observed.promise;
-  expect(view.getSnapshot()).toMatchObject({
-    snapshot: null,
-    refresh: null,
-    detail: "ReactiveLeaseConflict\nCurrent scope: denied.",
-  });
+  await current.promise;
+  session.leaseBefore = Date.now();
+  await reset.promise;
+  // The real renewal and reader loops join after the reset; they must not
+  // reattach or keep renewing an obsolete watch until the lease expires.
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  expect(view.getSnapshot()).toMatchObject({ phase: "reset_required", snapshot });
+  expect(view.getSnapshot().detail).toContain("reactive.watch_changed");
+  expect(view.getSnapshot().detail).toContain("The committed watch changed.");
+  expect([opens, renewals, reads]).toEqual([1, 1, 1]);
+  expect(failure.reason).toBe("ReactiveResetRequired");
+  expect(view.following).toBe(false);
   await view.pause();
 });
 
@@ -293,7 +445,7 @@ test("failed refresh pauses with the exact snapshot and makes no replacement que
   };
   session.inspect = async () =>
     ({
-      observation: { data_revision: 11, basis: snapshot.basis, schema: { columns: [] } },
+      observation: { data_revision: "11", basis: snapshot.basis, schema: { columns: [] } },
     }) as never;
   const selection = { session: { session: 5, generation: 6 }, generation: 7 };
   let controls = 0;
@@ -312,11 +464,19 @@ test("failed refresh pauses with the exact snapshot and makes no replacement que
       failure: { stopped: { reason: "resource_unavailable", input: 12 } },
     }) as never;
   let reads = 0;
-  const view = new LiveView(session, async (_signal, namespace) => {
-    ++reads;
-    expect(namespace).toBe("1");
-    return { ...snapshot, namespace };
-  });
+  const view = new LiveView(
+    session,
+    async (_signal, namespace) => {
+      ++reads;
+      expect(namespace).toBe("1");
+      return { ...snapshot, namespace };
+    },
+    async (_key, template, limit) => {
+      expect(template).toBe("1");
+      expect(limit).toBe(8);
+      return Array.from({ length: 8 }, (_, i) => String(i + 2));
+    },
+  );
   const failed = deferred<void>();
   view.subscribe(() => {
     if (view.getSnapshot().phase === "paused" && view.getSnapshot().refresh?.phase === "failed")
@@ -367,17 +527,17 @@ test("operation failure detail survives ordinary snapshot updates without stoppi
   };
   session.inspect = async () =>
     ({
-      observation: { data_revision: 10, basis: snapshot.basis, schema: { columns: [] } },
+      observation: { data_revision: "10", basis: snapshot.basis, schema: { columns: [] } },
     }) as never;
   const previous = session.follow;
   session.follow = async (consume, signal) => {
     consume({
       event: {
-        cursor: { position: { data_revision: 10 } } as never,
+        cursor: { position: { data_revision: "10" } } as never,
         event: {
           source_changed: true,
           resource: 9,
-          data_revision: 10,
+          data_revision: "10",
           outcome: {
             resource: 11,
             operation: 12,
@@ -418,7 +578,7 @@ test.each(["terminal", "http"])(
       session.scope = null;
     };
     session.inspect = async () =>
-      ({ observation: { data_revision: 10, basis: snapshot.basis } }) as never;
+      ({ observation: { data_revision: "10", basis: snapshot.basis } }) as never;
     const diagnostic = {
       ...structuredClone(diagnosticFixture),
       code: "serving.resource_unavailable",

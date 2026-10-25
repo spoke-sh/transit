@@ -85,6 +85,29 @@ after a session disappears. The client can retain preparation for reads without
 making it durable. Adapter-specific admission restrictions remain in the wire
 adapters; the native codec preserves Fuze logical types.
 
+Prepared descriptions always include `schema`. It is null when the statement
+returns no rows, including DML and schema commands; parameters and the mutation
+flag remain explicit. Row-returning statements have a logical schema even when
+execution returns zero rows. No empty logical structure stands in for command
+completion.
+
+The native profile accepts CREATE SCHEMA, ALTER SCHEMA ... RENAME and DROP SCHEMA
+RESTRICT through the direct catalog. Preparation freezes the expected schema and
+requested owner without allocating IDs or publishing work. The account ledger
+allocates the operation from its accepted input position; CREATE uses that same
+number as the new schema ID. Its `GIR1` reference carries the session's selected
+namespace separately from the changed namespace binding. Current database/schema
+ownership and requested-owner SET eligibility are checked by the existing native
+authority. Registration, direct acceptance and SQL ledger completion remain
+separate recoverable decisions. Namespace completion has zero matched/changed
+rows and a catalog position; the shared completion kinds are `create_schema`,
+`alter_schema` and `drop_schema`. Current rights govern all outcome disclosure,
+including retired schemas. A prepared schema cannot follow name replacement or
+definition drift. Rejected and cancelled schema outcomes include an owner-projected
+diagnostic; dependency rejection does not disclose the blocking object's identity.
+These forms do not execute through the PostgreSQL/MySQL profile
+and do not change a session's configured namespace.
+
 ## Logical results and fetch acknowledgement
 
 The selected encoding is `transit.logical.v1.hex`. Schema fields contain
@@ -103,8 +126,11 @@ Requesting its successor acknowledges that batch and advances the same iterator;
 all other ordinals reject. At most one unacknowledged batch is retained per
 cursor. A duplicate concurrent fetch cannot advance the iterator twice.
 The final batch remains repeatable until closed or expired.
-Each data result carries its source basis: an explicit source cut, a Table cut,
-or the ordered per-resource snapshot vector. Settings and inspection results
+Each data result carries its source basis: an explicit source cut, a retained
+Table cut, or an ordered independent-Table snapshot vector. A Table basis binds
+its catalog/branch/object, exact definition, physical and logical frontiers,
+retained pin content, source commitment and schema. Independent Table cuts do
+not establish a common catalog-wide snapshot; repeated aliases share one pin. Settings and inspection results
 have no retained data basis. A basis identifies observed data; it grants no access.
 
 Lost/expired session or cursor state reports an incomplete result. The server
@@ -134,9 +160,10 @@ Only a complete frozen intent can become accepted execution. Retries return the
 original identity and state; they never compile fresh SQL for an existing token.
 A reservation interrupted before publication can remain incomplete. Status does
 not turn incompleteness into absence or dispatch new work. Explicit resume and
-the recovery worker act only on the original published intent and exact saved
-steps. Saved-step-before-dispatch, receipt-before-sequence-advance and processed
-input evidence remain separate boundaries.
+the recovery worker act only on the original published intent reference. Complete
+content staging, reference publication, committed dispatch eligibility, direct
+admission and terminal evidence are separate boundaries. A private native control
+receipt alone does not establish Table acceptance.
 
 Operation identity includes the persistent server instance in the envelope,
 account identity, owner kind and durable ID. `status` accepts a known operation
@@ -160,6 +187,13 @@ Generation fencing rejects stale publication; a replacement resumes the same
 published bytes. An incomplete, unpublished step can be abandoned and prepared
 again; a published request cannot. An incomplete initial bundle is reported as
 blocked and can be cancelled, never recompiled from token reuse.
+
+A captured Table bundle freezes its direct data interpretation, expected cut,
+executor and pin operation before ledger publication. The native source resource
+holds computation progress independently of the catalog's data resource. Recovery
+uses the published delegation; observing or resuming an operation does not capture
+current data again. Interactive Table sources use journaled direct pins whose
+original connection and current configured credential govern cleanup.
 
 `result` opens a new temporary result cursor for a complete captured operation in
 the selected source binding. Current Query-owner authorization and its complete

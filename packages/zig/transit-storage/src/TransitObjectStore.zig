@@ -23,6 +23,8 @@ pub fn validateKey(key: []const u8) !void {
     if (std.mem.indexOf(u8, key, "..") != null or std.mem.indexOfScalar(u8, key, 0) != null) {
         return error.InvalidObjectKey;
     }
+    var components = std.mem.splitScalar(u8, key, '/');
+    while (components.next()) |component| if (component.len == 0 or std.mem.eql(u8, component, ".")) return error.InvalidObjectKey;
     for (key) |ch| {
         const ok = (ch >= 'a' and ch <= 'z') or
             (ch >= 'A' and ch <= 'Z') or
@@ -47,6 +49,7 @@ pub const ObjectStore = struct {
 
     pub fn putImmutable(self: ObjectStore, key: []const u8, bytes: []const u8, expected_sha256: [32]u8) !ObjectMeta {
         try validateKey(key);
+        if (bytes.len > max_object_bytes) return error.ObjectTooLarge;
         var actual: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(bytes, &actual, .{});
         if (!std.mem.eql(u8, &actual, &expected_sha256)) return error.ObjectDigestMismatch;
@@ -55,6 +58,7 @@ pub const ObjectStore = struct {
 
     pub fn putConditional(self: ObjectStore, key: []const u8, condition: Condition, bytes: []const u8) !bool {
         try validateKey(key);
+        if (bytes.len > max_object_bytes) return error.ObjectTooLarge;
         return self.vtable.putConditional(self.context, key, condition, bytes);
     }
 
