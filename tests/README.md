@@ -26082,3 +26082,17 @@ and low-latency worker polling in `transit-cli` / `transit-query-host`:
   fencing and pipelined-admission schedule in **55.770 seconds** (down from the
   **122.759-second** pre-cutover baseline on the same host, a **2.20x** wall-clock
   speedup).
+
+## Direct SQL Compose placement — 2026-10-24
+
+`nix develop --command just test::sql-wire-placement compose` passed in 544.664
+seconds on the working tree based on `b861597c4`. The deployment uses the local
+node's direct Table owner and separate native SQL progress storage. Verified TLS
+PostgreSQL/MySQL clients round-tripped six data types, checked Table counts and
+recovered after physical gateway/node replacement with a fresh fenced native
+generation. The SQL caller was denied raw-resource inspection.
+
+The first attempt failed compilation on a remaining removed-role reference in
+the query host; it supplied no deployment evidence. The corrected attempt above
+completed. This is a finite local Docker Compose recovery schedule, not a
+throughput comparison, power-loss proof or qualification of other placements.

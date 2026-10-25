@@ -1,8 +1,8 @@
 # Database wire deployment
 
 The SQL gateway serves verified PostgreSQL and MySQL TLS over one explicitly
-provisioned Table catalog. This example runs the actual Zig gateway, Catalog
-host, native authority and disk-backed Ursula. PostgreSQL/Psycopg and Oracle
+provisioned direct Table catalog. This example runs the actual Zig gateway and
+native local authority with persistent Table and control storage. PostgreSQL/Psycopg and Oracle
 MySQL Connector/Python exercise prepared values, all six wire types, NULL-capable
 metadata and committed row counts. Both protocols read the same Table.
 
@@ -29,14 +29,16 @@ keys, verifier and TLS certificate/key. The operator key remains outside the
 service. Compose isolates storage on a separate internal network. The reference
 gateway has no service-account token; an init container constrains egress to the
 authority and cluster DNS, then an independent probe verifies denial of storage,
-Kubernetes, Substrate and public endpoints. The Catalog host runs in Substrate
-with its own native activation and authority-only egress policy.
+Kubernetes, Substrate and public endpoints. The fixture starts separate Ursula
+and object-store endpoints as denied network targets. The node owns Table data
+and native control history on its private persistent volume. The database caller
+selects its explicit data role and cannot open the raw native catalog resource.
 
 Activation markers reside on a persistent private bind mount in Compose and a
 ReadWriteOnce PVC in Kubernetes. Spill is separate and disposable. After checking
-the initial rows, the runner stops the gateway, Catalog host, courier, node and
-store. It recovers the same durable storage, establishes fresh native ownership
-generations and starts replacement executors. The clients verify the retained
+the initial rows, the runner stops the gateway and node and replaces the denied
+storage target. It recovers the same durable node storage, establishes fresh
+native coordinator ownership and starts the replacement gateway. The clients verify the retained
 row before applying another mutation. A readiness probe, PVC or pod identity
 never grants native ownership.
 
