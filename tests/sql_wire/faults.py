@@ -98,7 +98,7 @@ def cancel(options, key):
             assert secure.recv(1) == b''
 
 
-def run(root, postgres, mysql_options, controls, native_access):
+def run(root, postgres, mysql_options, controls, inventory, read_access, write_access):
     def count(connection):
         deadline = time.monotonic()+30
         while True:
@@ -144,6 +144,7 @@ def run(root, postgres, mysql_options, controls, native_access):
             wire.sock.sendall(frame(b'Q', b'SELECT 1\0'))
             assert any(tag == b'D' for tag,_ in wire.until(b'Z'))
             # A complete admitted write survives losing its database reply.
+            before_detached = {entry['operation'] for entry in inventory()}
             wire.sock.sendall(frame(b'Q', b'INSERT INTO wire_rows (id) VALUES (103)\0'))
         finally:
             wire.close()
@@ -154,11 +155,19 @@ def run(root, postgres, mysql_options, controls, native_access):
         while count(witness) != baseline+3:
             assert time.monotonic() < deadline, 'Detached write did not complete'
             time.sleep(.05)
-        print(json.dumps(dict(profile='database_wire_detached_write',seconds=round(time.monotonic()-detached_started,3),client_wait_seconds=300)),flush=True)
         page = controls('list')
         assert page['entries'] and all('matched' not in entry for entry in page['entries'])
-        committed_operation = page['entries'][0]['operation']
-        assert controls('status',committed_operation)['terminal']['state'] == 'applied'
+        detached = {entry['operation'] for entry in inventory()} - before_detached
+        assert len(detached) == 1, detached
+        committed_operation = detached.pop()
+        while True:
+            committed = controls('status',committed_operation)['terminal']
+            if committed is not None:
+                break
+            assert time.monotonic() < deadline, 'Detached outcome did not settle'
+            time.sleep(.05)
+        assert (committed['state'], committed['matched'], committed['changed']) == ('applied', 1, 1), committed
+        print(json.dumps(dict(profile='database_wire_detached_write',seconds=round(time.monotonic()-detached_started,3),client_wait_seconds=300,exact_operation=committed_operation)),flush=True)
 
     for changes in ({'password':'wrong'}, {'user':'other'}, {'dbname':'other'}, {'sslmode':'disable'}, {'host':'wrong.invalid'}, {'sslrootcert':str(root/'key.pem')}):
         try:
@@ -202,13 +211,21 @@ def run(root, postgres, mysql_options, controls, native_access):
             # mysql.connector.cursor() first pings the server. Acquire the
             # handle before revocation so this exercises PREPARE itself.
             metadata_cursor = my.cursor(prepared=True)
-            native_access(False)
+            assert read_access(False)['read'] is False
+            # INSERT evidence uses current INSERT authority, independently of
+            # SELECT. Inspect the exact detached DML, not an older DDL entry.
+            assert controls('status',committed_operation)['terminal'] == committed
+            assert write_access(False)['write'] is False
             try:
-                controls('status',committed_operation)
-            except AssertionError as error:
-                assert 'AccessDenied' in str(error), str(error)
-            else:
-                raise AssertionError('Operator disclosed a committed outcome after native read revocation')
+                try:
+                    controls('status',committed_operation)
+                except AssertionError as error:
+                    assert 'AccessDenied' in str(error), str(error)
+                else:
+                    raise AssertionError('Operator disclosed an INSERT outcome after INSERT revocation')
+            finally:
+                assert write_access(True)['write'] is True
+            assert controls('status',committed_operation)['terminal'] == committed
             try:
                 metadata.sock.sendall(frame(b'P',b'denied\0SELECT id FROM wire_rows\0\0\0')+frame(b'D',b'Sdenied\0')+frame(b'S'))
                 replies = metadata.until(b'Z')
@@ -236,7 +253,7 @@ def run(root, postgres, mysql_options, controls, native_access):
             assert any(tag==b'E' and b'42501' in payload for tag,payload in replies)
             assert not any(tag==b'D' for tag,_ in replies)
         finally:
-            native_access(True)
+            assert read_access(True)['read'] is True
             held.close()
         assert pg.execute('SELECT COUNT(*) FROM wire_rows').fetchone() == (3,)
     credential_file=root/'gateway-credential.json'
@@ -291,4 +308,4 @@ def run(root, postgres, mysql_options, controls, native_access):
                     raise AssertionError(f'Forged native {field} authenticated')
         finally:
             replace(current)
-    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,credential_rotation=True, credential_cli=True,native_identity_binding=True)), flush=True)
+    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,select_revocation_keeps_mutation_receipt=True,exact_detached_outcome=True,credential_rotation=True, credential_cli=True,native_identity_binding=True)), flush=True)

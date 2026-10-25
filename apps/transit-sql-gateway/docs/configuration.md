@@ -162,6 +162,11 @@ new listing. Retained history has no automatic expiry.
 List/status observations retry a concurrent current-revision read conflict within
 the configured timeout, before printing a result. Terminal inspection batches
 finite intent reads and checks the original Table result under current rights.
+For INSERT, UPDATE and DELETE, that check requires the original action's
+privilege as well as CONNECT and USAGE. Revoking SELECT suppresses row reads;
+it does not suppress an INSERT receipt while INSERT remains authorized. Revoking
+INSERT suppresses that receipt, including its terminal counts, until access is
+restored. The retained outcome itself is unchanged.
 A SQL command can exhaust
 its wait while an admitted operation continues; discover and inspect that
 operation instead of sending the SQL again.

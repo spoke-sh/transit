@@ -735,7 +735,10 @@ or a destination collision records terminal rejection without publishing any
 changed rows. Current authorization is checked again at the final commit.
 
 `operation` carries the original binding and `inspect`, `execute` or `cancel`.
-Inspection starts no work. Execution resumes only admitted frozen work; CREATE
+Inspection starts no work. INSERT/UPDATE/DELETE outcome inspection requires
+current CONNECT, USAGE and the original action privilege. Disclosing that
+mutation's terminal counts does not additionally require SELECT; row reads
+retain their separate SELECT check. Execution resumes only admitted frozen work; CREATE
 uses the native registration ledger before Table publication. Its step limit
 is 1–256 native registration attempts per call, not a total progress limit.
 Unknown operations remain `not_observed`. Rejection and cancellation require

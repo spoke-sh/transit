@@ -17,7 +17,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions","sessions-basic","sessions-kv","sessions-table")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with tempfile.TemporaryDirectory(prefix='transit-direct-sql-wire-') as directory:
         root = Path(directory)
@@ -205,6 +205,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
+            if slice == 'schema':
+                from schema import run as schema
+                schema(options,mysql_options,lambda operation,sql:call(catalog,'external-ddl-admin',operation,sql))
+                return
             if slice == 'benchmark':
                 with psycopg.connect(**options) as connection:
                     connection.execute('INSERT INTO wire_rows (id) VALUES (101),(102),(103),(104)')
@@ -245,7 +249,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     assert call(catalog, 'external-role', 'allow')['selected']
             print(json.dumps(dict(profile='database_wire_selected_role',set_only=True,revoked_sessions=True,revoked_logins=True,raw_reader_denied=True)),flush=True)
             from faults import run as faults
-            faults(root, options, mysql_options, controls, lambda allowed:call(catalog,'external-read-grants','allow' if allowed else 'deny'))
+            faults(root, options, mysql_options, controls, inventory,
+                   lambda allowed:call(catalog,'external-read-grants','allow' if allowed else 'deny'),
+                   lambda allowed:call(catalog,'external-write-grants','allow' if allowed else 'deny'))
             from authority import run as authority_checks
             authority_checks(options,mysql_options,lambda allowed:call(catalog,'external-write-grants','allow' if allowed else 'deny'),inventory)
             page = controls('list')
