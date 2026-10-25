@@ -443,7 +443,10 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
 }
 pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
     if (self.diagnostics) |diagnostics| diagnostics.event(.{ .name = "sql.request.failed", .level = .warn, .outcome = .failed, .error_type = if (self.wire.last_rejection) |rejection| @tagName(rejection) else @errorName(err) });
-    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else switch (err) {
+    // Direct HTTP failures retain the verified owner cause separately from
+    // their status-class error. Do not apply that cause to unrelated failures.
+    const cause = if ((err == error.Conflict or err == error.Rejected) and self.wire.last_rejection == .TableDefinitionChanged) error.TableDefinitionChanged else err;
+    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else if (self.wire.contended(err)) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
@@ -458,7 +461,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
         error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
-        error.CatalogIdentityConflict, error.CatalogDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
+        error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
         error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory => .{ "54000".*, "Session capacity exceeded" },
         error.CellTooLarge => .{ "54000".*, "Bound scalar exceeds the 4096-byte limit" },
@@ -514,6 +517,25 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("23502", &host.diagnostic(error.NullNotAllowed).state);
     try std.testing.expectEqualStrings("54000", &host.diagnostic(error.CellTooLarge).state);
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
+    const changed = host.diagnostic(error.TableDefinitionChanged);
+    try std.testing.expectEqualStrings("55000", &changed.state);
+    try std.testing.expectEqualStrings("Prepared source changed; prepare again", changed.message);
+    try std.testing.expect(std.mem.indexOf(u8, changed.detail.?, "17") != null);
+    host.wire.last_rejection = .TableDefinitionChanged;
+    for ([_]anyerror{ error.Conflict, error.Rejected }) |remote| {
+        const response = host.diagnostic(remote);
+        try std.testing.expectEqualStrings("55000", &response.state);
+        try std.testing.expectEqualStrings("Prepared source changed; prepare again", response.message);
+        try std.testing.expect(std.mem.indexOf(u8, response.detail.?, "17") != null);
+    }
+    try std.testing.expectEqualStrings("54000", &host.diagnostic(error.OutOfMemory).state);
+    host.wire.last_rejection = .Conflict;
+    const contention = host.diagnostic(error.Conflict);
+    try std.testing.expectEqualStrings("55000", &contention.state);
+    try std.testing.expect(std.mem.indexOf(u8, contention.detail.?, "17") != null);
+    try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
+    host.wire.last_rejection = .ConflictingRetry;
+    try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.Conflict).state);
     host.wire.last_rejection = null;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
 }
@@ -543,6 +565,14 @@ test "pure preparation retries transport loss within its budget but never retrie
     read = .{ .failure = error.AccessDenied };
     try t.expectError(error.AccessDenied, host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 1), read.attempts);
+    read = .{ .failure = error.TableDefinitionChanged };
+    try t.expectError(error.TableDefinitionChanged, host.fresh(Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 1), read.attempts);
+    host.wire.last_rejection = .TableDefinitionChanged;
+    read = .{ .failure = error.Conflict };
+    try t.expectError(error.Conflict, host.fresh(Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 1), read.attempts);
+    host.wire.last_rejection = null;
     config.request_timeout_ms = 30;
     read = .{ .failures = 100 };
     try t.expectError(error.AuthorityUnavailable, host.fresh(Observation.run, .{&read}));
