@@ -138,6 +138,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .gateway, .clock_observer => unreachable,
     };
     diagnostics.event(.{ .name = "service.ready", .operation = @tagName(config.role), .pid = config.pid, .generation = config.generation });
+    var idle_ms: u32 = 20;
+    var retry_ms: u32 = 20;
     while (true) {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         live.upper_ms = try std.math.add(u64, now, 1000);
@@ -148,10 +150,20 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
                 if (wire.last_rejection == .StateViewExpired) host.view_id = null;
             } else if (host.pending == null or err == error.AccessDenied or err == error.StaleActivation or err == error.Rejected or err == error.Conflict) return err;
-            try init.io.sleep(.fromMilliseconds(20), .awake);
+            // Capacity refusal must not turn idle workers into a hot polling
+            // loop. Preserve the host's exact pending request while backing off.
+            try init.io.sleep(.fromMilliseconds(retry_ms), .awake);
+            retry_ms = @min(retry_ms * 2, 1000);
             continue;
         };
+        retry_ms = 20;
         if (step == .blocked) return host.handler_error orelse error.ServingBlocked;
-        if (step == .idle) try init.io.sleep(.fromMilliseconds(20), .awake);
+        if (step == .idle) {
+            host.session.idle_wait_ms = idle_ms;
+            idle_ms = @min(idle_ms * 2, s.client.WaitHint.max_ms);
+        } else {
+            host.session.idle_wait_ms = 0;
+            idle_ms = 20;
+        }
     }
 }
