@@ -146,3 +146,28 @@ The current definition also requires typed assistance coverage and context statu
 in SQL session replies and shared query assistance. Matching console, service and
 query-client builds are required. Missing fields or an earlier definition reject;
 a short candidate list alone never establishes complete matching coverage.
+
+## Current artifact inventory
+
+The current definition covers the following stored and caller interpretation.
+Each owner still validates its own framing, digests, identities and permissions;
+matching the shared definition alone is insufficient.
+
+| Artifact family | Current interpretation and owning contract |
+| --- | --- |
+| Native requests, authority and caller ABI | Signed command/query envelopes, saved requests, admission identity, authority heads, generated ABI declarations and port capabilities retain one matching definition. See the [native contract](../../../contracts/TRANSIT_V1.md) and [caller boundary](callers.md#language-neutral-boundary). |
+| Local WAL, objects and native recovery | Directory/owner markers, WAL frames, object envelopes and native page/block references bind the shared definition. The accepted native WAL root includes policy, resource state, input progress, outputs and effect/retry evidence. See the [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#native-authority-on-local-storage). |
+| Table storage and interpretation | Acceptance records, immutable declarations, row-schema fingerprints, index nodes, `.tseg`/`.tdel` objects and manifests bind exact interpretation. Logical types, physical codecs and collations remain distinct. See the [Table schema](../../../contracts/TABLE_SCHEMA_V1.md) and [storage formats](../../../contracts/TRANSIT_STORAGE_V1.md). |
+| Direct operations and catalog lifecycle | Frozen intents, operation claims, DDL reservations, named resource initialization and dependency records retain exact object/definition identities and accepted outcomes. See the [direct Table](../../../contracts/DIRECT_TABLE_V1.md) and [declarative catalog](../../../contracts/DECLARATIVE_CATALOG_V1.md) contracts. |
+| Retained sources and logical history | Durable Table pins, accepted WAL frontiers, independent source vectors and saved history-reader positions preserve their original basis across restart. See [snapshot coverage](../../../contracts/DATA_LIFECYCLE_V1.md) and [retained reads](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads). |
+| Computation and result records | Saved direct sources, native progress, captured/maintained results, exchange records and named attribution use the current owners and exact source/result evidence. See the [relational](../../../contracts/RELATIONAL_V1.md), [exchange](../../../contracts/RELATIONAL_EXCHANGE_V1.md) and [named computation](../../../contracts/NAMED_RELATIONAL_V1.md) contracts. |
+| SQL and reactive callers | Saved commands, preparation/recovery, result references, assistance coverage and Follow controls require matching service and caller contracts. See [SQL sessions](../../../contracts/SQL_SESSION_V1.md) and [reactive clients](../../../contracts/REACTIVE_CLIENT_V1.md). |
+| Installation and deployment | Local installation/configuration checkpoints, startup policy, selected artifacts and launcher records reject incompatible retained installations. See [installation](../../../contracts/APPLICATION_INSTALLATION_V1.md). |
+| Logical values and Arrow layouts | Existing logical descriptors and Arrow metadata keep their own mandatory identifiers and validation. The direct-owner cutover does not redefine upstream Arrow IPC or add a general encoded-array layout. See [logical Arrow](../../../contracts/FUZE_ARROW_V1.md) and [Arrow interfaces](arrow.md). |
+
+Cross-Table transaction decisions and catalog-consistent snapshot acquisition,
+additional native checkpoint representations, general changefeed consumer formats
+and new encoded-array layouts require their own definition review before use.
+They are not admitted merely because a current artifact contains an identity or
+position field. An incompatible extension replaces the shared definition and
+its affected owning formats, consumers and fixtures together.
