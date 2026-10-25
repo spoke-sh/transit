@@ -24558,6 +24558,7 @@
     },
     "packages/zig/transit-storage/src/DiskWal.zig": {
       "errors": {
+        "Canceled": 1,
         "CorruptWalFrame": 3,
         "CorruptWalMetadata": 5,
         "FileNotFound": 2,
@@ -24588,6 +24589,7 @@
         "fence()": "<inferred>",
         "frame()": "<inferred>",
         "load()": "<inferred>",
+        "loadCold()": "<inferred>",
         "metadata()": "<inferred>",
         "nextSegment()": "<inferred>",
         "open()": "<inferred>",
@@ -24603,7 +24605,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 72,
-        "catch": 12
+        "catch": 13
       },
       "imports": [
         "TransitLog.zig",
