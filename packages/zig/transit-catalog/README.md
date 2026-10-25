@@ -83,3 +83,10 @@ just test::catalog-growth
 Component schedules exercise real catalog transitions with bounded caches.
 The [proof ledger](../../../tests/README.md) separately records disk recovery,
 public caller, installed language and deployment qualification.
+
+`DirectTableReader.readRange` traverses an explicitly retained Table in full-key
+collation order with bounded owned pages. Optional inclusive/exclusive bounds and
+continuations retain the exact source and interval. Range reads leave sequential
+scan coverage unchanged; callers explicitly release their pins. See the
+[retained read contract](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
+for bounds, current authorization and historical-lease limits.

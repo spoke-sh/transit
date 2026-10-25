@@ -116,6 +116,23 @@ Run focused proofs per slice, retain the current-v1 cutover gate for incompatibl
 formats, and qualify installed performance/recovery with milestone 3. This is an
 implementation sequence, not a transfer or reduction of outstanding criteria.
 
+### Implemented increments after the baseline
+
+- Verified segment range reads and bounded decoding are wired into live Table
+  point/scanned reads; 256-row groups separate decoder residency from result
+  batches. The WAL keeps bounded verified seek coordinates to avoid repeated
+  prefix decoding. Focused disk and signed service evidence is recorded in
+  [the proof ledger](../../tests/README.md); clean qualification remains separate.
+- Full collation-aware primary keys now have a paged immutable directory in each
+  accepted Table root. Retained intervals use source/interval-bound cursors and
+  bounded owned pages through the signed direct API and shared reader. Mutation,
+  schema rewrite, flush, DROP and current disclosure checks preserve that root's
+  meaning. This stored-root and wire cutover replaces the shared v1 definition
+  and regenerates native, host and browser resources together.
+- SQL inequality pushdown, encoded/pruned execution, cross-segment performance
+  controls, retained checkpoint/maintenance and native-owner obligations remain
+  open. A passing Table range test does not close #113–#118 or #123–#128.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.

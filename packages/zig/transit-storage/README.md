@@ -52,8 +52,8 @@ collector races, policy-authorized trimming or multi-process Table commits.
 - `OrderedKeyIndex.zig`: Full ordered keys up to 4 KiB, mapped to row hashes
   through immutable 64-byte key chunks over `TreeStore`. Point lookup and
   inclusive/exclusive range seeking use bounded paths; mutation candidates share
-  the owner's staging budget. This component preserves earlier roots but does
-  not yet participate in the live Table acceptance root.
+  the owner's staging budget. Table acceptance publishes its root atomically
+  with row locators and identity indexes, preserving earlier retained roots.
 - `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
   record for rows, paged indexes and exact operation receipts. It supports point
   WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
@@ -69,7 +69,8 @@ Point lookup selects one segment through its paged hash-key directory; footer
 and selected row-group ranges replace full-object buffering. Decoded groups have
 an explicit allocation budget and returned rows own their values. Physical
 groups default to 256 rows, independently of statement and response bounds.
-This does not add ordered primary-key range execution or SQL projection pushdown.
+Retained `rangeSnapshot` reads follow the paged full-key directory in collation
+order. SQL predicate/projection pushdown remains separate from these source reads.
 
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
