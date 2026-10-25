@@ -26410,3 +26410,35 @@ The browser now records bounded query and refresh phase changes. On failure it
 also makes one bounded public status read for the selected finite query, without
 activating, replacing or cancelling it. The next reference run retains the
 existing deadlines, result identity/coverage, recovery and denial assertions.
+
+## Follow reads during control recovery — 2026-10-25
+
+Reference attempt 14 again verified the original query and physical recovery,
+then exceeded the 180-second refresh deadline. The new diagnostic read, issued
+after that failed assertion, observed the selected finite query as complete while
+the last refresh observation was admitted. This does not establish that execution
+had completed before the deadline, or identify the only cause of the failed run.
+
+Independent client regression cases do establish a read-progress defect:
+`LiveView` blocked all result observation while a control was active or uncertain.
+Both cases fail on the previous implementation with the earlier result still
+displayed. Current status/result reads now progress with their own authority
+checks. New invalidation and acknowledgment controls wait for the original frozen
+control to settle. A verified immutable result is read once while acknowledgment
+is deferred, and the visible status preserves control uncertainty.
+
+Four new cases cover pending versus actively running controls, deferred exact
+acknowledgment, and current denial while the original request remains frozen.
+All 28 live-view/follow-recovery tests pass. The complete
+`just transit-board::check` also passes contracts, types, formatting/lint and
+consumer tests, including 101 Board tests. A subsequent status-wording assertion
+checks both pending and uncertain messages; all 28 focused tests still pass.
+
+`just test::reactive-views` passes the native browser schedule with the read-progress
+change in 255.84 seconds. It retains ingress/clock contention injections, exact
+query submission recovery, complete-result verification, finite refresh, pause
+and current revocation between verification and disclosure. Single observations
+are 16,956 ms for counter visibility and 41,416 ms for verified refresh; observed
+Board/counter heaps are 9,747,044/3,745,728 bytes. These values establish no matched
+performance comparison. The new client path still requires the separate reference
+deployment run and final combined repository/clean-checkout qualification.

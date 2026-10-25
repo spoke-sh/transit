@@ -69,7 +69,12 @@ and reread the visible page before returning; this generic owner does not decode
 or verify finite query segments itself. One listener set (at most four), snapshot,
 refresh record and frozen control are resident; event history is not accumulated.
 Renewal runs independently of bounded result verification and shares the single
-control owner. Pause joins both tasks before releasing the session.
+control owner. Current status and result reads also progress while a control is
+pending; each read still checks current authority. A frozen control blocks new
+invalidation/acknowledgment commands. Once it settles, the owner acknowledges the
+same verified result without reading its immutable pages again. Known denial
+clears the result while preserving the original uncertain control.
+Pause joins both tasks before releasing the session.
 
 `LiveView.exportRecovery` retains its template, capture pool, finite budget and
 closure intent, with no result rows. Import leaves it paused. Explicit `resume`
