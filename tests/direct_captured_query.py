@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.request
 
 from storage import free_port, wait_ready
@@ -229,6 +230,30 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 child.kill()
                 child.wait(timeout=15)
 
+        def exchange_recovery(endpoint):
+            nonlocal authority
+            checkpoint = root / "direct-exchange-recovery.json"
+            assert not checkpoint.exists()
+            executor = subprocess.Popen([caller, endpoint, "capture-exchanges-prepare", str(profile)])
+            try:
+                until = time.monotonic() + 600
+                while not checkpoint.exists():
+                    assert executor.poll() is None, "exchange executor exited before its recovery checkpoint"
+                    assert time.monotonic() < until, "exchange recovery checkpoint deadline"
+                    time.sleep(.05)
+                original = checkpoint.read_bytes()
+                executor.kill()
+                assert executor.wait(timeout=15) == -9
+            finally:
+                if executor.poll() is None:
+                    executor.kill()
+                    executor.wait(timeout=15)
+            stop(authority)
+            authority = None
+            authority = start()
+            subprocess.run([caller, endpoint, "capture-exchanges-resume", str(profile)], check=True, timeout=900)
+            assert checkpoint.read_bytes() == original, "recovery replaced the retained exchange selection"
+
         try:
             authority = start()
             subprocess.run([caller, url, "provision", str(profile)], check=True, timeout=180)
@@ -316,8 +341,8 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)
                     subprocess.run([caller, endpoint, "capture-named", str(profile)], check=True, timeout=600)
             if exchanges_only:
-                subprocess.run([caller, endpoint, "capture-exchanges", str(profile)], check=True, timeout=900)
-                print("Direct exchanges: independent receiver/worker placement, exact borrowed history cuts, one/seven-partition successor attachments, retained request retirement, host reconstruction and lease cleanup passed.", flush=True)
+                exchange_recovery(endpoint)
+                print("Direct exchanges: independent receiver/worker placement, exact borrowed history cuts, executor SIGKILL and disk-backed node restart, recorded worker handoff, one/seven-partition successor attachments, retained request retirement and lease cleanup passed.", flush=True)
             elif source_pages_only:
                 subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                 print("Direct retained source pages: wide/nested values, original interpretation, signed predicate boundaries, point-hit/absence, unsafe pushdown rejection and current permission passed.", flush=True)
@@ -346,7 +371,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 assert history_gap
                 print("Direct relational failures: work/spill bounds, captured and maintained ordered-overflow witnesses, permanent history-coverage rejection, separate explicit rebuild, preserved prior results and original lease cleanup passed.", flush=True)
             if not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only)):
-                subprocess.run([caller, endpoint, "capture-exchanges", str(profile)], check=True, timeout=900)
+                exchange_recovery(endpoint)
             if unified_boundaries_only or not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only, captured_only)):
                 for case in ("retired_empty", "large_row", "adapter_memory", "arrow_memory", "external_memory"):
                     subprocess.run([caller, endpoint, "unified-boundary-" + case, str(profile)], check=True, timeout=600)
