@@ -13,7 +13,7 @@ from storage import free_port, wait_ready
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "prepared", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "growth", "prepared", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -124,7 +124,7 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             fault["assertion_changed"] = True
                         pin = envelope["action"].get("pin")
-                        if mode not in ("prepared", "authorization", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
+                        if mode not in ("growth", "prepared", "authorization", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
                             assert response.status == 200, data
                             parsed = json.loads(data)
                             assert "pin" in parsed["result"]
@@ -203,6 +203,18 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "growth":
+                subprocess.run([caller, endpoint, "growth-write", str(profile)], check=True, timeout=600)
+                saved = profile.read_bytes()
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "growth-recover", str(profile)], check=True, timeout=180)
+                assert profile.read_bytes() == saved, "Recovery replaced the original retained basis"
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(f"Direct catalog growth: 139 Tables, 139 retained rows in bounded pages, original pin after node SIGKILL/restart and explicit cleanup passed ({fault['requests']} typed calls).", flush=True)
+                return
             if mode == "authorization":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=60)
                 subprocess.run([caller, endpoint, "authorization-lifetime", str(profile)], check=True, timeout=180)
