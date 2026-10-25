@@ -26593,3 +26593,41 @@ invocation omitted its build preparation and timed out while building before
 reaching the repaired assertion; it is not a qualified run. The remaining
 experience tasks and the other clean lanes continue separately; their completion
 must be recorded before ordinary-suite acceptance.
+
+## Isolated lifecycle qualification after parallel-run failures — 2026-10-25
+
+The clean growth lane at `46d42df84` passes its first ten tasks, including growing
+service recovery and the local catalog. Direct Table provisioning and writes then
+pass, but its aggregate `recover` subprocess exceeds the existing 180-second
+deadline. `45b1c1209` adds progress messages after the seven recovery stages;
+it changes no runtime behavior, deadline, cache, operation count or assertion.
+The complete focused `just test::direct-table-service` passes with 1,418 typed
+calls, a 64 KiB point row, actual `.tseg` bulk publication, full CRUD/DDL and
+namespace evolution, retained reads/history, original receipts, current denial,
+three restarts and explicit pin closure. Every original phase deadline remains
+in force. The earlier timeout remains failed evidence.
+
+Two overlapping `test::server-direct-tables` attempts report `SqlOutcomeUnknown`
+during DDL with the query worker paused. Their supervisor logs record repeated
+incomplete health observations and authority timeouts; one restarts the node and
+joins the paused worker. After the remaining parallel clean jobs are interrupted
+and joined, the same task passes alone with unchanged runtime behavior and
+budgets. It covers direct CRUD/DDL and namespace lifecycle while the worker is
+stopped, inert preparation, stale schema rejection, RESTRICT, conditional
+outcomes, abrupt restart, deliberate default-Table deletion and name reuse.
+The isolated result qualifies this schedule, not behavior under arbitrary
+competing I/O or a latency target. The parallel failures are not relabeled as
+successful recovery tests.
+
+The server logging proof also passes alone after making its initial-readiness
+assertion precise: before the first `accepting` observation, `unavailable` must
+carry a reported cause. After confirmed readiness, loss of a health observation
+can itself establish `unavailable`. Final confirmed readiness, cleared error,
+current admission-pressure reporting and gateway replacement checks remain.
+
+The launcher clean lane completes both tasks at `f2b7f6116`. The other interrupted
+lanes do not complete; their partial reports include a 1,879.33-second Python SDK
+pass at `46d42df84`. This collection spans revisions and does not establish
+ordinary-suite completion. Final qualification runs the entire ordinary inventory
+sequentially from one committed clean checkout; CPU headroom alone did not
+establish independent disk latency for the earlier parallel schedules.
