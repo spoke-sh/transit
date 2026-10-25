@@ -161,7 +161,9 @@ schema construction, aliases/defaults/keys, canonical `FTS1` bytes and selected
 ALTER/DROP results. Offline KV/Document compilation retains its separate owned
 definitions and review formatting. These are not PostgreSQL DDL compatibility
 or administrative execution checks. General Table execution uses the configured,
-authorized catalog owner; CREATE does not provision a resource or grant access.
+authorized direct catalog owner. CREATE performs recoverable native registration
+and Table publication under current policy; offline compilation performs neither.
+Ownership and applicable default grants govern the resulting object's access.
 Query-only transports continue to reject writes and administration.
 
 `authorizationStatement` is the dedicated role/schema/privilege compiler root.

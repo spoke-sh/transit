@@ -80,9 +80,11 @@ Use [INSERT](insert.md), [UPDATE](update.md), [DELETE](delete.md),
 [CREATE TABLE](create-table.md), [ALTER TABLE](alter-table.md),
 [DROP TABLE](drop-table.md) and [application declarations](application.md)
 for exact schemas and bounds. Query transports reject writes and administration.
-Table creation does not provision its native resource or implicitly grant query
-or mutation policy. Mutation callers retain admission, processing and application
-outcomes separately, including accepted work with a lost reply.
+Table CREATE reserves an object and performs recoverable native authorization
+registration before direct Table publication. Current ownership and applicable
+default grants determine access; compilation alone grants nothing. Mutation
+callers retain admission, processing and application outcomes separately,
+including accepted work with a lost reply.
 
 The [SDK matrix](../sdks.md#catalog-callers) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
