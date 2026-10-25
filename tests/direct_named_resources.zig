@@ -76,7 +76,7 @@ pub fn growthWrite(init: std.process.Init, client: c.DirectTableClient, admin: a
         try growthValue(current, definition);
         if (i % 16 == 0) std.debug.print("Named resource growth: {d}/{d} initialized and read.\n", .{ i + 1, growth_count });
     }
-    try growthRecover(init.gpa, client, result);
+    std.debug.print("Named resource growth: all {d} resources initialized and read; setup complete.\n", .{growth_count});
     return result;
 }
 
@@ -117,12 +117,14 @@ pub fn growthRecover(allocator: std.mem.Allocator, client: c.DirectTableClient, 
             try t.expectEqual(Owner.Step.complete, (try inspect(current, entry.definition)).?);
             try growthValue(current, entry.definition);
             seen += 1;
+            if (seen % 16 == 0) std.debug.print("Named resource growth readback: {d}/{d} typed values verified.\n", .{ seen, growth_count });
         };
         after = page.next orelse break;
     } else return error.CatalogPageBudget;
     try t.expectEqual(@as(u64, growth_count), seen);
     try t.expectEqualDeep(state.original, (try resources.operation(state.first, .inspect, 1)).operation);
     try t.expectEqualDeep(state.original, (try resources.operation(state.first, .execute, 64)).operation);
+    std.debug.print("Named resource growth readback: all {d} typed values and original receipt verified.\n", .{growth_count});
 }
 
 // Exercise the shared serialized host boundary while the fixture's assertions
