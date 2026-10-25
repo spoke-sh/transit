@@ -458,7 +458,7 @@ relational-exchanges:
 # Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
 relational-capacity:
     zig build relational-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-typed-table-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
 
 # Immutable named definitions, explicit activation and revision recovery on disk.
 named-relational:

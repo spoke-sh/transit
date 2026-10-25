@@ -16,7 +16,7 @@ const first_exchange = 1700;
 const pending_checked = p.Value.init("exchange-pending-checked") catch unreachable;
 const stale_checked = p.Value.init("exchange-stale-checked") catch unreachable;
 const files = @import("native_proof_files.zig");
-pub const Mode = enum { all, prepare, recover };
+pub const Mode = enum { all, prepare, recover, pressure };
 const Saved = struct {
     definition: p.Growth.Definition,
     state: maintained.State,
@@ -144,9 +144,15 @@ pub fn step(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.H
     const pending = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try support.key(17));
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
 }
+pub fn status(init: std.process.Init, client: c.DirectTableClient, directory: []const u8) !struct { receiver: s.client.WorkerHandoff.State, producer: s.client.WorkerHandoff.State } {
+    const saved = try files.load(Saved, init, directory, "direct-exchange-recovery.json");
+    if (saved.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    const handoff = @import("direct_worker_handoff.zig");
+    return .{ .receiver = try handoff.snapshot(client, saved.state.worker.resource), .producer = try handoff.snapshot(client, saved.worker.resource) };
+}
 pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, directory: []const u8, mode: Mode) !void {
     const alloc = init.arena.allocator();
-    const saved: ?Saved = if (mode == .recover) try files.load(Saved, init, directory, "direct-exchange-recovery.json") else null;
+    const saved: ?Saved = if (mode == .recover or mode == .pressure) try files.load(Saved, init, directory, "direct-exchange-recovery.json") else null;
     if (saved) |value| if (value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     var state = if (saved) |value| value.state else try maintained.prepareWithExchange(init, client, admin, role, false, true);
     const bytes = try state.bundle.decode(alloc, q.RelationalBundle.max_bytes);
@@ -275,6 +281,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
         }
         var attached = false;
         for (0..5000) |iteration| {
+            if (mode == .pressure and iteration == 32) return error.ExpectedStorageRefusal;
             if (iteration != 0 and iteration % 19 == 0) {
                 receiver = try maintained.host(client, state);
                 producer = try s.GenServer.init(worker_configuration, "state");
@@ -287,7 +294,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             }
             try step(init, &receiver, receiver_handler.interface(), admin);
             try step(init, &producer, worker_handler.interface(), admin);
-            if (!handed_off and iteration >= 2 and producer.pending == null and producer.delivery == null and producer.ready == null) {
+            if (mode != .pressure and !handed_off and iteration >= 2 and producer.pending == null and producer.delivery == null and producer.ready == null) {
                 if (mode == .prepare) {
                     var retained: [q.RelationalHistory.Vector.max_bytes]u8 = undefined;
                     try files.save(init, directory, "direct-exchange-recovery.json", Saved{

@@ -34,7 +34,7 @@ fn command(init: std.process.Init, directory: []const u8, client: c.DirectTableC
     const repeated = try client.authority.submit(try files.load(g.SignedRequest, init, directory, "direct-worker-command.json"));
     try t.expectEqualDeep(accepted, repeated);
 }
-fn snapshot(client: c.DirectTableClient, resource_id: u64) !h.State {
+pub fn snapshot(client: c.DirectTableClient, resource_id: u64) !h.State {
     const scoped: s.client.ResourceReader = .{ .wire = client.authority, .realm = 42, .principal = client.connection.principal, .key = client.key };
     const resource = (try scoped.query(.{ .resource = resource_id })).body.resource;
     var source = try scoped.open(resource_id);
