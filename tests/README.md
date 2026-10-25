@@ -1,5 +1,23 @@
 # Validation and evidence
 
+## Bounded local WAL seek reuse — 2026-10-25
+
+`nix develop --command sh -c 'cd packages/zig/transit-storage && zig build test
+-Dtest-filter="disk WAL" --summary all'` passes 3/3 tests on `c1772a86` plus the
+seek changes (11 seconds). After real disk reopen, 256 one-frame reads of one
+segment decode exactly 256 frames and perform one segment-directory scan. Every
+payload is checked against the independent formula `17 * lsn + 3`. Five repeated
+tail reads decode exactly five frames; corrupting that cached coordinate's disk
+payload then produces `CorruptWalFrame`, never an old cached value.
+
+A second schedule covers forward/backward reads across rolling files, eviction
+through more partitions than the eight descriptor slots, partial/full trim,
+below-floor refusal and subsequent append with preserved LSN identity. The cache
+holds coordinates only. Cold random access can still scan preceding frames;
+reopen still validates all retained history. These counts establish this bounded
+local read optimization, not group commit, host-loss recovery, safe retention
+decisions or installed end-to-end latency.
+
 ## Verified segment range reader — 2026-10-25
 
 The live `TablePartition` integration passes the disk-backed focused test with

@@ -24605,7 +24605,7 @@
         "StaleWriterEpoch": 1,
         "TruncatedWalFrame": 2,
         "WalEpochRegression": 1,
-        "WalHistoryMissing": 6,
+        "WalHistoryMissing": 7,
         "WalHistoryTrimmed": 1,
         "WalInUse": 1,
         "WalLsnConflict": 1,
@@ -24629,6 +24629,8 @@
         "read()": "<inferred>",
         "recover()": "<inferred>",
         "save()": "<inferred>",
+        "segmentAt()": "<inferred>",
+        "segmentInfo()": "<inferred>",
         "syncDir()": "<inferred>",
         "syncDirectory()": "<inferred>",
         "tail()": "<inferred>",
@@ -24637,7 +24639,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 77,
         "catch": 13
       },
       "imports": [
