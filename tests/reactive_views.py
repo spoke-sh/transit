@@ -137,7 +137,9 @@ def run(env, tls):
         entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, view=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
         return bytes.fromhex(entry['value'])
     try:
-        until = time.monotonic() + 900
+        # Reference permits six minutes per finite query; retain a bounded
+        # enclosing schedule without changing per-request or session limits.
+        until = time.monotonic() + (1500 if env.get('profile') == 'reference' else 900)
         while browser.poll() is None:
             assert observer.poll() is None and (env['hosts_alive']() if 'hosts_alive' in env else board.poll() is None), 'view host exited'
             assert time.monotonic() < until, 'browser live view deadline'
