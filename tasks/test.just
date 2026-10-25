@@ -571,7 +571,7 @@ console-latency *args:
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:
-    zig build transit transit-node transit-query-host transit-board mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Native-session snapshot execution, typed values and retained source basis.
