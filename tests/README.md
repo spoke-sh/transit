@@ -26229,3 +26229,13 @@ because the replacement gateway's readiness probe omitted its required Host
 header. Attempt 10 supplies that header and passes the complete schedule with
 unchanged deadlines and assertions. These are real native-local TLS/browser
 checks; reference-placement and final repository gates remain separate.
+
+## Combined repository check after direct-owner retirement — 2026-10-24
+
+`nix develop --command just check` completes after the independent Unified
+fixtures were regenerated for the shared definition. The run includes core
+units and contract/diagnostic checks, 96 CLI artifact/file cases, 193
+server/console cases, console history, frontend formatting/types/unit tests and
+the handbook production build. The earlier fixture-mismatch run remains a
+failure. This is working-tree repository validation, not clean-checkout evidence
+or a pass for the separately running resource-growth/reference schedules.
