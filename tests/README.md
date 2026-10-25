@@ -26369,3 +26369,44 @@ polling. The first native batch-setup attempt failed on a compilation capacity
 refusal; bounded retry of the same action now handles only that known capacity
 response, without re-preparing dispatched work. The complete native pass above
 includes the corrected fixture. Reference placement and clean CI remain open.
+
+## Lifecycle qualification failures and phase diagnostics — 2026-10-25
+
+The 139-resource named KV/Document schedule remains unqualified at this
+checkpoint. An early setup attempted to reuse an owned writer and failed;
+each later resource now has its own native writer. A one-page native-cache
+attempt was interrupted, and a subsequent setup exceeded its 1,800-second
+aggregate deadline. With the installed eight-page native cache, a further run
+exceeded 3,600 seconds. Its last saved declaration targeted resource 139, but
+the last periodic completion marker was 129. Neither that marker nor the saved
+declaration proves all resources initialized or recovered. The direct catalog
+still uses its 16-page cache with eight-entry leaves.
+
+The setup helper also performed a complete directory/value readback before
+returning. Setup and readback now have separate explicit phases: 3,600 seconds
+for provisioning and per-resource typed reads, then 900 seconds each for the
+complete readback before and after node SIGKILL/restart. The same original
+receipt, saved bytes, all 139 values and bounded directory assertions remain.
+Phase markers identify completed setup and each sixteen verified readback values.
+No successful full schedule or latency target follows from this fixture change.
+
+Reference Follow attempt 11 failed its first application mutation while an
+owned clean-checkout run was also performing disk-heavy unit work. That clean
+run was interrupted before any lane completed; neither run passed. Attempt 12
+ran without that clean-checkout process and still exceeded the initial query's
+180-second result deadline. This rules out treating the simultaneous clean run
+as an established explanation for every placement failure.
+
+Attempt 13 completed and fully verified the original 20-row query, recovered
+the same result after physical service replacement, and prepared all eight
+finite Follow captures. It then exceeded the unchanged 180-second refreshed
+result deadline. The last observed refresh was admitted; workers continued
+consuming inputs and the browser retained a frozen uncertain control through
+capacity refusals. The run's counter visibility and physical recovery observations
+were 15,140 ms and 57,888 ms respectively. These are partial observations from a
+failed schedule, not a qualified reference deployment or performance comparison.
+
+The browser now records bounded query and refresh phase changes. On failure it
+also makes one bounded public status read for the selected finite query, without
+activating, replacing or cancelling it. The next reference run retains the
+existing deadlines, result identity/coverage, recovery and denial assertions.

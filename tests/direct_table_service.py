@@ -237,10 +237,16 @@ def run(node, caller, mode="tables", *artifacts):
                 subprocess.run([caller, endpoint, "resource-growth-write", str(profile)], check=True, timeout=3600)
                 saved = profile.read_bytes()
                 pending = Path(str(profile) + ".resource-growth").read_bytes()
+                # Directory/value readback is a separate bounded phase, both
+                # before and after replacement. Keep every original assertion
+                # without charging the readback to the provisioning deadline.
+                print("Named resource growth: verifying all resources before replacement.", flush=True)
+                subprocess.run([caller, endpoint, "resource-growth-recover", str(profile)], check=True, timeout=900)
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = None
                 authority = start()
+                print("Named resource growth: verifying all resources after SIGKILL/restart.", flush=True)
                 subprocess.run([caller, endpoint, "resource-growth-recover", str(profile)], check=True, timeout=900)
                 assert profile.read_bytes() == saved
                 assert Path(str(profile) + ".resource-growth").read_bytes() == pending

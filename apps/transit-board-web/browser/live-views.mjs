@@ -17,6 +17,8 @@ const errors = [],
 const resultIdentities = new Map(),
   reactiveObservations = new Map(),
   semanticFailures = [];
+let queryStatus = null;
+let refreshStatus = null;
 const counter = await context.newPage();
 const board = await context.newPage();
 for (const page of [counter, board]) {
@@ -33,6 +35,24 @@ for (const page of [counter, board]) {
     const result = await response.json().catch(() => ({}));
     const request = response.request().postDataJSON();
     const path = new URL(response.url()).pathname;
+    if (path === "/api/v1/query" && "status" in request && "status" in result) {
+      if (
+        queryStatus?.namespace !== request.status ||
+        queryStatus?.phase !== (result.status?.phase ?? null)
+      )
+        console.log("Query phase:", request.status, result.status?.phase ?? "unobserved");
+      queryStatus = {
+        namespace: request.status,
+        phase: result.status?.phase ?? null,
+        diagnostic: result.status?.diagnostic?.code ?? null,
+      };
+    }
+    if ("refresh_status" in request && result.refresh_status?.view) {
+      const { namespace, phase, starts, dirty, covered } = result.refresh_status.view;
+      if (refreshStatus?.namespace !== namespace || refreshStatus?.phase !== phase)
+        console.log("Refresh phase:", namespace, phase, starts);
+      refreshStatus = { namespace, phase, starts, dirty, covered };
+    }
     const retain = (map, key, value) => {
       map.set(key, value);
       if (map.size > 4) map.delete(map.keys().next().value);
@@ -333,9 +353,33 @@ try {
   );
   console.log("Observed live-view wall times:", JSON.stringify(timings));
 } catch (error) {
+  if (refreshStatus?.namespace && refreshStatus.namespace !== "0") {
+    // One bounded public status read locates the selected finite execution.
+    // It cannot resume, replace or cancel accepted work.
+    const selected = await board
+      .evaluate(async (namespace) => {
+        const response = await fetch("/api/v1/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: namespace }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const result = await response.json();
+        return {
+          namespace,
+          http: response.status,
+          phase: result.status?.phase ?? null,
+          diagnostic: result.status?.diagnostic?.code ?? result.err ?? null,
+        };
+      }, refreshStatus.namespace)
+      .catch(() => ({ unavailable: true }));
+    console.error("Selected refresh query evidence:", JSON.stringify(selected));
+  }
   console.error("Counter status:", await counter.locator("#status").allTextContents());
   console.error("Board status:", await board.getByRole("status").allTextContents());
   console.error("Recent API outcomes:", operations);
+  console.error("Query status evidence:", JSON.stringify(queryStatus));
+  console.error("Refresh status evidence:", JSON.stringify(refreshStatus));
   console.error("Result identity evidence:", JSON.stringify([...resultIdentities]));
   console.error("Reactive observation evidence:", JSON.stringify([...reactiveObservations]));
   console.error("Semantic failure evidence:", JSON.stringify(semanticFailures));
