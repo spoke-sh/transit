@@ -18449,8 +18449,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 84,
-        "catch": 16
+        "try": 85,
+        "catch": 17
       },
       "imports": [
         "root.zig",
