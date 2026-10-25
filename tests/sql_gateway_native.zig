@@ -255,8 +255,19 @@ pub fn main(init: std.process.Init) !void {
         defer statement.deinit();
         var operation: ?u64 = null;
         const result = try runtime.execute(init.gpa, &observer, &table, &statement, &.{}, deadline, &operation);
-        var source = try observer.source();
-        const detached = if (detach) (try registry.discover(&source, detached_nonce)).?.id else null;
+        const detached: ?u64 = if (detach) found: {
+            while (true) {
+                try deadline.check(init.io);
+                // The worker remains active during inspection. A current reader
+                // owns no retained cut, so reopen only this pure lookup on a race.
+                const item = runtime.lookup(&observer, detached_nonce, null) catch |err| {
+                    if (!wire.contended(err) and !((err == error.Rejected or err == error.Conflict) and wire.last_rejection == .StaleStateResource)) return err;
+                    try init.io.sleep(.fromMilliseconds(2), .awake);
+                    continue;
+                };
+                break :found (item orelse return error.MissingDetachedOperation).id;
+            }
+        } else null;
         return support.print(init, .{ .operation = operation, .outcome = result, .detached = detached });
     }
     if (std.mem.eql(u8, mode, "read")) {

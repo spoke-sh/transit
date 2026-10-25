@@ -136,6 +136,13 @@ requires current native ownership and an already initialized private ledger.
 Bootstrap initialization has no SQL listeners. Current ownership, direct Table
 completion and current disclosure rights are checked separately.
 
+Admission discovery and outcome observation reopen current ledger reads after
+revision contention or temporary transport failure, within the original caller
+deadline. Admission retains the original nonce and fingerprint; observation
+retains the accepted operation and intent. These retries do not resubmit SQL as
+new work or bypass current authorization. Direct `lookup` callers own their read
+retry policy because a reader does not retain its resource revision.
+
 ## Interactive read pin recovery
 
 `ReadPins` owns a private directory per account inside the activation directory.

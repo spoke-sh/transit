@@ -26726,3 +26726,30 @@ request. Nested Arrow/schema ownership, queued Table mutations and restarted
 workers pass through the repaired Elixir adapter. The authority uses 64 resident
 pages and an 8 MiB hot limit; 337 cold objects occupy 88,498,415 bytes. This is
 one correctness schedule, not a throughput or hosted CI budget measurement.
+
+## SQL admission and detached inspection revision races — 2026-10-25
+
+The clean growth attempt at `0567c9841` fails at the runtime UPDATE in
+`just test::sql-gateway` with `StaleStateResource`; an isolated unchanged rerun
+passes. Diagnostic fault injection then reproduces two independent gaps:
+the initial admission lookup propagates a stale-revision rejection, and, after
+that path is repaired, the fixture's final detached-control inspection does too.
+The natural failure does not identify which of those two reads lost its cut.
+
+`AccountRuntime.admit` now retries only its initial pure lookup under the
+original deadline, nonce and fingerprint. The final fixture inspection also
+reopens only its read while the worker remains active. The shared retry
+classification preserves denial, cancellation and conflicting-retry failures;
+neither repair repeats SQL admission or changes accepted work.
+
+The full focused schedule passes after both repairs. Its proxy injects one
+stale-revision rejection into each lookup, and retains the existing delayed
+detached reply, lost first upload receipt and successor-admission ordering.
+The run completes 33 operations, three fenced replacements, exact replay of
+all three lost control replies and direct outcome recovery without direct
+re-execution. The UPDATE reports one matched and one changed row, its value is
+read back, and the detached reservation is explicitly cancelled to abandonment.
+The workload takes 26.014 seconds, excluding compilation. The runtime's
+60-second deadline, native four-mutation/256-byte turn limits and existing
+receipt assertions are unchanged. This focused pass does not complete the
+remaining ordinary CI tasks.

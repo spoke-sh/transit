@@ -43,6 +43,7 @@ def run(node, catalog, gateway):
         detached_replies = 0
         pipeline_enabled = False
         pipeline = {}
+        stale_reads = {}
         successor_admitted = threading.Event()
         def intent_upload(request):
             send = request['command'].get('send')
@@ -96,6 +97,7 @@ def run(node, catalog, gateway):
                         connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                         response = connection.getresponse()
                     data = response.read()
+                    status = response.status
                     if self.path == '/table/v1' and response.status == 200:
                         request = json.loads(body)
                         operation = request['action'].get('operation')
@@ -116,6 +118,18 @@ def run(node, catalog, gateway):
                     if self.path == '/v1/query' and response.status == 200:
                         query = json.loads(body)['query']
                         kind = query['kind']
+                        entries = kind.get('entries') if isinstance(kind, dict) else None
+                        if pipeline_enabled and query['principal'] == 2001 and entries and entries.get('key'):
+                            key = bytes.fromhex(entries['key'])
+                            if key.startswith(b'\x00GWn'):
+                                phase = 'detached' if key[4:] == bytes([177])*16 else 'admission'
+                                if phase not in stale_reads:
+                                    # A current-revision reader can lose its cut
+                                    # to ledger progress between metadata and
+                                    # entry reads. Fail each pure lookup once.
+                                    stale_reads[phase] = entries['revision']
+                                    status = 422
+                                    data = b'{"err":"StaleStateResource"}'
                         authority = kind.get('authorization') if isinstance(kind, dict) else None
                         if authority and isinstance(authority['kind'], dict) and 'receipt' in authority['kind']:
                             original_request = authority['kind']['receipt']
@@ -169,7 +183,7 @@ def run(node, catalog, gateway):
                             lost[str(armed)] = body, data
                             armed = None
                             data = b'{"position":0}'
-                    self.send_response(response.status)
+                    self.send_response(status)
                     self.send_header('Content-Length', str(len(data)))
                     self.send_header('Content-Type', 'application/json')
                     self.end_headers()
@@ -278,13 +292,15 @@ def run(node, catalog, gateway):
             call(gateway, 'cancel', result['detached'])
             call(gateway, 'run')
             assert call(gateway, 'status', result['detached'])['phase'] == 'abandoned'
+            assert set(stale_reads) == {'admission', 'detached'}, stale_reads
             assert not failures, failures
             print(json.dumps(dict(profile='native_gateway_ledger', operations=33,
                                   lost_receipts=sorted(replayed | recovered), exact_resubmissions=sorted(replayed),
                                   recovered_receipts=sorted(recovered), fenced_replacements=3,
                                   direct_outcome_recovered=recovered_data, direct_reexecuted=repeated_data,
                                   receipt_inspectors={name: sorted(principals) for name, principals in receipt_inspectors.items()},
-                                  exact_counts=True, ingress_pipeline=pipeline, detached_replies=detached_replies, turns=turns, sends=sends,
+                                  exact_counts=True, ingress_pipeline=pipeline, stale_reads=stale_reads,
+                                  detached_replies=detached_replies, turns=turns, sends=sends,
                                   seconds=round(time.monotonic()-started, 3))))
         finally:
             if sys.exc_info()[0] and failures:
