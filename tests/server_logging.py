@@ -127,7 +127,12 @@ def run(cli, node, host, board, gateway):
         # A deferred first health check is starting, not an unexplained outage.
         # An actual native failure during startup still needs a truthful error,
         # followed by confirmed recovery before connection instructions appear.
-        unavailable = [line for line in lines if 'sql.status ' in line and 'operation="unavailable"' in line]
+        first_accepting = next((index for index, line in enumerate(lines)
+                                if 'sql.status ' in line and 'operation="accepting"' in line), len(lines))
+        # After confirmed readiness, losing a health observation can itself
+        # establish unavailable without an additional native error code.
+        unavailable = [line for line in lines[:first_accepting]
+                       if 'sql.status ' in line and 'operation="unavailable"' in line]
         assert all('outcome=failed' in line and re.search(r' error_type="[^"]+"', line)
                    for line in unavailable), unavailable
         states = [line.split('sql.status ', 1)[1] for line in lines if 'sql.status ' in line]
