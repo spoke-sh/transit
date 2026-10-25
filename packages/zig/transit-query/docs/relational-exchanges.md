@@ -74,6 +74,9 @@ the handoff application field to the exact relational bound, checkpoint the
 producer's whole application resource and revalidate all source rights and
 history heads before activation. Pending notices keep their original bytes and
 physical epoch. Fresh placement never rewrites an eligible segment.
+The replacement validates the original delegated history cuts while execution
+ownership is fenced, then uses the rotated worker credential with those same
+borrow bindings. Rotation does not authorize a new cut or release a caller pin.
 
 An empty partition requires a zero-row terminal segment. Missing or delayed
 coverage produces `RelationalExchangePending`; silence is not completion.
