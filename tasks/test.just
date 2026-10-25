@@ -297,8 +297,8 @@ authorization-tables *args:
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
-    zig build test-operation-fixture transit-node transit-admin transit transit-query-host transit-table-service serving-example
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+    zig build transit-node transit-admin transit-station-host serving-example -Doptimize=ReleaseSafe
+    python3 -B tests/authorization_serving.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
 callers:

@@ -26096,3 +26096,21 @@ The first attempt failed compilation on a remaining removed-role reference in
 the query host; it supplied no deployment evidence. The corrected attempt above
 completed. This is a finite local Docker Compose recovery schedule, not a
 throughput comparison, power-loss proof or qualification of other placements.
+
+## Direct watch selected-role recovery — 2026-10-24
+
+`nix develop --command just test::authorization-serving` passed against native
+local storage and a direct Table. The restricted caller reads a private snapshot
+without raw process/resource inspection. The fixture verifies signed-proof
+integrity, exact control recovery, credential rotation with gateway replacement,
+SET membership revocation, Table SELECT revocation, SSE/WebSocket terminal denial
+and denial after a further gateway restart. The gateway's own scoped Table read
+grant does not substitute for its original viewer's current permission.
+
+The completed run's first snapshot took 0.195 seconds and gateway VmRSS was
+20,422,656 bytes; these are finite-run observations, not latency or resident-memory
+guarantees. Earlier migration attempts failed on stale fixture administration
+sequences, an owner inspection assumption, a missing gateway Table read grant,
+and the fixture's numeric encoding of the current decimal-string cursor. They
+provide no passing evidence. Report: `.cache/verification/authorization-serving.json`.
+The schedule does not qualify browser reload or every deployment placement.

@@ -21,7 +21,7 @@ def cursor_bytes(cursor):
     scope = value['scope']
     return (b'SV1K' + bytes([value['version']]) + struct.pack('<8Q', *scope.values())
             + struct.pack('<QQ', value['watch_revision'], value['resource']) + bytes(value['schema'])
-            + struct.pack('<QQ', value['data_revision'], value['outcome_position']) + bytes(cursor['signature']))
+            + struct.pack('<QQ', int(value['data_revision']), value['outcome_position']) + bytes(cursor['signature']))
 
 
 def signed_read(key, scope, kind='session', attachment=0, nonce=None, cursor=None):
@@ -219,7 +219,7 @@ def run_trace(env, tls):
         assert outcome['diagnostic'] == response['diagnostic'], outcome
         assert outcome['diagnostic']['code'] == 'serving.reply_recorded' and outcome['diagnostic']['outcome'] == 'completed', outcome
         assert str(outcome['resource']) == outcome['diagnostic']['identity']['resource'], outcome
-        assert changed['cursor']['position']['data_revision'] > first['cursor']['position']['data_revision']
+        assert int(changed['cursor']['position']['data_revision']) > int(first['cursor']['position']['data_revision'])
         post(port, '/reactive/v1/read', request['read'], host, 409)
         # Consume-once challenge cannot reattach a second live socket.
         post(alternate, '/reactive/v1/events', replacement, host, 403)
@@ -343,7 +343,7 @@ def adversarial(env, tls, scope, bootstrap, attachment, cursor, command, origina
     drained(ingress)
     # Scoped signed cursors still require signature integrity; future positions
     # and foreign subscriptions never become authority after gateway restart.
-    forged = json.loads(json.dumps(cursor)); forged['position']['data_revision'] += 1
+    forged = json.loads(json.dumps(cursor)); forged['position']['data_revision'] = str(int(forged['position']['data_revision']) + 1)
     post(alternate, '/reactive/v1/read', signed_read(key, scope, 'events', attachment, challenge['nonce'], forged), host, 403)
     print('Reactive adversarial trace: upgrade rejection, bounded unauthenticated bootstrap, fragmented authentication with ping, declined compression, idle native/service revocation and gateway/worker/node/store recovery passed', flush=True)
 
