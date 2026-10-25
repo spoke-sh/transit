@@ -50,6 +50,15 @@ the plan is self-contained and does not require that file.
 
 ## Delivery sequence
 
+The [selected foundation profile](01-declarative-data-lifecycle.md#selected-transaction-session-extension)
+fixes the initial local Table domain, consistent-cut acquisition, conservative
+whole-object optimistic validation, participant preparation/common-decision
+visibility, provisional statements, savepoints and Table outbox boundary. Its
+native KV/Document and cross-owner exclusions do not remove the broader
+composition outcomes above. Add those owners only through explicit participant
+contracts and their failure histories. The selected profile is planned, not
+executable syntax or implemented transaction support.
+
 1. **Select the atomic domain and isolation contract.** Define database/catalog,
    branch, object, partition and writer identities and their relationships.
    Specify the first supported multi-object Table/KV/Document combination and
@@ -62,8 +71,10 @@ the plan is self-contained and does not require that file.
    ordering is provided separately from serializability. Validate read/write and
    predicate dependencies, absent keys, uniqueness, keyless row identities,
    collation-sensitive ranges, Document causal rules and schema changes.
-   SSI, optimistic validation and locking are alternatives to evaluate, not
-   interchangeable names or mechanisms selected by this milestone title.
+   The foundation selects whole-object optimistic validation under ordered
+   participant guards for the first local Table profile. SSI and finer-grained
+   locking remain alternatives for later profiles; neither can weaken the
+   declared anomaly rules without explicit caller selection and qualification.
 2. **Define transaction identity, session state and statement outcomes.** Specify
    begin, execute, inspect, commit, rollback and savepoint operations before their
    SQL/SDK adapters. Bind a transaction and commit attempt to exact objects,
