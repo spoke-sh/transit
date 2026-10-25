@@ -5816,7 +5816,7 @@
         "AccessDenied": 3,
         "AuthorityTimeout": 4,
         "AuthorityTransportDenied": 2,
-        "AuthorityUnavailable": 2,
+        "AuthorityUnavailable": 3,
         "ConcurrencyUnavailable": 1,
         "Conflict": 3,
         "ConnectionRefused": 1,
@@ -5832,7 +5832,7 @@
         "InvalidWaitHint": 1,
         "NameServerFailure": 1,
         "NetworkUnreachable": 1,
-        "OutOfMemory": 2,
+        "OutOfMemory": 3,
         "ReadFailed": 1,
         "Rejected": 2,
         "WriteFailed": 3

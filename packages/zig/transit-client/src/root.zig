@@ -285,7 +285,16 @@ pub const Client = struct {
         };
         self.last_status = response.status;
         if (response.status != .ok) {
-            var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch return error.InvalidAuthorityResponse;
+            var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                // An intermediary can report availability without a native
+                // error envelope. This establishes no rejection or receipt;
+                // callers must retain the original uncertain mutation bytes.
+                return switch (response.status) {
+                    .bad_gateway, .service_unavailable, .gateway_timeout => error.AuthorityUnavailable,
+                    else => error.InvalidAuthorityResponse,
+                };
+            };
             defer failure.deinit();
             self.last_rejection = failure.value.err;
         }

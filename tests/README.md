@@ -26239,3 +26239,21 @@ server/console cases, console history, frontend formatting/types/unit tests and
 the handbook production build. The earlier fixture-mismatch run remains a
 failure. This is working-tree repository validation, not clean-checkout evidence
 or a pass for the separately running resource-growth/reference schedules.
+
+## Opaque upstream availability responses — 2026-10-24
+
+The reference Follow run stopped both workers when an intermediary returned a
+95-byte, non-JSON HTTP 503 response. The native client previously classified that
+response as malformed authority data. It now reports availability for opaque
+502/503/504 responses without manufacturing a native rejection or receipt. The
+worker retains its original uncertain request; the client performs no retry.
+
+An independent TCP peer exercises eight status/body combinations, including
+empty and opaque 503, opaque 502/504, valid native capacity/access rejections and
+malformed successful/forbidden responses. It also checks that a previous parsed
+rejection cannot survive a later opaque response. The test fails on the original
+empty-503 classification and passes after the fix. All 37 client-package tests
+pass. Diagnostic inventory, semantic mappings, inferred error boundaries and
+3,401 outcome projections pass; documentation checks cover 5,995 local links.
+The reference-placement rerun and final repository/clean-checkout gates remain
+separate from this focused client evidence.

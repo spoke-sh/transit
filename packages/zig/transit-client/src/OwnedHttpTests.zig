@@ -3,6 +3,58 @@ const wire = @import("root.zig");
 const Io = std.Io;
 const Payload = struct { text: []const u8, rows: []const []const []const u8 };
 const body = "{\"text\":\"owned text\",\"rows\":[[\"first\",\"second\"],[\"third\"]]}";
+
+test "upstream unavailability cannot become a receipt or an authority rejection" {
+    const t = std.testing;
+    const Case = struct { status: std.http.Status, bytes: []const u8, expected: anyerror, rejection: ?wire.protocol.ErrorCode = null };
+    const cases = [_]Case{
+        .{ .status = .service_unavailable, .bytes = "{\"err\":\"HttpCapacity\"}", .expected = error.AuthorityUnavailable, .rejection = .HttpCapacity },
+        .{ .status = .service_unavailable, .bytes = "", .expected = error.AuthorityUnavailable },
+        .{ .status = .service_unavailable, .bytes = "upstream connection unavailable", .expected = error.AuthorityUnavailable },
+        .{ .status = .bad_gateway, .bytes = "<html>Upstream connection closed</html>", .expected = error.AuthorityUnavailable },
+        .{ .status = .gateway_timeout, .bytes = "upstream timeout", .expected = error.AuthorityUnavailable },
+        .{ .status = .ok, .bytes = "", .expected = error.InvalidAuthorityResponse },
+        .{ .status = .forbidden, .bytes = "<html>Denied</html>", .expected = error.InvalidAuthorityResponse },
+        .{ .status = .forbidden, .bytes = "{\"err\":\"AccessDenied\"}", .expected = error.AccessDenied, .rejection = .AccessDenied },
+    };
+    const Server = struct {
+        fn run(io: Io, listener: *Io.net.Server, result: Case) !void {
+            var stream = try listener.accept(io);
+            defer stream.close(io);
+            var input: [1024]u8 = undefined;
+            var output: [1024]u8 = undefined;
+            var reader = stream.reader(io, &input);
+            var writer = stream.writer(io, &output);
+            var server = std.http.Server.init(&reader.interface, &writer.interface);
+            var request = try server.receiveHead();
+            const received = try request.readerExpectNone(&.{}).allocRemaining(t.allocator, .limited(128));
+            defer t.allocator.free(received);
+            try t.expectEqualStrings("{\"nonce\":[97,97]}", received);
+            try request.respond(result.bytes, .{ .status = result.status, .keep_alive = false });
+        }
+    };
+    var threaded: Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
+    defer threaded.deinit();
+    const io = threaded.io();
+    for (cases) |case| {
+        var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+        defer listener.deinit(io);
+        const url = try std.fmt.allocPrint(t.allocator, "http://127.0.0.1:{d}", .{listener.socket.address.getPort()});
+        defer t.allocator.free(url);
+        var peer = try io.concurrent(Server.run, .{ io, &listener, case });
+        defer _ = peer.cancel(io) catch {};
+        var client = wire.Client.init(t.allocator, io, url);
+        defer client.deinit();
+        // A prior parsed rejection must not survive a later opaque upstream
+        // response. No case permits the client to manufacture a native result.
+        client.last_rejection = .AccessDenied;
+        try t.expectError(case.expected, client.callOwned(Payload, "/v1/query", .{ .nonce = [_]u8{ 97, 97 } }, .{ .response_bytes = 1024 }));
+        try t.expectEqual(case.rejection, client.last_rejection);
+        try t.expectEqual(case.status, client.last_status);
+        try peer.await(io);
+    }
+}
+
 const Peer = struct {
     fn run(io: Io, listener: *Io.net.Server, delay: u32) !void {
         var stream = try listener.accept(io);
