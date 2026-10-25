@@ -234,7 +234,9 @@ def run(node, caller, mode="tables", *artifacts):
                 # Aggregate setup includes 139 real native owners and initialized
                 # values. Individual caller requests retain their 30-second cap;
                 # this is a growth/recovery proof, not an interactive latency gate.
-                subprocess.run([caller, endpoint, "resource-growth-write", str(profile)], check=True, timeout=3600)
+                # Allow the complete native provisioning/initialization schedule
+                # a separate 90-minute budget; its cost grows with retained state.
+                subprocess.run([caller, endpoint, "resource-growth-write", str(profile)], check=True, timeout=5400)
                 saved = profile.read_bytes()
                 pending = Path(str(profile) + ".resource-growth").read_bytes()
                 # Directory/value readback is a separate bounded phase, both
