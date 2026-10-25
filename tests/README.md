@@ -26320,3 +26320,23 @@ The subsequent `nix develop --command just check` completes contracts, diagnosti
 checks, units, CLI/console checks, frontend checks and the handbook build. These
 working-tree results do not establish the separately running reference-placement,
 139-resource growth or committed-HEAD clean-checkout gates.
+
+## Direct Follow reference qualification checkpoints — 2026-10-25
+
+The direct-owner reference browser schedule remains unqualified at this
+checkpoint. Placement now selects an explicit IPv4 Docker bridge, retries the
+same signed native bytes within its existing ten-second recovery budget, and
+recreates only its own failed port-forward on the same local port. Transient
+non-JSON readiness replies remain within the existing readiness deadline.
+Failure diagnostics retain bounded current/previous direct-node logs before
+owned namespace cleanup. These fixture changes establish no runtime guarantee
+on their own.
+
+Earlier attempts exposed opaque intermediary 503 responses and an exhausted
+native CAS reprepare response; the client and worker fixes have separate focused
+evidence above. Attempt 9 kept both workers alive but exceeded the 120-second
+browser handshake while preparing 19 sequential rows. The row-setup handshake
+now allows the aggregate of the existing ten-second admission and 30-second
+outcome budgets per row. Individual operation deadlines and browser result,
+recovery, denial and memory assertions are unchanged. This is a finite correctness
+schedule; increasing its aggregate setup budget is not performance evidence.

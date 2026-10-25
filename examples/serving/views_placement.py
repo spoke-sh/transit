@@ -65,7 +65,7 @@ def run(owner):
             try:
                 owner['request']('https://127.0.0.1:' + str(public_ports[index]), '/health', tls=proxies[index].context)
                 break
-            except (OSError, AssertionError):
+            except (OSError, AssertionError, ValueError):
                 assert time.monotonic() < until, 'view host readiness'
                 time.sleep(.1)
         return hosts[index]
