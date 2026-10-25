@@ -1,5 +1,21 @@
 # Validation and evidence
 
+## Direct Table selected-role boundary — 2026-10-24
+
+`nix develop --command just test::direct-table-service authorization` passes
+against the public direct owner. A login with a set-only membership cannot
+discover the Table until it explicitly selects that role. The selected caller
+can pin and read the row, but cannot open the native lifetime resource or inspect
+an unrelated native process. Revoking role selection denies metadata, reopening
+the retained pin and pin release. Restoring selection permits the original cut
+and its cleanup; clearing selection still denies access.
+
+An initial fixture attempt failed because its root administrator tried to read
+a native resource without a read grant. The corrected fixture creates a known
+unrelated process through the public control operation and checks the Table
+caller's denial directly. This focused pass is included in the full direct Table
+schedule; it does not rerun all language SDKs or the older authorization suite.
+
 ## Direct prepared Table lifetime — 2026-10-24
 
 `nix develop --command just test::direct-table-service prepared` passes against
