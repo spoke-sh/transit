@@ -27,10 +27,10 @@ static transit_station_catalog_metadata *lookup(void) {
 static transit_station_catalog_snapshot *load_snapshot(void) { transit_station_catalog_snapshot *s = NULL; LOAD(snapshot, s, "snapshot.json"); return s; }
 static transit_logical_cell_view atom(transit_logical_atom value) { transit_logical_cell_view out = {.state = TRANSIT_LOGICAL_VALUE, .as.value = {.kind = TRANSIT_VALUE_ATOM, .as.atom = value}}; return out; }
 int main(int argc, char **argv) {
-    assert(argc == 11); setvbuf(stdout, NULL, _IOLBF, 0); assert(!strcmp(argv[1], "c")); base = 0; object = UINT64_MAX - 1; directory = argv[9];
+    assert(argc == 12); setvbuf(stdout, NULL, _IOLBF, 0); assert(!strcmp(argv[1], "c")); base = 0; object = UINT64_MAX - 1; directory = argv[9];
     transit_sdk_config config = transit_sdk_growing_config(argv[2]); config.timeout_ms = 10000;
     transit_sdk_credential credential = {number(argv[4]), number(argv[5]), argv[3]};
-    transit_station_catalog_connection connection = {{{credential.realm, number(argv[7])}, number(argv[8])}, number(argv[6]), 1, false, 0};
+    transit_station_catalog_connection connection = {{{credential.realm, number(argv[7])}, number(argv[8])}, number(argv[6]), 1, true, number(argv[11])};
     checked(transit_station_catalog_open(&config, &credential, connection, argv[10], &client)); puts("{\"ready\":true}");
     while (read_command() && strcmp(args[0], "close")) {
         if (!strcmp(args[0], "prepare")) {

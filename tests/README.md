@@ -26114,3 +26114,22 @@ sequences, an owner inspection assumption, a missing gateway Table read grant,
 and the fixture's numeric encoding of the current decimal-string cursor. They
 provide no passing evidence. Report: `.cache/verification/authorization-serving.json`.
 The schedule does not qualify browser reload or every deployment placement.
+
+## Direct catalog SDK selected roles — 2026-10-24
+
+`nix develop .#bindings --command just bindings::authorization` qualified the
+installed Python, Node, Rust, Ruby, C/C++, Java and .NET catalog callers with a
+separate login that must explicitly select a non-inherited data role. The first
+BEAM attempt failed because its controller still asserted the former principal;
+`zig build test-direct-catalog-beam -Doptimize=ReleaseSafe` passed for Erlang and
+Elixir after correcting that assertion. All ten language callers exercised the
+selected role, its revocation/restoration, wide bulk staging, original uncertain
+receipts, lost pin/release replies and caller/node replacement. Raw native
+resource access remained denied.
+
+The direct ABI schedule also passed with the restricted selected role (235 public
+requests). ABI, Python and Node verified retained SQL after DROP/name reuse and
+current denial before cached or terminal result disclosure. The other language
+schedules verified retained metadata under current access; those runs do not
+establish equivalent retained SQL coverage. These are finite native-local
+schedules, not qualification of other storage providers.

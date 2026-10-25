@@ -32,7 +32,7 @@ loop(A,C,Root,Name,Object,Offset)->
         Action->[{Command,_}]=maps:to_list(Action),Value=phase(Command,A,C,Root,Name,Object,Offset),report(#{status=>0,value=>Value}),loop(A,C,Root,Name,Object,Offset)
     end end.
 phase(<<"prepare">>,A,C,Root,Name,Object,Offset)->
-    #transit_catalog_description{subject=#transit_catalog_subject{principal=101}}=result(A:describe(C)),#transit_catalog_namespace{name= <<"public">>}=result(A:namespace(C,1)),
+    #transit_catalog_description{subject=#transit_catalog_subject{principal=941002,role=Selected}}=result(A:describe(C)),true=is_integer(Selected) andalso Selected>0,#transit_catalog_namespace{name= <<"public">>}=result(A:namespace(C,1)),
     #transit_catalog_page{entries=Namespaces}=result(A:namespaces(C)),true=lists:any(fun(#transit_catalog_namespace{id=N})->N=:=1 end,Namespaces),
     finish(A,C,compile(A,C,<<"CREATE TABLE ",Name/binary," (id BIGINT PRIMARY KEY, payload BINARY)">>,1+Offset,Object),Root),
     #transit_catalog_metadata{basis=B,row_count=0}=result(A:lookup(C,Name)),Object=object(B),

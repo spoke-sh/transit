@@ -15,14 +15,14 @@ def exercise(library, host, root, authority, service, profile, restart, policy):
     library, host = str(Path(library).resolve()), str(Path(host).resolve())
     definition = CONTRACT['definition']
     connection = dict(scope=dict(profile['catalog']['scope'], catalog=str(profile['catalog']['scope']['catalog'])),
-                      branch='1', audience=profile['catalog']['audience'], principal=101, role=None)
-    (root / 'caller.seed').write_text('1d' * 32)
+                      branch='1', audience=profile['catalog']['audience'], principal=941002, role=profile['role'])
+    (root / 'caller.seed').write_text('7b' * 32)
     (root / 'caller.seed').chmod(0o600)
     check_profiles(host, root, authority, connection)
     for family, offset in (('native', 0), ('port', 10)):
         def open_client():
             if family == 'native':
-                return Native(library, authority, connection, seed_byte=29, service_url=service)
+                return Native(library, authority, connection, seed_byte=123, service_url=service)
             return Port(host, root, authority, connection, service_url=service)
 
         query_config = dict(definition=definition, catalogs=[connection], service_url=service,
@@ -31,7 +31,7 @@ def exercise(library, host, root, authority, service, profile, restart, policy):
                 output_rows='1000', work_steps='100000', source_pins=2, requests='100000', spill_work='100000'))
         def open_query_client():
             if family == 'native':
-                return QueryNative(library, authority, relational=query_config, seed_byte=29)
+                return QueryNative(library, authority, relational=query_config, seed_byte=123)
             return QueryPort(host, root, authority, relational=query_config)
         query = open_query_client()
         def query_call(action, expected_error=None):
