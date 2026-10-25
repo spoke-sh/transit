@@ -458,14 +458,21 @@ pub fn main(init: std.process.Init) !void {
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "recover")) {
             try Delegation.recover(client, &profile.delegation.?);
+            std.debug.print("Direct Table recovery: retained delegation passed\n", .{});
             try History.recover(client, &profile.history.?);
+            std.debug.print("Direct Table recovery: history checkpoint passed\n", .{});
             try SqlPins.recover(init, client, directory);
+            std.debug.print("Direct Table recovery: SQL pin journal passed\n", .{});
             try Conditions.recover(init.gpa, client, &profile.conditions.?);
+            std.debug.print("Direct Table recovery: conditional names passed\n", .{});
             try recover(init, client, &admin, profile, directory);
+            std.debug.print("Direct Table recovery: original receipts and reads passed\n", .{});
             var lifecycle = try Lifecycle.evolve(init.gpa, init.io, directory, client, profile.role, profile.delegation.?);
             defer lifecycle.deinit();
             profile.lifecycle = lifecycle.value;
+            std.debug.print("Direct Table recovery: lifecycle evolution passed\n", .{});
             try Delegation.verify(client, profile.delegation.?);
+            std.debug.print("Direct Table recovery: delegated readback passed\n", .{});
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "history-position")) {
             var reader = try History.tail(client, profile.history.?, profile.history.?.checkpoint.?.source.point.position);
