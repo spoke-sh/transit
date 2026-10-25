@@ -1,5 +1,19 @@
 # Validation and evidence
 
+## Captured direct Table request batching — 2026-10-24
+
+`nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe
+-- --captured-only` passes with 23 authorized publication read batches observed
+from the actual source worker. The direct Table wrapper had omitted native
+`readBatch`, causing published requests to use separate reads for each 256-byte
+chunk on every continuation. It now forwards the existing bounded operation.
+The HTTP fixture requires combined descriptor/chunk reads of at most eight keys.
+
+The same run preserves original-cut recovery after lost pin/release replies and
+node replacement, retained Table evidence after pin closure, current disclosure
+denial and cleanup after credential rotation. This result does not qualify the
+separate Compose browser timing schedule.
+
 ## Direct Table selected-role boundary — 2026-10-24
 
 `nix develop --command just test::direct-table-service authorization` passes

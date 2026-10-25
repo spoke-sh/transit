@@ -80,13 +80,14 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
         named_dependency_faults = set()
         named_publications = {}
         proxy_failures = []
+        request_batches = 0
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
 
             def do_POST(self):
-                nonlocal history_gap, authority
+                nonlocal history_gap, authority, request_batches
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 connection = HTTPConnection("127.0.0.1", port, timeout=70)
@@ -99,6 +100,17 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     response = connection.getresponse()
                     data = response.read()
                     status = response.status
+                    if self.path == "/v1/query" and status == 200 and envelope["query"]["principal"] == 103:
+                        kind = envelope["query"]["kind"]
+                        batch = kind.get("read_entries") if isinstance(kind, dict) else None
+                        keys = [bytes.fromhex(key) for key in batch["keys"] if key is not None] if batch else []
+                        if len(keys) > 1 and keys[0].startswith(b"\0P\0\0\0\2") and keys[0][14] == ord("r"):
+                            # The source wrapper must preserve the public
+                            # descriptor-plus-chunk read, not degrade to one
+                            # separately authorized round trip per 256 bytes.
+                            assert len(keys) <= 8
+                            assert all(key[:14] == keys[0][:14] and key[14] == ord("c") for key in keys[1:])
+                            request_batches += 1
                     if self.path == "/v1/query" and status == 200 and (named_only or maintained_only):
                         query = envelope["query"]
                         kind = query["kind"]
@@ -336,6 +348,8 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                 authority = start()
                 subprocess.run([caller, endpoint, "capture-resume", str(profile)], check=True, timeout=240)
                 assert all(faults.values()), faults
+                assert request_batches > 0, "captured source did not batch its published request reads"
+                print(f"Direct captured source: {request_batches} authorized publication read batches observed.", flush=True)
                 if not captured_only:
                     subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                     subprocess.run([caller, endpoint, "capture-relational", str(profile)], check=True, timeout=600)

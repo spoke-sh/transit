@@ -169,6 +169,9 @@ pub const Resources = struct {
     pub fn open(self: Resources, resource: u64) !s.client.ResourceReader.Reader {
         return self.native.open(resource);
     }
+    pub fn readBatch(self: Resources, resource: u64, revision: ?u64, keys: []const p.Value) !s.client.ResourceReader.Batch {
+        return self.native.readBatch(resource, revision, keys);
+    }
 };
 pub const Cleanup = struct {
     correlation: u64,
