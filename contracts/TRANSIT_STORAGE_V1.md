@@ -246,6 +246,23 @@ configures these operation bounds; the result page also owns bounded frame
 descriptors. Ordered directory traversal uses constant resident memory but may
 scan the directory repeatedly. No throughput claim follows from these bounds.
 
+Within each cached partition, three volatile frame coordinates retain the latest
+accepted frame and the start/continuation of the last read. They contain no
+payload or authority. Sequential bounded pages resume at a verified offset and
+stop immediately at their requested frame count; repeated latest-frame reads
+do not decode the preceding segment again. Without a usable coordinate, one
+directory pass locates the newest segment starting at or before the requested
+LSN, then bounded frames are decoded to that position. This fallback is not a
+persistent random-access index or a constant-I/O guarantee.
+
+Recovery still validates the entire required retained history. Every returned
+frame is read and integrity/identity checked again; stale/missing/corrupt bytes
+cannot be supplied from a cached payload. Trim clears seek coordinates and
+descriptor eviction discards them. No format, frontier, fence, sync or uncertain
+append semantics change. Disk-owner counters `read_frames`, `read_bytes` and
+`directory_scans` distinguish frame-read work from recovery and directory walks;
+they do not count all filesystem metadata I/O or establish physical device reads.
+
 `initMemory` supplies a separate volatile fixture limited to 64 partitions and
 64 MiB of retained encoded frames. It does not qualify disk durability.
 

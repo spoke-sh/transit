@@ -7,6 +7,74 @@ fn open(dir: std.Io.Dir) !Wal {
     return Wal.openDiskWithOptions(t.allocator, t.io, dir, "wal", .{ .segment_bytes = 256, .batch_frames = 2 });
 }
 
+test "disk WAL bounded seek hints keep one-frame replay linear and verify cached reads" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        for (0..256) |lsn| {
+            var payload: [8]u8 = undefined;
+            std.mem.writeInt(u64, &payload, lsn * 17 + 3, .little);
+            _ = try wal.log().append(1, lsn, 1, 1, .row_delta, &payload);
+        }
+    }
+    var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    const before_frames = wal.disk.?.read_frames;
+    const before_scans = wal.disk.?.directory_scans;
+    for (0..256) |lsn| {
+        var batch = try wal.log().read(t.allocator, 1, lsn, 1);
+        defer batch.deinit();
+        try t.expectEqual(@as(usize, 1), batch.frames.len);
+        try t.expectEqual(lsn, batch.frames[0].header.lsn);
+        try t.expectEqual(@as(u64, lsn * 17 + 3), std.mem.readInt(u64, batch.frames[0].payload[0..8], .little));
+    }
+    try t.expectEqual(@as(u64, 256), wal.disk.?.read_frames - before_frames);
+    try t.expectEqual(@as(u64, 1), wal.disk.?.directory_scans - before_scans);
+    // Repeated latest reads verify the selected on-disk frame each time.
+    const before_latest = wal.disk.?.read_frames;
+    for (0..5) |_| {
+        var batch = try wal.log().read(t.allocator, 1, 255, 1);
+        defer batch.deinit();
+        try t.expectEqual(@as(u64, 255), batch.frames[0].header.lsn);
+    }
+    try t.expectEqual(@as(u64, 5), wal.disk.?.read_frames - before_latest);
+    const file = try tmp.dir.openFile(t.io, "wal/part-1-0.twal", .{ .mode = .read_write });
+    defer file.close(t.io);
+    try file.writePositionalAll(t.io, "x", 255 * Log.alignedFrameSize(8) + Log.header_bytes);
+    try t.expectError(error.CorruptWalFrame, wal.log().read(t.allocator, 1, 255, 1));
+}
+
+test "disk WAL seek hints survive rollover backward reads eviction and trim" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 512 });
+    defer wal.deinit();
+    for (0..7) |lsn| _ = try wal.log().append(1, lsn, 1, 1, .row_delta, "data");
+    for ([_]u64{ 0, 1, 2, 6, 1, 5, 0 }) |from| {
+        var batch = try wal.log().read(t.allocator, 1, from, 2);
+        defer batch.deinit();
+        try t.expectEqual(@min(2, 7 - from), batch.frames.len);
+        for (batch.frames, 0..) |frame, i| try t.expectEqual(from + i, frame.header.lsn);
+    }
+    // More partitions than descriptor slots evict all derived seek hints.
+    for (2..12) |partition| _ = try wal.log().append(partition, 0, 1, 1, .row_delta, "other");
+    var recovered = try wal.log().read(t.allocator, 1, 5, 2);
+    defer recovered.deinit();
+    try t.expectEqual(@as(u64, 5), recovered.frames[0].header.lsn);
+    try wal.log().trim(1, 5);
+    try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 1, 4, 1));
+    var retained = try wal.log().read(t.allocator, 1, 5, 2);
+    defer retained.deinit();
+    try t.expectEqual(@as(usize, 2), retained.frames.len);
+    try wal.log().trim(1, 7);
+    _ = try wal.log().append(1, 7, 2, 3, .row_delta, "successor");
+    var successor = try wal.log().read(t.allocator, 1, 7, 1);
+    defer successor.deinit();
+    try t.expectEqualStrings("successor", successor.frames[0].payload);
+}
+
 test "disk log rolls segments and pages beyond its partition cache through restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
