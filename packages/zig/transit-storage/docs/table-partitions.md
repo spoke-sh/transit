@@ -182,12 +182,30 @@ stable order, including mixed WAL/segment sources. Duplicate row identities
 reject before publication. SQL ordering still comes from its query plan.
 
 `TreeStore` defaults to sixteen resident index pages and a separate 64 MiB
-encoded staging-work budget. `TablePartition` caches at most one segment and one
-decoded row group. Segment bytes are bounded by 16 MiB; this owner writes at most
-1,024 rows per segment. Footer and decoded-group allocations are additional to
-the encoded-byte cache budget. Setting `segment_cache_bytes` to zero disables
-retention of that cache; it does not remove transient decoding work. Query owners
-must bound their result buffers and enclosing allocators separately.
+encoded staging-work budget. `TablePartition` caches at most one segment footer
+and one decoded row group. It reads the fixed header/trailer and verified footer,
+then only the target group's column pages through `TSegReader`; it does not
+allocate a complete encoded segment. The point directory selects the segment
+without scanning all retained candidates. Footer keys remain a resident sorted
+array; this is not an ordered primary-key range index.
+
+Segment bytes are bounded by 16 MiB; this owner writes at most 1,024 rows per
+segment in groups of 256 by default. `segment_rows_per_group` may select 1–1,024
+rows independently of operation, execution and result-page limits. Existing
+segments keep their original group layout. `segment_decode_bytes` bounds actual
+live decoder arena allocations (64 MiB by default); one transient encoded column
+page, footer metadata, cache owner and output rows have separate allocations.
+`segment_cache_bytes` selects the largest encoded segment eligible for retained
+footer/group caching; zero disables that retention, not transient decoding.
+Returned rows own their values across group eviction and owner destruction.
+Query owners must bound their result buffers and enclosing allocators separately.
+
+`segment_reads`, `segment_range_reads`, `segment_bytes_read` and
+`row_groups_decoded` count loaded footers, successful TSEG range requests,
+returned encoded bytes and completed group decodes for the component owner.
+They exclude data-index and WAL reads, provider chunk-verification amplification,
+filesystem cache effects and transport work. A cache hit retains no permission;
+current guards still control disclosure.
 
 `flush` finds at most one bounded group of currently live WAL rows. It stages a
 segment, replaces their locators and publishes the replacement through the same

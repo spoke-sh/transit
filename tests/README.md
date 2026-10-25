@@ -2,6 +2,29 @@
 
 ## Verified segment range reader — 2026-10-25
 
+The live `TablePartition` integration passes the disk-backed focused test with
+512 rows, 2 KiB text values, one resident data-index page and default 256-row
+groups. From a 1,094,026-byte segment, a cold point reads 563,420 bytes in five
+ranges (header, trailer, footer and two columns); an adjacent warm point reads
+zero additional segment bytes. Crossing groups reads two more column ranges.
+After destroying caches and recovering the owner, a complete same-root scan
+checks all 512 identities/values against their input ordinals and payload and
+reads 1,093,934 segment bytes in seven ranges. Actual live decoded arena blocks
+remain below 4 MiB for this fixture. These byte counters exclude tree/WAL I/O,
+the local provider's 64 KiB chunk-verification amplification and filesystem cache
+effects; they are not latency or whole-process memory guarantees.
+
+The test also checks owned rows after eviction/recovery, zero retained segment
+cache, and a one-byte decoder allowance refusing the read without changing the
+accepted root or original receipt. Its first run fails when the fixture tries
+to observe CREATE with a newly constructed INSERT binding; retaining the original
+CREATE binding fixes that test, without relaxing the identity check. The passing
+command is `cd packages/zig/transit-storage && zig build test
+-Dtest-filter='Table segment ranges' --summary all` inside `nix develop` (2/2
+including the package root test, 37 seconds). `just test::storage-segments`
+composes the focused Fuze and storage checks. Installed SQL, full repository
+checks and committed-source clean lanes require their separate evidence.
+
 On baseline `b720c488` plus the segment-reader changes, the pinned-shell command
 `cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg --summary all`
 passes 26 selected tests. New cases verify metadata-only opening, projection

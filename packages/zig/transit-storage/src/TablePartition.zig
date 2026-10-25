@@ -40,6 +40,9 @@ pub const Options = struct {
     resident_pages: usize = 16,
     index_work_bytes: usize = 64 * 1024 * 1024,
     segment_cache_bytes: usize = f.TSeg.max_segment_bytes,
+    /// Physical build granularity, independent of operation/result row limits.
+    segment_rows_per_group: u32 = 256,
+    segment_decode_bytes: usize = 64 * 1024 * 1024,
     /// Total decoded visits across statement passes, independent of Table size.
     statement_scan_rows: u64 = 1_000_000,
     statement_scan_bytes: u64 = 64 * 1024 * 1024,
@@ -189,6 +192,8 @@ chain: [32]u8 = @splat(0),
 options: Options,
 segment_cache: ?CachedSegment = null,
 segment_reads: u64 = 0,
+segment_range_reads: u64 = 0,
+segment_bytes_read: u64 = 0,
 row_groups_decoded: u64 = 0,
 recovery_required: bool = true,
 /// Failure injection at the durable append/reply boundary.
@@ -196,7 +201,8 @@ lose_reply: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
-    if (partition == 0 or options.index_work_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0) return error.InvalidTableIdentity;
+    if (partition == 0 or options.index_work_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0 or
+        options.segment_rows_per_group == 0 or options.segment_rows_per_group > max_changes or options.segment_decode_bytes == 0) return error.InvalidTableIdentity;
     var owned = try Declaration.prepare(allocator, definition);
     errdefer owned.deinit();
     var index = try TreeStore.init(allocator, objects, options.resident_pages);
@@ -1244,21 +1250,20 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
             var temporary: ?CachedSegment = null;
             defer if (temporary) |*segment| segment.deinit(self.allocator);
             const segment = try self.loadSegment(locator, &temporary);
-            const footer = &segment.footer;
+            const footer = &segment.reader.footer;
             if (footer.object_id != schema.object or footer.schema_revision != schema.revision or
                 !std.mem.eql(u8, &footer.layout_fingerprint, &try schema.layoutFingerprint())) return error.TableSchemaChanged;
             if (footer.segment_id != locator.lsn or locator.offset >= footer.pk_index.len or footer.pk_index[locator.offset].global_row_offset != locator.offset) return error.InvalidTableRowReference;
             const entry = footer.pk_index[locator.offset];
             if (segment.decoded) |*group| if (group.index != entry.row_group) {
-                group.arena.deinit();
+                group.deinit();
                 segment.decoded = null;
             };
             if (segment.decoded == null) {
-                var arena = std.heap.ArenaAllocator.init(self.allocator);
-                errdefer arena.deinit();
-                const columns = try arena.allocator().alloc([]f.Types.Values.Cell, schema.columns.len);
-                for (columns, 0..) |*column, i| column.* = try f.TSeg.decodeRowGroupColumn(arena.allocator(), schema, footer, segment.bytes, entry.row_group, i);
-                segment.decoded = .{ .arena = arena, .index = entry.row_group, .columns = columns };
+                var projection: [128]usize = undefined;
+                for (projection[0..schema.columns.len], 0..) |*slot, i| slot.* = i;
+                var source: SegmentSource = .{ .owner = self, .locator = locator };
+                segment.decoded = try segment.reader.group(self.allocator, source.source(), schema, entry.row_group, projection[0..schema.columns.len], .{ .decoded_bytes = self.options.segment_decode_bytes });
                 self.row_groups_decoded +|= 1;
             }
             var arena = std.heap.ArenaAllocator.init(allocator);
@@ -1283,30 +1288,30 @@ fn segmentKey(digest: [32]u8, buffer: *[96]u8) ![]const u8 {
 
 const CachedSegment = struct {
     digest: [32]u8,
-    bytes: []u8,
-    footer: f.TSeg.Footer,
-    decoded: ?struct { arena: std.heap.ArenaAllocator, index: u16, columns: [][]f.Types.Values.Cell } = null,
-    fn deinit(self: *CachedSegment, allocator: std.mem.Allocator) void {
-        if (self.decoded) |*group| group.arena.deinit();
-        self.footer.deinit();
-        allocator.free(self.bytes);
+    length: u32,
+    reader: f.TSegReader,
+    decoded: ?f.TSegReader.Group = null,
+    fn deinit(self: *CachedSegment, _: std.mem.Allocator) void {
+        if (self.decoded) |*group| group.deinit();
+        self.reader.deinit();
     }
 };
 
 fn loadSegment(self: *Self, locator: r.Locator, temporary: *?CachedSegment) !*CachedSegment {
     if (self.segment_cache) |*cached| {
-        if (std.mem.eql(u8, &cached.digest, &locator.digest) and cached.bytes.len == locator.length) return cached;
+        if (std.mem.eql(u8, &cached.digest, &locator.digest) and cached.length == locator.length) return cached;
         cached.deinit(self.allocator);
         self.segment_cache = null;
     }
-    const bytes = try self.readSegment(self.allocator, locator);
-    errdefer self.allocator.free(bytes);
-    var footer = try f.TSeg.readFooter(self.allocator, bytes);
-    errdefer footer.deinit();
-    if (footer.total_rows > max_changes) return error.InvalidTableSegment;
-    const segment: CachedSegment = .{ .digest = locator.digest, .bytes = bytes, .footer = footer };
+    if (locator.length == 0 or locator.length > f.TSeg.max_segment_bytes) return error.InvalidTableRowReference;
+    var source: SegmentSource = .{ .owner = self, .locator = locator };
+    try source.verify();
+    var reader = try f.TSegReader.open(self.allocator, source.source(), locator.length, f.TSeg.max_segment_bytes);
+    errdefer reader.deinit();
+    if (reader.footer.total_rows > max_changes) return error.InvalidTableSegment;
+    const segment: CachedSegment = .{ .digest = locator.digest, .length = locator.length, .reader = reader };
     self.segment_reads +|= 1;
-    if (bytes.len <= self.options.segment_cache_bytes) {
+    if (locator.length <= self.options.segment_cache_bytes) {
         self.segment_cache = segment;
         return &self.segment_cache.?;
     }
@@ -1314,22 +1319,33 @@ fn loadSegment(self: *Self, locator: r.Locator, temporary: *?CachedSegment) !*Ca
     return &temporary.*.?;
 }
 
-fn readSegment(self: *Self, allocator: std.mem.Allocator, locator: r.Locator) ![]u8 {
-    if (locator.length == 0 or locator.length > f.TSeg.max_segment_bytes) return error.InvalidTableRowReference;
-    var name: [96]u8 = undefined;
-    const key = try segmentKey(locator.digest, &name);
-    const metadata = try self.objects.head(key) orelse return error.TableSegmentMissing;
-    if (metadata.size != locator.length or !std.mem.eql(u8, &metadata.sha256, &locator.digest)) return error.InvalidTableRowReference;
-    const bytes = try allocator.alloc(u8, locator.length);
-    errdefer allocator.free(bytes);
-    if ((try self.objects.getRange(key, 0, locator.length, bytes)).len != bytes.len or !std.mem.eql(u8, &r.hash(bytes), &locator.digest)) return error.InvalidTableRowReference;
-    return bytes;
-}
+const SegmentSource = struct {
+    owner: *Self,
+    locator: r.Locator,
+    fn source(self: *SegmentSource) f.TSegReader.Source {
+        return .{ .context = self, .read = read };
+    }
+    fn verify(self: *SegmentSource) !void {
+        var name: [96]u8 = undefined;
+        const metadata = try self.owner.objects.head(try segmentKey(self.locator.digest, &name)) orelse return error.TableSegmentMissing;
+        if (metadata.size != self.locator.length or !std.mem.eql(u8, &metadata.sha256, &self.locator.digest)) return error.InvalidTableRowReference;
+    }
+    fn read(context: *anyopaque, offset: u64, out: []u8) !void {
+        const self: *SegmentSource = @ptrCast(@alignCast(context));
+        if (offset > self.locator.length or out.len > self.locator.length - offset) return error.InvalidTableRowReference;
+        var name: [96]u8 = undefined;
+        const bytes = try self.owner.objects.getRange(try segmentKey(self.locator.digest, &name), offset, @intCast(out.len), out);
+        if (bytes.len != out.len) return error.InvalidTableRowReference;
+        if (bytes.ptr != out.ptr) @memcpy(out, bytes);
+        self.owner.segment_range_reads +|= 1;
+        self.owner.segment_bytes_read +|= out.len;
+    }
+};
 
 fn stageSegment(self: *Self, allocator: std.mem.Allocator, schema: f.TableSchema.Schema, segment_id: u64, rows: []const f.TableRow.Row) !struct { content: d.Content, footer: f.TSeg.Footer } {
     const buffer = try allocator.alloc(u8, f.TSeg.max_segment_bytes);
     defer allocator.free(buffer);
-    const bytes = try f.TSeg.writeSegment(allocator, schema, rows, .{ .segment_id = segment_id }, buffer);
+    const bytes = try f.TSeg.writeSegment(allocator, schema, rows, .{ .segment_id = segment_id, .rows_per_group = self.options.segment_rows_per_group }, buffer);
     const digest = r.hash(bytes);
     var name: [96]u8 = undefined;
     const metadata = try self.objects.putImmutable(try segmentKey(digest, &name), bytes, digest);
