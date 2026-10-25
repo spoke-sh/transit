@@ -26460,3 +26460,33 @@ Initial query/recovery and Follow preparation times are now observed separately.
 This longer aggregate observation tests eventual completion under the same bounded
 deployment, not compliance with the failed three-minute latency window. No pass
 is established by changing the fixture budget.
+
+## Public named resource growth and restart — 2026-10-25
+
+`nix develop --command just test::direct-table-service resource-growth` passes
+the complete ReleaseSafe schedule with 1,437 typed catalog calls. The phase
+separation and caller diagnostics are recorded in `47e7ae729`; the retained run
+log is `/var/tmp/transit-named-resource-growth-5.log`. The earlier failed and
+interrupted attempts above remain unqualified.
+
+The public host/caller path provisions and initializes 139 distinct resources:
+70 KV resources and 69 Documents, each with its own native writer. Every object
+passes typed data readback during setup. Publication remains absent until the
+owning initialization completes; the fixture also checks the denied intermediate
+allocation step before the required resource grants are supplied.
+
+The fixture then reads the entire directory and every value before node
+replacement, kills the actual node with SIGKILL, restarts it over the same local
+native/direct storage, and repeats the complete readback. KV values equal
+`durable named value`; Documents retain revision 1 and the integer value 42.
+Directory traversal preserves exact object order, names and its original
+position across bounded eight-entry pages. The original first operation's
+inspection and exact retry both reproduce its complete receipt. Saved profile
+and final declaration bytes remain unchanged across replacement.
+
+The node retains eight native resident pages and sixteen direct catalog pages;
+139 initialized objects exceed the direct cache's eight-entry leaf capacity.
+Setup has a 3,600-second aggregate budget; each complete readback has 900 seconds,
+with the original per-request bounds unchanged. This is local process-recovery
+and bounded-cache evidence, not a host-loss, distributed-writer or latency result.
+Reference Follow and committed-HEAD clean-checkout qualification remain open.
