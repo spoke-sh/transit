@@ -1,14 +1,17 @@
 """Actual Board and application browser consumers, with owned physical services."""
 import base64
+import copy
 import hashlib
 import json
 from pathlib import Path
 import struct
 import subprocess
 import time
-from serving_table import watch as table_watch, query_policy, source_value
+from urllib.request import Request
+from serving_table import watch as table_watch, query_policy, source_value, authorize
 from reactive import reactive
-from serving import policy, post, signed_read, submit
+from serving import policy, post, signed_read, submit, Key
+from storage import wait_ready
 
 
 def run(env, tls):
@@ -153,11 +156,33 @@ def run(env, tls):
                 elif stage == 'restart': env['recover']()
                 elif stage == 'sessions-before': sessions_before = active_sessions()
                 elif stage == 'sessions-after': assert active_sessions() == sessions_before, 'reconnect replaced logical sessions'
-                elif stage == 'peer-closed':
+                elif stage in ('peer-closed', 'peer-reloaded'):
                     until_closed = time.monotonic() + 40
                     while sum(active_sessions()[4 + i * 16:20 + i * 16] != bytes(16) for i in range(4)) != 2:
                         assert time.monotonic() < until_closed, 'closed tab retained a live session'
                         time.sleep(.25)
+                elif stage == 'rotate-viewer':
+                    identity = env['query'](65537, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']
+                    replacement = Key(root, 'rotated-browser-viewer', 88)
+                    replacement.authority_query = keys[65537].authority_query
+                    authorize(env['send'], env['query'], {'rotate_credential': dict(principal=65537,
+                        expected_epoch=identity['credential_epoch'], public_key=replacement.public)})
+                    keys[65537] = replacement
+                elif stage == 'replace-viewer':
+                    # The old gateway must first expose current denial to the
+                    # browser. Only this separate stage supplies its new key.
+                    env['gateways'][1].kill()
+                    env['gateways'][1].wait(timeout=10)
+                    updated = copy.deepcopy(env['gateway_config'])
+                    gateway = updated['role']['gateway']
+                    assert gateway['viewer']['principal'] == 65537
+                    gateway['viewer']['seed_file'] = str(keys[65537].seed)
+                    for caller in gateway['callers']:
+                        if caller['principal'] == 65537:
+                            caller['public_key'] = keys[65537].public
+                    env['gateways'][1] = env['start']('gateway-viewer-rotated', env['example'], updated)
+                    wait_ready(env['store'].http, env['gateways'][1], Request(
+                        f"http://127.0.0.1:{gateway['port']}/health", headers={'Host': gateway['host']}))
                 elif stage == 'reset':
                     cast(ingress, reactive(0, table_watch(env['counter_definition'], application, expected=1, revision=2)))
                 elif stage == 'retire':
