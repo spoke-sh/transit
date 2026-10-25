@@ -132,7 +132,7 @@ fn step(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handl
     const pending = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try support.key(17));
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
 }
-pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64) !void {
+pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, directory: []const u8) !void {
     const alloc = init.arena.allocator();
     var state = try maintained.prepareWithExchange(init, client, admin, role, false, true);
     const bytes = try state.bundle.decode(alloc, q.RelationalBundle.max_bytes);
@@ -173,10 +173,10 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     var worker_client = client;
     worker_client.connection.principal = 141;
     worker_client.key = try support.key(113);
-    const worker_clients = [_]c.DirectTableClient{ worker_client, worker_client };
+    var worker_clients = [_]c.DirectTableClient{ worker_client, worker_client };
     var receiver_handler: Handler = .{ .inner = &inner, .exchange = first_exchange, .partitions = 1, .vector = vector, .identity = state.identity, .producer = worker, .clients = &receiver_clients };
     var worker_handler: Handler = .{ .inner = &inner, .exchange = first_exchange, .partitions = 1, .vector = vector, .identity = state.identity, .producer = worker, .clients = &worker_clients };
-    const worker_configuration: s.client.Session = .{ .client = client.authority, .realm = 42, .principal = 141, .pid = worker.pid, .generation = worker.generation, .key = worker_client.key };
+    var worker_configuration: s.client.Session = .{ .client = client.authority, .realm = 42, .principal = 141, .pid = worker.pid, .generation = worker.generation, .key = worker_client.key };
     var producer = try s.GenServer.init(worker_configuration, "state");
     producer.failure_policy = .stop;
     receiver.failure_policy = .stop;
@@ -189,6 +189,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
         if ((try inner.reference.publication().inspect(&read, inner.reference.record)).state == .retired) break;
     } else return error.RequestRetirementPending;
     var borrowed: [2]c.DirectTableClient = undefined;
+    var handed_off = false;
     for ([_]u64{ 1, 7 }, 0..) |partitions, index| {
         const revision: u64 = index + 1;
         const exchange_id: u64 = first_exchange + index;
@@ -264,6 +265,19 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             }
             try step(init, &receiver, receiver_handler.interface(), admin);
             try step(init, &producer, worker_handler.interface(), admin);
+            if (!handed_off and iteration >= 2 and producer.pending == null and producer.delivery == null and producer.ready == null) {
+                const replacement = try @import("direct_worker_handoff.zig").run(init, directory, worker_client, worker, bundle, vector, authorization, &borrows);
+                worker.generation = replacement.generation;
+                worker_client.key = replacement.key;
+                worker_clients = .{ worker_client, worker_client };
+                worker_handler.producer = worker;
+                for (borrowed[0 .. index + 1]) |*saved| saved.key = replacement.key;
+                worker_configuration.generation = replacement.generation;
+                worker_configuration.key = replacement.key;
+                producer = try s.GenServer.init(worker_configuration, "state");
+                producer.failure_policy = .stop;
+                handed_off = true;
+            }
             var read = try maintained.source(client, state);
             const exchange = try x.head(&read, exchange_id);
             if (!attached and exchange.completed == try exchange.total() and !exchange.pending) {
@@ -290,6 +304,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
         var read = try maintained.source(client, state);
         if ((try q.RelationalMaintenance.head(&read, state.identity)).cleanup_cursor == bundle.sources.len) break;
     } else return error.ExchangeCleanupPending;
+    try t.expect(handed_off);
     for (borrowed) |old| {
         try t.expectError(error.Conflict, old.call(old.borrow.?.binding.target.action()));
         try t.expect(client.service.last_rejection.? == .QueryExpired);

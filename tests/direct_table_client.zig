@@ -514,7 +514,7 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "capture-exchanges")) {
             var fresh = client;
             fresh.key = try key(if (profile.captured != null) 59 else 29);
-            try @import("direct_relational_exchanges.zig").run(init, fresh, &admin, profile.role);
+            try @import("direct_relational_exchanges.zig").run(init, fresh, &admin, profile.role, std.fs.path.dirname(args[3]) orelse ".");
         } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);

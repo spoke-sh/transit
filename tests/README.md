@@ -1,5 +1,20 @@
 # Validation and evidence
 
+## Direct exchange worker handoff — 2026-10-24
+
+`nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe
+-- --exchanges-only` passes with recorded worker replacement. The schedule saves
+each handoff phase and exact signed native command before submission, recovers
+the same receipt after acceptance, checkpoints the complete producer resource,
+and reopens every original direct history cut through its borrowed read proof
+while execution ownership is fenced. Activation rotates the worker credential;
+the old credential is denied. Reconstructed producer and receiver hosts finish
+the one- and seven-partition successors and close the original history leases.
+
+This schedule reconstructs hosts in one OS process. It does not qualify physical
+worker termination, provider replacement or filesystem capacity failures. Those
+older schedules still require migration before the old Table owner is removed.
+
 ## Direct SQL ledger recovery and pin authority — 2026-10-24
 
 `nix develop --command just test::sql-gateway` passes the migrated direct Table
