@@ -61,6 +61,13 @@ instruction to keep bulk data in the superseded actor/page path.
 
 ## Installed lifecycle integration
 
+The implementation branch now has direct Table, named KV/Document and explicit
+computation owners, migrated callers and a coordinated current-v1 cutover. The
+[current lifecycle review](01-declarative-data-lifecycle.md#current-implementation-review--2026-10-24)
+links the delivered slices, executed evidence and still-open qualification.
+This milestone remains In Progress: those results do not complete every storage
+maintenance, performance or installed integration gate below.
+
 The sequencing review transfers executable lifecycle delivery from milestone 1
 to this installed integration owner. Preserve #108's original acceptance gates:
 

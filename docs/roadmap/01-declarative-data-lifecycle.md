@@ -24,12 +24,12 @@ KV/Document/computation metadata transitions. Retain that work and its scoped
 [component evidence](../../tests/README.md#declarative-data-lifecycle-codecs-and-collations).
 Existing Table CRUD and native authorization/recovery predate this milestone.
 
-The executable acceptance path is incomplete. `TableClient.apply` still drives
-actor sends, uploads and continuations. Named KV/Document publication records a
-supplied resource ID without establishing provisioning or initialization.
-Computation completion is not bound to verified result evidence, and schema
-revision comparisons do not establish freshness after row changes. Metadata
-transitions alone do not fulfill a data declaration.
+At that snapshot, the executable acceptance path was incomplete.
+`TableClient.apply` drove actor sends, uploads and continuations. Named
+KV/Document publication recorded a supplied resource ID without establishing
+provisioning or initialization. Computation completion was not bound to verified
+result evidence, and schema revision comparisons did not establish freshness
+after row changes. Metadata transitions alone did not fulfill a data declaration.
 
 | Remaining work                                                             | Tracking issue                                         |
 | -------------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -52,7 +52,36 @@ The transcript review is complete and this planning revision is authorized.
 The [shared contract gates](README.md#firm-scope-and-contract-gates) identify
 engineering decisions that must precede dependent implementation.
 
-## Implementation in progress
+## Current implementation review — 2026-10-24
+
+The original executable scope remains part of this branch's acceptance review
+despite the sequencing split. The following is the current checkpoint; the
+implementation record below preserves earlier, narrower checkpoints and their
+then-open work.
+
+| Obligation | Implemented outcome and executed evidence | Open qualification |
+| --- | --- | --- |
+| Direct Table lifecycle (#111) | One direct owner accepts point/batch CRUD and DDL, with current policy, exact retry bindings and retained reads. [Public CRUD/DDL](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23), [selected-role/default-grant checks](../../tests/README.md#direct-table-selected-role-boundary--2026-10-24), [SQL recovery](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) and [139-Table growth](../../tests/README.md#direct-catalog-growth-and-retained-rows--2026-10-24) pass. | Final combined clean-checkout suite. Provider/concurrent-writer expansion stays with milestone 12. |
+| Named usable KV/Document resources (#119) | [Allocation and initialization](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24), [dependency/lifetime recovery](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared host recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24) use real native resources and current rights. The [public 139-edge dependency growth/restart schedule](../../tests/README.md#public-dependency-graph-growth-and-restart--2026-10-24) passes. | The public 139-resource growth/restart schedule is running; its component predecessor does not establish this result. |
+| Actual computation evidence (#120) | [Result/source attribution](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23), [named publication](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24), captured and maintained recovery, and current disclosure denial pass. Inspection does not activate execution. | Reference Follow placement and final combined clean-checkout suite. Automatic scheduling remains milestone 8. |
+| Coordinated current-v1 cutover (#112) | The [superseded actor Table owner is removed](../../tests/README.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24); current consumers, bindings and fixtures use the shared definition. [Installed SDK selected-role checks](../../tests/README.md#direct-catalog-sdk-selected-roles--2026-10-24) and [nine compiling mutation probes](../../tests/README.md#direct-catalog-mutation-checks--2026-10-24) pass. | Final combined clean-checkout suite. Existing data still requires its matching build; there is no fallback decoder or automatic reset. |
+| Identity, atomicity and snapshots (#125) | The executable domain is one Table statement/batch with retained WAL-inclusive cuts and explicit independent source vectors. [Competing checkpoint/pin evidence](../../tests/README.md#snapshot-pins-against-competing-checkpoints--2026-10-24) passes. The [selected transaction extension](#selected-transaction-session-extension) specifies the later consistent-cut and multi-Table decision protocol. | Transaction-session implementation and anomaly/failure histories belong to milestone 5; this design decision does not qualify them. |
+
+The current repository check passes with the client fix for opaque upstream
+503 responses and ordinary native-contention recovery in application workers,
+including contracts, diagnostics, units, frontend and handbook build.
+[Work Items, Station and the native browser](../../tests/README.md#native-worker-contention-and-exact-recovery--2026-10-25)
+pass with the worker fixes. Native Follow reload/credential rotation and
+root/prefixed handbook browser checks also pass. Final acceptance still requires the running growth
+and reference-placement results, committed-HEAD `just ci-clean`, and a linked
+issue review. #123/#124 retain their broader storage/provider/performance scope;
+this lifecycle review does not close those obligations wholesale.
+
+## Implementation record
+
+These paragraphs record intermediate implementation states. References to
+remaining consumers or unrun checks describe their checkpoint; use the current
+review above and the linked proof ledger to assess what remains open now.
 
 The [direct SQL ledger schedule](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24)
 passes independent Table acceptance and native control recovery, exact lost-reply
@@ -615,14 +644,18 @@ executed evidence for this foundation decision.
 
 ## Baseline, bottleneck diagnosis and scope
 
-The Table catalog already owns stable object/column identities (`CatalogId`,
+This diagnosis describes the reopened `a0a8a3ed` baseline. The direct owner and
+consumer cutover in the current implementation review replace that data path;
+the original diagnosis remains the reason for the work.
+
+The Table catalog already owned stable object/column identities (`CatalogId`,
 `DefinitionId`, `ColumnId`), immutable definitions, `CREATE`/`ALTER`/`DROP`, DML
 outcomes and native authorization bindings. KV and Documents have resource/service
 APIs but no common named SQL publication lifecycle. Named relational definitions
 and captured/maintained execution have typed Zig owners with explicit activation.
 Dependencies, policy and progress remain spread across their owning interfaces.
 
-Crucially, the current implementation funnels relational and catalog mutations
+That implementation funneled relational and catalog mutations
 through the actor mailbox and native turn protocol (`send_input -> open_view ->
 read_resource_blocks -> commit_turn`), where each turn is capped at `4 × 256B`
 metadata keys and `16 × 64KiB` (`128 KiB` total) resource blocks. Because of
