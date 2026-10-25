@@ -33,7 +33,9 @@
         system:
         let
           pkgs = pkgsFor system;
-          zig = zig-overlay.packages.${system}.master;
+          zig = pkgs.callPackage ./nix/zig.nix {
+            upstream = zig-overlay.packages.${system}.master;
+          };
           kubectl-transit = pkgs.callPackage ./nix/kubectl-transit.nix { inherit zig; };
           vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
           transit = pkgs.callPackage ./nix/transit.nix { inherit zig vite-plus; };
@@ -144,6 +146,13 @@
             assert pkgs.lib.assertMsg (pkgs.lib.hasPrefix "0.17." zig.version)
               "Transit targets Zig 0.17 master; review the compiler target before updating zig-overlay.";
             pkgs.mkShell {
+              # Zig links system libraries directly, outside the C compiler
+              # wrapper. Pair its pinned ELF loader with the matching libc and
+              # OpenSSL library paths.
+              buildInputs = [
+                pkgs.openssl
+              ]
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.libc ];
               packages = [
                 pkgs.just
                 pkgs.git
@@ -153,7 +162,6 @@
                 (pkgs.python3.withPackages (import ./nix/python-tools.nix))
                 pkgs.process-compose
                 pkgs.openssl
-                pkgs.openssl.dev
                 pkgs.pkg-config
                 pkgs.protobuf
                 zig

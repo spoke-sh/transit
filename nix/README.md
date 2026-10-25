@@ -159,6 +159,24 @@ servers are test dependencies, not Transit runtime engines. The TLS server
 library links the selected OpenSSL; its C header and runtime version checks
 require deliberate review on upgrade. The default shell also supplies the pinned
 OpenSSL development files and `pkg-config` for ordinary package compilation.
+The default and CI shells declare OpenSSL as a native library dependency. On
+Linux they also put the pinned glibc in Zig's discovered library and runtime
+search paths. [The Zig launcher](zig.nix) selects the matching Nix ELF interpreter
+for native `zig build`, `build-exe`, `build-lib`, `run` and `test` invocations.
+Explicit target or dynamic-linker options retain upstream behavior; macOS uses
+the upstream compiler directly. Zig links directly rather than through the C
+compiler wrapper, so both the loader and library paths must agree. Otherwise a
+host distribution's libc or loader can be incompatible with Nix shared libraries.
+The experience shell supplies the C toolchain and `pkg-config` for the CLI and
+SQL gateway's TLS/certificate code. These shell dependencies use the existing
+locked inputs; they do not change compiler or library versions. The offline
+toolchain check compiles and runs an OpenSSL consumer through both the direct
+compiler and build runner, checking the Linux executables' interpreter paths.
+The Linux derivation also applies a [build-runner lifetime correction](zig-dynamic-linker.patch):
+the explicit loader argument must own its bytes after the temporary target query
+leaves scope. Without that copy, this compiler revision emits empty or corrupted
+loader arguments and can crash. The compiler binary and version stay pinned;
+the helper-source patch asserts that version and must be reviewed on upgrade.
 Run `just test::sql-wire-reference` and
 `just test::sql-wire-tls` for the independent peers.
 

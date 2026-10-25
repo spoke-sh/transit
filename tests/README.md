@@ -26862,3 +26862,33 @@ frontier and accept its successor. The first schedule failed against the prior
 implementation with `WalRecoveryRequired` as expected. These component results
 do not establish the cause of every installed request timeout or replace the
 remaining clean installed lifecycle qualification.
+
+## Native Linux CI library and loader selection — 2026-10-25
+
+Hosted run [40241628332](https://github.com/spoke-sh/transit/actions/runs/40241628332)
+at `c4c5e75359dc211f1dfebb32e065e1a05d305326` fails the core CLI diagnostic
+task because Nix shared libraries require glibc symbols absent from the host
+Ubuntu libc. Experience and launchers separately fail to find OpenSSL while
+linking. The local core lane also fails Station: its original attempt exhausts
+the authority-availability retry during resource association, and an unchanged
+retry later exhausts the query-upload wait after SELECT revocation. Neither
+Station attempt passes; the loader findings do not establish their causes.
+
+The default and CI shells now supply explicit OpenSSL/libc build dependencies
+and the native Linux Zig launcher selects the matching Nix ELF interpreter.
+An offline OpenSSL consumer reproduces a second defect with that explicit path:
+the pinned build runner passes a dangling slice from a temporary target query,
+emitting an empty or corrupted loader argument and crashing compilation.
+The version-asserted helper patch copies those argument bytes into its arena.
+The upstream compiler executable remains byte-identical, and no lockfile input
+or library version changes. Nix cache keys include the helper patches.
+
+With the correction, `nix flake check` passes on Linux x86_64. Its offline proof
+builds and runs the OpenSSL consumer through both direct compilation and the
+build runner, verifies their exact Nix interpreter paths, and verifies explicit
+caller loader overrides without executing those deliberately non-runnable
+artifacts. Other configured systems are not executed by this check.
+`nix develop .#ci-experience --command just test::cli-diagnostics` passes all
+96 helper and 193 CLI cases. `nix develop --command just doctor`, workflow lint
+and documentation link checks pass. Complete committed-source and hosted lanes
+remain separate qualification gates.
