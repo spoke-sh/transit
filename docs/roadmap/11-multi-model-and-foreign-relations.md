@@ -1,11 +1,11 @@
-# 9. Multi-model and multi-format foreign relations
+# 11. Multi-model and multi-format foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Compose KV, Table, Document, Graph and external dataset formats using the
 [`.tseg` codec and collation architecture](02-storage-and-query-performance.md),
 [standards/semantic contracts](07-standards-and-catalogs.md) and
-[declaration/dataflow lifecycle](08-sql-and-dataflows.md).
+[declaration/dataflow lifecycle](09-sql-and-dataflows.md).
 
 Use the shared object/definition identities, policy references and inspection
 model from the [data lifecycle](01-declarative-data-lifecycle.md). Every
@@ -24,6 +24,14 @@ adapter and caller path are qualified; external sources are not automatically
 participants in a native atomic commit.
 
 ## Delivery sequence
+
+Reuse [index identities, maintenance and coverage](08-indexing-and-access-paths.md)
+for graph adjacency and admitted document projections. Qualify each specialized
+key/predicate and source-refresh profile; ordered index support alone does not
+deliver GIN, arbitrary document-path or approximate-vector search. External
+statistics and indexes must match the captured manifest and comparison semantics.
+Extend the [performance scorecard](10-data-structures-and-performance.md) with
+actual foreign decoding, pruning, graph multiplicity and import/export costs.
 
 1. **Define explicit Document-to-SQL and richer multi-model projections with stable identities:**
    specify `missing`/`null`/`conflict`/`type_error` and arithmetic overflow

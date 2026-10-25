@@ -1,4 +1,4 @@
-# 13. Replication and durable failover
+# 15. Replication and durable failover
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -12,7 +12,7 @@ placement and distributed queries.
 ## Prerequisites and scope
 
 Consume [local storage](02-storage-and-query-performance.md),
-[provider/concurrent-writer qualification](12-storage-providers-and-concurrency.md),
+[provider/concurrent-writer qualification](14-storage-providers-and-concurrency.md),
 the [installed runtime cutover](03-live-storage-and-sql-cutover.md), catalog roots
 and the complete native durable-owner inventory. The prerequisites include
 [#117](https://github.com/spoke-sh/transit/issues/117) for enforceable writer and
@@ -80,12 +80,22 @@ does not make independent snapshots atomic or establish real-time ordering.
    provider credentials and metrics cannot authorize a promotion.
 6. **Qualify the selected real deployment profiles.** Use disk-backed providers
    and real network/storage faults in Compose and Kubernetes/Substrate as
-   applicable. Carry the exact contract into [operations](14-operations-and-recovery.md)
-   and [clustered execution](15-clustered-execution.md). Automatic worker/query
+   applicable. Carry the exact contract into [operations](16-operations-and-recovery.md)
+   and [clustered execution](17-clustered-execution.md). Automatic worker/query
    placement, disaster restore to an older cut and cross-region live failover are
    separate profiles; asynchronous copying alone qualifies none of them.
 
 ## Completion evidence
+
+Include [index definitions, coverage and build state](08-indexing-and-access-paths.md)
+in the recovery inventory. Decide which physical generations replicate and which
+are rebuilt from retained authoritative data. Promotion must preserve constraint
+enforcement and use an index only after proving coverage; a rebuilt acceleration
+index may remain unavailable while a qualified scan serves reads. Test failover
+during backfill, catch-up, readiness publication and unique-key conflicts.
+Extend the [performance scorecard](10-data-structures-and-performance.md) with
+replicated commit latency, bounded rebuild/catch-up and control progress under
+index maintenance load.
 
 Run public SQL and typed callers through leader/writer loss, lost replies,
 network partitions, quorum loss, delayed/stale replicas, membership changes,

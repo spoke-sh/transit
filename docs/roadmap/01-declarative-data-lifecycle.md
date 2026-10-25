@@ -75,9 +75,17 @@ Named KV/Document provisioning consumes the actual native persistence cutover in
 [#126](https://github.com/spoke-sh/transit/issues/126); a resource metadata record
 does not establish storage migration or usability. Computation evidence consumes
 the snapshot and logical-change contracts, while automatic activation remains
-milestone 8.
+milestone 9.
 
 ## Baseline, bottleneck diagnosis and scope
+
+Include neutral index identities and immutable definitions in the catalog
+contract before dependent formats. Bind source/column identities, comparison
+and collation semantics, constraint dependencies, build generations and exact
+coverage to the existing snapshot/publication model. Separate declaration,
+maintenance progress and query eligibility. The
+[indexing owner](08-indexing-and-access-paths.md) delivers secondary access paths
+and online lifecycle; this contract work grants no new executable index syntax.
 
 The Table catalog already owns stable object/column identities (`CatalogId`,
 `DefinitionId`, `ColumnId`), immutable definitions, `CREATE`/`ALTER`/`DROP`, DML
@@ -166,9 +174,9 @@ This milestone does not itself deliver the installed lifecycle, transaction
 sessions, automatic scheduling, historical SQL, branches or a universal health
 boolean. [Local storage and `.tseg` segments](02-storage-and-query-performance.md)
 replace the underlying B-tree page store;
-[provider/writer qualification](12-storage-providers-and-concurrency.md) delivers
+[provider/writer qualification](14-storage-providers-and-concurrency.md) delivers
 partitioned concurrency;
-[managed computations](08-sql-and-dataflows.md) add WAL-driven activation and
+[managed computations](09-sql-and-dataflows.md) add WAL-driven activation and
 service-owned maintenance; [historical catalogs](07-standards-and-catalogs.md)
 extend the same identities and interpretation model. The kernel stays generic.
 Definitions and reads never grant rights or dispatch external effects.

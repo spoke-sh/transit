@@ -1,4 +1,4 @@
-# 15. Clustered execution and storage-disaggregated placement
+# 17. Clustered execution and storage-disaggregated placement
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -20,7 +20,7 @@ declaration progress and freshness; rescheduling a healthy pod does not
 establish that a derived result is current.
 
 Extend the existing [transaction model](05-transactions-and-atomic-composition.md)
-and [provider/writer contracts](12-storage-providers-and-concurrency.md) to each
+and [provider/writer contracts](14-storage-providers-and-concurrency.md) to each
 advertised placement. Specify coordinator/participant movement, decision recovery,
 visibility and snapshot retention before advertising cross-host transactions.
 Moving computation does not widen the atomic domain automatically. Distributed
@@ -29,8 +29,8 @@ result meaning; neither partition arrival order nor worker completion is commit.
 
 ## Delivery sequence
 
-Require [replication and durable failover](13-replication-and-failover.md) and
-[operations, backup, restore and upgrades](14-operations-and-recovery.md) for the
+Require [replication and durable failover](15-replication-and-failover.md) and
+[operations, backup, restore and upgrades](16-operations-and-recovery.md) for the
 selected storage/deployment profile. They establish recoverable durable state,
 promotion rules and operational procedures before this milestone automates
 worker placement. The [statement-result milestone](04-statement-results-and-consumption.md)
@@ -78,6 +78,16 @@ or commit authority.
    object copying alone cannot establish live failover or point-in-time recovery.
 
 ## Completion evidence
+
+Extend [index coverage](08-indexing-and-access-paths.md) and the
+[local cost/performance model](10-data-structures-and-performance.md) to routed
+partitions, transferred build ownership and distributed scans/probes. Qualify
+partition/global constraint scopes, complete snapshot coverage and fallback
+during movement; summing local readiness flags proves neither global uniqueness
+nor one atomic cut. Measure routing, network transfer, data skew, cache locality,
+spill and durable runtime scheduling under mixed database/Station load. Compare
+scale-up and scale-out with equal resource and failure guarantees, reporting
+tail latency and recovery progress alongside aggregate throughput.
 
 Run single-node controls and inject faults at lease acquisition, `TransitLog`
 append, `.tseg` staging, conditional Manifest CAS publication, NVMe cache

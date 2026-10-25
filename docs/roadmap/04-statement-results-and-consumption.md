@@ -91,8 +91,8 @@ result-reader delivery.
    exact wide integers/decimals and five-state cells. Display/memory limits cannot
    imply query completion or require unbounded accumulation for column widths.
    Migrate native SQL messages, PostgreSQL/MySQL adapters and existing consumers
-   affected by the contract; later [SDK coverage](11-service-and-sdk-coverage.md)
-   and [published resources](17-published-resources-and-investigations.md) reuse
+   affected by the contract; later [SDK coverage](13-service-and-sdk-coverage.md)
+   and [published resources](19-published-resources-and-investigations.md) reuse
    it. No console-only result protocol is introduced.
 6. **Apply the current-v1 cutover and publish the contract.** Replace the shared
    definition on incompatible changes, regenerate schemas/bindings/fixtures and

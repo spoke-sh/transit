@@ -1,4 +1,4 @@
-# 18. Versioned proposals and reviewed publication
+# 20. Versioned proposals and reviewed publication
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,9 +9,9 @@ sharing do not require merging.
 
 ## Prerequisites and scope
 
-Use [branch and merge primitives](10-branches-merges-and-restore.md),
-[actor/delegation policy](16-control-and-policy-plane.md) and
-[published resources/investigation bases](17-published-resources-and-investigations.md).
+Use [branch and merge primitives](12-branches-merges-and-restore.md),
+[actor/delegation policy](18-control-and-policy-plane.md) and
+[published resources/investigation bases](19-published-resources-and-investigations.md).
 Branching is the underlying data primitive. A higher-level project/application
 fork relationship, independent export and cross-realm collaboration require
 separate contracts and are excluded from this milestone.
@@ -52,7 +52,7 @@ separate contracts and are excluded from this milestone.
 6. **Provide shared comparison and review operations.** Build bounded diff,
    evidence and impact operations usable without a browser. Qualify the proposal,
    approval and publication journeys through public callers here.
-   [Board reimplementation](19-board-reimplementation.md) owns the complete
+   [Board reimplementation](21-board-reimplementation.md) owns the complete
    browser comparison and review experience over these same operations. UI
    reviews belong in the registered Design sequence; Board inspection stays
    read-only and application review actions use separate authorized capabilities.

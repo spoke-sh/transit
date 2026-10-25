@@ -20,11 +20,11 @@ milestone to acquire sound ownership. The
 the current boundaries.
 
 This milestone extracts the foundation from
-[language-native programming and mixed composition](23-programming-model.md).
+[language-native programming and mixed composition](25-programming-model.md).
 That later milestone retains the recorded source assessment, all three mixed
 capabilities (recorded effects, durable consumers and typed Station calls),
 Station behavior ergonomics and the complete installed cross-language journeys
-after outbound MCP. [Service/SDK coverage](11-service-and-sdk-coverage.md)
+after outbound MCP. [Service/SDK coverage](13-service-and-sdk-coverage.md)
 retains its delivered raw-client/console slices and operation/platform breadth;
 it expands over this package and API foundation rather than establishing a
 competing interface first. None of the split marks existing work complete.
@@ -74,12 +74,20 @@ competing interface first. None of the split marks existing work complete.
    first, including concurrent facets through the shared host. Existing consumers
    in every affected language migrate coherently; the representative set does
    not excuse a broken existing binding. Broader new operation/platform coverage
-   remains milestone 11; full mixed and Station ergonomics remain milestone 23.
+   remains milestone 13; full mixed and Station ergonomics remain milestone 25.
    Apply the current-v1 cutover policy to incompatible ABI/stored semantics,
    regenerate fixtures, reject incompatible saved artifacts, and publish current
    behavior in caller/component/SDK owners as each slice lands.
 
 ## Completion evidence
+
+Measure the representative installed clients' allocation/copy counts, bounded
+streaming, cancellation/settlement cost and durable completion latency against
+the same native operations. Carry these baselines into the later
+[performance scorecard](10-data-structures-and-performance.md). Shared declaration
+and progress conventions must accommodate the
+[indexing lifecycle](08-indexing-and-access-paths.md) without another client
+scheduler or recovery protocol; index-specific adapters arrive with that owner.
 
 Run real installed direct-client applications with no Station runner artifact.
 Compare object/type identity, five-state values, exact integers/decimals and
