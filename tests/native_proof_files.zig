@@ -31,7 +31,9 @@ pub fn loadBytes(init: std.process.Init, directory: []const u8, name: []const u8
 pub fn load(comptime T: type, init: std.process.Init, directory: []const u8, name: []const u8) !T {
     const bytes = try loadBytes(init, directory, name, 65536);
     defer init.gpa.free(bytes);
-    const parsed = try std.json.parseFromSliceLeaky(T, init.arena.allocator(), bytes, .{});
+    // The temporary file buffer is freed below. Paths and other returned slices
+    // must belong to the fixture arena, including strings needing no unescape.
+    const parsed = try std.json.parseFromSliceLeaky(T, init.arena.allocator(), bytes, .{ .allocate = .alloc_always });
     const encoded = try std.json.Stringify.valueAlloc(init.gpa, parsed, .{});
     defer init.gpa.free(encoded);
     if (!std.mem.eql(u8, bytes, encoded)) return error.NoncanonicalFixture;
