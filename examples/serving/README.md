@@ -23,8 +23,13 @@ workers and does not acquire ownership automatically.
 Idle ingress/application workers use native notification waits, bounded at one
 second, followed by a current authorized receive. Temporary request failures use
 backoff bounded at one second and retain the exact pending native request.
+Workers also use the shared `Client.contended` classification for ordinary native
+publication contention. That retry preserves the signed request; expiry,
+fencing, access denial and conflicting retry identities remain separate outcomes.
 Neither waiting nor retrying changes execution ownership or acknowledges input.
 The Compose/reference courier also uses a one-second idle-wait ceiling.
+Their placement runner requires a private IPv4 Docker bridge gateway for its
+storage fixture; it selects that gateway explicitly on dual-stack networks.
 
 The HTTPS origin names the independently provisioned TLS terminator; the clear
 listener must remain on its private loopback/network boundary. No forwarding
@@ -120,7 +125,8 @@ and enabled by `counter_view: true` with an explicitly permitted snapshot viewer
 It shares the reactive client with Board while owning its application rendering.
 Run `just test::reactive-views` for the native embedded consumers and
 `just test::reactive-views-lifecycle` for actual shared-principal tabs, connection
-loss, reset/resnapshot and retirement. `just test::reactive-views-placement compose`
+loss, paused reload, credential rotation/recovery, reset/resnapshot and retirement.
+`just test::reactive-views-placement compose`
 and `just test::reactive-views-placement reference` run those consumers against
 owned physical services and recover an already displayed finite result.
 The [consumer placement guide](docs/views.md) describes identities and limits;

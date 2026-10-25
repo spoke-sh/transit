@@ -113,12 +113,13 @@ def post(port, path, value, host=None, status=200, headers=None):
         credential_read = (path == '/v1/query' and set(value['query']['kind']) == {'authorization'}
                            and value['query']['kind']['authorization']['kind'] == {'identity': {}})
         native_capacity = (path == '/v1/command' or credential_read) and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
-        if (native_capacity or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
+        native_contention = path in ('/v1/query', '/v1/command') and status == 200 and actual == 409 and decoded == {'err': 'Conflict'}
+        if (native_capacity or native_contention or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
             retries += 1
             time.sleep(.05)
             continue
         if retries:
-            print(f'Serving exact request: {retries} temporary authority-capacity responses before status {actual}', flush=True)
+            print(f'Serving exact request: {retries} temporary native capacity/contention responses before status {actual}', flush=True)
         if status is None:
             return actual, decoded
         assert actual == status, (path, actual, body, status)
@@ -201,7 +202,8 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
 
         fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'serialize_upstream': False, 'blocked': 0,
                  'ingress_commit': None, 'application_commit': None, 'destination_delivery': None,
-                 'reply_delivery': None, 'data_commit': None, 'data_inspected': False, 'deliveries_armed': False, 'delivery_ids': {}, 'commit_retries': set()}
+                 'reply_delivery': None, 'data_commit': None, 'data_inspected': False, 'deliveries_armed': False, 'delivery_ids': {}, 'commit_retries': set(),
+                 'contention_request': None, 'contention_retried': False}
         fault_lock = threading.Lock()
         upstream_lock = threading.Lock()
         release_reads = threading.Event()
@@ -212,6 +214,24 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
             def do_POST(self):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 message = json.loads(body)
+                native = message.get('request') if self.path == '/v1/command' else None
+                if reactive_views and native and native['principal'] == 77 and 'open_view' in native['command']:
+                    with fault_lock:
+                        reject = fault['contention_request'] is None
+                        if reject:
+                            fault['contention_request'] = body
+                        elif body == fault['contention_request']:
+                            fault['contention_retried'] = True
+                    if reject:
+                        # Model exhausted ordinary CAS reprepare before this
+                        # exact command is dispatched. Never substitute a new
+                        # request sequence or clock-bound view on recovery.
+                        result = b'{"err":"Conflict"}'
+                        self.send_response(409)
+                        self.send_header('Content-Length', str(len(result)))
+                        self.end_headers()
+                        self.wfile.write(result)
+                        return
                 connection = HTTPConnection('127.0.0.1', port, timeout=10)
                 try:
                     # This schedule fills gateway work after authorization. Keep
@@ -391,6 +411,7 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
             if reactive_views:
                 from reactive_views import run as run_views
                 run_views(locals(), TLS)
+                assert fault['contention_request'] is not None and fault['contention_retried'], 'worker did not recover the exact contended native request'
                 return
             if reactive_refresh:
                 from reactive_refresh import run as run_refresh

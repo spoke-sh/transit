@@ -64,7 +64,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const starting = std.Io.Clock.awake.now(init.io);
     while (true) {
         _ = host.session.receive() catch |err| {
-            if (!s.client.Client.unavailable(err) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
+            if ((!s.client.Client.unavailable(err) and !wire.contended(err)) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
             try init.io.sleep(.fromMilliseconds(25), .awake);
             continue;
         };
@@ -92,7 +92,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         const step = host.step(handler, now + 30000) catch |err| {
             diagnostics.event(.{ .name = "worker.step", .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (s.client.Client.unavailable(err)) {
+            if (s.client.Client.unavailable(err) or wire.contended(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
                 if (wire.last_rejection == .StateViewExpired) host.view_id = null;
