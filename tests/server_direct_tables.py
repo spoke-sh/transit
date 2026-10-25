@@ -1,5 +1,6 @@
 """Installed native SQL uses the direct Table owner and retains bootstrap identity."""
 import ctypes
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -13,6 +14,14 @@ from server import Fixture, children, command
 from table_console import atom, records
 from server_application_faults import ExistingKey, native, post
 from serving import compact
+
+
+class LifecycleFixture(Fixture):
+    def console(self, text, expected=0):
+        # This correctness schedule configures 120-second server commands.
+        # Use the same discovery budget in the real CLI; its default 30 seconds
+        # can expire before the admission reply, correctly leaving uncertainty.
+        return super().console(text, expected, request_timeout_ms=120000, timeout=180)
 
 
 def gateway_lookup(fixture, record):
@@ -42,7 +51,7 @@ def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
-    fixture = Fixture(cli, node, host)
+    fixture = LifecycleFixture(cli, node, host)
     fixture.config['sql'].update(command_ms=120000, request_timeout_ms=30000)
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
@@ -91,6 +100,19 @@ def run(cli, node, host, board, gateway):
                     fixture.console(statement + ';\n')
                 from sql_sessions.local import Client
                 peer = Client(fixture.console_config(), before['definition']).open()
+
+                def peer_console(statement, expected=0):
+                    # The prepared statement belongs to a separate session.
+                    # Renew its existing lease while the CLI waits on its own
+                    # operation; an idle session may expire after 30 seconds.
+                    with ThreadPoolExecutor(max_workers=1) as pool:
+                        result = pool.submit(fixture.console, statement, expected)
+                        while True:
+                            try:
+                                return result.result(timeout=5)
+                            except TimeoutError:
+                                peer.call('touch')
+
                 try:
                     existing_schemas = schemas()
                     prepared = peer.call(dict(prepare=dict(sql='CREATE SCHEMA application_data')))['described']
@@ -100,12 +122,12 @@ def run(cli, node, host, board, gateway):
                     peer.terminal(created_schema)
                     assert schemas() == existing_schemas | {'application_data'}
                     stale_drop = peer.call(dict(prepare=dict(sql='DROP SCHEMA application_data')))['described']
-                    fixture.console('ALTER SCHEMA application_data RENAME TO application_archive;\n')
+                    peer_console('ALTER SCHEMA application_data RENAME TO application_archive;\n')
                     peer.call(dict(describe=stale_drop['statement']), error='CatalogDefinitionChanged')
                     assert schemas() == existing_schemas | {'application_archive'}
-                    fixture.console('DROP SCHEMA application_archive;\nCREATE SCHEMA application_archive;\n')
+                    peer_console('DROP SCHEMA application_archive;\nCREATE SCHEMA application_archive;\n')
                     assert schemas() == existing_schemas | {'application_archive'}
-                    blocked = fixture.console('DROP SCHEMA public;\n', expected=1)
+                    blocked = peer_console('DROP SCHEMA public;\n', expected=1)
                     assert 'dependency' in blocked.stderr, blocked
                 finally:
                     peer.close()
