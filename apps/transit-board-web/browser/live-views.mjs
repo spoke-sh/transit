@@ -69,9 +69,9 @@ for (const page of [counter, board]) {
     if (operations.length > 40) operations.shift();
   });
 }
-async function stage(name) {
+async function stage(name, timeout = 120000) {
   writeFileSync(config.marker, name);
-  const until = Date.now() + 120000;
+  const until = Date.now() + timeout;
   while (
     !existsSync(config.marker + "-ack") ||
     readFileSync(config.marker + "-ack", "utf8") !== name
@@ -181,7 +181,10 @@ try {
     ),
     settledPause(counter, "Pause counter", counter.locator("#status")),
   ]);
-  await stage("rows");
+  // The fixture admits 19 sequential mutations under its one-active-command
+  // policy. Each has a 10s native admission budget and a 30s outcome budget;
+  // the setup handshake must allow their aggregate without relaxing either.
+  await stage("rows", 19 * 40000);
   await board
     .getByRole("button", { name: `Select resource ${config.resource}`, exact: true })
     .click();

@@ -46,6 +46,13 @@ class Reference(query.Reference):
             # include their bounded diagnostics before owned namespace cleanup.
             for name in ('gateway-0', 'gateway-1'):
                 result += self.kube('logs', 'deployment/' + name, '-c', name, '--tail=300', missing=True) or ''
+            # The direct native owner has its own Deployment rather than the
+            # chart's node label. Preserve restart causes and transport failures
+            # before this fixture's namespace is deleted.
+            result += self.kube('logs', 'deployment/node', '-c', 'node', '--tail=100', missing=True) or ''
+            result += self.kube('logs', 'deployment/node', '-c', 'node', '--previous', '--tail=100', missing=True) or ''
+            path = self.work / 'node-forward.log'
+            if path.exists(): result += path.read_text()[-4000:]
         return result
 
     def start_gateway(self, name, board=False, loopback_ports=(8080,)):

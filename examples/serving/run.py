@@ -2,7 +2,8 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
-from http.client import HTTPConnection, HTTPSConnection
+from http.client import HTTPConnection, HTTPSConnection, HTTPException
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,7 @@ def run(profile, reactive=False, views=False):
         def request(endpoint, path, value=None, expected=200, tls=None, headers=None):
             target = urlsplit(endpoint)
             encoded = compact(value) if value is not None else None
-            deadline, retries = time.monotonic() + 10, 0
+            deadline, retries, transport_retries, contention_retries = time.monotonic() + 10, 0, 0, 0
             while True:
                 connection = HTTPSConnection(target.hostname, target.port, context=tls, timeout=15) if tls else HTTPConnection(target.hostname, target.port, timeout=15)
                 try:
@@ -60,6 +61,21 @@ def run(profile, reactive=False, views=False):
                         encoded, {'Content-Type': 'application/json'} | (headers or {}))
                     response = connection.getresponse()
                     body, status = response.read(), response.status
+                except (OSError, HTTPException):
+                    if expected != 200 or path not in ('/v1/query', '/v1/command') or time.monotonic() >= deadline:
+                        raise
+                    if profile == 'reference' and placement is not None and endpoint == url:
+                        forward = placement.forwards.get('node')
+                        if forward is not None and forward[0].poll() is not None:
+                            status = forward[0].returncode
+                            assert placement.url('node') == endpoint
+                            print(f'Serving placement restored the same native port-forward after exit {status}', flush=True)
+                    # The reference port-forward can lose a response after
+                    # native acceptance. Reuse the same signed bytes and native
+                    # sequence; a duplicate command recovers its original receipt.
+                    transport_retries += 1
+                    time.sleep(min(.1 * transport_retries, .5))
+                    continue
                 finally: connection.close()
                 decoded = json.loads(body)
                 # Match the native fixture's bounded pre-dispatch recovery.
@@ -70,8 +86,13 @@ def run(profile, reactive=False, views=False):
                     retries += 1
                     time.sleep(min(.1 * retries, .5))
                     continue
-                if retries:
-                    print(f'Serving placement exact request: {retries} capacity refusals before status {status}', flush=True)
+                if (expected == 200 and path in ('/v1/query', '/v1/command') and
+                    status == 409 and decoded == {'err': 'Conflict'} and time.monotonic() < deadline):
+                    contention_retries += 1
+                    time.sleep(min(.1 * contention_retries, .5))
+                    continue
+                if retries or transport_retries or contention_retries:
+                    print(f'Serving placement exact request: {retries} capacity refusals, {contention_retries} native contention retries, {transport_retries} uncertain transport retries before status {status}', flush=True)
                 assert status == expected, (path, status, body[:500], expected)
                 return decoded
 
@@ -232,7 +253,10 @@ def run(profile, reactive=False, views=False):
                 network = placement.project + '_storage'
             else:
                 network = 'kind'
-            bridge = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config'][0]['Gateway']
+            addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config']
+            bridge = next((item['Gateway'] for item in addresses if item.get('Gateway') and ipaddress.ip_address(item['Gateway']).version == 4), None)
+            if bridge is None:
+                raise RuntimeError('Serving placement requires an IPv4 Docker bridge gateway')
             cold = owned.enter_context(ColdStore(bind_address=bridge))
             placement.cold_address = bridge
             placement.cold_port = cold.port
