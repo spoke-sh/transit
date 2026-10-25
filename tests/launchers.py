@@ -402,7 +402,10 @@ def foreground_proof(profile):
                                      stdout=log, stderr=log, start_new_session=True)
             assert child.wait(timeout=600 if profile == "compose" else 60) != 0
         failure = "node failed" if profile == "local" else "node exited"
-        assert "error:" in output.read_text() and failure in output.read_text(), output.read_text()[-5000:]
+        transcript = output.read_text()
+        service_failures = [line for line in transcript.splitlines() if "service.failed" in line]
+        assert any("error_type" in line and "NotFound" in line for line in service_failures), transcript[-5000:]
+        assert failure in transcript, transcript[-5000:]
         assert not launcher.services()
         shutil.rmtree(wal)
         saved_wal.rename(wal)

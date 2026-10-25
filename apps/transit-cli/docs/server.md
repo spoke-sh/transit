@@ -69,8 +69,10 @@ Provider tools keep their own logging conventions and bounded capture.
 
 Startup, readiness, retries, SQL transitions and shutdown share the same bounded
 logger. SQL waiting for its first health check reports `starting`; loss of a
-previously ready SQL service reports `unavailable`. Unchanged status and connection
-hints are suppressed. The SQL status file remains the complete observed account
+previously ready SQL service reports `unavailable`. A failed native authority
+observation can report `busy` or `unavailable` with its cause even during startup;
+recovery retains the same pending work and requires a fresh readiness check.
+Unchanged status and connection hints are suppressed. The SQL status file remains the complete observed account
 state. Core readiness does not imply that optional SQL listeners already accept
 connections; wait for `sql.status` with `operation="accepting"` or inspect the file.
 
