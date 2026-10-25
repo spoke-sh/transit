@@ -6,6 +6,32 @@ const p = q.protocol;
 const t = std.testing;
 const support = @import("direct_captured_query.zig");
 
+/// Installed ABI/SDK consumers must select their non-inherited data role. They
+/// receive no native process/resource rights and use a distinct login/key.
+pub fn installed(owner: c.DirectTableClient, admin: anytype, owner_role: u64) !u64 {
+    const principal = 941002;
+    const credential = try support.key(123);
+    const login = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("installed-selected-login"), .login = true } })).?;
+    _ = try admin.change(.{ .bind_credential = .{ .principal = principal, .role = login, .public_key = credential.public_key.toBytes() } });
+    try selection(admin, login, owner_role, true);
+    var caller = owner;
+    caller.connection.principal = principal;
+    caller.connection.role = null;
+    caller.key = credential;
+    try t.expectError(error.AccessDenied, caller.call(.describe));
+    caller.connection.role = owner_role;
+    const description = try caller.call(.describe);
+    defer description.deinit();
+    try t.expectEqual(owner_role, description.value.subject.role);
+    const native: q.station.client.ResourceReader = .{ .wire = caller.authority, .realm = caller.connection.scope.realm, .principal = principal, .key = credential };
+    try t.expectError(error.AccessDenied, native.open(caller.connection.scope.resource));
+    return login;
+}
+
+pub fn selection(admin: anytype, login: u64, role: u64, allow: bool) !void {
+    _ = try admin.change(if (allow) .{ .membership = .{ .member = login, .role = role, .inherit = false, .set = true } } else .{ .revoke_role = .{ .member = login, .role = role, .option = .set, .behavior = .cascade } });
+}
+
 pub fn run(init: std.process.Init, owner: c.DirectTableClient, admin: anytype, owner_role: u64) !void {
     const principal = 941000;
     const credential = try support.key(121);

@@ -261,6 +261,7 @@ def run(node, caller, mode="tables", *artifacts):
                     assert list((root / "native").rglob("*.tseg"))
                     print(f"Direct Board: {fault['requests']} public requests; original pin recovery, node/Board replacements, cached/terminal current denial, private origin and explicit cleanup passed.")
                     return
+                subprocess.run([caller, endpoint, "installed-authorization", str(profile)], check=True, timeout=180)
                 if mode == "abi":
                     from direct_catalog_abi import exercise
                 elif mode == "sdk-python":
@@ -286,7 +287,7 @@ def run(node, caller, mode="tables", *artifacts):
                     authority = None
                     authority = start()
                 def policy(allow):
-                    subprocess.run([caller, endpoint, "caller-allow" if allow else "caller-deny", str(profile)], check=True, timeout=180)
+                    subprocess.run([caller, endpoint, "installed-allow" if allow else "installed-deny", str(profile)], check=True, timeout=180)
                 exercise(*artifacts, root, url, endpoint, json.loads(profile.read_text()), restart, policy)
                 assert abi_faults == ({2} if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else {2, 12}), abi_faults
                 assert retention_faults == {(operation, tag) for operation in ((90000,) if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else (90000, 90010)) for tag in ("pin", "release")}, retention_faults

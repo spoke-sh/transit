@@ -246,9 +246,8 @@ sdk-interop: python-build node-build rust-build ruby-build c-build java-build do
     zig build transit-node transit-admin
     python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
 
-# Every installed SDK uses only native send and its selected Table data role.
-authorization: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
-    just test::authorization-tables --sdk python --sdk node --sdk ruby --sdk rust --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir
+# Every installed catalog caller explicitly selects a non-inherited data role.
+authorization: direct-catalog-python direct-catalog-node direct-catalog-rust direct-catalog-ruby direct-catalog-c direct-catalog-java direct-catalog-dotnet direct-catalog-beam
 
 # Qualify installed HTTP/gRPC outcome diagnostics and recovery in every SDK.
 connector-outcomes: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build

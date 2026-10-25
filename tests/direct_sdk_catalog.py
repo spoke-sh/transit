@@ -45,9 +45,9 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
         shutil.copy2(ROOT / 'tests' / test, target / test)
         subprocess.run([python, '-B', str(target / test)], cwd=target, env=env, check=True)
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=101, role=None)
+    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=941002, role=profile['role'])
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority, service_url=service, connection=connection, seed_file=str(seed))))
     def connect(mode): return Consumer([python, '-B', str(script), mode, str(config)], env, target, read_timeout=180)
@@ -113,9 +113,9 @@ def exercise_node(packages, root, authority, service, profile, restart, policy):
     script = target / 'consumer.mjs'
     shutil.copy2(ROOT / 'tests/node_catalog_sdk.mjs', script)
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=101, role=None)
+    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=941002, role=profile['role'])
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority, service_url=service, connection=connection, seed_file=str(seed))))
     def connect(mode):
@@ -146,9 +146,9 @@ def exercise_ruby(packages, root, authority, service, profile, restart, policy):
         shutil.copy2(ROOT / 'tests' / test, target / test)
     subprocess.run(['ruby', str(target / 'ruby_catalog_values.rb')], env=env, cwd=target, check=True)
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=101, role=None)
+    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=941002, role=profile['role'])
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority, service_url=service, connection=connection, seed_file=str(seed))))
     def connect(mode):
@@ -189,9 +189,9 @@ def exercise_java(packages, root, authority, service, profile, restart, policy):
     (faults / 'host').chmod(0o700)
     subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=env, check=True, timeout=90)
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=101, role=None)
+    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=941002, role=profile['role'])
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority, service_url=service, connection=connection, seed_file=str(seed))))
     def connect(mode):
@@ -233,9 +233,9 @@ def exercise_dotnet(packages, root, authority, service, profile, restart, policy
     shutil.rmtree(source); shutil.rmtree(target / 'packages')
     subprocess.run(['dotnet', str(app / 'Consumer.dll'), 'values', str(target)], cwd=target, env=env, check=True, timeout=45)
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=101, role=None)
+    connection = dict(scope=dict(c['scope'], catalog=str(c['scope']['catalog'])), branch='1', audience=c['audience'], principal=941002, role=profile['role'])
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority, service_url=service, connection=connection, seed_file=str(seed))))
     def connect(mode):
@@ -283,9 +283,9 @@ def exercise_rust(packages, root, authority, service, profile, restart, policy):
     assert rejected.returncode and 'use of moved value: `client`' in rejected.stderr, rejected.stderr[-4096:]
     shutil.rmtree(target / 'vendor'); shutil.rmtree(target / 'target'); shutil.rmtree(target / 'src')
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'],catalog=str(c['scope']['catalog'])),branch='1',audience=c['audience'],principal=101,role=None)
+    connection = dict(scope=dict(c['scope'],catalog=str(c['scope']['catalog'])),branch='1',audience=c['audience'],principal=941002,role=profile['role'])
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority,service_url=service,connection=connection,seed_file=str(seed))))
     def connect(mode):
@@ -331,9 +331,9 @@ def exercise_beam(packages, root, authority, service, profile, restart, policy):
     for mode in ('erlang','elixir'):
         subprocess.run([*command(mode,'beam_catalog_values'),str(faults)],cwd=target,env=env,check=True,timeout=150)
     shutil.rmtree(faults)
-    seed = target / 'caller.seed'; seed.write_text('1d'*32); seed.chmod(0o600)
+    seed = target / 'caller.seed'; seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
-    connection = dict(scope=dict(c['scope'],catalog=str(c['scope']['catalog'])),branch='1',audience=c['audience'],principal=101,role=None)
+    connection = dict(scope=dict(c['scope'],catalog=str(c['scope']['catalog'])),branch='1',audience=c['audience'],principal=941002,role=profile['role'])
     def connect(mode):
         config = target / f'client-{mode}.json'
         config.write_text(json.dumps(dict(url=authority,service_url=service,connection=connection,seed_file=str(seed),mode=mode)))
@@ -383,12 +383,12 @@ def exercise_c(packages, root, authority, service, profile, restart, policy):
     from c_catalog_values import run as boundary_checks
     boundary_checks(target / 'faults', prefix, flags, env)
     seed = target / 'caller.seed'
-    seed.write_text('1d'*32); seed.chmod(0o600)
+    seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']; s = c['scope']
     def connect(mode):
         directory = target / (mode + '-state')
         directory.mkdir(exist_ok=True)
-        return DirectCConsumer([str(target / mode), mode, authority, str(seed), str(s['realm']), '101', str(c['audience']), str(s['resource']), str(s['catalog']), str(directory), service], env, target, read_timeout=180)
+        return DirectCConsumer([str(target / mode), mode, authority, str(seed), str(s['realm']), '941002', str(c['audience']), str(s['resource']), str(s['catalog']), str(directory), service, str(profile['role'])], env, target, read_timeout=180)
     # Executable and saved-state directories have different names; the schedule
     # snapshots only immutable original files, then kills each consumer/node.
     def state_connect(mode): return connect(mode.removesuffix('-state'))

@@ -23,7 +23,7 @@ const Dependencies = @import("direct_dependencies.zig");
 const NamedResources = @import("direct_named_resources.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
+const Profile = struct { selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -476,6 +476,11 @@ pub fn main(init: std.process.Init) !void {
             try Follow.recover(init, client, &admin, profile.follow.?);
         } else if (std.mem.eql(u8, args[2], "follow-example")) {
             try Follow.example(init, client, &admin, profile.follow.?);
+        } else if (std.mem.eql(u8, args[2], "installed-authorization")) {
+            profile.selected_login = try @import("direct_table_authorization.zig").installed(client, &admin, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "installed-deny") or std.mem.eql(u8, args[2], "installed-allow")) {
+            try @import("direct_table_authorization.zig").selection(&admin, profile.selected_login.?, profile.role, std.mem.eql(u8, args[2], "installed-allow"));
         } else if (std.mem.eql(u8, args[2], "authorization-lifetime")) {
             try @import("direct_table_authorization.zig").run(init, client, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "capture-prepare")) {

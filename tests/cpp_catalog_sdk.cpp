@@ -20,9 +20,9 @@ static cat::Commit finish(cat::Client &client, const cat::Compiled &work) {
     assert(observation.state() == cat::OperationState::Committed && observation.commit()); return *observation.commit();
 }
 int main(int argc, char **argv) {
-    assert(argc == 11 && !strcmp(argv[1], "cpp")); directory = argv[9]; setvbuf(stdout, nullptr, _IOLBF, 0);
+    assert(argc == 12 && !strcmp(argv[1], "cpp")); directory = argv[9]; setvbuf(stdout, nullptr, _IOLBF, 0);
     auto config = ClientConfig::growing(argv[2]).timeout(10000); const Credential credential(number(argv[4]), number(argv[5]), argv[3]);
-    const cat::Connection connection{{ResourceRef(number(argv[4]), number(argv[7])), number(argv[8])}, number(argv[6])};
+    const cat::Connection connection{{ResourceRef(number(argv[4]), number(argv[7])), number(argv[8])}, number(argv[6]), 1, number(argv[11])};
     try {
         auto client = cat::Client::open(config, credential, connection, argv[10]);
         auto compile = [&](const std::string &sql, uint64_t operation, std::optional<uint64_t> create = {}) { return client.compile_sql(sql, {base + operation, 1}, create); };
