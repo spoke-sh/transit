@@ -57,6 +57,13 @@ collector races, policy-authorized trimming or multi-process Table commits.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
 
+The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
+Point lookup selects one segment through its paged hash-key directory; footer
+and selected row-group ranges replace full-object buffering. Decoded groups have
+an explicit allocation budget and returned rows own their values. Physical
+groups default to 256 rows, independently of statement and response bounds.
+This does not add ordered primary-key range execution or SQL projection pushdown.
+
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
 incomplete tails, missing/corrupt acknowledged history, incompatible definitions,

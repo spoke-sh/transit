@@ -10,6 +10,11 @@ _default:
 unit:
     zig build test
 
+# Verified segment metadata/page ranges and the disk-backed direct Table reader.
+storage-segments:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table segment ranges" --summary all
+
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe

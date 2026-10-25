@@ -580,6 +580,99 @@ test "one accepted Table batch exceeds native turn blocks and flushes large valu
     try t.expect(found);
 }
 
+test "Table segment ranges bound cold point IO and preserve owned rows across eviction and restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    const wide_columns = [_]f.TableSchema.Column{
+        columns[0], .{ .id = 2, .name = "body", .type = .utf8, .nullable = false },
+    };
+    var wide = schema;
+    wide.columns = &wide_columns;
+    wide.next_column = 3;
+    const definition: s.TableDeclaration.Definition = .{ .object = object, .revision = 1, .schema = wide, .properties = "" };
+    var access: Access = .{};
+    const body: [2048]u8 = @splat('q');
+    var creation: p.DataLifecycle.Binding = undefined;
+    {
+        var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer table.deinit();
+        try table.recover();
+        var cells: [512][2]f.Types.Values.Cell = undefined;
+        var changes: [512]P.Change = undefined;
+        for (&cells, &changes, 0..) |*values, *mutation, i| {
+            values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(i) } } }, .{ .value = .{ .atom = .{ .bytes = &body } } } };
+            mutation.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = values }, .expect = .absent } };
+        }
+        creation = binding(&table, 1);
+        _ = try table.apply(creation, &changes, .bulk, access.guard());
+    }
+    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    var key_buffer: [4096]u8 = undefined;
+    var first = (try table.get(t.allocator, try key(0, &key_buffer), access.guard())).?;
+    defer first.deinit();
+    const cold_bytes = table.segment_bytes_read;
+    const full_bytes = table.segment_cache.?.length;
+    try t.expect(full_bytes > 1024 * 1024);
+    try t.expectEqual(@as(u64, 5), table.segment_range_reads); // header/trailer/footer + two columns
+    try t.expect(cold_bytes * 10 < @as(u64, full_bytes) * 6);
+    try t.expect(table.segment_cache.?.decoded.?.allocatedBytes() < 4 * 1024 * 1024);
+    var adjacent = (try table.get(t.allocator, try key(1, &key_buffer), access.guard())).?;
+    defer adjacent.deinit();
+    try t.expectEqual(cold_bytes, table.segment_bytes_read);
+    try t.expectEqual(@as(u64, 1), table.row_groups_decoded);
+    var distant = (try table.get(t.allocator, try key(511, &key_buffer), access.guard())).?;
+    defer distant.deinit();
+    try t.expectEqual(@as(u64, 7), table.segment_range_reads);
+    try t.expectEqual(@as(u64, 2), table.row_groups_decoded);
+    try t.expectEqual(@as(i128, 511), distant.row().cells[0].value.atom.signed);
+    try t.expectEqualStrings(&body, first.row().cells[1].value.atom.bytes);
+    try table.recover(); // destroys both caches
+    try t.expectEqualStrings(&body, adjacent.row().cells[1].value.atom.bytes);
+
+    // A complete same-root physical scan is the value/count control. Each row
+    // is checked against the independent ordinal and payload, not just a count.
+    var after: ?s.TreeStore.pages.Key = null;
+    var count: usize = 0;
+    const ranges_before = table.segment_range_reads;
+    const bytes_before = table.segment_bytes_read;
+    while (true) {
+        const batch = try table.scan(table.root, after);
+        for (batch.entries) |slot| if (slot) |entry| {
+            var row = try table.readRow(t.allocator, table.root, entry.key, entry.value);
+            defer row.deinit();
+            try t.expectEqual(@as(i128, @intCast(count)), row.row().cells[0].value.atom.signed);
+            try t.expectEqualStrings(&body, row.row().cells[1].value.atom.bytes);
+            count += 1;
+        };
+        after = batch.next orelse break;
+    }
+    try t.expectEqual(@as(usize, 512), count);
+    try t.expectEqual(@as(u64, 7), table.segment_range_reads - ranges_before);
+    const scan_bytes = table.segment_bytes_read - bytes_before;
+    try t.expect(scan_bytes <= full_bytes);
+    std.debug.print("Table segment ranges: segment={d} cold_point={d} warm_point=0 same_cut_scan={d} bytes; point_ranges=5 scan_ranges=7 rows={d}\n", .{ full_bytes, cold_bytes, scan_bytes, count });
+    // Budget exhaustion preserves the accepted state and original receipt.
+    const accepted = table.root;
+    table.options.segment_decode_bytes = 1;
+    try table.recover();
+    try t.expectError(error.SegmentReadBudgetExceeded, table.get(t.allocator, try key(0, &key_buffer), access.guard()));
+    try t.expectEqualDeep(accepted, table.root);
+    try t.expectEqual(@as(u64, 512), (try table.observe(creation, access.guard())).?.affected);
+    table.options.segment_decode_bytes = 64 * 1024 * 1024;
+    table.options.segment_cache_bytes = 0;
+    try table.recover();
+    var uncached = (try table.get(t.allocator, try key(511, &key_buffer), access.guard())).?;
+    defer uncached.deinit();
+    try t.expect(table.segment_cache == null);
+    try t.expectEqualStrings(&body, uncached.row().cells[1].value.atom.bytes);
+}
+
 test "durable Table pins recover lost acquisition replies and preserve the unflushed cut through flush and delete" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
