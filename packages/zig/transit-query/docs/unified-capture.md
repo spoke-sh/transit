@@ -29,6 +29,11 @@ a 4 MiB Arrow workspace and a cancellation flag. A local cancellation flag abort
 unsent work; it does not close accepted work. The returned private decision is
 not durable until the host confirms its exact signed commit.
 
+The source host preserves the native batch-read interface when combining native
+request resources with direct Tables. Request materialization reads a publication
+descriptor and up to seven chunks in each authorized observation, then checks
+current access and publication disposition again before using the complete bytes.
+
 Each segment begins a Publication with frozen metadata. Later turns recompute
 that same page and stage at most two chunks plus the next self-input. The publish
 turn atomically writes the Publication descriptor/budget, checkpoint and job:
