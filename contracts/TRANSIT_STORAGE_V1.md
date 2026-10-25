@@ -171,6 +171,35 @@ row indexes across restart. Snapshot retirement does not claim physical deletion
 Its tests do not qualify catalog name publication, installed SQL, distributed transactions or
 a collector racing with snapshots.
 
+## Ordered full-key index component
+
+`OrderedKeyIndex` maps nonempty byte keys of at most 4,096 bytes to 32-byte row
+hashes. Key order is unsigned lexicographic byte order; callers supply the full
+collation-aware storage key. The component does not infer a collation, accept a
+mutation, retain a source or grant access. Its root is not yet a live Table root
+field.
+
+Each level uses the existing immutable `TreeStore` pages with keys of up to 64
+bytes. A full 64-byte chunk may have a child index for the remaining suffix;
+a shorter chunk is terminal. A terminal sorts before every extension of that
+key. Paths contain at most 64 levels and mutations use the caller's existing
+`TreeStore.begin` encoded staging allowance. Earlier immutable roots retain their
+own contents. Removing the last terminal also removes empty prefix nodes.
+
+Each page entry's value is exactly 97 bytes: one flag byte, a 32-byte terminal
+row hash, a 32-byte child logical digest and a 32-byte child content location.
+Flag bit 0 denotes a terminal and bit 1 denotes a child; at least one is present
+and every other bit is zero. Absent fields are zero-filled. A child on a partial
+chunk or beyond the full-key length limit is invalid. The enclosing data page
+retains its mandatory shared definition, logical digest and content address.
+
+`seek` returns the first complete key satisfying optional inclusive/exclusive
+lower and upper bounds. Empty intervals return no entry. Continuing uses the
+returned key as an exclusive lower bound against the same root. Point reads and
+seeks verify each traversed page; missing or corrupt pages are errors. These
+operations do not collect all retained keys, promise a two-read lookup, or supply
+an independently authoritative checkpoint.
+
 ## Segment range reader
 
 `TSegReader` consumes the existing TSEG bytes without changing their definition.

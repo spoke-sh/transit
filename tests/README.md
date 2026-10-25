@@ -1,5 +1,23 @@
 # Validation and evidence
 
+## Ordered full-key index component — 2026-10-25
+
+On `c4c5e753` plus the ordered-index changes, the pinned-shell command
+`cd packages/zig/transit-storage && zig build test
+-Dtest-filter='ordered full keys' --summary all` passes 3/3 tests (5 seconds;
+12 seconds after adding rejection of children beyond the full-key bound).
+A separately sorted array is the oracle for 96 keys, including zero bytes,
+strict prefixes and lengths around 64-byte boundaries through 4 KiB. The tests
+compare point values, inclusive/exclusive bounds and missing-bound seeks, then
+overwrite/delete entries, revisit the original root and remove the final entry.
+
+A real-disk case reopens 33 keys sharing a 128-byte prefix with no resident
+page cache, verifies the earlier root, rejects a corrupt reference and preserves
+the accepted root after a one-byte candidate budget fails. This establishes the
+index component; Table acceptance, collation encoding, public range traversal,
+recovery and whole-process memory measurements require separate integration
+evidence.
+
 ## Bounded local WAL seek reuse — 2026-10-25
 
 `nix develop --command sh -c 'cd packages/zig/transit-storage && zig build test

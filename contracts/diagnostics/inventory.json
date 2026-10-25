@@ -24753,6 +24753,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/OrderedKeyIndex.zig": {
+      "errors": {
+        "InvalidOrderedKeyNode": 10,
+        "InvalidTableKey": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Node.decode()": "<inferred>",
+        "Node.encode()": "<inferred>",
+        "change()": "<inferred>",
+        "get()": "<inferred>",
+        "put()": "<inferred>",
+        "remove()": "<inferred>",
+        "seek()": "<inferred>",
+        "validateKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 1
+      },
+      "imports": [
+        "TreeStore.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-storage/src/PartitionLease.zig": {
       "errors": {
         "InvalidPartitionLease": 2,
@@ -25387,6 +25415,7 @@
         "LocalSegmentStore.zig",
         "LocalWal.zig",
         "NvmeCache.zig",
+        "OrderedKeyIndex.zig",
         "PartitionLease.zig",
         "S3ObjectStore.zig",
         "TableDeclaration.zig",
