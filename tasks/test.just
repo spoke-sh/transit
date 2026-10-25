@@ -35,9 +35,11 @@ direct-catalog-abi:
 
 direct-dependencies:
     zig build test-direct-dependencies -Doptimize=ReleaseSafe
+    just test::direct-table-service dependency-growth
 
 direct-named-resources:
     zig build test-direct-named-resources -Doptimize=ReleaseSafe
+    just test::direct-table-service resource-growth
 
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:

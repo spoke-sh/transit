@@ -23,7 +23,7 @@ const Dependencies = @import("direct_dependencies.zig");
 const NamedResources = @import("direct_named_resources.zig");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
+const Profile = struct { dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -386,6 +386,18 @@ pub fn main(init: std.process.Init) !void {
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "growth-recover")) {
             try Growth.recover(init, client, profile.growth.?);
+        } else if (std.mem.eql(u8, args[2], "dependency-growth-write")) {
+            profile.dependency_growth = try Dependencies.growthWrite(client, &admin, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "dependency-growth-recover")) {
+            try Dependencies.growthRecover(client, &admin, profile.dependency_growth.?);
+        } else if (std.mem.eql(u8, args[2], "resource-growth-write")) {
+            const checkpoint = try std.fmt.allocPrint(init.gpa, "{s}.resource-growth", .{args[3]});
+            defer init.gpa.free(checkpoint);
+            profile.resource_growth = try NamedResources.growthWrite(init, client, &admin, profile.role, checkpoint);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "resource-growth-recover")) {
+            try NamedResources.growthRecover(init.gpa, client, profile.resource_growth.?);
         } else if (std.mem.eql(u8, args[2], "prepared-lifetime")) {
             try @import("direct_table_prepared.zig").run(init.gpa, client, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "resource-save")) {

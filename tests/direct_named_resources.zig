@@ -11,6 +11,119 @@ const Owner = app.NamedResource;
 const doc = app.query.document;
 const t = std.testing;
 pub const State = struct { bindings: [2]R.Binding, saved: [2]h.Binding, dependencies: ?[2]c.DirectDependency.Binding = null };
+pub const GrowthState = struct { first: R.Binding, original: R.Operation };
+const growth_count = 139;
+const growth_first = 20000;
+
+/// Retain more named objects than the direct owner's default page cache, while
+/// the fixture keeps only one declaration and one bounded directory page live.
+pub fn growthWrite(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, checkpoint: []const u8) !GrowthState {
+    var template_arena = std.heap.ArenaAllocator.init(init.gpa);
+    defer template_arena.deinit();
+    var template_client = client;
+    template_client.allocator = template_arena.allocator();
+    const templates = try prepare(template_client, admin, role);
+    const worker_role = (try admin.client.query(.{ .realm = 42, .principal = 102, .kind = .{ .authorization = .{ .kind = .identity } } }, try key(31))).body.authorization.body.identity.login_role;
+    var result: GrowthState = undefined;
+    for (0..growth_count) |i| {
+        var arena = std.heap.ArenaAllocator.init(init.gpa);
+        defer arena.deinit();
+        var current = client;
+        current.allocator = arena.allocator();
+        const resources: HostClient = .{ .catalog = current };
+        var binding = templates.bindings[i % 2];
+        if (i >= 2) {
+            const writer = try admin.submit(.{ .spawn = .{} });
+            _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = role, .privileges = p.permission(.admin) | p.permission(.send) } });
+            _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = worker_role, .privileges = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) } });
+            binding.action.create.writer = writer;
+        }
+        binding.object.object = growth_first + i;
+        binding.operation = 300000 + i;
+        var name: [40]u8 = undefined;
+        binding.action.create.name = try .init(try std.fmt.bufPrint(&name, "growing_resource_{d}", .{i}));
+        // Persist one exact pending declaration before admission. Its successor
+        // replaces this checkpoint only after the previous operation completes.
+        const saved = try c.DirectResourceClient.save(arena.allocator(), binding);
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = checkpoint, .data = saved });
+        try t.expectEqual(.admitted, (try resources.operation(binding, .admit, 1)).operation.phase);
+        const prepared = (try resources.operation(binding, .execute, 64)).operation;
+        try t.expectEqual(.prepared, prepared.phase);
+        try t.expectError(error.AccessDenied, resources.operation(binding, .execute, 64));
+        const request = try binding.allocation(prepared.allocation.?);
+        const receipt = (try current.authority.query(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .{ .receipt = request } } } }, current.key)).body.authorization.body.receipt.?;
+        for ([_]u64{ 0, 101, 102 }) |subject| _ = try admin.submit(.{ .grant_resource = .{ .resource = receipt.position, .subject = subject, .permissions = p.State.all_permissions } });
+        const allocated = (try resources.operation(binding, .execute, 64)).operation;
+        try t.expectEqual(.allocated, allocated.phase);
+        const definition = allocated.resulting.?;
+        try t.expectEqual(null, try resources.lookup(1, binding.action.create.name.slice()));
+        try t.expectEqual(null, try inspect(current, definition));
+        const writer = definition.creation.writer;
+        _ = try admin.submit(.{ .associate = .{ .pid = writer, .name = try .init("state"), .resource = definition.resource } });
+        const process = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = writer } }, try key(17))).body.process.process;
+        _ = try admin.submit(.{ .own = .{ .pid = writer, .expected_generation = process.generation, .worker = 102 } });
+        for (0..@as(usize, if (i % 2 == 0) 1 else 3)) |_| _ = try runTurn(init.io, current, admin, definition, 0);
+        try t.expectEqual(Owner.Step.complete, (try inspect(current, definition)).?);
+        const complete = (try resources.operation(binding, .execute, 64)).operation;
+        try t.expectEqual(.complete, complete.phase);
+        if (i == 0) result = .{ .first = binding, .original = complete };
+        _ = try runTurn(init.io, current, admin, definition, 1);
+        if (i % 2 != 0) for ([_]i64{ 2, 3 }) |code| {
+            for (0..128) |_| {
+                if (try runTurn(init.io, current, admin, definition, code)) break;
+            } else return error.DocumentDidNotComplete;
+        };
+        try growthValue(current, definition);
+        if (i % 16 == 0) std.debug.print("Named resource growth: {d}/{d} initialized and read.\n", .{ i + 1, growth_count });
+    }
+    try growthRecover(init.gpa, client, result);
+    return result;
+}
+
+fn growthValue(client: c.DirectTableClient, definition: R.Definition) !void {
+    if (definition.creation.spec == .kv) {
+        var raw = try reader(client).open(definition.resource);
+        const owner: Owner = .{ .initial = definition };
+        var value = (try owner.get(client.allocator, &raw, 101, "message")).?;
+        defer value.deinit();
+        try t.expectEqualStrings("durable named value", value.cell.value.atom.bytes);
+    } else {
+        const document: doc.Client = .{ .source = reader(client) };
+        const found = try document.describe(.{ .resource = definition.resource, .document = 91 });
+        try t.expectEqual(@as(u64, 1), found.reference.revision);
+        const value = try document.readPath(found.reference, &.{try doc.Model.Name.init("answer")});
+        try t.expectEqual(.scalar, value.value.status());
+        try t.expectEqual(@as(i64, 42), value.value.assignments[0].value.signed);
+    }
+}
+
+pub fn growthRecover(allocator: std.mem.Allocator, client: c.DirectTableClient, state: GrowthState) !void {
+    const resources: c.DirectResourceClient = .{ .catalog = client };
+    var after: ?u64 = null;
+    var position: ?p.DataLifecycle.Position = null;
+    var seen: u64 = 0;
+    for (0..256) |_| {
+        const page = try resources.list(1, after);
+        if (position) |original| try t.expectEqualDeep(original, page.position);
+        position = page.position;
+        for (page.entries) |slot| if (slot) |entry| {
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            var current = client;
+            current.allocator = arena.allocator();
+            try t.expectEqual(growth_first + seen, entry.definition.object.object);
+            var name: [40]u8 = undefined;
+            try t.expectEqualStrings(try std.fmt.bufPrint(&name, "growing_resource_{d}", .{seen}), entry.definition.creation.name.slice());
+            try t.expectEqual(Owner.Step.complete, (try inspect(current, entry.definition)).?);
+            try growthValue(current, entry.definition);
+            seen += 1;
+        };
+        after = page.next orelse break;
+    } else return error.CatalogPageBudget;
+    try t.expectEqual(@as(u64, growth_count), seen);
+    try t.expectEqualDeep(state.original, (try resources.operation(state.first, .inspect, 1)).operation);
+    try t.expectEqualDeep(state.original, (try resources.operation(state.first, .execute, 64)).operation);
+}
 
 // Exercise the shared serialized host boundary while the fixture's assertions
 // keep using the existing fixed-size native types. Original CREATE operations

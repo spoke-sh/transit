@@ -13,7 +13,7 @@ from storage import free_port, wait_ready
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "growth", "prepared", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "growth", "resource-growth", "dependency-growth", "prepared", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -31,8 +31,12 @@ def run(node, caller, mode="tables", *artifacts):
             "local_directory": str(root / "native"),
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
-        if mode == "resources":
+        if mode in ("resources", "resource-growth"):
             settings["genesis"]["max_clock_error_ms"] = 10000
+        if mode == "resource-growth":
+            # Match the installed native cache. The 139 live resources still
+            # exceed both this cache and the direct catalog's 16 eight-entry pages.
+            settings["resident_pages"] = 8
         config.write_text(json.dumps(settings))
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         log = (root / "node.log").open("w+")
@@ -214,6 +218,33 @@ def run(node, caller, mode="tables", *artifacts):
                 assert profile.read_bytes() == saved, "Recovery replaced the original retained basis"
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(f"Direct catalog growth: 139 Tables, 139 retained rows in bounded pages, original pin after node SIGKILL/restart and explicit cleanup passed ({fault['requests']} typed calls).", flush=True)
+                return
+            if mode == "dependency-growth":
+                subprocess.run([caller, endpoint, "dependency-growth-write", str(profile)], check=True, timeout=600)
+                saved = profile.read_bytes()
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "dependency-growth-recover", str(profile)], check=True, timeout=300)
+                assert profile.read_bytes() == saved
+                print(f"Direct dependency growth: 139 retained edges, bounded forward/reverse pages, current redaction and RESTRICT, original receipt after node SIGKILL/restart passed ({fault['requests']} typed calls).", flush=True)
+                return
+            if mode == "resource-growth":
+                # Aggregate setup includes 139 real native owners and initialized
+                # values. Individual caller requests retain their 30-second cap;
+                # this is a growth/recovery proof, not an interactive latency gate.
+                subprocess.run([caller, endpoint, "resource-growth-write", str(profile)], check=True, timeout=3600)
+                saved = profile.read_bytes()
+                pending = Path(str(profile) + ".resource-growth").read_bytes()
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "resource-growth-recover", str(profile)], check=True, timeout=900)
+                assert profile.read_bytes() == saved
+                assert Path(str(profile) + ".resource-growth").read_bytes() == pending
+                print(f"Named resource growth: 139 initialized KV/Document objects, typed values and eight-entry directory pages, original first receipt after node SIGKILL/restart passed ({fault['requests']} typed catalog calls).", flush=True)
                 return
             if mode == "authorization":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=60)
