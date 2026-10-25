@@ -197,21 +197,23 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
     var after: ?u64 = null;
     var pending: ?g.SignedRequest = null;
     var idle_ms = config.interval_ms;
+    var retry_ms = config.interval_ms;
     while (true) {
         if (pending) |signed| {
             _ = wire.submit(signed) catch |err| {
                 if (err == error.AccessDenied or err == error.Rejected or (err == error.Conflict and !wire.contended(err))) return err;
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             };
             after = signed.request.command.deliver;
             pending = null;
             idle_ms = config.interval_ms;
+            retry_ms = config.interval_ms;
             continue;
         }
         const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .delivery }, key) catch |err| {
             if (!q.wire.Client.unavailable(err) and !wire.contended(err)) return err;
-            try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+            try courierBackoff(init.io, &retry_ms, config.interval_ms);
             continue;
         };
         // The pending index avoids walking retained, resolved history after a
@@ -229,19 +231,20 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
                 .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
             }) catch |err| {
                 if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             };
             idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
+            retry_ms = config.interval_ms;
             continue;
         }
         const page = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
             if (err == error.Conflict and wire.last_rejection == .QueryExpired) {
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             }
             if (q.wire.Client.unavailable(err) or wire.contended(err)) {
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             }
             return err;
@@ -259,10 +262,19 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
                 .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
             }) catch |err| {
                 if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
-                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;
             };
             idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
         } else idle_ms = config.interval_ms;
+        retry_ms = config.interval_ms;
     }
+}
+
+/// Retry the same pending delivery, or repeat a current read, at a bounded
+/// rate. Successful work resets this delay; capacity refusal cannot create a
+/// tight loop that competes with the destination's execution requests.
+fn courierBackoff(io: std.Io, interval: *u32, base: u32) !void {
+    try io.sleep(.fromMilliseconds(interval.*), .awake);
+    interval.* = @min(@max(base, 1000), interval.* * 2);
 }

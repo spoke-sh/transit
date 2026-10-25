@@ -32,7 +32,13 @@ shared-host observations, not interactive latency guarantees. Earlier Compose
 attempts failed at the second refresh. The fixture now retries only explicit
 pre-dispatch native capacity refusals with unchanged signed bytes and treats
 optional progress-observation failures as unavailable evidence. This pass does
-not qualify the reference-provider schedule or later courier retry changes.
+not qualify the reference-provider schedule.
+
+A follow-up Compose run also passes with bounded courier error backoff. Failed
+reads repeat under current authority; an uncertain delivery retains its original
+signed command. The browser schedule takes 590.00 seconds, with observed counter,
+physical-recovery and query-refresh times of 3.905, 9.411 and 125.308 seconds.
+These runs do not isolate a performance improvement under matched conditions.
 
 ## Captured direct Table request batching — 2026-10-24
 
