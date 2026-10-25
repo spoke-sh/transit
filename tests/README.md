@@ -26694,3 +26694,35 @@ round trips as well as saved Table mutations. Elixir format checks pass.
 The correction changes host value projection, not the shared wire definition,
 storage formats or runtime authority. The full interoperability schedule and
 remaining clean qualification are still required.
+
+## Complete resource growth and installed SDK recovery — 2026-10-25
+
+At `0567c9841b36032f5fc6440539c99ded8ad36e0f`, the fresh committed-source
+growth lane passes its first 20 tasks. `just test::catalog` completes in
+4,600.69 seconds, including the 139-edge dependency schedule, partial native
+resource recovery and the complete 139-resource growth schedule. The latter
+initializes 70 KV and 69 Document resources, reads every typed value before
+SIGKILL, and reads every value again after node replacement. Its 1,437 typed
+catalog calls also verify bounded eight-entry directory pages, saved bindings
+and the original first receipt. The native/direct resident limits remain
+eight/sixteen pages. Provisioning uses the explicit 5,400-second aggregate cap;
+each full readback retains 900 seconds and individual caller requests retain
+30 seconds. This pass completes the previously incomplete growth observation;
+it does not establish completion within the earlier one-hour setup window.
+
+The preceding direct Table schedule also passes all 1,418 calls, including
+64 KiB point values, one actual initial `.tseg`, retained reads and three
+restarts, with its original 180-second phase budgets. The growth lane then
+fails at `test::sql-gateway` with `StaleStateResource`. The lane is incomplete;
+the first 20 task results are individual passes, not a whole-lane pass.
+
+At the same revision, `nix develop .#bindings --command just bindings::sdk-interop`
+passes all ten installed counter/query pairs, from Python through Node, Rust,
+Ruby, C, C++, Java, .NET, Erlang and Elixir and back to Python. It completes in
+989.576 seconds, including 135.863 seconds of independent consumer installation,
+and excludes artifact compilation. Ten lost replies reconcile, ten unavailable
+reads retry, and one lost delivery-administration receipt uses the original
+request. Nested Arrow/schema ownership, queued Table mutations and restarted
+workers pass through the repaired Elixir adapter. The authority uses 64 resident
+pages and an 8 MiB hot limit; 337 cold objects occupy 88,498,415 bytes. This is
+one correctness schedule, not a throughput or hosted CI budget measurement.
