@@ -25,7 +25,6 @@
         .transit_tls_server = .{ .path = "packages/zig/transit-tls-server" },
         .transit_postgres = .{ .path = "packages/zig/transit-postgres" },
         .transit_mysql = .{ .path = "packages/zig/transit-mysql" },
-        .transit_table_service = .{ .path = "apps/transit-table-service" },
         .transit_sql_gateway_app = .{ .path = "apps/transit-sql-gateway" },
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
         .transit_storage = .{ .path = "packages/zig/transit-storage" },

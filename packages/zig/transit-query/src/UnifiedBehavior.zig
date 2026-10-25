@@ -211,12 +211,6 @@ pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, 
     }
     return dispatch(turn, frame, peer, resources, adapter, workspace, cancellation);
 }
-/// Catalog composition uses the durable per-requester policy. No process ID is
-/// reinterpreted as a catalog principal; Capture validates the explicit mapping.
-pub fn dispatchCatalogSource(turn: *Turn, frame: s.Frame, catalog: q.catalog.TableCatalogRecords.Configuration, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
-    try q.CatalogQueryOwner.check(catalog, turn);
-    return dispatch(turn, frame, null, resources, adapter, workspace, cancellation);
-}
 fn dispatch(turn: *Turn, frame: s.Frame, peer: ?u64, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
     const origin = s.Frame.source(turn.delivery.input) catch 0;
     if (frame.kind == .cast and std.mem.startsWith(u8, frame.payload.slice(), "UQZ1")) {

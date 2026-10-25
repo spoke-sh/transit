@@ -44,20 +44,6 @@ rotation; absent requests must verify under the current key. The Workspace
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.
 
-`TableQuery` executes [general typed Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
-through the catalog's signed connection, without a separately configured source
-or requester per Table. It owns a leased snapshot, typed plan and bounded native
-entry cache. Pull scans acquire at most eight immutable row references together,
-prefetch their bounded blocks, and decode owned rows on demand.
-Stopping at LIMIT does not allocate the remaining row values. `next()` returns
-one owned logical row; `nextBatch(maximum)` returns up to eight owned rows and
-16 MiB of canonical cells. Current catalog and native authorization is checked
-after materializing each requested batch, including completion and empty output.
-Release the batch with `deinit`. Private lookahead carries no permission into
-the next call. Explicit
-request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
-foreign-language routes retain their separately admitted profiles.
-
 `DirectTableQuery.openRetained` executes the shared finite Fuze SELECT compiler
 over an existing signed direct Table pin. The caller supplies the explicit SQL
 source name and retains the pin separately; opening, closing and destruction
@@ -244,16 +230,11 @@ SQL compilation returns an unsigned description. The neutral `authorize`
 operation accepts unsigned bundle hex plus those capture fields and returns
 `authorized` hex. Native progress revisions and direct Table cuts remain distinct.
 
-`CatalogQueryOwner` composes Table lifecycle and query dispatch. Its administrator
-installs requester admission constraints and computational limits without
-creating a worker or policy per Table. Native grants remain the authorization
-source. See [catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
-
-`TableAssistance` reads current catalog metadata, derives continuations from the
-same general Table parsers and checks the metadata/policy revision again before
-returning. It bounds source searches to 128 pages and eight suggestions while
-retaining only one page. The terminal reacquires suggestions before accepting
-an edit. Completion is read-only and does not prepare or dispatch SQL.
+`DirectTableAssistance` reads current authorized metadata through the direct
+catalog. It uses the production parsers, retains at most eight suggestions,
+and bounds name discovery to 128 pages. Before disclosure it checks every
+retained definition and its current visibility. Completion opens no snapshot
+and prepares no mutation.
 
 This package imports Station's, Catalog's and Document's public modules and has no kernel, storage or
 provider dependency. SQL compiles in Fuze. Interactive execution runs over a
@@ -262,15 +243,9 @@ hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
-`CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
-operations. Administrator initialization and conditional requester delegation
-are separate bounded commits. Query access requires the signed original subject
-and current Table rights; mutation permissions remain independent.
-See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
-
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::unified-query`; `just test::typed-tables` exercises general Table DDL/DML against native authority and disk-backed Ursula, including
-exact frozen recovery, writer fencing and current grants.
+is `just test::unified-query`; `just test::direct-table-service` exercises direct Table DDL/DML with native
+local storage, exact frozen recovery and current grants.
 [Tests](../../../tests/README.md) record evidence and interface limits.
 
 `Interactive.open/next/close` owns one finite statement over a fresh
@@ -293,20 +268,15 @@ The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
-The local server initializes the catalog and requester, installs query delegation,
+The local server initializes the direct catalog and requester, installs query delegation,
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.
 See the [local server guide](../../../apps/transit-cli/docs/server.md).
-`TableService` mediates Table metadata, finite queries and original
-operation recovery with a private scoped resource reader. Every request binds
-the original caller's current credential, selected role, connection and action.
-`MediatedTableClient.call` returns an owned response; release it with `deinit`.
-`MediatedTableBridge` shares the catalog caller/ABI lifecycle, keeping pending
-mutation bytes with the caller. The caller signs and explicitly submits native
-mutations. See the [service guide](../../../apps/transit-table-service/README.md)
-for configuration, limits, trust and recovery.
-Configured relational spill enables the same bounded joins and aggregates as
-`RelationalQuery`, with the original subject checked across every source.
+`DirectRelationalQuery` executes bounded relational reads over explicit direct
+Table captures, including independent source positions and current authorization
+for every source. The service does not sign native mutations on the caller's
+behalf. Catalog SDKs use the shared direct caller documented in
+[Catalog callers](../transit-station-bindings/docs/catalog.md).
 
 `SqlTemplate` owns a typed parameter template and commits to the full source
 definition, including resource, decoders, paths and accepted Document revision.
@@ -452,9 +422,9 @@ expectations. The replacement becomes the zero-width cursor range. Partial
 words, interior cursors, identifiers and limited results retain their original
 range. The ordinary SQL editor mode continues to replace the current token.
 
-`TableAssistance` handles the catalog console's Table and relational SQL.
+`DirectTableAssistance` handles the catalog console's Table and relational SQL.
 Relational completion discovers up to two declared aliases, reads their current
-authorized schemas, and rechecks the catalog revision/policy before disclosure.
+authorized schemas, and rechecks each displayed definition and current policy before disclosure.
 It qualifies shared column names, limits suggestions to the admitted int64
 profile, and suppresses predicate operators for unknown or ambiguous names.
 Partial projection discovery supplies editor metadata only; it does not establish

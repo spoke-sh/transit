@@ -353,18 +353,18 @@
       "meaning": "Maximum canonical bytes in one general Table schema, including nested descriptors and typed defaults; not a limit on total Tables or rows."
     },
     {
-      "source": "packages/zig/transit-catalog/src/TableClient.zig",
-      "symbol": "max_saved_bytes",
-      "expression": "8192",
+      "source": "packages/zig/transit-catalog/src/DirectTableBridge.zig",
+      "symbol": "max_input_bytes",
+      "expression": "2 * c.DirectTableIntent.max_bytes + 16384",
       "classification": "encoding",
-      "meaning": "Complete owned canonical saved catalog command; bounds one recovery artifact, not retained operation receipts or catalog cardinality."
+      "meaning": "One direct catalog host action, including hex saved intent and its bounded envelope; independent of retained operation or catalog cardinality."
     },
     {
-      "source": "packages/zig/transit-catalog/src/TableIntent.zig",
+      "source": "packages/zig/transit-catalog/src/DirectTableIntent.zig",
       "symbol": "max_bytes",
-      "expression": "prefix_bytes + Meta.max_bytes + Schema.max_bytes + Command.max_bytes",
+      "expression": "prefix_bytes + w.max_request_bytes",
       "classification": "operation",
-      "meaning": "Exact saved general Table intent includes its original schema and bounded command. It is independent of retained Table/cardinality; staged commands retain this identity."
+      "meaning": "One complete saved direct Table intent with mandatory definition and canonical request; not a retained-history or Table cardinality limit."
     },
     {
       "source": "packages/zig/transit-station/src/TableStatement.zig",
@@ -465,14 +465,14 @@
       "meaning": "One catalog traversal and its owned block index; durable root cardinality does not grow the stack."
     },
     {
-      "source": "packages/zig/transit-query/src/TableQuery.zig",
+      "source": "packages/zig/transit-query/src/DirectTableQuery.zig",
       "symbol": "max_rows",
       "expression": "8",
       "classification": "working-set",
       "meaning": "Owned rows per result disclosure batch; the row API requests one."
     },
     {
-      "source": "packages/zig/transit-query/src/TableQuery.zig",
+      "source": "packages/zig/transit-query/src/DirectTableQuery.zig",
       "symbol": "max_bytes",
       "expression": "16 * 1024 * 1024",
       "classification": "working-set",

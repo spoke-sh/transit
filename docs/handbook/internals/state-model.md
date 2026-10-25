@@ -160,7 +160,7 @@ records the pinned toolchain commands for the reference-store, codec and signed
 snapshot/tail schedules. The
 [reference-store tests](../../../packages/zig/transit-station/src/table_pages_test.zig)
 exercise missing/corrupt predecessors and allocation failures; the
-[native schedule](../../../tests/typed_table_native.py) uses disk-backed Ursula.
+[native schedule](https://github.com/spoke-sh/transit/blob/b861597c460896f0bfb7d8568f95ce549e94f38e/tests/typed_table_native.py) uses disk-backed Ursula.
 [Executed results](../../../tests/README.md#complete-table-history-and-snapshot-tail)
 state which revisions and schedules passed. These observations do not establish
 distributed history availability, automatic retention collection or maintained

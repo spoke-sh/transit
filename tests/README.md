@@ -5800,7 +5800,7 @@ exact uint64, predicate unknown truth and all five vector lane states.
 
 `zig build test-typed-tables -Doptimize=ReleaseSafe` passes in 251.621 seconds
 through disk Ursula, signed native clients and real catalog/Station hosts. The
-[prepared lifetime schedule](table_parameters_native.py) keeps the same Zig
+[prepared lifetime schedule](https://github.com/spoke-sh/transit/blob/b861597c460896f0bfb7d8568f95ce549e94f38e/tests/table_parameters_native.py) keeps the same Zig
 objects alive across data changes, read denial/restoration, ALTER and
 DROP/recreate. Preparation and binding issue no native sends; execution observes
 new data cuts. DML returns an owned intent for the existing exact-send recovery
@@ -26149,3 +26149,35 @@ it supplies no complete-run evidence. The corrected smoke run observed no unknow
 outcomes. One sample per case verifies the driver and oracle only: it does not
 establish percentiles, a comparative speedup, sustained load or instrumented
 native completion timelines. The four measurement-helper tests also passed.
+
+## Direct catalog hard cutover and retired owner — 2026-10-24
+
+The general actor-backed Table catalog/service, its query-host role, mediation
+schema and dedicated transport fixtures are removed. General caller, SQL and
+query paths use the direct owner. Private Station Table helpers retain their
+native-turn boundary. The shared definition is
+`7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f`;
+contracts, host/browser declarations and independent signing/encoded fixtures
+are regenerated together. Earlier artifacts require their matching build; no
+converter or automatic reset is supplied.
+
+The seeded catalog schedule now drives direct admission, publication, conflict,
+cancellation, current policy, paged inspection and original receipt recovery
+through volatile log/object adapters. Its two-seed run produced ten identical
+replayed domain schedules in 38.581 seconds before the final definition refresh.
+This is component state-machine evidence, not disk durability. The four catalog
+mutation probes now target these direct guards; their committed-source execution
+remains pending at this checkpoint.
+
+Current diagnostic checks pass 3,401 projections across 24 declared surfaces.
+The inventory records 578 production owners, 4,605 owner/error pairs, 687 qualified
+surfaces, 14 declared error sets and 4,769 error-return boundaries. Removed
+projection families and 23 dormant causes belonged only to the retired owner.
+The verification inventory passes 68 invariants, 68 classified bounds and 14 SDK
+scenarios; documentation checks pass 5,993 local links across 577 files.
+
+The first integrated check passed contract/binding checks, then found stale
+independent Unified source/bundle digests after the definition replacement. Their
+owning encoder regenerated those fixtures. That attempt is not a full-check pass;
+combined repository, committed-source mutation and clean-checkout validation
+remain required.

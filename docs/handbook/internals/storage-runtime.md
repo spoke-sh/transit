@@ -366,23 +366,18 @@ sequenceDiagram
 
 ### Live catalog, query and authority cache integration
 
-- **Catalog storage engine (`TableStorageEngine`):**
-  [`TableStorageEngine`](../../../packages/zig/transit-catalog/src/TableStorageEngine.zig)
-  binds `TableBehavior` definitions (`CatalogId`, `DefinitionId`, `TableSchema`)
-  to a live `TableMemtable`, `LocalWal`, `LocalSegmentStore`, `TableManifest`,
-  `PartitionLease.OccCoordinator` and optional Tier 2 `NvmeCache`. Row inserts,
-  updates and deletes append `"TWAL"` v1 frames before mutating the Tier 0
-  memtable; `flush()` writes 64-byte-aligned `.tseg` and `.tdel` objects and
-  advances `manifest/<object_id>/v<N>.tman` via conditional CAS with disjoint-key
-  OCC rebasing.
-- **Pruned segment query scan (`TableSegmentScan`):**
-  [`TableSegmentScan`](../../../packages/zig/transit-query/src/TableSegmentScan.zig)
-  and [`TableScan.openSegmentReader`](../../../packages/zig/transit-query/src/TableScan.zig)
-  evaluate equality and range predicates against each `.tseg` footer's
-  collation-aware `ZoneMap` (`min_sort_key`, `max_sort_key`) and 64-bit Wyhash
-  Bloom filter (`bloom_mask`), skipping pruned row groups before decoding column
-  buffers and feeding active rows directly into `Fuze` `Batch` (`VectorBatch`) and
-  `LogicalQuery.Execution`.
+The installed local owner is [`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig),
+composed by `DirectCatalog` and the node's `LocalTableService`. Its acceptance
+records govern visibility, original outcomes and retained cuts. Point data can
+remain accepted in the WAL without a `.tseg`; explicit bounded flush and bulk
+publication create segments. A durable pin includes accepted unflushed data.
+
+`TableStorageEngine` and `TableSegmentScan` are separate composition helpers.
+Their tests exercise memtables, manifests, segment pruning and cache mechanisms;
+they are not the installed caller path and do not establish multi-writer or
+provider safety. The [executed proof ledger](../../../tests/README.md) separates
+these component results from direct public operation and restart schedules.
+
 - **Verified candidate write-through and epoch-tracked cross-lane cache sharing:**
   In [`PackedPageStore`](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig),
   `finish()` populates the verified resident page cache (`rememberCandidate`) as
@@ -496,12 +491,10 @@ request. Eight verified index nodes can be cached at one exact cut. Cached bytes
 have no authority: hosts bind the source identity, propagate read failures and
 validate current rights before disclosure or commit.
 
-The [Table scan](../../../packages/zig/transit-query/src/TableScan.zig) fetches a
-record's known metadata keys and first block in one snapshot request. Both
-indexes resolve at the same leased cut. This avoids adding separate round trips
-for the manifest, budget and immutable body when opening a small query. Missing
-bytes still reject, request budgets count the combined fetch, and cached data
-does not replace the later current-authority disclosure check.
+The private Station Table block path retains these bounded publication and
+read rules. Direct Tables instead read their accepted `TablePartition` state
+through `DirectTableReader`; their row data does not travel through native
+small-value mutations. Each owner supplies its own current-authority checks.
 
 The alternative of increasing small-value size would enlarge every control
 record and authority journal entry. Sending each 256-byte part independently
@@ -622,16 +615,12 @@ telemetry are volatile; neither establishes the mutation outcome.
 
 The implementation combines three independent mechanisms:
 
-- The [shared mutation caller](../../../packages/zig/transit-catalog/src/TableClient.zig)
-  prepares compatible metadata in one authorized batch and observes processed
-  input with disposition/status evidence. The console keeps the acknowledged
-  input until a next-request or terminal checkpoint atomically replaces it.
-  A crash between observation and checkpoint therefore leaves an exact recovery
-  basis; it does not require a new SQL operation.
-  After a pending observation it can wait for a process notification for at most
-  50 ms. The remembered position is bound to the exact signed input. Wait-capacity
-  refusal backs off and makes an ordinary authorized read; denial and uncertain
-  transport errors do not become permission or a repeated mutation.
+- The [direct mutation caller](../../../packages/zig/transit-catalog/src/DirectTableBridge.zig)
+  saves immutable work before staging and a complete reference before admission.
+  Table acceptance records supply its original result; native SQL progress and
+  response publication remain separate commits. A failed response preserves the
+  original operation for inspection. The caller does not regenerate SQL or
+  substitute a new native send after uncertainty.
 - The [catalog candidate](../../../packages/zig/transit-core/src/catalog.zig)
   overlays a command-bounded set of changed records, including receipts/control
   state. Repeated keys collapse before one tree rewrite. Reads see pending

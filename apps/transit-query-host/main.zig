@@ -23,7 +23,6 @@ const Config = struct {
     role: union(enum) {
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
-        catalog: catalog.TableCatalogRecords.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: []const u64 = &.{}, all_destinations: bool = false },
     },
@@ -42,10 +41,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     var config = parsed.value;
     if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.idle_max_interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
-    if (config.role == .catalog) {
-        try config.role.catalog.validate();
-        if (config.role.catalog.scope.realm != config.realm or config.role.catalog.owner != config.pid) return error.CatalogOwnerChanged;
-    }
     var key = if (bootstrap) key: {
         if (config.seed_file != null or config.role == .courier) return error.InvalidBootstrapConfiguration;
         var seed: [32]u8 = undefined;
@@ -93,7 +88,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
     server.failure_policy = .stop;
-    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source or config.role == .catalog) q.UnifiedBehavior.adapter_bytes else 0);
+    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source) q.UnifiedBehavior.adapter_bytes else 0);
     defer init.gpa.free(adapter);
     var unified_source: q.UnifiedBehavior.Source = .{
         .peer = switch (config.role) {
@@ -110,13 +105,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .workspace = workspace,
         .cancellation = &cancellation,
     };
-    var declarations: q.CatalogQueryOwner = .{ .tables = .{ .allocator = init.gpa, .configuration = if (config.role == .catalog) config.role.catalog else undefined }, .resources = unified_source.resources, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
-        .catalog => blk: {
-            server.input_guard = declarations.guard();
-            break :blk declarations.interface();
-        },
         .finite_service => blk: {
             server.input_guard = finite.guard();
             break :blk finite.interface();
@@ -134,25 +124,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         defer wire.parent_context = null;
         const step = server.step(handler, now + 30000) catch |err| {
             observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (server.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (err == error.CatalogRegistrationRequired and config.role == .catalog and server.pending == null) {
-                const action = declarations.tables.registration orelse return err;
-                if (action != .register_object) return error.InvalidAuthorizationObject;
-                const registrar: q.wire.AuthorizationClient = .{ .transport = &wire, .realm = config.realm, .principal = config.principal, .key = key };
-                // The private Table turn was discarded. Register one native
-                // step, then reacquire the delivery's current sequence. The
-                // binding ledger reconstructs an identical in-flight retry.
-                const registration = registrar.registration(action.register_object) catch |failure| {
-                    if (!q.wire.Client.unavailable(failure) and !wire.contended(failure)) return failure;
-                    try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
-                    continue;
-                };
-                if (registration == .submit) _ = wire.submit(registration.submit) catch |failure| {
-                    if (!q.wire.Client.unavailable(failure) and failure != error.Conflict) return failure;
-                    try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
-                    continue;
-                };
-                continue;
-            }
             // An ambiguous mutation retains exact bytes in server.pending. Never
             // discard/recompute it under this activation. A restarted OS worker
             // requires fresh fenced ownership, even if it exited while idle.

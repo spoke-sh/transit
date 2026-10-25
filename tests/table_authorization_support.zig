@@ -31,12 +31,3 @@ pub fn tablePrivileges(comptime c: type, admin: anytype, configuration: anytype,
     const target = (try admin.query(.{ .authorization = .{ .kind = .{ .binding = .{ .domain = configuration.authority.table_domain, .key = binding } } } })).body.authorization.body.binding orelse return error.MissingProofTable;
     _ = try admin.authorization(if (allow) .{ .grant = .{ .object = target.reference, .grantee = grantee, .privileges = privileges } } else .{ .revoke_privileges = .{ .object = target.reference, .grantee = grantee, .privileges = privileges, .behavior = .cascade } });
 }
-pub fn registration(comptime c: type, behavior: *c.TableBehavior, server: *c.station.GenServer) !void {
-    const action = behavior.registration orelse return error.MissingProofRegistration;
-    if (action != .register_object or server.pending != null) return error.InvalidProofRegistration;
-    if (server.ready != null) try server.discard();
-    const session = server.session;
-    const registrar: c.station.client.AuthorizationClient = .{ .transport = session.client, .realm = session.realm, .principal = session.principal, .key = session.key };
-    const next = try registrar.registration(action.register_object);
-    if (next == .submit) _ = try session.client.submit(next.submit);
-}

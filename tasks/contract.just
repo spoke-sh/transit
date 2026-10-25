@@ -33,7 +33,6 @@ check:
     just contract::client-check
     just contract::station-check
     just contract::logical-check
-    just contract::table-service-check
     just contract::direct-table-check
     just contract::configuration-check
     just contract::sql-session-check
@@ -60,12 +59,6 @@ logical-generate:
 
 logical-check:
     zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py
-
-table-service-generate:
-    zig build table-service-contract | python3 -B tests/table_service_contract.py --write
-
-table-service-check:
-    zig build table-service-contract | python3 -B tests/table_service_contract.py
 
 direct-table-generate:
     zig build direct-table-contract | python3 -B tests/direct_table_contract.py --write

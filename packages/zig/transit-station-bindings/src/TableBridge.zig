@@ -81,7 +81,7 @@ pub const Status = struct {
     }
 };
 pub const Action = union(enum) {
-    create: struct { realm: u64, resource: u64, schema: v.Schema, limits: v.Configuration.Limits },
+    create: struct { realm: u64, resource: u64, schema: v.Schema, limits: v.PublicationLimits },
     schema: Source,
     get: struct { source: Source, identity: []const u8 },
     get_key: struct { source: Source, key: []const Cell },

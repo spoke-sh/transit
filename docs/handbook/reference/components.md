@@ -79,7 +79,6 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-host](../../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../../../apps/transit-query-host/README.md) | Runnable source/requester workers and scoped courier |
-| [transit-table-service](../../../apps/transit-table-service/README.md) | Signed original-subject Table mediation with private storage credentials |
 | [transit-cli](../../../apps/transit-cli/README.md) (`transit`) | Local server lifecycle and shared local/remote SQL sessions |
 | [transit-board](../../../apps/transit-board/README.md) | Inspection API plus optional query capability with embedded [TanStack Router frontend](../../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |

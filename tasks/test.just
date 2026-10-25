@@ -290,10 +290,9 @@ authorization-cli:
     zig build test-operation-fixture transit-node transit-admin transit client-abi transit-client-host
     python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
-# Table isolation, original subjects, rotation and revocation across disk restart.
-authorization-tables *args:
-    zig build test-operation-fixture transit-node transit-admin transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
+# Current Table roles, SQL defaults, filtered metadata and retained-cut denial.
+authorization-tables:
+    just test::direct-table-service authorization
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
@@ -433,15 +432,15 @@ table-ddl-sql:
 table-dml-sql:
     nix shell .#sql-tools --command zig build test-table-dml-sql -Doptimize=ReleaseSafe
 
-# Catalog Table publication, exact receipt recovery and native fencing on disk.
-[positional-arguments]
-catalog *args:
+# Private fixture retention and direct dependency/resource lifecycle recovery.
+catalog:
     python3 -B tests/catalog_fixture.py
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
+    just test::direct-dependencies
+    just test::direct-named-resources
 
-# General typed metadata and rows beyond resident pages, cold reads and restart.
+# Paged direct catalog/rows beyond resident pages, original pins and node restart.
 catalog-growth:
-    just test::typed-tables --grow 139 --cold
+    just test::direct-table-service growth
 
 # Complete maintained revisions and independent direct Table deltas on disk.
 relational-maintenance:
@@ -465,15 +464,9 @@ named-relational:
     python3 -B tests/named_relational_records.py
     zig build test-named-relational -Doptimize=ReleaseSafe
 
-# General typed Table owner/caller, bounded turns and exact disk recovery.
-[positional-arguments]
-typed-tables *args:
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
-
-# Combined Table initialization, retained reads and independently authorized writes.
-[positional-arguments]
-table-query-writer *args:
-    zig build test-table-query-writer -Doptimize=ReleaseSafe -- "$@"
+# Direct Table capture and separately authorized native query progress.
+table-query-writer:
+    zig build test-table-query-writer -Doptimize=ReleaseSafe
 
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:

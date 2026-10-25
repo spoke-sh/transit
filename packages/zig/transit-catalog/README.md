@@ -1,197 +1,74 @@
 # transit-catalog
 
-Named typed Tables and schema lifecycle above Station, exported as
-`transit_catalog`. Fuze owns pure schemas, values and SQL/typed compilation;
-Station owns bounded immutable row/index publication; Catalog owns names,
-metadata, native authorization bindings and attributed operation outcomes. The deterministic
-catalog helper performs no I/O. The signed caller uses the public native client.
+Named Tables, schemas and native KV/Document declarations, exported as
+`transit_catalog`. Catalog owns names, stable identities, exact operation
+bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;
+`transit-storage` owns Table acceptance and retained data. Native authorization
+owns roles, grants, current credentials and resource lifetime.
 
-`TableIntent.Binding.matches` checks saved steps through a bounded equality
-adapter over the original command bytes. An immutable-publication owner can
-validate one inline command or one upload part without reloading a whole intent.
-The owner must establish the complete canonical intent before retaining that
-binding; this interface performs no authorization or signing.
+## Lifecycle owner
+
+`DirectCatalog` composes paged metadata directories with independent Table logs.
+DDL admission reserves its original name and intent. A Table acceptance record
+makes a definition visible; catalog settlement records completion without
+inventing another data commit. Row operations use the Table's own operation
+index. A rejected or interrupted statement never exposes a successful prefix.
+
+The local node exposes this owner at signed `/table/v1` when configured with a
+catalog and registrar. The local server, SQL runtime, query consumers and catalog
+SDKs use these operations. See the [direct catalog guide](docs/direct-catalog.md)
+for initialization, ownership, authorization, storage bounds and recovery.
 
 `DirectResourceClient` uses the same directory for named native KV and Document
-declarations. Its saved bindings separate admission, original caller allocation,
-writer initialization and completed publication. See the
-[named resource guide](../transit-station-app/docs/named-resources.md) for explicit
-permissions, typed values, recovery and cleanup.
+objects. Its saved bindings separate admission, caller-authorized allocation,
+writer initialization and completed publication. The
+[named resource guide](../transit-station-app/docs/named-resources.md) explains
+permissions, interpretation, partial outcomes and explicit cleanup.
 
-## Schema, lifecycle and authorization
+`DirectDependency` records exact-definition dependencies with bounded inspection
+and DROP RESTRICT. Registering an edge neither activates its dependent nor pins
+Table data. `NameAssertion` records conditional unchanged/rejected/cancelled DDL
+outcomes without inventing a Table mutation. Both preserve their original
+operation identity through retries and name reuse.
 
-`TableCatalog` resolves live names and immutable historical definitions in an
-explicit resource/catalog scope. Object and column identities survive rename;
-name reuse allocates another object. Definitions bind complete shared logical
-schemas, defaults, primary keys and immutable physical references. Catalog and
-Table cardinality remain independent of resident page size.
+## Callers and policy
 
-`TableCatalogRecords.Configuration` fixes the worker PID, bootstrap principal,
-scope, publication quotas and native database/schema/Table domains. Stable native
-database naming is explicit. `SchemaCatalog` provides CREATE, stable-identity
-rename, bounded DROP RESTRICT and current authorized namespace inspection.
-`AuthorizationSql` lowers role/privilege/schema SQL to reviewable native or
-catalog actions with a policy revision precondition. Stable native
-role ownership is separate from the worker PID. Every Table operation requires
-CONNECT on its database and USAGE on its schema. CREATE additionally requires
-schema CREATE; data operations require their Table privilege; ALTER and DROP
-require ownership. Metadata visibility follows ownership or an applicable Table
-grant. There is no catalog-local permission store. Current native authority is
-checked during work and disclosure, including the original credential epoch and
-selected role. Names, retained roots and prepared artifacts grant no permission.
+`DirectTableClient` signs typed requests with the caller's current credential and
+selected role. The node checks database CONNECT, schema USAGE, the required
+Table action or ownership, and its resource lifetime. It checks accumulated
+requirements again before disclosure. Metadata is filtered by current visibility;
+a saved binding, pin or cached result never grants access.
 
-`OperationBinding` supplies an internal immutable operation-to-target claim for
-direct data owners. It reserves the complete neutral binding across object and
-branch identities, without a global catalog-root update per data write. The
-service must authorize the original caller before claiming or reading it. This
-claim alone establishes no operation admission or result; those belong to the
-owning acceptance log. The installed direct Table owner uses this binding.
-Its exact layout belongs to the
-[data lifecycle contract](../../../contracts/DATA_LIFECYCLE_V1.md#frozen-intent-and-acceptance).
+`DirectTableBridge.Session` owns one immutable local intent. SQL `compile` and
+typed `prepare` return saved work; `load` and `forget` are local operations.
+Persist saved work before staging, and the complete returned reference before
+admission. Inspect, execute and cancel that original reference after any uncertain
+response. Destroying a handle does not cancel work or release durable pins.
+The [catalog caller guide](../transit-station-bindings/docs/catalog.md) specifies
+neutral values, the ABI/port and independent ownership of results.
 
-`DirectCatalog` composes those claims with paged names, durable DDL admission,
-rejection/cancellation and exact Table result observation. Row admission,
-execution, inspection and cancellation use each Table's own durable operation
-directories without publishing a catalog root. Its name visibility
-comes from the accepted Table declaration. The
-[direct catalog guide](docs/direct-catalog.md) explains its API, authorization,
-recovery and bounds. `DirectTableClient` signs exact typed requests to the local
-node's configured `/table/v1` owner, which resumes native registration under the
-original caller's current rights. The default launcher and shared SQL runtime use
-this owner. `DirectAuthorizationSql` also resolves policy plans through this
-owner and publishes nothing during compilation; native authorization still owns
-their explicit publication. Captured and maintained query owners retain direct
-sources through original-caller grants. Direct namespace CREATE/RENAME/DROP use
-typed bindings and native SQL dispatch, with bounded RESTRICT over live/pending
-Tables. `DirectDependency` supplies explicit exact-definition registration,
-paged graph inspection and Table DROP RESTRICT through the same signed direct
-owner. Registration, removal and cancellation preserve original terminal
-receipts across lost replies. This registry does not publish a dependent or pin
-data; named consumer integration and generic foreign-language direct Table CRUD
-adapters remain separate work. The
-[dependency contract](../../../contracts/DIRECT_TABLE_V1.md#explicit-definition-dependencies)
-defines metadata authorization and explicit orphan cleanup.
+`DirectTablePreparedDml` and `DirectTablePreparedDdl` bind typed templates against
+current rights and exact interpretations. `DirectTableTyped` shares pure
+`TableLowering` with Station's private application Table bindings.
+`DirectAuthorizationSql` uses `AuthorizationLowering` to prepare reviewable native
+policy changes; compilation publishes no policy. Namespace controls use the same
+catalog owner and reject stale definitions.
 
-`NameAssertion` represents conditional DDL requiring no Table mutation.
-`DirectCatalog.assertName` checks an exact existing definition or absent name,
-records unchanged/rejected/cancelled at a catalog position, and preserves that
-outcome across name reuse. Inspection is read-only, acceptance and cancellation
-require explicit calls, and all outcomes require current native rights. Its
-operation identity shares the immutable claim authority with Table operations.
+`DirectCatalogInspection` returns bounded pages with at most eight entries.
+Cursors bind connection, selection and directory position. Table data positions
+are independently observed; the directory cursor is not a transaction snapshot.
+`DirectCatalogRetention` explicitly acquires, inspects and releases exact retained
+cuts, including accepted unflushed data and the original schema after DROP.
 
-`TableBehavior` accepts initialization and administrator controls, staged Table
-commands, continuation and qualified cancellation/cleanup. It records control or
-rejected-input dispositions independently of the original operation outcome.
-The [catalog role](../../../apps/transit-query-host/README.md) runs it with explicit
-configuration, scoped courier and fresh fenced ownership. Initialization and
-resource provisioning remain separate operations.
+`DirectTableDiagnostic` keeps failed attempts distinct from observed outcomes.
+A failure after dispatch preserves unknown outcome and the saved operation
+identity even if final disclosure was denied. It never supplies permission to
+replace work. [Metadata and recovery](docs/table-metadata.md) connects these
+operations to their contracts.
 
-CREATE publishes the name, immutable schema/metadata, empty head and outcome.
-ALTER separates metadata-only changes from complete validation/rewrites.
-DROP uses explicit dependency records, RESTRICT, tombstones and identity-safe
-name reuse. DML freezes selection and publishes one complete successor with
-committed matched/changed counts. Staging never exposes a successful prefix.
-The owner preserves the four-mutation native turn boundary; larger work advances
-through durable bounded stages rather than widening that boundary.
-
-`TableStorageEngine` is a separate component that composes `transit_storage`
-and `transit_fuze` helpers for row ingestion, point lookups, segment flushing
-and manifest publication. The installed runtime does not attach it to
-`TableBehavior` or the query reader. Its component tests do not establish a
-direct public operation, disk recovery or independent-writer safety. Catalog
-operations continue to use the native actor-backed publication path above.
-
-The component owns each registered schema and rejects implicit definition or
-partition replacement and epoch regression. Re-registering a descriptor is not
-a schema migration. Its storage owner now tests selected disk-recovery paths;
-the [proof ledger](../../../tests/README.md#data-operation-contracts-and-local-wal-persistence--2026-10-22)
-distinguishes those cases from the installed caller gates.
-
-[General Table metadata and caller operations](docs/table-metadata.md) define
-physical records, schema references, atomic transitions, policy, dependencies,
-cleanup, ownership and exact limits. The [Table reference](../../../docs/handbook/reference/tables.md)
-and [SQL reference](../../../docs/handbook/reference/sql.md) describe user-facing behavior.
-
-## Signed and neutral callers
-
-`TableClient` prepares general Table SQL and typed intent, signs individual
-steps, submits exact saved commands and inspects original outcomes. Direct callers
-need explicit raw-resource access. Restricted callers use the
-[Table service](../../../apps/transit-table-service/README.md), whose private
-storage identity is separate from the signed original subject. Its unsigned
-`Candidate` binds the exact native request; callers verify and sign that request
-with their own key. A mediated client cannot sign with the service key. Current
-metadata lookup binds the source before preparation. Loading saved work never
-resolves its name again or recompiles against a replacement schema.
-
-`TablePreparedDml.prepare` owns a typed INSERT/UPDATE/DELETE template after
-current operation-right and metadata checks. `bind` rechecks both and returns an
-independent `TableIntent`; it performs no send. `TableBinding` includes the
-caller and complete immutable metadata while allowing later data revisions.
-See [Table preparation](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
-for NULL, dialect, identity and bounded-operation rules.
-
-Each metadata acquisition seeds a bounded 64-key cache from one authorized
-resource revision. Schema chunks share native read batches at that same cut;
-missing keys are cached too. Read failures poison the acquisition, and a later
-call acquires current policy and resource evidence again. This cache neither
-retains a snapshot nor carries permission between calls.
-
-`TableAuthority.Context.wrapAcquisition` lets a bounded read coalesce repeated
-checks of its accumulated native privilege requirements. Its owner must call
-`finish` before disclosure, including empty results, and discard the handle.
-`finish` always checks the complete requirement set against current authority
-and clears the local result. Effects use ordinary current checks. Both wrappers
-forward supported batch prefetch and immutable-node caching without retaining
-permissions across calls.
-
-`TableLowering` converts typed assignments, predicates and schema changes using
-an explicit schema. It performs no lookup, storage access or admission;
-`DirectTableTyped` and the private Station Table binding share that conversion.
-`AuthorizationLowering` similarly builds policy plans through a supplied scope
-resolver, while `SchemaCommand` owns neutral schema-command validation.
-
-`TableTyped` binds typed lifecycle requests to an immutable intent. `TableBridge.Session` owns
-one intent at a time; small content references identify it for progress calls.
-`Compiled` exports its full summary and mandatory-definition saved bytes.
-`load` verifies those bytes and connection without admitting work. Replacing or
-destroying a handle does not cancel a prior send or operation.
-
-`next` distinguishes a signed step, running work, terminal outcome and closed
-upload. `submit`, `observe`, `input_disposition`, `progress` and `status` preserve
-admission, processing, upload state and domain completion separately. An uncertain
-send must use the original signed bytes. Cancellation cannot undo publication;
-cleanup cannot erase accepted history, receipts or identity floors.
-
-After `next` reports running work, native callers can use `waitForChange` before
-the next acquisition. This bounded process-inspection hint avoids continuous
-metadata polling between staging turns. It is tied to the same connection and
-intent, requires current native inspection rights, and never establishes Table
-completion. The following acquisition rechecks current scoped policy and the
-actual outcome. The console uses this wait and records its time in the wait phase.
-
-`TableValues` supplies owned neutral metadata, schemas, cells, authorization bindings, counts,
-results and cursors. Full-width application IDs use canonical decimal strings;
-native IDs remain bounded JSON numbers. Every output belongs to the supplied
-arena. Destruction must release that ownership, including partial allocations.
-
-The [native ABI/port](../transit-station-bindings/docs/catalog.md), all enabled
-language SDKs and [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-compose this shared owner. `transit-query.TableQuery` supplies catalog-routed
-finite typed snapshots; durable query delegation has its own current policy.
-Neither query routing nor CREATE grants subsequent DML authority.
-
-Metadata lists contain at most eight live entries ordered by stable object ID.
-Their cursor binds scope, current definition, exact resource revision and last
-examined identity. A changed cut requires a fresh listing; denial rejects old
-cursors too. Historical definition reads preserve their original metadata and
-schema without inventing a live Table head.
-
-`TableDiagnostic` projects original domain outcomes and input dispositions;
-`TableAttempt` separately projects a failed caller attempt. Missing, rejected,
-cancelled and applied evidence cannot collapse into an uncertain transport
-failure. Disclosure uses current permissions, and diagnostics do not authorize
-replacement work or cancellation of already published changes.
+`TableStorageEngine` remains an independently tested storage composition helper.
+The installed owner uses `TablePartition` directly; helper tests do not establish
+installed behavior or independent-writer safety.
 
 ## Checks
 
@@ -199,9 +76,10 @@ From the pinned development shell:
 
 ```sh
 (cd packages/zig/transit-catalog && zig build test)
+just test::direct-table-service
+just test::catalog-growth
 ```
 
-Component tests use an independent dynamic-map store for atomic proposals,
-identity conflicts, policies, dependency/lifecycle rules, failures and bounded
-catalog traversal. Native authority, physical-disk recovery, installed callers
-and performance require their own [executed proofs](../../../tests/README.md).
+Component schedules exercise real catalog transitions with bounded caches.
+The [proof ledger](../../../tests/README.md) separately records disk recovery,
+public caller, installed language and deployment qualification.

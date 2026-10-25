@@ -148,7 +148,6 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("settings-reference", "Export the typed configuration registry").dependOn(&b.addRunArtifact(settings_reference).step);
     b.step("configuration-contract", "Export reflected configuration operations").dependOn(&b.addRunArtifact(query.artifact("transit-configuration-contract")).step);
-    b.step("table-service-contract", "Export reflected Table mediation envelopes").dependOn(&b.addRunArtifact(query.artifact("transit-table-service-contract")).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
     b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station_bindings.artifact("transit-station-contract")).step);
@@ -1021,10 +1020,6 @@ pub fn build(b: *std.Build) void {
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     build_test_step.dependOn(&flight_gateway.step);
-    const table_service = b.dependency("transit_table_service", .{ .target = target, .optimize = optimize }).artifact("transit-table-service");
-    b.step("transit-table-service", "Install the authenticated Table service").dependOn(&b.addInstallArtifact(table_service, .{}).step);
-    build_test_step.dependOn(&table_service.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = table_service.root_module })).step);
     const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});
     b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&install_sql_gateway.step);
     b.getInstallStep().dependOn(&install_sql_gateway.step);
@@ -1419,28 +1414,9 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
-    const typed_table_proof = b.addExecutable(.{ .name = "transit-typed-table-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/typed_table_native.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
-    }) });
-    build_test_step.dependOn(&typed_table_proof.step);
     const relational_capacity_proof = b.step("relational-capacity-proof", "Build native relational physical-capacity fixtures");
     relational_capacity_proof.dependOn(&b.addInstallArtifact(node_artifact, .{}).step);
     relational_capacity_proof.dependOn(&b.addInstallArtifact(direct_table_client, .{}).step);
-    const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });
-    typed_table_native.addFileArg(b.path("tests/typed_table_native.py"));
-    typed_table_native.addArtifactArg(node_artifact);
-    typed_table_native.addArtifactArg(typed_table_proof);
-    typed_table_native.addArtifactArg(query_host);
-    typed_table_native.addArtifactArg(transit_cli);
-    typed_table_native.addArtifactArg(station_host);
-    typed_table_native.addPassthruArgs();
-    typed_table_native.step.dependOn(&operation_install.step);
-    typed_table_native.has_side_effects = true;
-    typed_table_native.stdio = .inherit;
-    b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
     const sql_catalog_proof = b.addExecutable(.{ .name = "transit-sql-catalog-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_catalog_native.zig"),
         .target = target,
@@ -1541,17 +1517,13 @@ pub fn build(b: *std.Build) void {
     named_relational_native.stdio = .inherit;
     b.step("test-named-relational", "Prove separate named publication, activation and complete revision recovery on disk").dependOn(&named_relational_native.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
-    combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
+    combined_table_test.addFileArg(b.path("tests/direct_captured_query.py"));
     combined_table_test.addArtifactArg(node_artifact);
-    combined_table_test.addArtifactArg(query_host);
-    combined_table_test.addArtifactArg(unified_query);
-    combined_table_test.addArtifactArg(station_bindings.artifact("transit_station"));
-    combined_table_test.addArtifactArg(transit_cli);
-    combined_table_test.addPassthruArgs();
-    combined_table_test.step.dependOn(&operation_install.step);
+    combined_table_test.addArtifactArg(direct_table_client);
+    combined_table_test.addArg("--unified-boundaries-only");
     combined_table_test.has_side_effects = true;
     combined_table_test.stdio = .inherit;
-    b.step("test-table-query-writer", "Prove combined Table initialization and interleaved query/mutation recovery").dependOn(&combined_table_test.step);
+    b.step("test-table-query-writer", "Prove direct Table capture and independent native query progress").dependOn(&combined_table_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));

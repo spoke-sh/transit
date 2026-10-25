@@ -40,7 +40,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     const sql = try std.Io.Dir.cwd().readFileAlloc(init.io, options.flags.file.?, allocator, .limited(4096));
     const result = .{ .authorization_plan = try c.TableValues.AuthorizationPlan.foreign(allocator, try c.DirectAuthorizationSql.compile(client, profile.namespace, sql, .{}, null)) };
     diagnostic.atFile(options.flags.output.?);
-    try @import("RecoveryFiles.zig").createBounded(init, options.flags.output.?, result, c.TableBridge.max_input_bytes);
+    try @import("RecoveryFiles.zig").createBounded(init, options.flags.output.?, result, c.DirectTableBridge.max_input_bytes);
     var buffer: [8192]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     var encoder: std.json.Stringify = .{ .writer = &writer.interface };

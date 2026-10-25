@@ -7,7 +7,7 @@ export const downloads = [
   ...[
     "transit-v1.schema.json",
     "sql-session-v1.schema.json",
-    "table-service-v1.schema.json",
+    "direct-table-v1.schema.json",
     "configuration-v1.schema.json",
     "configuration-settings-v1.json",
     "diagnostic-v1.schema.json",

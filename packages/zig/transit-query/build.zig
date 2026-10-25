@@ -25,13 +25,6 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_query", .module = module }},
     }) });
     b.installArtifact(api);
-    const service_contract = b.addExecutable(.{ .name = "transit-table-service-contract", .root_module = b.createModule(.{
-        .root_source_file = b.path("src/service_export.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "transit_query", .module = module }},
-    }) });
-    b.installArtifact(service_contract);
     const settings_contract = b.addExecutable(.{ .name = "transit-configuration-contract", .root_module = b.createModule(.{
         .root_source_file = b.path("src/settings_export.zig"),
         .target = target,
@@ -42,7 +35,6 @@ pub fn build(b: *std.Build) void {
     const check = b.step("check", "Compile the public query package");
     check.dependOn(&api.step);
     check.dependOn(&settings_contract.step);
-    check.dependOn(&service_contract.step);
     const test_step = b.step("test", "Check public query contracts and bounded codecs");
     test_step.dependOn(&b.addRunArtifact(tests).step);
     test_step.dependOn(&catalog_run.step);
