@@ -86,7 +86,7 @@ let
     version = "0.1.0";
     inherit src;
     fetcherVersion = 3;
-    hash = "sha256-CHemJRusRVhDFUjy5nOe8qodE/5trc3N6ve2ea2AvVc=";
+    hash = "sha256-4BLKRRPbJSCXwxrBCHlJ380XpiPmT7gg9MerGRAt3g4=";
   };
   boardAssets = stdenvNoCC.mkDerivation {
     pname = "transit-board-assets";
@@ -135,7 +135,6 @@ stdenv.mkDerivation {
     runHook preInstallCheck
     "$out/bin/transit" --help
     "$out/bin/transit" server --help
-    "$out/bin/transit" serve --help
     "$out/bin/transit" console --help
     runHook postInstallCheck
   '';
