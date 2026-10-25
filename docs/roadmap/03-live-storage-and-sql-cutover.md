@@ -203,7 +203,7 @@ these measurements; it cannot replace this cutover's existing matched controls
 with library-only timings or defer a missing bounded access path.
 
 Require passing end-to-end proofs across `transit-node`, `transit-sql-gateway`,
-`transit-query-host`, `transit server` and `psql`/`mysql`/`transit sql` callers,
+`transit-query-host`, `transit server` and `psql`/`mysql`/`transit console` callers,
 preserving exact recovery, fencing, permission revocation and bounded resumable
 direct ingestion for oversized statements while demonstrating measured
 wall-clock improvement under matched controls.
