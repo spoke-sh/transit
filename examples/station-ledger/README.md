@@ -5,6 +5,10 @@ coordinator exchange durable calls, use direct Tables with separate associated
 progress, and capture finite Arrow replies. The coordinator supplies a scoped
 registry and bounded supervisor.
 Each role is a separate Transit process and worker.
+Ordinary native publication contention preserves the exact pending command.
+Before a command is frozen, a contended read discards only its private proposal
+and observes current authority again. Expiry, fencing and conflicting retry
+identities are separate outcomes under the shared client classification.
 
 For an interactive installation with Board:
 

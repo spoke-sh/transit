@@ -90,7 +90,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {
             error.InvalidLedgerDataBinding, error.LedgerDataBindingChanged, error.MissingLedgerDataBinding, error.IncompatibleDefinition, error.AccessDenied, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
             else => {
-                if (behavior.pending == null and (err == error.Rejected or err == error.Conflict)) {
+                if (client.contended(err)) {
+                    if (behavior.pending == null and behavior.ready != null) try behavior.discard();
+                } else if (behavior.pending == null and (err == error.Rejected or err == error.Conflict)) {
                     if (client.last_rejection != .StaleStateResource and client.last_rejection != .QueryExpired and client.last_rejection != .StateViewExpired) return err;
                     if (client.last_rejection == .StateViewExpired) behavior.view_id = null;
                     if (behavior.ready != null) try behavior.discard();

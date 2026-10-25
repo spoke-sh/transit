@@ -26287,3 +26287,36 @@ retains only native fixed-size evidence, and passes the full run without allocat
 errors. The ordinary catalog task now includes this schedule and the separate
 139-resource growth/restart schedule; the latter has no completed run at this
 checkpoint.
+
+## Native worker contention and exact recovery — 2026-10-25
+
+Serving, Work Items and Station ledger workers now use the shared client's
+ordinary-contention classification. A contended native command retains its
+original signed identity; a contended read can discard only an unsubmitted
+private proposal. Stale credentials, conflicting retry identities and fences
+retain their distinct handling. The authority's bounded CAS reprepare contract
+and shared definition are unchanged.
+
+The serving proxy injects HTTP 409 `Conflict` before dispatching the ingress
+worker's first `open_view`, then verifies byte-identical recovery. The unchanged
+worker exits on that injection and the schedule fails. With the fix,
+`just test::reactive-views` passes its full native browser schedule in 387.36
+seconds, including exact query retry, bounded full-result verification, finite
+refresh and current denial before disclosure. Its observed mutation-to-visible
+time is 9,827 ms and query-refresh-to-verified-visible time is 57,518 ms; these
+single observations establish no latency distribution or performance target.
+An intermediate fixture attempt batched row setup despite the one-active-command
+policy and failed; restoring sequential setup yields the complete pass.
+
+`just test::work-items` also injects and verifies exact recovery of the first
+contended worker command. It passes in 88.52 seconds with 19 rows, 242 turns,
+at most four mutations and 244 value bytes per turn, 81 inspected pages, nine
+transport disconnects and one lost direct admission reply. Its original worker
+replacement, node restart, receipt and fencing assertions remain in the run.
+The complete `just test::station` recovery/services/lifetime task passes with
+the ledger change, but does not inject this contention schedule.
+
+The subsequent `nix develop --command just check` completes contracts, diagnostic
+checks, units, CLI/console checks, frontend checks and the handbook build. These
+working-tree results do not establish the separately running reference-placement,
+139-resource growth or committed-HEAD clean-checkout gates.

@@ -29,6 +29,8 @@ def run(node, worker_binary, caller, query_host):
             resident_pages=16, request_timeout_ms=10000)
         config.write_text(json.dumps(settings))
         faults, retries, failures = {}, set(), []
+        contention = {'request': None, 'retried': False}
+        worker_principal = None
         observed = dict(turns=0, max_mutations=0, max_value_bytes=0, pages=0, transport_disconnects=0, direct_acceptance_losses=0)
 
         class Proxy(BaseHTTPRequestHandler):
@@ -38,6 +40,18 @@ def run(node, worker_binary, caller, query_host):
                 upstream = HTTPConnection('127.0.0.1', port, timeout=15)
                 try:
                     envelope = json.loads(body)
+                    native = envelope.get('request') if self.path == '/v1/command' else None
+                    if native and native['principal'] == worker_principal and 'open_view' in native['command']:
+                        if contention['request'] is None:
+                            contention['request'] = body
+                            data = b'{"err":"Conflict"}'
+                            self.send_response(409)
+                            self.send_header('Content-Type', 'application/json')
+                            self.send_header('Content-Length', str(len(data)))
+                            self.end_headers()
+                            self.wfile.write(data)
+                            return
+                        if body == contention['request']: contention['retried'] = True
                     upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = upstream.getresponse()
                     data = response.read()
@@ -123,6 +137,7 @@ def run(node, worker_binary, caller, query_host):
             config.write_text(json.dumps(settings))
             current_node = authority()
             invoke('initialize-data')
+            worker_principal = json.loads((fixture.root / 'worker.json').read_text())['principal']
             current_worker = worker('worker-first')
             courier = spawn('courier', [query_host, str(fixture.root/'courier.json')])
             invoke('seed')
@@ -158,6 +173,7 @@ def run(node, worker_binary, caller, query_host):
             current_worker = worker('worker-verify-recovered')
             invoke('finish')
             assert not failures, failures
+            assert contention['request'] is not None and contention['retried'], 'worker replaced the contended request'
             assert set(faults) == retries == {'operator-step', 'worker-copy'}, (faults.keys(), retries)
             assert observed['pages'] > 0
             assert observed['max_mutations'] == 4 and observed['max_value_bytes'] <= 256, observed
