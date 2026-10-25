@@ -494,6 +494,125 @@ does not establish storage migration or usability. Computation evidence consumes
 the snapshot and logical-change contracts, while automatic activation remains
 milestone 8.
 
+### Selected transaction-session extension
+
+The following is the foundation decision for #125 and milestone 5, **not an
+implemented transaction API or wire format**. The current executable domain
+remains one Table statement/batch. A shared v1 definition replacement and neutral
+operation/record fixtures precede admitting the extension. Milestone 5 owns its
+implementation and executable isolation/failure histories.
+
+**First domain and isolation algorithm.** Start with Tables in one catalog and
+branch served by one fenced local authority. Use retained consistent source
+cuts, private workspaces and optimistic whole-object validation under ordered
+participant commit guards. Validate every Table read, including predicates,
+absent keys, constraints and schema interpretation, as well as every written
+Table. Any logical change to a read Table conflicts, even when the other write
+touches a disjoint key. This deliberately conservative rule covers phantom and
+write-skew dependencies without claiming that key-level OCC is serializable.
+Physical flush/relocation and retention bookkeeping do not constitute logical
+changes. Finer conflict tracking requires a new qualification of the same
+serializable contract; snapshot isolation is not a silent fallback. Real-time
+ordering needs its own histories before it is advertised.
+
+Native KV/Document resources, native input progress, other catalogs/branches and
+remote providers are excluded from this first participant profile. Reject such
+combinations before admission. Milestone 5 retains its multi-model composition
+target: each additional owner needs a participant contract and qualification
+before joining a transaction. Native turns continue to mutate at most one KV
+resource. The presence of a native resource in the same realm is insufficient.
+
+**Consistent basis without a global write root.** Acquire a cut over an explicit
+participant set, or enumerate the catalog's live Tables for a catalog-wide cut.
+Keep that directory/definition basis stable, acquire participant guards in
+canonical identity order, and durably pin each exact interpretation and accepted
+WAL/manifest frontier. The point when all selected guards are held supplies the
+common cut; earlier pins remain unchanged until that point. Publish the complete
+snapshot descriptor before releasing those guards. An interrupted acquisition
+is pending work with an exact acquisition identity and a paged cleanup/recovery
+ledger, never a partially consistent snapshot. A scoped cut cannot add an object
+later under the same basis. A catalog-wide cut fixes name and definition lookup
+for later statements, including absence. Current authorization is checked again
+on every read and disclosure.
+
+This can temporarily block writes to the selected participants while acquiring
+the cut. It does not add a durable realm-wide root CAS to every independent
+Table/process mutation. A catalog-wide cut is more expensive than an independent
+source vector; expose that cost and preserve both meanings. Guard acquisition,
+pin creation and cleanup must page their work and retain restart progress.
+
+**Private work and statement outcomes.** A transaction has stable scoped identity,
+an immutable begin basis, ordered statement identities and an exact commit-attempt
+binding. Connection loss does not replace any of them. Statements read their own
+private changes over the retained basis. Their rows and matched/changed counts
+are provisional and carry transaction attribution; statement completion is not a
+commit receipt. Savepoints restore workspace changes, staged intents and statement
+position, but do not forget read/conflict dependencies already observed. Returned
+rows cannot be retracted: readers receive explicit rollback/abort attribution,
+and cursors invalidated by rollback cannot continue as if their basis survived.
+Nested transactions reject; savepoints are the supported nested scope.
+
+The first profile admits DML and existing supported constraints. DDL inside a
+transaction rejects without an implicit commit. Concurrent autocommit DDL/name
+replacement invalidates the affected transaction's exact interpretation or name
+basis; it never retargets accepted statements. Transactional DDL and additional
+constraint profiles require explicit participant preparation and visibility
+rules before admission.
+
+**Preparation, decision and visibility.** Freeze the commit attempt before any
+participant prepares. Acquire all read/write participant guards in canonical
+order, validate the retained logical/schema/name expectations, and recheck the
+original caller's current privileges under the native authority fence. Each
+written participant durably prepares verified immutable successor data, its
+original outcome, expected predecessor and common transaction/attempt identity.
+Prepared data is unavailable to ordinary readers; it also prevents a later
+writer from bypassing that unresolved predecessor. Read-only participants remain
+guarded through the decision. Preparation records and their object references
+must be recoverable before the coordinator can decide commit.
+
+One durable, fenced decision chooses commit or abort for that exact attempt and
+complete participant set. Commit is the publication linearization point. Every
+participant reader resolves a prepared successor through that same decision;
+writing participant heads one by one is not the visibility protocol. A committed
+participant must be reconstructible from its prepared objects and common receipt
+even if its local finalization has not run. Finalization and release of barriers
+are recoverable maintenance, not new acceptance decisions. Independent writes
+remain on their existing partition authority, subject to unresolved participant
+barriers; neither bulk staging nor the coordinator creates a second write owner.
+
+Former coordinators and participants cannot decide or publish after replacement.
+Recovery uses the original attempt, prepared references and authority generation.
+It may complete missing preparation or record abort only while no commit decision
+exists. Cancellation, deadline expiry and a lost response request settlement;
+they do not establish abort. Commit/abort races return the one recorded decision.
+An acknowledged abort prevents publication but can leave private objects for
+explicit cleanup. An acknowledged commit remains committed after caller/session
+loss, including loss of the commit reply.
+
+**Outbox and consumer composition.** The first Table domain can atomically publish
+typed outbox records alongside its Table changes. A dispatcher may claim an
+intent only after verifying the common committed decision. Native message/effect
+admission, delivery and external outcomes remain separate recorded operations;
+reuse their original identities and current authorization when recovering a lost
+dispatch reply. Replay dispatches nothing. Storing a consumer checkpoint in the
+same Table domain can join that commit; native input acknowledgement cannot join
+until its own participant contract is implemented. Unknown external outcomes
+remain connector policy and never become a safe retry merely because an outbox
+record exists.
+
+**Bounds and qualification.** Bound resident pages, active transactions,
+per-operation work, workspace/spill bytes, retained pins and conflict/guard
+metadata through explicit quotas. Durable participant directories and pending
+cleanup page independently of resident cache size. Quota refusal or storage
+failure cannot discard an admitted attempt, its prepared state or original
+decision. Retention defaults to unlimited; physical cleanup requires closure of
+all relevant work and retained bases, not merely a disconnected session.
+Milestone 5 must exercise write skew/phantoms, absent-key and collation-sensitive
+predicates, keyless rows, savepoint dependencies, concurrent DDL, interrupted cut
+acquisition, each preparation/decision/finalization crash boundary, revocation,
+commit/abort races and outbox recovery. These are required future histories, not
+executed evidence for this foundation decision.
+
 ## Baseline, bottleneck diagnosis and scope
 
 The Table catalog already owns stable object/column identities (`CatalogId`,
