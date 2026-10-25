@@ -26211,3 +26211,21 @@ Separately, the regenerated Unified fixtures pass all 142 query-package tests.
 The Board workspace check and CLI diagnostics (96 artifact/file and 193
 server/console cases) also pass. These scoped runs do not replace the pending
 combined repository check or committed-HEAD clean CI.
+
+## Direct Follow reload and credential recovery — 2026-10-24
+
+`just test::reactive-views-lifecycle` passes its native-local browser schedule in
+159.38 seconds. In addition to stream loss, independent shared-principal tabs,
+lease closure, watch-generation reset and retirement, Chromium now reloads a
+page and verifies that it starts paused with no private rows or snapshot basis.
+Explicit Follow reacquires an authorized result; the other tab keeps its own
+session. Rotating the viewer credential clears rows and basis, while Board's
+separate viewer remains current. Replacing the gateway with the current key and
+explicitly recovering/reopening controls restores the authorized result.
+
+Attempt 8 expired a session during the earlier stream-loss step and supplies no
+evidence for the new cases. Attempt 9 reached credential denial, then failed
+because the replacement gateway's readiness probe omitted its required Host
+header. Attempt 10 supplies that header and passes the complete schedule with
+unchanged deadlines and assertions. These are real native-local TLS/browser
+checks; reference-placement and final repository gates remain separate.

@@ -85,11 +85,34 @@ try {
   await stage("sessions-after");
   await network.detach();
 
+  // A real reload starts a new page with no retained private snapshot or
+  // implicit Follow. The other tab keeps its independent session and data.
+  await peer.reload();
+  await expect(peer.locator("#status")).toHaveAttribute("data-phase", "paused");
+  await expect(peer.locator("#rows tr")).toHaveCount(0);
+  await expect(peer.locator("#basis")).toHaveText("No authorized snapshot.");
+  await stage("peer-reloaded");
+  await expect(counter.locator("#status")).toHaveAttribute("data-phase", "current");
+  await follow(peer);
+  await expect(peer.locator("#rows tr").first()).toHaveText("12");
+
   // Real navigation dispatches pagehide and closes local work. Lease
   // maintenance also bounds a close lost during browser teardown.
   await peer.goto("about:blank");
   await stage("peer-closed");
   await expect(counter.locator("#status")).toHaveAttribute("data-phase", "current");
+  await stage("rotate-viewer");
+  await expect(counter.locator("#status")).toHaveAttribute("data-phase", "denied");
+  await expect(counter.locator("#rows tr")).toHaveCount(0);
+  await expect(counter.locator("#basis")).toHaveText("No authorized snapshot.");
+  await expect(board.getByLabel("Live Table metadata").getByRole("status")).toContainText(
+    "current",
+  );
+  await stage("replace-viewer");
+  const recovery = counter.getByRole("button", { name: "Recover exact control", exact: true });
+  if (await recovery.isVisible()) await recovery.click();
+  await follow(counter);
+  await expect(counter.locator("#rows tr").first()).toHaveText("12");
   // Isolate source-generation reset from a lease reaching its deadline during
   // the abandoned-peer check. Reopening is an explicit user action.
   await counter.getByRole("button", { name: "Pause counter", exact: true }).click();
@@ -115,7 +138,7 @@ try {
   assert.deepEqual(errors, []);
   assert.deepEqual(await context.cookies(), []);
   console.log(
-    "Live-view lifecycle: shared-principal tabs, actual stream loss with retained basis, resume without session replacement, pagehide/expiry, visible watch-generation reset, explicit resnapshot and cleared protected state after catalog lifetime retirement passed.",
+    "Live-view lifecycle: shared-principal tabs, actual stream loss with retained basis, resume without session replacement, reload paused without private data, pagehide/expiry, credential rotation with cleared data and explicit recovery, visible watch-generation reset, explicit resnapshot and cleared protected state after catalog lifetime retirement passed.",
   );
 } catch (error) {
   console.error("Recent control outcomes:", operations);
