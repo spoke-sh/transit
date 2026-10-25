@@ -3118,6 +3118,7 @@
         "previewNamespace()": "<inferred>",
         "previewResource()": "<inferred>",
         "previewRows()": "<inferred>",
+        "rangeRows()": "<inferred>",
         "readAccess()": "<inferred>",
         "readAuthority()": "<inferred>",
         "readCurrent()": "<inferred>",
@@ -3155,7 +3156,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 671,
+        "try": 672,
         "catch": 8
       },
       "imports": [
@@ -4063,7 +4064,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 120,
+        "try": 130,
         "catch": 0
       },
       "imports": [
@@ -4207,10 +4208,10 @@
         "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
-        "InvalidTableCursor": 2,
+        "InvalidTableCursor": 4,
         "InvalidTableDelegation": 5,
         "InvalidTableKey": 2,
-        "InvalidTableReadBudget": 5,
+        "InvalidTableReadBudget": 6,
         "TableBatchTooLarge": 1,
         "TablePayloadTooLarge": 6,
         "TableSchemaChanged": 2
@@ -4258,6 +4259,7 @@
           "history_scan",
           "read_key",
           "scan",
+          "key_range",
           "release"
         ],
         "Action.operation.command": [
@@ -4331,6 +4333,7 @@
           "history_page",
           "point",
           "page",
+          "key_range",
           "released"
         ],
         "Result.list.consistency": [
@@ -4356,6 +4359,10 @@
         "Ddl.intent()": "<inferred>",
         "Ddl.native()": "<inferred>",
         "Ddl.validate()": "<inferred>",
+        "KeyCursor.encode()": "<inferred>",
+        "KeyCursor.native()": "<inferred>",
+        "KeyInterval.encode()": "<inferred>",
+        "KeyInterval.native()": "<inferred>",
         "Request.context()": "<inferred>",
         "Request.parse()": "<inferred>",
         "Request.validate()": "<inferred>",
@@ -4368,7 +4375,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 122,
+        "try": 138,
         "catch": 2
       },
       "imports": [
@@ -4379,12 +4386,14 @@
     "packages/zig/transit-catalog/src/DirectTableReader.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
+        "InvalidTableCursor": 1,
         "InvalidTableKey": 1,
-        "InvalidTableReadBudget": 2,
-        "InvalidTableResponse": 20,
+        "InvalidTableReadBudget": 3,
+        "InvalidTableResponse": 26,
         "MissingTestRow": 1,
         "TableSnapshotReleased": 1,
-        "UnsupportedHistoricalPointRead": 1
+        "UnsupportedHistoricalPointRead": 1,
+        "UnsupportedHistoricalRangeRead": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -4395,6 +4404,7 @@
         "cursorSource()": "<inferred>",
         "decodePage()": "<inferred>",
         "decodePoint()": "<inferred>",
+        "decodeRange()": "<inferred>",
         "init()": "<inferred>",
         "initHistory()": "<inferred>",
         "next()": "<inferred>",
@@ -4402,14 +4412,16 @@
         "openHistory()": "<inferred>",
         "openHistoryStart()": "<inferred>",
         "pointAllocationFailures()": "<inferred>",
+        "rangeAllocationFailures()": "<inferred>",
         "readAfter()": "<inferred>",
         "readKey()": "<inferred>",
+        "readRange()": "<inferred>",
         "release()": "<inferred>",
         "requireClient()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 58,
         "catch": 1
       },
       "imports": [
@@ -4420,7 +4432,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 99
+        "InvalidTableResponse": 102
       },
       "outcomes": {},
       "error_sets": {},
@@ -4434,12 +4446,13 @@
         "rows()": "<inferred>",
         "schema()": "<inferred>",
         "validate()": "<inferred>",
-        "validatePage()": "<inferred>"
+        "validatePage()": "<inferred>",
+        "validateRowEnvelope()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 144,
-        "catch": 7
+        "try": 150,
+        "catch": 8
       },
       "imports": [
         "root.zig",
@@ -12563,7 +12576,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f\""
+          "cd12a1e21afce782c2926a900dfe473fe96bcee962a98cb8670d06dfbed3aa89"
         ],
         "Effect.phase": [
           "pending",
@@ -24942,6 +24955,27 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TableKeyRange.zig": {
+      "errors": {
+        "InvalidTableKey": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "fingerprint()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "OrderedKeyIndex.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TableManifest.zig": {
       "errors": {
         "CorruptTableManifest": 1,
@@ -25033,15 +25067,15 @@
         "InvalidSegmentIndex": 1,
         "InvalidTableBasis": 5,
         "InvalidTableDeclaration": 1,
-        "InvalidTableHistory": 33,
+        "InvalidTableHistory": 34,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 3,
         "InvalidTableOperation": 16,
         "InvalidTableReadBudget": 2,
         "InvalidTableReceipt": 2,
-        "InvalidTableRowReference": 17,
+        "InvalidTableRowReference": 19,
         "InvalidTableSegment": 2,
-        "InvalidTableSnapshotCursor": 3,
+        "InvalidTableSnapshotCursor": 4,
         "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
         "StorageCandidateTooLarge": 1,
@@ -25057,7 +25091,7 @@
         "TableNotFound": 2,
         "TableOperationTerminal": 1,
         "TableOperationsPending": 1,
-        "TableReadBudgetTooSmall": 1,
+        "TableReadBudgetTooSmall": 2,
         "TableRecoveryRequired": 1,
         "TableRetired": 8,
         "TableRowIdentityChanged": 2,
@@ -25129,6 +25163,7 @@
         "pin()": "<inferred>",
         "pinState()": "<inferred>",
         "publish()": "<inferred>",
+        "rangeSnapshot()": "<inferred>",
         "readCurrent()": "<inferred>",
         "readRow()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
@@ -25160,13 +25195,15 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 408,
+        "try": 427,
         "catch": 4
       },
       "imports": [
+        "OrderedKeyIndex.zig",
         "TableChanges.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
+        "TableKeyRange.zig",
         "TablePartitionRecord.zig",
         "TableSnapshot.zig",
         "TransitLog.zig",

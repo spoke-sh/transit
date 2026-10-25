@@ -38,6 +38,98 @@ fn pin(table: *P, id: u64, access: *Access) !P.SnapshotHandle {
     return table.pin(.{ .scope = object.scope, .principal = 4, .operation = id }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
 }
 
+test "retained Table key ranges preserve exact intervals through writes flush rewrite and restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var handle: P.SnapshotHandle = undefined;
+    var retained: P.KeyRangePage = undefined;
+    var lower_bytes: [4096]u8 = undefined;
+    var upper_bytes: [4096]u8 = undefined;
+    const range: P.KeyRange = .{
+        .lower = .{ .key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &.{.{ .value = .{ .atom = .{ .signed = 5 } } }}, false, &lower_bytes) },
+        .upper = .{ .key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &.{.{ .value = .{ .atom = .{ .signed = 21 } } }}, false, &upper_bytes), .inclusive = false },
+    };
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var cells: [25][2]f.Types.Values.Cell = undefined;
+        var changes: [25]P.Change = undefined;
+        for (&cells, &changes, 0..) |*values, *change, i| {
+            values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(24 - i) } } }, .{ .value = .{ .atom = .{ .bytes = "original" } } } };
+            change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = values }, .expect = .absent } };
+        }
+        _ = try table.apply(binding(&table, 1, .create), changes[0..12], .bulk, access.guard());
+        _ = try table.apply(binding(&table, 2, .insert), changes[12..], .point, access.guard());
+        handle = try pin(&table, 80, &access);
+        retained = try table.rangeSnapshot(t.allocator, handle, range, null, .{ .rows = 3 }, access.guard());
+        errdefer retained.deinit();
+        try t.expectEqual(@as(u8, 3), retained.count);
+        for (retained.rows[0..retained.count], 0..) |row, i| try t.expectEqual(@as(i128, @intCast(5 + i)), row.?.row().cells[0].value.atom.signed);
+        try t.expect(retained.next != null);
+        var changed_range = range;
+        changed_range.lower.?.inclusive = false;
+        try t.expectError(error.InvalidTableSnapshotCursor, table.rangeSnapshot(t.allocator, handle, changed_range, retained.next, .{}, access.guard()));
+        try t.expectError(error.TableReadBudgetTooSmall, table.rangeSnapshot(t.allocator, handle, range, null, .{ .encoded_bytes = 1 }, access.guard()));
+        access.deny_at = access.calls + 3;
+        try t.expectError(error.PermissionDenied, table.rangeSnapshot(t.allocator, handle, range, null, .{}, access.guard()));
+        access.deny_at = std.math.maxInt(usize);
+        const ordered_root = table.root.ordered_rows;
+        _ = try table.flush(access.guard());
+        try t.expectEqualDeep(ordered_root, table.root.ordered_rows);
+        const later = try pin(&table, 81, &access);
+        try t.expectError(error.InvalidTableSnapshotCursor, table.rangeSnapshot(t.allocator, later, range, retained.next, .{}, access.guard()));
+        var deleted_key: [4096]u8 = undefined;
+        const key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &.{.{ .value = .{ .atom = .{ .signed = 10 } } }}, false, &deleted_key);
+        _ = try table.apply(binding(&table, 3, .delete), &.{.{ .remove = key }}, .point, access.guard());
+        _ = try table.changeDefinition(binding(&table, 4, .alter), .{ .alter = .{ .change = .{ .add = .{ .name = "extra", .type = .int64, .nullable = false, .default = .{ .value = .{ .atom = .{ .signed = 42 } } } } }, .properties = "" } }, access.guard());
+        const current = try pin(&table, 82, &access);
+        var page = try table.rangeSnapshot(t.allocator, current, range, null, .{}, access.guard());
+        defer page.deinit();
+        for (page.rows[0..page.count]) |row| {
+            try t.expect(row.?.row().cells[0].value.atom.signed != 10);
+            try t.expectEqual(@as(usize, 3), row.?.row().cells.len);
+        }
+        _ = try table.changeDefinition(binding(&table, 5, .drop), .{ .drop = "" }, access.guard());
+    }
+    defer retained.deinit();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var after = retained.next;
+    var count: usize = retained.count;
+    while (after != null) {
+        var page = try table.rangeSnapshot(t.allocator, handle, range, after, .{ .rows = 2 }, access.guard());
+        defer page.deinit();
+        try t.expectEqualDeep(retained.accepted, page.accepted);
+        for (page.rows[0..page.count]) |row| {
+            try t.expectEqual(@as(i128, @intCast(5 + count)), row.?.row().cells[0].value.atom.signed);
+            try t.expectEqual(@as(usize, 2), row.?.row().cells.len);
+            try t.expectEqualStrings("original", row.?.row().cells[1].value.atom.bytes);
+            count += 1;
+        }
+        after = page.next;
+    }
+    try t.expectEqual(@as(usize, 16), count);
+    const empty: P.KeyRange = .{ .lower = range.upper, .upper = range.lower };
+    access.deny_at = access.calls + 3;
+    try t.expectError(error.PermissionDenied, table.rangeSnapshot(t.allocator, handle, empty, null, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    var zero = try table.rangeSnapshot(t.allocator, handle, empty, null, .{}, access.guard());
+    defer zero.deinit();
+    try t.expectEqual(@as(u8, 0), zero.count);
+    try t.expect(zero.next == null);
+    try table.releaseSnapshot(handle, access.guard());
+    try t.expectError(error.TableSnapshotReleased, table.rangeSnapshot(t.allocator, handle, range, null, .{}, access.guard()));
+}
+
 test "pinned Table pages retain mixed WAL and segment rows across schema rewrite DROP and disk reopen" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -327,4 +419,71 @@ test "current Table reads recheck disclosure for buffered rows absence and empty
     _ = try table.changeDefinition(binding(&table, 3, .drop), .{ .drop = "" }, access.guard());
     try t.expectError(error.TableRetired, table.readCurrent(t.allocator, expected, key, access.guard()));
     try t.expectError(error.TableRetired, table.scanCurrent(t.allocator, expected, null, .{}, access.guard()));
+}
+
+test "retained Table key ranges follow binary ASCII CI and CP037 composite order" {
+    const cases = [_]struct { collation: f.TableSchema.Collation, order: [5]usize }{
+        .{ .collation = .utf8_binary, .order = .{ 3, 2, 0, 4, 1 } },
+        .{ .collation = .ascii_ci, .order = .{ 3, 4, 2, 1, 0 } },
+        .{ .collation = .ebcdic_cp037, .order = .{ 4, 1, 2, 0, 3 } },
+    };
+    const names = [_][]const u8{ "Z", "a", "A", "0", "a" };
+    const numbers = [_]i128{ 0, 2, -1, 0, -2 };
+    for (cases) |case| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var schema_columns = [_]f.TableSchema.Column{
+            .{ .id = 1, .name = "name", .type = .utf8, .nullable = false, .collation = case.collation },
+            .{ .id = 2, .name = "number", .type = .int64, .nullable = false },
+        };
+        var declaration = definition;
+        declaration.schema.columns = &schema_columns;
+        declaration.schema.primary_key = &.{ 1, 2 };
+        var access: Access = .{};
+        var handle: P.SnapshotHandle = undefined;
+        var cells: [5][2]f.Types.Values.Cell = undefined;
+        var changes: [5]P.Change = undefined;
+        for (&cells, &changes, names, numbers, 0..) |*values, *change, name, number, i| {
+            values.* = .{ .{ .value = .{ .atom = .{ .bytes = name } } }, .{ .value = .{ .atom = .{ .signed = number } } } };
+            change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = values }, .expect = .absent } };
+        }
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var table = try P.init(t.allocator, 17, declaration, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+            defer table.deinit();
+            try table.recover();
+            _ = try table.apply(binding(&table, 1, .create), &changes, .point, access.guard());
+            _ = try table.flush(access.guard());
+            handle = try pin(&table, 80, &access);
+        }
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, declaration, wal.log(), objects.objectStore(), .{ .resident_pages = 0, .segment_cache_bytes = 0 });
+        defer table.deinit();
+        try table.recover();
+        var page = try table.rangeSnapshot(t.allocator, handle, .{}, null, .{}, access.guard());
+        defer page.deinit();
+        try t.expectEqual(@as(u8, 5), page.count);
+        try t.expect(page.next == null);
+        for (page.rows[0..page.count], case.order) |row, expected| {
+            try t.expectEqualStrings(names[expected], row.?.row().cells[0].value.atom.bytes);
+            try t.expectEqual(numbers[expected], row.?.row().cells[1].value.atom.signed);
+        }
+        var lower: [4096]u8 = undefined;
+        var upper: [4096]u8 = undefined;
+        const interval: P.KeyRange = .{
+            .lower = .{ .key = try f.Collation.encodePrimaryKeySortKey(declaration.schema, &cells[case.order[1]], false, &lower) },
+            .upper = .{ .key = try f.Collation.encodePrimaryKeySortKey(declaration.schema, &cells[case.order[3]], false, &upper), .inclusive = false },
+        };
+        var selected = try table.rangeSnapshot(t.allocator, handle, interval, null, .{}, access.guard());
+        defer selected.deinit();
+        try t.expectEqual(@as(u8, 2), selected.count);
+        try t.expect(selected.next == null);
+        for (selected.rows[0..selected.count], case.order[1..3]) |row, expected| try t.expectEqual(@as(u32, @intCast(expected)), row.?.row().identity.ordinal);
+    }
 }

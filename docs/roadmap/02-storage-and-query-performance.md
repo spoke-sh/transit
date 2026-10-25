@@ -148,6 +148,16 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   segments directly. Cold partition loads and trim still enumerate directories;
   this is a bounded local traversal improvement, not a persistent segment index.
 
+- Full collation-aware primary keys now have a paged immutable directory in each
+  accepted Table root. Retained intervals use source/interval-bound cursors and
+  bounded owned pages through the signed direct API and shared reader. Mutation,
+  schema rewrite, flush, DROP and current disclosure checks preserve that root's
+  meaning. This stored-root and wire cutover replaces the shared v1 definition
+  and regenerates native, host and browser resources together.
+- SQL inequality pushdown, encoded/pruned execution, cross-segment performance
+  controls, retained checkpoint/maintenance and native-owner obligations remain
+  open. A passing Table range test does not close #113–#118 or #123–#128.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.

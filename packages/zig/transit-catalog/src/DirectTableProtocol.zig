@@ -36,6 +36,44 @@ pub const Binary = struct {
     }
 };
 
+pub const KeyBound = struct { key: Binary, inclusive: bool };
+pub const KeyInterval = struct {
+    lower: ?KeyBound,
+    upper: ?KeyBound,
+    /// Decoded bound bytes belong to the supplied request/response arena.
+    pub fn native(self: KeyInterval, allocator: std.mem.Allocator) !P.KeyRange {
+        const result: P.KeyRange = .{
+            .lower = if (self.lower) |bound| .{ .key = try bound.key.decode(allocator, f.Collation.max_sort_key_bytes), .inclusive = bound.inclusive } else null,
+            .upper = if (self.upper) |bound| .{ .key = try bound.key.decode(allocator, f.Collation.max_sort_key_bytes), .inclusive = bound.inclusive } else null,
+        };
+        try result.validate();
+        return result;
+    }
+    pub fn encode(allocator: std.mem.Allocator, value: P.KeyRange) !KeyInterval {
+        try value.validate();
+        return .{
+            .lower = if (value.lower) |bound| .{ .key = try Binary.encode(allocator, bound.key), .inclusive = bound.inclusive } else null,
+            .upper = if (value.upper) |bound| .{ .key = try Binary.encode(allocator, bound.key), .inclusive = bound.inclusive } else null,
+        };
+    }
+};
+pub const KeyCursor = struct {
+    source: d.Content,
+    interval: [32]u8,
+    after: Binary,
+    pub fn native(self: KeyCursor, allocator: std.mem.Allocator) !P.KeyRange.Cursor {
+        try self.source.validate();
+        const bytes = try self.after.decode(allocator, f.Collation.max_sort_key_bytes);
+        defer allocator.free(bytes);
+        if (bytes.len == 0) return error.InvalidTableCursor;
+        return .{ .source = self.source, .interval = self.interval, .after = try P.KeyRange.Key.init(bytes) };
+    }
+    pub fn encode(allocator: std.mem.Allocator, value: P.KeyRange.Cursor) !KeyCursor {
+        try value.after.validate();
+        return .{ .source = value.source, .interval = value.interval, .after = try Binary.encode(allocator, value.after.slice()) };
+    }
+};
+
 pub const Connection = struct {
     scope: d.Scope,
     branch: u64,
@@ -278,6 +316,7 @@ pub const Action = union(enum) {
     history_scan: struct { source: Historical, after: ?P.SnapshotCursor, limits: P.ReadLimits },
     read_key: struct { snapshot: Snapshot, key: Binary },
     scan: struct { snapshot: Snapshot, after: ?P.SnapshotCursor, limits: P.ReadLimits },
+    key_range: struct { snapshot: Snapshot, interval: KeyInterval, after: ?KeyCursor, limits: P.ReadLimits },
     release: Snapshot,
 };
 pub const Request = struct {
@@ -497,6 +536,19 @@ pub const Request = struct {
                 if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
                 if (value.after) |cursor| if (!std.meta.eql(cursor.source, value.snapshot.handle.content)) return error.InvalidTableCursor;
             },
+            .key_range => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                try value.limits.validate();
+                if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
+                var arena = std.heap.ArenaAllocator.init(allocator);
+                defer arena.deinit();
+                const interval = try value.interval.native(arena.allocator());
+                if (value.after) |encoded| {
+                    const cursor = try encoded.native(arena.allocator());
+                    if (!std.meta.eql(cursor.source, value.snapshot.handle.content) or !std.mem.eql(u8, &cursor.interval, &try interval.fingerprint()) or
+                        !interval.contains(cursor.after.slice())) return error.InvalidTableCursor;
+                }
+            },
         }
     }
     pub fn parse(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Request) {
@@ -575,6 +627,17 @@ pub const Page = struct {
     encoded_bytes: u32,
     next: ?P.SnapshotCursor,
 };
+pub const KeyRangePage = struct {
+    pub const json_schema_sequence_bounds = .{ .rows = 8 };
+    snapshot: Snapshot,
+    interpretation: c.storage.TableDeclaration.Stored,
+    accepted: d.Position,
+    changed_lsn: u64,
+    total_rows: u64,
+    rows: []const Binary,
+    encoded_bytes: u32,
+    next: ?KeyCursor,
+};
 /// A key lookup is complete for that key, not evidence of a full Table scan.
 pub const Point = struct {
     snapshot: Snapshot,
@@ -619,6 +682,7 @@ pub const Result = union(enum) {
     history_page: struct { point: P.HistoryPoint, page: Page },
     point: Point,
     page: Page,
+    key_range: KeyRangePage,
     released,
 };
 pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };

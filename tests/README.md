@@ -1,5 +1,45 @@
 # Validation and evidence
 
+## Retained ordered Table ranges — 2026-10-25
+
+On `0c3ca45e` plus the Table range integration and shared-definition cutover,
+these pinned-shell executions pass:
+
+- Storage package `zig build test -Dtest-filter='retained Table key ranges'
+  --summary all`: 3/3 tests, 37 seconds, reported MaxRSS 37 MiB. Real-disk tests
+  compare independently specified values/order across mixed WAL/segment rows,
+  flush, deletion, schema rewrite, DROP, one-page/no-page caches and restart.
+  Composite negative-integer/text keys follow separately authored UTF8_BINARY,
+  ASCII_CI and CP037 orders. Interval changes, foreign-source cursors, a first
+  row above its byte budget and current denial after buffering reject; empty
+  intervals also require current rights.
+- Catalog package `zig build test -Dtest-filter='retained reader binds'
+  --summary all`: 4/4 tests. Owned decoded pages preserve original schema and
+  source metadata; interval/order/cursor substitutions reject without changing
+  sequential coverage. Allocation-failure enumeration checks cleanup.
+- Catalog package `zig build test -Dtest-filter='retained key range'
+  --summary all`: 4/4 tests. Python/OpenSSL supplies independent signed request
+  bytes and the interval fingerprint; changed cursor source/bounds reject.
+- Root `zig build test-local-catalog --summary all`: 2/2 tests, four minutes.
+  The signed owner path includes matching/empty ranges, delegated and borrowed
+  reads, substituted borrowed sources and current permission revocation before
+  returning buffered rows or empty results.
+- Protocol package `zig build test --summary all`: 59/59 tests, including
+  rejection of the predecessor shared definition. `just contract::check`,
+  `just transit-board::check`, `just transit-docs::check` and the diagnostic
+  mappings/error-boundary/outcome tasks pass after coordinated regeneration.
+
+The storage root requires `ordered_rows`; the shared definition is
+`cd12a1e21afce782c2926a900dfe473fe96bcee962a98cb8670d06dfbed3aa89`.
+This rejects predecessor stored semantics rather than defaulting an empty index.
+The focused range run first encountered a fixture compile error (the test used
+an owned-row union as a struct); the signing test first expected cursor validation
+before request-context validation. Both fixture mistakes were corrected before
+the passing runs above. These are component/signed-owner results, not whole-suite,
+SQL inequality-pushdown, many-segment or host-loss qualification. The enlarged
+same-source I/O/recovery proof and final repository/clean checks are pending.
+
+
 ## Ordered full-key index component — 2026-10-25
 
 On `c4c5e753` plus the ordered-index changes, the pinned-shell command

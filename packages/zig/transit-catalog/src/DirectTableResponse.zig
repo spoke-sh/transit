@@ -146,6 +146,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .snapshot => .snapshot,
         .read_key => .point,
         .scan => .page,
+        .key_range => .key_range,
         .release => .released,
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
@@ -526,6 +527,23 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             const query = request.action.scan;
             try validatePage(allocator, request.connection, query.snapshot, query.snapshot.handle.content, query.after, query.limits, value);
         },
+        .key_range => |value| {
+            if (request.delegation) |grant| grant.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
+            const query = request.action.key_range;
+            try validateRowEnvelope(allocator, request.connection, query.snapshot, query.limits, value);
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const interval = try query.interval.native(arena.allocator());
+            if (value.next) |encoded| {
+                const next = try encoded.native(arena.allocator());
+                if (value.rows.len == 0 or !std.meta.eql(next.source, query.snapshot.handle.content) or
+                    !std.mem.eql(u8, &next.interval, &try interval.fingerprint()) or !interval.contains(next.after.slice())) return error.InvalidTableResponse;
+                if (query.after) |previous| {
+                    const after = try previous.native(arena.allocator());
+                    if (std.mem.order(u8, next.after.slice(), after.after.slice()) != .gt) return error.InvalidTableResponse;
+                }
+            }
+        },
         .history_page => |value| {
             const query = request.action.history_scan;
             if (!std.meta.eql(value.point, query.source.point) or !std.meta.eql(value.page.accepted, value.point.position)) return error.InvalidTableResponse;
@@ -578,15 +596,18 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
 }
 
 fn validatePage(allocator: std.mem.Allocator, connection: w.Connection, snapshot: w.Snapshot, cursor_source: d.Content, after: ?P.SnapshotCursor, limits: P.ReadLimits, value: w.Page) !void {
+    try validateRowEnvelope(allocator, connection, snapshot, limits, value);
+    if (value.next) |next| {
+        if (value.rows.len == 0 or !std.meta.eql(next.source, cursor_source)) return error.InvalidTableResponse;
+        if (after) |cursor| if (std.mem.order(u8, &next.after, &cursor.after) != .gt) return error.InvalidTableResponse;
+    }
+}
+fn validateRowEnvelope(allocator: std.mem.Allocator, connection: w.Connection, snapshot: w.Snapshot, limits: P.ReadLimits, value: anytype) !void {
     if (!std.meta.eql(value.snapshot, snapshot) or value.rows.len > limits.rows or
         value.encoded_bytes > limits.encoded_bytes or value.total_rows < value.rows.len) return error.InvalidTableResponse;
     try definition(connection, value.interpretation);
     if (!std.meta.eql(value.interpretation.interpretation.object, value.snapshot.object)) return error.InvalidTableResponse;
     try frontier(value.accepted, value.changed_lsn);
-    if (value.next) |next| {
-        if (value.rows.len == 0 or !std.meta.eql(next.source, cursor_source)) return error.InvalidTableResponse;
-        if (after) |cursor| if (std.mem.order(u8, &next.after, &cursor.after) != .gt) return error.InvalidTableResponse;
-    }
     var bytes: u64 = 0;
     for (value.rows) |row| {
         const decoded = try row.decode(allocator, c.fuze.TableRow.max_bytes);

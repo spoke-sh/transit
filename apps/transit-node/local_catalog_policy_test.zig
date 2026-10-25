@@ -79,6 +79,14 @@ fn dispatchWithSeed(service: *@import("LocalTableService.zig"), action: c.Direct
         altered.result.page.snapshot.handle.owner.operation += 1;
         try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
     }
+    if (response.value.result == .key_range) {
+        var altered = response.value;
+        altered.result.key_range.encoded_bytes += 1;
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
+        altered = response.value;
+        altered.result.key_range.snapshot.handle.owner.operation += 1;
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
+    }
     if (response.value.result == .point) {
         var altered = response.value;
         altered.result.point.snapshot.handle.owner.operation += 1;
@@ -155,6 +163,17 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     const absent = try dispatch(&service, .{ .read_key = .{ .snapshot = snapshot, .key = absent_key } });
     defer absent.deinit();
     try t.expect(absent.value.result.point.row == null);
+    const intervals = [_]w.KeyInterval{
+        .{ .lower = .{ .key = present_key, .inclusive = true }, .upper = .{ .key = present_key, .inclusive = true } },
+        .{ .lower = .{ .key = absent_key, .inclusive = true }, .upper = null },
+    };
+    for (intervals, 0..) |interval, i| {
+        const ranged = try dispatch(&service, .{ .key_range = .{ .snapshot = snapshot, .interval = interval, .after = null, .limits = .{} } });
+        defer ranged.deinit();
+        try t.expectEqual(@as(usize, if (i == 0) 1 else 0), ranged.value.result.key_range.rows.len);
+        try t.expect(ranged.value.result.key_range.next == null);
+        if (i == 0) try t.expectEqualStrings(scanned.value.result.page.rows[0].base64, ranged.value.result.key_range.rows[0].base64);
+    }
     // Read/modify/write uses the pinned source frontier. Acquiring that pin
     // advances control history but must not make its own data basis stale.
     work.binding.identity.operation = 203;
@@ -188,6 +207,12 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     for ([_]w.Binary{ present_key, absent_key }) |lookup_key| {
         service.before_reply = .{ .context = &revoke_id, .run = Revoke.run };
         try t.expectError(error.Forbidden, dispatch(&service, .{ .read_key = .{ .snapshot = snapshot, .key = lookup_key } }));
+        service.before_reply = null;
+        _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
+    }
+    for (intervals) |interval| {
+        service.before_reply = .{ .context = &revoke_id, .run = Revoke.run };
+        try t.expectError(error.Forbidden, dispatch(&service, .{ .key_range = .{ .snapshot = snapshot, .interval = interval, .after = null, .limits = .{} } }));
         service.before_reply = null;
         _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
     }
@@ -280,6 +305,11 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     defer point.deinit();
     try t.expectEqualStrings(read.value.result.page.rows[0].base64, point.value.result.point.row.?.base64);
     try t.expectEqualDeep(grant.proof.claim.context, point.value.subject.context);
+    const range_action: w.Action = .{ .key_range = .{ .snapshot = snapshot, .interval = .{ .lower = .{ .key = point_key, .inclusive = true }, .upper = null }, .after = null, .limits = .{} } };
+    const ranged = try dispatchDelegated(service, range_action, grant);
+    defer ranged.deinit();
+    try t.expectEqualStrings(read.value.result.page.rows[0].base64, ranged.value.result.key_range.rows[0].base64);
+    try t.expectEqualDeep(grant.proof.claim.context, ranged.value.subject.context);
     try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .describe, grant));
     try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .read_current = .{ .namespace = 1, .interpretation = source.interpretation.interpretation, .expected = source.accepted, .selection = .{ .key = point_key } } }, grant));
 
@@ -308,6 +338,12 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     const borrowed_rows = try dispatchBorrowed(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, grant, borrowed);
     defer borrowed_rows.deinit();
     try t.expectEqualStrings(read.value.result.page.rows[0].base64, borrowed_rows.value.result.page.rows[0].base64);
+    const borrowed_range = try dispatchBorrowed(service, range_action, grant, borrowed);
+    defer borrowed_range.deinit();
+    try t.expectEqualStrings(read.value.result.page.rows[0].base64, borrowed_range.value.result.key_range.rows[0].base64);
+    var other_range = range_action;
+    other_range.key_range.snapshot.handle.content.sha256[0] ^= 1;
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, other_range, grant, borrowed));
     try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, .{ .release = snapshot }, grant, borrowed));
     try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, acquisition, grant, borrowed));
 

@@ -296,6 +296,22 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(definition.schema.schema, scratch));
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
         },
+        .key_range => |value| {
+            var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
+            defer definition.deinit();
+            try requireSource(delegation, definition);
+            var bounds = std.heap.ArenaAllocator.init(allocator);
+            defer bounds.deinit();
+            const interval = try value.interval.native(bounds.allocator());
+            const after = if (value.after) |cursor| try cursor.native(bounds.allocator()) else null;
+            var page = try catalog.rangeRows(allocator, value.snapshot.object, value.snapshot.handle, interval, after, value.limits, policy);
+            defer page.deinit();
+            const rows = try allocator.alloc(w.Binary, page.count);
+            const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+            defer allocator.free(scratch);
+            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(definition.schema.schema, scratch));
+            return .{ .key_range = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = if (page.next) |cursor| try w.KeyCursor.encode(allocator, cursor) else null } };
+        },
         .release => |value| {
             if (delegation != null) {
                 const state = try catalog.pinState(value.object, value.handle.owner, policy);

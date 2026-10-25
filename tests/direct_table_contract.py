@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "7eb140320f47f8c8c3dd96ee6f74a43e6daaf68c4ec4c3639e8b0fbc900aca8f"
+definition = "cd12a1e21afce782c2926a900dfe473fe96bcee962a98cb8670d06dfbed3aa89"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -100,6 +100,25 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(current_claim)).digest()),
     }}
     current_fixture = {"request": current_request, "public_key": public_key}
+    lower_key, upper_key, after_key = b"a\0", b"z\xff", b"m\0"
+    interval_digest = hashlib.sha256(
+        b"transit.table.key-range.v1\0" + bytes.fromhex(definition)
+        + b"\x01" + struct.pack(">H", len(lower_key)) + lower_key
+        + b"\x02" + struct.pack(">H", len(upper_key)) + upper_key
+    ).digest()
+    range_input = {**request_input, "action": {"key_range": {
+        "snapshot": borrow_binding["target"]["snapshot"],
+        "interval": {"lower": {"key": {"base64": base64.b64encode(lower_key).decode()}, "inclusive": True},
+                     "upper": {"key": {"base64": base64.b64encode(upper_key).decode()}, "inclusive": False}},
+        "after": {"source": borrow_binding["target"]["snapshot"]["handle"]["content"],
+                  "interval": list(interval_digest), "after": {"base64": base64.b64encode(after_key).decode()}},
+        "limits": {"rows": 3, "encoded_bytes": 4096},
+    }}}
+    range_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(range_input)).digest())}
+    range_request = {**range_input, "proof": {"claim": range_claim,
+        "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(range_claim)).digest())}}
+    range_fixture = {"request": range_request, "public_key": public_key}
+
     dependent_definition = {"object": {"scope": {"realm": 42, "resource": 9, "catalog": 8}, "branch": 1, "object": 99}, "revision": 2**64 - 1, "digest": [4] * 32}
     source_definition = {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2}, "revision": 2**64 - 3, "digest": [3] * 32}
     edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1}
@@ -139,6 +158,7 @@ validator.validate(request)
 validator.validate(delegated_request)
 validator.validate(borrowed_request)
 validator.validate(current_request)
+validator.validate(range_request)
 validator.validate(dependency_request)
 validator.validate(resource_request)
 for field in ("definition", "connection", "operation", "object", "expected", "action"):
@@ -181,6 +201,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-key-range-v1.json",
+        (json.dumps(range_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-v1.json",
         (json.dumps(fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-delegation-v1.json",
