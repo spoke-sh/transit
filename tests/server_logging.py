@@ -124,8 +124,15 @@ def run(cli, node, host, board, gateway):
         assert all(TEXT.match(line) and '{' not in line for line in lines), lines
         assert any('server.ready ' in line for line in lines)
         assert any('server.stopped ' in line for line in lines)
-        assert not any('SQL is unavailable' in line for line in lines), lines
+        # A deferred first health check is starting, not an unexplained outage.
+        # An actual native failure during startup still needs a truthful error,
+        # followed by confirmed recovery before connection instructions appear.
+        unavailable = [line for line in lines if 'sql.status ' in line and 'operation="unavailable"' in line]
+        assert all('outcome=failed' in line and re.search(r' error_type="[^"]+"', line)
+                   for line in unavailable), unavailable
         states = [line.split('sql.status ', 1)[1] for line in lines if 'sql.status ' in line]
+        assert states and 'operation="accepting"' in states[-1], states
+        assert json.loads((fixture.installation / 'sql/status.json').read_text())['service']['error_type'] is None
         assert all(left != right for left, right in zip(states, states[1:])), states
         for launch in fixture.installation.glob('*.launch.json'):
             environment = {v['name']: v['value'] for v in json.loads(launch.read_text())['environment']}
