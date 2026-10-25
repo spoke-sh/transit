@@ -26486,7 +26486,7 @@ and final declaration bytes remain unchanged across replacement.
 
 The node retains eight native resident pages and sixteen direct catalog pages;
 139 initialized objects exceed the direct cache's eight-entry leaf capacity.
-Setup has a 3,600-second aggregate budget; each complete readback has 900 seconds,
+That passing run used a 3,600-second aggregate setup budget; each complete readback had 900 seconds,
 with the original per-request bounds unchanged. This is local process-recovery
 and bounded-cache evidence, not a host-loss, distributed-writer or latency result.
 Reference Follow and committed-HEAD clean-checkout qualification remain open.
@@ -26631,3 +26631,39 @@ pass at `46d42df84`. This collection spans revisions and does not establish
 ordinary-suite completion. Final qualification runs the entire ordinary inventory
 sequentially from one committed clean checkout; CPU headroom alone did not
 establish independent disk latency for the earlier parallel schedules.
+
+## Clean lifecycle growth budget failure — 2026-10-25
+
+The complete sequential `just ci-clean` attempt at
+`1d534f9523dfc574f8dfb514a61b8d9f2dff61f4` passes all 28 core tasks and the
+first 19 growth tasks. The direct Table service passes 1,418 typed calls,
+actual `.tseg` publication and every original recovery-phase deadline in
+329.66 seconds. The catalog task then fails after 3,861.84 seconds: its named
+resource initialization subprocess exceeds the 3,600-second aggregate budget.
+The ordinary suite is incomplete; its later tasks do not run. Reports remain
+in `/var/tmp/transit-ci-fjvml5gc/src/.cache/ci/`, with the retained command log
+at `/var/tmp/transit-lifecycle-clean-ci-3.log`.
+
+The last periodic completion marker verifies 129 initialized resources. A later
+inspection observes the saved declaration for resource 134 and advancing native
+receipts; it does not establish that declaration's completion or any later
+resource. Full directory/value readback and SIGKILL/restart do not run. No
+individual request timeout or failed value assertion is reported before the
+aggregate timeout. This failed run does not replace the earlier complete
+139-resource pass or qualify this source revision's full schedule.
+
+A live process observation at resource 113 records about 31 minutes of node CPU
+time and roughly 335 GB in `/proc/<pid>/io`'s `rchar`, while `read_bytes` is about
+1 MB. `rchar` includes reads served from cache; it is not physical disk traffic.
+This single observation identifies substantial repeated cached-read work, not a
+controlled throughput benchmark or a complete bottleneck diagnosis. The growing
+metadata cost remains part of the open performance qualification.
+
+The fixture now gives provisioning and per-resource typed readback a 5,400-second
+aggregate setup budget. Both complete before/after-replacement readbacks keep
+their 900-second budgets. Each caller request retains its 30-second cap; the
+eight native resident pages, sixteen direct pages, 139 initialized resources,
+original receipts, saved bytes and every value assertion are unchanged. No
+runtime or cache change is made. Extending this correctness observation budget
+does not establish a pass or meet the failed one-hour setup window. Fresh
+committed-source ordinary qualification remains required.
