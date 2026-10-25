@@ -26523,3 +26523,42 @@ cache bounds and all recovery/authorization assertions remain unchanged. The
 does not qualify that latency window or close broader performance obligations.
 The earlier failed schedules remain recorded above. Latest combined repository
 and committed-HEAD clean-checkout qualification remain open.
+
+## Clean-checkout packaging and maintenance repairs — 2026-10-25
+
+The full working-tree `just check` passes after the direct-owner and Follow
+changes, including contracts, diagnostics, Zig units, frontend checks and the
+handbook build. A second full check also passes during packaging repair. These
+checks do not replace the ordinary clean-checkout suite.
+
+The clean run at `6aad68b1a` passed its first 14 core tasks, then failed
+`bindings::runtime-boundary`: the Nix frontend-store hash still described the
+workspace before the handbook moved out of `apps/`. Updating that fixed-output
+hash exposed an obsolete `transit serve --help` install check. The current CLI
+provides `server` and `console`; the obsolete assertion is removed, with both
+supported command checks retained. No dependency version, lockfile or CLI alias
+changes. An intervening packaging attempt was interrupted and is not a pass.
+
+After the repair in `1db162d60`, `bindings::runtime-boundary` passes against the
+actual Nix runtime and SQL gateway packages, checking their SDK-free source
+boundary and installed executables. `just doctor` and the `transit-local` Nix
+bundle build also pass. The bundle build does not establish server startup. The
+subsequent clean core run at `81691d09d` passes this boundary again.
+
+That core run later stops at `test::service`. Maintenance emitted three bounded
+`MaintenanceTimeout` events, but the fixture searched for JSON fields while
+standalone services used their text default. `c9935bc2c` explicitly selects JSON
+and info logging for the fixture's children. Its original two-timeout assertion,
+two-second operation deadline and eight-second observation window are unchanged.
+The complete `test::service` then passes signed ingress, current/revoked reads,
+fencing, expiry, checkpoint/trim, stalled storage, synthetic I/O, payload deletion
+and disk recovery. The maintenance fixture separately passes with the parent
+environment set to `LOG_FORMAT=text LOG_LEVEL=off`, demonstrating that its own
+logging selection is effective. Applying that suppression to the entire service
+suite first failed an unrelated log assertion before maintenance ran; that attempt
+is not qualification of the fix.
+
+The failed clean runs retain their incomplete reports and checkouts. Neither is
+a completed core lane. The other isolated lanes continue qualifying the recorded
+revision; complete ordinary qualification still requires all six lane reports at
+one committed revision.
