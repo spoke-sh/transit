@@ -48,7 +48,10 @@ def validate(manifest, rows):
             assert actual == manifest['fallbacks'][name], ('unknown-cause semantics changed', name, actual)
             assert all(action['target'] == row['identity'] for action in actions), row
             if row['scenario'] != 'read':
-                assert row['identity']['domain'] == 'transport' and row['identity']['sequence'] == '12', row
+                if row['owner'] == 'catalog':
+                    assert row['identity'] == dict(domain='catalog', id='12', realm='46', resource='7', sequence=None), row
+                else:
+                    assert row['identity']['domain'] == 'transport' and row['identity']['sequence'] == '12', row
     assert seen == set(manifest['boundaries']), ('missing inferred boundary', seen)
     assert fallbacks == set(manifest['fallbacks']), ('missing unknown projection', fallbacks)
 

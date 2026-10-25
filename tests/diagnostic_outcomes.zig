@@ -216,12 +216,11 @@ fn queryCallers(out: *std.Io.Writer) !void {
 }
 
 fn writeCallers(out: *std.Io.Writer) !void {
-    var catalog_session: c.TableBridge.Session = .{ .allocator = std.heap.page_allocator };
-    defer catalog_session.deinit();
-    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
-    for (c.TableAttempt.codes.entries) |entry| {
-        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "read", try c.TableAttempt.attempt(&catalog_session, connection, .{ .lookup = "items" }, entry.cause, .{}, false, null, null));
-        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "dispatched", try c.TableAttempt.attempt(&catalog_session, connection, .{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }, null));
+    const read: c.DirectTableBridge.Action = .{ .lookup = .{ .namespace = 1, .name = "items" } };
+    const attempted: c.DirectTableClient.Attempt = .{ .mutation = .{ .action = .admit_saved, .identity = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .principal = 17, .operation = 12 } } };
+    for (@import("diagnostic_cases").catalog_caller) |cause| {
+        try emitScenario(out, "catalog.caller", @errorName(cause), "read", try c.DirectTableDiagnostic.failure(read, cause, .{}, .{}, null));
+        try emitScenario(out, "catalog.caller", @errorName(cause), "dispatched", try c.DirectTableDiagnostic.failure(read, cause, .{}, attempted, null));
     }
 }
 

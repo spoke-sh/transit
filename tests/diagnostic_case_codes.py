@@ -9,7 +9,7 @@ import sys
 def main():
     manifest = json.loads(Path(sys.argv[1]).read_text())
     output = ''
-    for identity, name in [('query-caller', 'query_caller'), ('board-inspection', 'board_inspection')]:
+    for identity, name in [('query-caller', 'query_caller'), ('direct-catalog-caller', 'catalog_caller'), ('board-inspection', 'board_inspection')]:
         boundary, = [value for value in manifest['boundaries'] if value['id'] == identity]
         causes = sorted(boundary['codes'])
         assert causes and all(re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', cause) for cause in causes)
