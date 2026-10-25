@@ -363,11 +363,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                     snapshots[i] = snapshots[j];
                     continue;
                 }
-                const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
-                defer response.deinit();
-                const metadata = response.value.result.lookup orelse return error.TableDefinitionChanged;
-                try binding.check(self.table.connection, metadata);
-                read.pins[i] = try self.runtime.read_pins.?.acquire(self.table, binding, metadata.position);
+                read.pins[i] = try self.runtime.read_pins.?.acquireCurrent(self.table, binding);
                 snapshots[i] = try read.pins[i].?.snapshot();
             }
             if (statement.plan == .relational) {
@@ -403,6 +399,10 @@ pub fn closeRead(self: *Self, read: *Read) void {
     self.allocator.destroy(read);
 }
 fn releasePins(self: *Self, read: *Read) void {
+    // Cleanup has independent network observations. Preserve the failed read's
+    // diagnostic even when acquiring/opening it never produced a cursor.
+    const rejection = self.wire.last_rejection;
+    defer self.wire.last_rejection = rejection;
     for (&read.pins) |*slot| if (slot.*) |record| {
         var client = self.table;
         client.connection = record.table.connection;

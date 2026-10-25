@@ -145,6 +145,18 @@ random acquisition identity and expected partition frontier. It durably records
 the returned handle before exposing the read. Closing records intent to release
 before remote I/O; uncertain release retains the file.
 
+Current SELECT acquisition observes the exact prepared definition and its
+frontier inside the account's pin acquisition/closure lane. Concurrent sessions
+on that account cannot invalidate the observation by creating or releasing their
+own pins. External writes or other accounts can still cause an exact-frontier
+conflict. A failed acquisition retains its original recovery identity and never
+silently changes the selected frontier.
+
+Concurrent reads can receive SQLSTATE `53000` when the native request slots are
+full. Pin cleanup preserves that read error. A caller can explicitly submit a new
+SELECT after failure before any batch; that request selects its own snapshot.
+It does not resume the failed cursor or complete an earlier returned prefix.
+
 After checking its native generation, the worker visits at most eight directory
 entries and reconciles at most one eligible record per pass. Current-generation
 active reads remain protected. Closing records and records from earlier

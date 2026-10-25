@@ -3,7 +3,7 @@
 //! across a suspended portal or another command.
 const g = @import("root.zig");
 const Self = @This();
-pub const max_rows = g.query.TableQuery.Batch.max_rows;
+pub const max_rows = g.query.DirectTableQuery.Batch.max_rows;
 rows: [max_rows]?[]const g.fuze.Types.Values.Cell = @splat(null),
 len: u8 = 0,
 complete: bool = false,

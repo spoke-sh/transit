@@ -100,6 +100,23 @@ fn remove(self: *Self, record: Record) !void {
 pub fn acquire(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding, expected: p.DataLifecycle.Position) !Record {
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
+    return self.acquireLocked(client, table, expected);
+}
+/// Select the frontier inside this account's acquisition/closure lane. Other
+/// reads on the same account cannot invalidate that observation by adding or
+/// releasing a pin before its request is saved. The data owner still enforces
+/// the exact frontier against concurrent external changes; no pin is retried
+/// with a substituted frontier or identity.
+pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding) !Record {
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    const response = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
+    defer response.deinit();
+    const metadata = response.value.result.lookup orelse return error.TableDefinitionChanged;
+    try table.check(client.connection, metadata);
+    return self.acquireLocked(client, table, metadata.position);
+}
+fn acquireLocked(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding, expected: p.DataLifecycle.Position) !Record {
     if (!std.meta.eql(client.connection, table.connection)) return error.CatalogIdentityConflict;
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
