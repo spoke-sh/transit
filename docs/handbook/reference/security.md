@@ -82,6 +82,14 @@ objects. CONNECT and USAGE precede each Table privilege check; role ownership
 governs ALTER and DROP. Metadata visibility follows the current object's grants
 or ownership. Names and backing-resource associations do not inherit privileges.
 
+SQL authorization plans resolve database, schema and Table names through the
+direct catalog and publish through native authorization against the observed
+policy revision. Default Table grants apply when a new Table permission object
+is registered. Adding or removing a default does not change existing Table
+grants. Catalog listings filter inaccessible objects; an exact lookup of a live
+Table without metadata privileges returns AccessDenied. SELECT permits retained
+reads without granting mutation, definition changes or raw native resource access.
+
 Direct namespace CREATE requires database ownership and eligibility for its
 declared owner role; RENAME and DROP require ownership of the original native
 schema. Admission and native registration are separate from catalog publication.

@@ -73,6 +73,16 @@ process creation; the corrected audit retains the original restriction on native
 data commands and separately requires exactly that one setup spawn. These runs
 do not rerun all language SDKs or the older authorization suite.
 
+The expanded authorization schedule also passes SQL-issued CONNECT/USAGE and
+future-only default Table grants through the current direct catalog resolver and
+native publication owner. A SELECT-only reader sees only the later Table in
+paged listings, cannot discover the earlier Table or prepare DELETE/DROP, and
+retains its original cut through explicit SELECT revocation/restoration. Removing
+the default affects a subsequent registration without removing the existing
+grant. Root creates the login credential; the database owner publishes every SQL
+policy change against its original observed revision. This replaces the older
+mediated fixture's default-grant and filtered-metadata coverage.
+
 ## Direct prepared Table lifetime — 2026-10-24
 
 `nix develop --command just test::direct-table-service prepared` passes against

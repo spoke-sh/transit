@@ -206,7 +206,7 @@ def run(node, caller, mode="tables", *artifacts):
             if mode == "authorization":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=60)
                 subprocess.run([caller, endpoint, "authorization-lifetime", str(profile)], check=True, timeout=180)
-                print("Direct Table authorization: explicit set-only role, no native resource/process access, retained pin denial after role revocation and exact-cut recovery after restoration passed.", flush=True)
+                print("Direct Table authorization: explicit set-only role, no native resource/process access, SQL-issued future-only defaults, filtered metadata, SELECT-only write/DDL denial and retained-cut recovery after revocation/restoration passed.", flush=True)
                 return
             if mode == "prepared":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
