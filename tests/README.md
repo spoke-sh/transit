@@ -6000,23 +6000,47 @@ does not isolate history overhead or establish a latency SLO.
 
 ## Relational physical capacity
 
-`just test::relational-capacity` passes on a newly allocated **2 GiB ext4 image**
-with native disk Ursula and owned MinIO. Real 32 MiB allocations fail with
-`ENOSPC` after leaving 4 MiB available. Both an active captured checkpoint and
-accepted exchange work refuse advancement without changing their recorded heads.
-Releasing only a **512 MiB preallocated reserve**, retaining the filler, and
-restarting the same node/store permits exact recovery and bounded advancement.
-Both complete results agree with the independent oracle afterward.
+`nix develop --command just test::relational-capacity` passes against the direct
+Table owner and native local storage on a private **2 GiB ext4 image**. A grouped
+LEFT JOIN retains a partial captured checkpoint; a separate exchange retains
+accepted producer/receiver state. Filling the filesystem to block exhaustion
+causes real `ENOSPC`, and both attempts return `AuthorityUnavailable` without
+changing the canonical digest of any retained computation entry. Health remains
+observable. Only a **512 MiB recovery reserve** is released before restarting the
+same authority; the filler remains allocated through complete result validation.
 
-The full schedule takes **487.562 seconds**, including both partition layouts,
+The captured result verifies grouped COUNT/SUM and NULL for an unmatched row.
+Its replacement records fresh ownership. The exchange executor is killed after
+its atomic checkpoint, then restores the same bundle, source vector and borrowed
+proofs. Recorded worker handoff, one/seven-partition successors and original
+lease cleanup complete without replacing that checkpoint. Storage refusals take
+0.141/0.238 seconds; health reads take 0.001 seconds each. Restart through complete
+result and cleanup takes 113.849/501.622 seconds for capture/exchange. These are
+shared-host observations, not latency guarantees or power-loss qualification.
+
+Two earlier attempts failed in the fixture's disk-filling setup before exercising
+Transit under pressure. The corrected driver reserves extent-metadata space for
+the initial allocation, consumes the tail in bounded steps and uses read/write
+file descriptors. Private executable copies use the pinned interpreter inside
+the owned container. This schedule does not qualify a remote storage provider.
+
+The historical **2026-10-12** schedule used the previous Table owner, native disk
+Ursula and owned MinIO on a **2 GiB ext4 image**. Real 32 MiB allocations failed with
+`ENOSPC` after leaving 4 MiB available. Both an active captured checkpoint and
+accepted exchange work refused advancement without changing their recorded heads.
+Releasing only a **512 MiB preallocated reserve**, retaining the filler, and
+restarting the same node/store permitted exact recovery and bounded advancement.
+Both complete results agreed with the independent oracle afterward.
+
+That schedule took **487.562 seconds**, including both partition layouts,
 handoff faults and source lifetime expiry. Captured/exchange refusal takes
 24/49 ms; health reads take 14/8 ms; reserve-release/restart/first-advance takes
 0.634/1.175 seconds. Those are finite shared-host observations during other
 qualification, not latency or sustained-throughput claims. The [record and
 retained failed fixture attempt](verification/results/relational-capacity-2026-10-12.json)
 include binary and raw-log hashes. The physical task remains an explicit Linux/
-Docker reference task, separate from the 79 ordinary clean tasks. It tests
-process replacement, not power-loss durability.
+Docker reference task, separate from ordinary clean tasks. The historical result
+does not qualify the current direct owner or expand its provider support.
 
 ## Relational exchange faults and checkpoint growth
 

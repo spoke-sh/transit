@@ -515,14 +515,28 @@ pub fn main(init: std.process.Init) !void {
             fresh.key = try key(if (profile.captured != null) 59 else 29);
             const boundaries = @import("direct_unified_boundaries.zig");
             try boundaries.run(init, fresh, &admin, profile.role, std.meta.stringToEnum(boundaries.Case, args[2]["unified-boundary-".len..]) orelse return error.UnknownProofPhase);
+        } else if (std.mem.startsWith(u8, args[2], "capacity-captured-")) {
+            const capacity = @import("direct_relational_capacity.zig");
+            const path = std.fs.path.dirname(args[3]) orelse ".";
+            const command = args[2]["capacity-captured-".len..];
+            if (std.mem.eql(u8, command, "status")) {
+                var encoder: std.json.Stringify = .{ .writer = &output.interface };
+                try p.Json.write(try capacity.status(init, client, path), &encoder);
+                return output.interface.flush();
+            }
+            try capacity.run(init, client, &admin, profile.role, path, std.meta.stringToEnum(capacity.Mode, command) orelse return error.UnknownProofPhase);
+        } else if (std.mem.eql(u8, args[2], "capacity-exchange-status")) {
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(try @import("direct_relational_exchanges.zig").status(init, client, std.fs.path.dirname(args[3]) orelse "."), &encoder);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "capture-exchange-workers")) {
             var fresh = client;
             fresh.key = try key(if (profile.captured != null) 59 else 29);
             try @import("direct_exchange_workers.zig").run(init, fresh, &admin, profile.role);
-        } else if (std.mem.eql(u8, args[2], "capture-exchanges") or std.mem.eql(u8, args[2], "capture-exchanges-prepare") or std.mem.eql(u8, args[2], "capture-exchanges-resume")) {
+        } else if (std.mem.eql(u8, args[2], "capture-exchanges") or std.mem.eql(u8, args[2], "capture-exchanges-prepare") or std.mem.eql(u8, args[2], "capture-exchanges-resume") or std.mem.eql(u8, args[2], "capture-exchanges-pressure")) {
             var fresh = client;
             fresh.key = try key(if (profile.captured != null) 59 else 29);
-            const mode: @import("direct_relational_exchanges.zig").Mode = if (std.mem.endsWith(u8, args[2], "-prepare")) .prepare else if (std.mem.endsWith(u8, args[2], "-resume")) .recover else .all;
+            const mode: @import("direct_relational_exchanges.zig").Mode = if (std.mem.endsWith(u8, args[2], "-prepare")) .prepare else if (std.mem.endsWith(u8, args[2], "-resume")) .recover else if (std.mem.endsWith(u8, args[2], "-pressure")) .pressure else .all;
             try @import("direct_relational_exchanges.zig").run(init, fresh, &admin, profile.role, std.fs.path.dirname(args[3]) orelse ".", mode);
         } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
             var fresh = client;
