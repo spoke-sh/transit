@@ -1,5 +1,17 @@
 # Validation and evidence
 
+## Direct catalog diagnostic boundaries — 2026-10-24
+
+`just test::diagnostic-errors` and `just test::diagnostic-outcomes` pass after
+moving catalog caller projections to the direct host boundary. The checks cover
+16 compiler-inferred boundaries, nine unknown-cause projections and 3,479
+projections across 29 declared outcome surfaces, with semantic drift mutations
+rejected. Direct caller cases include the reviewed shared and direct-only causes.
+An attempted mutation retains its original catalog operation identity and asks
+for status inspection; later transport, decoding or permission failures cannot
+establish rejection or suggest replaying an unrelated native send. These are
+projection checks; public recovery evidence is recorded separately.
+
 ## Direct exchange producers and backpressure — 2026-10-24
 
 `nix develop --command just test::direct-captured-query --exchange-workers-only`

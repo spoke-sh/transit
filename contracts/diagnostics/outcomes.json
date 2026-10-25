@@ -9745,14 +9745,13 @@
       }
     },
     "catalog.caller": {
-      "source": "packages/zig/transit-catalog/src/CallerCodes.zig",
-      "registry_kind": "error",
-      "projection": "packages/zig/transit-catalog/src/TableAttempt.zig",
-      "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
-      "context": "Exact saved general Table intent and connection; name lookup has no selected operation identity",
+      "source": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",
+      "projection": "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig",
+      "profile": "Direct catalog preparation, current authorized reads and original operation recovery",
+      "context": "Exact direct operation binding; read-only name lookup has no selected mutation identity",
       "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
-      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
-      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
+      "durable_evidence": "The original operation identity is retained after dispatch. Only a validated owner outcome settles acceptance; transport failures and later policy denial cannot establish rejection.",
+      "recovery": "Inspect the original operation under current rights after uncertain dispatch. No fresh work, native-send replay or invented cancellation.",
       "defaults": {
         "identity": null,
         "outcome": "not_applicable",
@@ -9770,25 +9769,416 @@
           "stage": "read"
         },
         "dispatched": {
-          "code": "catalog.send_unknown",
+          "code": "catalog.direct_outcome_unknown",
           "category": "unavailable",
           "stage": "submit",
           "outcome": "unknown",
           "evidence": "saved_intent",
           "identity": {
-            "domain": "transport",
+            "domain": "catalog",
             "id": "12",
-            "realm": null,
-            "resource": null,
-            "sequence": "12"
+            "realm": "46",
+            "resource": "7",
+            "sequence": null
           },
           "actions": [
-            "inspect_status",
-            "resume_exact"
+            "inspect_status"
           ]
         }
       },
       "cases": {
+        "InvalidTableResponse": {
+          "code": "catalog.invalid_direct_response",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidCatalogCursor": {
+          "code": "catalog.invalid_cursor",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogObservationChanged": {
+          "code": "catalog.observation_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidNamedResource": {
+          "code": "catalog.invalid_resource",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidNamedResourceOperation": {
+          "code": "catalog.invalid_resource_operation",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidCatalogAssertion": {
+          "code": "catalog.invalid_name_assertion",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableDefinitionChanged": {
+          "code": "catalog.definition_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidTableBasis": {
+          "code": "catalog.invalid_table_basis",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableSnapshotReleased": {
+          "code": "catalog.snapshot_released",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "DataIdentityConflict": {
+          "code": "catalog.data_identity_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "UnsupportedDirectSchemaAdministration": {
+          "code": "catalog.unsupported_schema_administration",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogDirectoryChanged": {
+          "code": "catalog.directory_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidCatalogStepBudget": {
+          "code": "catalog.invalid_step_budget",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidDataIdentity": {
+          "code": "catalog.invalid_data_identity",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidDataOperation": {
+          "code": "catalog.invalid_data_operation",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidDirectCatalogOperation": {
+          "code": "catalog.invalid_catalog_operation",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidTableDelegation": {
+          "code": "catalog.invalid_read_delegation",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidTableSchema": {
+          "code": "catalog.invalid_schema",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "QueryPageBudget": {
+          "code": "catalog.metadata_page_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "StaleAuthorizationCredential": {
+          "code": "catalog.credential_changed",
+          "category": "access",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "TableBatchTooLarge": {
+          "code": "catalog.batch_limit",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TablePayloadTooLarge": {
+          "code": "catalog.payload_limit",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidTableServiceResponse": {
+          "code": "catalog.invalid_service_response",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "UnsupportedTableServiceAction": {
+          "code": "catalog.unsupported_service_action",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidHttpBudget": {
+          "code": "catalog.invalid_http_budget",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "HttpRequestBudget": {
+          "code": "catalog.http_request_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidCatalogObject": {
+          "code": "catalog.invalid_record",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "StaleAuthorizationRevision": {
+          "code": "catalog.authorization_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationPlan": {
+          "code": "catalog.invalid_authorization_plan",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogDatabaseMismatch": {
+          "code": "catalog.database_mismatch",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "SchemaIdentityRequired": {
+          "code": "catalog.schema_identity_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogSchemaMissing": {
+          "code": "catalog.schema_missing",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogSchemaNameExists": {
+          "code": "catalog.schema_name_exists",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidSchemaCommand": {
+          "code": "catalog.invalid_schema_command",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidSchemaOutcome": {
+          "code": "catalog.invalid_schema_outcome",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "AuthorizationBudgetExceeded": {
+          "code": "catalog.authorization_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogCapacity": {
+          "code": "catalog.capacity",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogRegistrationRequired": {
+          "code": "catalog.registration_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "CatalogSigningUnavailable": {
+          "code": "catalog.signing_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableIntentNotLoaded": {
+          "code": "table.intent_not_loaded",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidTableIntent": {
+          "code": "table.invalid_intent",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableNotFound": {
+          "code": "table.not_found",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableUploadClosed": {
+          "code": "table.upload_state",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableUploadNotFound": {
+          "code": "table.upload_state",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableUploadNotReady": {
+          "code": "table.upload_state",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidCatalogReceipt": {
+          "code": "table.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidTableHead": {
+          "code": "table.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidTableStatus": {
+          "code": "table.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "CatalogOperationNotFound": {
+          "code": "catalog.operation_not_found",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableWriteNotFound": {
+          "code": "table.operation_not_found",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MessageTooLarge": {
+          "code": "table.command_too_large",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedStatement": {
+          "code": "table.unsupported_statement",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidMutationColumns": {
+          "code": "table.invalid_columns",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidMutationPlan": {
+          "code": "table.invalid_plan",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "MutationBatchTooLarge": {
+          "code": "table.batch_too_large",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "PredicateTooLarge": {
+          "code": "table.predicate_too_large",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
         "AuthorityTransportDenied": {
           "code": "catalog.transport_denied",
           "category": "unavailable",
@@ -9801,7 +10191,15 @@
           "category": "access",
           "actions": [
             "inspect_scope"
-          ]
+          ],
+          "scenarios": {
+            "dispatched": {
+              "actions": [
+                "inspect_status",
+                "inspect_scope"
+              ]
+            }
+          }
         },
         "AccessDenied": {
           "code": "catalog.access_denied",
@@ -9811,10 +10209,6 @@
           ],
           "scenarios": {
             "dispatched": {
-              "code": "catalog.command_rejected",
-              "category": "access",
-              "outcome": "not_applicable",
-              "evidence": "none",
               "actions": [
                 "inspect_status",
                 "inspect_scope"
@@ -10030,38 +10424,14 @@
           "category": "conflict",
           "actions": [
             "inspect_scope"
-          ],
-          "scenarios": {
-            "dispatched": {
-              "code": "catalog.command_rejected",
-              "category": "conflict",
-              "outcome": "not_applicable",
-              "evidence": "none",
-              "actions": [
-                "inspect_status",
-                "inspect_scope"
-              ]
-            }
-          }
+          ]
         },
         "Rejected": {
           "code": "catalog.authority_rejected",
           "category": "conflict",
           "actions": [
             "inspect_scope"
-          ],
-          "scenarios": {
-            "dispatched": {
-              "code": "catalog.command_rejected",
-              "category": "conflict",
-              "outcome": "not_applicable",
-              "evidence": "none",
-              "actions": [
-                "inspect_status",
-                "inspect_scope"
-              ]
-            }
-          }
+          ]
         },
         "AuthorityTimeout": {
           "code": "catalog.transport_unavailable",
@@ -10174,246 +10544,9 @@
           "actions": [
             "contact_operator"
           ]
-        },
-        "TableIntentNotLoaded": {
-          "code": "table.intent_not_loaded",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "InvalidTableIntent": {
-          "code": "table.invalid_intent",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "TableNotFound": {
-          "code": "table.not_found",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "TableUploadClosed": {
-          "code": "table.upload_state",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "TableUploadNotFound": {
-          "code": "table.upload_state",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "TableUploadNotReady": {
-          "code": "table.upload_state",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "InvalidCatalogReceipt": {
-          "code": "table.invalid_evidence",
-          "category": "integrity",
-          "actions": [
-            "contact_operator"
-          ]
-        },
-        "InvalidTableHead": {
-          "code": "table.invalid_evidence",
-          "category": "integrity",
-          "actions": [
-            "contact_operator"
-          ]
-        },
-        "InvalidTableStatus": {
-          "code": "table.invalid_evidence",
-          "category": "integrity",
-          "actions": [
-            "contact_operator"
-          ]
-        },
-        "CatalogOperationNotFound": {
-          "code": "catalog.operation_not_found",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "TableWriteNotFound": {
-          "code": "table.operation_not_found",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "MessageTooLarge": {
-          "code": "table.command_too_large",
-          "category": "limit",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "UnsupportedStatement": {
-          "code": "table.unsupported_statement",
-          "category": "unsupported",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "InvalidMutationColumns": {
-          "code": "table.invalid_columns",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "InvalidMutationPlan": {
-          "code": "table.invalid_plan",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "MutationBatchTooLarge": {
-          "code": "table.batch_too_large",
-          "category": "limit",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "PredicateTooLarge": {
-          "code": "table.predicate_too_large",
-          "category": "limit",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "InvalidTableServiceResponse": {
-          "code": "catalog.invalid_service_response",
-          "category": "integrity",
-          "actions": [
-            "contact_operator"
-          ]
-        },
-        "UnsupportedTableServiceAction": {
-          "code": "catalog.unsupported_service_action",
-          "category": "unsupported",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "InvalidHttpBudget": {
-          "code": "catalog.invalid_http_budget",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "HttpRequestBudget": {
-          "code": "catalog.http_request_budget",
-          "category": "limit",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "InvalidCatalogObject": {
-          "code": "catalog.invalid_record",
-          "category": "integrity",
-          "actions": [
-            "contact_operator"
-          ]
-        },
-        "StaleAuthorizationRevision": {
-          "code": "catalog.authorization_changed",
-          "category": "conflict",
-          "actions": [
-            "inspect_scope"
-          ]
-        },
-        "InvalidAuthorizationPlan": {
-          "code": "catalog.invalid_authorization_plan",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "CatalogDatabaseMismatch": {
-          "code": "catalog.database_mismatch",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "SchemaIdentityRequired": {
-          "code": "catalog.schema_identity_required",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "CatalogSchemaMissing": {
-          "code": "catalog.schema_missing",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "CatalogSchemaNameExists": {
-          "code": "catalog.schema_name_exists",
-          "category": "conflict",
-          "actions": [
-            "inspect_scope"
-          ]
-        },
-        "InvalidSchemaCommand": {
-          "code": "catalog.invalid_schema_command",
-          "category": "binding",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "InvalidSchemaOutcome": {
-          "code": "catalog.invalid_schema_outcome",
-          "category": "integrity",
-          "actions": [
-            "contact_operator"
-          ]
-        },
-        "AuthorizationBudgetExceeded": {
-          "code": "catalog.authorization_budget",
-          "category": "limit",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "CatalogCapacity": {
-          "code": "catalog.capacity",
-          "category": "limit",
-          "actions": [
-            "correct_input"
-          ]
-        },
-        "CatalogRegistrationRequired": {
-          "code": "catalog.registration_pending",
-          "category": "lifecycle",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "CatalogSigningUnavailable": {
-          "code": "catalog.signing_unavailable",
-          "category": "unsupported",
-          "actions": [
-            "correct_input"
-          ]
         }
-      }
+      },
+      "mapping_boundary": "direct-catalog-caller"
     },
     "inspection.caller": {
       "mapping_boundary": "board-inspection",

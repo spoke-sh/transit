@@ -296,14 +296,13 @@
       ]
     },
     "catalog.dispatched": {
-      "code": "catalog.send_unknown",
+      "code": "catalog.direct_outcome_unknown",
       "category": "unavailable",
       "stage": "submit",
       "outcome": "unknown",
       "evidence": "saved_intent",
       "actions": [
-        "inspect_status",
-        "resume_exact"
+        "inspect_status"
       ]
     },
     "application.read": {
