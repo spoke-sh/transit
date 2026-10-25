@@ -1,9 +1,11 @@
 """Restricted watch callers against real serving workers and native authority.
 
-Invoked by authorization_tables after its catalog/data setup. All provisioning
-uses signed public operations; no stored records are synthesized or edited.
+The fixture provisions a direct Table, then exercises the same caller through
+HTTP snapshots, SSE and WebSocket. All provisioning uses public operations.
 """
 import copy
+import argparse
+import hashlib
 import json
 import os
 import struct
@@ -12,7 +14,7 @@ from pathlib import Path
 from urllib.request import Request
 
 from reactive import SSE, WebSocket
-from serving import post
+from serving import post, Key, compact, subject_proof
 from serving_table import watch
 from storage import free_port, wait_ready
 
@@ -44,6 +46,11 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
     for target in (database, schema):
         apply({'grant': dict(object=dict(kind='domain', id=target), grantee=selected, privileges=1, grant_options=0)})
     select = apply({'grant': dict(object=dict(kind='domain', id=declaration['authorization']), grantee=selected, privileges=1, grant_options=0)})
+    # The gateway's own direct-read grant supplies bytes. The separate original
+    # watch subject still needs its current selected-role grant for disclosure.
+    gateway_role = query({'identity': {}}, gateway_principal, gateway_key)['body']['identity']['login_role']
+    for target in (database, schema, declaration['authorization']):
+        apply({'grant': dict(object=dict(kind='domain', id=target), grantee=gateway_role, privileges=1, grant_options=0)})
     activation = system.root / 'watch-activation'
     activation.mkdir()
     worker_config = system.root / 'watch-worker.json'
@@ -63,7 +70,7 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
             time.sleep(.02)
 
     def cast(payload):
-        sequence = system.native_query({'identity': {}}, 101, owner_key)['principal_sequence']+1
+        sequence = system.native_query({'authorization': dict(role=None, kind={'identity': {}})}, 101, owner_key)['principal_sequence']+1
         frame = b'STN1\1'+bytes(8)+payload
         receipt = system.available_post('/v1/command', system.signed({'send': dict(pid=ingress, value=frame.hex())}, sequence, 101, owner_key))
         drain()
@@ -221,3 +228,100 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
                 exact_control_recovery=True, source_revocation=True, sse_revocation=True, websocket_revocation=True, selected_role=selected, membership_revocation=True,
                 snapshot_seconds=snapshot_seconds, gateway_resident_bytes=resident_bytes, gateway_restarts=2,
                 lease_renewals=lease_renewals)
+
+
+def main():
+    from inspection import System
+    from catalog_abi import Port
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('node', 'admin', 'host', 'serving'):
+        parser.add_argument(name, type=lambda value: Path(value).resolve(strict=True))
+    parser.add_argument('--report', type=Path, required=True)
+    args = parser.parse_args()
+    report = dict(completed=False, profile='direct-table/native-local', observations=None)
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(json.dumps(report, indent=2) + '\n')
+    with System(args.node, args.admin, clock_error_ms=10000, request_timeout_ms=30000, local=True) as system:
+        definition = system.native_query({'capabilities': {}})['definition']
+
+        def query(kind, principal=0, seed=None):
+            return system.native_query({'authorization': dict(role=None, kind=kind)}, principal, seed)['body']['authorization']
+
+        def apply(action):
+            change = system.command({'authorization': {'begin': dict(expected_revision=query({'identity': {}})['revision'], role=None, action=action)}})
+            for _ in range(128):
+                status = query({'change': change})['body']['change']
+                if status['status'] == 'published': return status['created_id']
+                assert status['status'] in ('ready', 'preparing'), status
+                system.command({'authorization': {'publish' if status['status'] == 'ready' else 'advance': change}})
+            raise AssertionError('Authorization staging exceeded its bound')
+
+        owner = Key(system.root, 'table-owner', 121)
+        owner_role = apply({'create_role': dict(name=b'table-owner'.hex(), login=True, create_role=False)})
+        apply({'bind_credential': dict(principal=101, role=owner_role, public_key=owner.public, pid=None)})
+        reader_role = apply({'create_role': dict(name=b'unselected-reader'.hex(), login=False, create_role=False)})
+        source = system.command({'spawn': {}})
+        resource = system.command({'create_resource': dict(writer=source)})
+        system.command({'grant_resource': dict(resource=resource, subject=0, permissions=7)})
+        domains = [apply({'register_domain': dict(registrar=0, actions=mask, lifetime_resource=resource)}) for mask in (1, 3, 15)]
+        scope = dict(realm=72, resource=resource, catalog=1)
+
+        def binding(kind, identity):
+            return list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(definition)
+                + struct.pack('<QQQBQ', 72, resource, 1, kind, identity)).digest())
+
+        database = apply({'register_object': dict(domain=domains[0], owner=owner_role, schema=None, binding=binding(1, 0))})
+        schema = apply({'register_object': dict(domain=domains[1], owner=owner_role, schema=dict(kind='domain', id=database), binding=binding(2, 1))})
+        def name(text):
+            return dict(len=len(text), bytes=list(text.encode()) + [0] * (63-len(text)))
+        catalog = dict(scope=scope, branch=1, partition=1, audience=source,
+            authority=dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2],
+                database=database, initial_schema=1, initial_schema_authority=schema),
+            database_name=name('serving'), initial_schema_name=name('public'))
+        settings = json.loads(system.config.read_text())
+        settings['table'] = dict(catalog=catalog, registrar=dict(principal=0, seed_file=str(system.seed)))
+        system.authority.terminate(); system.authority.wait(timeout=15)
+        system.config.write_text(json.dumps(settings))
+        system.authority = system.start(args.node, system.config)
+        wait_ready(system.store.http, system.authority, system.url + '/health')
+        connection = dict(scope=scope, branch=1, audience=source, principal=101, role=None)
+        request = dict(definition=definition, connection=connection, nonce=list(os.urandom(16)),
+            action={'initialize': {}}, delegation=None, closure=None, borrow=None)
+        context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(request)).digest()
+        epoch = query({'identity': {}}, 101, owner.seed)['body']['identity']['credential_epoch']
+        request['proof'] = subject_proof(owner, 101, source, context, credential_epoch=epoch, realm=72)
+        assert system.available_post('/table/v1', request)['result'] == {'initialized': {}}
+        directory = system.root / 'direct-caller'
+        directory.mkdir()
+        (directory / 'caller.seed').write_bytes(owner.seed.read_bytes())
+        (directory / 'caller.seed').chmod(0o600)
+        caller = Port(args.host, directory, system.url, dict(connection, scope=dict(scope, catalog='1'), branch='1'))
+        try:
+            for operation, sql, create_object, kind in (
+                    ('1', 'CREATE TABLE watchable (id BIGINT PRIMARY KEY, value BIGINT)', '300', 'ddl'),
+                    ('2', 'INSERT INTO watchable VALUES (1, 7)', None, 'rows')):
+                compiled = caller.call(dict(compile=dict(namespace=1, operation=operation, create_object=create_object,
+                    sql=sql, dialect='transit', ingestion='point')))['compiled']
+                reference = caller.call(dict(stage=compiled['summary']['id']))['staged']
+                (directory / (operation + '-intent.json')).write_text(json.dumps(compiled['saved']))
+                caller.call(dict(admit=reference))
+                for _ in range(128):
+                    state = caller.call(dict(operation=dict(reference=reference, command='execute', steps=32)))['observation'][kind]
+                    if 'committed' in state: break
+                    assert 'admitted' in state, state
+                else: raise AssertionError('Direct Table operation exceeded its bound')
+            declaration = caller.call(dict(lookup=dict(namespace=1, name='watchable')))['metadata']
+            # Registration used the configured root registrar's native sequence.
+            # All prior admin operations are settled; begin the next one from
+            # the currently observed principal sequence.
+            system.sequence = system.native_query({'identity': {}})['principal_sequence']
+            report['observations'] = run(system, args.serving, apply, query, owner.seed, reader_role,
+                database, schema, source, resource, declaration)
+        finally:
+            caller.close()
+    report['completed'] = True
+    args.report.write_text(json.dumps(report, indent=2) + '\n')
+
+
+if __name__ == '__main__':
+    main()
