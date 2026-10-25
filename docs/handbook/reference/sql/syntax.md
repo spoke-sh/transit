@@ -88,9 +88,11 @@ not validate option names, duplicates, a connector's configuration or a secret
 binding. `SECRET` names a credential reference; it does not carry resolved bytes.
 See [CREATE CONNECTION](create-connection.md).
 
-The declared types for [CREATE TABLE](create-table.md) and
-[CREATE KV](create-kv.md) are `INT64`, `BOOL`, `UTF8` and `BINARY`. These tokens do
-not imply SQL provisioning support or encode every type in a unified query schema.
+[CREATE TABLE](create-table.md) supports the logical families, aliases and typed
+defaults in the [DDL type reference](types.md). The separate offline
+[CREATE KV](create-kv.md) compiler admits `INT64`, `BOOL`, `UTF8` and `BINARY`;
+that SQL form does not provision a resource. Stored type support and query
+operator support remain separate.
 
 ## Query bounds and rejection
 

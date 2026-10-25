@@ -72,8 +72,9 @@ that Table. In the shared direct runtime, the unchanged outcome is a catalog
 name assertion bound to that exact existing definition and the complete proposed
 SQL. A definition/name change before acceptance rejects the frozen condition.
 An exact retry recovers the original outcome; changed intent under
-an occupied operation identity rejects. A native send receipt establishes input
-admission, not successful creation.
+an occupied operation identity rejects. Catalog admission and native registration
+are intermediate evidence; only the direct owner's applied outcome establishes
+successful creation.
 
 The SQL service saves the complete direct intent and commits its reference before
 dispatch. The console checks the original request after uncertainty and reports
