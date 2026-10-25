@@ -10,8 +10,8 @@ const r = q.RelationalExchangeRecords;
 const Producer = q.RelationalExchangeProducer;
 const support = @import("direct_captured_query.zig");
 const maintained = @import("direct_maintained_query.zig");
-const outstanding = p.Value.init("exchange-outstanding") catch unreachable;
-const producer_done = p.Value.init("exchange-complete") catch unreachable;
+pub const outstanding = p.Value.init("exchange-outstanding") catch unreachable;
+pub const producer_done = p.Value.init("exchange-complete") catch unreachable;
 const first_exchange = 1700;
 const pending_checked = p.Value.init("exchange-pending-checked") catch unreachable;
 const stale_checked = p.Value.init("exchange-stale-checked") catch unreachable;
@@ -25,13 +25,14 @@ const Saved = struct {
     authorization: q.ExchangeAuthorization,
     borrows: [2]c.DirectReadDelegation.Borrow,
 };
-const Handler = struct {
+pub const Handler = struct {
     inner: *support.RelationalHost,
     exchange: u64,
     partitions: u64,
     vector: q.RelationalHistory.Vector,
     identity: q.RelationalMaintenanceRecords.Identity,
     producer: support.Provision,
+    producers: []const support.Provision = &.{},
     clients: []const c.DirectTableClient,
     authorization: ?q.ExchangeAuthorization = null,
     borrows: []const c.DirectReadDelegation.Borrow = &.{},
@@ -91,7 +92,8 @@ const Handler = struct {
                         else => return err,
                     };
                     if (head.registered < try head.total()) {
-                        try x.register(turn, bound, &history, self.exchange, self.producer.pid, self.producer.resource);
+                        const producer = if (self.producers.len == 0) self.producer else self.producers[head.registered % self.producers.len];
+                        try x.register(turn, bound, &history, self.exchange, producer.pid, producer.resource);
                         try turn.cast(turn.delivery.pid, frame.payload);
                     }
                 }
@@ -133,11 +135,11 @@ const Handler = struct {
             try turn.cast(turn.delivery.pid, frame.payload);
         } else if (try x.consume(turn, bound, &history, self.exchange, notice.source, notice.partition) == .progress) try turn.cast(turn.delivery.pid, frame.payload);
     }
-    fn interface(self: *@This()) s.GenServer.Handler {
+    pub fn interface(self: *@This()) s.GenServer.Handler {
         return .{ .context = self, .handle = handle };
     }
 };
-fn step(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler, admin: anytype) !void {
+pub fn step(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler, admin: anytype) !void {
     if (try server.step(handler, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30000)) == .blocked) return server.handler_error orelse error.Blocked;
     const pending = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try support.key(17));
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });

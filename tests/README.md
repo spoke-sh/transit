@@ -1,5 +1,21 @@
 # Validation and evidence
 
+## Direct exchange producers and backpressure — 2026-10-24
+
+`nix develop --command just test::direct-captured-query --exchange-workers-only`
+passes with three independent producer resources and seven partitions over two
+independent Table cuts. All fourteen channels complete under one-segment receiver
+credit, deliberate duplicate eligible notices, reversed producer stepping and
+repeated host reconstruction. Retry rounds drain admitted receiver work first;
+earlier fixture attempts either omitted required retries or injected them faster
+than this deliberately serial driver could consume them.
+
+The result retains COUNT=2 after a live source deletion. Every producer is denied
+parent-pin release; closure invalidates the borrowed cuts while the completed
+result remains readable. These are independent logical producers within one OS
+executor. Physical executor replacement is covered by the separate single-
+producer handoff schedule; this pass does not qualify concurrent provider hosts.
+
 ## Direct Table Compose live views — 2026-10-24
 
 `nix develop .#serving --command just test::reactive-views-placement compose`

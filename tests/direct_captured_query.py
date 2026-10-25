@@ -14,12 +14,12 @@ import urllib.request
 from storage import free_port, wait_ready
 
 
-def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False, named_only=False, example=None):
+def run(node, caller, python_native=None, ruby_host=None, java_packages=None, dotnet_packages=None, c_packages=None, beam_packages=None, rust_packages=None, node_packages=None, python_packages=None, ruby_packages=None, maintained_only=False, relational_failures_only=False, source_pages_only=False, exchanges_only=False, exchange_workers_only=False, unified_boundaries_only=False, captured_only=False, follow_only=False, named_only=False, example=None):
     if example is not None and not follow_only:
         raise ValueError("the example schedule requires --follow-only")
-    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only or follow_only or named_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
+    if (maintained_only or relational_failures_only or source_pages_only or exchanges_only or exchange_workers_only or unified_boundaries_only or follow_only or named_only) and any((python_native, ruby_host, java_packages, dotnet_packages, c_packages, beam_packages, rust_packages, node_packages, python_packages, ruby_packages)):
         raise ValueError("focused runs do not run installed captured consumers")
-    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only, follow_only, named_only)) > 1:
+    if sum((maintained_only, relational_failures_only, source_pages_only, exchanges_only, exchange_workers_only, unified_boundaries_only, captured_only, follow_only, named_only)) > 1:
         raise ValueError("choose one focused schedule")
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     if example is not None:
@@ -332,7 +332,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     print("Direct state-query example: separate caller compilation, capture authorization, saved upload, OS-process recovery and verified SUM=20 passed.", flush=True)
                 print("Direct Follow: prepared single-use captures, durable selection before node restart, native worker replacement, verified fresh result and bounded pause passed.", flush=True)
                 return
-            if maintained_only or relational_failures_only or source_pages_only or exchanges_only or unified_boundaries_only:
+            if maintained_only or relational_failures_only or source_pages_only or exchanges_only or exchange_workers_only or unified_boundaries_only:
                 subprocess.run([caller, endpoint, "maintained-initialize", str(profile)], check=True, timeout=120)
             else:
                 subprocess.run([caller, endpoint, "capture-prepare", str(profile)], check=True, timeout=240)
@@ -357,6 +357,9 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             if exchanges_only:
                 exchange_recovery(endpoint)
                 print("Direct exchanges: independent receiver/worker placement, exact borrowed history cuts, executor SIGKILL and disk-backed node restart, recorded worker handoff, one/seven-partition successor attachments, retained request retirement and lease cleanup passed.", flush=True)
+            elif exchange_workers_only:
+                subprocess.run([caller, endpoint, "capture-exchange-workers", str(profile)], check=True, timeout=900)
+                print("Direct exchange workers: three producers, seven partitions, exact borrowed cuts, duplicate eligible notices, reversed stepping, reconstructed hosts and lease cleanup passed.", flush=True)
             elif source_pages_only:
                 subprocess.run([caller, endpoint, "capture-source-pages", str(profile)], check=True, timeout=600)
                 print("Direct retained source pages: wide/nested values, original interpretation, signed predicate boundaries, point-hit/absence, unsafe pushdown rejection and current permission passed.", flush=True)
@@ -379,21 +382,21 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
                     assert len(named_dependency_faults) == 6 and len(named_publications) == 4
                     assert all(path.read_bytes() == saved for path, saved in named_publications.items())
                 print("Direct maintained query: original acquisition recovery, bounded physical history progress across node replacement, initial backfill, alias and independent Table cuts, accepted no-op revisions, paired deltas, original lease cleanup, post-closure disclosure, current revocation/restoration and retirement passed.", flush=True)
-            if not maintained_only and not source_pages_only and not exchanges_only and not unified_boundaries_only and not captured_only:
+            if not maintained_only and not source_pages_only and not exchanges_only and not exchange_workers_only and not unified_boundaries_only and not captured_only:
                 for case in ("captured_work", "captured_spill", "captured_overflow", "maintained_overflow", "maintained_gap"):
                     subprocess.run([caller, endpoint, "relational-failure-" + case, str(profile)], check=True, timeout=600)
                 assert history_gap
                 print("Direct relational failures: work/spill bounds, captured and maintained ordered-overflow witnesses, permanent history-coverage rejection, separate explicit rebuild, preserved prior results and original lease cleanup passed.", flush=True)
-            if not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only, unified_boundaries_only, captured_only)):
+            if not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only, exchange_workers_only, unified_boundaries_only, captured_only)):
                 exchange_recovery(endpoint)
-            if unified_boundaries_only or not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only, captured_only)):
+            if unified_boundaries_only or not any((maintained_only, relational_failures_only, source_pages_only, exchanges_only, exchange_workers_only, captured_only)):
                 for case in ("retired_empty", "large_row", "adapter_memory", "arrow_memory", "external_memory"):
                     subprocess.run([caller, endpoint, "unified-boundary-" + case, str(profile)], check=True, timeout=600)
                 print("Direct finite capture: empty retired sources, preserved large rows, adapter/Arrow budgets, retryable external allocation failures and original lease cleanup passed.", flush=True)
             consumers(endpoint, "result")
             if captured_only:
                 print("Direct captured query: original-cut recovery, verified retained Table evidence after pin closure, current disclosure rights and separate cleanup after credential rotation passed.", flush=True)
-            elif not maintained_only and not relational_failures_only and not source_pages_only and not exchanges_only and not unified_boundaries_only:
+            elif not maintained_only and not relational_failures_only and not source_pages_only and not exchanges_only and not exchange_workers_only and not unified_boundaries_only:
                 print("Direct captured query: independent worker resource, durable pre-acquisition restart, uncertain pin acquisition/release, original unflushed cuts, wide/nested Fuze/Arrow traversal after ALTER/DROP/name reuse, composite-key hit/absence, shared-alias and independent-Table relational capture, executor without Table rights, released-pin result disclosure, current revocation/restoration and separately authorized cleanup after credential rotation passed.")
         except BaseException:
             log.flush()
@@ -419,6 +422,7 @@ if __name__ == "__main__":
     parser.add_argument("--relational-failures-only", action="store_true")
     parser.add_argument("--source-pages-only", action="store_true")
     parser.add_argument("--exchanges-only", action="store_true")
+    parser.add_argument("--exchange-workers-only", action="store_true")
     parser.add_argument("--unified-boundaries-only", action="store_true")
     parser.add_argument("--captured-only", action="store_true")
     parser.add_argument("--follow-only", action="store_true")
