@@ -1288,3 +1288,75 @@ test "Table recovery refuses a missing ordered root before exposing accepted row
     try t.expectError(error.TableRecoveryRequired, table.get(t.allocator, try key(1, &key_bytes), access.guard()));
     try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
 }
+
+test "Table index batches share paths and reject duplicate identities across private flushes" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    var values: [64]f.Types.Values.Cell = undefined;
+    var changes: [64]P.Change = undefined;
+    for (&values, &changes, 0..) |*cell, *mutation, i| {
+        cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(i) } } };
+        mutation.* = change(cell, i + 1);
+    }
+    const create = binding(&table, 1);
+    table.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, table.apply(create, &changes, .point, access.guard()));
+    const accepted = table.root;
+    const batch_pages = table.index.staged_pages;
+    const batch_bytes = table.index.staged_bytes;
+    const receipt = (try table.observe(create, access.guard())).?;
+    try t.expectEqual(@as(u64, 64), receipt.affected);
+    try t.expectEqualDeep(receipt, try table.apply(create, &changes, .point, access.guard()));
+    try t.expectEqual(batch_pages, table.index.staged_pages);
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+    // Independent scalar staging control for the same accepted key/locator set.
+    // Counters describe logical acknowledged index payloads, not physical writes.
+    var control = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    defer control.deinit();
+    try control.begin(16 * 1024 * 1024);
+    defer control.end();
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &control };
+    const ordered: s.OrderedKeyIndex = .{ .store = &control };
+    var rows: ?s.TreeStore.pages.Reference = null;
+    var identities: ?s.TreeStore.pages.Reference = null;
+    var physical: ?s.TreeStore.pages.Reference = null;
+    var keys: ?s.TreeStore.pages.Reference = null;
+    var bytes: [4096]u8 = undefined;
+    for (0..64) |i| {
+        const storage_key = try key(@intCast(i), &bytes);
+        var row = (try table.get(t.allocator, storage_key, access.guard())).?;
+        defer row.deinit();
+        try t.expectEqual(@as(i128, @intCast(i)), row.row().cells[0].value.atom.signed);
+        try t.expectEqual(@as(u64, i + 1), row.row().identity.operation);
+        const hash = try r.rowKey(storage_key);
+        const locator_bytes = (try tree.get(accepted.rows, hash)).?;
+        const locator = try r.Locator.decode(locator_bytes);
+        rows = try tree.put(rows, hash, locator_bytes);
+        identities = try tree.put(identities, try .init(&try row.row().identity.encode()), try .init(hash.data[0..32]));
+        physical = try tree.put(physical, try locator.scanKey(), try locator.scanValue(hash));
+        keys = try ordered.put(keys, storage_key, hash.data[0..32].*);
+    }
+    try t.expect(batch_pages * 2 < control.staged_pages);
+    try t.expect(batch_bytes * 2 < control.staged_bytes);
+    std.debug.print("Table index staging: {d}/{d} pages, {d}/{d} encoded bytes for one 64-row batch versus scalar index control (batch includes receipt)\n", .{ batch_pages, control.staged_pages, batch_bytes, control.staged_bytes });
+    // Both a duplicate inside a buffer and one after its first flush must leave
+    // all accepted roots, the WAL boundary and the original receipt unchanged.
+    for ([_]usize{ 1, 9 }) |duplicate| {
+        for (&values, &changes, 0..) |*cell, *mutation, i| {
+            cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(i + 1000) } } };
+            mutation.* = change(cell, 1000 + if (i == duplicate) @as(usize, 0) else i);
+        }
+        try t.expectError(error.DuplicateTableRowIdentity, table.apply(binding(&table, 2), &changes, .point, access.guard()));
+        try t.expectEqualDeep(accepted, table.root);
+        try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+        try table.recover();
+        try t.expectEqualDeep(accepted, table.root);
+        try t.expectEqualDeep(receipt, (try table.observe(create, access.guard())).?);
+        try t.expect((try table.get(t.allocator, try key(1000, &bytes), access.guard())) == null);
+    }
+}

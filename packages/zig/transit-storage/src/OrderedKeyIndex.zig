@@ -13,6 +13,7 @@ const max_depth = std.math.divCeil(usize, max_key_bytes, chunk_bytes) catch unre
 pub const Key = pages.Bytes(max_key_bytes);
 pub const Entry = struct { key: Key, value: [32]u8 };
 pub const Bound = struct { key: []const u8, inclusive: bool = true };
+pub const Mutation = struct { key: []const u8, value: ?[32]u8 };
 const Tree = pages.Tree(Store);
 
 store: *Store,
@@ -81,6 +82,35 @@ pub fn put(self: Self, root: ?pages.Reference, key: []const u8, value: [32]u8) !
 }
 pub fn remove(self: Self, root: ?pages.Reference, key: []const u8) !?pages.Reference {
     return self.change(root, key, null);
+}
+
+/// Share affected page paths for up to one bounded mutation batch. Full-key
+/// validation precedes staging. Long keys retain bounded chunk traversal; short
+/// terminal updates preserve any existing child for longer keys with that prefix.
+pub fn mutate(self: Self, root: ?pages.Reference, mutations: []const Mutation) !?pages.Reference {
+    if (mutations.len > pages.mutation_batch) return error.PageMutationBudget;
+    for (mutations, 0..) |mutation, i| {
+        try validateKey(mutation.key);
+        for (mutations[0..i]) |previous| if (std.mem.eql(u8, previous.key, mutation.key)) return error.DuplicatePageMutation;
+    }
+    var current = root;
+    var pending: [pages.mutation_batch]pages.Mutation = undefined;
+    var count: usize = 0;
+    for (mutations) |mutation| {
+        if (mutation.key.len > chunk_bytes) {
+            current = try self.tree().mutate(current, pending[0..count]);
+            count = 0;
+            current = try self.change(current, mutation.key, mutation.value);
+            continue;
+        }
+        const key = try pages.Key.init(mutation.key);
+        const previous = try self.tree().get(current, key);
+        var node = if (previous) |value| try Node.decode(value, key) else Node{};
+        node.value = mutation.value;
+        pending[count] = .{ .key = key, .value = if (node.value == null and node.child == null) null else try node.encode() };
+        count += 1;
+    }
+    return self.tree().mutate(current, pending[0..count]);
 }
 fn change(self: Self, root: ?pages.Reference, key: []const u8, value: ?[32]u8) !?pages.Reference {
     try validateKey(key);

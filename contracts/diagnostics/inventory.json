@@ -24769,8 +24769,10 @@
     },
     "packages/zig/transit-storage/src/OrderedKeyIndex.zig": {
       "errors": {
+        "DuplicatePageMutation": 1,
         "InvalidOrderedKeyNode": 10,
-        "InvalidTableKey": 3
+        "InvalidTableKey": 3,
+        "PageMutationBudget": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -24779,6 +24781,7 @@
         "Node.encode()": "<inferred>",
         "change()": "<inferred>",
         "get()": "<inferred>",
+        "mutate()": "<inferred>",
         "put()": "<inferred>",
         "remove()": "<inferred>",
         "seek()": "<inferred>",
@@ -24786,7 +24789,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 23,
         "catch": 1
       },
       "imports": [
@@ -25060,8 +25063,8 @@
       "errors": {
         "DataIdentityConflict": 11,
         "DuplicateBatchKey": 3,
-        "DuplicatePrimaryKey": 5,
-        "DuplicateTableRowIdentity": 2,
+        "DuplicatePrimaryKey": 7,
+        "DuplicateTableRowIdentity": 3,
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
@@ -25073,7 +25076,7 @@
         "InvalidTableOperation": 16,
         "InvalidTableReadBudget": 2,
         "InvalidTableReceipt": 2,
-        "InvalidTableRowReference": 19,
+        "InvalidTableRowReference": 20,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 4,
         "InvalidTableStatementIntent": 1,
@@ -25127,6 +25130,10 @@
         "Guard.acquire()": "anyerror",
         "HistoryPoint.cursorSource()": "<inferred>",
         "ReadLimits.validate()": "<inferred>",
+        "RowIndexBatch.append()": "<inferred>",
+        "RowIndexBatch.flush()": "<inferred>",
+        "RowIndexBatch.insert()": "<inferred>",
+        "RowIndexBatch.remove()": "<inferred>",
         "SegmentSource.read()": "<inferred>",
         "SegmentSource.verify()": "<inferred>",
         "StatementBudget.visit()": "<inferred>",
@@ -25144,7 +25151,6 @@
         "history()": "<inferred>",
         "historyAt()": "<inferred>",
         "historyStart()": "<inferred>",
-        "indexIdentity()": "<inferred>",
         "init()": "<inferred>",
         "inspectHistoryLease()": "<inferred>",
         "inspectSnapshot()": "<inferred>",
@@ -25195,7 +25201,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 427,
+        "try": 418,
         "catch": 4
       },
       "imports": [

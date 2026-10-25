@@ -15,6 +15,10 @@ cache: []?Cached,
 next_slot: usize = 0,
 hits: u64 = 0,
 misses: u64 = 0,
+/// Acknowledged staging calls and encoded payload bytes, including immutable
+/// deduplication. Provider/device writes and failed attempts are separate.
+staged_pages: u64 = 0,
+staged_bytes: u64 = 0,
 candidate: ?struct { limit: usize, staged: usize = 0 } = null,
 
 pub fn init(allocator: std.mem.Allocator, store: objects.ObjectStore, resident_pages: usize) !Self {
@@ -64,6 +68,8 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     var name: [96]u8 = undefined;
     const accepted = try self.store.putImmutable(try key(result.location, &name), encoded, result.location);
     if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &result.location)) return error.InvalidDataIndexObject;
+    self.staged_pages +|= 1;
+    self.staged_bytes +|= encoded.len;
     self.remember(result, page.*);
     return result;
 }
