@@ -171,6 +171,28 @@ row indexes across restart. Snapshot retirement does not claim physical deletion
 Its tests do not qualify catalog name publication, installed SQL, distributed transactions or
 a collector racing with snapshots.
 
+## Segment range reader
+
+`TSegReader` consumes the existing TSEG bytes without changing their definition.
+The 64-byte header and 16-byte trailer must agree on the aligned footer range;
+version, dimensions, identities and layout prefix agree with the checked footer.
+Footer counts must fit their minimum encoded footprint before allocation.
+Row groups cover the complete row count contiguously; page ranges are aligned,
+ordered, non-overlapping and precede the footer. Primary-key entries have strictly
+increasing sort keys and exact group/local/global row coordinates. Zone-map state
+counts sum to the group size. The footer remains a complete sorted array.
+
+The host binds one immutable object length/digest and supplies verified ranges.
+Opening reads only header, trailer and footer. Each selected column page is
+checked against its footer digest before decoding. Encoded page scratch and owned
+decoded values have separate lifetimes; freeing scratch, closing the reader or
+evicting its source does not invalidate returned values. Projection skips omitted
+payload ranges. A caller-specified footer/page allowance bounds encoded buffers;
+the owned group additionally bounds real decoder arena allocations. Corruption,
+incompatible interpretation, transport failure or exhausted budget fails the read
+without establishing an empty or complete query result. The reader acquires no
+source pin or permission, and the service must recheck rights before disclosure.
+
 ## Local WAL persistence
 
 `LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second

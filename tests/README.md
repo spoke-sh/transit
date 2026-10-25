@@ -1,5 +1,25 @@
 # Validation and evidence
 
+## Verified segment range reader — 2026-10-25
+
+On baseline `b720c488` plus the segment-reader changes, the pinned-shell command
+`cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg --summary all`
+passes 26 selected tests. New cases verify metadata-only opening, projection
+without unrelated page reads, independent expected text values, returned-value
+ownership after destroying the reader/source, encoded and actual decoder-arena
+budgets, transport errors, page/footer corruption, overflowed offsets, forged
+counts with valid checksums and allocation-failure cleanup. The in-memory source
+records exact requested ranges; this is not disk or installed-query evidence.
+
+The first allocation-failure enumeration reports nondeterministic allocation
+counts because the backing allocator can resize an arena block in place. The
+corrected enumeration disables backing resize and passes every allocation
+failure, retaining leak checks. The full Fuze package suite passed before the
+owned bounded-group addition; the 26-test run covers that final addition.
+The reader preserves existing TSEG bytes and the shared contract definition.
+It does not supply ordered paged keys, source retention, asynchronous reads,
+zero-copy Arrow, complete encoded operators or physical collection.
+
 ## Direct catalog growth and retained rows — 2026-10-24
 
 `just test::direct-table-service growth` passes 366 public typed calls with 139

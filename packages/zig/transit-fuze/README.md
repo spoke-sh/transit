@@ -8,6 +8,24 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`TSegReader` reads one host-bound immutable segment through a synchronous range
+callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
+projected decoding requests only the selected column pages. The reader verifies
+footer/page commitments, schema interpretation, counts and coordinates before
+using them. Its primary-key footer is a sorted resident directory, not a paged
+B-tree. The host must verify object identity/range integrity, retain the source
+and check current authorization; the reader supplies none of those authorities.
+
+`column` decodes into a caller-owned arena with a separate transient encoded
+page buffer. `group` additionally enforces a byte limit on actual arena backing
+allocations across the selected columns (64 MiB by default), and returns an
+owned `Group` released with `deinit`. Footer and page encoded-byte allowances
+are separate from that decoded limit and from result buffers. The segment limit
+is 16 MiB. Returned values outlive the reader and source; no borrowed Arrow or
+zero-copy profile is implied. Callback errors propagate and partial allocations
+are released by the owner. Requests are synchronous; cancellation is the host's
+responsibility between calls, with no background reads surviving return.
+
 `AuthorizationSql.compile` parses the selected role, membership, privilege,
 default-privilege, schema and ownership statements into unresolved typed syntax.
 Its owned arena is released with `deinit`. Names are bounded to 63 UTF-8 bytes;
