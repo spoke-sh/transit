@@ -12,8 +12,9 @@ and bound-NULL comparisons. Fresh SELECTs use independent explicit pins.
 Current ownership removal denies the old preparation; restoring it permits a
 fresh read. ALTER and DROP/recreate invalidate the unchanged prepared objects,
 including when their selected column types still match. The complete direct
-Table schedule includes this slice; this focused pass does not qualify its
-separate recovery faults or replace the whole older typed-Table schedule.
+Table schedule also passes with 1,361 typed calls, including this slice and its
+separate recovery faults. These passes do not replace the whole older typed-Table
+schedule.
 
 ## Direct exchange worker handoff — 2026-10-24
 
@@ -60,9 +61,23 @@ retained SQL/joins, delegated reads and change-reader checkpoints across restart
 SQL Table sources now derive their direct route from the declared data scope;
 their native resource holds independent computation progress. Interactive source
 pins share the account's recovery journal, while captured admission publishes the
-explicit original cut, executor and pin operation. The full native-session
-schedule, including an abandoned source pin, remains in progress. These scoped
-passes do not qualify every SQL deployment or close the coordinated cutover.
+explicit original cut, executor and pin operation.
+
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway
+-Doptimize=ReleaseSafe -- sessions` passes the complete native-session schedule.
+It checks independent TLS/SCRAM sessions, concurrent reads, metadata recovery,
+exact operation-token recovery and retained KV (41 rows), Document (12 rows)
+and Table (9 rows) results after gateway replacement. Every returned batch is
+retried for exact equality. Replacement releases the original abandoned Table
+source pin. The focused `sessions-table` slice and all 30 shared SQL units pass.
+
+Same-account pin acquisition now observes the prepared definition/frontier under
+the acquisition/closure lock. An injected capacity refusal after acquisition
+checks that cleanup preserves SQLSTATE `53000`. Concurrent fixture reads may
+explicitly repeat a SELECT only before receiving any batch; measurements count
+those attempts. Existing cursors, captured admissions and writes never use that
+helper. These scoped passes do not qualify every SQL deployment or close the
+coordinated cutover.
 
 ## Unified direct Table recovery and closure — 2026-10-24
 

@@ -11,9 +11,9 @@ def reads(first, second, hop, service_pid):
     samples = []
     def query(client, label):
         before = hop.counters() if hop else None
-        batch = client.execute('SELECT id FROM native_sessions')['batch']
+        batch = (client.concurrent_read() if label == 'two_sessions' else client.execute('SELECT id FROM native_sessions'))['batch']
         sample = dict(client.sample, path=label, rows=len(batch['rows']),
-                      complete=batch['complete'], sql_requests=1)
+                      complete=batch['complete'], sql_requests=client.sample.get('sql_requests', 1))
         if hop:
             after = hop.counters()
             sample.update(native_requests=after[0]-before[0], native_response_bytes=after[1]-before[1])
@@ -39,4 +39,4 @@ def reads(first, second, hop, service_pid):
                          tracked_changes=bool(subprocess.check_output(['git', 'diff', '--stat'])),
                          system=platform.system(), machine=platform.machine(),
                          samples=samples, concurrent=concurrent, concurrent_ms=elapsed, service_memory=memory,
-                         limits='Three local samples per TLS path, no warmup or isolated load. First-batch SQL response includes authorization and snapshot acquisition; close is excluded from individual latency. Native counters include background recovery, and concurrent windows overlap. Bytes are HTTP bodies, not framing/TLS. RSS/HWM are one process observation, not aggregate deployment memory. No speedup or SLO claim.')), flush=True)
+                         limits='Three local samples per TLS path, no warmup or isolated load. First-batch SQL response includes authorization and snapshot acquisition; close is excluded from individual latency. Concurrent samples include explicitly repeated SELECTs after native capacity rejection before any batch; sql_requests records these attempts. Native counters include background recovery, and concurrent windows overlap. Bytes are HTTP bodies, not framing/TLS. RSS/HWM are one process observation, not aggregate deployment memory. No speedup or SLO claim.')), flush=True)

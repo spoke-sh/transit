@@ -106,7 +106,7 @@ pub const Read = struct {
             const metadata = response.value.result.observation.definition;
             const binding = try g.catalog.DirectTableBinding.init(tables.connection, metadata);
             if (!std.meta.eql(binding.interpretation, declaration.interpretation)) return error.TableDefinitionChanged;
-            pin = try source.host.runtime.read_pins.?.acquire(tables, binding, metadata.position);
+            pin = try source.host.runtime.read_pins.?.acquireCurrent(tables, binding);
             break :table try q.Interactive.openTable(&source.client, bound.bundle, try pin.?.snapshot(), source.host.allocator);
         } else native: {
             var nonce: [16]u8 = undefined;

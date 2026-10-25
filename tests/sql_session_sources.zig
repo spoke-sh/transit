@@ -11,14 +11,16 @@ const unified = @import("unified_query.zig");
 const drive = @import("catalog_query_support.zig").drive;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
 
-pub fn provision(init: std.process.Init, wire: *s.client.Client, admin: *Admin, directory: []const u8, login_role: u64, selected_role: ?u64, kv_only: bool) !void {
+pub const Selection = enum { all, kv, table };
+pub fn provision(init: std.process.Init, wire: *s.client.Client, admin: *Admin, directory: []const u8, login_role: u64, selected_role: ?u64, selection: Selection) !void {
     // Source callers inspect the public requester head as well as their data.
     // The ordinary Table-only account needs no query-progress permission.
     _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = login_role, .privileges = p.permission(.inspect) } });
+    if (selection == .table) return support.save(init, directory, "session-sources.json", &.{try table(init, wire, admin, directory, login_role, selected_role)});
     var sources: [3]g.Configuration.Source = undefined;
     inline for (.{ .{ unified.Kind.kv, @as(u64, 3000), @as(u8, 31) }, .{ unified.Kind.document, @as(u64, 3100), @as(u8, 41) } }, 0..) |entry, index| {
         const kind = entry[0];
-        if (kind == .document and kv_only) return support.save(init, directory, "session-sources.json", sources[0..1]);
+        if (kind == .document and selection == .kv) return support.save(init, directory, "session-sources.json", sources[0..1]);
         const principal = entry[1];
         const seed_byte = entry[2];
         const writer_key = try support.key(seed_byte);

@@ -17,7 +17,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions","sessions-basic","sessions-kv")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions","sessions-basic","sessions-kv","sessions-table")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with tempfile.TemporaryDirectory(prefix='transit-direct-sql-wire-') as directory:
         root = Path(directory)
@@ -79,9 +79,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
-                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv') else []
+                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
                     configuration['native_url'] = session_faults.url
             configuration['health_port'] = health_port
@@ -114,11 +114,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             from settings import start_configuration
             settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
 
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from sql_sessions.faults import Faults
                 session_faults = Faults(url)
-            if slice in ('sessions', 'sessions-kv'):
-                call(ledger, 'session-sources', *(['kv'] if slice == 'sessions-kv' else []))
+            if slice in ('sessions', 'sessions-kv', 'sessions-table'):
+                call(ledger, 'session-sources', *([slice.removeprefix('sessions-')] if slice in ('sessions-kv', 'sessions-table') else []))
             configure()
             certificate()
             bootstrap = start(gateway, root/'sql-gateway.json', '--initialize')
@@ -138,7 +138,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     assert time.monotonic() < deadline
                     time.sleep(.02)
             from clients import run as clients, run_cli, connection_options as client_options
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from sql_sessions.native import run as sessions
                 source_processes = {}
                 def select_source(name):
@@ -193,7 +193,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                         except (ConnectionRefusedError, FileNotFoundError):
                             assert server.poll() is None and time.monotonic() < deadline
                             time.sleep(.02)
-                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, lambda: call(ledger, 'source-pin-status'), () if slice == 'sessions-basic' else (('kv', 41),) if slice == 'sessions-kv' else None, session_faults, lambda: server.pid)
+                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, lambda: call(ledger, 'source-pin-status'), {'sessions-basic': (), 'sessions-kv': (('kv', 41),), 'sessions-table': (('table', 9),)}.get(slice), session_faults, lambda: server.pid)
                 return
             if slice == 'cli':
                 run_cli(root,sql_port,mysql_port)
@@ -223,7 +223,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 drain(server,options,health_port)
                 return
             # Both adapters select the NOLOGIN data role through SET-only
-            # membership. Neither the verifier nor the private reader can
+            # membership. The verifier cannot
             # preserve that authority after membership revocation.
             with psycopg.connect(**options) as pg, mysql.connector.connect(**mysql_options) as my:
                 assert pg.execute('SELECT 1').fetchone() == (1,)
@@ -240,7 +240,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                                            (lambda: mysql.connector.connect(**mysql_options), mysql.connector.Error)):
                         try: connect().close()
                         except error: pass
-                        else: raise AssertionError('SQL login substituted private reader authority')
+                        else: raise AssertionError('SQL login bypassed selected-role authority')
                 finally:
                     assert call(catalog, 'external-role', 'allow')['selected']
             print(json.dumps(dict(profile='database_wire_selected_role',set_only=True,revoked_sessions=True,revoked_logins=True,raw_reader_denied=True)),flush=True)
@@ -342,6 +342,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 probe.close()
             if session_faults is not None:
                 session_faults.close()
+                if sys.exc_info()[0]:
+                    print('Recent session authority rejections:', session_faults.rejections, file=sys.stderr)
             if sys.exc_info()[0]:
                 for log in logs:
                     log.flush()
