@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
 from serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
 from serving_tls import TLSProxy
-from serving_table import authorize, bootstrap as bootstrap_counter, provision_catalog
+from serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
 from placement import Compose, DirectReference
 
 
@@ -304,6 +304,8 @@ def run(profile, reactive=False, views=False):
             write('operator/node.json', node_config)
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
             counter_definition = bootstrap_counter(str(work / 'tools/bin/transit-station-host'), work, url, catalog_authority['data'], keys[33])
+            def populate_rows():
+                populate_query_rows(str(work / 'tools/bin/transit-station-host'), work, url, catalog_authority['data'])
             sequences[0] = request(url, '/v1/query', native_query(keys[0], 0, {'identity': {}}))['principal_sequence']
             ingress_role = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)} if views else {'ingress': dict(service=1, administrator=33, observer=34)}
             application_role = {'application': dict(ingress=ingress, initializer=33, queries=views, data=catalog_authority['data'])}

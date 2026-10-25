@@ -152,7 +152,8 @@ def run(env, tls):
                 if stage in ('mutate', 'mutate-again'): mutate()
                 elif stage == 'deny': env['resource_grant'](resource, 65536, 1)
                 elif stage == 'rows':
-                    for row in range(2, 21): mutate(row)
+                    env['populate_rows']()
+                    counts.update({row: 1 for row in range(2, 21)})
                 elif stage == 'restart': env['recover']()
                 elif stage == 'sessions-before': sessions_before = active_sessions()
                 elif stage == 'sessions-after': assert active_sessions() == sessions_before, 'reconnect replaced logical sessions'

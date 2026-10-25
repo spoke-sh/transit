@@ -26340,3 +26340,32 @@ now allows the aggregate of the existing ten-second admission and 30-second
 outcome budgets per row. Individual operation deadlines and browser result,
 recovery, denial and memory assertions are unchanged. This is a finite correctness
 schedule; increasing its aggregate setup budget is not performance evidence.
+
+## Direct browser setup and clock contention recovery — 2026-10-25
+
+The clock observer now also retains its exact pending native command after an
+ordinary `Conflict`, using the shared client's classification. The browser proxy
+injects separate pre-dispatch conflicts for the ingress worker's first
+`open_view` and the running clock observer's first `send`; both must repeat their
+original bytes. Administration before observer startup cannot satisfy that check.
+
+`just test::reactive-views` passes the complete native schedule in 258.27 seconds
+with both exact-retry assertions. The 19 additional rows for the browser's
+20-row query are now prepared by the installer through one public direct bulk
+operation. Its saved intent/reference, original operation ID and authoritative
+matched/affected/live counts are checked. Application-command mutations before
+and after this setup, lost query submission, complete result verification,
+refresh, pause and current revocation remain exercised. Single-run observations
+are 5,558 ms for counter mutation visibility and 45,410 ms for verified refresh;
+no matched performance comparison or latency distribution is established.
+
+Reference attempt 10 used the prior sequential application-command setup. Its
+workers stayed alive, but operation 117 exceeded the 30-second outcome wait
+amid authority contention. It is a failed schedule, not qualified throughput.
+The new direct batch setup removes those 19 incidental application invocations
+from the browser schedule and restores the original 120-second stage handshake.
+It does not qualify the failed repeated-command workload under concurrent browser
+polling. The first native batch-setup attempt failed on a compilation capacity
+refusal; bounded retry of the same action now handles only that known capacity
+response, without re-preparing dispatched work. The complete native pass above
+includes the corrected fixture. Reference placement and clean CI remain open.

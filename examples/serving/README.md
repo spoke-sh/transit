@@ -23,8 +23,8 @@ workers and does not acquire ownership automatically.
 Idle ingress/application workers use native notification waits, bounded at one
 second, followed by a current authorized receive. Temporary request failures use
 backoff bounded at one second and retain the exact pending native request.
-Workers also use the shared `Client.contended` classification for ordinary native
-publication contention. That retry preserves the signed request; expiry,
+Workers and the clock observer use the shared `Client.contended` classification
+for ordinary native publication contention. That retry preserves the signed request; expiry,
 fencing, access denial and conflicting retry identities remain separate outcomes.
 Neither waiting nor retrying changes execution ownership or acknowledges input.
 The Compose/reference courier also uses a one-second idle-wait ceiling.
