@@ -1,5 +1,23 @@
 # Validation and evidence
 
+## Direct Table Compose live views — 2026-10-24
+
+`nix develop .#serving --command just test::reactive-views-placement compose`
+passes after restoring captured-request batch reads and bounding idle worker
+polling. The real browser recovers an uncertain submission across navigation,
+retrieves its original result after physical service replacement, verifies a
+distinct finite refresh, and clears protected data when permission is revoked
+between complete candidate verification and its visible reread. The existing
+query and revocation deadlines remain unchanged.
+
+The run takes 626.83 seconds overall. Observed counter propagation, physical
+recovery and query-refresh times are 4.958, 11.768 and 142.683 seconds. These are
+shared-host observations, not interactive latency guarantees. Earlier Compose
+attempts failed at the second refresh. The fixture now retries only explicit
+pre-dispatch native capacity refusals with unchanged signed bytes and treats
+optional progress-observation failures as unavailable evidence. This pass does
+not qualify the reference-provider schedule or later courier retry changes.
+
 ## Captured direct Table request batching — 2026-10-24
 
 `nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe

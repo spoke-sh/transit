@@ -112,6 +112,23 @@ def run(env, tls):
     browser = subprocess.Popen(['vp', 'exec', '--filter', '@transit/board-web', 'node', 'browser/' + script, str(configuration)], stdout=log, stderr=subprocess.STDOUT, env=env['store'].env | {'NODE_EXTRA_CA_CERTS': str(ca_bundle)})
     previous = None
     sessions_before = None
+    next_progress = time.monotonic() + 30
+
+    def progress():
+        # Public process observations locate stalled computation without logging
+        # application values, credentials or signed requests.
+        for label, pid in (('ingress', ingress), ('application', application)):
+            try:
+                state = env['query'](0, {'process': pid})['body']['process']
+            except (OSError, AssertionError) as error:
+                # Diagnostics share bounded read admission with the workload.
+                # Failure to observe cannot interrupt the proof being observed.
+                print('Reactive worker progress unavailable:', label, type(error).__name__, flush=True)
+                continue
+            fields = ('generation', 'lifecycle', 'admitted', 'consumed', 'revision', 'failure')
+            print('Reactive worker progress:', label,
+                  {key: state['process'][key] for key in fields} |
+                  {'head': state['input']['position'] if state['input'] else None}, flush=True)
 
     def active_sessions():
         entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, view=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
@@ -121,6 +138,9 @@ def run(env, tls):
         while browser.poll() is None:
             assert observer.poll() is None and (env['hosts_alive']() if 'hosts_alive' in env else board.poll() is None), 'view host exited'
             assert time.monotonic() < until, 'browser live view deadline'
+            if time.monotonic() >= next_progress:
+                progress()
+                next_progress = time.monotonic() + 30
             marker = root / 'view-stage'
             stage = marker.read_text() if marker.exists() else None
             if stage and stage != previous:
@@ -144,8 +164,7 @@ def run(env, tls):
                     env['send']({'terminate': application})
                     env['send']({'retire_resource': resource})
                 elif stage != 'ready': raise AssertionError(('unknown browser stage', stage))
-                state = env['query'](0, {'process': ingress})['body']['process']
-                print('Ingress at stage completion:', {k: state['process'][k] for k in ('admitted', 'consumed', 'revision')} | {'head': state['input']['position'] if state['input'] else None}, flush=True)
+                progress()
                 (root / 'view-stage-ack').write_text(stage)
             time.sleep(.05)
         log.seek(0)

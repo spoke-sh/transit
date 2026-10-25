@@ -20,6 +20,12 @@ and up to 32 explicitly provisioned caller public keys. Private seeds are files,
 never command arguments. Public registration bootstrap is available only for
 workers and does not acquire ownership automatically.
 
+Idle ingress/application workers use native notification waits, bounded at one
+second, followed by a current authorized receive. Temporary request failures use
+backoff bounded at one second and retain the exact pending native request.
+Neither waiting nor retrying changes execution ownership or acknowledges input.
+The Compose/reference courier also uses a one-second idle-wait ceiling.
+
 The HTTPS origin names the independently provisioned TLS terminator; the clear
 listener must remain on its private loopback/network boundary. No forwarding
 header can establish identity. The [termination guide](docs/termination.md) owns

@@ -51,15 +51,29 @@ def run(profile, reactive=False, views=False):
 
         def request(endpoint, path, value=None, expected=200, tls=None, headers=None):
             target = urlsplit(endpoint)
-            connection = HTTPSConnection(target.hostname, target.port, context=tls, timeout=15) if tls else HTTPConnection(target.hostname, target.port, timeout=15)
-            try:
-                connection.request('POST' if value is not None else 'GET', path,
-                    compact(value) if value is not None else None, {'Content-Type': 'application/json'} | (headers or {}))
-                response = connection.getresponse()
-                body = response.read()
-                assert response.status == expected, (path, response.status, body[:500], expected)
-                return json.loads(body)
-            finally: connection.close()
+            encoded = compact(value) if value is not None else None
+            deadline, retries = time.monotonic() + 10, 0
+            while True:
+                connection = HTTPSConnection(target.hostname, target.port, context=tls, timeout=15) if tls else HTTPConnection(target.hostname, target.port, timeout=15)
+                try:
+                    connection.request('POST' if value is not None else 'GET', path,
+                        encoded, {'Content-Type': 'application/json'} | (headers or {}))
+                    response = connection.getresponse()
+                    body, status = response.read(), response.status
+                finally: connection.close()
+                decoded = json.loads(body)
+                # Match the native fixture's bounded pre-dispatch recovery.
+                # Keep exact signed bytes, including sequence and nonce; no
+                # timeout, ambiguous outcome or semantic rejection enters here.
+                if (expected == 200 and path in ('/v1/query', '/v1/command') and
+                    status == 503 and decoded == {'err': 'HttpCapacity'} and time.monotonic() < deadline):
+                    retries += 1
+                    time.sleep(min(.1 * retries, .5))
+                    continue
+                if retries:
+                    print(f'Serving placement exact request: {retries} capacity refusals before status {status}', flush=True)
+                assert status == expected, (path, status, body[:500], expected)
+                return decoded
 
         def ready(child, endpoint):
             until = time.monotonic() + 90
@@ -155,6 +169,7 @@ def run(profile, reactive=False, views=False):
         def courier():
             config = dict(url=placement.authority if profile == 'compose' else url,
                 realm=REALM, principal=80, seed_file='/courier/seed.key' if profile == 'compose' else str(keys[80].seed),
+                idle_max_interval_ms=1000,
                 role={'courier': dict(destinations=[ingress, application])})
             path = write('courier/config.json', config)
             if profile == 'compose':
