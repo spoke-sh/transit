@@ -1518,17 +1518,25 @@ pub fn build(b: *std.Build) void {
     const relational_callers_step = b.step("test-relational-callers", "Prove explicit retained relational callers against the direct owner");
     relational_callers_step.dependOn(&relational_callers_native.step);
     if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) relational_callers_step.dependOn(&direct_board.step);
-    const relational_exchange_native = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_exchange_native.addFileArg(b.path("tests/relational_exchange_native.py"));
-    relational_exchange_native.addArtifactArg(node_artifact);
-    relational_exchange_native.addArtifactArg(typed_table_proof);
-    relational_exchange_native.has_side_effects = true;
-    relational_exchange_native.stdio = .inherit;
-    b.step("test-relational-exchanges", "Qualify bounded exchanges into maintained results on disk with worker and authority loss").dependOn(&relational_exchange_native.step);
+    const relational_exchanges = b.step("test-relational-exchanges", "Qualify direct exchanges through process loss and multiple producers");
+    var previous_exchange: ?*std.Build.Step = null;
+    for ([_][]const u8{ "--exchanges-only", "--exchange-workers-only" }) |mode| {
+        const exchange_proof = b.addSystemCommand(&.{ "python3", "-B" });
+        exchange_proof.addFileArg(b.path("tests/direct_captured_query.py"));
+        exchange_proof.addArtifactArg(node_artifact);
+        exchange_proof.addArtifactArg(direct_table_client);
+        exchange_proof.addArg(mode);
+        exchange_proof.has_side_effects = true;
+        exchange_proof.stdio = .inherit;
+        if (previous_exchange) |previous| exchange_proof.step.dependOn(previous);
+        previous_exchange = &exchange_proof.step;
+    }
+    relational_exchanges.dependOn(previous_exchange.?);
     const named_relational_native = b.addSystemCommand(&.{ "python3", "-B" });
-    named_relational_native.addFileArg(b.path("tests/named_relational_native.py"));
+    named_relational_native.addFileArg(b.path("tests/direct_captured_query.py"));
     named_relational_native.addArtifactArg(node_artifact);
-    named_relational_native.addArtifactArg(typed_table_proof);
+    named_relational_native.addArtifactArg(direct_table_client);
+    named_relational_native.addArg("--named-only");
     named_relational_native.has_side_effects = true;
     named_relational_native.stdio = .inherit;
     b.step("test-named-relational", "Prove separate named publication, activation and complete revision recovery on disk").dependOn(&named_relational_native.step);

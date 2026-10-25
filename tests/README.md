@@ -16,6 +16,12 @@ result remains readable. These are independent logical producers within one OS
 executor. Physical executor replacement is covered by the separate single-
 producer handoff schedule; this pass does not qualify concurrent provider hosts.
 
+`just test::relational-exchanges` runs both direct schedules sequentially in
+separate private fixtures. `just test::relational-maintenance` and
+`just test::named-relational` likewise select the current direct maintained and
+named schedules. Their build graph is validated; these task rewiring changes do
+not constitute another execution of the previously recorded runtime proofs.
+
 ## Direct Table Compose live views — 2026-10-24
 
 `nix develop .#serving --command just test::reactive-views-placement compose`

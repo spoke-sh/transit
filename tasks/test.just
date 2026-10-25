@@ -443,15 +443,15 @@ catalog *args:
 catalog-growth:
     just test::typed-tables --grow 139 --cold
 
-# Complete maintained revisions, independent deltas and disk/cold-store recovery.
+# Complete maintained revisions and independent direct Table deltas on disk.
 relational-maintenance:
-    just test::typed-tables --maintained --cold
+    just test::direct-captured-query --maintained-only
 
 # Explicit retained relational callers and Board pages over the direct owner.
 relational-callers:
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true
 
-# Bounded producer/receiver exchange recovery and maintained publication on disk.
+# Bounded direct exchanges, process recovery and three independent producers.
 relational-exchanges:
     zig build test-relational-exchanges -Doptimize=ReleaseSafe
 
