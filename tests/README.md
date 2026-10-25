@@ -26198,3 +26198,16 @@ Evidence is retained in
 `.cache/verification/domain-simulation-mutations-b48875510/`, including baseline,
 per-mutation logs, replay traces and `evidence.json`. These are component guards
 over volatile adapters; physical recovery remains separately qualified.
+
+## Handbook cutover checks and dark diagram contrast — 2026-10-24
+
+The handbook check and all five production browser checks pass at both the root
+path and `/handbook/`. The first browser run found insufficient contrast on a
+dark-mode Mermaid edge label (4.43 against the required 4.5). The stylesheet now
+sets dark edge-label text to white; the unchanged accessibility assertions pass.
+The corrected root and prefixed browser runs took 26.4 and 23.9 seconds.
+
+Separately, the regenerated Unified fixtures pass all 142 query-package tests.
+The Board workspace check and CLI diagnostics (96 artifact/file and 193
+server/console cases) also pass. These scoped runs do not replace the pending
+combined repository check or committed-HEAD clean CI.
