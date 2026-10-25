@@ -74,6 +74,8 @@ does not expose them.
 
 The immutable Elixir structs project to shared Erlang values with bounded depth
 and total nodes. They do not create another protocol or permission authority.
+Decoded schemas preserve public `Logical.Field` and `Logical.Element` structs
+inside nested structure, list, array and map descriptors.
 One active native operation is allowed per client. Task loss does not abandon
 that operation; the worker remains busy until completion. `close` joins active
 work and port cleanup. Returned values outlive the caller. Importing packages

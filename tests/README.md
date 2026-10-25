@@ -26667,3 +26667,30 @@ original receipts, saved bytes and every value assertion are unchanged. No
 runtime or cache change is made. Extending this correctness observation budget
 does not establish a pass or meet the failed one-hour setup window. Fresh
 committed-source ordinary qualification remains required.
+
+## Clean SDK schema projection failure and repair — 2026-10-25
+
+At `ccf5387f35006a23f5459d0b3d959c134d9da917`, the isolated clean experience
+lane completes all 13 tasks in 1,374.77 seconds. The bindings lane's first
+attempt fails during Nix shell setup, before any task executes, because a
+cached shell derivation is missing. Reevaluating that shell with the Nix
+evaluation cache disabled restores it; the normal shell then opens. No pinned
+dependency, compiler or lockfile changes.
+
+The fresh bindings retry passes native contracts and the full Python, Node,
+Rust and Ruby schedules, then fails in `bindings::sdk-interop` while installing
+the Elixir consumer. Its existing handler schema round-trip assertion exposes
+an adapter bug: the catalog converter matches a four-element logical-element
+tuple, while the shared Erlang record contains three elements. Nested list
+descriptors therefore retain an Erlang tuple instead of the public Elixir
+`Logical.Element` struct. The interoperability exchange does not run after this
+installation failure, and the lane is incomplete.
+
+The unchanged installed-artifact logical proof reproduces the failure with
+the failed checkout's artifacts. Correcting the tuple match makes
+`just bindings::logical-beam` pass after rebuilding independent OTP artifacts.
+The existing schema test now checks nested list, array, map and structure
+round trips as well as saved Table mutations. Elixir format checks pass.
+The correction changes host value projection, not the shared wire definition,
+storage formats or runtime authority. The full interoperability schedule and
+remaining clean qualification are still required.
