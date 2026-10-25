@@ -1,5 +1,36 @@
 # Validation and evidence
 
+## Bounded row-index mutation batches — 2026-10-25
+
+On `72c77bcb` plus bounded index batching, storage-package tests run with the
+pinned compiler establish the following component results:
+
+- `zig build test -Dtest-filter='ordered full key batches' --summary all`:
+  2/2 pass. Sixty-four short-key inserts stage 22 pages / 16,527 encoded bytes,
+  compared with 134 pages / 90,160 bytes using individual index updates. Mixed
+  64-byte terminals and 65-/4,096-byte extensions retain exact earlier roots;
+  duplicate requests and candidate-budget exhaustion reject.
+- `zig build test -Dtest-filter='Table index batches' --summary all`: 2/2 pass.
+  One 64-row accepted Table batch stages 111 pages / 69,628 bytes including its
+  receipt, versus a scalar four-index control's 533 pages / 336,381 bytes for the
+  same accepted key/locator set. Independent values and identities are checked.
+  A lost acknowledgement recovers the original result without further staging;
+  duplicates inside and beyond the first private batch preserve all accepted
+  roots, the original receipt and the unchanged WAL boundary through recovery.
+- `zig build test -Dtest-filter='Table acceptance recovers'
+  -Dtest-filter='admitted point and bulk UPDATE' -Dtest-filter='keyless'
+  --summary all`: 4/4 pass, including key exchanges and exact retry/reopen.
+
+Staging counters describe acknowledged index payloads, including immutable
+content deduplication. They do not establish provider writes, disk amplification,
+latency or RSS improvements. After batching physical relocation,
+`zig build test -Dtest-filter='retained Table key ranges'
+-Dtest-filter='Table acceptance recovers' --summary all` passes 4/4 (12 seconds).
+The public `just test::storage-key-ranges` then passes 11/11 storage tests (two
+minutes, reported MaxRSS 43 MiB) and 5/5 catalog tests. Broader predicate-write,
+signed service and final repository/clean qualification remain pending.
+
+
 ## Retained ordered Table ranges — 2026-10-25
 
 On `0c3ca45e` plus the Table range integration and shared-definition cutover,
@@ -36,8 +67,18 @@ The focused range run first encountered a fixture compile error (the test used
 an owned-row union as a struct); the signing test first expected cursor validation
 before request-context validation. Both fixture mistakes were corrected before
 the passing runs above. These are component/signed-owner results, not whole-suite,
-SQL inequality-pushdown, many-segment or host-loss qualification. The enlarged
-same-source I/O/recovery proof and final repository/clean checks are pending.
+SQL inequality-pushdown, many-segment or host-loss qualification. On the completed `72c77bcb` range source, the storage command
+`zig build test -Dtest-filter='Table recovery' -Dtest-filter='Table segment ranges'
+--summary all` passes 5/5 (seven minutes, reported MaxRSS 37 MiB). It rejects a
+missing mandatory ordered-root field and a missing accepted ordered-root object
+before exposing state. A four-row interval from a retained 512-row source reads
+563,420 segment bytes and incurs 58 index-cache misses; its same-source scan
+reads 1,093,934 bytes and incurs 393 misses with one resident index page. Every
+row/value is independently checked. With subsequent index batching, the same
+fixture reports 48/320 index misses and unchanged segment-byte counts. The
+counters exclude provider chunk checks and device/cache effects; no latency
+comparison is inferred from these concurrent development runs. Final
+repository/clean checks for this definition cutover remain pending.
 
 
 ## Ordered full-key index component — 2026-10-25

@@ -47,7 +47,7 @@ the enclosing catalog's responsibilities.
 The owner validates constraints against the accepted root. It stages immutable
 index pages and, for bulk ingestion, one bounded `.tseg`. It then acquires the
 current policy/retirement fence and appends one conditional WAL record. That
-record publishes both row indexes and the operation receipt. Private objects
+record publishes all four row indexes and the operation receipt. Private objects
 cannot make a partial batch visible. Point rows are in the accepted WAL record;
 bulk row locators reference the verified segment. No allocation remains after
 the durable append. An uncertain append blocks reads and mutations until replay.
@@ -179,7 +179,13 @@ row identities. The physical scan index follows WAL/segment coordinates, groupin
 maintenance traversal by segment. A separate identity index maps each canonical
 20-byte row identity to its storage-key hash. Public retained pages follow that
 stable order, including mixed WAL/segment sources. Duplicate row identities
-reject before publication. The full-key index maps complete collation-aware keys
+reject before publication. Logical writes and schema rewrites stage up to eight
+row-index changes together, sharing affected page paths without enlarging their
+resident write set. Validation includes both queued keys/identities and earlier
+private batch roots. All old keys are removed before replacement insertion, so
+an UPDATE may exchange keys. Flushes similarly batch physical locator changes.
+These private batches create no separate acceptance, receipt or logical change;
+the complete operation still publishes once under its original work budget. The full-key index maps complete collation-aware keys
 to the same row hashes. Mutations, predicate writes and schema rewrites publish
 all four roots atomically; physical flushes preserve full-key and identity roots.
 SQL ordering still comes from its query plan.

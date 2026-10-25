@@ -144,3 +144,61 @@ test "ordered full keys reopen on disk beyond cache with exact bounds and failed
     invalid.digest[0] ^= 1;
     try t.expectError(error.CorruptPage, index.seek(invalid, null, null));
 }
+
+test "ordered full key batches share page staging and preserve long prefix terminals" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var store = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    defer store.deinit();
+    const index: Index = .{ .store = &store };
+    var keys: [64][8]u8 = undefined;
+    for (&keys, 0..) |*key, i| std.mem.writeInt(u64, key, @intCast(i), .big);
+    try store.begin(16 * 1024 * 1024);
+    defer store.end();
+    var separate: ?pages.Reference = null;
+    for (keys, 0..) |key, i| separate = try index.put(separate, &key, value(i));
+    const separate_pages = store.staged_pages;
+    const separate_bytes = store.staged_bytes;
+    var batched: ?pages.Reference = null;
+    var changes: [pages.mutation_batch]Index.Mutation = undefined;
+    for (0..8) |group| {
+        for (&changes, 0..) |*change, offset| {
+            const i = group * 8 + offset;
+            change.* = .{ .key = &keys[i], .value = value(i) };
+        }
+        batched = try index.mutate(batched, &changes);
+    }
+    const batch_pages = store.staged_pages - separate_pages;
+    const batch_bytes = store.staged_bytes - separate_bytes;
+    try t.expect(batch_pages * 2 < separate_pages);
+    try t.expect(batch_bytes * 2 < separate_bytes);
+    for (keys, 0..) |key, i| {
+        try t.expectEqualDeep(value(i), (try index.get(separate, &key)).?);
+        try t.expectEqualDeep(value(i), (try index.get(batched, &key)).?);
+    }
+    std.debug.print("Ordered key staging: {d}/{d} pages and {d}/{d} encoded bytes for 64 batched/separate inserts\n", .{ batch_pages, separate_pages, batch_bytes, separate_bytes });
+    const retained = batched;
+    var wide: [4096]u8 = @splat('x');
+    batched = try index.mutate(batched, &.{
+        .{ .key = wide[0..64], .value = value(100) },
+        .{ .key = &wide, .value = value(101) },
+        .{ .key = wide[0..65], .value = value(102) },
+    });
+    const with_prefix = batched;
+    batched = try index.mutate(batched, &.{
+        .{ .key = &wide, .value = null },
+        .{ .key = wide[0..64], .value = null },
+        .{ .key = &keys[0], .value = value(200) },
+    });
+    try t.expect((try index.get(batched, wide[0..64])) == null);
+    try t.expect((try index.get(batched, &wide)) == null);
+    try t.expectEqualDeep(value(102), (try index.get(batched, wide[0..65])).?);
+    try t.expectEqualDeep(value(101), (try index.get(with_prefix, &wide)).?);
+    try t.expectEqualDeep(value(0), (try index.get(retained, &keys[0])).?);
+    const staged = store.staged_pages;
+    try t.expectError(error.DuplicatePageMutation, index.mutate(batched, &.{ .{ .key = &keys[0], .value = value(1) }, .{ .key = &keys[0], .value = null } }));
+    try t.expectEqual(staged, store.staged_pages);
+    store.candidate.?.limit = store.candidate.?.staged + 1;
+    try t.expectError(error.StorageCandidateTooLarge, index.mutate(batched, &.{.{ .key = &keys[1], .value = value(201) }}));
+    try t.expectEqualDeep(value(1), (try index.get(batched, &keys[1])).?);
+}
