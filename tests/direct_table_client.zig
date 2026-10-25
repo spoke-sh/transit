@@ -379,6 +379,8 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, args[2], "callers")) {
             (try client.call(.initialize)).deinit();
             try Conditions.callers(init.gpa, client);
+        } else if (std.mem.eql(u8, args[2], "prepared-lifetime")) {
+            try @import("direct_table_prepared.zig").run(init.gpa, client, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "resource-save")) {
             var prepared_arena = std.heap.ArenaAllocator.init(init.gpa);
             defer prepared_arena.deinit();
