@@ -16,8 +16,10 @@ hex Ed25519 seed), and a `role`. Defaults: `interval_ms: 10`,
 `idle_max_interval_ms` defaults to 0 (fixed polling) and accepts 0–60000.
 When greater than `interval_ms`, each idle step doubles the next delay up to
 that ceiling; observed activity resets it to `interval_ms`. The courier uses
-the same rule. Error recovery keeps the base retry interval and exact pending
-mutations. The local server sets a 10 ms base and one-second ceiling. This
+the same rule. Workers retry errors at the base interval. The courier doubles
+its delay after transient read/delivery failure up to the greater of one second
+and the configured base, resetting after successful work. It retains the exact
+pending delivery through every retry. The local server sets a 10 ms base and one-second ceiling. This
 reduces idle traffic but can add up to one polling interval before newly queued
 durable work is noticed; interactive reads do not wait for these workers.
 
