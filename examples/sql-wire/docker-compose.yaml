@@ -23,28 +23,12 @@ services:
   node:
     <<: *runtime
     image: '${EXCHANGE_NODE_IMAGE:?}'
-    command: [/node.json]
+    command: [/operator/node.json]
     environment: {LOG_LEVEL: warn}
-    volumes: ['${EXCHANGE_WORK:?}/operator/node.json:/node.json:ro']
+    volumes:
+      - '${EXCHANGE_WORK:?}/operator:/operator:ro'
+      - '${EXCHANGE_WORK:?}/authority:/authority'
     networks: [storage, client]
-  application:
-    <<: *runtime
-    image: '${EXCHANGE_CALLER_IMAGE:?}'
-    command: [/application/config.json]
-    environment: {LOG_LEVEL: warn}
-    volumes:
-      - '${EXCHANGE_WORK:?}/application:/application:ro'
-      - '${EXCHANGE_WORK:?}/application-data:/runtime-data'
-    networks: [client]
-  courier:
-    <<: *runtime
-    image: '${EXCHANGE_CONNECTOR_IMAGE:?}'
-    command: [/courier/config.json]
-    environment: {LOG_LEVEL: warn}
-    volumes:
-      - '${EXCHANGE_WORK:?}/courier:/courier:ro'
-      - '${EXCHANGE_WORK:?}/courier-data:/runtime-data'
-    networks: [client]
   gateway-0:
     <<: *runtime
     image: '${EXCHANGE_BOARD_IMAGE:?}'

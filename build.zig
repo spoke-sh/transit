@@ -1497,7 +1497,7 @@ pub fn build(b: *std.Build) void {
         const placed = b.addSystemCommand(&.{ "python3", "-B" });
         placed.addFileArg(b.path("examples/sql-wire/run.py"));
         placed.addArg(placement);
-        for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
+        for ([_]*std.Build.Step.Compile{ node_artifact, sql_catalog_proof, sql_gateway_proof, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
         placed.has_side_effects = true;
         placed.stdio = .inherit;
         b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
