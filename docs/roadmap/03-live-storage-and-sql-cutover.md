@@ -75,7 +75,7 @@ to this installed integration owner. Preserve #108's original acceptance gates:
   identities, requested lifetime, actual result evidence and data-source
   freshness. SQL/SDK and Board projections reuse qualified operations; reading
   or explaining a declaration activates no work. Automatic scheduling stays
-  with [managed computations](08-sql-and-dataflows.md).
+  with [managed computations](09-sql-and-dataflows.md).
 
 Original lifecycle acceptance, retained from milestone 1:
 
@@ -98,7 +98,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 12](12-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 14](14-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress; the split establishes
 no newly completed lifecycle or deployment. #108/#110 retain their delivered
 evidence and track these installed outcomes together.
@@ -172,7 +172,7 @@ bottlenecks keeping interactive SQL and server workflows slow:
    flush condition, observe segments/manifests and verify the same accepted
    outcomes after restart. No external storage daemon may remain necessary for
    a less-visible native owner. Later provider/concurrent-writer promises remain
-   explicit milestone 12 obligations; this checkpoint does not complete them.
+   explicit milestone 14 obligations; this checkpoint does not complete them.
 5. **Complete named resources and computation lifecycles.** Qualify #119/#120
    through the installed paths above, including interrupted provisioning, exact
    accepted-result binding, data-source freshness, dependencies and current
@@ -187,6 +187,13 @@ bottlenecks keeping interactive SQL and server workflows slow:
    committed-source clean check, recording matched controls through #76/#124.
 
 ## Completion evidence
+
+Record installed local baselines for durable data operations and native runtime
+work, separating admission, WAL sync, execution/turn commit, recovery and result
+delivery. Include candidate segments, range-read bytes and peak resident memory.
+The later [performance scorecard](10-data-structures-and-performance.md) extends
+these measurements; it cannot replace this cutover's existing matched controls
+with library-only timings or defer a missing bounded access path.
 
 Require passing end-to-end proofs across `transit-node`, `transit-sql-gateway`,
 `transit-query-host`, `transit server` and `psql`/`mysql`/`transit sql` callers,

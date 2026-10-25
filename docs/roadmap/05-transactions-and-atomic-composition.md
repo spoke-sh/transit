@@ -127,24 +127,35 @@ the plan is self-contained and does not require that file.
 
 ## Later owners and execution gates
 
+Define index-maintenance, constraint and DDL interactions with the
+[indexing owner](08-indexing-and-access-paths.md) before dependent formats.
+Every constraint advertised here must already be enforceable in the supported
+domain. The later indexing delivery adds secondary structures and online builds;
+it cannot defer transaction correctness. Index-backed reads and private writes
+must preserve absent-key/range conflict tracking, uniqueness and savepoint/abort
+behavior. Distinguish constraint enforcement readiness from query eligibility;
+an asynchronously populated structure cannot authorize duplicate commits.
+Choose isolation mechanisms on their own evidence, not because a tree offers
+optimistic traversal. Include indexed/unindexed histories in later qualification.
+
 [Historical catalogs](07-standards-and-catalogs.md) retain exact interpretation;
-[dataflows](08-sql-and-dataflows.md) consume complete transaction changes without
+[dataflows](09-sql-and-dataflows.md) consume complete transaction changes without
 publishing half a multi-object update. General `MERGE`/upsert and prepared-plan
 features stay with SQL composition; this milestone owns their transaction
-interactions. [Foreign relations](09-multi-model-and-foreign-relations.md) owns
+interactions. [Foreign relations](11-multi-model-and-foreign-relations.md) owns
 typed `COPY`/import/export and its adapters. Foreign observations are not
 automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
-[Branches](10-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](17-published-resources-and-investigations.md)
+[Branches](12-branches-merges-and-restore.md) own multi-commit histories, merge
+validation and forward restore. [Investigations](19-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](12-storage-providers-and-concurrency.md),
-[replication](13-replication-and-failover.md), [operations](14-operations-and-recovery.md)
-and [clustered execution](15-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](14-storage-providers-and-concurrency.md),
+[replication](15-replication-and-failover.md), [operations](16-operations-and-recovery.md)
+and [clustered execution](17-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 

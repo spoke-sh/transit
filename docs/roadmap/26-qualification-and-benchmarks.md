@@ -1,4 +1,4 @@
-# 24. Qualification and complete benchmarks
+# 26. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,6 +9,17 @@ Turn component coverage into complete workload and release evidence. The
 remains a gate for every preceding milestone.
 
 ## Remaining work
+
+- Compose [index lifecycle](08-indexing-and-access-paths.md) evidence across
+  transactions, retained history, branches, providers, failover, backup/PITR and
+  moving placements. Include partial/covering reads, unique-key conflicts,
+  interrupted builds, compaction and retirement under current authorization.
+- Repeat the [data structures, query and runtime scorecard](10-data-structures-and-performance.md)
+  at the common revision with installed callers, concurrent maintenance and
+  durable runtime workloads. Preserve numeric budgets, matched competitor
+  versions/configurations, raw samples and visible failures/regressions. Report
+  leadership only for reproduced equivalent workload profiles; a component win
+  or reduced TPC workload is not a universal database/runtime ranking.
 
 - Qualify full declaration lifecycles: define data and computation, apply policy,
   inspect publication/results/progress, evolve dependencies and recover accepted
@@ -28,12 +39,12 @@ remains a gate for every preceding milestone.
   branch publication, complete dataflow commits and backup/PITR cuts. Earlier
   transaction correctness gates remain required; this is combined qualification.
 - Compose the [result-set](04-statement-results-and-consumption.md),
-  [replication](13-replication-and-failover.md) and
-  [operations](14-operations-and-recovery.md) evidence at the same revision:
+  [replication](15-replication-and-failover.md) and
+  [operations](16-operations-and-recovery.md) evidence at the same revision:
   complete/incomplete result delivery, failover, verified backups, restore
   activation and upgrades during real caller workloads and placement changes.
   Their focused acceptance gates remain required before this combined exercise.
-- Qualify [direct-client, Station and mixed applications](23-programming-model.md)
+- Qualify [direct-client, Station and mixed applications](25-programming-model.md)
   through real installed language packages, including cross-language typed service
   calls, original-operation recovery, explicit commit scopes and bounded host
   scheduling. Compare the same data/outcomes across modes; shared native code
@@ -43,7 +54,7 @@ remains a gate for every preceding milestone.
   basis, isolated branch proposals, denied merges and reviewed publication.
   Include identity-provider outages, stale membership, offboarding, agent attempts
   to approve their own work, destination movement and lost acceptance replies.
-- Compose the installed [Board workbench](19-board-reimplementation.md) with
+- Compose the installed [Board workbench](21-board-reimplementation.md) with
   those shared callers at the same revision. Compare catalog/preview/workbook,
   lineage and change-review evidence with independent public-operation results;
   include current authorization, uncertain transaction/publication recovery,
@@ -150,4 +161,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](25-releases.md).
+and immutable release links remain part of [release distribution](27-releases.md).

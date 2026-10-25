@@ -57,6 +57,15 @@ over those contracts, rather than introducing a second snapshot representation.
 
 ## Boundaries and evidence
 
+Bind [index definitions and coverage](08-indexing-and-access-paths.md) to these
+same retained source/column identities and exact comparison/collation versions.
+Specify rejection or rebuild when an index cannot interpret a requested cut;
+current physical indexes are not automatically valid for historical queries.
+Register indexing DDL/access-method options as explicit Transit extensions with
+separate parse, execution and recovery evidence. A normalized key codec must be
+proved against every admitted comparison profile; its existence does not imply
+universal UCA, type, direction or five-state support.
+
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
 GQL, Cypher and PGQL need separate frontend/compatibility evidence. Reserve
 system-time syntax for temporal semantics; resource revisions, application

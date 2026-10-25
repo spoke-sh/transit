@@ -1,4 +1,4 @@
-# 8. Managed computations and WAL-activated dataflows
+# 9. Managed computations and WAL-activated dataflows
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -72,6 +72,15 @@ half-committed transaction as a completed result.
 
 ## Remaining work
 
+Consume [index coverage and access paths](08-indexing-and-access-paths.md) without
+changing source cuts or completed-revision meaning. Preserve durable ordered
+operator roots, checkpoint/input progress and retained versions when adding
+mutable working-state acceleration. Establish finite/maintained correctness,
+spill and freshness baselines here; the
+[structure/planner/runtime owner](10-data-structures-and-performance.md) then
+compares optimized structures and integrated local workloads. Its later delivery
+cannot defer this milestone's bounded execution or activation/recovery gates.
+
 - Extend expression/relational composition while preserving five-state values,
   checked arithmetic, explicit collations, source identities, output types and
   bounded operator state (with Tier 2 NVMe spill for large sorts, joins and
@@ -83,7 +92,7 @@ half-committed transaction as a completed result.
   owns session control, atomicity/isolation, DDL/constraint interactions and
   transaction-bound plan invalidation; those features do not all become transaction
   syntax merely because they can execute in a transaction. SQL `MERGE` is separate
-  from branch merge. [Foreign relations](09-multi-model-and-foreign-relations.md)
+  from branch merge. [Foreign relations](11-multi-model-and-foreign-relations.md)
   now owns typed `COPY`/import/export together with its actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
   including conditional alteration and retirement. SQL, SDK and Board use the
@@ -97,7 +106,7 @@ half-committed transaction as a completed result.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](21-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](23-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot
