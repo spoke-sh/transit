@@ -8,8 +8,10 @@ import json
 import os
 from pathlib import Path
 import struct
+import time
 from urllib.request import Request, build_opener, ProxyHandler
 from catalog_abi import Port
+from unified_abi import Failure
 
 
 def current_definition():
@@ -103,6 +105,50 @@ def bootstrap(host, root, url, data, key):
         definition = client.call(dict(lookup=dict(namespace=data['namespace'], name='counter')))['metadata']
         assert definition is not None
         return definition
+    finally:
+        client.close()
+
+
+def populate_query_rows(host, root, url, data):
+    """Prepare the browser's finite dataset through the installed direct owner."""
+    directory = root / 'counter-installer'
+    connection = dict(scope=dict(data['scope'], catalog=str(data['scope']['catalog'])),
+        branch=str(data['branch']), audience=data['audience'], principal=33, role=None)
+    client = Port(host, directory, url, connection)
+    def call(action):
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                return client.call(action)
+            except Failure as failure:
+                if (not isinstance(failure.detail, dict) or failure.detail.get('protocol_error') != 'HttpCapacity'
+                        or time.monotonic() >= deadline):
+                    raise
+                # Admission capacity is an attempt, not a new Table operation.
+                # Reuse the exact action and saved intent; never recompile a
+                # dispatched mutation or allocate a replacement identity.
+                time.sleep(.05)
+    try:
+        values = ','.join(f'({row},1)' for row in range(2, 21))
+        compiled = call(dict(compile=dict(namespace=data['namespace'], operation='2', create_object=None,
+            sql='INSERT INTO counter (id, "count") VALUES ' + values, dialect='transit', ingestion='bulk')))['compiled']
+        saved = directory / 'query-rows-intent.json'
+        saved.write_text(json.dumps(compiled['saved']))
+        loaded = call(dict(load=json.loads(saved.read_text())))['loaded']
+        assert loaded == compiled['summary']
+        reference = call(dict(stage=loaded['id']))['staged']
+        (directory / 'query-rows-reference.json').write_text(json.dumps(reference))
+        call(dict(admit=reference))
+        for _ in range(128):
+            state = call(dict(operation=dict(reference=reference, command='execute', steps=32)))['observation']['rows']
+            if 'committed' in state:
+                outcome = state['committed']['outcome']
+                assert outcome['matched'] == outcome['affected'] == '19'
+                assert outcome['live_rows'] == '20'
+                print('Reactive query setup: 19 rows committed through one direct bulk operation.', flush=True)
+                return
+            assert 'admitted' in state, state
+        raise AssertionError('Reactive query setup did not complete')
     finally:
         client.close()
 

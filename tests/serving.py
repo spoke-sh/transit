@@ -18,7 +18,7 @@ import urllib.request
 from types import SimpleNamespace
 
 from storage import free_port, wait_ready
-from serving_table import authorize, bootstrap as bootstrap_counter, provision_catalog
+from serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
 
 REALM = 49
 TLS = {}
@@ -146,6 +146,7 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
         children, logs = [], []
 
         def start(name, executable, config):
+            if name == 'clock-observer': fault['clock_contention_armed'] = True
             path = store.root / (name + '.json')
             path.write_text(json.dumps(config))
             log = (store.root / (name + '.log')).open('w+')
@@ -203,7 +204,7 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
         fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'serialize_upstream': False, 'blocked': 0,
                  'ingress_commit': None, 'application_commit': None, 'destination_delivery': None,
                  'reply_delivery': None, 'data_commit': None, 'data_inspected': False, 'deliveries_armed': False, 'delivery_ids': {}, 'commit_retries': set(),
-                 'contention_request': None, 'contention_retried': False}
+                 'contention_requests': {}, 'contention_retried': set(), 'clock_contention_armed': False}
         fault_lock = threading.Lock()
         upstream_lock = threading.Lock()
         release_reads = threading.Event()
@@ -215,13 +216,16 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 message = json.loads(body)
                 native = message.get('request') if self.path == '/v1/command' else None
-                if reactive_views and native and native['principal'] == 77 and 'open_view' in native['command']:
+                contended = native and ((native['principal'] == 77 and 'open_view' in native['command']) or
+                                        (native['principal'] == 34 and fault['clock_contention_armed'] and 'send' in native['command']))
+                if reactive_views and contended:
+                    principal = native['principal']
                     with fault_lock:
-                        reject = fault['contention_request'] is None
+                        reject = principal not in fault['contention_requests']
                         if reject:
-                            fault['contention_request'] = body
-                        elif body == fault['contention_request']:
-                            fault['contention_retried'] = True
+                            fault['contention_requests'][principal] = body
+                        elif body == fault['contention_requests'][principal]:
+                            fault['contention_retried'].add(principal)
                     if reject:
                         # Model exhausted ordinary CAS reprepare before this
                         # exact command is dispatched. Never substitute a new
@@ -348,6 +352,8 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
             authority = start('node-direct', node, settings)
             wait_ready(store.http, authority, url + '/health')
             counter_definition = bootstrap_counter(host, store.root, url, catalog_authority['data'], keys[33])
+            def populate_rows():
+                populate_query_rows(host, store.root, url, catalog_authority['data'])
             sequences[0] = query(0, {'identity': {}})['principal_sequence']
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
@@ -411,7 +417,7 @@ def run(node, example, courier, host, tls=False, capacity=False, lifetimes=False
             if reactive_views:
                 from reactive_views import run as run_views
                 run_views(locals(), TLS)
-                assert fault['contention_request'] is not None and fault['contention_retried'], 'worker did not recover the exact contended native request'
+                assert set(fault['contention_requests']) == fault['contention_retried'] == {34, 77}, 'worker or clock observer replaced a contended native request'
                 return
             if reactive_refresh:
                 from reactive_refresh import run as run_refresh
