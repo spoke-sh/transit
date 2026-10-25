@@ -26181,3 +26181,20 @@ independent Unified source/bundle digests after the definition replacement. Thei
 owning encoder regenerated those fixtures. That attempt is not a full-check pass;
 combined repository, committed-source mutation and clean-checkout validation
 remain required.
+
+## Direct catalog mutation checks — 2026-10-24
+
+`just test::domain-simulation-mutations` passes on committed source `b48875510`
+from an isolated checkout. The unmodified baseline executes five domain schedules
+with identical replay in 19.034 seconds. All nine compiling mutations are detected
+by executed assertions: Document conflicts, checkpoint floors, exchange holds,
+refresh generations, provider readiness, catalog CREATE policy, original Table
+receipt positions, metadata inspection rights and directory continuation bases.
+
+The earlier `fbaf0bff1` run stopped because the receipt mutation had invalid Zig
+syntax. It is inconclusive, not a detected semantic regression. The corrected
+probe compiles and fails the direct catalog schedule's original-receipt assertion.
+Evidence is retained in
+`.cache/verification/domain-simulation-mutations-b48875510/`, including baseline,
+per-mutation logs, replay traces and `evidence.json`. These are component guards
+over volatile adapters; physical recovery remains separately qualified.
