@@ -15,6 +15,16 @@ const producer_done = p.Value.init("exchange-complete") catch unreachable;
 const first_exchange = 1700;
 const pending_checked = p.Value.init("exchange-pending-checked") catch unreachable;
 const stale_checked = p.Value.init("exchange-stale-checked") catch unreachable;
+const files = @import("native_proof_files.zig");
+pub const Mode = enum { all, prepare, recover };
+const Saved = struct {
+    definition: p.Growth.Definition,
+    state: maintained.State,
+    worker: support.Provision,
+    vector: c.DirectTableProtocol.Binary,
+    authorization: q.ExchangeAuthorization,
+    borrows: [2]c.DirectReadDelegation.Borrow,
+};
 const Handler = struct {
     inner: *support.RelationalHost,
     exchange: u64,
@@ -132,9 +142,11 @@ fn step(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handl
     const pending = try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .delivery }, try support.key(17));
     if (pending.body.delivery.next) |next| _ = try admin.submit(.{ .deliver = next });
 }
-pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, directory: []const u8) !void {
+pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, directory: []const u8, mode: Mode) !void {
     const alloc = init.arena.allocator();
-    var state = try maintained.prepareWithExchange(init, client, admin, role, false, true);
+    const saved: ?Saved = if (mode == .recover) try files.load(Saved, init, directory, "direct-exchange-recovery.json") else null;
+    if (saved) |value| if (value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    var state = if (saved) |value| value.state else try maintained.prepareWithExchange(init, client, admin, role, false, true);
     const bytes = try state.bundle.decode(alloc, q.RelationalBundle.max_bytes);
     var decoded = try q.RelationalBundle.decode(alloc, bytes);
     defer decoded.deinit();
@@ -142,8 +154,8 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     const receiver_clients = [_]c.DirectTableClient{ try maintained.executor(client, state), try maintained.executor(client, state) };
     var inner: support.RelationalHost = .{ .bundle = bundle, .bytes = bytes, .reference = try bundle.reference(state.worker.resource, 1), .clients = &receiver_clients, .workspace = try alloc.alloc(u8, 4 * 1024 * 1024), .exchanged = true };
     var receiver = try maintained.host(client, state);
-    var vector: q.RelationalHistory.Vector = undefined;
-    for (0..500) |_| {
+    var vector: q.RelationalHistory.Vector = if (saved) |value| try .decode(bundle, try value.vector.decode(alloc, q.RelationalHistory.Vector.max_bytes)) else undefined;
+    if (saved == null) for (0..500) |_| {
         try step(init, &receiver, inner.interface(), admin);
         var read = try maintained.source(client, state);
         const head = try q.RelationalMaintenance.head(&read, state.identity);
@@ -155,21 +167,23 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             break;
         }
     } else return error.MissingExchangeBasis;
-    var worker = try support.provision(admin, 141, 113);
-    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
-    worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try support.key(17))).body.process.process.generation;
-    _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = 141 } });
-    worker.generation += 1;
-    _ = try admin.submit(.{ .grant_resource = .{ .resource = worker.resource, .subject = state.principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-    // Adding an optional resource link requires a fenced receiver. Preserve
-    // the accepted query and replace only its physical ownership generation.
-    _ = try admin.submit(.{ .@"suspend" = .{ .pid = state.worker.pid, .expected_generation = state.worker.generation, .resume_before_ms = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 60000) } });
-    _ = try admin.submit(.{ .associate = .{ .pid = state.worker.pid, .name = try .init("producer"), .resource = worker.resource, .required = false } });
-    const suspended = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = state.worker.pid } }, try support.key(17))).body.process.process;
-    _ = try admin.submit(.{ .@"resume" = .{ .pid = state.worker.pid, .expected_generation = suspended.generation } });
-    _ = try admin.submit(.{ .own = .{ .pid = state.worker.pid, .expected_generation = suspended.generation + 1, .worker = state.principal } });
-    state.worker.generation = suspended.generation + 2;
-    receiver = try maintained.host(client, state);
+    var worker = if (saved) |value| value.worker else try support.provision(admin, 141, 113);
+    if (saved == null) {
+        _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
+        worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try support.key(17))).body.process.process.generation;
+        _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = 141 } });
+        worker.generation += 1;
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = worker.resource, .subject = state.principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        // Adding an optional resource link requires a fenced receiver. Preserve
+        // the accepted query and replace only its physical ownership generation.
+        _ = try admin.submit(.{ .@"suspend" = .{ .pid = state.worker.pid, .expected_generation = state.worker.generation, .resume_before_ms = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 60000) } });
+        _ = try admin.submit(.{ .associate = .{ .pid = state.worker.pid, .name = try .init("producer"), .resource = worker.resource, .required = false } });
+        const suspended = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = state.worker.pid } }, try support.key(17))).body.process.process;
+        _ = try admin.submit(.{ .@"resume" = .{ .pid = state.worker.pid, .expected_generation = suspended.generation } });
+        _ = try admin.submit(.{ .own = .{ .pid = state.worker.pid, .expected_generation = suspended.generation + 1, .worker = state.principal } });
+        state.worker.generation = suspended.generation + 2;
+        receiver = try maintained.host(client, state);
+    }
     var worker_client = client;
     worker_client.connection.principal = 141;
     worker_client.key = try support.key(113);
@@ -182,12 +196,14 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     receiver.failure_policy = .stop;
     // Accepted activation owns a retained request version. Retirement of the
     // live publication cannot replace it or stop either selected revision.
-    try support.send(client, state.worker.pid, try .init("x:retire-request"));
-    for (0..200) |_| {
-        try step(init, &receiver, receiver_handler.interface(), admin);
-        var read = try maintained.source(client, state);
-        if ((try inner.reference.publication().inspect(&read, inner.reference.record)).state == .retired) break;
-    } else return error.RequestRetirementPending;
+    if (saved == null) {
+        try support.send(client, state.worker.pid, try .init("x:retire-request"));
+        for (0..200) |_| {
+            try step(init, &receiver, receiver_handler.interface(), admin);
+            var read = try maintained.source(client, state);
+            if ((try inner.reference.publication().inspect(&read, inner.reference.record)).state == .retired) break;
+        } else return error.RequestRetirementPending;
+    }
     var borrowed: [2]c.DirectTableClient = undefined;
     var handed_off = false;
     for ([_]u64{ 1, 7 }, 0..) |partitions, index| {
@@ -209,9 +225,11 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             } else return error.MissingExchangeSuccessor;
         }
         const assignment: q.ExchangeAuthorization.Assignment = .{ .exchange = exchange_id, .producer = worker.pid, .options = .{ .receiver = .{ .owner = state.worker.pid, .resource = state.worker.resource }, .partitions = partitions, .workers = 1, .worker = 0, .batch = 4, .epoch = revision, .quota = 4 * 1024 * 1024 } };
-        const authorization = try q.ExchangeAuthorization.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, assignment, bundle, vector);
+        const recovered = index == 0 and saved != null;
+        const authorization = if (recovered) saved.?.authorization else try q.ExchangeAuthorization.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, assignment, bundle, vector);
+        try t.expectEqualDeep(assignment, authorization.assignment);
         var borrows: [2]c.DirectReadDelegation.Borrow = undefined;
-        for (&borrows, 0..) |*borrow, i| borrow.* = try authorization.prepareRead(client, bundle, vector, i, 141);
+        for (&borrows, 0..) |*borrow, i| borrow.* = if (recovered) saved.?.borrows[i] else try authorization.prepareRead(client, bundle, vector, i, 141);
         if (index != 0) try t.expectError(error.TableDelegationDenied, borrowed[0].call(borrows[0].binding.target.action()));
         borrowed[index] = try q.CapturedTablePin.borrowedClient(worker_client, bundle.retention[0], borrows[0]);
         try t.expectError(error.TableDelegationDenied, borrowed[index].call(.{ .release = vector.entries[0].record.basis.snapshot }));
@@ -223,34 +241,36 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
         worker_handler.vector = vector;
         worker_handler.authorization = authorization;
         worker_handler.borrows = &borrows;
-        try support.send(client, state.worker.pid, try .init("x:init"));
-        // A complete registration is not complete row/terminal coverage.
-        for (0..200) |_| {
-            try step(init, &receiver, receiver_handler.interface(), admin);
-            var read = try maintained.source(client, state);
-            const exchange = x.head(&read, exchange_id) catch |err| {
-                if (err == error.QueryNotFound) continue;
-                return err;
-            };
-            if (exchange.registered == try exchange.total()) break;
-        } else return error.ExchangeRegistrationPending;
-        const commands: []const []const u8 = if (index == 0) &.{"x:pending"} else &.{ "x:pending", "x:stale" };
-        for (commands) |command| {
-            try support.send(client, state.worker.pid, try .init(command));
+        if (!recovered) {
+            try support.send(client, state.worker.pid, try .init("x:init"));
+            // A complete registration is not complete row/terminal coverage.
             for (0..200) |_| {
                 try step(init, &receiver, receiver_handler.interface(), admin);
                 var read = try maintained.source(client, state);
-                const value = (try read.read(if (std.mem.eql(u8, command, "x:stale")) stale_checked else pending_checked)) orelse continue;
-                if (try q.UnifiedRecords.readIdentity(value) != exchange_id) continue;
-                const head = try q.RelationalMaintenance.head(&read, state.identity);
-                try t.expectEqual(revision - 1, head.revision);
-                try t.expectEqual(.running, head.phase);
-                break;
-            } else return error.ExchangeRejectionPending;
+                const exchange = x.head(&read, exchange_id) catch |err| {
+                    if (err == error.QueryNotFound) continue;
+                    return err;
+                };
+                if (exchange.registered == try exchange.total()) break;
+            } else return error.ExchangeRegistrationPending;
+            const commands: []const []const u8 = if (index == 0) &.{"x:pending"} else &.{ "x:pending", "x:stale" };
+            for (commands) |command| {
+                try support.send(client, state.worker.pid, try .init(command));
+                for (0..200) |_| {
+                    try step(init, &receiver, receiver_handler.interface(), admin);
+                    var read = try maintained.source(client, state);
+                    const value = (try read.read(if (std.mem.eql(u8, command, "x:stale")) stale_checked else pending_checked)) orelse continue;
+                    if (try q.UnifiedRecords.readIdentity(value) != exchange_id) continue;
+                    const head = try q.RelationalMaintenance.head(&read, state.identity);
+                    try t.expectEqual(revision - 1, head.revision);
+                    try t.expectEqual(.running, head.phase);
+                    break;
+                } else return error.ExchangeRejectionPending;
+            }
+            // The first producer must still read its two-row cut after a live delete.
+            if (index == 0) try maintained.mutation(init, client, "exchange_input", 1103, 0, false);
+            try support.send(client, worker.pid, try .init("x:init"));
         }
-        // The first producer must still read its two-row cut after a live delete.
-        if (index == 0) try maintained.mutation(init, client, "exchange_input", 1103, 0, false);
-        try support.send(client, worker.pid, try .init("x:init"));
         var attached = false;
         for (0..5000) |iteration| {
             if (iteration != 0 and iteration % 19 == 0) {
@@ -266,12 +286,27 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             try step(init, &receiver, receiver_handler.interface(), admin);
             try step(init, &producer, worker_handler.interface(), admin);
             if (!handed_off and iteration >= 2 and producer.pending == null and producer.delivery == null and producer.ready == null) {
+                if (mode == .prepare) {
+                    var retained: [q.RelationalHistory.Vector.max_bytes]u8 = undefined;
+                    try files.save(init, directory, "direct-exchange-recovery.json", Saved{
+                        .definition = p.Growth.current_definition,
+                        .state = state,
+                        .worker = worker,
+                        .vector = try .encode(alloc, try vector.encode(bundle, &retained)),
+                        .authorization = authorization,
+                        .borrows = borrows,
+                    });
+                    // The harness kills this real executor process after the
+                    // atomic checkpoint becomes visible. Neither host may run
+                    // another turn before that physical replacement.
+                    while (true) try init.io.sleep(.fromSeconds(1), .awake);
+                }
                 const replacement = try @import("direct_worker_handoff.zig").run(init, directory, worker_client, worker, bundle, vector, authorization, &borrows);
                 worker.generation = replacement.generation;
                 worker_client.key = replacement.key;
                 worker_clients = .{ worker_client, worker_client };
                 worker_handler.producer = worker;
-                for (borrowed[0 .. index + 1]) |*saved| saved.key = replacement.key;
+                for (borrowed[0 .. index + 1]) |*retained_client| retained_client.key = replacement.key;
                 worker_configuration.generation = replacement.generation;
                 worker_configuration.key = replacement.key;
                 producer = try s.GenServer.init(worker_configuration, "state");

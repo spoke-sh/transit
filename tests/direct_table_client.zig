@@ -513,10 +513,11 @@ pub fn main(init: std.process.Init) !void {
             fresh.key = try key(if (profile.captured != null) 59 else 29);
             const boundaries = @import("direct_unified_boundaries.zig");
             try boundaries.run(init, fresh, &admin, profile.role, std.meta.stringToEnum(boundaries.Case, args[2]["unified-boundary-".len..]) orelse return error.UnknownProofPhase);
-        } else if (std.mem.eql(u8, args[2], "capture-exchanges")) {
+        } else if (std.mem.eql(u8, args[2], "capture-exchanges") or std.mem.eql(u8, args[2], "capture-exchanges-prepare") or std.mem.eql(u8, args[2], "capture-exchanges-resume")) {
             var fresh = client;
             fresh.key = try key(if (profile.captured != null) 59 else 29);
-            try @import("direct_relational_exchanges.zig").run(init, fresh, &admin, profile.role, std.fs.path.dirname(args[3]) orelse ".");
+            const mode: @import("direct_relational_exchanges.zig").Mode = if (std.mem.endsWith(u8, args[2], "-prepare")) .prepare else if (std.mem.endsWith(u8, args[2], "-resume")) .recover else .all;
+            try @import("direct_relational_exchanges.zig").run(init, fresh, &admin, profile.role, std.fs.path.dirname(args[3]) orelse ".", mode);
         } else if (std.mem.eql(u8, args[2], "capture-source-pages")) {
             var fresh = client;
             if (profile.captured != null) fresh.key = try key(59);

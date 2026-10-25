@@ -27,8 +27,17 @@ while execution ownership is fenced. Activation rotates the worker credential;
 the old credential is denied. Reconstructed producer and receiver hosts finish
 the one- and seven-partition successors and close the original history leases.
 
-This schedule reconstructs hosts in one OS process. It does not qualify physical
-worker termination, provider replacement or filesystem capacity failures. Those
+The expanded schedule saves the original request bundle, history vector,
+assignment and borrowed proofs to an atomic private checkpoint, then kills the
+executor with SIGKILL. That process contains both receiver and producer hosts.
+After a disk-backed node restart, a new executor restores the same selection,
+performs the recorded credential handoff and finishes both results and cleanup.
+The checkpoint bytes remain unchanged throughout recovery. This expanded run
+passes; earlier attempts failed to compile the fixture's mode and local name.
+
+This qualifies physical replacement of that executor, with one producer and
+independent native resources. It does not qualify provider replacement,
+multi-producer placement or filesystem capacity failures. The corresponding
 older schedules still require migration before the old Table owner is removed.
 
 ## Direct SQL ledger recovery and pin authority — 2026-10-24
