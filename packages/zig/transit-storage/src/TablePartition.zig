@@ -8,6 +8,7 @@ const f = @import("transit_fuze");
 const Log = @import("TransitLog.zig");
 const Objects = @import("TransitObjectStore.zig");
 const TreeStore = @import("TreeStore.zig");
+const OrderedKeys = @import("OrderedKeyIndex.zig");
 const pages = TreeStore.pages;
 const r = @import("TablePartitionRecord.zig");
 const Declaration = @import("TableDeclaration.zig");
@@ -116,6 +117,22 @@ pub const HistoryRows = struct {
     }
 };
 pub const SnapshotCursor = struct { source: d.Content, after: [f.TableRow.Identity.encoded_bytes]u8 };
+pub const KeyRange = @import("TableKeyRange.zig");
+pub const KeyRangePage = struct {
+    source: SnapshotHandle,
+    interpretation: Declaration.Stored,
+    accepted: d.Position,
+    changed_lsn: u64,
+    total_rows: u64,
+    rows: [8]?OwnedRow = @splat(null),
+    count: u8 = 0,
+    encoded_bytes: u32 = 0,
+    next: ?KeyRange.Cursor = null,
+    pub fn deinit(self: *KeyRangePage) void {
+        for (&self.rows) |*slot| if (slot.*) |*row| row.deinit();
+        self.* = undefined;
+    }
+};
 pub const ReadLimits = struct {
     rows: u8 = pages.page_entries,
     encoded_bytes: u32 = 4 * 1024 * 1024,
@@ -211,7 +228,7 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
@@ -228,7 +245,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             } else if (!std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
             if (record.action == .mutation and after.changed_lsn != (if (value.outcome.affected != 0 or binding.action == .create) after.next_lsn else before.changed_lsn)) return error.InvalidTableHistory;
             if (record.action == .mutation and value.outcome.affected == 0 and
-                (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or
+                (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.ordered_rows, after.ordered_rows) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or
                     before.live_rows != after.live_rows or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
             if (before.next_lsn == 0) {
                 if (record.action != .mutation or binding.action != .create or after.interpretation.revision != 1 or after.retired) return error.InvalidTableHistory;
@@ -241,7 +258,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
                     if (binding.action != .alter and binding.action != .rename and binding.action != .drop) return error.InvalidTableHistory;
                     if (after.interpretation.revision != try std.math.add(u64, before.interpretation.revision, 1) or after.retired != (binding.action == .drop) or after.live_rows != before.live_rows) return error.InvalidTableHistory;
                     if (binding.action != .alter and (!std.mem.eql(u8, &before.schema_fingerprint, &after.schema_fingerprint) or
-                        !std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
+                        !std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.ordered_rows, after.ordered_rows) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
                 }
             }
             if (operation == null) if (binding.expected_data) |expected| {
@@ -251,6 +268,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
         else => {
             if (before.next_lsn == 0 or !std.meta.eql(before.declared(), after.declared()) or before.changed_lsn != after.changed_lsn or
                 before.live_rows != after.live_rows or !std.meta.eql(before.receipts, after.receipts)) return error.InvalidTableHistory;
+            if (!std.meta.eql(before.ordered_rows, after.ordered_rows)) return error.InvalidTableHistory;
             if (record.action != .checkpoint and (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
             if (record.action == .checkpoint and (!std.meta.eql(before.pins, after.pins) or !std.meta.eql(before.identities, after.identities))) return error.InvalidTableHistory;
             if (record.action == .operation) {
@@ -303,7 +321,7 @@ pub fn recover(self: *Self) !void {
     }
     // Verify all top-level roots before exposing the recovered state. Descendant
     // pages and row objects remain checked on access, never substituted by empty.
-    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.receipts, next.pins, next.operations, next.pending }) |reference| if (reference) |ref| {
+    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.receipts, next.pins, next.operations, next.pending }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
     if (end != 0) {
@@ -821,6 +839,7 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
     for (old_keys, changed, previous_ids) |key, is_changed, previous_id| {
         if (!is_changed) continue;
         if (previous_id) |identity| next.identities = try self.tree().remove(next.identities, try pages.Key.init(&try identity.encode()));
+        next.ordered_rows = try self.orderedKeys().remove(next.ordered_rows, key);
         const index_key = try r.rowKey(key);
         if (try self.tree().get(next.rows, index_key)) |value| {
             next.scan_rows = try self.tree().remove(next.scan_rows, try (try r.Locator.decode(value)).scanKey());
@@ -858,6 +877,7 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
         if (!changed[i] or change == .remove) continue;
         const index_key = try r.rowKey(key);
         try self.indexIdentity(&next, change.row().?.identity, index_key);
+        next.ordered_rows = try self.orderedKeys().put(next.ordered_rows, key, index_key.data[0..32].*);
         next.rows = try self.tree().put(next.rows, index_key, try locators[i].encode());
         next.scan_rows = try self.tree().put(next.scan_rows, try locators[i].scanKey(), try locators[i].scanValue(index_key));
     }
@@ -938,6 +958,8 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
             if (plan.action == .update and try statementReplacement(plan, row, encoded, &cells, after_bytes) == null) continue;
             affected += 1;
             next.identities = try self.tree().remove(next.identities, try pages.Key.init(&try row.identity.encode()));
+            var ordered_key: [f.Collation.max_sort_key_bytes]u8 = undefined;
+            next.ordered_rows = try self.orderedKeys().remove(next.ordered_rows, try row.storageKey(plan.schema, &ordered_key));
             next.rows = try self.tree().remove(next.rows, entry.key);
             next.scan_rows = try self.tree().remove(next.scan_rows, try (try r.Locator.decode(entry.value)).scanKey());
         };
@@ -993,6 +1015,7 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
                 if (try self.tree().get(next.rows, key) != null) return error.DuplicatePrimaryKey;
                 const locator: r.Locator = .{ .kind = .segment, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
                 try self.indexIdentity(&next, entry.identity, key);
+                next.ordered_rows = try self.orderedKeys().put(next.ordered_rows, entry.pk_sort_key, key.data[0..32].*);
                 next.rows = try self.tree().put(next.rows, key, try locator.encode());
                 next.scan_rows = try self.tree().put(next.scan_rows, try locator.scanKey(), try locator.scanValue(key));
                 written += 1;
@@ -1103,10 +1126,15 @@ fn indexIdentity(self: *Self, next: *Root, identity: f.TableRow.Identity, row_ke
     next.identities = try self.tree().put(next.identities, key, try pages.Value.init(row_key.data[0..32]));
 }
 
+fn orderedKeys(self: *Self) OrderedKeys {
+    return .{ .store = &self.index };
+}
+
 fn rewrite(self: *Self, next: *Root, transition: f.TableEvolution.Transition) !void {
     next.rows = null;
     next.scan_rows = null;
     next.identities = null;
+    next.ordered_rows = null;
     var cursor: ?pages.Key = null;
     var done = false;
     var count: u64 = 0;
@@ -1148,6 +1176,7 @@ fn rewrite(self: *Self, next: *Root, transition: f.TableEvolution.Transition) !v
             if (try self.tree().get(next.rows, index_key) != null) return error.DuplicatePrimaryKey;
             const locator: r.Locator = .{ .kind = .segment, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
             try self.indexIdentity(next, entry.identity, index_key);
+            next.ordered_rows = try self.orderedKeys().put(next.ordered_rows, entry.pk_sort_key, index_key.data[0..32].*);
             next.rows = try self.tree().put(next.rows, index_key, try locator.encode());
             next.scan_rows = try self.tree().put(next.scan_rows, try locator.scanKey(), try locator.scanValue(index_key));
             count = try std.math.add(u64, count, 1);
@@ -1532,6 +1561,61 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     var frozen = try self.inspectSnapshot(allocator, handle, guard);
     defer frozen.deinit();
     return self.scanRetainedRoot(allocator, frozen.root, frozen.schema.schema, handle, handle.content, after, limits, guard);
+}
+
+/// Traverse complete collation-aware keys on an exact retained root. A cursor
+/// cannot change either its source or interval, including after rename/rewrite.
+pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, range: KeyRange, after: ?KeyRange.Cursor, limits: ReadLimits, guard: Guard) !KeyRangePage {
+    try limits.validate();
+    const interval = try range.fingerprint();
+    var frozen = try self.inspectSnapshot(allocator, handle, guard);
+    defer frozen.deinit();
+    var previous: ?KeyRange.Key = null;
+    if (after) |cursor| {
+        try cursor.after.validate();
+        if (!std.meta.eql(cursor.source, handle.content) or !std.mem.eql(u8, &cursor.interval, &interval) or
+            !range.contains(cursor.after.slice()) or try self.orderedKeys().get(frozen.root.ordered_rows, cursor.after.slice()) == null) return error.InvalidTableSnapshotCursor;
+        previous = cursor.after;
+    }
+    var result: KeyRangePage = .{
+        .source = handle,
+        .interpretation = frozen.root.declared(),
+        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
+        .changed_lsn = frozen.root.changed_lsn,
+        .total_rows = frozen.root.live_rows,
+    };
+    errdefer result.deinit();
+    const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
+    defer allocator.free(scratch);
+    while (try self.orderedKeys().seek(frozen.root.ordered_rows, if (previous) |*key| .{ .key = key.slice(), .inclusive = false } else range.lower, range.upper)) |entry| {
+        if (result.count == limits.rows) {
+            result.next = .{ .source = handle.content, .interval = interval, .after = previous.? };
+            break;
+        }
+        const row_key = try pages.Key.init(&entry.value);
+        const locator = try self.tree().get(frozen.root.rows, row_key) orelse return error.InvalidTableRowReference;
+        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, row_key, locator);
+        var moved = false;
+        defer if (!moved) row.deinit();
+        var key_bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
+        if (!std.mem.eql(u8, entry.key.slice(), try row.row().storageKey(frozen.schema.schema, &key_bytes))) return error.InvalidTableRowReference;
+        const encoded = try row.row().encode(frozen.schema.schema, scratch);
+        if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
+            if (result.count == 0) return error.TableReadBudgetTooSmall;
+            result.next = .{ .source = handle.content, .interval = interval, .after = previous.? };
+            break;
+        }
+        result.rows[result.count] = row;
+        moved = true;
+        result.count += 1;
+        result.encoded_bytes += @intCast(encoded.len);
+        previous = entry.key;
+    }
+    // Empty ranges, completion metadata and buffered values all require current
+    // permission at disclosure, just like identity-ordered retained scans.
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
 }
 
 /// Cursor attribution includes the historical WAL commitment, so a cursor from

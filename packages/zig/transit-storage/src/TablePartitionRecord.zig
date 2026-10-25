@@ -24,6 +24,9 @@ pub const Root = struct {
     /// Stable row identity -> primary-key hash. Physical relocation leaves this
     /// index unchanged; accepted mutations publish it with the row locators.
     identities: ?pages.Reference,
+    /// Complete collation-aware storage key -> primary-key hash. Required on
+    /// disk; an older root cannot silently acquire an empty ordered directory.
+    ordered_rows: ?pages.Reference,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
     /// Required on disk: older roots must not silently lose admitted work.
@@ -40,6 +43,7 @@ pub const Root = struct {
         if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null) or
+            (self.live_rows == 0) != (self.ordered_rows == null) or
             (self.live_rows == 0) != (self.identities == null)) return error.InvalidTableRoot;
     }
 };

@@ -66,6 +66,14 @@ pub const Batch = struct {
         self.* = undefined;
     }
 };
+pub const RangeBatch = struct {
+    batch: Batch,
+    next: ?P.KeyRange.Cursor,
+    pub fn deinit(self: *RangeBatch) void {
+        self.batch.deinit();
+        self.* = undefined;
+    }
+};
 
 allocator: std.mem.Allocator,
 connection: w.Connection,
@@ -198,6 +206,63 @@ fn decodePoint(self: *const Self, point: w.Point, key: []const u8) !?f.TableRow.
     if (!std.mem.eql(u8, key, try row.row().storageKey(self.schema.schema, &actual))) return error.InvalidTableResponse;
     return row;
 }
+
+/// One ordered interval page over this retained source. The caller owns the
+/// continuation; this does not alter the reader's full-table coverage cursor.
+pub fn readRange(self: *const Self, client: c.DirectTableClient, interval: P.KeyRange, after: ?P.KeyRange.Cursor, limits: P.ReadLimits) !RangeBatch {
+    try self.requireClient(client);
+    if (self.history_point != null) return error.UnsupportedHistoricalRangeRead;
+    try limits.validate();
+    if (limits.encoded_bytes > w.max_page_bytes) return error.InvalidTableReadBudget;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const response = try client.call(.{ .key_range = .{
+        .snapshot = self.basis.snapshot,
+        .interval = try w.KeyInterval.encode(arena.allocator(), interval),
+        .after = if (after) |cursor| try w.KeyCursor.encode(arena.allocator(), cursor) else null,
+        .limits = limits,
+    } });
+    defer response.deinit();
+    return self.decodeRange(response.value.result.key_range, interval, after, limits);
+}
+fn decodeRange(self: *const Self, page: w.KeyRangePage, interval: P.KeyRange, after: ?P.KeyRange.Cursor, limits: P.ReadLimits) !RangeBatch {
+    if (self.released or !std.meta.eql(self.basis.snapshot, page.snapshot) or
+        !std.meta.eql(self.basis.interpretation, page.interpretation) or
+        !std.meta.eql(self.basis.accepted, page.accepted) or self.basis.changed_lsn != page.changed_lsn or
+        self.basis.row_count != page.total_rows or page.rows.len > limits.rows or page.rows.len > 8 or
+        page.rows.len > self.basis.row_count or page.encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
+    const fingerprint = try interval.fingerprint();
+    var previous: ?P.KeyRange.Key = null;
+    if (after) |cursor| {
+        try cursor.after.validate();
+        if (!std.meta.eql(cursor.source, self.basis.snapshot.handle.content) or !std.mem.eql(u8, &cursor.interval, &fingerprint) or !interval.contains(cursor.after.slice())) return error.InvalidTableCursor;
+        previous = cursor.after;
+    }
+    var result: RangeBatch = .{ .batch = .{ .complete = page.next == null }, .next = null };
+    errdefer result.deinit();
+    var encoded_bytes: u64 = 0;
+    for (page.rows, 0..) |binary, i| {
+        const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
+        defer self.allocator.free(bytes);
+        encoded_bytes += bytes.len;
+        if (encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
+        result.batch.rows[i] = try f.TableRow.decode(self.allocator, self.schema.schema, bytes);
+        result.batch.count += 1;
+        var key_bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
+        const key = try result.batch.rows[i].?.row().storageKey(self.schema.schema, &key_bytes);
+        if (!interval.contains(key)) return error.InvalidTableResponse;
+        if (previous) |before| if (std.mem.order(u8, key, before.slice()) != .gt) return error.InvalidTableResponse;
+        previous = try P.KeyRange.Key.init(key);
+    }
+    if (page.next) |encoded| {
+        const cursor = try encoded.native(self.allocator);
+        if (page.rows.len == 0 or previous == null or !std.meta.eql(cursor.source, self.basis.snapshot.handle.content) or
+            !std.mem.eql(u8, &cursor.interval, &fingerprint) or !std.meta.eql(cursor.after, previous.?)) return error.InvalidTableResponse;
+        result.next = cursor;
+    }
+    if (encoded_bytes != page.encoded_bytes) return error.InvalidTableResponse;
+    return result;
+}
 fn consume(self: *Self, page: w.Page, limits: P.ReadLimits) !Batch {
     if (self.complete or self.released) return error.InvalidTableResponse;
     const consumed = std.math.add(u64, self.consumed, page.rows.len) catch return error.InvalidTableResponse;
@@ -256,6 +321,13 @@ fn pointAllocationFailures(allocator: std.mem.Allocator, connection: w.Connectio
     defer reader.deinit();
     var row = (try reader.decodePoint(point, key)) orelse return error.MissingTestRow;
     defer row.deinit();
+    try std.testing.expectEqual(@as(u64, 0), reader.consumed);
+}
+fn rangeAllocationFailures(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source, page: w.KeyRangePage, interval: P.KeyRange) !void {
+    var reader = try init(allocator, connection, source);
+    defer reader.deinit();
+    var batch = try reader.decodeRange(page, interval, null, .{});
+    defer batch.deinit();
     try std.testing.expectEqual(@as(u64, 0), reader.consumed);
 }
 
@@ -349,6 +421,40 @@ test "retained reader binds pages, complete consumption and original schema with
     try t.expectError(error.InvalidTableResponse, reader.decodePoint(point, &identity));
     try t.expectEqual(@as(u64, 3), reader.consumed);
     try t.expect(reader.complete);
+
+    const limit_key = try (f.TableRow.Identity{ .origin = 7, .operation = 1, .ordinal = 2 }).encode();
+    const interval: P.KeyRange = .{ .lower = .{ .key = &identity }, .upper = .{ .key = &limit_key, .inclusive = false } };
+    var range_page: w.KeyRangePage = .{
+        .snapshot = source.snapshot,
+        .interpretation = source.interpretation,
+        .accepted = source.accepted,
+        .changed_lsn = source.changed_lsn,
+        .total_rows = 3,
+        .rows = binary[0..1],
+        .encoded_bytes = lengths[0],
+        .next = try w.KeyCursor.encode(alloc, .{ .source = source.snapshot.handle.content, .interval = try interval.fingerprint(), .after = try P.KeyRange.Key.init(&identity) }),
+    };
+    var range_first = try reader.decodeRange(range_page, interval, null, .{});
+    defer range_first.deinit();
+    try t.expect(!range_first.batch.complete and range_first.next != null);
+    try t.checkAllAllocationFailures(t.allocator, rangeAllocationFailures, .{ connection, source, range_page, interval });
+    var invalid_range = range_page;
+    invalid_range.next.?.interval[0] ^= 1;
+    try t.expectError(error.InvalidTableResponse, reader.decodeRange(invalid_range, interval, null, .{}));
+    invalid_range = range_page;
+    invalid_range.rows = binary[2..3]; // Upper bound excludes this valid row.
+    invalid_range.encoded_bytes = lengths[2];
+    try t.expectError(error.InvalidTableResponse, reader.decodeRange(invalid_range, interval, null, .{}));
+    try t.expectError(error.InvalidTableResponse, reader.decodeRange(range_page, interval, range_first.next, .{}));
+    range_page.rows = binary[1..2];
+    range_page.encoded_bytes = lengths[1];
+    range_page.next = null;
+    var range_last = try reader.decodeRange(range_page, interval, range_first.next, .{});
+    defer range_last.deinit();
+    try t.expect(range_last.batch.complete and range_last.next == null);
+    try t.expectEqual(@as(usize, 1), range_last.batch.count);
+    try t.expectEqual(@as(u32, 1), range_last.batch.rows[0].?.identity.ordinal);
+    try t.expectEqual(@as(u64, 3), reader.consumed); // Independent sequential coverage.
 
     const historical_point: P.HistoryPoint = .{ .lease = source.snapshot.handle, .position = source.accepted, .commitment = @splat(9) };
     var historical = try initHistory(t.allocator, connection, .{ .point = historical_point, .source = source });
