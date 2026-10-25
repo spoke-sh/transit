@@ -375,7 +375,6 @@ def run(node, caller, mode="tables", *artifacts):
             authority = start()
             subprocess.run([caller, endpoint, "lifecycle", str(profile)], check=True, timeout=180)
             subprocess.run([caller, endpoint, "prepared-lifetime", str(profile)], check=True, timeout=180)
-            subprocess.run([caller, endpoint, "authorization-lifetime", str(profile)], check=True, timeout=180)
             assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             stop(authority)
             authority = None
@@ -389,6 +388,13 @@ def run(node, caller, mode="tables", *artifacts):
             response = connection.getresponse()
             assert response.status == 400 and json.loads(response.read())["err"] == "InvalidRequest"
             connection.close()
+            authorization_start = len(fault["commands"])
+            subprocess.run([caller, endpoint, "authorization-lifetime", str(profile)], check=True, timeout=180)
+            authorization_commands = fault["commands"][authorization_start:]
+            # This fixture alone creates an unrelated process to verify denial.
+            # Table reads/writes still dispatch no native actor data commands.
+            assert authorization_commands.count("spawn") == 1, authorization_commands
+            assert set(authorization_commands) <= {"authorization", "spawn"}, authorization_commands
             print(f"Direct Table HTTP: {fault['requests']} typed calls, 64 KiB point row, {len(segments)} initial .tseg object(s), full CRUD/DDL, typed SQL namespace lifecycle with lost-reply recovery and retained reads after namespace retirement, typed SQL predicate UPDATE/DELETE, finite SQL filter/count and retained joins, authorized metadata completion, durable SQL pin-journal cleanup, conditional SQL name evidence, exact lost-reply recovery, original-caller read delegation without executor Table grants, retained pins across rewrite/drop/recreation and three restarts, uncertain delegated acquisition/closure, saved direct change-reader checkpoints, paused backfill, paired changes, complete no-op/schema transactions, partial-delivery replay and original schemas through DROP/recreation, current revocation and reserved-control rejection passed.")
         except BaseException:
             log.flush()

@@ -27,8 +27,11 @@ and its cleanup; clearing selection still denies access.
 An initial fixture attempt failed because its root administrator tried to read
 a native resource without a read grant. The corrected fixture creates a known
 unrelated process through the public control operation and checks the Table
-caller's denial directly. This focused pass is included in the full direct Table
-schedule; it does not rerun all language SDKs or the older authorization suite.
+caller's denial directly. The expanded full Table schedule passes 1,374 typed
+calls, including this check. Its first final audit rejected the fixture's explicit
+process creation; the corrected audit retains the original restriction on native
+data commands and separately requires exactly that one setup spawn. These runs
+do not rerun all language SDKs or the older authorization suite.
 
 ## Direct prepared Table lifetime — 2026-10-24
 
