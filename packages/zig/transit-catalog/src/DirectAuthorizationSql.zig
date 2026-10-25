@@ -110,7 +110,7 @@ const Resolver = struct {
 /// becomes its stable native object reference; publication rechecks authority
 /// and rejects a changed policy revision. Metadata pages have a finite request
 /// budget, independent of total durable catalog cardinality.
-pub fn compile(client: c.DirectTableClient, namespace_id: u64, text: []const u8, limits: Limits, location: ?*c.fuze.Sql.Location) !c.AuthorizationSql.Plan {
+pub fn compile(client: c.DirectTableClient, namespace_id: u64, text: []const u8, limits: Limits, location: ?*c.fuze.Sql.Location) !c.AuthorizationLowering.Plan {
     try client.connection.validate();
     try c.Model.nativeId(namespace_id);
     if (limits.requests == 0) return error.QueryPageBudget;
@@ -121,9 +121,9 @@ pub fn compile(client: c.DirectTableClient, namespace_id: u64, text: []const u8,
         else => {},
     }
     var resolver = try Resolver.init(client, namespace_id, limits);
-    const action = try c.AuthorizationSql.lower(parsed.statement, &resolver, .{});
+    const action = try c.AuthorizationLowering.lower(parsed.statement, &resolver, .{});
     _ = try resolver.read(.identity);
-    const plan: c.AuthorizationSql.Plan = .{ .definition = p.Growth.current_definition, .scope = client.connection.scope, .principal = resolver.description.subject.principal, .role = resolver.description.subject.role, .expected_revision = resolver.policy_revision, .action = action };
+    const plan: c.AuthorizationLowering.Plan = .{ .definition = p.Growth.current_definition, .scope = client.connection.scope, .principal = resolver.description.subject.principal, .role = resolver.description.subject.role, .expected_revision = resolver.policy_revision, .action = action };
     try plan.validate();
     return plan;
 }
@@ -190,7 +190,7 @@ pub fn prepareNamespace(client: c.DirectTableClient, namespace_id: u64, text: []
 }
 
 /// Save the complete binding before explicit admission; this function is inert.
-pub fn compileNamespace(client: c.DirectTableClient, namespace_id: u64, text: []const u8, identity: c.AuthorizationSql.Identity, limits: Limits, location: ?*c.fuze.Sql.Location) !c.DirectNamespace.Binding {
+pub fn compileNamespace(client: c.DirectTableClient, namespace_id: u64, text: []const u8, identity: c.AuthorizationLowering.Identity, limits: Limits, location: ?*c.fuze.Sql.Location) !c.DirectNamespace.Binding {
     if (limits.requests <= 1) return error.QueryPageBudget;
     const plan = try prepareNamespace(client, namespace_id, text, .{ .requests = limits.requests - 1 }, location);
     const binding = try plan.bind(identity.operation, identity.schema);

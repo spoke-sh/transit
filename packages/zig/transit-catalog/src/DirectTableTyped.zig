@@ -14,10 +14,10 @@ pub const Request = struct {
     name: []const u8,
     action: union(enum) {
         create: struct { schema: f.TableSchemaJson.Schema, if_not_exists: bool },
-        alter: struct { basis: h.PreparedBinding, change: c.TableTyped.Change },
+        alter: struct { basis: h.PreparedBinding, change: c.TableLowering.Change },
         rename: struct { basis: h.PreparedBinding, name: []const u8 },
         drop: struct { basis: ?h.PreparedBinding, if_exists: bool },
-        mutate: struct { basis: h.PreparedBinding, mutation: c.TableTyped.Mutation, ingestion: c.storage.TablePartition.Ingestion },
+        mutate: struct { basis: h.PreparedBinding, mutation: c.TableLowering.Mutation, ingestion: c.storage.TablePartition.Ingestion },
     },
     fn basis(self: Request) ?h.PreparedBinding {
         return switch (self.action) {
@@ -89,7 +89,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, input:
         var schema = try f.TableSchema.decode(allocator, try current.schema.decode(a, f.TableSchema.max_bytes));
         defer schema.deinit();
         if (input.action == .mutate) {
-            const plan = try c.TableTyped.plan(&arena, schema.schema, input.name, input.action.mutate.mutation);
+            const plan = try c.TableLowering.plan(&arena, schema.schema, input.name, input.action.mutate.mutation);
             var intent = try c.DirectTableIntent.fromDml(allocator, client.connection, current, operation, plan, input.action.mutate.ingestion);
             errdefer intent.deinit();
             _ = try original.require(client, right);
@@ -100,7 +100,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, input:
         switch (input.action) {
             .alter => |value| {
                 ddl.binding.action = .alter;
-                ddl.action = .{ .alter = try c.DirectTablePreparedDdl.encodeChange(a, try c.TableTyped.change(&arena, schema.schema, value.change), schema.schema) };
+                ddl.action = .{ .alter = try c.DirectTablePreparedDdl.encodeChange(a, try c.TableLowering.change(&arena, schema.schema, value.change), schema.schema) };
             },
             .rename => |value| {
                 _ = try c.TableAuthority.Name.init(value.name);

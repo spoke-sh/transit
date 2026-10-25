@@ -14,7 +14,7 @@ pub const State = struct {
     rejected: ?Outcome = null,
     created: Ref,
 };
-const options: q.RelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 fn bind(allocator: std.mem.Allocator, original: c.DirectTableClient, text: []const u8, operation: u64) !Ref {
     var client = original;
     var statement = try sql.Statement.prepare(allocator, &client, 1, text, .transit, .native, options);
@@ -165,8 +165,8 @@ fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !v
     var metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
     const payload = try a.alloc(u8, 32 * 1024);
     @memset(payload, 'x');
-    var assignments: [9][2]c.TableTyped.Assignment = undefined;
-    var rows: [9][]const c.TableTyped.Assignment = undefined;
+    var assignments: [9][2]c.TableLowering.Assignment = undefined;
+    var rows: [9][]const c.TableLowering.Assignment = undefined;
     for (&assignments, &rows, 0..) |*row, *slice, i| {
         row.* = .{ .{ .column = "1", .value = .{ .cell = .{ .value = .{ .atom = .{ .signed = try std.fmt.allocPrint(a, "{d}", .{i + 1}) } } } } }, .{ .column = "2", .value = .{ .cell = .{ .value = .{ .atom = .{ .utf8 = payload } } } } } };
         slice.* = row;

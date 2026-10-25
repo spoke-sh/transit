@@ -403,7 +403,7 @@ pub fn schemas(self: *Self, cursor: ?c.SchemaCatalog.Cursor) !c.SchemaCatalog.Pa
     try current.finish();
     return result;
 }
-pub fn schemaStatus(self: *Self, request: c.SchemaCatalog.Request) !?c.SchemaCatalog.Outcome {
+pub fn schemaStatus(self: *Self, request: c.SchemaCommand) !?c.SchemaCatalog.Outcome {
     var current = try self.source(&.{});
     const owner = try self.catalog(&current);
     const result = try (c.SchemaCatalog{ .configuration = owner.configuration }).status(&current, self.connection.principal, request);
@@ -591,7 +591,7 @@ pub fn prepareControl(self: *Self, command: Control.Command) !Prepared {
     try current.finish();
     return self.sign(prepared);
 }
-fn schemaPlanValue(self: *Self, plan: c.AuthorizationSql.Plan) !p.Value {
+fn schemaPlanValue(self: *Self, plan: c.AuthorizationLowering.Plan) !p.Value {
     try plan.validate();
     if (plan.action != .schema or plan.principal != self.connection.principal or !std.meta.eql(plan.scope, self.connection.scope)) return error.InvalidAuthorizationPlan;
     var current = try self.source(&.{});
@@ -603,10 +603,10 @@ fn schemaPlanValue(self: *Self, plan: c.AuthorizationSql.Plan) !p.Value {
     if (current.authorization_revision != plan.expected_revision) return error.StaleAuthorizationRevision;
     return prepared;
 }
-pub fn prepareSchemaPlan(self: *Self, plan: c.AuthorizationSql.Plan) !Prepared {
+pub fn prepareSchemaPlan(self: *Self, plan: c.AuthorizationLowering.Plan) !Prepared {
     return self.sign(try self.schemaPlanValue(plan));
 }
-pub fn schemaPlanCandidate(self: *Self, plan: c.AuthorizationSql.Plan, sequence: u64) !Candidate {
+pub fn schemaPlanCandidate(self: *Self, plan: c.AuthorizationLowering.Plan, sequence: u64) !Candidate {
     return self.candidate(try self.schemaPlanValue(plan), sequence);
 }
 /// Prepare one next upload/send only when no automatic execution is in flight.

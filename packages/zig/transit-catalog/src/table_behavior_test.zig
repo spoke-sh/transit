@@ -91,7 +91,7 @@ fn bindSchema(store: *Store, id: u64, native: u64) !void {
     const binding = try c.TableAuthority.binding(config.scope, .schema, id);
     try store.authority.bindings.put(t.allocator, binding, .{ .reference = c.TableAuthority.reference(native), .owner = 17, .registrar = 2, .domain = config.authority.schema_domain, .binding = binding, .parent = c.TableAuthority.reference(config.authority.database), .actions = 3, .revision = 1 });
 }
-fn schemaRequest(id: u64, operation: u64, name: []const u8) !c.SchemaCatalog.Request {
+fn schemaRequest(id: u64, operation: u64, name: []const u8) !c.SchemaCommand {
     return .{ .scope = config.scope, .principal = 17, .operation = operation, .schema = id, .expected_revision = 0, .action = .{ .create = .{ .name = try .init(name), .owner = 17 } } };
 }
 
@@ -114,7 +114,7 @@ test "schema lifecycle preserves identity through rename and permits only fresh 
     try t.expectEqual(@as(usize, 0), writes(turn));
     try store.commit(turn);
 
-    const rename: c.SchemaCatalog.Request = .{ .scope = config.scope, .principal = 17, .operation = 2, .schema = 8, .expected_revision = 1, .action = .{ .rename = try .init("accounts") } };
+    const rename: c.SchemaCommand = .{ .scope = config.scope, .principal = 17, .operation = 2, .schema = 8, .expected_revision = 1, .action = .{ .rename = try .init("accounts") } };
     turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = rename }));
     try t.expectEqual(@as(usize, 4), writes(turn));
     try store.commit(turn);
@@ -122,7 +122,7 @@ test "schema lifecycle preserves identity through rename and permits only fresh 
     try t.expect(try schemas.lookup(&turn, 17, try .init("sales")) == null);
     try t.expectEqual(original.authorization, (try schemas.lookup(&turn, 17, try .init("accounts"))).?.authorization);
 
-    const drop: c.SchemaCatalog.Request = .{ .scope = config.scope, .principal = 17, .operation = 3, .schema = 8, .expected_revision = 2, .action = .drop };
+    const drop: c.SchemaCommand = .{ .scope = config.scope, .principal = 17, .operation = 3, .schema = 8, .expected_revision = 2, .action = .drop };
     turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = drop }));
     const next = turn.decision.outputs[0].?.value;
     try store.commit(turn);
@@ -160,7 +160,7 @@ test "schema DROP scans bounded pages and fences a concurrent initializing Table
         try turn.write(catalog.key('O', id, 0), try c.Records.encode('O', object));
         try store.commit(turn);
     }
-    var drop: c.SchemaCatalog.Request = .{ .scope = config.scope, .principal = 17, .operation = 2, .schema = 8, .expected_revision = 1, .action = .drop };
+    var drop: c.SchemaCommand = .{ .scope = config.scope, .principal = 17, .operation = 2, .schema = 8, .expected_revision = 1, .action = .drop };
     var turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = drop }));
     var message = turn.decision.outputs[0].?.value;
     try store.commit(turn);

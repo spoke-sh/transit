@@ -278,7 +278,7 @@ fn namespaceApply(client: c.DirectTableClient, binding_value: c.DirectNamespace.
     }
     return error.UnfinishedNamespaceOperation;
 }
-const sql_options: q.RelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+const sql_options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 fn namespaceStatement(allocator: std.mem.Allocator, original: c.DirectTableClient, text: []const u8, operation: u64) !sql_runtime.IntentReference.Reference {
     var client = original;
     var statement = try sql_runtime.Statement.prepare(allocator, &client, 1, text, .transit, .native, sql_options);

@@ -18,7 +18,7 @@ fn definition(allocator: std.mem.Allocator) !c.TableCatalog.Definition {
 fn basis(allocator: std.mem.Allocator) !v.Basis {
     return .{ .object = "18446744073709551615", .revision = "1", .schema_fingerprint = try v.hex(allocator, &try schema.fingerprint()) };
 }
-fn number(column: []const u8, value: []const u8) typed.Assignment {
+fn number(column: []const u8, value: []const u8) c.TableLowering.Assignment {
     return .{ .column = column, .value = .{ .cell = .{ .value = .{ .atom = .{ .signed = value } } } } };
 }
 test "neutral general catalog identities rights names and pages preserve full widths and ownership" {
@@ -86,10 +86,10 @@ test "typed DML shares defaults constraints finite predicates and point qualific
     defer current.deinit();
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
-    const key: typed.Instruction = .{ .atom = .{ .compare = .{ .column = "1", .op = .eq, .value = .{ .signed = "7" } } } };
-    const state: typed.Instruction = .{ .atom = .{ .state = .{ .column = "2", .value = .null } } };
-    const assign: typed.Assignment = .{ .column = "2", .value = .{ .cell = .{ .value = .{ .atom = .{ .utf8 = "人々" } } } } };
-    for ([_]struct { sql: []const u8, mutation: typed.Mutation, route: c.station.TableWrite.Status.Route }{
+    const key: c.TableLowering.Instruction = .{ .atom = .{ .compare = .{ .column = "1", .op = .eq, .value = .{ .signed = "7" } } } };
+    const state: c.TableLowering.Instruction = .{ .atom = .{ .state = .{ .column = "2", .value = .null } } };
+    const assign: c.TableLowering.Assignment = .{ .column = "2", .value = .{ .cell = .{ .value = .{ .atom = .{ .utf8 = "人々" } } } } };
+    for ([_]struct { sql: []const u8, mutation: c.TableLowering.Mutation, route: c.station.TableWrite.Status.Route }{
         .{ .sql = "INSERT INTO people (name,id) VALUES ('人々',7)", .mutation = .{ .action = .{ .insert = &.{&.{ assign, number("1", "7") }} }, .predicate = null }, .route = .point },
         .{ .sql = "INSERT INTO people (id,name) VALUES (7,DEFAULT),(8,NULL)", .mutation = .{ .action = .{ .insert = &.{ &.{number("1", "7")}, &.{ number("1", "8"), .{ .column = "2", .value = .{ .cell = .null } } } } }, .predicate = null }, .route = .statement },
         .{ .sql = "UPDATE people SET name='人々' WHERE id=7", .mutation = .{ .action = .{ .update = &.{assign} }, .predicate = &.{key} }, .route = .point },
@@ -114,7 +114,7 @@ test "typed schema changes share all selected evolution checks" {
     defer current.deinit();
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
-    for ([_]typed.Change{
+    for ([_]c.TableLowering.Change{
         .{ .add = .{ .name = "tags", .type = .{ .list = .{ .type = &.int64, .nullable = true } }, .nullable = true, .default = .{ .value = .{ .list = &.{.null} } }, .max_characters = null, .encoding = .plain, .collation = .none } },
         .{ .physical = .{ .column = "2", .encoding = .ebcdic, .collation = .ebcdic_cp037 } },
         .{ .drop = "3" },
@@ -131,9 +131,9 @@ test "typed schema changes share all selected evolution checks" {
         defer restored.deinit();
         try t.expect(restored.body.request.ddl.action == .alter);
     }
-    try t.expectError(error.PrimaryKeyColumnRequired, typed.change(&arena, schema, .{ .drop = "1" }));
-    try t.expectError(error.NullablePrimaryKey, typed.change(&arena, schema, .{ .nullable = .{ .column = "1", .value = true } }));
-    try t.expectError(error.UnsupportedSchemaConversion, typed.change(&arena, schema, .{ .type = .{ .column = "1", .type = .utf8, .max_characters = null } }));
+    try t.expectError(error.PrimaryKeyColumnRequired, c.TableLowering.change(&arena, schema, .{ .drop = "1" }));
+    try t.expectError(error.NullablePrimaryKey, c.TableLowering.change(&arena, schema, .{ .nullable = .{ .column = "1", .value = true } }));
+    try t.expectError(error.UnsupportedSchemaConversion, c.TableLowering.change(&arena, schema, .{ .type = .{ .column = "1", .type = .utf8, .max_characters = null } }));
 }
 test "typed requests refuse stale schema object name and omitted DROP basis" {
     var current = try definition(t.allocator);
@@ -172,13 +172,13 @@ test "typed rows accept large nested values without SQL text conversion and reje
     const typed_schema: f.TableSchema.Schema = .{ .object = 100, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "nested", .type = .{ .list = .{ .type = &.binary, .nullable = true } } }} };
     const text = try arena.allocator().alloc(u8, 128 * 1024);
     @memset(text, 'a');
-    const value: typed.Assignment = .{ .column = "1", .value = .{ .cell = .{ .value = .{ .list = &.{ .null, .{ .value = .{ .atom = .{ .binary = text } } } } } } } };
-    const result = try typed.plan(&arena, typed_schema, "nested", .{ .action = .{ .insert = &.{&.{value}} }, .predicate = null });
+    const value: c.TableLowering.Assignment = .{ .column = "1", .value = .{ .cell = .{ .value = .{ .list = &.{ .null, .{ .value = .{ .atom = .{ .binary = text } } } } } } } };
+    const result = try c.TableLowering.plan(&arena, typed_schema, "nested", .{ .action = .{ .insert = &.{&.{value}} }, .predicate = null });
     try t.expectEqual(@as(usize, 65536), result.action.insert[0][0].value.list[1].value.atom.bytes.len);
     try t.expectEqual(@as(u8, 0xaa), result.action.insert[0][0].value.list[1].value.atom.bytes[0]);
     for ([_]Cell{ .missing, .{ .type_error = .binary } }) |invalid| {
-        const bad: typed.Assignment = .{ .column = "1", .value = .{ .cell = invalid } };
-        if (typed.plan(&arena, typed_schema, "nested", .{ .action = .{ .insert = &.{&.{bad}} }, .predicate = null })) |_| return error.TestUnexpectedResult else |_| {}
+        const bad: c.TableLowering.Assignment = .{ .column = "1", .value = .{ .cell = invalid } };
+        if (c.TableLowering.plan(&arena, typed_schema, "nested", .{ .action = .{ .insert = &.{&.{bad}} }, .predicate = null })) |_| return error.TestUnexpectedResult else |_| {}
     }
 }
 const Cell = f.LogicalJson.Cell;
@@ -186,15 +186,15 @@ test "typed conversion rejects aggregate payloads before allocating the complete
     const hex = try t.allocator.alloc(u8, 1024 * 1024);
     defer t.allocator.free(hex);
     @memset(hex, 'a');
-    const large: typed.Assignment = .{ .column = "1", .value = .{ .cell = .{ .value = .{ .atom = .{ .binary = hex } } } } };
+    const large: c.TableLowering.Assignment = .{ .column = "1", .value = .{ .cell = .{ .value = .{ .atom = .{ .binary = hex } } } } };
     const binary_schema: f.TableSchema.Schema = .{ .object = 100, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "data", .type = .binary }} };
-    const rows: [f.TableDml.max_rows][]const typed.Assignment = @splat(&.{large});
+    const rows: [f.TableDml.max_rows][]const c.TableLowering.Assignment = @splat(&.{large});
     var tracker: t.FailingAllocator = .init(t.allocator, .{ .resize_fail_index = 0 });
     var arena: std.heap.ArenaAllocator = .init(tracker.allocator());
     defer arena.deinit();
     // The input describes 512 MiB of decoded data. Admission stops near the
     // four-MiB intent limit, including geometric arena allocation overhead.
-    try t.expectError(error.MutationBatchTooLarge, typed.plan(&arena, binary_schema, "data", .{ .action = .{ .insert = &rows }, .predicate = null }));
+    try t.expectError(error.MutationBatchTooLarge, c.TableLowering.plan(&arena, binary_schema, "data", .{ .action = .{ .insert = &rows }, .predicate = null }));
     try t.expect(tracker.allocated_bytes < 32 * 1024 * 1024);
     _ = arena.reset(.free_all);
     try t.expectEqual(tracker.allocated_bytes, tracker.freed_bytes);
@@ -204,8 +204,8 @@ test "typed conversion rejects aggregate payloads before allocating the complete
     defer t.allocator.free(text);
     @memset(text, 'x');
     const default_schema: f.TableSchema.Schema = .{ .object = 101, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "data", .type = .utf8, .default = .{ .value = .{ .atom = .{ .bytes = text } } } }} };
-    const omitted: [f.TableDml.max_rows][]const typed.Assignment = @splat(&.{});
-    try t.expectError(error.MutationBatchTooLarge, typed.plan(&arena, default_schema, "data", .{ .action = .{ .insert = &omitted }, .predicate = null }));
+    const omitted: [f.TableDml.max_rows][]const c.TableLowering.Assignment = @splat(&.{});
+    try t.expectError(error.MutationBatchTooLarge, c.TableLowering.plan(&arena, default_schema, "data", .{ .action = .{ .insert = &omitted }, .predicate = null }));
 }
 fn allocationSchedule(allocator: std.mem.Allocator) !void {
     var current = try definition(allocator);

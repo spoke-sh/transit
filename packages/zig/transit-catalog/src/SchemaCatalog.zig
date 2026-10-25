@@ -12,31 +12,7 @@ const Self = @This();
 configuration: m.Configuration,
 registration: ?*?p.Authorization.Action = null,
 
-pub const Request = struct {
-    scope: m.Scope,
-    principal: u64,
-    operation: u64,
-    schema: u64,
-    expected_revision: u64,
-    action: union(enum(u8)) { create: struct { name: a.Name, owner: u64 } = 1, rename: a.Name = 2, drop: void = 3 },
-    pub fn validate(self: Request) !void {
-        try self.scope.validate();
-        try c.Model.nativeId(self.operation);
-        try c.Model.nativeId(self.schema);
-        if (self.principal > p.max_counter or self.expected_revision > p.max_counter or (self.action == .create) != (self.expected_revision == 0)) return error.InvalidSchemaCommand;
-        switch (self.action) {
-            .create => |value| {
-                try value.name.validate();
-                try p.Authorization.roleId(value.owner);
-            },
-            .rename => |name| try name.validate(),
-            .drop => {},
-        }
-    }
-    pub fn digest(self: Request) ![32]u8 {
-        return c.Model.fingerprint(try r.encode('H', self));
-    }
-};
+const Request = c.SchemaCommand;
 pub const Outcome = struct {
     scope: m.Scope,
     principal: u64,

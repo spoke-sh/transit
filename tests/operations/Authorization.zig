@@ -114,7 +114,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
         if (!try lock.?.tryLock(init.io, .exclusive)) return error.AuthorizationFileInUse;
     }
     // Parse and authenticate retained material before loading a key or doing I/O.
-    var plan: ?q.catalog.AuthorizationSql.Plan = null;
+    var plan: ?q.catalog.AuthorizationLowering.Plan = null;
     var kind: Kind = .change;
     const action: B.Action = switch (options.mode) {
         .capabilities => unreachable,

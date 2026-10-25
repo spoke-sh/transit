@@ -48,7 +48,7 @@ pub const PolicyPlan = struct {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         if (!std.meta.eql(try self.connection.native(), connection)) return error.CatalogIdentityConflict;
         if (connection.role) |selected| if (selected != self.role) return error.InvalidAuthorizationPlan;
-        const plan: c.AuthorizationSql.Plan = .{ .definition = self.definition, .scope = connection.scope, .principal = connection.principal, .role = self.role, .expected_revision = self.expected_revision, .action = switch (self.action) {
+        const plan: c.AuthorizationLowering.Plan = .{ .definition = self.definition, .scope = connection.scope, .principal = connection.principal, .role = self.role, .expected_revision = self.expected_revision, .action = switch (self.action) {
             .authorization => |value| .{ .authorization = value },
             .set_role => |value| .{ .set_role = value },
         } };

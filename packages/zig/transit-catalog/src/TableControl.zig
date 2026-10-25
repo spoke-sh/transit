@@ -78,7 +78,7 @@ pub const Command = union(enum(u8)) {
     drive: Upload = 'V',
     cancel_upload: Upload = 'K',
     collect_upload: Upload = 'G',
-    schema: c.SchemaCatalog.Request = 'H',
+    schema: c.SchemaCommand = 'H',
     pub fn scope(self: Command) !m.Scope {
         return switch (self) {
             .initialize => |value| value.scope,
