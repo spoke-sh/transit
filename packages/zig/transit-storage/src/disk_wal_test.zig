@@ -143,6 +143,38 @@ test "missing and foreign local definitions reject without modifying retained fi
     try t.expectEqualStrings("preserve", (try Log.decodeFrame(retained)).frame.payload);
 }
 
+test "canceling a cold read before mutation preserves the local log owner" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var cancel: bool = false;
+        fn openFile(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8, options: std.Io.Dir.OpenFileOptions) std.Io.File.OpenError!std.Io.File {
+            if (cancel and std.mem.eql(u8, name, "part-0.meta")) {
+                cancel = false;
+                return error.Canceled;
+            }
+            return real.dirOpenFile(context, dir, name, options);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.dirOpenFile = Fault.openFile;
+    var io = t.io;
+    io.vtable = &vtable;
+    var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    // Evict the first partition through the real bounded descriptor cache.
+    for (0..9) |partition| _ = try wal.log().append(partition, 0, 1, 1, .row_delta, "accepted");
+    Fault.cancel = true;
+    try t.expectError(error.Canceled, wal.log().tail(0));
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(8));
+    var batch = try wal.log().read(t.allocator, 0, 0, 1);
+    defer batch.deinit();
+    try t.expectEqualStrings("accepted", batch.frames[0].payload);
+    _ = try wal.log().append(0, 1, 1, 1, .row_delta, "successor");
+}
+
 test "a failed sync poisons the owner and recovery preserves complete uncertain work" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
@@ -177,6 +209,42 @@ test "a failed sync poisons the owner and recovery preserves complete uncertain 
     var batch = try wal.log().read(t.allocator, 1, 1, 1);
     defer batch.deinit();
     try t.expectEqualStrings("uncertain", batch.frames[0].payload);
+}
+
+test "canceling recovery after truncation still requires reopening the log owner" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var cancel: bool = false;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (cancel) {
+                cancel = false;
+                return error.Canceled;
+            }
+            return real.fileSync(context, file);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        for (0..9) |partition| _ = try wal.log().append(partition, 0, 1, 1, .row_delta, "accepted");
+        var bytes: [256]u8 = undefined;
+        const encoded = try Log.encodeFrame(0, 1, 1, 1, 0, .row_delta, "unacknowledged", &bytes);
+        try appendRaw(tmp.dir, "wal/part-0-0.twal", encoded[0 .. encoded.len - 7]);
+        Fault.cancel = true;
+        try t.expectError(error.Canceled, wal.log().tail(0));
+        try t.expectError(error.WalRecoveryRequired, wal.log().tail(8));
+    }
+    var recovered = try open(tmp.dir);
+    defer recovered.deinit();
+    try t.expectEqual(@as(u64, 1), try recovered.log().tail(0));
+    _ = try recovered.log().append(0, 1, 1, 1, .row_delta, "successor");
 }
 
 test "disk recovery exceeds the former 64 MiB whole-partition ceiling" {

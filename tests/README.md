@@ -26843,3 +26843,22 @@ are unchanged. This is a correctness schedule with explicit waits; the failures
 remain evidence that these local operations can exceed the default client
 budget. The separate session-lifetime proofs retain their short expiry bounds.
 A complete committed-source rerun is still required for acceptance.
+
+## Local WAL observation cancellation — 2026-10-25
+
+A focused disk test cancels opening the metadata for an accepted partition after
+nine partitions evict it from the eight-slot cache. Before the fix, that canceled
+read makes even a different cached partition return `WalRecoveryRequired`.
+The interrupted load publishes no descriptor and has not changed a disk file.
+It now leaves the owner usable; corruption and other storage failures retain
+their existing recovery gate.
+
+`nix develop --command zig build test -Dtest-filter=canceling` in
+`packages/zig/transit-storage` passes. The first schedule verifies the unrelated
+partition, original payload and a subsequent append after cancellation. The
+second cancels sync after recovery truncates an incomplete unacknowledged tail:
+the owner must refuse further work until reopened, then preserve the accepted
+frontier and accept its successor. The first schedule failed against the prior
+implementation with `WalRecoveryRequired` as expected. These component results
+do not establish the cause of every installed request timeout or replace the
+remaining clean installed lifecycle qualification.
