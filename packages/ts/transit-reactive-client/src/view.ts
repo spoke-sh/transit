@@ -407,53 +407,53 @@ export class LiveView<T> {
     try {
       while (!signal.aborted) {
         try {
-          // A frozen operation is reconciled before preparing any successor.
-          if (!this.session.busy) {
-            if (this.session.pending) {
-              await sleep(100, signal);
-              continue;
-            }
-            if (!this.attached) {
-              await sleep(100, signal);
-              continue;
-            }
-            if (!acquired) {
-              const initial = await this.read(
-                signal,
-                this.recoveredSnapshot ?? this.template ?? undefined,
-              );
-              if (signal.aborted || epoch !== this.epoch) return;
-              acquired = true;
-              this.publish({
-                snapshot: initial,
-                phase: "refreshing",
-                detail: "Checking acquired snapshot coverage…",
-              });
-            }
-            if (this.needsObservation) {
-              const observation = await this.session.inspect(signal);
-              this.observe(observation.observation.basis, observation.observation.data_revision);
-              this.needsObservation = false;
-              this.connected = true;
-            }
-            if (this.template) await this.queryTick(epoch, signal);
-            else if (this.dirty > BigInt(this.state.snapshot?.basis.accepted ?? "0")) {
-              this.publish({
-                phase: "refreshing",
-                detail: "Reading the newest available snapshot…",
-              });
-              const snapshot = await this.read(signal);
-              if (!signal.aborted && epoch === this.epoch) this.publish({ snapshot });
-            }
-            if (this.connected && !signal.aborted && this.state.phase !== "paused") {
-              const covered = BigInt(this.state.snapshot?.basis.accepted ?? "0") >= this.dirty;
-              this.publish({
-                phase: covered ? "current" : "refreshing",
-                detail: covered
-                  ? "Displayed snapshot covers observed changes."
-                  : "A newer change is waiting for a finite refresh.",
-              });
-            }
+          // Current reads have their own authority checks. A frozen control
+          // blocks successor controls, not observation of accepted query work.
+          if (!this.attached) {
+            await sleep(100, signal);
+            continue;
+          }
+          if (!acquired) {
+            const initial = await this.read(
+              signal,
+              this.recoveredSnapshot ?? this.template ?? undefined,
+            );
+            if (signal.aborted || epoch !== this.epoch) return;
+            acquired = true;
+            this.publish({
+              snapshot: initial,
+              phase: "refreshing",
+              detail: "Checking acquired snapshot coverage…",
+            });
+          }
+          if (this.needsObservation) {
+            const observation = await this.session.inspect(signal);
+            this.observe(observation.observation.basis, observation.observation.data_revision);
+            this.needsObservation = false;
+            this.connected = true;
+          }
+          if (this.template) await this.queryTick(epoch, signal);
+          else if (this.dirty > BigInt(this.state.snapshot?.basis.accepted ?? "0")) {
+            this.publish({
+              phase: "refreshing",
+              detail: "Reading the newest available snapshot…",
+            });
+            const snapshot = await this.read(signal);
+            if (!signal.aborted && epoch === this.epoch) this.publish({ snapshot });
+          }
+          if (this.connected && !signal.aborted && this.state.phase !== "paused") {
+            const covered = BigInt(this.state.snapshot?.basis.accepted ?? "0") >= this.dirty;
+            const coverage = covered
+              ? "Displayed snapshot covers observed changes."
+              : "A newer change is waiting for a finite refresh.";
+            this.publish({
+              phase: covered ? "current" : "refreshing",
+              detail:
+                coverage +
+                (this.session.pending
+                  ? " A control remains pending; its original request is retained."
+                  : ""),
+            });
           }
         } catch (error) {
           if (!signal.aborted) this.fail(error);
@@ -484,7 +484,7 @@ export class LiveView<T> {
   private async queryTick(epoch: number, signal: AbortSignal) {
     const selection = this.session.selection;
     if (!selection) throw new ReactiveError(0, "invalid_response");
-    if (this.dirty > this.sentDirty) {
+    if (this.dirty > this.sentDirty && !this.session.busy && !this.session.pending) {
       const observed = this.dirty;
       await this.session.refresh({ invalidate: selection }, signal);
       this.sentDirty = observed;
@@ -510,13 +510,18 @@ export class LiveView<T> {
     if (refresh.phase === "ready") {
       // read() must traverse full coverage, discard prefixes and reread the
       // visible page under current authority. No rows are published in between.
-      const snapshot = await this.read(signal, refresh.namespace);
-      if (signal.aborted || epoch !== this.epoch || this.session.selection !== selection) return;
-      this.publish({ snapshot });
-      await this.session.refresh(
-        { acknowledged: { selection, namespace: refresh.namespace } },
-        signal,
-      );
+      if (this.state.snapshot?.namespace !== refresh.namespace) {
+        const snapshot = await this.read(signal, refresh.namespace);
+        if (signal.aborted || epoch !== this.epoch || this.session.selection !== selection) return;
+        this.publish({ snapshot });
+      }
+      // An uncertain renewal/attachment keeps its original sequence. Once it
+      // settles, acknowledge this same verified result without reading it again.
+      if (!this.session.busy && !this.session.pending)
+        await this.session.refresh(
+          { acknowledged: { selection, namespace: refresh.namespace } },
+          signal,
+        );
     }
     if (refresh.phase === "exhausted" || refresh.phase === "paused") {
       this.publish({

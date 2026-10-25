@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { LiveView, ReactiveError, Session, type Snapshot } from "@transit/reactive-client";
 const scope = {
@@ -135,6 +135,98 @@ test("renewal progresses while complete-result acquisition is pending", async ()
   await stopped;
   expect(view.getSnapshot().snapshot).toBeNull();
 });
+
+test.each([
+  { active: false, denied: false },
+  { active: true, denied: false },
+  { active: false, denied: true },
+  { active: true, denied: true },
+])(
+  "completed result reads progress through an uncertain control (busy=$active, denied=$denied)",
+  async ({ active, denied }) => {
+    vi.useFakeTimers();
+    const session = attachedSession();
+    let busy = false;
+    const busyState = vi.spyOn(session, "busy", "get").mockImplementation(() => busy);
+    const selection = { session: { session: 5, generation: 6 }, generation: 9 };
+    session.open = async () => {
+      session.scope = scope;
+    };
+    session.close = async () => {
+      session.scope = null;
+      session.selection = null;
+    };
+    session.inspect = async () =>
+      ({ observation: { data_revision: "10", basis: snapshot.basis } }) as never;
+    let ready = false;
+    let refused = false;
+    session.refreshStatus = async () => {
+      if (refused) throw new ReactiveError(403, "denied");
+      return { phase: ready ? "ready" : "idle", namespace: ready ? "200" : "100" } as never;
+    };
+    const controls: string[] = [];
+    session.refresh = async (command) => {
+      controls.push(Object.keys(command)[0]!);
+      if ("follow" in command) session.selection = selection;
+      if ("acknowledged" in command) {
+        expect(command.acknowledged).toEqual({ selection, namespace: "200" });
+        ready = false;
+      }
+      return 9;
+    };
+    session.recover = async () => {
+      throw new ReactiveError(503, "unavailable");
+    };
+    const reads: string[] = [];
+    const view = new LiveView(
+      session,
+      async (_signal, namespace) => {
+        reads.push(namespace!);
+        return { ...snapshot, namespace };
+      },
+      async () => ["200", ...Array<string>(7).fill("0")],
+    );
+    try {
+      await view.start("100", 1);
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(view.getSnapshot().snapshot?.namespace).toBe("100");
+      const before = [...controls];
+      const pending = {
+        signed: { retained: "original renewal" } as never,
+        command: null,
+        input: 19,
+      };
+      session.pending = pending;
+      busy = active;
+      ready = true;
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(view.getSnapshot().snapshot?.namespace).toBe("200");
+      expect(reads).toEqual(["100", "200"]);
+      expect(controls).toEqual(before);
+      expect(session.pending).toBe(pending);
+      expect(view.getSnapshot().detail).toMatch(/control (remains pending|outcome uncertain)/i);
+      if (denied) {
+        refused = true;
+        await vi.advanceTimersByTimeAsync(1100);
+        expect(view.getSnapshot()).toMatchObject({ phase: "denied", snapshot: null });
+        expect(session.pending).toBe(pending);
+        expect(controls).toEqual(before);
+      } else {
+        session.pending = null;
+        busy = false;
+        await vi.advanceTimersByTimeAsync(1100);
+        expect(controls).toEqual([...before, "acknowledged"]);
+      }
+      expect(reads).toEqual(["100", "200"]);
+    } finally {
+      session.pending = null;
+      busy = false;
+      await view.pause();
+      busyState.mockRestore();
+      vi.useRealTimers();
+    }
+  },
+);
 
 test("a new query template cannot publish the previous paused candidate", async () => {
   const session = attachedSession();
