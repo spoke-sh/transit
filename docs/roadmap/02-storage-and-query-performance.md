@@ -154,6 +154,10 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   schema rewrite, flush, DROP and current disclosure checks preserve that root's
   meaning. This stored-root and wire cutover replaces the shared v1 definition
   and regenerates native, host and browser resources together.
+- Accepted row updates and physical flushes stage index mutations in bounded
+  batches under the original single acceptance boundary. Finite retained SQL
+  SELECTs, including prepared execution, also use the existing complete-key
+  equality qualification rather than scanning every source page.
 - SQL inequality pushdown, encoded/pruned execution, cross-segment performance
   controls, retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.

@@ -54,6 +54,13 @@ and repeated completion. Returned result batches own at most eight rows and
 16 MiB of canonical cells. Request limits charge both the current-credential read
 and direct Table call; result row/byte budgets are separate from source pages
 and compute memory. Cancellation and read failures leave incomplete results.
+Exactly one equality for every declared primary-key column selects a retained
+point read, including a conjunction for a composite key. The original predicate
+still runs. Missing keys complete the selection without claiming full-Table
+coverage. Additional predicates, partial keys, inequalities, OR and NOT keep
+identity-ordered bounded scans; aggregate overflow checks retain source order.
+Finite reads also keep the scan when a valid comparison literal exceeds the
+stored key's character or encoded-byte limit.
 
 `DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
 schema-bound template without acquiring a pin. Its preparation fingerprint

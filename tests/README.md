@@ -1,5 +1,24 @@
 # Validation and evidence
 
+## Finite retained SQL point reads — 2026-10-25
+
+On `765b287b` plus finite point selection, the pinned-shell command
+`just test::direct-table-service prepared` passes. A 17-row source needs three
+ordinary scan pages; complete-key queries finish within eight charged native/
+Table exchanges, or ten for prepared execution. Independent checks cover a
+late key, absence, empty COUNT/SUM, LIMIT 0, inequality/OR/full-count controls,
+and an additional non-key predicate that exhausts the same tight scan budget.
+Prepared reads retain typed values, fresh snapshots, current denial and rejection
+after ALTER or DROP/recreation. Composite Unicode/text/negative-integer equality
+follows declared key order despite a different predicate order. Valid comparison
+values beyond VARCHAR or encoded-key bounds remain successful empty queries.
+
+The final focused run passes after correcting an intermediate Zig type-inference
+compile error in the new key owner. Documentation checks and diagnostic inventory,
+mapping, error-boundary and outcome checks pass. Full repository and clean-lane
+qualification for this SQL change remain pending; this evidence does not qualify
+inequality pushdown, encoded execution or a latency improvement.
+
 ## Bounded row-index mutation batches — 2026-10-25
 
 On `72c77bcb` plus bounded index batching, storage-package tests run with the
@@ -27,8 +46,12 @@ latency or RSS improvements. After batching physical relocation,
 `zig build test -Dtest-filter='retained Table key ranges'
 -Dtest-filter='Table acceptance recovers' --summary all` passes 4/4 (12 seconds).
 The public `just test::storage-key-ranges` then passes 11/11 storage tests (two
-minutes, reported MaxRSS 43 MiB) and 5/5 catalog tests. Broader predicate-write,
-signed service and final repository/clean qualification remain pending.
+minutes, reported MaxRSS 43 MiB) and 5/5 catalog tests. On `765b287b`, the storage
+command `zig build test -Dtest-filter='frozen SQL' --summary all` passes 3/3
+(14 minutes, reported MaxRSS 39 MiB). `just test::direct-table-service` also
+passes 1,418 typed calls covering CRUD/DDL, retained sources, three restarts,
+lost replies, history/pins and current revocation. Final repository/clean
+qualification remains pending.
 
 
 ## Retained ordered Table ranges — 2026-10-25
