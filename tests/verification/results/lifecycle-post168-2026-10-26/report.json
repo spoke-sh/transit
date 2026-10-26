@@ -1,0 +1,77 @@
+{
+  "base": "0a0f46ec5e2807f3a3a2a66b8578b95e2f8393f1",
+  "change": "Add existing locked ps.pyarrow to ci-experience. No runtime, workload, assertion, deadline, compiler, package pin or lockfile changes.",
+  "hosted_experience": {
+    "run_url": "https://github.com/spoke-sh/transit/actions/runs/40285606874",
+    "job": 121448654324,
+    "revision": "c19beb45e157d9d6a99a34a860d7760b07372d4a",
+    "artifact": 12634759574,
+    "artifact_sha256": "fb66263118e2c4f7872e5a0ed413c36adb348683a11d0cb8305f441da5071099",
+    "passed_tasks": 12,
+    "failed_task": "launchers::local::test-station",
+    "failure": "ModuleNotFoundError: No module named pyarrow before fixture execution",
+    "installed_local_sql_seconds": 636.39,
+    "lane_complete": false
+  },
+  "controls": {
+    "source": "0a0f46ec5 plus nix/ci-experience.nix and nix/README.md patch",
+    "pyarrow_version": "23.0.0",
+    "doctor_exit": 0,
+    "nix_format_exit": 0,
+    "launcher_import_exit": 0,
+    "station_launcher": {
+      "command": [
+        "nix",
+        "develop",
+        ".#ci-experience",
+        "--command",
+        "just",
+        "launchers::local::test-station"
+      ],
+      "exit_code": 0,
+      "complete": true,
+      "evidence": "station-readiness.json"
+    }
+  },
+  "local_clean_experience": {
+    "revision": "0582556e31766f91050ca6796942ccced9ae52cf",
+    "passed_tasks": 9,
+    "failed_task": "test::server-sql-local",
+    "failure": "UPDATE local_rows operation194 unknown; original signed status after restart remains uploading and dispatch-ineligible",
+    "complete": false,
+    "sql_resubmitted": false
+  },
+  "diagnostics": {
+    "same_binary": "Fresh explicit-artifact exec wrappers capture native/gateway stderr. CREATE98 loses its connection after native.append Canceled and WalRecoveryRequired. Not an installed-adjacency pass; exact cancelled I/O stage not identified.",
+    "instrumented": "Full local SQL and owner bootstrap fault schedules pass with diagnostic-only WAL failure labels; no label fires. Node bytes differ; other binary hashes match. This does not explain or invalidate either earlier failure.",
+    "source_patch": "local-sql-wal-trace.patch",
+    "runtime_patch_shipped": false
+  },
+  "bindings2": [
+    {
+      "run": 40278906228,
+      "job": 121427812969,
+      "revision": "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c",
+      "artifact": 12633449219,
+      "artifact_sha256": "e939c53b963ca66fc8f5dbd4687ac504d47f17012e2e3ba7e2c135cf8ef29779",
+      "complete": true,
+      "seconds": 4226.22
+    },
+    {
+      "run": 40282802769,
+      "job": 121439678262,
+      "revision": "289e42b40ce829fd22e482676bffa6b4d769757b",
+      "artifact": 12634892323,
+      "artifact_sha256": "89e5b263934731da371823f014665f291376210595960d6e381448b1b42a381a",
+      "complete": true,
+      "seconds": 2726.58
+    }
+  ],
+  "limits": [
+    "Full just check passes before the PyArrow shell addition; see check.json for source boundaries.",
+    "Both complete bindings-2 runs use the current shared definition, but do not establish passing combined lanes for this branch.",
+    "Observed incomplete publication is not accepted execution or a recovered successful SQL mutation. No SQL is resubmitted to manufacture an outcome.",
+    "Clean/hosted experience failures remain failures; focused passes do not complete them.",
+    "Exact local WAL cancellation stage and its environmental cause remain unestablished. Recovery gates remain unchanged."
+  ]
+}

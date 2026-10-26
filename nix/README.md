@@ -369,12 +369,13 @@ developer tools. [The task inventory](../tests/verification/suite.json) owns the
 exact checks in each lane.
 
 The experience lane uses `nix develop .#ci-experience`, a shell without provider
-or Kubernetes tools and without PyArrow. Its Python environment includes PyYAML
-and `jsonschema` for the Board query contract checks. The bindings shell's Python
-environment includes those same validators. Both use the existing locked nixpkgs
-input; no compiler, provider or lockfile revision changes are required.
-Its previously measured environment closure is
-1.2 GiB. Experience/launchers share one Nix cache, core/growth share another,
+or Kubernetes tools. Its Python environment includes PyYAML and `jsonschema` for
+the Board query contract checks, and PyArrow for the Station launcher's independent
+typed-result inspection. The bindings shell includes those same Python packages.
+Both use the existing locked nixpkgs input; no compiler, provider or lockfile
+revision changes are required. The previously measured 1.2 GiB environment
+closure predates the database clients and PyArrow; the current closure has not
+been measured. Experience/launchers share one Nix cache, core/growth share another,
 and bindings owns the third; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading

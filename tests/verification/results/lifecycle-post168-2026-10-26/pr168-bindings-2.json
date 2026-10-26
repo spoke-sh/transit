@@ -1,0 +1,32 @@
+[
+  {
+    "lane": "bindings-2",
+    "task": "bindings::go-sdk-test",
+    "seconds": 159.76,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::c-sdk-test",
+    "seconds": 1280.81,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::java-sdk-test",
+    "seconds": 346.07,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::dotnet-sdk-test",
+    "seconds": 265.48,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::beam-sdk-test",
+    "seconds": 674.45,
+    "exit_code": 0
+  }
+]

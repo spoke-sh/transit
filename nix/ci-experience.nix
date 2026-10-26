@@ -19,6 +19,7 @@ pkgs.mkShell {
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml
       ps.jsonschema
+      ps.pyarrow
     ]))
     pkgs.process-compose
     pkgs.openssl

@@ -220,6 +220,16 @@ client selection and the complete installed authentication/recovery task pass;
 versions, assertions and deadlines are unchanged. Remaining combined lanes and
 final acceptance reconciliation still gate closure.
 
+PR #169's hosted run passes twelve experience tasks, including installed SQL
+authentication/recovery and Board query recovery, before the final Station
+launcher import exposes a second missing CI dependency, PyArrow. Supplying the
+existing pinned package makes the complete Station launcher task pass in that
+shell. Two hosted bindings-2 runs also pass with the current shared definition.
+The [follow-up record](../../tests/README.md#installed-lifecycle-follow-up-and-station-ci-dependency--2026-10-26)
+retains these passes alongside a separate failed clean SQL run: original UPDATE
+194 remains incomplete publication after inspection, with no SQL resubmission.
+Combined qualification and acceptance reconciliation remain open.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

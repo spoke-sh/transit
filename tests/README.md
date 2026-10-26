@@ -3107,6 +3107,44 @@ accepted owner binding loses its reply and the process is killed.
 The workload, deadlines and assertions are unchanged. This focused pass does
 not complete the failed hosted lane or qualify its unexecuted later tasks.
 
+## Installed lifecycle follow-up and Station CI dependency — 2026-10-26
+
+The [retained records](verification/results/lifecycle-post168-2026-10-26/report.json)
+include a further full `just check` pass after the database-client correction.
+Committed-checkout experience at `0582556e3` passes nine tasks, then fails an
+UPDATE in local SQL authentication. Public signed inspection after restarting
+that same installation finds original operation 194 still `uploading` and
+dispatch-ineligible, with no terminal outcome. SQL is not resubmitted. This is
+incomplete publication, not accepted execution or successful UPDATE recovery.
+
+A fresh diagnostic using the same binaries and explicit exec wrappers loses a
+CREATE connection after `native.append` reports `Canceled` and the WAL requires
+recovery. The retained native/gateway stderr identifies that sequence, but not
+the cancelled I/O stage or its environmental cause. A subsequent full diagnostic
+passes local authentication and accepted-owner bootstrap recovery with a node
+rebuilt to label WAL I/O failures; none occurs. Its patch and changed binary
+hash are retained. Neither diagnostic is an installed-adjacency qualification;
+no diagnostic instrumentation or recovery-gate change ships in the runtime.
+
+Hosted run `40285606874`, at merge revision `c19beb45e`, passes the first twelve
+experience tasks, including the complete source-bundle SQL schedule (636.39
+seconds) and Board query recovery. Its final Station launcher task fails at
+import because the experience shell lacks PyArrow. The shell now supplies
+PyArrow 23.0.0 from the existing locked nixpkgs input. At `0a0f46ec5` plus that
+shell/documentation patch, `nix develop .#ci-experience --command just
+launchers::local::test-station` passes registry/call/Arrow exchange, worker
+recovery and upgrades, Board provenance, and persistent stop/start. Injected
+read refusals cause one courier replacement in 30.381 seconds and query completion
+in 16.581 seconds, within the unchanged separate 60-second deadlines. Doctor,
+Nix formatting and imports pass; compiler/package pins and lockfiles are unchanged.
+
+Hosted bindings-2 also completes all five Go/C/C++/Java/.NET/BEAM tasks at
+`e4b4955cb` (4,226.22 seconds) and `289e42b40` (2,726.58 seconds). Both use the
+current shared definition; BEAM includes Erlang and Elixir. Their exact task
+inventories and metadata are retained. These completed SDK lanes and focused
+Station pass do not complete the failed experience lanes or the remaining
+combined qualification.
+
 ## Hosted core execution cap — 2026-10-26
 
 Hosted run `40278906228` reaches the former 60-minute core job cap at revision
