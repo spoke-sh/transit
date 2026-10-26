@@ -103,6 +103,12 @@ WAL trim boundary finishes interrupted prefix removal. These schedules preserve
 the operating system and its page cache; they do not simulate power loss or
 disk exhaustion. See the [proof ledger](../../../tests/README.md#local-storage-process-death-boundaries--2026-10-26).
 
+`just test::storage-io-faults` exercises injected `NoSpaceLeft` and `InputOutput`
+errors around real disk writes and syncs. A WAL owner requires reopening after
+an uncertain write, preserving complete recoverable frames; object publication
+keeps private partial files out of the public descriptor. These error schedules
+do not exhaust the host filesystem or establish hardware failure behavior.
+
 Standalone `TableMemtable` recovery consumes every bounded WAL page through its captured frontier and
 checks contiguous history and schema identity. An incomplete recovery blocks
 reads and mutations until successful recovery. The component owns its schema

@@ -27243,3 +27243,25 @@ The preceding local clean experience run at `a318deb7` passes service startup
 and logging but fails the direct Table fixture after authority timeouts exhaust
 the installation's restart budget. Its uncertain DDL outcome is not a passing
 lane or evidence that the loader correction fixes that separate failure.
+
+## Local storage syscall-error schedules — 2026-10-26
+
+`nix develop --command just test::storage-io-faults` passes five tests, including
+the package import check and four fault tests covering 37 schedules. Six WAL
+write schedules inject `NoSpaceLeft` before bytes, after a 13-byte torn header
+and after a complete frame, on both an existing segment and rollover. Seven
+append schedules inject `InputOutput` at every file/metadata/directory sync.
+The open owner rejects further operations until reopened; recovery preserves
+accepted literal payloads, LSNs and epochs, retains complete uncertain frames,
+rejects stale epochs and permits the exact successor position.
+
+Eighteen conditional/immutable object schedules inject `NoSpaceLeft` before,
+during and after writes to each staged payload, checksum file and descriptor.
+Fresh owners observe the original complete value or absence, then retry the
+original condition/content successfully and reject stale/conflicting writes.
+The existing six sync-error schedules cover old/new descriptor visibility.
+Partial writes reach actual temporary-directory files, but the syscall errors
+are injected; these tests do not exhaust the host filesystem, simulate device
+loss or prove power-failure durability. No production runtime changes accompany
+this expansion. Diagnostic inventory, verification catalog, format and local
+documentation checks pass.

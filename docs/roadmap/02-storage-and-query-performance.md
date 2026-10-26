@@ -142,6 +142,10 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   [scoped proof](../../tests/README.md#local-storage-process-death-boundaries--2026-10-26)
   advances #113/#114; disk-full/I/O schedules, retention-owner integration and
   retained-root/orphan collection remain open.
+- Injected `NoSpaceLeft` and sync-error schedules exercise actual partial disk
+  writes for WAL append/rollover and conditional/immutable objects, preserving
+  accepted bytes and exact retry/recovery. The host filesystem is not filled;
+  broader device failures and safe physical collection remain separate work.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

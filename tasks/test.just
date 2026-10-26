@@ -19,6 +19,10 @@ storage-segments:
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
 
+# Disk owner error propagation with real partial writes and injected syscall failures.
+storage-io-faults:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all
+
 # Full-key pages, retained intervals, collation order, signing and owned decoding.
 storage-key-ranges:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="ordered full key" -Dtest-filter="Table index batches" -Dtest-filter="retained Table key ranges" -Dtest-filter="Table recovery" -Dtest-filter="Table segment ranges" --summary all

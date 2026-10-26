@@ -1886,7 +1886,7 @@
     },
     {
       "id": "STORAGE-02",
-      "claim": "Process death at local publication boundaries preserves accepted WAL history and fences, resumable authorized trim and complete object descriptors",
+      "claim": "Process death and I/O failures at local publication boundaries preserve accepted WAL history and fences, resumable authorized trim and complete object descriptors",
       "owner": "contracts/TRANSIT_STORAGE_V1.md",
       "implementation": [
         "packages/zig/transit-storage/src/DiskWal.zig",
@@ -1895,15 +1895,17 @@
       "profile": "Current native v1; local POSIX WAL and object store",
       "tasks": [
         "test::unit",
-        "test::local-storage-faults"
+        "test::local-storage-faults",
+        "test::storage-io-faults"
       ],
       "scenarios": [
         "SIGKILL after partial WAL write, file/directory sync, metadata publication and completed acknowledgement",
         "Fresh owners preserve fences, retained payloads and successor LSNs; competing WAL owners reject",
         "Partial and whole-log trim resumes after floor publication and interrupted segment deletion",
-        "Conditional and immutable object publication at each sync/descriptor boundary with independently hashed values and exact retries"
+        "Conditional and immutable object publication at each sync/descriptor boundary with independently hashed values and exact retries",
+        "Injected NoSpaceLeft before, during and after real file writes; InputOutput at every append and object sync with exact recovery"
       ],
-      "limits": "Process death preserves the operating system and page cache. No host power loss, disk-full, filesystem rollback, automatic retention authority or orphan collection guarantee.",
+      "limits": "Process death preserves the operating system and page cache. Syscall errors are injected with real partial disk writes, not by exhausting the host filesystem. No host power loss, filesystem rollback, automatic retention authority or orphan collection guarantee.",
       "model": null,
       "qualification": "Focused execution and the original failing trim schedule are recorded in tests/README.md; complete clean lanes remain separate gates."
     },
