@@ -19,13 +19,13 @@ MUTANTS = {
     ),
     "revision": (
         "growing_state.zig",
-        "if (process.revision != command.expected_revision) return error.StaleState;\n    _ = try nextInput(engine, process, command.input);",
-        "// Mutation: omit state revision comparison.\n    _ = try nextInput(engine, process, command.input);",
+        "if (process.revision != command.expected_revision) return error.StaleState;\n    if (command.authorization)",
+        "// Mutation: omit state revision comparison.\n    if (command.authorization)",
     ),
     "permission": (
         "growing.zig",
-        "if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;",
-        "_ = needed; // Mutation: omit current grant validation.",
+        "if (!permitted) return error.Forbidden;",
+        "_ = permitted; // Mutation: omit current grant validation.",
     ),
     "view_deadline": (
         "growing_state.zig",
