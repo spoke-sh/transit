@@ -122,6 +122,22 @@ encoded record is limited to 2,048 bytes. Larger logical objects need explicit
 segments/references; loading the whole catalog into an allocator is not supported.
 Those bounds apply to a record or operation, not total retained records.
 
+The native engine retains at most eight verified membership/grant scan pages
+alongside its separate point-record caches. Each scan entry owns at most eight
+records and its exact continuation; empty pages are retained too. Reuse requires
+the same complete immutable policy root, namespace/identity range and cursor.
+Changing the root invalidates all scan entries. Data scans use the page store
+and do not displace these policy entries. The fixed scan cache occupies less
+than 140 KiB on the supported 64-bit target, independently of policy cardinality;
+the host must include it in each execution lane's resident budget.
+
+Cached bytes still pass typed decoding and the ordinary authorization evaluator
+on every request, including its record/vertex/depth budgets. They retain no
+effective permission or credential decision. Current-policy acquisition,
+revocation, lifetime checks and publication/disclosure fences remain required.
+Failed or corrupt page reads cannot populate a successful observation, and a
+candidate with pending writes still rejects scans of its earlier root.
+
 A successful `put` or `remove` changes only the private candidate root. The caller
 must validate permissions, dependencies and retention before using it and publish
 all changes in one journal decision. Structural deletion grants no reclamation

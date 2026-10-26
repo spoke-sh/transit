@@ -178,6 +178,38 @@ pub const RecordCache = struct {
     }
 };
 
+/// Bounded verified policy pages, including empty pages and continuation keys.
+/// Identity is the complete immutable root, namespace range and exact cursor.
+/// Evaluation still charges and validates every record on every request.
+pub const PolicyScanCache = struct {
+    pub const capacity = 8;
+    const Cached = struct { range: Range, after: ?pages.Key, page: pages.Slice };
+    root: ?pages.Reference = null,
+    entries: [capacity]?Cached = @splat(null),
+    next: usize = 0,
+    hits: u64 = 0,
+    misses: u64 = 0,
+
+    fn select(self: *PolicyScanCache, root: ?pages.Reference) void {
+        if (!std.meta.eql(root, self.root)) {
+            self.entries = @splat(null);
+            self.root = root;
+            self.next = 0;
+        }
+    }
+    fn eligible(range: Range) bool {
+        return switch (range.namespace) {
+            .authorization_member,
+            .authorization_realm_grant,
+            .authorization_process_grant,
+            .authorization_resource_grant,
+            .authorization_domain_grant,
+            => true,
+            else => false,
+        };
+    }
+};
+
 /// Complete native turn: closed views, rows/resource, outputs/effect, process,
 /// principal/receipt, and retained-version creation/release. The bound follows
 /// per-command protocol limits; it is independent of durable catalog size.
@@ -206,6 +238,7 @@ pub fn Catalog(comptime Store: type) type {
         tree: pages.Tree(Store),
         snapshot: Snapshot,
         record_cache: ?*RecordCache = null,
+        policy_scan_cache: ?*PolicyScanCache = null,
         pending: ?*Candidate = null,
 
         pub fn open(store: *Store, snapshot: Snapshot) !Self {
@@ -336,7 +369,7 @@ pub fn Catalog(comptime Store: type) type {
                 try validateKey(&cursor);
                 if (!std.mem.startsWith(u8, cursor.slice(), prefix.slice())) return error.InvalidCatalogCursor;
             }
-            const page = try self.tree.scanRange(self.snapshot.root, after orelse prefix, after == null, range.end());
+            const page = try self.scanBytes(range, after);
             var result: Batch(T) = .{};
             for (page.entries, 0..) |slot, i| if (slot) |entry| {
                 if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return result;
@@ -345,6 +378,25 @@ pub fn Catalog(comptime Store: type) type {
             };
             result.next = page.next;
             return result;
+        }
+        fn scanBytes(self: *const Self, range: Range, after: ?pages.Key) !pages.Slice {
+            const cache = if (PolicyScanCache.eligible(range)) self.policy_scan_cache else null;
+            if (cache) |scans| {
+                scans.select(self.snapshot.root);
+                for (&scans.entries) |*slot| if (slot.*) |*cached| {
+                    if (std.meta.eql(cached.range, range) and std.meta.eql(cached.after, after)) {
+                        scans.hits +|= 1;
+                        return cached.page;
+                    }
+                };
+                scans.misses +|= 1;
+            }
+            const page = try self.tree.scanRange(self.snapshot.root, after orelse range.prefix(), after == null, range.end());
+            if (cache) |scans| {
+                scans.entries[scans.next] = .{ .range = range, .after = after, .page = page };
+                scans.next = (scans.next + 1) % PolicyScanCache.capacity;
+            }
+            return page;
         }
     };
 }

@@ -118,6 +118,12 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Native policy evaluation reuses at most eight verified membership/grant scan
+  pages at one exact immutable policy root. Typed decoding, evaluator budgets,
+  current authority and publication/disclosure fences still run. This targets
+  repeated index I/O observed while investigating the native growth timeout
+  (#124/#126); complete growth and matched performance qualification remain open.
+
 - A fixed-memory Table directory walker verifies page paths and emits typed
   row, pin, evidence and archive edges. Long ordered-key child directories are
   separate queued work; released pins do not recursively retain snapshots.

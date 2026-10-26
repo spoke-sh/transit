@@ -29178,3 +29178,48 @@ takes 1,794.4 seconds and readback 17.5 seconds; its probe-image virtual peaks a
 distinct from `wait4` RSS including inherited pre-exec driver memory. Retained
 bytes exceed the process ceiling, not host RAM. Native growth and the complete
 growth matrix remain unproved; this run also predates compact evidence staging.
+
+## Verified policy-page reuse and native setup diagnostics — 2026-10-26
+
+The native engine adds a bounded eight-entry cache of owned membership/grant
+scan pages. Complete immutable root, namespace/identity range and exact cursor
+select an entry; changing the root invalidates the cache. Ordinary data scans
+cannot populate or evict it. Every hit still passes typed decoding and the
+authorization evaluator, including its record/vertex/depth limits and current
+publication/disclosure fences. No stored format or permission decision changes.
+
+The complete core suite passes **125/125**, including 19-record continuation,
+exact minor/major/namespace isolation, empty-page replacement/removal, retained
+root switching, 80 distinct range lookups within fixed residency, failed/corrupt
+reads and rejection of unflushed candidate scans. Warmed evaluation returns the
+same decision and charged record count; a one-record-short budget still rejects,
+and replacing the active grant at another root immediately removes permission.
+The fixed scan-cache value is asserted smaller than 140 KiB on the test target.
+
+The complete local backend suite passes **25/25**, including signed block reads
+followed by revocation after disk restart. `just test::authorization` passes its
+five-restart signed native schedule: private revocation visibility, SIGKILL and
+lost replies, original admission constraints, scoped/stale inspection cursors,
+credential rotation and exact receipt recovery. Diagnostic inventory, mappings,
+inferred boundaries, verification catalog, documentation links and formatting
+checks pass before subsequent Table-root work begins.
+
+A diagnostic `strace -c` of the earlier frozen 16-turn/16 KiB native setup counts
+476,762 system calls, including 151,352 `openat`, 81,577 `preadv` and 5,686 `fsync`
+calls; owner counters report 20,004 index misses. A separate four-case setup
+comparison under the unchanged 128 MiB process ceiling completes independent
+value/count/digest checks. It compares the earlier `b85a0a076` frozen binary with
+the candidate at `b818156c0` plus the policy cache; it is not an isolated matched
+revision or percentile study. Its raw report is
+`/var/tmp/transit-m2-policy-pages-comparison.json`.
+
+| Native turns | Earlier index misses | Candidate index misses | Earlier / candidate wall seconds |
+| --- | ---: | ---: | ---: |
+| 16 | 20,004 | 2,278 | 67.8 / 63.2 |
+| 64 | 81,227 | 11,853 | 273.1 / 293.5 |
+
+Read work falls in these fixtures; elapsed time does not improve consistently.
+The shared host runs other tests and benchmarks, and native setup still stages
+many small immutable objects with separate durability barriers. These single
+observations do not close the earlier full-growth timeout, establish latency
+percentiles, or qualify final committed-HEAD clean CI.
