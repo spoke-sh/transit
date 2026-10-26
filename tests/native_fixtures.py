@@ -78,7 +78,7 @@ def generated():
             case.update(vector(body, b'transit.request.v1\0'))
         results[FIXTURES / 'requests-v1.json'] = requests
 
-        sdk_path = ROOT / 'tests/verification/sdk-operations-v1.json'
+        sdk_path = ROOT / 'tests/sdk/sdk-operations-v1.json'
         sdk = json.loads(sdk_path.read_text())
         assert sdk['seed_hex'] == '07' * 32
         for case in sdk['cases']:

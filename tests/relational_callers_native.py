@@ -242,7 +242,7 @@ def exercise(library, host, root, authority, service, profile, restart, policy, 
             finally:
                 if query is not None: query.close()
         if language:
-            from sdk_relational import exercise as installed
+            from sdk.sdk_relational import exercise as installed
             results += installed((language,), authority, service, root, fixture, policy)
         assert not fixture.pins, 'The proof left durable retention open'
         print(json.dumps(dict(profile='direct-relational-callers', results=results)), flush=True)

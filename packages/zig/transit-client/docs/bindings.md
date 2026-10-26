@@ -135,7 +135,7 @@ standalone port against the node and disk-backed Ursula. Its schedules cover
 canonical signatures, saved-request recovery without a seed, lost receipts,
 current revocation and competing handles sharing one principal. The
 [proof ledger](../../../../docs/history/qualification/README.md) distinguishes executed outcomes from
-planned coverage. The [shared SDK scenarios](../../../../tests/verification/sdk.json)
+planned coverage. The [shared SDK scenarios](../../../../tests/sdk/sdk.json)
 cover the separate admission, turn, reply delivery and consumption boundaries.
 
 `transit_diagnostic_validate(bytes, length)` validates a shared diagnostic without

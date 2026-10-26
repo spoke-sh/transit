@@ -28,7 +28,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
         with ColdStore() as cold, Fixture(cold.config()) as fixture:
             root = fixture.root
             fixture.env.update(LOG_FORMAT="json", LOG_LEVEL="info")
-            from sdk_unified import install
+            from sdk.sdk_unified import install
             factories = install(root / 'installed', sdks) if sdks else []
             public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
             port = free_port()

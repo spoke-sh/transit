@@ -2299,7 +2299,7 @@ after a committed metadata prefix, rejects a changed endpoint revision without
 consuming mutation budget, resumes to a validated call and rejects retired reuse.
 
 `just bindings::python-test` additionally runs the installed Python HTTP API
-through [the shared HTTP caller schedule](../../../tests/sdk_http_runner.py): a binary request
+through [the shared HTTP caller schedule](../../../tests/sdk/sdk_http_runner.py): a binary request
 with duplicate headers, escaped Unicode target and credential references, fresh
 ownership after a staging prefix, one correlated reply, prefix revocation and
 reopening, owned replay after deleting credentials, and joined asynchronous

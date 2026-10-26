@@ -12,7 +12,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests"))
-from client_abi_growing import GrowingSystem
+from sdk.client_abi_growing import GrowingSystem
 from cold_storage import ColdStore
 from document_contract import encode
 from harness.ursula import Fixture

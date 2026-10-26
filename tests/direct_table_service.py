@@ -329,21 +329,21 @@ def run(node, caller, mode="tables", *artifacts):
                 if mode == "abi":
                     from direct_catalog_abi import exercise
                 elif mode == "sdk-python":
-                    from direct_sdk_catalog import exercise
+                    from sdk.direct_sdk_catalog import exercise
                 elif mode == "sdk-node":
-                    from direct_sdk_catalog import exercise_node as exercise
+                    from sdk.direct_sdk_catalog import exercise_node as exercise
                 elif mode == "sdk-ruby":
-                    from direct_sdk_catalog import exercise_ruby as exercise
+                    from sdk.direct_sdk_catalog import exercise_ruby as exercise
                 elif mode == "sdk-java":
-                    from direct_sdk_catalog import exercise_java as exercise
+                    from sdk.direct_sdk_catalog import exercise_java as exercise
                 elif mode == "sdk-dotnet":
-                    from direct_sdk_catalog import exercise_dotnet as exercise
+                    from sdk.direct_sdk_catalog import exercise_dotnet as exercise
                 elif mode == "sdk-rust":
-                    from direct_sdk_catalog import exercise_rust as exercise
+                    from sdk.direct_sdk_catalog import exercise_rust as exercise
                 elif mode == "sdk-beam":
-                    from direct_sdk_catalog import exercise_beam as exercise
+                    from sdk.direct_sdk_catalog import exercise_beam as exercise
                 else:
-                    from direct_sdk_catalog import exercise_c as exercise
+                    from sdk.direct_sdk_catalog import exercise_c as exercise
                 def restart():
                     nonlocal authority
                     authority.kill()

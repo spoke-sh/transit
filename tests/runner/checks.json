@@ -251,7 +251,8 @@
             "glob": "tests/*.zig"
           },
           "tests/verification",
-          "tests/performance"
+          "tests/performance",
+          "tests/sdk"
         ]
       },
       {
@@ -514,7 +515,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/binding_schema_types.py"
+          "tests/runner/launch.py",
+          "tests/sdk/binding_schema_types.py"
         ]
       }
     ]

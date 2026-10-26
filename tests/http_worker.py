@@ -472,7 +472,7 @@ def run(node, provision, worker, library, board=None, browser=False):
                 from http_board import inspect_capture
                 inspect_capture(fixture, admin, url, saved, board, provision, state, browser)
 
-            from station_growing_abi import Native
+            from sdk.station_growing_abi import Native
             from abi_support import rejects
             libraries = fixture.root / "libraries"
             libraries.mkdir()

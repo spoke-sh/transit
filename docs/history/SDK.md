@@ -283,14 +283,14 @@ profile does not establish production capacity or deployment automation.
 | Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; all target cancellation/stop/join ownership paths are qualified under their documented host rules |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
-| Application codecs | Shared [counter/query definition](../../examples/station-sdk/README.md) and [fixtures](../../tests/verification/sdk-codecs-v1.json) defined; all target implementations and the ten-edge public language ring pass |
+| Application codecs | Shared [counter/query definition](../../examples/station-sdk/README.md) and [fixtures](../../tests/sdk/sdk-codecs-v1.json) defined; all target implementations and the ten-edge public language ring pass |
 | Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; Ruby, C/C++, Java, .NET, Erlang and Elixir own IPC independently decoded by PyArrow |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide
 integers, missing versus nullable values, malformed messages, duplicate `Start`,
 overflow, initialization and fresh-worker reply recovery. Extend the existing
-[shared scenario catalog](../../tests/verification/sdk.json), reusing its admission,
+[shared scenario catalog](../../tests/sdk/sdk.json), reusing its admission,
 uncertainty, revocation, same-principal, cancellation and post-commit-allocation
 obligations rather than creating competing language catalogs.
 

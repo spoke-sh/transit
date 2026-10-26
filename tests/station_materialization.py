@@ -16,7 +16,7 @@ def run(node, cli, libraries):
 
 
 def _run(node, cli, libraries, cold):
-    from station_growing_abi import Native
+    from sdk.station_growing_abi import Native
     from abi_support import Client
     with System(node, cli, clock_error_ms=10000, allow_history_trim=True, storage_config=cold.config()) as s:
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})

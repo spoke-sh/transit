@@ -1620,11 +1620,12 @@ pub fn build(b: *std.Build) void {
     combined_table_test.stdio = .inherit;
     b.step("test-table-query-writer", "Prove direct Table capture and independent native query progress").dependOn(&combined_table_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
-    c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
+    c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/sdk/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
     c_proof.root_module.linkLibrary(client.artifact("transit_client"));
     const abi_tests = b.addSystemCommand(&.{ "python3", "-B" });
-    abi_tests.addFileArg(b.path("tests/client_abi.py"));
+    abi_tests.addFileArg(b.path("tests/runner/launch.py"));
+    abi_tests.addFileArg(b.path("tests/sdk/client_abi.py"));
     abi_tests.addArtifactArg(client.artifact("transit_client"));
     abi_tests.addArtifactArg(node_artifact);
     abi_tests.addArtifactArg(cli_artifact);
@@ -1634,7 +1635,8 @@ pub fn build(b: *std.Build) void {
     const abi_test_step = b.step("test-client-abi", "Prove the C ABI against real authority and host loss");
     abi_test_step.dependOn(&abi_tests.step);
     const client_host_tests = b.addSystemCommand(&.{ "python3", "-B" });
-    client_host_tests.addFileArg(b.path("tests/client_host.py"));
+    client_host_tests.addFileArg(b.path("tests/runner/launch.py"));
+    client_host_tests.addFileArg(b.path("tests/sdk/client_host.py"));
     client_host_tests.addArtifactArg(client_host);
     client_host_tests.addArtifactArg(node_artifact);
     client_host_tests.addArtifactArg(cli_artifact);
@@ -1642,7 +1644,8 @@ pub fn build(b: *std.Build) void {
     client_host_tests.stdio = .inherit;
     abi_test_step.dependOn(&client_host_tests.step);
     const binding_tests = b.addSystemCommand(&.{ "python3", "-B" });
-    binding_tests.addFileArg(b.path("tests/bindings.py"));
+    binding_tests.addFileArg(b.path("tests/runner/launch.py"));
+    binding_tests.addFileArg(b.path("tests/sdk/bindings.py"));
     binding_tests.addArtifactArg(node_artifact);
     binding_tests.addArtifactArg(cli_artifact);
     binding_tests.addArtifactArg(station_bindings.artifact("transit_station"));
@@ -1783,7 +1786,7 @@ pub fn build(b: *std.Build) void {
     callers.addArtifactArg(cli_artifact);
     for (example_artifacts) |example| callers.addArtifactArg(example);
     const client_probe = b.addExecutable(.{ .name = "client-probe", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/client_probe.zig"),
+        .root_source_file = b.path("tests/sdk/client_probe.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
@@ -1829,5 +1832,5 @@ fn exampleModule(b: *std.Build, sdk: ?*std.Build.Dependency, name: []const u8, t
     if (sdk) |dependency| return dependency.module(name);
     // A runtime-only build must not silently compile consumers against an
     // alternate package surface. This module fails only if an example is built.
-    return b.createModule(.{ .root_source_file = b.path("tests/sdk_disabled.zig"), .target = target, .optimize = optimize });
+    return b.createModule(.{ .root_source_file = b.path("tests/sdk/sdk_disabled.zig"), .target = target, .optimize = optimize });
 }

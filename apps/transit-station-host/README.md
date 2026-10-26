@@ -54,7 +54,7 @@ seed path or server configuration. `frame`, `growing_arrow_cell`,
 hello and local growing capabilities remain available; authority operations
 return `not_ready`. A missing endpoint without this explicit mode still rejects.
 SDK encoders can therefore use shared native codecs without inventing an endpoint
-or opening a signing credential. `tests/station_codec_host.py` qualifies this
+or opening a signing credential. `tests/sdk/station_codec_host.py` qualifies this
 mode and conflicting/missing configuration rejection.
 
 EOF releases handles after the current operation. A killed port may leave an

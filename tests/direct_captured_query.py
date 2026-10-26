@@ -28,30 +28,30 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
         root = Path(directory)
         installed = []
         if java_packages is not None:
-            from sdk_unified import install_java
+            from sdk.sdk_unified import install_java
             installed.append(install_java(root / "java", None, Path(java_packages).resolve(), direct=True))
         if dotnet_packages is not None:
-            from sdk_unified import install_dotnet
+            from sdk.sdk_unified import install_dotnet
             installed.append(install_dotnet(root / "dotnet", None, Path(dotnet_packages).resolve(), direct=True))
         if c_packages is not None:
-            from sdk_unified import install_c
+            from sdk.sdk_unified import install_c
             for language in ("c", "cpp"):
                 installed.append(install_c(root / language, None, language, Path(c_packages).resolve(), direct=True))
         if beam_packages is not None:
-            from sdk_unified import install_beam
+            from sdk.sdk_unified import install_beam
             for language in ("erlang", "elixir"):
                 installed.append(install_beam(root / language, None, language, Path(beam_packages).resolve(), direct=True))
         if rust_packages is not None:
-            from sdk_unified import install_rust
+            from sdk.sdk_unified import install_rust
             installed.append(install_rust(root / "rust", None, Path(rust_packages).resolve(), direct=True))
         if node_packages is not None:
-            from sdk_unified import install_node
+            from sdk.sdk_unified import install_node
             installed.append(install_node(root / "node", None, Path(node_packages).resolve(), direct=True))
         if python_packages is not None:
-            from sdk_unified import install_python_direct
+            from sdk.sdk_unified import install_python_direct
             installed.append(install_python_direct(root / "python", Path(python_packages).resolve()))
         if ruby_packages is not None:
-            from sdk_unified import install_ruby
+            from sdk.sdk_unified import install_ruby
             installed.append(install_ruby(root / "ruby", None, Path(ruby_packages).resolve(), direct=True))
         profile = root / "profile.json"
         config = root / "node.json"
@@ -218,7 +218,7 @@ def run(node, caller, python_native=None, ruby_host=None, java_packages=None, do
             for consumer in installed:
                 consumer(endpoint, profile, phase)
             if python_native is not None:
-                from python_direct_capture import run as python_capture
+                from sdk.consumers.python.python_direct_capture import run as python_capture
                 python_capture(profile, endpoint, phase, python_native)
             if ruby_host is not None:
                 subprocess.run(["ruby", str(Path(__file__).with_name("ruby_direct_capture.rb")),

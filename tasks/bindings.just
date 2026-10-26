@@ -34,20 +34,20 @@ go-build: build
 # Run Go ownership, recovery and race checks against the actual native library.
 go-check: build
     go version
-    test -z "$(gofmt -l sdks/go tests/go_client_sdk examples/go-client)"
+    test -z "$(gofmt -l sdks/go tests/sdk/consumers/go/go_client_sdk examples/go-client)"
     cd sdks/go && GOTOOLCHAIN=local GOWORK=off go vet ./...
     cd sdks/go && TRANSIT_GO_TEST_NATIVE_DIRECTORY="$PWD/../../zig-out/lib" GOTOOLCHAIN=local GOWORK=off GOEXPERIMENT=cgocheck2 go test -race ./...
 
 # Compile an installed external Go consumer and run the shared disk-backed proof.
 go-sdk-test: go-build go-check
     zig build transit-node transit-admin
-    python3 -B tests/go_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/go
+    python3 -B tests/runner/launch.py tests/sdk/consumers/go/go_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/go
 
 # Requires the installed language artifacts from the corresponding *-build tasks.
 # C exercises C/C++; BEAM exercises Erlang/Elixir. Select with --family.
 query-failures *args: build
     zig build transit-node transit-admin
-    python3 -B tests/sdk_query_failures.py {{args}}
+    python3 -B tests/runner/launch.py tests/sdk/sdk_query_failures.py {{args}}
 
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
@@ -65,18 +65,18 @@ python-build: build
 
 # Type-check public APIs and run a clean wheel consumer outside the checkout.
 python-test: python-build
-    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_relational_values.py
-    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_handler_tables.py
-    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station:examples/station-sdk/python python3 -B tests/sdk_table_work.py
-    PYTHONPATH=sdks/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_relational_values.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_handler_tables.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station:examples/station-sdk/python python3 -B tests/runner/launch.py tests/sdk/sdk_table_work.py
+    PYTHONPATH=sdks/python/transit-client python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
     mypy --strict sdks/python/transit-native-client/transit_native_client sdks/python/transit-native-station/transit_native_station sdks/python/transit-client/transit_client
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
     zig build transit-admin transit-station-http-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels
+    python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels
     zig build transit-station-grpc-worker
-    python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
+    python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
     just bindings::direct-catalog-python
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 
@@ -89,7 +89,7 @@ relational-node: node-build node-check
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 relational-python: python-build
-    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_relational_values.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_relational_values.py
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 
@@ -104,16 +104,16 @@ node-sdk-test: node-build
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-admin transit-station-http-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node
+    python3 -B tests/runner/launch.py tests/sdk/consumers/node/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node
     zig build transit-station-grpc-worker
-    python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
+    python3 -B tests/runner/launch.py tests/sdk/consumers/node/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
     just bindings::direct-catalog-node
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
 logical-test: python-build node-build
-    python3 -B tests/sdk_logical.py python node
+    python3 -B tests/runner/launch.py tests/sdk/sdk_logical.py python node
 
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
@@ -125,7 +125,7 @@ rust-build: build
 # Stress installed Rust runner destruction on fresh malformed inputs.
 rust-lifetime cases="128": rust-build
     zig build transit-node transit-admin
-    python3 -B tests/rust_station_lifetime.py --cases {{quote(cases)}}
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_lifetime.py --cases {{quote(cases)}}
 
 # Build clean Rust consumers; run from the bindings shell.
 rust-sdk-test: rust-build
@@ -136,10 +136,10 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
     zig build transit-admin transit-station-http-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust
     zig build transit-station-grpc-worker
-    python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
     just bindings::direct-catalog-rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
@@ -148,7 +148,7 @@ ruby-build: build
 
 # Syntax checks and installed public Ruby client/authority schedules.
 ruby-sdk-test: ruby-build
-    ruby -Isdks/ruby/transit-client/lib -Isdks/ruby/transit-station/lib tests/ruby_handler_tables.rb
+    ruby -Isdks/ruby/transit-client/lib -Isdks/ruby/transit-station/lib tests/sdk/consumers/ruby/ruby_handler_tables.rb
     ruby -c sdks/ruby/transit-client/lib/transit/client.rb
     ruby -c sdks/ruby/transit-client/lib/transit/client/values.rb
     ruby -c sdks/ruby/transit-client/lib/transit/client/worker.rb
@@ -169,11 +169,11 @@ ruby-sdk-test: ruby-build
     ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
     zig build transit-admin
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby
+    python3 -B tests/runner/launch.py tests/sdk/consumers/ruby/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby
     zig build transit-station-http-worker
     zig build transit-station-grpc-worker
-    python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
+    python3 -B tests/runner/launch.py tests/sdk/consumers/ruby/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
     just bindings::direct-catalog-ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
@@ -191,15 +191,15 @@ c-sdk-test: c-build
     zig fmt --check sdks/c sdks/cpp/transit-client sdks/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
     zig build transit-admin transit-station-http-worker transit-station-grpc-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c
-    python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
+    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c
+    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
     just bindings::direct-catalog-c
-    python3 -B tests/c_logical_values.py .cache/bindings/c
+    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_logical_values.py .cache/bindings/c
 
 # Qualify owned recursive models through installed C11 and C++17 consumers.
 logical-c: c-build
-    python3 -B tests/c_logical_values.py .cache/bindings/c
+    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_logical_values.py .cache/bindings/c
 
 # Build independent Java JARs and POM manifests with the pinned JDK/Gson.
 java-build: build
@@ -209,9 +209,9 @@ java-build: build
 java-sdk-test: java-build
     zig build transit-admin transit-station-http-worker transit-station-grpc-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java
-    python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
+    python3 -B tests/runner/launch.py tests/sdk/consumers/java/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java
+    python3 -B tests/runner/launch.py tests/sdk/consumers/java/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
     just bindings::direct-catalog-java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
@@ -220,16 +220,16 @@ dotnet-build: build
 
 # Qualify owned recursive .NET logical models in an isolated package consumer.
 logical-dotnet: dotnet-build
-    python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
+    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_logical_values.py .cache/bindings/dotnet
 
 # Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
-    python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
+    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_logical_values.py .cache/bindings/dotnet
     zig build transit-admin transit-station-http-worker transit-station-grpc-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet
-    python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
+    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet
+    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
     just bindings::direct-catalog-dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
@@ -238,23 +238,23 @@ beam-build: build
 
 # Qualify recursive logical models from installed Erlang and Elixir artifacts.
 logical-beam: beam-build
-    python3 -B tests/beam_logical_values.py .cache/bindings/beam
+    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_logical_values.py .cache/bindings/beam
 
 # Compile clean Erlang consumers and execute both public BEAM language schedules.
 beam-sdk-test: beam-build
-    python3 -B tests/beam_logical_values.py .cache/bindings/beam
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-client-elixir/lib/client.ex sdks/beam/transit-client-elixir/mix.exs sdks/beam/transit-station-elixir/lib/*.ex sdks/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex tests/elixir_logical_values.exs
+    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_logical_values.py .cache/bindings/beam
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-client-elixir/lib/client.ex sdks/beam/transit-client-elixir/mix.exs sdks/beam/transit-station-elixir/lib/*.ex sdks/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/sdk/consumers/elixir/elixir_client_sdk.exs tests/sdk/consumers/elixir/elixir_station_adapter.ex tests/sdk/consumers/elixir/elixir_http_adapter.ex tests/sdk/consumers/elixir/elixir_grpc_adapter.ex tests/sdk/consumers/elixir/elixir_logical_values.exs
     zig build transit-admin transit-station-http-worker transit-station-grpc-worker
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam
-    python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
+    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam
+    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
     just bindings::direct-catalog-beam
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
     zig build transit-node transit-admin
-    python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
+    python3 -B tests/runner/launch.py tests/sdk/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
 
 # Every installed catalog caller explicitly selects a non-inherited data role.
 authorization: direct-catalog-python direct-catalog-node direct-catalog-rust direct-catalog-ruby direct-catalog-c direct-catalog-java direct-catalog-dotnet direct-catalog-beam
@@ -262,70 +262,70 @@ authorization: direct-catalog-python direct-catalog-node direct-catalog-rust dir
 # Qualify installed HTTP/gRPC outcome diagnostics and recovery in every SDK.
 connector-outcomes: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
     zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings
 
 # Retain original accepted-call preparation failures across lost receipts and restart.
 connector-preparation: python-build
     zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http --language python --preparation-failure
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --preparation-failure
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http --language python --preparation-failure
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --preparation-failure
 
 # Crash after public RPC output commit and preserve a retired caller destination.
 grpc-faults: python-build
     zig build transit-node transit-admin transit-station-grpc-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault published
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault retirement
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault published
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault retirement
 
 # Qualify Document scoped jobs and read-only native/port consumers.
 document-native: build
     zig build transit-node transit-admin
-    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/station_document_abi.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
+    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/runner/launch.py tests/sdk/station_document_abi.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
 
 # Installed Python Document types, scoped changes, retained reads and host loss.
 document-python: python-build
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language python
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language python
 
 # Installed Node Document values, scoped ownership, retained reads and host loss.
 document-node: node-build
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/document.test.ts
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language node
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language node
 
 # Installed Ruby Document values, scoped changes and joined reader destruction.
 document-ruby: ruby-build
     ruby -c sdks/ruby/transit-station/lib/transit/station/document.rb
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language ruby
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language ruby
 
 # Installed Rust Document values and compiler-enforced owner/reader lifetimes.
 document-rust: rust-build
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language rust
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language rust
 
 # Installed C11/C++17 Document handlers, owned values and reader lifetimes.
 document-c: c-build
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language c
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language c
 
 # Installed Java Document values, scoped jobs and asynchronous joined reads.
 document-java: java-build
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language java
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language java
 
 # Installed .NET Document values, scoped jobs, cancellation and joined disposal.
 document-dotnet: dotnet-build
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language dotnet
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language dotnet
 
 # Installed Erlang and Elixir Document APIs share the native merge implementation.
 document-beam: beam-build
-    mix format --check-formatted sdks/beam/transit-station-elixir/lib/document.ex tests/elixir_document_adapter.ex
+    mix format --check-formatted sdks/beam/transit-station-elixir/lib/document.ex tests/sdk/consumers/elixir/elixir_document_adapter.ex
     zig build transit-node transit-admin
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language beam
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language beam
 
 # Python sync/async direct capture, independent native progress and rotated-credential results.
 direct-captured-python:
@@ -402,7 +402,7 @@ unified-compound: python-build node-build ruby-build rust-build c-build java-bui
 
 # Pure installed query codecs: exact bundle bytes and independently produced Arrow.
 unified-codecs: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
-    python3 -B tests/sdk_unified.py
+    python3 -B tests/runner/launch.py tests/sdk/sdk_unified.py
 
 # Build matching ReleaseSafe wheels and qualify direct lifecycle and retained SQL.
 direct-catalog-python:
@@ -485,14 +485,14 @@ direct-catalog-beam:
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
 catalog-beam: direct-catalog-beam
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-station-elixir/lib/catalog.ex tests/sdk/consumers/elixir/elixir_catalog_adapter.ex
 
 # Compile and run the public Zig SDK and a separately built application.
 zig-test:
     cd sdks/zig && zig build test
-    python3 -B tests/sdk_zig.py
+    python3 -B tests/runner/launch.py tests/sdk/sdk_zig.py
 
 # Build the runtime in an isolated source tree that contains no SDKs.
 runtime-boundary:
     python3 -B tests/runner/test_nix_inputs.py
-    python3 -B tests/sdk_runtime.py
+    python3 -B tests/runner/launch.py tests/sdk/sdk_runtime.py

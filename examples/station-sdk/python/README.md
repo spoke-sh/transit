@@ -42,7 +42,7 @@ the queue is ready and empty.
 explicit Start. Complete results are consumed through an application callback,
 which receives original owned IPC one bounded segment at a time; the row count
 is recorded in `observed`. Callback effects are not made transactional by handler
-dispatch. The queue's source model is exercised by `tests/sdk_table_work.py`;
+dispatch. The queue's source model is exercised by `tests/sdk/sdk_table_work.py`;
 installed native execution is recorded separately in the proof ledger.
 
 `just bindings::python-test` installs these wheels outside the checkout, runs both

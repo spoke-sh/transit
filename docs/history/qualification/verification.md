@@ -551,7 +551,7 @@ The [M9 evidence](catalog.md#m9-station-bindings-and-tables) below distinguishes
 language qualification from reference worker qualification.
 
 M11 extends `just test::client-abi` with the explicit growing raw-client boundary.
-Its [shared fixtures](../../../tests/verification/sdk-operations-v1.json) pin v3 canonical bytes,
+Its [shared fixtures](../../../tests/sdk/sdk-operations-v1.json) pin v3 canonical bytes,
 signatures and full-width IDs. The real disk proof checks principal 65,536,
 node/provider restart, opaque retry in a fresh process, lost/malformed accepted
 replies and revoked reads/receipt recovery. Allocation enumeration covers both
@@ -566,14 +566,14 @@ and successful exit while stdin remains open. Station covers local-codec, raw,
 legacy and query-enabled growing handles. Native cleanup precedes the response;
 this lifecycle acknowledgement does not replace mutation receipts.
 
-`just bindings::test` also runs the [growing Station ABI proof](../../../tests/station_growing_abi.py)
+`just bindings::test` also runs the [growing Station ABI proof](../../../tests/sdk/station_growing_abi.py)
 against disk-backed Ursula. It checks every mutation's preparation/dispatch gate,
 41 Table rows through bounded pages, retained sources, stale scopes/cursors,
 poisoned reads, explicit stop behavior, revocation, native port parity and exact
 retry from a fresh process after caller/node/store loss. Native allocation-failure
 enumeration preserves accepted receipts until the host can receive them. Both
 `just check` and the complete existing language matrix pass with this boundary.
-The companion [query ABI proof](../../../tests/station_query_abi.py) uses the native query
+The companion [query ABI proof](../../../tests/sdk/station_query_abi.py) uses the native query
 profile's bounded 64-page cache. It captures and delivers 41 rows in six IPC
 segments, retries lost staging receipts, restarts workers/node/provider after a
 seal, checks complete source metadata and decodes owned IPC with PyArrow after
@@ -605,12 +605,12 @@ all targets. Qualification is Linux x86_64 with Nix-linked native wheels.
 checks the strict public API and installs them outside the checkout using ordinary
 package-manager overrides for unpublished local artifacts. No Station package or
 manual native loader path is present. Python and Node run the same
-[raw-client schedule](../../../tests/sdk_raw_client.py): copied input/export buffers, native
+[raw-client schedule](../../../tests/sdk/sdk_raw_client.py): copied input/export buffers, native
 classification, a lost accepted response, seedless host restart, failed host
 response parsing/allocation, current revocation, bounded overlap and responsive
 close after a local await/abort. A second clean consumer installs Station and the
 executable counter/query examples. Python and Node share the
-[runner authority schedule](../../../tests/sdk_station_runner.py), including every mutation's
+[runner authority schedule](../../../tests/sdk/sdk_station_runner.py), including every mutation's
 persistence/confirmation hooks, dropped accepted commits, exact seedless recovery
 after host/node/store restart, stale/revoked/expired callers, poisoned reads,
 41-row retained Tables and six original IPC segments. Node additionally checks
@@ -809,7 +809,7 @@ null, `i64::MIN`, `i64::MAX` and `9007199254740993`, plus source/destination,
 resource and byte-count metadata. The ring does not select optional host Arrow
 adapters; those remain in the separate six-segment per-SDK schedules. It covers
 ten edges, not all 100 ordered pairs, and does not repeat each fault for each pair.
-`public-language-ring` in the [SDK catalog](../../../tests/verification/sdk.json) owns the exact
+`public-language-ring` in the [SDK catalog](../../../tests/sdk/sdk.json) owns the exact
 observations. M9's separate low-level matrix remains executable and passed again.
 
 All artifacts below are version 0.2.0 on Linux x86_64 with their pinned Nix native
@@ -1104,7 +1104,7 @@ The larger run passed 263 traces / 33,250 boundaries in 475.97 seconds. At
 `ea62354`, all four compiling guard mutants were detected, with minimized
 counterexamples retained by the mutation task.
 
-The [shared SDK scenario contract](../../../tests/verification/sdk.json) now has executable
+The [shared SDK scenario contract](../../../tests/sdk/sdk.json) now has executable
 owners for admission/commit/reply distinctions, same-principal multi-handle
 contention, host-loss retry, durable continuation, decode failure, local await
 cancellation/disposal and response allocation after commitment.

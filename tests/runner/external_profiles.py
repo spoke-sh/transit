@@ -51,8 +51,8 @@ def main():
     profiles = dict(
         sdk=[['just', 'bindings::python-build', 'bindings::node-build'],
              ['zig', 'build', 'transit-node', 'transit-admin'],
-             [sys.executable, '-B', 'tests/python_client_sdk.py', *native, '.cache/bindings/wheels', str(destination / 'python.json')],
-             [sys.executable, '-B', 'tests/node_client_sdk.py', *native, '.cache/bindings/node', str(destination / 'node.json')]],
+             [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/python/python_client_sdk.py', *native, '.cache/bindings/wheels', str(destination / 'python.json')],
+             [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/node/node_client_sdk.py', *native, '.cache/bindings/node', str(destination / 'node.json')]],
         application=[['just', 'test::server-application-faults'], ['just', 'test::runtime-upgrade']],
         query=[['just', 'test::unified-lifecycle'], ['just', 'test::unified-expiry'],
                ['just', 'test::interactive-query', '--source', 'table']],

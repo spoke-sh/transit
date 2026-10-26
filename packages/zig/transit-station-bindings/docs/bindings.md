@@ -202,7 +202,7 @@ result reader.
 Growing `cancel` actions now return whether a waiting call was closed; `false`
 means it was already closed, and neither outcome retracts work accepted by a peer.
 
-`tests/station_growing_abi.py`, included in the binding proof, uses one resident
+`tests/sdk/station_growing_abi.py`, included in the binding proof, uses one resident
 backend page and disk Ursula. It checks 41 Table rows in six pages, stale scopes
 and cursors, retained schemas/point reads, remaining mutation budgets, repeated
 confirmation observation, full-width values/principals, private stop/read poisoning, control
@@ -210,7 +210,7 @@ gates, accepted-response loss and exact recovery from a fresh process after
 caller/node/store loss, current revocation and the growing port route. Native
 allocation enumeration additionally checks retained confirmation on every failed
 response allocation. These proofs qualify this low-level slice, not public SDKs.
-The companion `tests/station_query_abi.py` proves six segments/41 rows through
+The companion `tests/sdk/station_query_abi.py` proves six segments/41 rows through
 capture, loss/retry and caller/node/store restart, original IPC ownership and
 independent PyArrow decoding, complete metadata, native-port parity, disabled
 queries, stale scope and revoked result access.
