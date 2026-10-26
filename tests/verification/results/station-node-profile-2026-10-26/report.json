@@ -1,0 +1,119 @@
+{
+  "source_revision": "9ab5fb64a316b1083d3f8e13646b04432b761e0e",
+  "baseline": {
+    "command": "nix develop --command just ci-clean --lane core",
+    "result": "18 tasks passed; test::station failed at captured query completion after host generation replacement",
+    "station_task_seconds": 297.09,
+    "phase_deadline_seconds": 60,
+    "node_profile": "Debug",
+    "log": "baseline.log.gz"
+  },
+  "control": {
+    "revision": "9ab5fb64a316b1083d3f8e13646b04432b761e0e",
+    "checkout": "/var/tmp/transit-ci-5tly1g0s/src",
+    "completed": true,
+    "started": 1792996214.741997,
+    "tasks": [
+      {
+        "name": "build",
+        "command": [
+          "nix",
+          "develop",
+          "--command",
+          "zig",
+          "build",
+          "transit-node",
+          "-Doptimize=ReleaseSafe",
+          "--prefix",
+          ".cache/lifecycle-station-release-node"
+        ],
+        "started": 1792996214.7420034,
+        "log": "/var/tmp/transit-lifecycle-station-node-profile-control-build.log",
+        "exit_code": 0,
+        "finished": 1792996456.1162982,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "proof",
+        "command": [
+          "nix",
+          "develop",
+          "--command",
+          "python3",
+          "-B",
+          "tests/station.py",
+          ".cache/lifecycle-station-release-node/bin/transit-node",
+          ".zig-cache/o/94313057d8663625b11467f98b7c4aed/transit-admin",
+          ".zig-cache/o/76b4755e8f23bdfb1f61055acbd775d4/example-station-ledger",
+          ".zig-cache/o/18cf31f2bc52be1ec4bb835886d2b289/transit-delivery",
+          ".zig-cache/o/bcbc3ca8ed186aba4e309699760159cc/transit-station-controller"
+        ],
+        "started": 1792996456.1166582,
+        "log": "/var/tmp/transit-lifecycle-station-node-profile-control-proof.log",
+        "exit_code": 0,
+        "finished": 1792996571.2466192,
+        "sha256": "17ce803fc82adb670f21bcfe965bf0f7f7b39d2ac5b3a6a26a93aaad494978f7"
+      }
+    ],
+    "active_task": null,
+    "finished": 1792996571.2470355
+  },
+  "unchanged": [
+    "Debug administration, ledger worker, courier and controller binaries",
+    "Station workload and all assertions",
+    "60-second query phase deadline and 5-second native request timeout"
+  ],
+  "limits": [
+    "This sequential correctness control is not a matched performance benchmark.",
+    "A completed Station task does not complete the earlier core lane or current-source qualification."
+  ],
+  "artifacts": {
+    "debug_node": {
+      "path": ".zig-cache/o/3412ba61d4c732ede695d8439174e840/transit-node",
+      "sha256": "b8c29a99b8a4990633058d2406b997c9b5206f9b106a623e2f7dcc32a4fb954e"
+    },
+    "release_node": {
+      "path": ".cache/lifecycle-station-release-node/bin/transit-node",
+      "sha256": "a3abef385c10703e598392cebbcbc2c078da61955151150376be9a182f65742b"
+    },
+    "admin": {
+      "path": ".zig-cache/o/94313057d8663625b11467f98b7c4aed/transit-admin",
+      "sha256": "3a43ee932c9e4a584d4c1faee50c41c9594bd4943ad58adcd7bd49d22341f6b8"
+    },
+    "worker": {
+      "path": ".zig-cache/o/76b4755e8f23bdfb1f61055acbd775d4/example-station-ledger",
+      "sha256": "1d07f4271692435797844205c0a7cd544457036d4d1a5b1f30864e1114feca88"
+    },
+    "courier": {
+      "path": ".zig-cache/o/18cf31f2bc52be1ec4bb835886d2b289/transit-delivery",
+      "sha256": "a79148ca5b48ce60f71443b8abc5ceb78472dd9228c83500d4a73aa2afb36cd2"
+    },
+    "controller": {
+      "path": ".zig-cache/o/bcbc3ca8ed186aba4e309699760159cc/transit-station-controller",
+      "sha256": "56e6aaa394eed446325ea3694c4890032a4ad7359f3623b303ea6fda0bd0e18d"
+    }
+  },
+  "logs": {
+    "baseline": {
+      "file": "baseline.log.gz",
+      "bytes": 47290,
+      "sha256": "6544d2696f4e702df393e39b7468213e04c0ac34aad1535bc22099c7167b3b71"
+    },
+    "release-node": {
+      "file": "release-node.log.gz",
+      "bytes": 614,
+      "sha256": "17ce803fc82adb670f21bcfe965bf0f7f7b39d2ac5b3a6a26a93aaad494978f7"
+    }
+  },
+  "fixture_sha256": "b6ae104ebb3964c1b2a93ac427e23b8b04a3a49feabdb679b2ef03741cc86178",
+  "current_task": {
+    "source_base": "31b48b73ea5b6373d1c358cd06c7ba362dbef325",
+    "patch": "tasks/test.just explicitly builds Debug administration/worker/courier/controller and the ReleaseSafe node before running the unchanged fixture",
+    "command": "nix develop --command just test::station",
+    "exit_code": 0,
+    "log": "current-task.log.gz",
+    "log_sha256": "668db1138a13a9ccb74607f0104a10465663da01db77547d43d71512f174265d",
+    "fixture_sha256": "b6ae104ebb3964c1b2a93ac427e23b8b04a3a49feabdb679b2ef03741cc86178",
+    "task_file_sha256": "9d71f4cd0b88f3de65506518f80118afdb799d4c7644d61c361f6c87873cc749"
+  }
+}

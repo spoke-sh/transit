@@ -185,6 +185,25 @@ retains native attempt diagnostics, and the installed fixture preserves the
 original failure and allows the existing 270-second settlement budget to finish.
 These corrections are not a completed installed or combined qualification.
 
+PR #167 is merged as `dc2838b6c`. The subsequent full `just check` at
+`9ab5fb64a` passes, and clean bindings-2 at `90b0fc45e` completes Go, C/C++,
+Java, .NET, Erlang and Elixir. Their
+[source-specific records](../../tests/README.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
+preserve the distinction between those earlier revisions and qualification of
+the final merged implementation. The remaining core run fails Station's
+captured-query deadline after 18 passing tasks. A
+[controlled node-profile substitution](../../tests/README.md#station-node-build-profile--2026-10-26)
+passes with the same Debug callers and unchanged deadlines; the owning task now
+uses the explicit ReleaseSafe node profile already used for SDK queries.
+
+Current-source installed SQL reaches name reuse after deletion and restart,
+then reports an unknown CREATE outcome during native failure and supervisor
+restart-budget exhaustion. The original SQL is not resubmitted. The hosted
+launcher lane passes at `e4b4955cb`, whose Git tree is identical to merged
+`dc2838b6c`; other hosted lanes remain in progress. Final installed recovery,
+combined qualification and acceptance reconciliation remain open. #108 and
+this milestone remain In Progress.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

@@ -9,7 +9,12 @@
       "exit_code": 0
     },
     "containing_lane_complete": false,
-    "full_just_check": "running separately in the same committed checkout"
+    "full_just_check": "completed, exit 0; see full-check.json",
+    "containing_lane_result": "failed: Station captured query exceeded its unchanged 60-second phase deadline; 18 preceding tasks passed",
+    "task_reports": [
+      "core.json",
+      "core.meta.json"
+    ]
   },
   "hosted": {
     "run_url": "https://github.com/spoke-sh/transit/actions/runs/40274455146",
@@ -22,10 +27,83 @@
     ],
     "launchers": "complete pass",
     "experience": "incomplete: explicit capacity refusal with no rows at fixed Unicode SELECT",
-    "later_lanes": "still running at this checkpoint"
+    "later_lanes": "core, growth, bindings-1 and bindings-2 cancelled when superseded by run 40278906228; not passes"
   },
   "limits": [
     "These records do not qualify later commits or complete the milestone.",
     "Skipped and unexecuted tasks are not passes."
-  ]
+  ],
+  "local_full_check": {
+    "revision": "9ab5fb64a316b1083d3f8e13646b04432b761e0e",
+    "checkout": "/var/tmp/transit-ci-5tly1g0s/src",
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "just",
+      "check"
+    ],
+    "completed": true,
+    "state": "finished",
+    "created": 1792992575.1650624,
+    "started": 1792994385.229492,
+    "exit_code": 0,
+    "finished": 1792994705.464617,
+    "log_sha256": "47fa1b5bbed181488dc103a1d62ae0fc114339f8848d224d8364cb39fcd63195"
+  },
+  "local_bindings_2": {
+    "revision": "90b0fc45ea521ce9ee8f40c48f35e1df2664ea4e",
+    "source": "/var/tmp/transit-lifecycle-bindings2-source-zjrdxhra/src",
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "just",
+      "ci-clean",
+      "--lane",
+      "bindings-2"
+    ],
+    "started": 1792989212.7156131,
+    "complete": true,
+    "exit_code": 0,
+    "finished": 1792995442.480757,
+    "task_reports": [
+      "bindings-2.json",
+      "bindings-2.meta.json"
+    ],
+    "limits": "Earlier definition/revision; this does not qualify the final merged source."
+  },
+  "completed_logs": {
+    "bindings-2": {
+      "file": "bindings-2.log.gz",
+      "bytes": 179281,
+      "sha256": "2d571c3c248b09b83ae3be6c46d822a859d12b1453894da7df58a7562838281b",
+      "gzip_sha256": "8b6175069b06a2bb4b00a64986fbd0774ad7e32ab5452718898d9a3594ef8223"
+    },
+    "full-check": {
+      "file": "full-check.log.gz",
+      "bytes": 22416,
+      "sha256": "47fa1b5bbed181488dc103a1d62ae0fc114339f8848d224d8364cb39fcd63195",
+      "gzip_sha256": "939fea86cd52cfcc3f93bd5a4f08221dfbcbe819c7f162d898ba6dfeff926119"
+    }
+  },
+  "hosted_final_launchers": {
+    "run_url": "https://github.com/spoke-sh/transit/actions/runs/40278906228",
+    "revision": "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c",
+    "result": "complete pass",
+    "artifact_id": 12632137614,
+    "artifact_sha256": "8ab1a8840042599ba675b152f4d2b2174de3d3c65faa83dbc5b7e3a2f390d480",
+    "task_reports": [
+      "final-launchers.json",
+      "final-launchers.meta.json"
+    ],
+    "tree_equivalence": {
+      "tree": "bd1e094733058dafd23e9ff32ff096eec5851192",
+      "equal_revisions": [
+        "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c",
+        "dc2838b6cfbd0f194c5335a1887d0f67b988c654",
+        "e3dd9e68a5bb777169bbbb4835ee201f7f0a77d8"
+      ]
+    }
+  }
 }

@@ -3019,8 +3019,15 @@ separate obligations.
 
 [Retained task records](verification/results/lifecycle-qualification-2026-10-26/report.json)
 distinguish completed checks from partial lanes. Local clean `check-core` passes
-at `9ab5fb64a` in 1,877.37 seconds. Its subsequent core tasks and full `just check`
-are still running at this checkpoint.
+at `9ab5fb64a` in 1,877.37 seconds. Full `just check` subsequently passes in the
+same committed checkout. Eighteen core tasks pass before `test::station` fails
+its captured-query completion deadline; the containing lane does not pass.
+
+Clean bindings-2 at `90b0fc45e` completes all five owning tasks: Go (297.17
+seconds), C/C++ (2,732.99), Java (756.83), .NET (666.85) and BEAM (1,753.81).
+The BEAM task includes Erlang and Elixir. The retained task inventory, completion
+metadata and compressed log identify that earlier revision and definition;
+this is not final-source qualification after the later cutover and fixes.
 
 Hosted run `40274455146` executes merge revision `7afcbcc7f`, including main's
 count-range changes. Both launcher tasks pass. Eight experience tasks pass,
@@ -3030,13 +3037,44 @@ fails on a capacity refusal with empty stdout during its Unicode read; later
 experience tasks do not run. Its fixed Unicode/NULL observations now use the
 existing 30-second capacity-refusal window, alongside the two fixed COUNT
 queries. No mutation, denial, partial result or generic error uses this path.
+The four unfinished core/growth/SDK lanes were cancelled when superseded by
+run `40278906228`; they are not complete passes.
 
 The [local diagnostic record](verification/results/installed-sql-diagnostics-2026-10-26/report.json)
 retains the separate cancelled-append/restart failure. Its console was killed
 by the fixture after 180 seconds, before the client's existing 270-second
 accepted-operation settlement budget. The fixture now allows 300 seconds and
 preserves the original SQL exception if cleanup finds an already-joined worker.
-These fixture and diagnostic changes still require their installed rerun.
+The following rerun executes those fixture and diagnostic changes.
+
+The clean experience rerun at `e3dd9e68a` passes its first five tasks, including
+server logging's native-attempt assertion. Installed direct SQL then passes
+Table DDL and namespace checks, abrupt restart, retained operation inspection,
+and deliberate Table deletion. After the next restart, the final CREATE for
+name reuse returns `SqlOutcomeUnknown`; no SQL resubmission follows. The retained
+manager log records native unavailability, replacement and exhaustion of the
+three-restart budget while reconciling an original activation grant. This is a
+failed 855.99-second task, not successful original-CREATE recovery or completion
+of the experience lane.
+
+## Station node build profile — 2026-10-26
+
+The [retained control](verification/results/station-node-profile-2026-10-26/report.json)
+uses source `9ab5fb64a`. The clean core invocation with a Debug node fails the
+unchanged 60-second captured-query completion phase after replacing both host
+generations. The first 18 core tasks have passed; later tasks do not run.
+
+With only the node rebuilt as ReleaseSafe, the same Debug administration,
+ledger worker, courier and controller binaries pass the complete ledger,
+services and lifetime schedules in 115.13 seconds total. The query workload,
+60-second phase deadline, five-second native request timeout and all assertions
+are unchanged. This sequential correctness control is not a matched latency
+benchmark. The owning `just test::station` task now selects that mixed profile,
+as the installed Station SDK tasks do. The raw `zig build test-station` target
+still honors the selected optimization mode for every artifact.
+The changed owning task also passes the full ledger, services and lifetime
+schedules at `31b48b73e` plus the recorded task change. This qualifies that
+Station task; the complete corrected core lane remains separate.
 
 ## Retained-source publication authority — 2026-10-23
 
