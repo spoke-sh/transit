@@ -364,124 +364,149 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
     return writer.buffered();
 }
 
-/// Decode a physical column page encoded by `encodeColumnPage` back into `Values.Cell` items
-/// owned by `arena`.
+/// Decode every cell into the caller's arena. Encoded bytes can be released
+/// immediately. Temporary validation state is reused between logical values.
 pub fn decodeColumnPage(arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8) ![]Values.Cell {
+    return (try decodePage(arena, arena, column, bytes, null)).cells;
+}
+
+pub const Selected = struct { row_count: u32, cells: []Values.Cell };
+
+/// Decode strictly increasing, unique row ordinals. The complete page is still
+/// validated, including unselected details, values and trailing bytes. Output
+/// owns all selected children/bytes in arena. Scratch owns transient dictionary
+/// entries and one reusable value workspace; it retains no result allocations.
+pub fn decodeColumnPageSelected(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: []const u32) !Selected {
+    return decodePage(scratch, arena, column, bytes, rows);
+}
+
+fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: ?[]const u32) !Selected {
     try column.validateEncodingAndCollation();
     if (bytes.len < page_header_bytes or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
     if (!std.mem.eql(u8, bytes[4..36], &definition)) return error.IncompatibleDefinition;
     var reader: std.Io.Reader = .fixed(bytes[36..]);
-    const enc_raw = try reader.takeByte();
-    const encoding = std.enums.fromInt(Encoding, enc_raw) orelse return error.InvalidColumnPage;
+    const encoding = std.enums.fromInt(Encoding, try reader.takeByte()) orelse return error.InvalidColumnPage;
     if (encoding != column.encoding) return error.ColumnEncodingMismatch;
     const row_count = try reader.takeInt(u32, .little);
     if (row_count > 65536) return error.ColumnPageRowLimitExceeded;
-
+    if (rows) |selected| for (selected, 0..) |row, i| {
+        if (row >= row_count or (i > 0 and selected[i - 1] >= row)) return error.InvalidColumnSelection;
+    };
     const tags = try reader.take(row_count);
-    const cells = try arena.alloc(Values.Cell, row_count);
-    var value_count: u32 = 0;
-    for (tags, 0..) |t, i| {
-        cells[i] = switch (t) {
-            0 => blk: {
-                value_count += 1;
-                break :blk .null; // placeholder filled below
-            },
-            1 => .null,
+    var value_count: usize = 0;
+    for (tags) |tag| switch (tag) {
+        0 => value_count += 1,
+        1...4 => {},
+        else => return error.InvalidColumnPage,
+    };
+    var temporary = std.heap.ArenaAllocator.init(scratch);
+    defer temporary.deinit();
+    var sink: DecodeSink = .{
+        .arena = arena,
+        .column = column,
+        .rows = rows,
+        .tags = tags,
+        .cells = try arena.alloc(Values.Cell, if (rows) |selected| selected.len else row_count),
+    };
+    for (tags, 0..) |tag, i| {
+        const cell: Values.Cell = switch (tag) {
+            0, 1 => .null,
             2 => .missing,
-            3 => .{ .type_error = .unknown },
-            4 => .{ .conflict = &.{} },
-            else => return error.InvalidColumnPage,
-        };
-    }
-
-    // Read detail stream
-    for (tags, 0..) |t, i| {
-        if (t == 3) {
-            const k_raw = try reader.takeByte();
-            cells[i] = .{ .type_error = std.enums.fromInt(Types.Kind, k_raw) orelse return error.InvalidColumnPage };
-        } else if (t == 4) {
-            const alt_count = try reader.takeInt(u16, .little);
-            if (@as(usize, alt_count) * 17 > reader.end - reader.seek) return error.InvalidColumnPage;
-            const alts = try arena.alloc(Values.Alternative, alt_count);
-            for (alts) |*alt| {
-                const counter = try reader.takeInt(u64, .little);
-                const replica = try reader.takeInt(u64, .little);
-                const state_tag = try reader.takeByte();
-                alt.* = .{
-                    .counter = counter,
-                    .replica = replica,
-                    .value = switch (state_tag) {
+            3 => .{ .type_error = std.enums.fromInt(Types.Kind, try reader.takeByte()) orelse return error.InvalidColumnPage },
+            4 => blk: {
+                const alt_count = try reader.takeInt(u16, .little);
+                if (@as(usize, alt_count) * 17 > reader.end - reader.seek) return error.InvalidColumnPage;
+                const alts = try temporary.allocator().alloc(Values.Alternative, alt_count);
+                for (alts) |*alt| alt.* = .{
+                    .counter = try reader.takeInt(u64, .little),
+                    .replica = try reader.takeInt(u64, .little),
+                    .value = switch (try reader.takeByte()) {
                         0 => .null,
                         1 => .{ .type_error = std.enums.fromInt(Types.Kind, try reader.takeByte()) orelse return error.InvalidColumnPage },
-                        2 => .{ .value = try readCanonicalValue(arena, &reader, column.type) },
+                        2 => .{ .value = try readCanonicalValue(temporary.allocator(), &reader, column.type) },
                         else => return error.InvalidColumnPage,
                     },
                 };
-            }
-            cells[i] = .{ .conflict = alts };
-        }
+                break :blk .{ .conflict = alts };
+            },
+            else => unreachable,
+        };
+        if (sink.destination(i)) |destination| sink.cells[destination] = try Values.cloneValidated(arena, cell);
+        _ = temporary.reset(.retain_capacity);
     }
 
-    // Decode `.value` stream according to `column.encoding`
-    const decoded_values = try arena.alloc(Values.Cell, value_count);
     switch (column.encoding) {
-        .plain => {
-            for (decoded_values) |*slot| slot.* = .{ .value = try readCanonicalValue(arena, &reader, column.type) };
+        .plain => for (0..value_count) |_| {
+            _ = try sink.emit(.{ .value = try readCanonicalValue(temporary.allocator(), &reader, column.type) }, 1, false);
+            _ = temporary.reset(.retain_capacity);
         },
-        .bitpacked => try decodeBitpackedValues(&reader, column.type, decoded_values),
-        .rle => try decodeRleValues(arena, &reader, column.type, decoded_values),
-        .dictionary => try decodeDictionaryValues(arena, &reader, column.type, decoded_values),
-        .fsst => try decodeFsstValues(arena, &reader, decoded_values),
-        .comp_3 => {
-            for (decoded_values) |*slot| {
-                const raw = try reader.take(16);
-                slot.* = decodeComp3(raw, column.type);
-            }
-        },
-        .zoned => {
-            for (decoded_values) |*slot| {
-                const raw = try reader.take(31);
-                slot.* = decodeZoned(raw, column.type);
-            }
-        },
-        .comp => {
-            const width: usize = switch (column.type) {
-                .int16 => 2,
-                .int32 => 4,
-                else => 8,
+        .bitpacked => try decodeBitpackedValues(&reader, value_count, &sink),
+        .rle => try decodeRleValues(&temporary, &reader, value_count, &sink),
+        .dictionary => try decodeDictionaryValues(scratch, &temporary, &reader, value_count, &sink),
+        .fsst => try decodeFsstValues(&temporary, &reader, value_count, &sink),
+        .comp_3, .zoned, .comp, .ibm_hfp => for (0..value_count) |_| {
+            const cell = switch (column.encoding) {
+                .comp_3 => decodeComp3(try reader.take(16), column.type),
+                .zoned => decodeZoned(try reader.take(31), column.type),
+                .comp => decodeComp4(try reader.take(switch (column.type) {
+                    .int16 => @as(usize, 2),
+                    .int32 => 4,
+                    else => 8,
+                }), column.type),
+                .ibm_hfp => decodeIbmHfp(try reader.take(8), column.type),
+                else => unreachable,
             };
-            for (decoded_values) |*slot| {
-                const raw = try reader.take(width);
-                slot.* = decodeComp4(raw, column.type);
-            }
+            _ = try sink.emit(cell, 1, false);
         },
-        .ibm_hfp => {
-            for (decoded_values) |*slot| {
-                const raw = try reader.take(8);
-                slot.* = decodeIbmHfp(raw, column.type);
-            }
-        },
-        .ebcdic => {
-            for (decoded_values) |*slot| {
-                const len = try reader.takeInt(u32, .little);
-                const raw = try reader.take(len);
-                const capacity = std.math.mul(usize, len, 2) catch return error.InvalidColumnPage;
-                const buffer = try arena.alloc(u8, capacity);
-                const utf8 = try decodeEbcdic037(raw, buffer);
-                slot.* = .{ .value = .{ .atom = .{ .bytes = utf8 } } };
-            }
+        .ebcdic => for (0..value_count) |_| {
+            const len = try reader.takeInt(u32, .little);
+            const raw = try reader.take(len);
+            const capacity = std.math.mul(usize, len, 2) catch return error.InvalidColumnPage;
+            const buffer = try temporary.allocator().alloc(u8, capacity);
+            const utf8 = try decodeEbcdic037(raw, buffer);
+            _ = try sink.emit(.{ .value = .{ .atom = .{ .bytes = utf8 } } }, 1, false);
+            _ = temporary.reset(.retain_capacity);
         },
     }
-
     if (reader.seek != reader.end) return error.InvalidColumnPage;
-    for (decoded_values) |cell| if (cell == .value) try cell.validate(column.field(), .{});
-    var vi: usize = 0;
-    for (tags, 0..) |t, i| if (t == 0) {
-        cells[i] = decoded_values[vi];
-        vi += 1;
-    };
-    return cells;
+    return .{ .row_count = row_count, .cells = sink.cells };
 }
+
+const DecodeSink = struct {
+    arena: std.mem.Allocator,
+    column: TableSchema.Column,
+    rows: ?[]const u32,
+    tags: []const u8,
+    cells: []Values.Cell,
+    next_row: usize = 0,
+
+    fn destination(self: *const DecodeSink, row: usize) ?usize {
+        const rows = self.rows orelse return row;
+        var lo: usize = 0;
+        var hi = rows.len;
+        while (lo < hi) {
+            const mid = lo + (hi - lo) / 2;
+            if (rows[mid] < row) lo = mid + 1 else hi = mid;
+        }
+        return if (lo < rows.len and rows[lo] == row) lo else null;
+    }
+    // RLE/dictionary cells share one owned value among selected occurrences.
+    // Even unused values are validated; selection never masks corruption.
+    fn emit(self: *DecodeSink, cell: Values.Cell, repeat: usize, already_owned: bool) !?Values.Cell {
+        if (cell == .value) try cell.validate(self.column.field(), .{});
+        var owned: ?Values.Cell = if (already_owned) cell else null;
+        for (0..repeat) |_| {
+            while (self.next_row < self.tags.len and self.tags[self.next_row] != 0) self.next_row += 1;
+            if (self.next_row == self.tags.len) return error.InvalidColumnPage;
+            if (self.destination(self.next_row)) |slot| {
+                if (owned == null) owned = try Values.cloneValidated(self.arena, cell);
+                self.cells[slot] = owned.?;
+            }
+            self.next_row += 1;
+        }
+        return owned;
+    }
+};
 
 fn scalarToU64(expected: Types.Type, val: Values.Value) u64 {
     return switch (expected) {
@@ -542,28 +567,28 @@ fn encodeBitpackedValues(writer: *std.Io.Writer, expected: Types.Type, values: [
     }
 }
 
-fn decodeBitpackedValues(reader: *std.Io.Reader, expected: Types.Type, out: []Values.Cell) !void {
-    if (out.len == 0) return;
+fn decodeBitpackedValues(reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
+    if (count == 0) return;
     const min_val = try reader.takeInt(u64, .little);
     const bit_width = try reader.takeByte();
     if (bit_width > 64) return error.InvalidBitpackedPage;
     if (bit_width == 0) {
-        for (out) |*slot| slot.* = try u64ToScalarCell(expected, min_val);
+        _ = try sink.emit(try u64ToScalarCell(sink.column.type, min_val), count, false);
         return;
     }
     var bit_acc: u128 = 0;
     var acc_bits: u8 = 0;
     const mask: u64 = if (bit_width == 64) std.math.maxInt(u64) else (@as(u64, 1) << @intCast(bit_width)) - 1;
-    for (out) |*slot| {
+    for (0..count) |_| {
         while (acc_bits < bit_width) {
-            const b = try reader.takeByte();
-            bit_acc |= (@as(u128, b) << @intCast(acc_bits));
+            bit_acc |= (@as(u128, try reader.takeByte()) << @intCast(acc_bits));
             acc_bits += 8;
         }
         const offset: u64 = @as(u64, @truncate(bit_acc)) & mask;
         bit_acc >>= @intCast(bit_width);
         acc_bits -= bit_width;
-        slot.* = try u64ToScalarCell(expected, std.math.add(u64, min_val, offset) catch return error.InvalidBitpackedPage);
+        const word = std.math.add(u64, min_val, offset) catch return error.InvalidBitpackedPage;
+        _ = try sink.emit(try u64ToScalarCell(sink.column.type, word), 1, false);
     }
 }
 
@@ -587,20 +612,19 @@ fn encodeRleValues(writer: *std.Io.Writer, expected: Types.Type, values: []const
     }
 }
 
-fn decodeRleValues(arena: std.mem.Allocator, reader: *std.Io.Reader, expected: Types.Type, out: []Values.Cell) !void {
+fn decodeRleValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
     const runs = try reader.takeInt(u32, .little);
-    if (runs > out.len) return error.InvalidRlePage;
+    if (runs > count) return error.InvalidRlePage;
     var pos: usize = 0;
     for (0..runs) |_| {
-        const val = try readCanonicalValue(arena, reader, expected);
+        const val = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
         const len = try reader.takeInt(u32, .little);
-        if (len == 0 or len > out.len - pos) return error.InvalidRlePage;
-        for (0..len) |_| {
-            out[pos] = .{ .value = val };
-            pos += 1;
-        }
+        if (len == 0 or len > count - pos) return error.InvalidRlePage;
+        _ = try sink.emit(.{ .value = val }, len, false);
+        pos += len;
+        _ = temporary.reset(.retain_capacity);
     }
-    if (pos != out.len) return error.InvalidRlePage;
+    if (pos != count) return error.InvalidRlePage;
 }
 
 fn encodeDictionaryValues(allocator: std.mem.Allocator, writer: *std.Io.Writer, expected: Types.Type, values: []const Values.Value) !void {
@@ -630,15 +654,24 @@ fn encodeDictionaryValues(allocator: std.mem.Allocator, writer: *std.Io.Writer, 
     for (codes) |code| try writer.writeInt(u32, code, .little);
 }
 
-fn decodeDictionaryValues(arena: std.mem.Allocator, reader: *std.Io.Reader, expected: Types.Type, out: []Values.Cell) !void {
+fn decodeDictionaryValues(scratch: std.mem.Allocator, temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
     const dict_len = try reader.takeInt(u32, .little);
-    if (dict_len > out.len) return error.InvalidDictionaryCode;
-    const dict = try arena.alloc(Values.Value, dict_len);
-    for (dict) |*dv| dv.* = try readCanonicalValue(arena, reader, expected);
-    for (out) |*slot| {
+    if (dict_len > count) return error.InvalidDictionaryCode;
+    // Dictionary-admitted types are scalar; bytes borrow the encoded page.
+    // The owned bit avoids expanding a repeated selected string per occurrence.
+    const Entry = struct { cell: Values.Cell, owned: bool = false };
+    const dict = try scratch.alloc(Entry, dict_len);
+    defer scratch.free(dict);
+    for (dict) |*entry| {
+        const value = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
+        entry.* = .{ .cell = .{ .value = value } };
+    }
+    for (0..count) |_| {
         const code = try reader.takeInt(u32, .little);
         if (code >= dict.len) return error.InvalidDictionaryCode;
-        slot.* = .{ .value = dict[code] };
+        if (try sink.emit(dict[code].cell, 1, dict[code].owned)) |owned| {
+            dict[code] = .{ .cell = owned, .owned = true };
+        }
     }
 }
 
@@ -719,7 +752,7 @@ fn encodeFsstValues(writer: *std.Io.Writer, values: []const Values.Value) !void 
     }
 }
 
-fn decodeFsstValues(arena: std.mem.Allocator, reader: *std.Io.Reader, out: []Values.Cell) !void {
+fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
     const symbol_count = try reader.takeByte();
     if (symbol_count > 254) return error.InvalidFsstTable;
     var symbols: [254][]const u8 = undefined;
@@ -728,12 +761,12 @@ fn decodeFsstValues(arena: std.mem.Allocator, reader: *std.Io.Reader, out: []Val
         if (sym_len == 0 or sym_len > 8) return error.InvalidFsstTable;
         symbols[i] = try reader.take(sym_len);
     }
-    for (out) |*slot| {
+    for (0..count) |_| {
         const decoded_len = try reader.takeInt(u32, .little);
         const token_len = try reader.takeInt(u32, .little);
         const tokens = try reader.take(token_len);
         if (@as(u64, decoded_len) > @as(u64, token_len) * 8) return error.InvalidFsstStream;
-        const buf = try arena.alloc(u8, decoded_len);
+        const buf = try temporary.allocator().alloc(u8, decoded_len);
         var ti: usize = 0;
         var bi: usize = 0;
         while (ti < tokens.len) {
@@ -753,7 +786,8 @@ fn decodeFsstValues(arena: std.mem.Allocator, reader: *std.Io.Reader, out: []Val
             }
         }
         if (bi != decoded_len) return error.InvalidFsstStream;
-        slot.* = .{ .value = .{ .atom = .{ .bytes = buf } } };
+        _ = try sink.emit(.{ .value = .{ .atom = .{ .bytes = buf } } }, 1, false);
+        _ = temporary.reset(.retain_capacity);
     }
 }
 
@@ -784,7 +818,7 @@ fn readCanonicalValue(arena: std.mem.Allocator, reader: *std.Io.Reader, expected
     const field: Types.Field = .{ .name = "v", .type = expected, .nullable = true };
     const len = try reader.takeInt(u32, .little);
     const slice = try reader.take(len);
-    const decoded = try Types.Codec.decodeBoundInto(arena, field, slice);
+    const decoded = try Types.Codec.decodeBoundBorrowingBytes(arena, field, slice);
     if (decoded != .value) return error.InvalidColumnPage;
     return decoded.value;
 }

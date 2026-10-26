@@ -26,6 +26,17 @@ zero-copy profile is implied. Callback errors propagate and partial allocations
 are released by the owner. Requests are synchronous; cancellation is the host's
 responsibility between calls, with no background reads surviving return.
 
+`PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
+and owns only their decoded cells in the output arena. It validates the complete
+page, including skipped values and conflict details, using a reusable scratch
+workspace. Dictionary entries borrow encoded scalar bytes until selected;
+selected repetitions share one owned value. Symbol-table and EBCDIC strings
+still require transient expansion for validation. This reduces retained decoded
+values without claiming to skip all decoding work or supply encoded predicates.
+`Types.Codec.decodeBoundBorrowingBytes` exposes the underlying explicit lifetime:
+text, binary and JSON bytes borrow immutable input, recursive arrays belong to
+the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
+
 `AuthorizationSql.compile` parses the selected role, membership, privilege,
 default-privilege, schema and ownership statements into unresolved typed syntax.
 Its owned arena is released with `deinit`. Names are bounded to 63 UTF-8 bytes;
