@@ -71,6 +71,13 @@ boolean_codecs(A,Cfg)->
         {error,_}=A:prepare(Source,#transit_unified_plan{projection=[0],predicate=#transit_unified_predicate_program{instructions=Instructions}},#transit_unified_budgets{pages=1,segments=1,result_bytes=1024})
     end,Invalid).
 codecs(A,Cfg)->
+    Collations=json:decode(read(maps:get(<<"collations">>,Cfg))),
+    lists:foreach(fun({F,Collation})->
+        S=table_source([#transit_catalog_column{id=1,name= <<"id">>,type=int64,nullable=false},
+                        #transit_catalog_column{id=2,name= <<"label">>,type=utf8,collation=Collation}]),
+        #transit_unified_bundle{bytes=Bytes}=ok(A:prepare(S,#transit_unified_plan{projection=[1]},#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),
+        Bytes=binary:decode_hex(maps:get(<<"wire_hex">>,F))
+    end,lists:zip(Collations,[none,utf8_binary,ascii_ci,ebcdic_cp037])),
     Fixtures=json:decode(read(maps:get(<<"bundles">>,Cfg))),
     lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)),
         #transit_unified_bundle{bytes=Counted}=ok(A:prepare(source(#transit_resource{realm=46,resource=7},Kind,true),#transit_unified_plan{projection=[1],aggregate=count_values,output_names=[<<"present">>]},#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),Counted=binary:decode_hex(maps:get(<<"counted_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),

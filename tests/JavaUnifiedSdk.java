@@ -93,6 +93,14 @@ public final class JavaUnifiedSdk {
         }
     }
     private static void codecs(JsonObject config) throws Exception {
+        var collations=new Gson().fromJson(Files.readString(Path.of(string(config,"collations"))),JsonArray.class);
+        for(var item:collations) {
+            var fixture=item.getAsJsonObject();var collation=Catalog.Collation.valueOf(string(fixture,"collation").toUpperCase(Locale.ROOT));
+            var collated=tableSource(List.of(new Catalog.Column(n(1),"id",Logical.Scalar.INT64,false,Optional.empty(),Optional.empty(),Catalog.Encoding.PLAIN,Catalog.Collation.NONE),
+                new Catalog.Column(n(2),"label",Logical.Scalar.UTF8,true,Optional.empty(),Optional.empty(),Catalog.Encoding.PLAIN,collation)));
+            var prepared=Bundle.prepare(collated,new Plan(List.of(1),new All(),Query.Aggregate.ROWS,Optional.empty(),Optional.empty()),new Budgets(n(1000),n(500),n(1048576)));
+            check(hex(prepared.bytes()).equals(string(fixture,"wire_hex")));
+        }
         var fixtures=new Gson().fromJson(Files.readString(Path.of(string(config,"bundles"))),JsonArray.class);
         for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString()));
             var counted=Bundle.prepare(source(new ResourceRef(46,7),kind,true),new Plan(List.of(1),new All(),Query.Aggregate.COUNT_VALUES,Optional.empty(),Optional.of(List.of(Optional.of("present")))),new Budgets(n(1000),n(500),n(1048576)));

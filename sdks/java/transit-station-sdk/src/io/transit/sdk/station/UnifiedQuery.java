@@ -101,8 +101,9 @@ public final class UnifiedQuery {
             case KvSource v -> obj("kv",obj("prefix",hex(v.prefix()),"key",v.key().wire(),"value",v.value().wire()));
             case TableSource v -> {
                 var rowType=new Logical.Structure(v.schema().columns().stream().map(c -> new Logical.Field(c.name(),c.type(),c.nullable(),false)).toList());
+                JsonArray collations=new JsonArray(); v.schema().columns().forEach(c -> collations.add(Logical.tag(c.collation())));
                 yield obj("table",obj("scope",v.scope().wire(),"owner",v.audience(),"branch",v.branch().toString(),"namespace",v.namespace(),"object",v.schema().object().toString(),
-                    "interpretation",v.interpretation().wire(),"row_type",Logical.typeWire(rowType)));
+                    "interpretation",v.interpretation().wire(),"row_type",Logical.typeWire(rowType),"collations",collations));
             }
             case DocumentSource v -> {
                 var r=v.reference(); JsonArray projections=new JsonArray(); v.projections().forEach(p -> projections.add(p.wire()));
@@ -152,7 +153,11 @@ public final class UnifiedQuery {
     public record Bundle(Bytes bytes) {
         public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>25614)throw new IllegalArgumentException("Expected finite query bundle"); }
         public static Bundle prepare(Source source,Plan plan,Budgets budgets) { return prepare(source,plan,budgets,null); }
-        public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) { return new Bundle(encoded(object(local(obj("prepare",obj("source",UnifiedQuery.source(source),"plan",plan.wire(),"limits",budgets.wire())),host).get("prepared")).get("bytes"),25614)); }
+        public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) {
+            JsonObject declaration=UnifiedQuery.source(source),parameters=plan.wire();
+            if(source instanceof TableSource)parameters.add("collations",declaration.getAsJsonObject("source").getAsJsonObject("table").get("collations"));
+            return new Bundle(encoded(object(local(obj("prepare",obj("source",declaration,"plan",parameters,"limits",budgets.wire())),host).get("prepared")).get("bytes"),25614));
+        }
     }
     public record Prepared(Bytes bytes) {
         public Prepared { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>8192)throw new IllegalArgumentException("Expected bounded prepared query command"); text(bytes.copy()); }

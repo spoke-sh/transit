@@ -33,6 +33,12 @@ def codecs(config)
       projections: [Q::Projection.new(column: Q::DecoderColumn.new(name: 'title', type: :utf8), path: ['title']),
         Q::Projection.new(column: Q::DecoderColumn.new(name: 'body', type: :utf8), path: ['body'], mode: :text)])]
   fixtures = JSON.parse(File.read(config.fetch('bundles')))
+  JSON.parse(File.read(config.fetch('collations'))).each do |fixture|
+    collated = table_source([C::Column.new(id: 1, name: 'id', type: L::Scalar.new(kind: :int64), nullable: false),
+                            C::Column.new(id: 2, name: 'label', type: L::Scalar.new(kind: :utf8), collation: fixture.fetch('collation').to_sym)])
+    prepared = Q::Bundle.prepare(collated, Q::Plan.new(projection: [1]), Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
+    check(prepared.data.unpack1('H*') == fixture.fetch('wire_hex'))
+  end
   sources.each_with_index do |source, index|
     scalar = index.zero? ? Q::Scalar.new(kind: :unsigned, value: (1 << 64)-1) : Q::Scalar.new(kind: :utf8, value: 'x'*512)
     bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: [1, 0], predicate: Q::Compare.new(column: 1, comparison: :ne, value: scalar), limit: (1 << 64)-1),

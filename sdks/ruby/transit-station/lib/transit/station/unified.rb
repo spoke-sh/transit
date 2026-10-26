@@ -57,7 +57,8 @@ module Transit
           end)
           { 'version' => 1, 'resource' => resource.resource, 'source' => { 'table' => {
             'scope' => scope.wire, 'owner' => audience, 'branch' => branch.to_s, 'namespace' => namespace, 'object' => schema.object.to_s,
-            'interpretation' => interpretation.wire, 'row_type' => Logical.type_wire(row_type) } } }
+            'interpretation' => interpretation.wire, 'row_type' => Logical.type_wire(row_type),
+            'collations' => schema.columns.map { |column| column.collation.to_s } } } }
         end
       end
       Tables = Data.define(:url, :scope, :branch, :audience) do
@@ -163,7 +164,9 @@ module Transit
         def self.prepare(source, plan, budgets, native_host: nil)
           Values.source!(source)
           raise ArgumentError, 'Expected plan and budgets' unless plan.is_a?(Plan) && budgets.is_a?(Budgets)
-          result = Values.codec({ 'prepare' => { 'source' => source.wire, 'plan' => plan.wire, 'limits' => budgets.wire } }, native_host).fetch('prepared')
+          declaration, parameters = source.wire, plan.wire
+          parameters['collations'] = declaration.fetch('source').fetch('table').fetch('collations') if source.is_a?(TableSource)
+          result = Values.codec({ 'prepare' => { 'source' => declaration, 'plan' => parameters, 'limits' => budgets.wire } }, native_host).fetch('prepared')
           new(data: Internal.unhex(result.fetch('bytes'), 25614))
         end
         def inspect = '#<Transit::Station::Unified::Bundle>'

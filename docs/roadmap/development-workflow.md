@@ -152,9 +152,12 @@ this plan is not another chronological test transcript.
 - [x] P0.2 Create the implementation branch and this acceptance checklist.
 - [x] P0.3 Capture a tracked file/task baseline, existing nested executions,
   language/backend coverage and retained-evidence hashes at the starting revision.
-- [ ] P0.4 Diagnose and repair the existing collation-cutover qualification gaps
+- [x] P0.4 Diagnose and repair the existing collation-cutover qualification gaps
   in separate commits: the unified SDK Table source and independent query-plan
   fingerprint oracle. Audit other affected callers of the same contract.
+  Source serializers, new bundle plans and lookup consistency checks preserve
+  the declared vector across all ten Station SDKs; four independently encoded
+  collation fixtures exercise every installed consumer.
 - [ ] P0.5 Establish a comparable successful baseline for the current inventory
   before performance changes. Record source, toolchain, workload, profiles,
   machine and cache conditions. Failed or incomplete runs remain incomplete.
@@ -363,7 +366,7 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | Stage | Status | Implementation and validation reference |
 | --- | --- | --- |
 | Delivered foundation | Completed | PRs #175–#181 above; each records its scoped qualification |
-| P0 | In Progress | Starting inventory and reviewed source basis above; baseline qualification pending |
+| P0 | In Progress | Baseline inventory committed; file-query oracle passes 190 cases; native/port codec passes 143 cases; all ten installed SDK codec consumers pass the four collation vectors; 39 TypeScript adapter tests, Python types and 26 fast checks pass. Full baseline qualification remains pending. |
 | P1–P12 | Planned | Checklists above; no execution claimed |
 
 The final PR closes the work only when the proposed structure exists, every

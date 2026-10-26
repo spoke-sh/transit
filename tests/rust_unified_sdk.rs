@@ -110,6 +110,18 @@ fn inspected_atom(value: q::InspectedAtom) -> Value {
     }
 }
 fn codecs(config: &Value) -> AnyResult<()> {
+    let collations: Value = serde_json::from_slice(&fs::read(text(config, "collations"))?)?;
+    for (fixture, collation) in collations.as_array().unwrap().iter().zip([
+        c::Collation::None, c::Collation::Utf8Binary, c::Collation::AsciiCi, c::Collation::EbcdicCp037,
+    ]) {
+        let collated = table_source(vec![
+            c::Column { nullable: false, ..c::Column::new(1, "id".into(), l::Descriptor::Scalar(l::ScalarType::Int64)) },
+            c::Column { collation, ..c::Column::new(2, "label".into(), l::Descriptor::Scalar(l::ScalarType::Utf8)) },
+        ])?;
+        let plan = q::Plan { projection: vec![1], output_names: None, predicate: q::Predicate::All, limit: None, aggregate: Aggregate::Rows };
+        let bundle = q::Bundle::prepare(&collated, &plan, q::Budgets { pages: 1000, segments: 500, result_bytes: 1048576 }, None)?;
+        assert_eq!(hex(bundle.data()), text(fixture, "wire_hex"));
+    }
     let resource = ResourceRef::new(46, 7)?;
     let sources = [
         q::Source::KV {

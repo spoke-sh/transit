@@ -61,6 +61,7 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
                 { name: "値", type: { binary: {} }, nullable: true, optional: false },
               ],
             },
+            collations: ["none", "none"],
           },
         },
       },
@@ -80,6 +81,40 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
   inconsistent.table.source.source.table.row_type.structure[0]!.name = "substituted";
   await withHost(inconsistent, async (client) => {
     await assert.rejects(client.lookupTable("people"), IncompatibleNative);
+  });
+  for (const collations of [undefined, [], ["none"], ["none", "ascii_ci"]]) {
+    const mismatched = structuredClone(response);
+    Object.assign(mismatched.table.source.source.table, { collations });
+    await withHost(mismatched, async (client) => {
+      // Missing required fields fail schema admission before value conversion.
+      await assert.rejects(
+        client.lookupTable("people"),
+        collations === undefined ? ReadFailed : IncompatibleNative,
+      );
+    });
+  }
+  const collated = structuredClone(response);
+  Object.assign(collated.table.schema.columns[1]!, {
+    type: { utf8: {} },
+    collation: "ascii_ci",
+  });
+  Object.assign(collated.table.source.source.table.row_type.structure[1]!, { type: { utf8: {} } });
+  collated.table.source.source.table.collations[1] = "ascii_ci";
+  await withHost(collated, async (client, requests) => {
+    const found = await client.lookupTable("people");
+    assert.ok(found);
+    assert.equal(found.source.schema.columns[1]!.collation, "ascii_ci");
+    // Reuse the looked-up declaration in a real adapter request; the fake host
+    // verifies serialization only and deliberately cannot compile a query.
+    await assert.rejects(
+      client.compileSql(found.source, "people", "SELECT * FROM people", budgets),
+      IncompatibleNative,
+    );
+    const submitted = (await requests()).find((v: any) => v.unified_query?.compile) as any;
+    assert.deepEqual(submitted.unified_query.compile.scope.source.source.table.collations, [
+      "none",
+      "ascii_ci",
+    ]);
   });
 });
 
@@ -200,6 +235,7 @@ test("SQL preparation freezes full-width atoms and direct interpretation before 
     assert.equal(table.object, "17");
     assert.equal(table.interpretation.revision, "3");
     assert.deepEqual(table.interpretation.digest, Array(32).fill(0xab));
+    assert.deepEqual(table.collations, ["none", "none"]);
     assert.deepEqual(
       table.row_type.structure.map((v: any) => [v.name, v.type, v.nullable]),
       [

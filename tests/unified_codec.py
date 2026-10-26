@@ -77,6 +77,29 @@ def nested_arrow_fixture(producer, output):
     Path(output).write_bytes(generated)
 
 
+def table_collation_fixtures():
+    """Independent Table source/plan bytes for every admitted text collation."""
+    from unified_contract import current_definition
+    schema = {'structure': [dict(name='id', type={'int64': {}}, nullable=False, optional=False),
+                            dict(name='label', type={'utf8': {}}, nullable=True, optional=False)]}
+    encoded = descriptor(schema)
+    rows = []
+    for tag, name in enumerate(('none', 'utf8_binary', 'ascii_ci', 'ebcdic_cp037')):
+        collations = bytes([0, tag])
+        table = (b'TQS1' + current_definition() + struct.pack('<8Q', 1, 7, 9, 3, 1, 1, 9, 1)
+                 + bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32
+                 + struct.pack('<H', len(encoded)) + encoded + collations)
+        source_bytes = b'UQS1' + current_definition() + struct.pack('<QBH', 7, 2, len(table)) + table
+        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
+                      + hashlib.sha256(b'transit.table.query.declaration.v1\0' + table).digest()
+                      + hashlib.sha256(encoded).digest() + bytes([0, 1, 1, 0, 0])
+                      + struct.pack('<Q', 0) + b'\0' + collations)
+        wire = (b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576)
+                + b'\0\0' + source_bytes + plan_bytes)
+        rows.append(dict(collation=name, wire_hex=wire.hex()))
+    return rows
+
+
 def boolean_bundle_fixtures():
     from unified_contract import current_definition
     types = ['int64', 'uint64', 'float64', 'boolean', 'utf8', 'binary']
@@ -157,6 +180,28 @@ def run(host, library, producer):
         actions.append(action)
         expected.append(result)
         return result['value']
+
+    for fixture in table_collation_fixtures():
+        source = copy.deepcopy(sources[1])
+        vector = ['none', fixture['collation']]
+        source['source']['table']['collations'] = vector
+        bundle = dict(source=source, plan=dict(projection=[1], collations=vector),
+                      limits=dict(pages='1000', segments='500', result_bytes='1048576'))
+        assert check({'prepare': bundle})['prepared']['bytes'] == fixture['wire_hex']
+        decoded = check({'decode': fixture['wire_hex']})['bundle']
+        assert decoded['source']['source']['table']['collations'] == vector
+        assert decoded['plan']['collations'] == vector
+        for bad in ([], ['none'], ['none', 'none', 'none'], ['ascii_ci', 'none'], ['none', 'icu_root']):
+            invalid = copy.deepcopy(bundle)
+            invalid['source']['source']['table']['collations'] = bad
+            check({'prepare': invalid}, valid=False)
+        if fixture['collation'] != 'none':
+            inconsistent = copy.deepcopy(bundle)
+            inconsistent['plan']['collations'] = ['none', 'none']
+            check({'prepare': inconsistent}, valid=False)
+        missing = copy.deepcopy(bundle)
+        del missing['source']['source']['table']['collations']
+        check({'prepare': missing}, valid=False)
 
     for index, source in enumerate(sources):
         plan = dict(projection=[1, 0], limit=str(2**64-1), predicate=dict(compare=dict(column=1, op='ne', value={'unsigned': str(2**64-1)} if index == 0 else {'utf8': 'x'*512})))
