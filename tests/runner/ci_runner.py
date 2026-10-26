@@ -68,11 +68,12 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                         [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
                         if check_scope else SUITE["environments"][lane])
             assert len(commands) == 2 + len(expected["prepare"]), commands
-            assert all(command[:3] == ["develop", ".#" + expected["shell"], "--command"]
+            assert all(command[:6] == ["develop", ".#" + expected["shell"],
+                                       "--option", "eval-cache", "false", "--command"]
                        for command in commands), commands
-            assert [command[5:] for command in commands[1:-1]] == expected["prepare"]
+            assert [command[8:] for command in commands[1:-1]] == expected["prepare"]
             expected_command = ["just", lane] if check_scope else ["python3", "-B", "tests/runner/ci.py", lane]
-            assert commands[-1][5:] == expected_command
+            assert commands[-1][8:] == expected_command
             if exit_code:
                 reports = list(work.glob("transit-ci-*/preparation.json"))
                 result_directory = "checks" if check_scope else "ci"

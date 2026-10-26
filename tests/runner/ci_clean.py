@@ -101,7 +101,12 @@ def main():
         # must not leak from the calling shell into the isolated proof.
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("TRANSIT_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
-        shell = ["nix", "develop", f".#{environment['shell']}", "--command"]
+        # A concurrent package build can retain a read lock on the same flake's
+        # evaluation database until compilation finishes. This isolated preflight
+        # must not wait behind that unrelated build. Store/substitute and compiler
+        # caches remain available; only Nix's mutable evaluation cache is bypassed.
+        shell = ["nix", "develop", f".#{environment['shell']}",
+                 "--option", "eval-cache", "false", "--command"]
         phase("shell", *shell, "true", cwd=checkout, env=env)
         for command in environment["prepare"]:
             phase("dependencies", *shell, "env", f"TMPDIR={scratch}",
