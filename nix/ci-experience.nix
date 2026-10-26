@@ -14,6 +14,8 @@ pkgs.mkShell {
   packages = [
     pkgs.just
     pkgs.git
+    pkgs.postgresql_18
+    pkgs.mysql84
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml
       ps.jsonschema

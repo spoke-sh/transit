@@ -3057,6 +3057,31 @@ three-restart budget while reconciling an original activation grant. This is a
 failed 855.99-second task, not successful original-CREATE recovery or completion
 of the experience lane.
 
+## Installed SQL client selection — 2026-10-26
+
+The [retained controls and task records](verification/results/lifecycle-ci-clients-2026-10-26/report.json)
+identify an environment dependency in hosted run `40278906228`, at merge revision
+`e4b4955cb`. Nine experience tasks pass, including installed direct Table SQL,
+fault recovery, session lifetimes and the complete standalone SQL authentication
+schedule. The source-bundle local SQL task then fails before its first MySQL
+connection: the runner-selected executable rejects `--no-login-paths`.
+The experience shell had supplied neither database CLI; locally, that original
+shell reports `mysql: command not found`.
+
+The corrected shell supplies PostgreSQL 18.6 and MySQL 8.4.11 from the existing
+locked nixpkgs input, matching the default developer shell. Both selected paths
+are in the Nix store, and MySQL accepts the existing `--no-defaults
+--no-login-paths` isolation options. No compiler/library pin or lockfile changes.
+`just doctor` passes. At `2f5018ad2` plus the shell change,
+`nix develop .#ci-experience --command just test::server-sql-local` passes the
+complete installed source-bundle schedule in 293.93 seconds: initial owner
+bootstrap, shared data through both real CLIs, optional and required TLS,
+plaintext refusal, revoked-login persistence, and exact recovery after an
+accepted owner binding loses its reply and the process is killed.
+
+The workload, deadlines and assertions are unchanged. This focused pass does
+not complete the failed hosted lane or qualify its unexecuted later tasks.
+
 ## Station node build profile — 2026-10-26
 
 The [retained control](verification/results/station-node-profile-2026-10-26/report.json)

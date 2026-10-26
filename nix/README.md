@@ -176,6 +176,12 @@ retain upstream behavior, and explicit dynamic-linker options remain authoritati
 macOS uses the upstream compiler directly. Zig links directly rather than through
 the C compiler wrapper, so both the loader and library paths must agree. Otherwise a
 host distribution's libc or loader can be incompatible with Nix shared libraries.
+
+The experience shell supplies the pinned PostgreSQL and MySQL CLIs used by its
+installed SQL authentication and recovery proofs. Both come from the existing
+locked nixpkgs input, matching the default shell; no lockfile revision changes.
+The lane does not depend on database clients preinstalled on the runner.
+
 The experience shell supplies the C toolchain and `pkg-config` for the CLI and
 SQL gateway's TLS/certificate code. These shell dependencies use the existing
 locked inputs; they do not change compiler or library versions. The offline
