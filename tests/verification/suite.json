@@ -107,7 +107,6 @@
       "bindings::rust-sdk-test",
       "bindings::ruby-sdk-test",
       "bindings::sdk-interop",
-      "bindings::authorization",
       "test::sql",
       "bindings::grpc-faults",
       "bindings::connector-preparation"
@@ -274,7 +273,8 @@
       "bindings::query-failures",
       "bindings::relational-node",
       "bindings::relational-python",
-      "transit-board::relational-browser"
+      "transit-board::relational-browser",
+      "bindings::authorization"
     ]
   },
   "nested_tasks": {
@@ -374,5 +374,41 @@
         ]
       ]
     }
+  },
+  "recipe_nested_tasks": {
+    "bindings::python-test": [
+      "bindings::direct-catalog-python"
+    ],
+    "bindings::node-sdk-test": [
+      "bindings::direct-catalog-node"
+    ],
+    "bindings::rust-sdk-test": [
+      "bindings::direct-catalog-rust"
+    ],
+    "bindings::ruby-sdk-test": [
+      "bindings::direct-catalog-ruby"
+    ],
+    "bindings::c-sdk-test": [
+      "bindings::direct-catalog-c"
+    ],
+    "bindings::java-sdk-test": [
+      "bindings::direct-catalog-java"
+    ],
+    "bindings::dotnet-sdk-test": [
+      "bindings::direct-catalog-dotnet"
+    ],
+    "bindings::beam-sdk-test": [
+      "bindings::direct-catalog-beam"
+    ],
+    "bindings::authorization": [
+      "bindings::direct-catalog-python",
+      "bindings::direct-catalog-node",
+      "bindings::direct-catalog-rust",
+      "bindings::direct-catalog-ruby",
+      "bindings::direct-catalog-c",
+      "bindings::direct-catalog-java",
+      "bindings::direct-catalog-dotnet",
+      "bindings::direct-catalog-beam"
+    ]
   }
 }

@@ -1450,7 +1450,14 @@
         "test::unit",
         "test::direct-table-service",
         "test::direct-catalog-abi",
-        "bindings::authorization"
+        "bindings::direct-catalog-python",
+        "bindings::direct-catalog-node",
+        "bindings::direct-catalog-rust",
+        "bindings::direct-catalog-ruby",
+        "bindings::direct-catalog-c",
+        "bindings::direct-catalog-java",
+        "bindings::direct-catalog-dotnet",
+        "bindings::direct-catalog-beam"
       ],
       "scenarios": [
         "Schema-bound typed DML and complete-input SQL validation",
@@ -1461,7 +1468,8 @@
       ],
       "limits": "One serialized direct Table owner; row, statement, schema and response budgets are independent of collection cardinality. No atomic cross-owner commit. Current language and placement runs are recorded separately.",
       "model": null,
-      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner.",
+      "required_tier": "ordinary"
     },
     {
       "id": "SQL-TABLE-OWNER-01",

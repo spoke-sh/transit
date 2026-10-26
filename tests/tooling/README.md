@@ -47,3 +47,5 @@ affected real clean check/lane. [CI commands](../../tasks/ci.just) and
 [hosted workflows](../../.github/workflows/ci.yml) use these same owners. The
 [verification catalog](../verification/README.md) owns invariants, bounds, models
 and scenario definitions; this directory owns how their required tasks execute.
+The [task coverage checker](../verification/task_coverage.py) verifies direct
+recipe nesting and required tier ownership before expensive qualification.

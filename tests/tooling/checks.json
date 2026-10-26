@@ -169,6 +169,15 @@
         ]
       },
       {
+        "id": "verification-task-coverage",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/verification/test_task_coverage.py"
+        ]
+      },
+      {
         "id": "diagnostic-inventory",
         "phase": "static",
         "command": [
