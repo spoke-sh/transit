@@ -246,6 +246,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_storage", .module = b.dependency("transit_storage", .{ .target = target, .optimize = optimize }).module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
     }) });
+    const storage_benchmark_options = b.addOptions();
+    const storage_body_bytes = b.option(u32, "storage-benchmark-body-bytes", "Deterministic storage probe payload bytes (16..65536)") orelse 1024;
+    if (storage_body_bytes < 16 or storage_body_bytes > 65536) @panic("storage-benchmark-body-bytes must be 16..65536");
+    storage_benchmark_options.addOption(u32, "body_bytes", storage_body_bytes);
+    storage_benchmark.root_module.addOptions("storage_benchmark_options", storage_benchmark_options);
     b.step("storage-benchmark", "Build paired disk-backed native and Table owner measurements").dependOn(&b.addInstallArtifact(storage_benchmark, .{}).step);
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });

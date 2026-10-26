@@ -11,7 +11,8 @@ const Tracker = @import("fuze_benchmarks/Allocator.zig");
 const P = s.TablePartition;
 const Engine = core.growing.Engine(local.Store, local.PageStore);
 const rows_per_segment = 16;
-const body_bytes = 1024;
+const body_bytes = @import("storage_benchmark_options").body_bytes;
+const segment_cache_bytes = @max(128 * 1024, body_bytes * rows_per_segment * 2);
 
 const Counters = struct {
     wal_appends: u64 = 0,
@@ -153,14 +154,19 @@ fn emit(init: std.process.Init, meter: *const Meter, values: Values, visited: Va
     const status = try reader.interface.allocRemaining(init.arena.allocator(), .limited(8192));
     var lines = std.mem.splitScalar(u8, status, '\n');
     var rss: ?u64 = null;
+    var virtual: ?u64 = null;
     while (lines.next()) |line| if (std.mem.startsWith(u8, line, "VmHWM:")) {
         var words = std.mem.tokenizeAny(u8, line[6..], " \t");
         rss = try std.fmt.parseInt(u64, words.next() orelse return error.MissingRss, 10);
         if (!std.mem.eql(u8, words.next() orelse return error.MissingRss, "kB")) return error.MissingRss;
+    } else if (std.mem.startsWith(u8, line, "VmPeak:")) {
+        var words = std.mem.tokenizeAny(u8, line[7..], " \t");
+        virtual = try std.fmt.parseInt(u64, words.next() orelse return error.MissingRss, 10);
+        if (!std.mem.eql(u8, words.next() orelse return error.MissingRss, "kB")) return error.MissingRss;
     };
     const selected_hash = std.fmt.bytesToHex(values.digest, .lower);
     const visited_hash = std.fmt.bytesToHex(visited.digest, .lower);
-    const result = try std.json.Stringify.valueAlloc(init.arena.allocator(), .{ .complete = true, .build_mode = @tagName(@import("builtin").mode), .phases = meter.phases[0..meter.count], .count = values.count, .sum = values.sum, .digest = selected_hash[0..], .visited = visited.count, .visited_sum = visited.sum, .visited_digest = visited_hash[0..], .position = position, .checkpoint = checkpoint, .image_peak_rss_kib = rss orelse return error.MissingRss }, .{});
+    const result = try std.json.Stringify.valueAlloc(init.arena.allocator(), .{ .complete = true, .build_mode = @tagName(@import("builtin").mode), .fixture_body_bytes = body_bytes, .phases = meter.phases[0..meter.count], .count = values.count, .sum = values.sum, .digest = selected_hash[0..], .visited = visited.count, .visited_sum = visited.sum, .visited_digest = visited_hash[0..], .position = position, .checkpoint = checkpoint, .image_peak_rss_kib = rss orelse return error.MissingRss, .image_peak_virtual_kib = virtual orelse return error.MissingRss }, .{});
     try std.Io.File.stdout().writeStreamingAll(init.io, result);
     try std.Io.File.stdout().writeStreamingAll(init.io, "\n");
 }
@@ -204,7 +210,7 @@ fn table(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, r
     meter.end("physical_open", Counters.read(&wal, &objects));
     meter.begin(Counters.read(&wal, &objects));
     var timed: TimedLog = .{ .inner = wal.log(), .meter = meter };
-    var owner = try P.init(a, 17, declaration, timed.log(), objects.objectStore(), .{ .resident_pages = 1, .segment_cache_bytes = 128 * 1024, .segment_rows_per_group = rows_per_segment, .segment_decode_bytes = 128 * 1024 });
+    var owner = try P.init(a, 17, declaration, timed.log(), objects.objectStore(), .{ .resident_pages = 1, .segment_cache_bytes = segment_cache_bytes, .segment_rows_per_group = rows_per_segment, .segment_decode_bytes = 128 * 1024 });
     defer owner.deinit();
     try owner.recover();
     meter.end("recover", Counters.table(&wal, &objects, &owner));
@@ -245,10 +251,11 @@ fn table(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, r
         if (owner.root.next_segment != id + @as(u64, @intFromBool(ingestion == .bulk))) return error.WrongIngestionPath;
         for (&bodies, 0..) |*bytes, i| values.add(rows + i, score(rows + i), bytes);
         visited = values;
-    } else if (std.mem.eql(u8, operation, "verify")) {
+    } else if (std.mem.eql(u8, operation, "verify") or std.mem.eql(u8, operation, "verify-all")) {
+        const appended = std.mem.eql(u8, operation, "verify");
         if (owner.root.live_rows != rows) return error.WrongFixtureSize;
         const bulk = if (std.mem.eql(u8, mode, "bulk")) true else if (std.mem.eql(u8, mode, "point")) false else return error.InvalidArguments;
-        if (owner.root.next_segment != rows / rows_per_segment + @as(u64, @intFromBool(bulk))) return error.WrongIngestionPath;
+        if (owner.root.next_segment != rows / rows_per_segment + @as(u64, @intFromBool(!appended or bulk))) return error.WrongIngestionPath;
         var after: ?s.TreeStore.pages.Key = null;
         while (true) {
             const page = try owner.scan(owner.root, after);
@@ -267,7 +274,7 @@ fn table(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, r
         const pin = (try owner.pinState(pin_owner, access.guard())).handle orelse return error.MissingPin;
         var retained = try owner.inspectSnapshot(a, pin, access.guard());
         defer retained.deinit();
-        if (retained.root.live_rows != rows - rows_per_segment) return error.ChangedRetainedCut;
+        if (retained.root.live_rows != rows - @as(u64, if (appended) rows_per_segment else 0)) return error.ChangedRetainedCut;
         visited = values;
     } else if (std.mem.eql(u8, operation, "checkpoint")) {
         _ = try owner.checkpoint(.{ .partition = 17, .next_lsn = owner.root.next_lsn }, access.guard());

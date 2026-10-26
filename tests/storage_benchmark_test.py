@@ -4,6 +4,7 @@ import copy
 import unittest
 import storage_benchmark as driver
 import storage_ingest_benchmark as ingestion
+import storage_growth as growth
 
 
 class Reports(unittest.TestCase):
@@ -125,6 +126,48 @@ class IngestionReports(unittest.TestCase):
         samples[-1]['repetition'] = 0
         with self.assertRaises(ValueError):
             ingestion.summarize(samples, 31)
+
+
+class GrowthReports(unittest.TestCase):
+    def setUp(self):
+        self.previous = driver.RECORD_BYTES
+        driver.RECORD_BYTES = growth.BODY_BYTES
+
+    def tearDown(self):
+        driver.RECORD_BYTES = self.previous
+
+    def sample(self, owner):
+        sample = IngestionReports().sample(owner, 'verify')
+        values = driver.oracle(range(32))
+        record = sample['record']
+        record.update(values, visited=32, visited_sum=values['sum'], visited_digest=values['digest'],
+                      fixture_body_bytes=growth.BODY_BYTES, image_peak_virtual_kib=32768,
+                      position=3 if owner == 'table' else 103)
+        record['phases'][-1]['name'] = 'verify-all' if owner == 'table' else 'measure'
+        return sample
+
+    def test_memory_configuration_and_complete_readback(self):
+        limit = 64 * 1024**2
+        for owner in ('table', 'native'):
+            original = self.sample(owner)
+            growth.validate(original, owner, 32, 'verify', limit)
+            for field, value in [('complete', False), ('count', 31), ('digest', '0' * 64),
+                                 ('visited', 31), ('fixture_body_bytes', 1024), ('position', 0),
+                                 ('image_peak_virtual_kib', 65537), ('image_peak_rss_kib', 65537),
+                                 ('image_peak_virtual_kib', 0)]:
+                bad = copy.deepcopy(original)
+                bad['record'][field] = value
+                with self.subTest(owner=owner, field=field), self.assertRaises(ValueError):
+                    growth.validate(bad, owner, 32, 'verify', limit)
+            for field, value in [('peak_live_bytes', limit + 1), ('elapsed_ns', 0)]:
+                bad = copy.deepcopy(original)
+                bad['record']['phases'][-1][field] = value
+                with self.assertRaises(ValueError):
+                    growth.validate(bad, owner, 32, 'verify', limit)
+            bad = copy.deepcopy(original)
+            bad['record']['phases'][-1]['counters']['wal_appends'] = 1
+            with self.assertRaises(ValueError):
+                growth.validate(bad, owner, 32, 'verify', limit)
 
 
 if __name__ == '__main__':

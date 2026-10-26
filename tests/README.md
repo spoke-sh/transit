@@ -28913,3 +28913,29 @@ The buffered-reader signed projection rerun passes, including encoded filtering,
 owned output, prepared comparisons, ordered failures and post-compute/terminal
 revocation. The broader repository check and clean core lane at `d80f5c1ed` are
 still running; no completed clean-lane result is claimed here.
+
+## Bounded growth harness smoke — 2026-10-26
+
+`storage_growth.py` passes its two-fixture smoke with 32 Table rows and two
+native turns, each carrying 16 KiB payloads. Creation and cold fresh-process
+readback run under a **128 MiB RLIMIT_AS limit**, verify all values and accepted
+positions, and leave file content/allocation unchanged. Table creation records
+**76,204 KiB** peak virtual memory, **33,592 KiB** RSS and **67,015,687 bytes** of
+tracked live allocation; its readback records **10,992 KiB**, **7,288 KiB** and
+**323,252 bytes**, respectively. Native creation/readback peak virtual memory is
+**10,496/9,480 KiB**. These smoke fixtures do not exceed the process limit.
+The earlier 64 MiB Table creation failed with OutOfMemory; it is not a pass.
+
+Seven report-validator tests pass, including rejection of a wrong payload
+configuration, incomplete values/positions, missing memory evidence, peaks over
+the ceiling and writes during readback. The normal increasing-size proof still
+requires both owners' larger retained fixtures to exceed that ceiling. The
+[method](storage_benchmark.md#growth-under-a-process-memory-ceiling) distinguishes
+this process limit from host RAM and the Python inventory/oracle's memory.
+
+The workspace `just check` was interrupted while duplicating the clean core
+lane's disk-heavy unit suite. Its completed phases include contract fixtures,
+92 storage and 15 native collection process-death schedules, relational growth
+and retained-metadata checks; the run as a whole remains incomplete. The clean
+core run at `d80f5c1ed` continues independently. No lane or milestone completion
+is inferred from these partial runs.

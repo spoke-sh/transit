@@ -37,6 +37,15 @@ storage-ingest-benchmark *args:
     zig build storage-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
+# Table/native growth with 16 KiB values and a hard process memory ceiling.
+[positional-arguments]
+[script]
+storage-growth *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build storage-benchmark -Doptimize=ReleaseSafe -Dstorage-benchmark-body-bytes=16384 --prefix .cache/storage-growth
+    python3 -B tests/storage_growth.py .cache/storage-growth/bin/transit-storage-benchmark "$@"
+
 # Accepted Table archives, retained reads, current authority and interrupted trim.
 table-archives:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table archive" -Dtest-filter="Table recovery rejects archive" -Dtest-filter="Table admitted work survives" --summary all

@@ -142,3 +142,39 @@ cache conditioning and later readback/inventory are outside the write timers.
 Fresh-process recovery can warm file pages before the write phase. This does not
 measure installed SQL, concurrent commit batching, device-cache coldness or data
 larger than host RAM. Shared-host contention remains visible in recorded load.
+
+## Growth under a process memory ceiling
+
+```sh
+nix develop --command just test::storage-growth --output .cache/storage-growth.json
+```
+
+The growth task builds a separate ReleaseSafe executable with 16 KiB payloads.
+The driver freezes that executable, then creates increasing Table (2,048 and
+8,192 rows) and native (512 and 2,048 turns) fixtures. Each creation and fresh
+readback process runs on one CPU with a **128 MiB RLIMIT_AS ceiling**. This is a
+limit on process virtual address space, including mappings, stacks and heap;
+it is not a host-RAM, kernel-page-cache or whole-test-runner limit. Native memory
+uses one index page. Tables use one index page, a 512 KiB encoded segment-cache
+allowance, 16-row groups and a separate 128 KiB decoded allowance. Per-operation
+build allocations retain the owning Table's existing limit.
+
+Each fixture verifies every value during a fresh-process read, exact accepted
+positions, retained receipts and Table snapshot size or native input/output
+progress. File pages are synced, evicted and checked with `mincore` before that
+readback. File hashes and physical allocation must remain unchanged afterwards;
+verification cannot append or publish objects. The report records complete phase
+allocation accounting, executable peak virtual memory/RSS, retained logical and
+allocated disk bytes, cache evidence and source/build identities. A complete
+normal run requires the larger retained fixture of **each owner** to exceed the
+process address-space ceiling. No latency percentile is derived from these
+single fixture observations.
+
+`--table-rows 32 --native-rows 2 --smoke` validates the harness without asserting
+that the data exceed the ceiling. The report labels this profile explicitly.
+The initial 64 MiB smoke attempt failed during Table construction; the subsequent
+128 MiB smoke observed about 74 MiB virtual peak and 32.8 MiB RSS during that
+construction, with bounded readback below 11 MiB virtual. Neither smoke result
+establishes the full growth matrix. The driver and its file inventory/value
+oracle run outside the child limit, and the report retains host memory size;
+data exceeding a process ceiling must not be described as exceeding host RAM.
