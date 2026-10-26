@@ -135,11 +135,10 @@ provides optional host-owned workers over decoded batches; source reads and
 current-right checks stay serial. The [batch guide](../transit-fuze/docs/batches.md)
 defines configuration, ownership, cancellation and memory accounting.
 
-`TableSegmentScan` scans committed `.tseg` columnar segments, `.tdel` deletion
-vectors, and uncommitted Tier 0 `TableMemtable` deltas at a bounded `snapshot_lsn`,
-pruning non-matching `.tseg` row groups via collation-aware Zone Maps and 64-bit
-Bloom filters before decoding column pages into `f.Batch` (`VectorBatch`) or
-`f.LogicalQuery.Execution`.
+Direct Table scans read accepted WAL and segment rows through `TablePartition`
+at retained cuts. Fuze's `TSegReader` verifies bounded footer and column ranges;
+point reads select owned cells and scans reuse decoded groups. Segment Zone Map
+and Bloom-filter primitives do not establish SQL predicate or projection pushdown.
 
 `RelationalCompilation.prepare` resolves explicit catalog routes through current
 inspection reads, owns immutable schemas and compiles a prepared relational plan

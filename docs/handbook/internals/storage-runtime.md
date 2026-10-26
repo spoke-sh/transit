@@ -176,6 +176,14 @@ while preserving verifiable authority, exact crash recovery, immediate permissio
 revocation (`policy_epoch`), and deployment portability across single-binary
 local development (`transit server`) and disaggregated cloud/Kubernetes topologies.
 
+The tier diagram and hierarchy below describe proposed profiles. They do not
+establish installed memtable recovery, group commit, remote caching, automatic
+trimming or compaction. The current direct Table owner uses paged indexes and
+retains its complete WAL and immutable objects; it does not recover through the
+standalone memtable/manifest composition. Its
+[partition contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
+owns the implemented acceptance, read-pin and recovery boundaries.
+
 ### Diagnosis: quadruple B-tree indirection over an HTTP stream store
 
 In the measured earlier baseline, inserting a single Table row incurred `806 ms` from
@@ -403,11 +411,16 @@ records govern visibility, original outcomes and retained cuts. Point data can
 remain accepted in the WAL without a `.tseg`; explicit bounded flush and bulk
 publication create segments. A durable pin includes accepted unflushed data.
 
-`TableStorageEngine` and `TableSegmentScan` are separate composition helpers.
-Their tests exercise memtables, manifests, segment pruning and cache mechanisms;
-they are not the installed caller path and do not establish multi-writer or
-provider safety. The [executed proof ledger](../../../tests/README.md) separates
-these component results from direct public operation and restart schedules.
+The direct owner uses paged indexes for row locations and retained roots, so
+recovery does not reconstruct a resident collection of every live row. This
+choice avoids the cardinality-dependent memory of a whole-table memtable and
+manifest scan, at the cost of immutable index I/O. The removed standalone
+composition is not an alternative Table owner. The
+[partition contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
+defines the budgets and recovery gates; the
+[executed proof ledger](../../../tests/README.md) distinguishes component results
+from direct public operation and restart schedules. Neither establishes
+multi-writer or provider safety.
 
 - **Verified candidate write-through and epoch-tracked cross-lane cache sharing:**
   In [`PackedPageStore`](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig),

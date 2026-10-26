@@ -118,6 +118,17 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- The standalone unbounded `TableMemtable`, `TableStorageEngine` and
+  `TableSegmentScan` profile is retired. The installed paged `TablePartition`
+  remains the Table acceptance and retained-read owner. The shared current-v1
+  definition is replaced because the stored `TRDL` interpretation is removed;
+  earlier artifacts reject without reset. This resolves the separate-profile
+  item in the baseline's replay/hot-state row (#115/#116), not all builder,
+  recovery, compaction or resident-memory criteria. Current interfaces and
+  compatibility are documented in the [storage owner](../../packages/zig/transit-storage/README.md)
+  and [versioning policy](../handbook/reference/versioning.md); the
+  [proof ledger](../../tests/README.md) records executed validation.
+
 - The exclusive local WAL has a finite TLA+ publication/recovery model with
   independent durability states and removed-guard controls. Its counterexamples
   motivated file and directory recovery barriers; disk regressions check their

@@ -7,7 +7,6 @@ const TableManifest = @import("TableManifest.zig");
 const NvmeCache = @import("NvmeCache.zig");
 const S3ObjectStore = @import("S3ObjectStore.zig");
 const PartitionLease = @import("PartitionLease.zig");
-const TableMemtable = @import("TableMemtable.zig");
 const fuze = @import("transit_fuze");
 const TableSchema = fuze.TableSchema;
 const TableRow = fuze.TableRow;
@@ -119,129 +118,6 @@ test "NvmeCache verifies SHA-256 on cached chunks and protects metadata chunks f
     _ = try cache.getRangeVerified("segments/1/footer.tseg", 0, 64, .metadata_or_index, &out);
     try std.testing.expectEqual(@as(u64, 1), cache.stats.corrupt_reloads);
     try std.testing.expectEqual(@as(u8, 0x5A), out[0]);
-}
-
-test "TableMemtable supports read-your-writes, flushes .tseg/.tdel, and recovers from WAL after crash" {
-    const allocator = std.testing.allocator;
-    var wal = LocalWal.LocalWal.initMemory(allocator);
-    defer wal.deinit();
-    var seg_store = LocalSegmentStore.LocalSegmentStore.initMemory(allocator);
-    defer seg_store.deinit();
-    var cache = NvmeCache.NvmeCache.init(allocator, seg_store.objectStore(), 512 * 1024);
-    defer cache.deinit();
-
-    const cols = [_]TableSchema.Column{
-        .{ .id = 1, .name = "acct_id", .type = .int64, .nullable = false, .encoding = .bitpacked },
-        .{ .id = 2, .name = "code", .type = .utf8, .nullable = false, .encoding = .fsst, .collation = .ascii_ci },
-    };
-    const pks = [_]TableSchema.ColumnId{1};
-    const schema: TableSchema.Schema = .{
-        .object = 500,
-        .revision = 1,
-        .next_column = 3,
-        .columns = &cols,
-        .primary_key = &pks,
-    };
-    const lease: PartitionLease.PartitionLease = .{
-        .object_id = 500,
-        .partition_id = 1,
-        .holder_id = 9,
-        .writer_epoch = 1,
-        .policy_epoch = 1,
-        .lease_until_ms = 2_000_000_000_000,
-    };
-
-    var memtable = try TableMemtable.TableMemtable.init(
-        allocator,
-        1,
-        500,
-        1,
-        schema,
-        lease,
-        wal.log(),
-        seg_store.objectStore(),
-        &cache,
-    );
-    defer memtable.deinit();
-
-    // Upsert 2 rows into Tier 0 Memtable
-    const lsn0 = try memtable.upsertRow(.{
-        .identity = .{ .origin = 1, .operation = 1, .ordinal = 0 },
-        .cells = &.{ .{ .value = .{ .atom = .{ .signed = 10 } } }, .{ .value = .{ .atom = .{ .bytes = "ALPHA" } } } },
-    }, 1_000);
-    const lsn1 = try memtable.upsertRow(.{
-        .identity = .{ .origin = 1, .operation = 2, .ordinal = 0 },
-        .cells = &.{ .{ .value = .{ .atom = .{ .signed = 20 } } }, .{ .value = .{ .atom = .{ .bytes = "BETA" } } } },
-    }, 1_000);
-    try std.testing.expectEqual(@as(u64, 0), lsn0);
-    try std.testing.expectEqual(@as(u64, 1), lsn1);
-
-    // Read-Your-Writes from Memtable before flush
-    {
-        var row10 = (try memtable.getByPrimaryKey(allocator, &.{.{ .value = .{ .atom = .{ .signed = 10 } } }}, lsn1)).?;
-        defer row10.deinit();
-        try std.testing.expectEqualStrings("ALPHA", row10.cells[1].value.atom.bytes);
-    }
-
-    // Flush to Segment 1 (`v1.tman`)
-    const man1 = (try memtable.flushToSegment(1_000)).?;
-    try std.testing.expectEqual(@as(u64, 1), man1.manifest_version);
-    try std.testing.expectEqual(@as(u64, 2), man1.live_row_count);
-    try std.testing.expectEqual(@as(usize, 1), man1.segments.len);
-
-    // Update acct_id=10, delete acct_id=20, and insert acct_id=30 in Memtable
-    _ = try memtable.upsertRow(.{
-        .identity = .{ .origin = 1, .operation = 3, .ordinal = 0 },
-        .cells = &.{ .{ .value = .{ .atom = .{ .signed = 10 } } }, .{ .value = .{ .atom = .{ .bytes = "ALPHA_V2" } } } },
-    }, 1_000);
-    _ = try memtable.deleteByPrimaryKey(&.{.{ .value = .{ .atom = .{ .signed = 20 } } }}, 1_000);
-    const lsn4 = try memtable.upsertRow(.{
-        .identity = .{ .origin = 1, .operation = 5, .ordinal = 0 },
-        .cells = &.{ .{ .value = .{ .atom = .{ .signed = 30 } } }, .{ .value = .{ .atom = .{ .bytes = "GAMMA" } } } },
-    }, 1_000);
-
-    // Read-Your-Writes merges uncommitted Memtable delta with committed `.tseg`
-    {
-        var row10_v2 = (try memtable.getByPrimaryKey(allocator, &.{.{ .value = .{ .atom = .{ .signed = 10 } } }}, lsn4)).?;
-        defer row10_v2.deinit();
-        try std.testing.expectEqualStrings("ALPHA_V2", row10_v2.cells[1].value.atom.bytes);
-        try std.testing.expect((try memtable.getByPrimaryKey(allocator, &.{.{ .value = .{ .atom = .{ .signed = 20 } } }}, lsn4)) == null);
-    }
-
-    // Simulate ungraceful crash BEFORE second flush: instantiate a fresh TableMemtable and recoverFromWal!
-    var recovered = try TableMemtable.TableMemtable.init(
-        allocator,
-        1,
-        500,
-        1,
-        schema,
-        lease,
-        wal.log(),
-        seg_store.objectStore(),
-        &cache,
-    );
-    defer recovered.deinit();
-
-    const replayed = try recovered.recoverFromWal();
-    try std.testing.expectEqual(@as(u64, 3), replayed);
-
-    // Now flush recovered state to `v2.tman` (emits `.tdel` on Segment 1 and writes Segment 2)
-    const man2 = (try recovered.flushToSegment(1_000)).?;
-    try std.testing.expectEqual(@as(u64, 2), man2.manifest_version);
-    try std.testing.expectEqual(@as(u64, 2), man2.live_row_count); // acct_id 10 and 30 live; 20 deleted
-    try std.testing.expect(man2.segments[0].tdel_key != null);
-    try std.testing.expectEqual(@as(u32, 2), man2.segments[0].deleted_count);
-
-    // Point lookups served from committed `.tseg` + `.tdel` via Tier 2 NVMe cache
-    {
-        var row10_post = (try recovered.getByPrimaryKey(allocator, &.{.{ .value = .{ .atom = .{ .signed = 10 } } }}, lsn4)).?;
-        defer row10_post.deinit();
-        try std.testing.expectEqualStrings("ALPHA_V2", row10_post.cells[1].value.atom.bytes);
-        try std.testing.expect((try recovered.getByPrimaryKey(allocator, &.{.{ .value = .{ .atom = .{ .signed = 20 } } }}, lsn4)) == null);
-        var row30_post = (try recovered.getByPrimaryKey(allocator, &.{.{ .value = .{ .atom = .{ .signed = 30 } } }}, lsn4)).?;
-        defer row30_post.deinit();
-        try std.testing.expectEqualStrings("GAMMA", row30_post.cells[1].value.atom.bytes);
-    }
 }
 
 test "OccCoordinator automatically rebases disjoint concurrent .tseg commits and rejects overlapping PKs" {

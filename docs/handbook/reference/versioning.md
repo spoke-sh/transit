@@ -147,6 +147,14 @@ in SQL session replies and shared query assistance. Matching console, service an
 query-client builds are required. Missing fields or an earlier definition reject;
 a short candidate list alone never establishes complete matching coverage.
 
+The current Table definition uses the paged acceptance owner. The standalone
+row-delta memtable, catalog composition and materializing segment scan are
+removed, including the `TRDL` payload interpretation. This is a shared-definition
+cutover: earlier WAL directories, frames, stored artifacts and callers reject,
+including those produced by the earlier paged owner. Their original bytes remain
+intact. Finish pending work with its matching build; no converter or automatic
+installation reset is supplied.
+
 ## Current artifact inventory
 
 The current definition covers the following stored and caller interpretation.

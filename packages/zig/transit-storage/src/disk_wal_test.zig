@@ -293,6 +293,55 @@ test "missing and foreign local definitions reject without modifying retained fi
     try t.expectEqualStrings("preserve", (try Log.decodeFrame(retained)).frame.payload);
 }
 
+test "retired Table definition rejects at each disk WAL gate without resetting history" {
+    const current = @import("transit_protocol").Growth.definition_bytes;
+    var previous: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&previous, "cd12a1e21afce782c2926a900dfe473fe96bcee962a98cb8670d06dfbed3aa89");
+    try t.expect(!std.mem.eql(u8, &previous, &current));
+    // Exercise each gate independently, including a copied old frame under
+    // current directory/partition markers. Definition bytes are outside the
+    // frame CRC/SHA ranges; metadata gets a fresh digest after substitution.
+    for (0..3) |gate| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        {
+            var wal = try open(tmp.dir);
+            defer wal.deinit();
+            _ = try wal.log().append(1, 0, 1, 1, .row_delta, "preserve accepted payload");
+        }
+        const names = [_][]const u8{ "wal/.definition", "wal/part-1.meta", "wal/part-1-0.twal" };
+        var originals: [3][]u8 = undefined;
+        var owned: usize = 0;
+        defer for (originals[0..owned]) |bytes| t.allocator.free(bytes);
+        for (names, 0..) |name, i| {
+            const bytes = try tmp.dir.readFileAlloc(t.io, name, t.allocator, .limited(256));
+            originals[i] = bytes;
+            owned += 1;
+            if (i != gate) continue;
+            const offset: usize = switch (gate) {
+                0 => 0,
+                1 => 8,
+                else => 64,
+            };
+            @memcpy(bytes[offset..][0..32], &previous);
+            if (gate == 1) std.crypto.hash.sha2.Sha256.hash(bytes[0..96], bytes[96..128], .{});
+            const file = try tmp.dir.openFile(t.io, name, .{ .mode = .read_write });
+            defer file.close(t.io);
+            try file.writePositionalAll(t.io, bytes, 0);
+            try file.sync(t.io);
+            if (gate == 2) try t.expectError(error.IncompatibleDefinition, Log.decodeFrame(bytes));
+        }
+        // Repeated opens must remain refusals, never fresh initialization or
+        // torn-tail repair. Compare complete markers, metadata and payload bytes.
+        for (0..2) |_| try t.expectError(error.IncompatibleDefinition, open(tmp.dir));
+        for (names, originals) |name, original| {
+            const retained = try tmp.dir.readFileAlloc(t.io, name, t.allocator, .limited(256));
+            defer t.allocator.free(retained);
+            try t.expectEqualSlices(u8, original, retained);
+        }
+    }
+}
+
 test "canceling a cold read before mutation preserves the local log owner" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;

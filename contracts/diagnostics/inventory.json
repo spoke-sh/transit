@@ -4895,37 +4895,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-catalog/src/TableStorageEngine.zig": {
-      "errors": {
-        "InvalidCatalogIdentity": 2,
-        "InvalidPartitionLease": 1,
-        "StaleEpoch": 1,
-        "TableDefinitionChanged": 1,
-        "TableNotFound": 5
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "applyDmlRows()": "<inferred>",
-        "deleteByPrimaryKey()": "<inferred>",
-        "flushTable()": "<inferred>",
-        "getByPrimaryKey()": "<inferred>",
-        "initMemory()": "<inferred>",
-        "openDisk()": "<inferred>",
-        "recoverTable()": "<inferred>",
-        "registerTable()": "<inferred>",
-        "upsertRow()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 10,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-catalog/src/TableValues.zig": {
       "errors": {
         "CatalogIdentityConflict": 3,
@@ -5034,7 +5003,6 @@
         "TableAuthority.zig",
         "TableLowering.zig",
         "TableMetadata.zig",
-        "TableStorageEngine.zig",
         "TableValues.zig",
         "TestAuthority.zig",
         "builtin",
@@ -12587,7 +12555,7 @@
           "deadline"
         ],
         "Definition": [
-          "cd12a1e21afce782c2926a900dfe473fe96bcee962a98cb8670d06dfbed3aa89"
+          "@\"797a232fae8565cae9c6f149ab3dca2b4cc5c85516f6b3436df98ffcfec70ba0\""
         ],
         "Effect.phase": [
           "pending",
@@ -15879,38 +15847,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-query/src/TableSegmentScan.zig": {
-      "errors": {
-        "BatchFull": 1
-      },
-      "outcomes": {
-        "ZoneFilter.op": [
-          "eq",
-          "lt",
-          "le",
-          "gt",
-          "ge"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "buildZoneFilter()": "<inferred>",
-        "extractZoneFilters()": "<inferred>",
-        "fillBatch()": "<inferred>",
-        "init()": "<inferred>",
-        "next()": "<inferred>",
-        "nextAllocated()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 26,
-        "catch": 4
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-query/src/TableSource.zig": {
       "errors": {
         "CatalogScopeChanged": 1,
@@ -16698,7 +16634,6 @@
         "TableChangeReader.zig",
         "TableCompletionGrammar.zig",
         "TablePosition.zig",
-        "TableSegmentScan.zig",
         "TableSource.zig",
         "UnifiedBehavior.zig",
         "UnifiedCapture.zig",
@@ -25017,59 +24952,6 @@
         "transit_protocol"
       ]
     },
-    "packages/zig/transit-storage/src/TableMemtable.zig": {
-      "errors": {
-        "InvalidPartitionLease": 1,
-        "InvalidRowDelta": 4,
-        "InvalidTableManifest": 1,
-        "ManifestCasConflict": 1,
-        "MemtableRecoveryRequired": 6,
-        "SnapshotNotRetained": 1,
-        "TableDefinitionChanged": 2,
-        "TableHasPrimaryKey": 2,
-        "WalHistoryMissing": 2
-      },
-      "outcomes": {
-        "DeltaOp": [
-          "upsert",
-          "delete"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "TableMemtable.appendWalDelta()": "<inferred>",
-        "TableMemtable.applyInMemoryDelta()": "<inferred>",
-        "TableMemtable.decodeOwnedRow()": "<inferred>",
-        "TableMemtable.deleteByIdentity()": "<inferred>",
-        "TableMemtable.deleteByPrimaryKey()": "<inferred>",
-        "TableMemtable.deleteStorageKey()": "<inferred>",
-        "TableMemtable.flushToSegment()": "<inferred>",
-        "TableMemtable.getByIdentity()": "<inferred>",
-        "TableMemtable.getByPrimaryKey()": "<inferred>",
-        "TableMemtable.getByStorageKey()": "<inferred>",
-        "TableMemtable.init()": "<inferred>",
-        "TableMemtable.prepareEntry()": "<inferred>",
-        "TableMemtable.readObjectBytes()": "<inferred>",
-        "TableMemtable.recoverFromWal()": "<inferred>",
-        "TableMemtable.upsertRow()": "<inferred>",
-        "decodeRowDeltaPayload()": "<inferred>",
-        "encodeRowDeltaPayload()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 95,
-        "catch": 1
-      },
-      "imports": [
-        "NvmeCache.zig",
-        "PartitionLease.zig",
-        "TableManifest.zig",
-        "TransitLog.zig",
-        "TransitObjectStore.zig",
-        "std",
-        "transit_fuze"
-      ]
-    },
     "packages/zig/transit-storage/src/TablePartition.zig": {
       "errors": {
         "DataIdentityConflict": 11,
@@ -25480,7 +25362,6 @@
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
         "TableManifest.zig",
-        "TableMemtable.zig",
         "TablePartition.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",

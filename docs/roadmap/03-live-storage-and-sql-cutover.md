@@ -2,8 +2,8 @@
 
 [Roadmap](README.md) · [Tracker #110](https://github.com/spoke-sh/transit/issues/110) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
 
-Wire the four-tier storage hierarchy (`TransitLog`, `TransitObjectStore`,
-`TableMemtable`, `TableManifest`) and `.tseg` hybrid columnar segment engine
+Wire the storage hierarchy (`TransitLog`, `TransitObjectStore`, paged
+`TablePartition` ownership) and `.tseg` hybrid columnar segment engine
 into the live runtime executables (`transit-node`, `transit-sql-gateway`,
 `transit-query-host`, `transit-cli`), eliminating read-after-write cache
 blindness, cross-lane cache isolation, unconditional sleep loops and multi-turn
