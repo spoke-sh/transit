@@ -34,7 +34,22 @@ row-byte budget, and builds private replacement indexes. New-key collisions and
 row validation failures leave the previous definition and all rows visible. One
 acceptance publishes the new declaration, both indexes and the receipt. The
 64 MiB default index-work budget applies to the complete attempt and can be
-configured independently of the fixed resident cache. This synchronous component
+configured independently of the fixed resident cache. Private candidate
+allocations have a separate `build_resident_bytes` budget, defaulting to 64 MiB.
+It covers retained intent decoding during execution, encoders, copied rows,
+mutation vectors and segment builders, including arena backing slack. The same
+budget applies to concrete point/bulk changes, predicate UPDATE/DELETE, ALTER
+rewrites and flushes. Each rewrite group releases its private memory before the
+next group. `build_resident_peak` records the last attempt's private allocation
+peak. Cache/index memory, the bounded persistent declaration, WAL acceptance
+buffer, provider I/O and caller-owned input have separate bounds; this counter is
+not process RSS.
+
+`TableBuildBudget` refuses an unpublished candidate without changing accepted
+rows or definitions. Executing an admitted operation records the existing
+terminal `work_limit` outcome under the original identity. Parent allocator
+failure remains `OutOfMemory`; it cannot masquerade as configured budget
+exhaustion and terminally reject that work. This synchronous component
 has no durable pending rewrite or automatic restart of rejected private staging.
 
 DROP records permanent retirement and preserves receipts and retained read

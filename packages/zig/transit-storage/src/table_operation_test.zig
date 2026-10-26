@@ -369,3 +369,32 @@ test "Table recovery rejects a terminal operation forged back into admitted work
     try t.expectError(error.InvalidTableOperation, table.recover());
     try t.expectError(error.TableRecoveryRequired, table.operationState(exact, access.guard()));
 }
+
+test "Table build memory parent failures keep admitted work unresolved" {
+    const Case = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+            defer wal.deinit();
+            var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+            defer objects.deinit();
+            var table = try owner(&wal, &objects);
+            defer table.deinit();
+            var access: Access = .{};
+            _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+            const exact = binding(&table, 2);
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
+            _ = try table.admit(request(&table, exact, &.{change(&cell, 2)}), access.guard());
+            const before = table.root;
+            table.allocator = allocator;
+            const result = table.perform(exact, access.guard()) catch |err| {
+                // Parent OOM must not clear pending work or publish a terminal
+                // work-limit outcome. The exact accepted identity stays intact.
+                try t.expectEqualDeep(before, table.root);
+                return err;
+            };
+            try t.expect(result == .committed);
+            try t.expectEqual(@as(u64, 1), result.committed.outcome.affected);
+        }
+    };
+    try t.checkAllAllocationFailures(t.allocator, Case.run, .{});
+}

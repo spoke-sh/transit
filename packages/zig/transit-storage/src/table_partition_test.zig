@@ -9,6 +9,69 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table build memory bounds point bulk rewrite and flush candidates before publication" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+    const original = binding(&table, 1);
+    for ([_]P.Ingestion{ .point, .bulk }) |ingestion| {
+        table.options.build_resident_bytes = 1;
+        const before = table.root;
+        try t.expectError(error.TableBuildBudget, table.apply(original, &.{change(&one, 1)}, ingestion, access.guard()));
+        try t.expectEqualDeep(before, table.root);
+        try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
+        try t.expectEqual(@as(u64, 0), try wal.log().tail(17));
+    }
+    table.options.build_resident_bytes = 64 * 1024 * 1024;
+    _ = try table.apply(original, &.{change(&one, 1)}, .bulk, access.guard());
+    const peak = table.build_resident_peak;
+    try t.expect(peak > 4 * 1024 * 1024 and peak <= table.options.build_resident_bytes);
+    const insertion = binding(&table, 2);
+    const before = table.root;
+    table.options.build_resident_bytes = peak - 1;
+    try t.expectError(error.TableBuildBudget, table.apply(insertion, &.{change(&two, 2)}, .bulk, access.guard()));
+    try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
+    try t.expectEqualDeep(before, table.root);
+    table.options.build_resident_bytes = 64 * 1024 * 1024;
+    _ = try table.apply(insertion, &.{change(&two, 2)}, .point, access.guard());
+    const unflushed = table.root;
+    table.options.build_resident_bytes = 1;
+    try t.expectError(error.TableBuildBudget, table.flush(access.guard()));
+    try t.expectEqualDeep(unflushed, table.root);
+    table.options.build_resident_bytes = 64 * 1024 * 1024;
+    try t.expectEqual(@as(usize, 1), try table.flush(access.guard()));
+    try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
+    const previous = table.root;
+    const alteration = ddlBinding(&table, 3, .alter);
+    const edit: P.Edit = .{ .alter = .{ .change = .{ .add = .{ .name = "value", .type = .int64, .nullable = false, .default = .{ .value = .{ .atom = .{ .signed = 42 } } } } }, .properties = "bounded" } };
+    // The intent fits, so declaration staging happens before rewrite allocation
+    // is refused. That durable candidate must not change the accepted schema.
+    table.options.build_resident_bytes = s.TransitLog.max_payload_bytes;
+    try t.expectError(error.TableBuildBudget, table.changeDefinition(alteration, edit, access.guard()));
+    try t.expectEqualDeep(previous, table.root);
+    try t.expectEqual(@as(usize, 1), table.declaration.schema.schema.columns.len);
+    try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
+    try table.recover();
+    try t.expectEqualDeep(previous, table.root);
+    table.options.build_resident_bytes = 64 * 1024 * 1024;
+    _ = try table.changeDefinition(alteration, edit, access.guard());
+    try t.expectEqual(@as(usize, 2), table.declaration.schema.schema.columns.len);
+    try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
+    var key_bytes: [4096]u8 = undefined;
+    // Cached rows and the accepted declaration outlive the private allocator.
+    var row = (try table.get(t.allocator, try key(1, &key_bytes), access.guard())).?;
+    defer row.deinit();
+    try t.expectEqual(@as(i128, 42), row.row().cells[1].value.atom.signed);
+    try table.recover();
+    try t.expectEqual(@as(u64, 1), (try table.observe(original, access.guard())).?.affected);
+}
+
 test "Table recovery checkpoint bounds replay while preserving disk receipts and offline history" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

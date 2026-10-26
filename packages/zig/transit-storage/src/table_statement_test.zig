@@ -179,7 +179,14 @@ test "frozen SQL predicate work rejects stale data, late collisions, work exhaus
     access.deny_at = std.math.maxInt(usize);
     try t.expect((try table.operationState(denied, access.guard())) == .admitted);
     try t.expect((try table.cancel(denied, access.guard())) == .cancelled);
+    const memory_limited = try admit(&table, &access, 9, "UPDATE events SET value = 7 WHERE id >= 0");
+    table.options.build_resident_bytes = 1;
+    try t.expectEqual(.work_limit, (try table.perform(memory_limited, access.guard())).rejected.reason);
+    try t.expectEqualDeep(before, table.root.rows);
+    try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
+    table.options.build_resident_bytes = 64 * 1024 * 1024;
     try table.recover();
+    try t.expectEqual(.work_limit, (try table.perform(memory_limited, access.guard())).rejected.reason);
     try inspectRows(&table, 0, 4);
     try t.expectEqual(.duplicate_key, (try table.perform(collision, access.guard())).rejected.reason);
     try t.expectEqual(.work_limit, (try table.perform(budgeted, access.guard())).rejected.reason);

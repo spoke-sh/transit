@@ -192,6 +192,7 @@
       "test::table-archives",
       "test::table-compaction",
       "test::table-checkpoints",
+      "test::table-build-memory",
       "test::storage-io-faults",
       "test::authorization-serving",
       "test::packages",

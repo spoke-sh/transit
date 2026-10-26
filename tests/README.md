@@ -28597,3 +28597,28 @@ SQL package compilation: its configuration fixture lacked the collation vector
 introduced earlier on this branch. `d2592cbd1` supplies that field; all 31 SQL
 package tests and the complete independent package-build recipe pass. This failed
 lane is not complete clean qualification of the checkpoint increment.
+
+## Bounded Table build allocations — 2026-10-26
+
+`just test::table-build-memory` passes the selected allocator, Table mutation,
+frozen-statement, ALTER and admitted-operation checks, followed by all **92**
+local storage SIGKILL schedules. The shared allocator's separate run passes
+**23/23** tests; **36/36** relational query regressions pass, including the
+16,840-input/8,420-group disk-spill case. A further allocation-failure sweep
+passes every injected parent failure while performing admitted Table work:
+pending work and the accepted root remain unchanged until successful commit.
+
+Point/bulk candidates, statement input decoding, per-group UPDATE/ALTER work and
+flushes share their operation's private budget. Tests reject one-byte budgets,
+reject just below a measured successful bulk peak, preserve roots/rows across
+failed rewrite and restart, and use declarations and cached rows after temporary
+workspaces are gone. Budget exhaustion records the existing admitted work-limit
+outcome; an underlying allocator failure remains unresolved. The allocator
+regression distinguishes a later parent failure from an earlier refused resize.
+
+Diagnostic error and outcome proofs pass, including **3,409** executed outcome
+projections across **24** declared surfaces. Inventory/mapping, formatting,
+verification-catalog and documentation checks pass. These are explicit private
+allocation bounds; persistent declarations, reader/index caches, WAL and provider
+allocations retain their separate owners and bounds. This evidence does not
+establish whole-process RSS ceilings, matched latency or complete clean CI.

@@ -23,5 +23,6 @@ pub const entries = [_]Entry{
     .{ .cause = error.QueryPageBudget, .code = "catalog.metadata_page_budget", .category = .limit, .message = "The metadata response exceeds the bounded page budget. No complete observation was established." },
     .{ .cause = error.StaleAuthorizationCredential, .code = "catalog.credential_changed", .category = .access, .message = "The current credential no longer matches the prepared authorization subject. Inspect current rights and preserve any earlier accepted work." },
     .{ .cause = error.TableBatchTooLarge, .code = "catalog.batch_limit", .category = .limit, .message = "The batch exceeds the explicit row limit. Prepare a bounded batch with its own operation identity." },
+    .{ .cause = error.TableBuildBudget, .code = "catalog.build_memory_limit", .category = .limit, .message = "The Table operation exceeds its configured build memory budget." },
     .{ .cause = error.TablePayloadTooLarge, .code = "catalog.payload_limit", .category = .limit, .message = "The saved Table intent exceeds its byte limit. Prepare bounded work before staging or admission." },
 };

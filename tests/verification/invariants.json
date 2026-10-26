@@ -2071,6 +2071,31 @@
         "test::unit",
         "test::table-checkpoints"
       ]
+    },
+    {
+      "id": "STORAGE-07",
+      "claim": "Table mutation, retained execution, rewrite and flush candidates obey a configured private allocation ceiling without publishing partial rows or converting parent allocator failure into terminal work rejection",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-fuze/src/MemoryBudget.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner and explicit private build workspace",
+      "scenarios": [
+        "One-byte point/bulk/flush budgets and a near-peak bulk budget refuse candidates with unchanged accepted roots and bounded measured backing allocations",
+        "A declaration candidate can be staged before rewrite allocation fails; the original definition and rows survive recovery",
+        "Predicate work exceeding private memory records the original admitted operation as work_limit; later recovery cannot reopen that terminal identity",
+        "Every allocation failure in definition acceptance cleans up private memory and leaves accepted state intact; retained declarations and reader caches outlive private allocators",
+        "A parent allocation failure following an earlier configured refusal remains OutOfMemory instead of budget exhaustion",
+        "Existing multi-group ALTER and UPDATE, exact admitted work recovery and publication SIGKILL schedules retain their semantics"
+      ],
+      "limits": "Counts requested private backing allocations and arena slack, not allocator bookkeeping or process RSS. Caller input, persistent declaration, reader/index caches, WAL buffers and provider I/O have separate bounds. No logical retention or physical collection change.",
+      "model": null,
+      "qualification": "Executed focused results belong in tests/README.md; repository-wide and matched performance qualification remain separate.",
+      "tasks": [
+        "test::unit",
+        "test::table-build-memory"
+      ]
     }
   ]
 }

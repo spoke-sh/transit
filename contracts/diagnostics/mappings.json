@@ -4480,6 +4480,10 @@
           "code": "catalog.batch_limit",
           "category": "limit"
         },
+        "TableBuildBudget": {
+          "code": "catalog.build_memory_limit",
+          "category": "limit"
+        },
         "TablePayloadTooLarge": {
           "code": "catalog.payload_limit",
           "category": "limit"

@@ -29,6 +29,7 @@ pub const Evidence = struct {
 const Changes = @import("TableChanges.zig");
 pub const max_changes = Changes.max_changes;
 pub const max_row_bytes = Log.max_payload_bytes - r.max_metadata_bytes - r.header_bytes;
+pub const default_build_resident_bytes = 64 * 1024 * 1024;
 
 /// The service acquires its authorization/retirement fence here and holds it
 /// until release. This callback runs for observations and again after staging,
@@ -42,6 +43,9 @@ pub const Guard = struct {
 pub const Options = struct {
     resident_pages: usize = 16,
     index_work_bytes: usize = 64 * 1024 * 1024,
+    /// Simultaneous private allocations for mutations, rewrites and flushes.
+    /// Reader caches, index staging and WAL/provider buffers have separate bounds.
+    build_resident_bytes: usize = default_build_resident_bytes,
     segment_cache_bytes: usize = f.TSeg.max_segment_bytes,
     /// Physical build granularity, independent of operation/result row limits.
     segment_rows_per_group: u32 = 256,
@@ -217,6 +221,8 @@ segment_reads: u64 = 0,
 segment_range_reads: u64 = 0,
 segment_bytes_read: u64 = 0,
 row_groups_decoded: u64 = 0,
+/// Last mutation/rewrite/flush workspace peak, including arena backing slack.
+build_resident_peak: usize = 0,
 recovery_required: bool = true,
 recovery_archive: ?Archive.Coverage = null,
 recovery_work: RecoveryWork = .{},
@@ -225,7 +231,7 @@ lose_reply: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
-    if (partition == 0 or options.index_work_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0 or
+    if (partition == 0 or options.index_work_bytes == 0 or options.build_resident_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0 or
         options.segment_rows_per_group == 0 or options.segment_rows_per_group > max_changes or options.segment_decode_bytes == 0) return error.InvalidTableIdentity;
     var owned = try Declaration.prepare(allocator, definition);
     errdefer owned.deinit();
@@ -670,10 +676,10 @@ pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
     const state = try self.operationState(binding, guard);
     if (state != .admitted) return state;
     const operation = state.admitted;
-    var intent = try Dml.load(self.allocator, self.objects, operation.intent);
-    defer intent.deinit();
-    try intent.request.binding.requireSame(binding);
-    const outcome = (if (intent.request.statement) |plan| self.applyStatement(operation, plan, guard) else self.apply(binding, intent.request.changes, intent.request.ingestion, guard)) catch |err| {
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
+    defer self.build_resident_peak = memory.peak;
+    const outcome = self.performWithinBudget(memory.allocator(), operation, guard) catch |cause| {
+        const err = buildFailure(&memory, cause);
         var rejected = operation;
         rejected.phase = .rejected;
         rejected.reason = switch (err) {
@@ -682,12 +688,22 @@ pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => .duplicate_key,
             error.TableRowMissing => .missing_row,
             error.TableRowIdentityChanged, error.DuplicateTableRowIdentity => .invalid_rows,
-            error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge => .work_limit,
+            error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge, error.TableBuildBudget => .work_limit,
             else => return err,
         };
         return self.writeOperation(rejected, guard);
     };
     return .{ .committed = .{ .binding = binding, .resulting = self.root.declared(), .outcome = outcome } };
+}
+
+fn performWithinBudget(self: *Self, allocator: std.mem.Allocator, operation: Operation, guard: Guard) !Outcome {
+    var intent = try Dml.load(allocator, self.objects, operation.intent);
+    defer intent.deinit();
+    try intent.request.binding.requireSame(operation.binding);
+    return if (intent.request.statement) |plan|
+        self.applyStatement(allocator, operation, plan, guard)
+    else
+        self.applyWithinBudget(allocator, operation.binding, intent.request.changes, intent.request.ingestion, guard);
 }
 
 pub fn cancel(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
@@ -754,9 +770,19 @@ fn expectations(self: *Self, binding: d.Binding) !void {
     }
 }
 
+fn buildFailure(memory: *const f.MemoryBudget, err: anyerror) anyerror {
+    return if (err == error.OutOfMemory and memory.exhausted) error.TableBuildBudget else err;
+}
+
 /// The adapter lowers an exact frozen intent to these concrete changes. Retry
 /// equality checks both that binding and the complete ordered mutation bytes.
 pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion: Ingestion, guard: Guard) !Outcome {
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
+    defer self.build_resident_peak = memory.peak;
+    return self.applyWithinBudget(memory.allocator(), binding, changes, ingestion, guard) catch |err| return buildFailure(&memory, err);
+}
+
+fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Binding, changes: []const Change, ingestion: Ingestion, guard: Guard) !Outcome {
     try self.ready();
     if (changes.len > max_changes) return error.TableBatchTooLarge;
     if (binding.action != .create and binding.action != .insert and binding.action != .update and binding.action != .delete) return error.UnsupportedTableAction;
@@ -777,16 +803,16 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
     }
     var original: ?Declaration.Owned = null;
     defer if (original) |*value| value.deinit();
-    if (accepted) |record| original = try Declaration.load(self.allocator, self.objects, record.root.declared());
+    if (accepted) |record| original = try Declaration.load(allocator, self.objects, record.root.declared());
     if (operation) |known| {
-        var frozen = try Dml.load(self.allocator, self.objects, known.intent);
+        var frozen = try Dml.load(allocator, self.objects, known.intent);
         defer frozen.deinit();
         try frozen.request.binding.requireSame(binding);
-        const requested = try Dml.stage(self.allocator, self.objects, .{ .binding = binding, .interpretation = frozen.request.interpretation, .changes = changes, .ingestion = ingestion });
+        const requested = try Dml.stage(allocator, self.objects, .{ .binding = binding, .interpretation = frozen.request.interpretation, .changes = changes, .ingestion = ingestion });
         if (!std.meta.eql(requested, known.intent)) return error.DataIdentityConflict;
     }
     const schema = if (original) |value| value.schema.schema else self.declaration.schema.schema;
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
     const bytes = try a.alloc(u8, max_row_bytes);
@@ -872,7 +898,7 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, ingestion
     @memset(previous_ids, null);
     // Validate every row/key constraint against the accepted root before staging.
     for (changes, old_keys, 0..) |change, key, i| {
-        var existing = try self.getAt(self.allocator, self.root, key);
+        var existing = try self.getAt(allocator, self.root, key);
         defer if (existing) |*row| row.deinit();
         if (existing) |*row| previous_ids[i] = row.row().identity;
         switch (change) {
@@ -984,7 +1010,7 @@ fn statementReplacement(plan: f.TableDml.Plan, original: f.TableRow.Row, origina
 /// Remove changed keys before adding replacements so collisions with survivors
 /// and across groups reject the entire statement. No selected-row collection
 /// grows with durable cardinality; each pass uses a page and one bounded group.
-fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guard: Guard) !Outcome {
+fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operation, plan: f.TableDml.Plan, guard: Guard) !Outcome {
     try self.ready();
     {
         _ = try guard.acquire(guard.context);
@@ -995,10 +1021,10 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
     if (plan.action == .insert or operation.binding.expected_data == null) return error.InvalidTableStatementIntent;
     if (!std.mem.eql(u8, &try plan.schema.fingerprint(), &self.root.schema_fingerprint)) return error.TableSchemaChanged;
     var budget: StatementBudget = .{ .rows = self.options.statement_scan_rows, .bytes = self.options.statement_scan_bytes };
-    const before_bytes = try self.allocator.alloc(u8, max_row_bytes);
-    defer self.allocator.free(before_bytes);
-    const after_bytes = try self.allocator.alloc(u8, max_row_bytes);
-    defer self.allocator.free(after_bytes);
+    const before_bytes = try allocator.alloc(u8, max_row_bytes);
+    defer allocator.free(before_bytes);
+    const after_bytes = try allocator.alloc(u8, max_row_bytes);
+    defer allocator.free(after_bytes);
     var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
@@ -1011,7 +1037,7 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
     while (true) {
         const batch = try self.scan(self.root, cursor);
         for (batch.entries) |slot| if (slot) |entry| {
-            var owned = try self.readRow(self.allocator, self.root, entry.key, entry.value);
+            var owned = try self.readRow(allocator, self.root, entry.key, entry.value);
             defer owned.deinit();
             const row = owned.row();
             const encoded = try statementEncode(row, plan.schema, before_bytes);
@@ -1033,7 +1059,7 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
         var done = false;
         var written: u64 = 0;
         while (!done) {
-            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
             const a = arena.allocator();
             var rows: std.ArrayList(f.TableRow.Row) = .empty;
@@ -1043,7 +1069,7 @@ fn applyStatement(self: *Self, operation: Operation, plan: f.TableDml.Plan, guar
                 for (batch.entries) |slot| if (slot) |entry| {
                     // Unselected rows are freed immediately, even when a group
                     // spans arbitrarily many unselected input pages.
-                    var owned = try self.readRow(self.allocator, self.root, entry.key, entry.value);
+                    var owned = try self.readRow(allocator, self.root, entry.key, entry.value);
                     defer owned.deinit();
                     const original = owned.row();
                     const encoded = try statementEncode(original, plan.schema, before_bytes);
@@ -1104,6 +1130,12 @@ pub const Edit = union(enum) {
 /// calling this owner. All rewritten rows and the resulting definition become
 /// visible at one Table log append. No independently writable manifest exists.
 pub fn changeDefinition(self: *Self, binding: d.Binding, edit: Edit, guard: Guard) !Outcome {
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
+    defer self.build_resident_peak = memory.peak;
+    return self.changeDefinitionWithinBudget(memory.allocator(), binding, edit, guard) catch |err| return buildFailure(&memory, err);
+}
+
+fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Binding, edit: Edit, guard: Guard) !Outcome {
     try self.ready();
     const action: d.Action = switch (edit) {
         .rename => .rename,
@@ -1127,8 +1159,8 @@ pub fn changeDefinition(self: *Self, binding: d.Binding, edit: Edit, guard: Guar
             if (try self.operationAt(self.root, binding) != null) return error.DataIdentityConflict;
         }
     }
-    const intent = try self.allocator.alloc(u8, Log.max_payload_bytes);
-    defer self.allocator.free(intent);
+    const intent = try allocator.alloc(u8, Log.max_payload_bytes);
+    defer allocator.free(intent);
     var writer: std.Io.Writer = .fixed(intent);
     try std.json.Stringify.value(edit, .{}, &writer);
     const digest = r.hash(writer.buffered());
@@ -1162,7 +1194,7 @@ pub fn changeDefinition(self: *Self, binding: d.Binding, edit: Edit, guard: Guar
     defer self.index.end();
     if (transition) |*value| {
         value.after = replacement.schema.schema;
-        try self.rewrite(&next, value.*);
+        try self.rewrite(allocator, &next, value.*);
     }
     var receipt: [8]u8 = undefined;
     std.mem.writeInt(u64, &receipt, self.root.next_lsn, .little);
@@ -1229,7 +1261,7 @@ fn orderedKeys(self: *Self) OrderedKeys {
     return .{ .store = &self.index };
 }
 
-fn rewrite(self: *Self, next: *Root, transition: f.TableEvolution.Transition) !void {
+fn rewrite(self: *Self, allocator: std.mem.Allocator, next: *Root, transition: f.TableEvolution.Transition) !void {
     next.rows = null;
     next.scan_rows = null;
     next.identities = null;
@@ -1238,10 +1270,10 @@ fn rewrite(self: *Self, next: *Root, transition: f.TableEvolution.Transition) !v
     var cursor: ?pages.Key = null;
     var done = false;
     var count: u64 = 0;
-    const encoded = try self.allocator.alloc(u8, max_row_bytes);
-    defer self.allocator.free(encoded);
+    const encoded = try allocator.alloc(u8, max_row_bytes);
+    defer allocator.free(encoded);
     while (!done) {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
         const a = arena.allocator();
         var rows: std.ArrayList(f.TableRow.Row) = .empty;
@@ -1498,13 +1530,19 @@ fn stageSegment(self: *Self, allocator: std.mem.Allocator, schema: f.TableSchema
 /// Flush at most one bounded group of accepted WAL rows. The accepted row index
 /// itself is the paged manifest; replacing locators publishes no logical change.
 pub fn flush(self: *Self, guard: Guard) !usize {
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
+    defer self.build_resident_peak = memory.peak;
+    return self.flushWithinBudget(memory.allocator(), guard) catch |err| return buildFailure(&memory, err);
+}
+
+fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, guard: Guard) !usize {
     try self.ready();
     if (self.root.retired) return error.TableRetired;
     {
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
     }
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
     var rows: std.ArrayList(f.TableRow.Row) = .empty;

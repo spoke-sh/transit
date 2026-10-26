@@ -31,6 +31,12 @@ table-checkpoints:
     cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" --summary all
     just test::local-storage-faults
 
+# Explicit private allocation ceilings across Table mutation/maintenance builders.
+table-build-memory:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter="memory budget" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table build memory" -Dtest-filter="frozen SQL" -Dtest-filter="Table ALTER" -Dtest-filter="Table definition acceptance makes" -Dtest-filter="Table admitted work survives" --summary all
+    just test::local-storage-faults
+
 # Bounded live-row segment consolidation and exact retained roots after restart.
 table-compaction:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table compaction" -Dtest-filter="Table segment ranges" -Dtest-filter="Table index batches" --summary all

@@ -11,6 +11,9 @@ pub fn allocator(self: *Self) std.mem.Allocator {
     return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
 }
 fn permits(self: *Self, previous: usize, next: usize) bool {
+    // Classify the failing allocation, not an earlier refused resize followed
+    // by a successful fallback. Parent OOM is not configured budget exhaustion.
+    self.exhausted = false;
     if (next > self.limit - (self.used - previous)) {
         self.exhausted = true;
         return false;
@@ -60,4 +63,16 @@ test "memory budget bounds simultaneous allocations and releases capacity after 
     try t.expectEqual(@as(usize, 64), budget.peak);
     a.free(second);
     try t.expectEqual(@as(usize, 0), budget.used);
+}
+
+test "memory budget distinguishes a later parent failure from an earlier budget refusal" {
+    const t = std.testing;
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    var memory: Self = .{ .parent = failing.allocator(), .limit = 16 };
+    const a = memory.allocator();
+    try t.expectError(error.OutOfMemory, a.alloc(u8, 17));
+    try t.expect(memory.exhausted);
+    try t.expectError(error.OutOfMemory, a.alloc(u8, 8));
+    try t.expect(!memory.exhausted);
+    try t.expectEqual(@as(usize, 0), memory.used);
 }

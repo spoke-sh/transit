@@ -118,6 +118,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Concrete Table writes, retained statement execution, ALTER rewrites and flushes
+  now share an explicit private allocation ceiling, independent of encoded-row
+  and index-work limits. This advances the remaining builder audit in #116/#128.
+  Exhaustion preserves accepted state or records the admitted operation's existing
+  work-limit outcome; transient allocator failure remains distinct. This is an
+  allocation bound, not matched whole-process RSS/performance qualification.
+
 - Table recovery checkpoints now publish a bounded complete root and chain basis
   through the same acceptance WAL. Restart validates that publishing transition
   and all later records while preserving receipts, pending operations, pins and

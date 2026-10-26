@@ -63,6 +63,8 @@ automatic archive scheduling, immutable Table-object collection or multi-process
   recovery baselines published by that same acceptance log.
   Explicit bounded compaction merges live segment rows below a fixed boundary
   while retained roots keep their original physical references.
+  Mutation, rewrite and flush workspaces have an explicit allocation ceiling,
+  separate from encoded row limits and index/cache budgets.
   Frozen row admission, rejection and cancellation share that Table WAL; row
   acceptance atomically clears pending work and records matched/changed counts.
   Bounded logical-history inspection separates accepted statements from physical

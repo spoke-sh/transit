@@ -181,6 +181,31 @@ rows, exact schema and row indexes across restart. Snapshot retirement does not
 claim object deletion. Automatic scheduling and immutable Table-object collection
 are separate from the archive mechanism.
 
+### Table build memory
+
+`TablePartition.Options.build_resident_bytes` bounds simultaneous requested
+backing allocations for one concrete mutation, retained operation execution,
+definition rewrite or flush. It defaults to 64 MiB and must be nonzero. It includes
+retained intent decoding during execution, canonical encoders, private rows and
+vectors, segment construction and arena slack. Whole-Table rewrites release each
+bounded group's private allocations before building the next. The current
+accepted declaration and caches use their owning allocator; no object that
+survives the operation retains the private workspace allocator.
+
+`build_resident_peak` records the last such attempt's high-water allocation count.
+Caller-owned input, the separately bounded persistent declaration, segment-reader
+caches, index work, publication buffers and provider memory are separate; the
+private allocation count is not whole-process resident memory. This setting
+limits a work attempt, never the durable number of rows, receipts or objects.
+
+Configured exhaustion returns `TableBuildBudget` before accepting a candidate.
+`perform` records an admitted operation's existing `work_limit` rejection with its
+original binding and no row/definition change. Actual parent allocation failure
+remains `OutOfMemory` and does not authorize that terminal outcome. The allocator
+classifies its latest attempt, so an earlier refused resize followed by another
+allocation cannot relabel unrelated resource failure. A caller's attempt result
+still follows the ordinary uncertain-dispatch and exact-observation rules.
+
 ### Table segment compaction
 
 `TablePartition.compact` takes an exclusive segment-ID boundary captured from an
