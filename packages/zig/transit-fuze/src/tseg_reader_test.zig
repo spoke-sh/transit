@@ -77,11 +77,16 @@ test "TSeg filtered groups retain schema budget integrity and projection validat
     try t.expectError(error.SegmentReadBudgetExceeded, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, filter, .{ .decoded_bytes = 1 }, &failure));
     try t.expectEqual(before, input.calls);
     const matching: Reader.Filter = .{ .column = 0, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .signed = 0 } } } };
+    const pruned_code = [_]ColumnPredicate.Program.Instruction{.{ .atom = .{ .column = 0, .predicate = filter.predicate } }};
+    var pruned = try reader.decisions(t.allocator, input.source(), schema, 0, .{ .instructions = &pruned_code }, .{});
+    defer pruned.deinit();
+    for (pruned.rows) |decision| try t.expect(!decision.selected and decision.failure == null);
     try t.expectError(error.SegmentReadBudgetExceeded, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, matching, .{ .page_bytes = 1 }, &failure));
     try t.expectEqual(before, input.calls);
     input.bytes[@intCast(reader.footer.row_groups[0].pages[0].offset)] ^= 1;
     try t.expectError(error.CorruptSegmentPage, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, matching, .{}, &failure));
     const code = [_]ColumnPredicate.Program.Instruction{.{ .atom = .{ .column = 0, .predicate = matching.predicate } }};
+    try t.expectError(error.CorruptSegmentPage, reader.decisions(t.allocator, input.source(), schema, 0, .{ .instructions = &code }, .{}));
     try t.expectError(error.CorruptSegmentPage, reader.filteredCandidates(t.allocator, input.source(), schema, 0, &.{1}, .{ .instructions = &code }, .{ .rows = &.{ 1, 0 }, .matches = 1 }, .{}, &failure));
     try t.expect(failure == null);
 }
@@ -172,6 +177,9 @@ fn filteredAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     try t.expectEqual(@as(usize, 1), prefix.examined);
     try t.expectEqualSlices(u32, &.{1}, prefix.group.rows.?);
     try t.expectEqualStrings("seven", prefix.group.columns[0][0].value.atom.bytes);
+    var decisions = try reader.decisions(allocator, input.source(), schema, 3, .{ .instructions = &instructions }, .{});
+    defer decisions.deinit();
+    try t.expect(decisions.rows[0].selected and decisions.rows[1].selected);
 }
 
 test "TSeg filtered groups allocation failures release every partial owner" {
@@ -288,6 +296,13 @@ test "TSeg encoded programs arbitrate eager failures by row then instruction" {
     // The first column fails on row 1, but the second column fails on row 0.
     // Physical evaluation order must not choose the column-0 error first.
     const program: ColumnPredicate.Program = .{ .instructions = &code };
+    var deferred = try reader.decisions(t.allocator, input.source(), definition, 0, program, .{});
+    defer deferred.deinit();
+    try t.expectEqual(.conflict, deferred.rows[0].failure.?.outcome);
+    try t.expectEqual(@as(u8, 1), deferred.rows[0].failure.?.instruction);
+    try t.expectEqual(.type_error, deferred.rows[1].failure.?.outcome);
+    try t.expectEqual(@as(u8, 0), deferred.rows[1].failure.?.instruction);
+    try t.expect(deferred.allocatedBytes() > 0);
     try t.expectError(error.QueryConflict, reader.filteredProgram(t.allocator, input.source(), definition, 0, &.{0}, program, .{}, &failure));
     try t.expectEqual(@as(u32, 0), failure.?.row);
     try t.expectEqual(@as(u8, 1), failure.?.instruction);

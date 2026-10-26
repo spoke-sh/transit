@@ -2096,6 +2096,32 @@
         "test::unit",
         "test::table-build-memory"
       ]
+    },
+    {
+      "id": "STORAGE-08",
+      "claim": "Encoded retained Table filtering preserves live identity traversal, consumed source coverage, plan-bound continuation and current disclosure under separate predicate and decoder budgets",
+      "owner": "packages/zig/transit-storage/docs/table-partitions.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-fuze/src/TSegReader.zig",
+        "packages/zig/transit-fuze/src/PhysicalCodecs.zig"
+      ],
+      "profile": "Serialized Table storage component, explicit retained source and finite plan; no filtered wire or SQL lowering",
+      "scenarios": [
+        "Interleaved segments with reversed key order and a WAL suffix retain identity order across pages, deletion and disk reopen",
+        "Empty nonterminal pages count skipped rows; matching-row and byte limits resume without skipping an unreturned match",
+        "Independent binary, ASCII_CI and CP037 masks agree, NULL does not select, and changed plans invalidate cached decisions and cursors",
+        "Encoded semantic failures are row-addressed decisions; requested-page corruption still rejects immediately",
+        "Every injected allocation failure releases partial dictionaries, decisions and output; configured predicate exhaustion preserves the accepted root",
+        "Final authorization covers returned rows and empty pages; released pins cannot reopen"
+      ],
+      "limits": "Visits at most one eight-entry identity page per call; outcomes cache one bounded segment group. Caller applies total LIMIT, aggregates, source-basis authority and failure ordering. Structural I/O failures are immediate. No installed latency, physical collection or complete clean qualification claim.",
+      "model": null,
+      "qualification": "Focused execution is recorded in tests/README.md; service protocol and SQL integration remain separate gates.",
+      "tasks": [
+        "test::unit",
+        "test::table-filtering"
+      ]
     }
   ]
 }

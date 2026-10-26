@@ -51,6 +51,47 @@ pub const CandidateGroup = struct {
     }
 };
 
+/// A deferred filter decision. Unknown and false both skip the row; eager
+/// semantic failures remain data until the owner visits this physical ordinal.
+pub const Decision = struct {
+    selected: bool = false,
+    failure: ?struct { column: u8, instruction: u8, outcome: ColumnPredicate.Outcome } = null,
+};
+pub const Decisions = struct {
+    workspace: *Workspace,
+    index: usize,
+    rows: []const Decision,
+    pub fn deinit(self: *Decisions) void {
+        self.workspace.deinit();
+        self.* = undefined;
+    }
+    pub fn allocatedBytes(self: Decisions) usize {
+        return self.workspace.used;
+    }
+};
+
+/// Evaluate encoded atoms once for bounded reuse across owner-selected rows.
+/// This visits no logical source rows: the owner decides visibility, ordering,
+/// LIMIT and failure disclosure. Pruning represents only a non-selection, not
+/// exact three-valued truth. Structural/page integrity errors still fail now.
+pub fn decisions(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, limits: Limits) !Decisions {
+    if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
+        !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
+    if (index >= self.footer.row_groups.len or self.footer.row_groups[index].pages.len != schema.columns.len) return error.InvalidSegmentCoordinate;
+    try program.validate(schema);
+    const workspace = try Workspace.init(allocator, limits.decoded_bytes);
+    errdefer workspace.deinit();
+    const metadata = self.footer.row_groups[index];
+    const rows = workspace.arena.allocator().alloc(Decision, metadata.row_count) catch |err| return workspace.failure(err);
+    @memset(rows, .{});
+    if (try program.mayMatch(schema, metadata.zone_maps)) {
+        var columns = ProgramColumns.init(self, allocator, workspace, source, schema, index, program, limits.page_bytes) catch |err| return workspace.failure(err);
+        defer columns.deinit();
+        for (rows, 0..) |*row, ordinal| row.* = try columns.decision(program, ordinal);
+    }
+    return .{ .workspace = workspace, .index = index, .rows = rows };
+}
+
 pub const Group = struct {
     workspace: *Workspace,
     index: usize,
@@ -255,49 +296,72 @@ const OutcomeAtom = struct {
 };
 const OutcomeRow = struct { columns: []const ?[]ColumnPredicate.Outcome, row: usize };
 
+const ProgramColumns = struct {
+    allocator: std.mem.Allocator,
+    columns: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null),
+    instructions: [ColumnPredicate.Program.max_instructions]PredicateMachine.Instruction(OutcomeAtom) = undefined,
+    fn init(reader: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, page_budget: usize) !ProgramColumns {
+        var result: ProgramColumns = .{ .allocator = workspace.bounded() };
+        errdefer result.deinit();
+        for (program.instructions, 0..) |instruction, i| {
+            result.instructions[i] = switch (instruction) {
+                .atom => |atom| blk: {
+                    if (atom.predicate == .all) {
+                        result.columns[i] = try result.allocator.alloc(ColumnPredicate.Outcome, reader.footer.row_groups[index].row_count);
+                        @memset(result.columns[i].?, .yes);
+                    } else {
+                        result.columns[i] = try reader.columnOutcomes(allocator, workspace, source, schema, index, atom, page_budget);
+                    }
+                    break :blk .{ .atom = .{ .instruction = @intCast(i) } };
+                },
+                .negate => .negate,
+                .conjunction => .conjunction,
+                .disjunction => .disjunction,
+            };
+        }
+        return result;
+    }
+    fn deinit(self: *ProgramColumns) void {
+        for (self.columns) |slot| if (slot) |outcomes| self.allocator.free(outcomes);
+    }
+    fn decision(self: *const ProgramColumns, program: ColumnPredicate.Program, row: usize) !Decision {
+        var instruction: ?u8 = null;
+        const truth = PredicateMachine.truthDiagnostic(self.instructions[0..program.instructions.len], OutcomeRow{ .columns = &self.columns, .row = row }, &instruction) catch |err| switch (err) {
+            error.QueryTypeError, error.QueryConflict => {
+                const at = instruction orelse return err;
+                return .{ .failure = .{ .column = program.instructions[at].atom.column, .instruction = at, .outcome = self.columns[at].?[row] } };
+            },
+            else => return err,
+        };
+        return .{ .selected = truth.selects() };
+    }
+};
+
 const ProgramSelection = struct { rows: []const u32, examined: usize };
 fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, candidates: ?Candidates, page_budget: usize, failure: *?FilterFailure) !ProgramSelection {
     const row_count = self.footer.row_groups[index].row_count;
-    const bounded = workspace.bounded();
-    var columns: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null);
-    defer for (columns) |column_outcomes| if (column_outcomes) |outcomes| bounded.free(outcomes);
-    var instructions: [ColumnPredicate.Program.max_instructions]PredicateMachine.Instruction(OutcomeAtom) = undefined;
-    for (program.instructions, 0..) |instruction, i| {
-        instructions[i] = switch (instruction) {
-            .atom => |atom| blk: {
-                if (atom.predicate == .all) {
-                    columns[i] = try bounded.alloc(ColumnPredicate.Outcome, row_count);
-                    @memset(columns[i].?, .yes);
-                } else {
-                    columns[i] = try self.columnOutcomes(allocator, workspace, source, schema, index, atom, page_budget);
-                }
-                break :blk .{ .atom = .{ .instruction = @intCast(i) } };
-            },
-            .negate => .negate,
-            .conjunction => .conjunction,
-            .disjunction => .disjunction,
-        };
-    }
-    const code = instructions[0..program.instructions.len];
+    var columns = try ProgramColumns.init(self, allocator, workspace, source, schema, index, program, page_budget);
+    defer columns.deinit();
     var count: usize = 0;
     var examined: usize = 0;
     const requested = if (candidates) |selected| selected.rows.len else row_count;
     for (0..requested) |position| {
         if (candidates) |selected| if (selected.matches) |limit| if (count == limit) break;
         const row = if (candidates) |selected| selected.rows[position] else position;
-        var failed_instruction: ?u8 = null;
-        const truth = PredicateMachine.truthDiagnostic(code, OutcomeRow{ .columns = &columns, .row = row }, &failed_instruction) catch |err| {
-            if (failed_instruction) |at| failure.* = .{ .row = @intCast(row), .column = program.instructions[at].atom.column, .instruction = at, .outcome = columns[at].?[row] };
-            return err;
-        };
+        const decision = try columns.decision(program, row);
+        if (decision.failure) |failed| {
+            failure.* = .{ .row = @intCast(row), .column = failed.column, .instruction = failed.instruction, .outcome = failed.outcome };
+            _ = try failed.outcome.truth();
+            unreachable;
+        }
         examined += 1;
-        if (truth.selects()) count += 1;
+        if (decision.selected) count += 1;
     }
     const rows = try workspace.arena.allocator().alloc(u32, count);
     var selected: usize = 0;
     for (0..examined) |at| {
         const row = if (candidates) |page| page.rows[at] else at;
-        if ((try PredicateMachine.truth(code, OutcomeRow{ .columns = &columns, .row = row })).selects()) {
+        if ((try columns.decision(program, row)).selected) {
             rows[selected] = @intCast(row);
             selected += 1;
         }

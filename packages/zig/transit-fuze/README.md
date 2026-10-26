@@ -98,13 +98,24 @@ lets the owner restore its original traversal order. Examined candidates do not
 establish complete-source coverage. This component supplies no snapshot,
 visibility, authorization or SQL execution authority.
 
+`TSegReader.decisions` retains a bounded group of filter decisions so an owner
+can visit physical rows in a different logical order without repeating encoded
+predicate evaluation. Each row records selection or its first semantic failure
+and original instruction/column. False and unknown are both non-selections;
+pruned groups do not claim exact three-valued truth. Structural and requested-page
+integrity failures still fail the read immediately. Decisions own no source
+cells or borrowed literals. The host binds cached decisions to its exact plan
+and group, selects live identities, and discloses failures only when visiting
+those identities. Outcome vectors, scratch and retained decisions share the
+supplied decoded allocation budget.
+
 `filteredProgram` accepts a `ColumnPredicate.Program` with at most 64 postfix
 instructions across the declared columns. It evaluates all atoms, then uses the
 shared Boolean machine to preserve eager row/instruction failure order.
 Conservative zone-map truth sets retain unknown values under NOT/AND/OR; any
 possible eager error prevents pruning. Each atom's outcome vector shares the
 decoded budget, and only one encoded page is live. Repeated atoms can read the
-same column again. `Program.fromLogical` retains atom and instruction order while
+same column again. `Program.fromLogical` and `Program.fromPlan` retain atom and instruction order while
 borrowing literals into caller-supplied instruction storage. The host binds its
 exact Table interpretation; this conversion creates no saved plan or new wire
 identity. Plain decoded `Program.truth` and encoded evaluation use the same

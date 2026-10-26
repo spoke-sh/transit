@@ -247,6 +247,38 @@ the selected cells. Output rows own their values; metadata and total row count
 describe the complete original source. The continuation binds both that source
 and the column set. Projection does not prune rows or expire history.
 
+`scanSnapshotFiltered` applies a finite plan's predicate to at most one eight-entry
+identity-index page and returns the required output/predicate/key columns. The
+adapter must establish the original plan's authorized source basis; the component
+checks its exact row type and collation vector. This operation performs neither
+aggregation nor the plan's overall LIMIT: the caller supplies its remaining
+match allowance through `ReadLimits.rows`, and stops without requesting a page
+for LIMIT zero. It visits only live locators from the retained root, preserving
+identity order when segments, key order, updates or WAL rows are interleaved.
+
+`FilteredPage.examined` counts consumed identities, including misses. `offsets`
+maps returned rows to one-based positions within that page. An empty page can
+have a continuation; it is not an empty complete source. A continuation binds
+the retained content and complete original plan and names the last consumed
+identity. A returned `failure` describes the next identity's semantic predicate
+failure. Earlier rows remain available so an earlier aggregate failure can win;
+the failure is not a continuation or completion. Only a page without either a
+failure or continuation establishes exhaustion. Current authorization is checked
+after buffering, including empty, failed and terminal pages.
+
+Segment filtering caches one group's deferred decisions under the exact plan
+fingerprint. Encoded predicate kernels validate requested pages; matching rows
+use the existing selected decoder and verify their complete directory key.
+Pruned or unselected rows require valid locator/identity/footer-key bindings
+but do not decode unrelated payload pages. WAL fallback decodes a bounded full
+row and uses the same predicate semantics before cloning required cells.
+`segment_predicate_bytes` independently bounds predicate decisions and scratch
+(4 MiB by default), alongside the output decoder and encoded-page budgets.
+`row_groups_filtered` counts completed group evaluations, including zone-pruned
+groups. A cached decision carries no authority. Filtered pages are a storage
+component operation; signed-service continuations and finite SQL integration
+have their own delivery and validation boundary.
+
 Segment bytes are bounded by 16 MiB; this owner writes at most 1,024 rows per
 segment in groups of 256 by default. `segment_rows_per_group` may select 1–1,024
 rows independently of operation, execution and result-page limits. Existing

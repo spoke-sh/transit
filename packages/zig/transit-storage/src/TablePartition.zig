@@ -30,6 +30,7 @@ const Changes = @import("TableChanges.zig");
 pub const max_changes = Changes.max_changes;
 pub const max_row_bytes = Log.max_payload_bytes - r.max_metadata_bytes - r.header_bytes;
 pub const default_build_resident_bytes = 64 * 1024 * 1024;
+pub const default_predicate_resident_bytes = 4 * 1024 * 1024;
 
 /// The service acquires its authorization/retirement fence here and holds it
 /// until release. This callback runs for observations and again after staging,
@@ -50,6 +51,8 @@ pub const Options = struct {
     /// Physical build granularity, independent of operation/result row limits.
     segment_rows_per_group: u32 = 256,
     segment_decode_bytes: usize = 64 * 1024 * 1024,
+    /// Encoded predicate outcomes and scratch, separate from output decoding.
+    segment_predicate_bytes: usize = default_predicate_resident_bytes,
     /// Total decoded visits across statement passes, independent of Table size.
     statement_scan_rows: u64 = 1_000_000,
     statement_scan_bytes: u64 = 64 * 1024 * 1024,
@@ -162,6 +165,20 @@ pub const SnapshotPage = struct {
         self.* = undefined;
     }
 };
+pub const FilteredPage = struct {
+    page: SnapshotPage,
+    /// Successfully consumed identity-index entries, including filtered rows.
+    examined: u8 = 0,
+    /// One-based source positions within this page, for each returned row.
+    offsets: [pages.page_entries]u8 = @splat(0),
+    /// The next identity failed semantically. Earlier rows remain available so
+    /// their aggregate errors can win. No continuation or completion is implied.
+    failure: ?struct { identity: f.TableRow.Identity, column: u8, instruction: u8, outcome: f.ColumnPredicate.Outcome } = null,
+    pub fn deinit(self: *FilteredPage) void {
+        self.page.deinit();
+        self.* = undefined;
+    }
+};
 /// One bounded observation of the current root. There is no continuation or
 /// retention owner: `more` requires a separately acquired durable snapshot if
 /// the caller needs complete traversal. Returned cells own their memory.
@@ -221,6 +238,7 @@ segment_reads: u64 = 0,
 segment_range_reads: u64 = 0,
 segment_bytes_read: u64 = 0,
 row_groups_decoded: u64 = 0,
+row_groups_filtered: u64 = 0,
 /// Last mutation/rewrite/flush workspace peak, including arena backing slack.
 build_resident_peak: usize = 0,
 recovery_required: bool = true,
@@ -232,7 +250,7 @@ lose_reply: bool = false,
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
     if (partition == 0 or options.index_work_bytes == 0 or options.build_resident_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0 or
-        options.segment_rows_per_group == 0 or options.segment_rows_per_group > max_changes or options.segment_decode_bytes == 0) return error.InvalidTableIdentity;
+        options.segment_rows_per_group == 0 or options.segment_rows_per_group > max_changes or options.segment_decode_bytes == 0 or options.segment_predicate_bytes == 0) return error.InvalidTableIdentity;
     var owned = try Declaration.prepare(allocator, definition);
     errdefer owned.deinit();
     var index = try TreeStore.init(allocator, objects, options.resident_pages);
@@ -1488,10 +1506,12 @@ const CachedSegment = struct {
     reader: f.TSegReader,
     decoded: ?f.TSegReader.Group = null,
     encoded: ?f.TSegReader.EncodedGroup = null,
+    decisions: ?struct { plan: [32]u8, value: f.TSegReader.Decisions } = null,
     projection: f.TableProjection = .{},
     fn deinit(self: *CachedSegment, _: std.mem.Allocator) void {
         if (self.decoded) |*group| group.deinit();
         if (self.encoded) |*group| group.deinit();
+        if (self.decisions) |*value| value.value.deinit();
         self.reader.deinit();
     }
 };
@@ -1980,6 +2000,154 @@ pub fn scanSnapshotColumns(self: *Self, allocator: std.mem.Allocator, handle: Sn
         .encoded_bytes = page.encoded_bytes,
         .next = if (page.next) |next| .{ .source = source, .after = next } else null,
     };
+}
+
+/// Continuations bind the exact retained source and complete original plan.
+/// The adapter must separately validate the plan's source-basis authority.
+pub fn filteredCursorSource(handle: SnapshotHandle, plan: f.LogicalQuery.Plan) !d.Content {
+    try handle.content.validate();
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    const domain = "transit.table.filtered-cursor.v1\x00";
+    hash.update(domain);
+    hash.update(&p.Growth.definition_bytes);
+    var size: [8]u8 = undefined;
+    std.mem.writeInt(u64, &size, handle.content.bytes, .little);
+    hash.update(&size);
+    hash.update(&handle.content.sha256);
+    hash.update(&try plan.fingerprint());
+    return .{ .bytes = domain.len + 32 + 8 + 32 + 32, .sha256 = hash.finalResult() };
+}
+
+/// Examine at most one identity-index page. Segment decisions are evaluated in
+/// encoded form and cached, but only live locators participate in source order.
+/// Empty pages may have continuations. `failure` must be settled after consuming
+/// the preceding returned rows; it never establishes source completion.
+pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, plan: f.LogicalQuery.Plan, after: ?SnapshotCursor, limits: ReadLimits, guard: Guard) !FilteredPage {
+    try limits.validate();
+    var frozen = try self.inspectSnapshot(allocator, handle, guard);
+    defer frozen.deinit();
+    const schema = frozen.schema.schema;
+    const selected = try f.TableProjection.fromPlan(schema, plan);
+    var instructions: [f.ColumnPredicate.Program.max_instructions]f.ColumnPredicate.Program.Instruction = undefined;
+    const program = try f.ColumnPredicate.Program.fromPlan(plan, &instructions);
+    try program.validate(schema);
+    const source = try filteredCursorSource(handle, plan);
+    const fingerprint = try plan.fingerprint();
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, source)) return error.InvalidTableSnapshotCursor;
+        const key = try pages.Key.init(&value.after);
+        if (try self.tree().get(frozen.root.identities, key) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key;
+    } else null;
+    var result: FilteredPage = .{ .page = .{
+        .source = handle,
+        .interpretation = frozen.root.declared(),
+        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
+        .changed_lsn = frozen.root.changed_lsn,
+        .total_rows = frozen.root.live_rows,
+    } };
+    errdefer result.deinit();
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const projected = try selected.projectedSchema(schema, &columns);
+    const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
+    defer allocator.free(scratch);
+    const batch = try self.tree().scan(frozen.root.identities, cursor);
+    var previous = cursor;
+    for (batch.entries) |slot| {
+        const entry = slot orelse break;
+        if (result.page.count == limits.rows) {
+            result.page.next = .{ .source = source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
+            break;
+        }
+        if (entry.key.len != f.TableRow.Identity.encoded_bytes or entry.value.len != 32) return error.InvalidTableRowReference;
+        const identity = try f.TableRow.Identity.decode(entry.key.data[0..f.TableRow.Identity.encoded_bytes]);
+        const key = try pages.Key.init(entry.value.data[0..32]);
+        const value = try self.tree().get(frozen.root.rows, key) orelse return error.InvalidTableRowReference;
+        const locator = try r.Locator.decode(value);
+        var row: ?OwnedRow = null;
+        defer if (row) |*owned| owned.deinit();
+        const decision = switch (locator.kind) {
+            .segment => try self.segmentDecision(schema, locator, key, identity, program, fingerprint),
+            .wal => blk: {
+                row = try self.readRowWithSchema(allocator, frozen.root, schema, key, value, .point);
+                if (!std.meta.eql(identity, row.?.row().identity)) return error.InvalidTableRowReference;
+                var instruction: ?u8 = null;
+                const truth = program.truth(schema, row.?.row().cells, &instruction) catch |err| switch (err) {
+                    error.QueryTypeError, error.QueryConflict => {
+                        const at = instruction orelse return err;
+                        break :blk f.TSegReader.Decision{ .failure = .{ .column = program.instructions[at].atom.column, .instruction = at, .outcome = if (err == error.QueryTypeError) .type_error else .conflict } };
+                    },
+                    else => return err,
+                };
+                break :blk f.TSegReader.Decision{ .selected = truth.selects() };
+            },
+        };
+        if (decision.failure) |failure| {
+            result.failure = .{ .identity = identity, .column = failure.column, .instruction = failure.instruction, .outcome = failure.outcome };
+            break;
+        }
+        if (decision.selected) {
+            if (row) |*full| {
+                if (selected.len != schema.columns.len) {
+                    var arena = std.heap.ArenaAllocator.init(allocator);
+                    errdefer arena.deinit();
+                    const cells = try arena.allocator().alloc(f.Types.Values.Cell, selected.len);
+                    for (selected.columns(), cells) |index, *cell| cell.* = try f.Types.Values.cloneValidated(arena.allocator(), full.row().cells[index]);
+                    full.deinit();
+                    row = .{ .segment = .{ .arena = arena, .identity = identity, .cells = cells } };
+                }
+            } else {
+                row = try self.readRowWithColumns(allocator, frozen.root, schema, key, value, .point, selected);
+                if (!std.meta.eql(identity, row.?.row().identity)) return error.InvalidTableRowReference;
+            }
+            const encoded = try row.?.row().encode(projected, scratch);
+            if (encoded.len > limits.encoded_bytes - result.page.encoded_bytes) {
+                if (result.page.count == 0) return error.TableReadBudgetTooSmall;
+                result.page.next = .{ .source = source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
+                break;
+            }
+            result.offsets[result.page.count] = result.examined + 1;
+            result.page.rows[result.page.count] = row;
+            row = null;
+            result.page.count += 1;
+            result.page.encoded_bytes += @intCast(encoded.len);
+        }
+        result.examined += 1;
+        previous = entry.key;
+    }
+    if (result.failure == null and result.page.next == null) if (batch.next) |key| {
+        if (key.len != f.TableRow.Identity.encoded_bytes) return error.InvalidTableRowReference;
+        result.page.next = .{ .source = source, .after = key.data[0..f.TableRow.Identity.encoded_bytes].* };
+    };
+    // No buffered row, empty page, semantic failure or terminal count bypasses
+    // the current disclosure gate.
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
+fn segmentDecision(self: *Self, schema: f.TableSchema.Schema, locator: r.Locator, key: pages.Key, identity: f.TableRow.Identity, program: f.ColumnPredicate.Program, fingerprint: [32]u8) !f.TSegReader.Decision {
+    var temporary: ?CachedSegment = null;
+    defer if (temporary) |*segment| segment.deinit(self.allocator);
+    const segment = try self.loadSegment(locator, &temporary);
+    const footer = &segment.reader.footer;
+    if (footer.object_id != schema.object or footer.schema_revision != schema.revision or
+        !std.mem.eql(u8, &footer.layout_fingerprint, &try schema.layoutFingerprint())) return error.TableSchemaChanged;
+    if (footer.segment_id != locator.lsn or locator.offset >= footer.pk_index.len or footer.pk_index[locator.offset].global_row_offset != locator.offset) return error.InvalidTableRowReference;
+    const entry = footer.pk_index[locator.offset];
+    if (!std.meta.eql(entry.identity, identity) or !std.meta.eql(key, try r.rowKey(entry.pk_sort_key))) return error.InvalidTableRowReference;
+    if (segment.decisions) |*cached| if (cached.value.index != entry.row_group or !std.mem.eql(u8, &cached.plan, &fingerprint)) {
+        cached.value.deinit();
+        segment.decisions = null;
+    };
+    if (segment.decisions == null) {
+        var source: SegmentSource = .{ .owner = self, .locator = locator };
+        const decisions = try segment.reader.decisions(self.allocator, source.source(), schema, entry.row_group, program, .{ .decoded_bytes = self.options.segment_predicate_bytes });
+        segment.decisions = .{ .plan = fingerprint, .value = decisions };
+        self.row_groups_filtered +|= 1;
+    }
+    if (entry.row_in_group >= segment.decisions.?.value.rows.len) return error.InvalidTableRowReference;
+    return segment.decisions.?.value.rows[entry.row_in_group];
 }
 
 /// Traverse complete collation-aware keys on an exact retained root. A cursor

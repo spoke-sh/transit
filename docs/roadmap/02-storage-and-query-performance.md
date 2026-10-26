@@ -258,6 +258,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   coverage and final authorization must still be integrated before that path is
   claimed complete.
 
+- The retained Table owner now applies encoded predicates to live identity
+  locators, caches bounded deferred group decisions and reports skipped-row
+  coverage, per-row offsets and plan-bound continuations. Mixed segment/WAL
+  sources, deletion, restart, finite collations, allocation failures and final
+  authorization have focused component checks. This advances #116/#118/#128;
+  filtered signed pages, original SQL failure attribution and finite query
+  lowering still need integration before the installed path is complete.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

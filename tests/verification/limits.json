@@ -519,6 +519,13 @@
       "expression": "Log.max_payload_bytes - r.max_metadata_bytes - r.header_bytes",
       "classification": "operation",
       "meaning": "Canonical row bytes in a Table acceptance or private build group after its fixed metadata reserve; decoded/private memory is a separate explicit budget."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TablePartition.zig",
+      "symbol": "default_predicate_resident_bytes",
+      "expression": "4 * 1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Default configurable bound for one retained segment group of encoded predicate decisions and simultaneous validation/dictionary scratch; separate from output decoding, encoded page buffers and total durable rows."
     }
   ],
   "identities": [

@@ -82,6 +82,17 @@ pub const Program = struct {
         };
         return .{ .instructions = output[0..program.instructions.len] };
     }
+    pub fn fromPlan(plan: @import("LogicalQuery.zig").Plan, output: *[max_instructions]Instruction) !Program {
+        var single: [1]LogicalPredicate.Program.Instruction = undefined;
+        const program: LogicalPredicate.Program = switch (plan.predicate) {
+            .program => |value| value,
+            inline else => |value, tag| blk: {
+                single[0] = .{ .atom = @unionInit(LogicalPredicate.Atom, @tagName(tag), value) };
+                break :blk .{ .instructions = &single };
+            },
+        };
+        return fromLogical(program, output);
+    }
 };
 
 pub const Outcome = enum(u8) {

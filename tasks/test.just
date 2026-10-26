@@ -78,6 +78,11 @@ table-projection:
     cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained column scan" -Dtest-filter="retained reader binds" --summary all
     just test::direct-table-service projection
 
+# Encoded decisions, retained visibility, empty coverage and owned output.
+table-filtering:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter="TSeg" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="filtered Table" -Dtest-filter="projected Table snapshots" --summary all
+
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe

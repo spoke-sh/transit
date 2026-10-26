@@ -28701,6 +28701,14 @@ responses. This run is failed; later phases did not execute. It overlapped the
 owner benchmark and full checks, so a retry without that disk workload is needed
 before attributing the timeout to either contention or a regression.
 
+The retry after the disk-owner matrix finishes reaches the same lifecycle
+history phase and again exceeds 180 seconds. The timeout remains unresolved;
+it cannot be attributed solely to that benchmark. The repository `just check`
+launched with the projection changes completes successfully, including contracts,
+root units, frontend checks and the documentation production build. That run
+predates the encoded decision/owner changes below and is not their final
+committed-source clean qualification.
+
 ## Encoded visible-candidate prefixes — 2026-10-26
 
 The focused TSEG suite passes **39/39** tests with `filteredCandidates`. An
@@ -28719,3 +28727,31 @@ inventory/mapping, verification-catalog, formatting and documentation checks
 pass. These component checks do not establish live Table visibility selection,
 filtered wire continuations, SQL lowering or final authorization for an encoded
 predicate path; those remain with the integration owner.
+
+## Encoded retained Table filtering — 2026-10-26
+
+`just test::table-filtering` passes **39/39** TSEG tests and **4/4** selected
+storage tests (filtering, projection and imports). A real-disk fixture interleaves
+two segments whose key order reverses identity order, plus a retained WAL row.
+It verifies matching-row limits, empty nonterminal pages, exact examined counts,
+per-row source offsets, changed-plan/cross-projection cursor rejection, final
+revocation and owned outputs. Deletion and reopen preserve different current and
+retained results; released pins reject. Projection avoids 16 KiB payload columns
+with an 8 KiB output decoder budget.
+
+Independent binary/ASCII_CI/CP037 masks exercise bitpacked keys, dictionary text
+and NULL. Repeated pages reuse one group's decisions; changing the plan forces
+reevaluation. Byte-bound continuations preserve the unreturned match. A one-byte
+predicate budget refuses work without changing the accepted root. Exhaustive
+allocation failures cover reopening, dictionaries, cached decisions and result
+ownership. They exposed and now guard cleanup of a partially built decision
+cache and the predicate codec's outcome allocation after dictionary failure.
+The codec frees that allocation on error even when its output allocator is not
+an arena.
+
+Five-state segment fixtures retain each physical row's first semantic failure
+without disclosing it prematurely; requested-page corruption still rejects.
+Diagnostic mapping/error/outcome checks pass **3,411** projections across **24**
+declared surfaces. This storage operation supplies no wire protocol, SQL
+aggregate/LIMIT owner or authority for the plan's external source basis. Filtered
+service integration and final clean qualification remain separate work.

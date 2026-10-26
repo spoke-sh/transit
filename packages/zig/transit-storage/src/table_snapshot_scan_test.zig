@@ -663,3 +663,211 @@ test "retained Table key ranges follow binary ASCII CI and CP037 composite order
         for (selected.rows[0..selected.count], case.order[1..3]) |row, expected| try t.expectEqual(@as(u32, @intCast(expected)), row.?.row().identity.ordinal);
     }
 }
+
+fn checkFiltered(table: *P, handle: P.SnapshotHandle, access: *Access, ceiling: i128, expected_count: u64) !void {
+    var fields: [128]f.Types.Field = undefined;
+    const plan: f.LogicalQuery.Plan = .{ .schema = try definition.schema.rowType(&fields), .source_basis = @splat(3), .collations = .fromTable(definition.schema), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .le, .value = .{ .signed = ceiling } } } };
+    var after: ?P.SnapshotCursor = null;
+    var examined: u64 = 0;
+    var found: u64 = 0;
+    var last_identity: ?f.TableRow.Identity = null;
+    while (true) {
+        var page = try table.scanSnapshotFiltered(t.allocator, handle, plan, after, .{ .rows = 2 }, access.guard());
+        defer page.deinit();
+        try t.expect(page.failure == null);
+        try t.expect(page.examined <= 8);
+        try t.expect(page.page.count <= page.examined);
+        var offset: u8 = 0;
+        for (page.page.rows[0..page.page.count], page.offsets[0..page.page.count]) |slot, at| {
+            const row = slot.?.row();
+            try t.expect(at > offset and at <= page.examined);
+            offset = at;
+            try t.expectEqual(@as(usize, 1), row.cells.len);
+            try t.expect(row.cells[0].value.atom.signed <= ceiling);
+            if (last_identity) |previous| try t.expect(f.RelationalExecution.identityOrder(previous, row.identity) == .lt);
+            last_identity = row.identity;
+            found += 1;
+        }
+        examined += page.examined;
+        after = page.page.next;
+        if (after == null) {
+            try t.expectEqual(page.page.total_rows, examined);
+            break;
+        }
+        try t.expect(page.examined > 0);
+    }
+    try t.expectEqual(expected_count, found);
+}
+
+test "filtered Table snapshots retain live identity order empty coverage and plan bound decisions" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var retained: P.SnapshotHandle = undefined;
+    var current: P.SnapshotHandle = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const payload: [16 * 1024]u8 = @splat('x');
+        var cells: [12][2]f.Types.Values.Cell = undefined;
+        var changes: [12]P.Change = undefined;
+        // Identity order interleaves two physical segments, and key order is
+        // reversed within each. No segment-wide result may reorder the source.
+        for (0..2) |segment| {
+            for (&cells, &changes, 0..) |*values, *change, i| {
+                const ordinal = i * 2 + segment;
+                values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(23 - ordinal) } } }, .{ .value = .{ .atom = .{ .bytes = &payload } } } };
+                change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(ordinal) }, .cells = values } } };
+            }
+            _ = try table.apply(binding(&table, segment + 1, if (segment == 0) .create else .insert), &changes, .bulk, access.guard());
+        }
+        const wal_cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 24 } } }, .{ .value = .{ .atom = .{ .bytes = &payload } } } };
+        _ = try table.apply(binding(&table, 3, .insert), &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &wal_cells } } }}, .point, access.guard());
+        retained = try pin(&table, 80, &access);
+        table.options.segment_decode_bytes = 8 * 1024;
+        try checkFiltered(&table, retained, &access, 3, 4);
+        try checkFiltered(&table, retained, &access, -1, 0);
+        try checkFiltered(&table, retained, &access, 24, 25);
+        var fields: [128]f.Types.Field = undefined;
+        var plan: f.LogicalQuery.Plan = .{ .schema = try definition.schema.rowType(&fields), .source_basis = @splat(3), .collations = .fromTable(definition.schema), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .le, .value = .{ .signed = 3 } } } };
+        var empty = try table.scanSnapshotFiltered(t.allocator, retained, plan, null, .{}, access.guard());
+        defer empty.deinit();
+        try t.expectEqual(@as(u8, 0), empty.page.count);
+        try t.expectEqual(@as(u8, 8), empty.examined);
+        try t.expect(empty.page.next != null);
+        plan.predicate.compare.value.signed = 24;
+        try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshotFiltered(t.allocator, retained, plan, empty.page.next, .{}, access.guard()));
+        try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshotColumns(t.allocator, retained, &.{0}, empty.page.next, .{}, access.guard()));
+        var first = try table.scanSnapshotFiltered(t.allocator, retained, plan, null, .{ .rows = 1 }, access.guard());
+        defer first.deinit();
+        try t.expectEqual(@as(u8, 1), first.examined);
+        try t.expectEqual(@as(i128, 23), first.page.rows[0].?.row().cells[0].value.atom.signed);
+        try t.expectError(error.TableReadBudgetTooSmall, table.scanSnapshotFiltered(t.allocator, retained, plan, null, .{ .encoded_bytes = 1 }, access.guard()));
+        access.deny_at = access.calls + 3;
+        try t.expectError(error.PermissionDenied, table.scanSnapshotFiltered(t.allocator, retained, plan, null, .{}, access.guard()));
+        access.deny_at = std.math.maxInt(usize);
+        plan.predicate.compare.value.signed = -1;
+        access.deny_at = access.calls + 3;
+        try t.expectError(error.PermissionDenied, table.scanSnapshotFiltered(t.allocator, retained, plan, null, .{}, access.guard()));
+        access.deny_at = std.math.maxInt(usize);
+        var key_buffer: [4096]u8 = undefined;
+        const key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &.{.{ .value = .{ .atom = .{ .signed = 2 } } }}, false, &key_buffer);
+        table.options.segment_decode_bytes = 64 * 1024 * 1024;
+        _ = try table.apply(binding(&table, 4, .delete), &.{.{ .remove = key }}, .point, access.guard());
+        table.options.segment_decode_bytes = 8 * 1024;
+        current = try pin(&table, 81, &access);
+        try checkFiltered(&table, retained, &access, 3, 4);
+        try checkFiltered(&table, current, &access, 3, 3);
+        // The row owns its cells after unrelated decisions and caches disappear.
+        try t.expectEqual(@as(i128, 23), first.page.rows[0].?.row().cells[0].value.atom.signed);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var reopened = try owner(&wal, &objects);
+    defer reopened.deinit();
+    reopened.options.segment_decode_bytes = 8 * 1024;
+    try checkFiltered(&reopened, retained, &access, 3, 4);
+    try checkFiltered(&reopened, current, &access, 3, 3);
+    try reopened.releaseSnapshot(retained, access.guard());
+    try t.expectError(error.TableSnapshotReleased, checkFiltered(&reopened, retained, &access, 3, 4));
+}
+
+test "filtered Table encoded collation decisions reuse one group and preserve NULL and byte bounds" {
+    const texts = [_][]const u8{ "A", "a", "0", "é", "\x00", "AA", "aA" };
+    const cases = [_]struct { collation: f.TableSchema.Collation, mask: [8]bool }{
+        .{ .collation = .utf8_binary, .mask = .{ true, false, true, false, true, true, false, false } },
+        .{ .collation = .ascii_ci, .mask = .{ false, false, true, false, true, false, false, false } },
+        .{ .collation = .ebcdic_cp037, .mask = .{ false, false, false, true, true, false, false, false } },
+    };
+    for (cases) |case| {
+        var fields = columns;
+        fields[0].encoding = .bitpacked;
+        fields[1].encoding = .dictionary;
+        fields[1].collation = case.collation;
+        fields[1].nullable = true;
+        var declaration = definition;
+        declaration.schema.columns = &fields;
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, declaration, wal.log(), objects.objectStore(), .{});
+        defer table.deinit();
+        try table.recover();
+        var access: Access = .{};
+        var cells: [8][2]f.Types.Values.Cell = undefined;
+        var changes: [8]P.Change = undefined;
+        for (&cells, &changes, 0..) |*values, *change, i| {
+            values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(i) } } }, if (i == 7) .null else .{ .value = .{ .atom = .{ .bytes = texts[i] } } } };
+            change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = values } } };
+        }
+        _ = try table.apply(binding(&table, 1, .create), &changes, .bulk, access.guard());
+        const handle = try pin(&table, 80, &access);
+        var types: [128]f.Types.Field = undefined;
+        var plan: f.LogicalQuery.Plan = .{ .schema = try declaration.schema.rowType(&types), .source_basis = @splat(3), .collations = .fromTable(declaration.schema), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 1, .op = .lt, .value = .{ .bytes = "a" } } } };
+        const accepted = table.root;
+        var after: ?P.SnapshotCursor = null;
+        var mask: [8]bool = @splat(false);
+        var examined: usize = 0;
+        while (true) {
+            var page = try table.scanSnapshotFiltered(t.allocator, handle, plan, after, .{ .rows = 1 }, access.guard());
+            defer page.deinit();
+            examined += page.examined;
+            for (page.page.rows[0..page.page.count]) |slot| {
+                const row = slot.?.row();
+                const index: usize = @intCast(row.cells[0].value.atom.signed);
+                try t.expect(!mask[index]);
+                mask[index] = true;
+                // Required predicate inputs are retained alongside the key.
+                try t.expectEqualStrings(texts[index], row.cells[1].value.atom.bytes);
+            }
+            after = page.page.next;
+            if (after == null) break;
+        }
+        try t.expectEqual(@as(usize, 8), examined);
+        try t.expectEqualSlices(bool, &case.mask, &mask);
+        try t.expectEqual(@as(u64, 1), table.row_groups_filtered);
+        var repeated = try table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard());
+        defer repeated.deinit();
+        try t.expectEqual(@as(u64, 1), table.row_groups_filtered);
+        // A valid small byte budget makes progress up to the preceding identity.
+        if (repeated.page.count > 1) {
+            var row_buffer: [4096]u8 = undefined;
+            const first_bytes = (try repeated.page.rows[0].?.row().encode(declaration.schema, &row_buffer)).len;
+            var bounded = try table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{ .encoded_bytes = @intCast(first_bytes) }, access.guard());
+            defer bounded.deinit();
+            try t.expectEqual(@as(u8, 1), bounded.page.count);
+            try t.expect(bounded.page.next != null);
+            var rest = try table.scanSnapshotFiltered(t.allocator, handle, plan, bounded.page.next, .{}, access.guard());
+            defer rest.deinit();
+            try t.expectEqual(repeated.page.count - 1, rest.page.count);
+            try t.expectEqual(@as(u8, 8), bounded.examined + rest.examined);
+        }
+        plan.predicate.compare.value.bytes = "A";
+        var changed = try table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard());
+        defer changed.deinit();
+        try t.expectEqual(@as(u64, 2), table.row_groups_filtered);
+        table.options.segment_predicate_bytes = 1;
+        plan.predicate.compare.value.bytes = "a";
+        try t.expectError(error.SegmentReadBudgetExceeded, table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard()));
+        try t.expectEqualDeep(accepted, table.root);
+        const Case = struct {
+            fn run(allocator: std.mem.Allocator, log: s.TransitLog.Log, store: s.TransitObjectStore.ObjectStore, declared: s.TableDeclaration.Definition, retained: P.SnapshotHandle, query: f.LogicalQuery.Plan) !void {
+                var reopened = try P.init(allocator, 17, declared, log, store, .{});
+                defer reopened.deinit();
+                try reopened.recover();
+                var allow: Access = .{};
+                var result = try reopened.scanSnapshotFiltered(allocator, retained, query, null, .{}, allow.guard());
+                defer result.deinit();
+                try t.expect(result.page.count > 0 and result.failure == null);
+            }
+        };
+        try t.checkAllAllocationFailures(t.allocator, Case.run, .{ wal.log(), objects.objectStore(), declaration, handle, plan });
+    }
+}

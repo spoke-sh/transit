@@ -81,7 +81,11 @@ encoded pages. Scans cache decoded groups. Both decoding paths have an explicit
 allocation budget and returned rows own their values. Physical
 groups default to 256 rows, independently of statement and response bounds.
 Retained `rangeSnapshot` reads follow the paged full-key directory in collation
-order. SQL predicate/projection pushdown remains separate from these source reads.
+order. Retained column scans select required input columns; the finite query
+owner uses that projection. `scanSnapshotFiltered` also supplies bounded encoded
+predicate decisions over live identities, with explicit skipped-row coverage
+and deferred failures. Its filtered-page protocol and SQL lowering remain
+separate from the installed projection path.
 
 Opening a disk WAL validates every retained partition before returning, even
 when segment names span multiple directory pages. Nested recovery scans use an

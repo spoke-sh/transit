@@ -395,6 +395,7 @@ pub const Evaluated = struct {
 pub fn evaluateColumnPage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicate: ColumnPredicate.Predicate) !Evaluated {
     try predicate.validate(column);
     var sink: PredicateSink = .{ .arena = arena, .column = column, .predicate = predicate };
+    errdefer arena.free(sink.outcomes);
     _ = try decodeInto(scratch, column, bytes, &sink);
     return .{ .outcomes = sink.outcomes, .evaluated_values = sink.evaluated_values };
 }
