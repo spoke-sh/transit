@@ -86,7 +86,9 @@ jobs:
             shell: ci-experience
             cache: experience
             cache_writer: true
-            timeout: 60
+            # Includes all seven browser tasks, with real connector and view recovery.
+            # Separate completed task observations already exceed one hour.
+            timeout: 120
           - lane: launchers
             shell: ci-experience
             cache: experience

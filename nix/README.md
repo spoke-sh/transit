@@ -396,7 +396,7 @@ binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
 
 The [hosted workflow](../.github/workflows/ci.yml) gives core 90 minutes,
-experience (including browser proofs) 60 minutes, growth 300 minutes, and each bindings
+experience (including browser proofs) 120 minutes, growth 300 minutes, and each bindings
 lane 360 minutes. Launchers have 30 minutes, or 45 for explicit cold calibration. These are
 finite failure limits, not measured feedback budgets. The earlier warm/cold
 budget records remain historical; a larger cap does not qualify a slower run or

@@ -232,7 +232,7 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-Hosted execution caps are 90 minutes for core, 300 for growth, 60 for experience,
+Hosted execution caps are 90 minutes for core, 300 for growth, 120 for experience,
 30 for launchers (45 with cold-cache selection), and 360 for each of the two bindings lanes.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
@@ -250,6 +250,13 @@ adds a current lower bound: its first 23 of 28 tasks pass in 54.60 minutes,
 then the former 60-minute job cap interrupts the Table authorization build.
 The 90-minute core cap permits the remaining inventory to execute; it is not
 a measured completion time or a change to any proof's own deadline.
+
+The experience job also runs all seven browser tasks. The hosted experience
+inventory and first two browser tasks total 37.55 minutes; separate local HTTP
+and gRPC browser/worker proofs take 28.08 minutes. The 120-minute outer cap
+allows those tasks, the remaining reactive schedules and setup to execute.
+These observations span different hosts and are not a combined hosted duration
+or a changed per-proof deadline.
 
 The bindings split record (archived)
 records the complete inventory partition. Python, Node, Rust and Ruby run with
