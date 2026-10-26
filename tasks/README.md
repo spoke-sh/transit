@@ -53,6 +53,9 @@ reference deployment and physical-capacity tests remain explicit commands.
 `just test::direct-table-service` qualifies direct Table operations. Their local durable
 owners retain history on disk with bounded metadata/data caches. Growth schedules
 retain more objects and rows than those caches without discarding accepted work.
+`just test::table-count-ranges` checks finite primary-key count intervals against
+full scans of the same retained source, including prepared bounds, request
+exhaustion, cancellation and current disclosure rights.
 
 | Command | What it does today |
 | --- | --- |

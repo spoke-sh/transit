@@ -400,6 +400,8 @@ pub fn main(init: std.process.Init) !void {
             try NamedResources.growthRecover(init.gpa, client, profile.resource_growth.?);
         } else if (std.mem.eql(u8, args[2], "prepared-lifetime")) {
             try @import("direct_table_prepared.zig").run(init.gpa, client, &admin, profile.role);
+        } else if (std.mem.eql(u8, args[2], "count-ranges")) {
+            try @import("direct_table_count_ranges.zig").run(client, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "resource-save")) {
             var prepared_arena = std.heap.ArenaAllocator.init(init.gpa);
             defer prepared_arena.deinit();
