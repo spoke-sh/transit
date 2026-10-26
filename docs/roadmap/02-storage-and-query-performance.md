@@ -158,8 +158,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   batches under the original single acceptance boundary. Finite retained SQL
   SELECTs, including prepared execution, also use the existing complete-key
   equality qualification rather than scanning every source page.
-- SQL inequality pushdown, encoded/pruned execution, cross-segment performance
-  controls, retained checkpoint/maintenance and native-owner obligations remain
+- A disk-backed, same-snapshot control now compares a narrow ordered interval
+  with a complete scan across eight segments, using fresh owners and one cached
+  index page. The [measurement](../handbook/reference/performance.md#retained-table-key-range-measurements)
+  attributes segment ranges/bytes and index misses; installed latency and broader
+  mixed-workload controls remain unqualified.
+- SQL inequality pushdown, encoded/pruned execution,
+  retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
 
 The storage foundation covers control/policy and catalog state, native process

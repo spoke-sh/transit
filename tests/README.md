@@ -27378,3 +27378,28 @@ with older glibc 2.40 and pinned 2.42 loaders. C and C++ both abort in
 `allocate_stack` with the older loader and pass with the pinned loader. This
 demonstrates the invalid pairing, without establishing that the local abort
 and the previously recorded hosted segmentation fault have the same path.
+
+## Retained Table cross-segment range control — 2026-10-26
+
+The `retained Table key ranges skip unrelated disk segments against a complete
+same-cut scan` test adds a disk-backed control to the ordered-range implementation
+at `20442897`, rebased onto merged WAL recovery at `18010d95`. It writes eight
+64-row bulk segments with signed integer keys and 2,048-byte text values. Row
+identity order deliberately differs from key order. The range and complete scan
+open separate disk owners against the same durable snapshot, clear the one-page
+index cache and begin without a cached segment. The scan checks every row's key
+and payload independently; both paths find the same four selected values.
+
+The interval crosses two segments and uses two two-row result pages. It requests
+280,488 segment bytes in ten ranges, versus 1,121,952 bytes in forty ranges for
+the complete 512-row scan. Immutable index misses are 70 versus 2,109. Two versus
+eight row groups are decoded; each cached group uses less than 1 MiB in arena
+backing allocations. Segment counters exclude index and snapshot objects,
+filesystem checksum reads and device amplification. OS caches remain available;
+this is not a cold-device, installed-query, RSS or latency measurement.
+
+Reproduce through `nix develop --command just test::storage-key-ranges`, or select
+that test in `packages/zig/transit-storage` with `zig build test
+-Dtest-filter="retained Table key ranges skip unrelated" --summary all` inside
+the pinned shell. The focused case and import check pass. Full-repository and
+committed-source clean checks remain separate qualification.

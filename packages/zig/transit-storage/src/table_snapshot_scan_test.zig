@@ -130,6 +130,119 @@ test "retained Table key ranges preserve exact intervals through writes flush re
     try t.expectError(error.TableSnapshotReleased, table.rangeSnapshot(t.allocator, handle, range, null, .{}, access.guard()));
 }
 
+test "retained Table key ranges skip unrelated disk segments against a complete same-cut scan" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var handle: P.SnapshotHandle = undefined;
+    const body: [2048]u8 = @splat('s');
+    const segments = 8;
+    const rows_per_segment = 64;
+    const first = 4 * rows_per_segment - 2;
+    const end = first + 4;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var cells: [rows_per_segment][2]f.Types.Values.Cell = undefined;
+        var changes: [rows_per_segment]P.Change = undefined;
+        for (0..segments) |segment| {
+            for (&cells, &changes, 0..) |*values, *change, i| {
+                values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(segment * rows_per_segment + i) } } }, .{ .value = .{ .atom = .{ .bytes = &body } } } };
+                // Identity order deliberately disagrees with key order within
+                // each segment. The scan control must establish values itself.
+                change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = segment + 1, .ordinal = @intCast(rows_per_segment - i - 1) }, .cells = values }, .expect = .absent } };
+            }
+            _ = try table.apply(binding(&table, segment + 1, if (segment == 0) .create else .insert), &changes, .bulk, access.guard());
+        }
+        handle = try pin(&table, 80, &access);
+    }
+
+    var range_bytes: u64 = 0;
+    var range_reads: u64 = 0;
+    var range_index: u64 = 0;
+    var scan_bytes: u64 = 0;
+    var scan_reads: u64 = 0;
+    var scan_index: u64 = 0;
+    // Each arm starts with newly opened disk owners, one resident index page,
+    // and an empty segment cache. The durable source is exactly the same pin.
+    for ([_]bool{ true, false }) |ordered| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        table.index.clearCache();
+        try t.expect(table.segment_cache == null);
+        try t.expectEqual(@as(usize, 1), table.index.cache.len);
+        const index_before = table.index.misses;
+        var selected: [4]bool = @splat(false);
+        var count: usize = 0;
+        if (ordered) {
+            var lower: [4096]u8 = undefined;
+            var upper: [4096]u8 = undefined;
+            const interval: P.KeyRange = .{
+                .lower = .{ .key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &.{.{ .value = .{ .atom = .{ .signed = first } } }}, false, &lower) },
+                .upper = .{ .key = try f.Collation.encodePrimaryKeySortKey(definition.schema, &.{.{ .value = .{ .atom = .{ .signed = end } } }}, false, &upper), .inclusive = false },
+            };
+            var after: ?P.KeyRange.Cursor = null;
+            while (true) {
+                var page = try table.rangeSnapshot(t.allocator, handle, interval, after, .{ .rows = 2 }, access.guard());
+                defer page.deinit();
+                try t.expectEqual(@as(u8, 2), page.count);
+                for (page.rows[0..page.count]) |slot| {
+                    const row = slot.?.row();
+                    try t.expectEqual(@as(i128, @intCast(first + count)), row.cells[0].value.atom.signed);
+                    try t.expectEqualStrings(&body, row.cells[1].value.atom.bytes);
+                    selected[count] = true;
+                    count += 1;
+                }
+                after = page.next orelse break;
+            }
+            try t.expectEqual(@as(usize, 4), count);
+            try t.expectEqual(@as(u64, 2), table.segment_reads);
+            try t.expectEqual(@as(u64, 2), table.row_groups_decoded);
+            range_bytes = table.segment_bytes_read;
+            range_reads = table.segment_range_reads;
+            range_index = table.index.misses - index_before;
+        } else {
+            var after: ?P.SnapshotCursor = null;
+            while (true) {
+                var page = try table.scanSnapshot(t.allocator, handle, after, .{}, access.guard());
+                defer page.deinit();
+                for (page.rows[0..page.count]) |slot| {
+                    const row = slot.?.row();
+                    const expected = (row.identity.operation - 1) * rows_per_segment + rows_per_segment - row.identity.ordinal - 1;
+                    try t.expectEqual(@as(i128, @intCast(expected)), row.cells[0].value.atom.signed);
+                    try t.expectEqualStrings(&body, row.cells[1].value.atom.bytes);
+                    if (expected >= first and expected < end) {
+                        try t.expect(!selected[expected - first]);
+                        selected[expected - first] = true;
+                    }
+                    count += 1;
+                }
+                after = page.next orelse break;
+            }
+            try t.expectEqual(@as(usize, segments * rows_per_segment), count);
+            try t.expectEqual(@as(u64, segments), table.segment_reads);
+            try t.expectEqual(@as(u64, segments), table.row_groups_decoded);
+            scan_bytes = table.segment_bytes_read;
+            scan_reads = table.segment_range_reads;
+            scan_index = table.index.misses - index_before;
+        }
+        try t.expect(std.mem.allEqual(bool, &selected, true));
+        try t.expect(table.segment_cache.?.decoded.?.allocatedBytes() < 1024 * 1024);
+    }
+    try t.expect(range_bytes * 3 < scan_bytes);
+    try t.expect(range_reads * 3 < scan_reads);
+    try t.expect(range_index * 3 < scan_index);
+    std.debug.print("Retained cross-segment interval: 4/512 rows, 2/8 segments, range/scan bytes={d}/{d}, ranges={d}/{d}, index_misses={d}/{d}; separate cold owners, one index page\n", .{ range_bytes, scan_bytes, range_reads, scan_reads, range_index, scan_index });
+}
+
 test "pinned Table pages retain mixed WAL and segment rows across schema rewrite DROP and disk reopen" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
