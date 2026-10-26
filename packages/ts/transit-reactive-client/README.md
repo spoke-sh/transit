@@ -25,6 +25,10 @@ object above disposable components. Call `recover` explicitly before preparing
 more controls when `pending` is present. A committed rejection clears uncertainty
 and observes current scope to report denial, expiry or reset before another
 control. It cannot become an endless renewal/reconnection loop.
+Current denial after native admission clears protected rows while preserving the
+original pending control and receipt diagnostic. It does not establish that the
+accepted control was rejected; explicit recovery still addresses the same signed
+request before another control can be prepared.
 `exportRecovery` saves at most 64 KiB of control metadata and exact signed
 requests. `restoreRecovery` accepts only the current definition and performs no
 I/O. A synchronous persistence callback runs before dispatch and after receipt,
