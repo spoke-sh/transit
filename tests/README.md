@@ -27769,3 +27769,25 @@ its task, and Node passed its client/Station/HTTP/gRPC schedules before relation
 setup stopped on an unknown outcome. The first direct invocation of the focused
 Zig target was stopped because it lacked installed package prerequisites; only
 the owning just task is a pass. This does not complete the full SDK matrix.
+
+## WAL append inspection cancellation — 2026-10-26
+
+The [disk-backed regression](verification/results/wal-append-inspection-2026-10-26/report.json)
+fails against `9ab5fb64a`: cancelling the open of an existing segment causes the
+next tail read to return `WalRecoveryRequired`, although no write occurred.
+The corrected owner remains usable after cancellation at both open and length
+inspection. Independent partitions retain their acknowledged rows and the next
+append uses the unchanged successor LSN.
+
+Focused cancellation/sync tests and all `disk_wal_test` cases pass through
+`nix develop` and the package's `zig build test -Dtest-filter=...` selection.
+Injected `InputOutput` and cancellation at all three existing-segment and four
+new-segment append syncs still require reopening; recovery retains complete
+uncertain frames. This does not weaken corruption, incompatible-definition or
+post-mutation recovery gates.
+
+A separate installed trace records a cancelled native append followed by
+`WalRecoveryRequired` and supervisor replacement. It does not identify the
+cancelled syscall, so it does not establish that this particular cancellation
+preceded mutation. Installed SQL and complete clean-lane qualification remain
+separate obligations.

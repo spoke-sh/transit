@@ -24571,7 +24571,7 @@
     },
     "packages/zig/transit-storage/src/DiskWal.zig": {
       "errors": {
-        "Canceled": 1,
+        "Canceled": 3,
         "CorruptWalFrame": 6,
         "CorruptWalMetadata": 5,
         "FileNotFound": 4,
@@ -24620,8 +24620,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 79,
-        "catch": 16
+        "try": 77,
+        "catch": 18
       },
       "imports": [
         "TransitLog.zig",
