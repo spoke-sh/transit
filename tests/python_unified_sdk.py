@@ -40,6 +40,11 @@ def codecs(config):
     from transit_station import unified as q, logical as l, catalog
     from transit_station.document import DocumentReference
     from transit_station.query import Comparison
+    # The native format permits the full bound; adapter checks reject one byte more.
+    assert len(q.Bundle(bytes(25743)).data) == 25743
+    try: q.Bundle(bytes(25744))
+    except ValueError: pass
+    else: raise AssertionError('oversized query bundle accepted')
     resource = ResourceRef(46, 7)
     sources = [q.KVSource(resource, b'data/', q.Decoder(q.DecoderType.BINARY), q.Decoder(q.DecoderType.UINT64)),
         table_source([catalog.Column(1, 'id', l.ScalarType('int64'), False), catalog.Column(2, 'label', l.ScalarType('utf8'))]),
@@ -172,7 +177,7 @@ async def serve(config, asynchronous):
         sealed = await invoke('authorize_bundle', unsigned_bundle, capture)
         assert sealed.data == Path(config['bundle']).read_bytes()
         description = await invoke('describe', declared)
-        assert description.bundle_bytes == 25614 and description.batch_rows == 8
+        assert description.bundle_bytes == 25743 and description.batch_rows == 8
         print(json.dumps({'ready': True}), flush=True)
         for line in sys.stdin:
             action = json.loads(line)

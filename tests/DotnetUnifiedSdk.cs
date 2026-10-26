@@ -151,7 +151,7 @@ static class Program
                 capture=new(Number(spec,"executor"),ulong.Parse(Text(spec,"operation")),ulong.Parse(Text(expected,"partition")),ulong.Parse(Text(expected,"next_lsn")));
             } else source=await Source(resource,kind,false);
             Check((await client.AuthorizeBundleAsync(await Bundle(source,kind,false,true,config["compound"]!.GetValue<bool>()),capture)).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
-            var description=await client.DescribeAsync(source); Check(description.BundleBytes==25614 && description.BatchRows==8);
+            var description=await client.DescribeAsync(source); Check(description.BundleBytes==25743 && description.BatchRows==8);
             // A cancelled wait cannot manufacture query state or dispose ownership.
             using var cancelled=new CancellationTokenSource(); cancelled.Cancel(); bool stopped=false;
             try { await client.StatusAsync(1,cancelled.Token); }catch(OperationCanceledException) { stopped=true; } Check(stopped);

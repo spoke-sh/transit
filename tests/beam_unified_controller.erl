@@ -91,7 +91,7 @@ codecs(A,Cfg)->
     WideSource=table_source([#transit_catalog_column{id=I+1,name=unicode:characters_to_binary(["列 ",integer_to_list(I)]),type=uint128}||I<-lists:seq(0,127)]),
     Names=[unicode:characters_to_binary(["結果 ",integer_to_list(I)])||I<-lists:seq(0,127)],
     #transit_unified_bundle{bytes=Wide}=ok(A:prepare(WideSource,#transit_unified_plan{projection=lists:seq(0,127),output_names=Names,predicate={compare,127,eq,{unsigned,340282366920938463463374607431768211455}}},#transit_unified_budgets{pages=1,segments=1,result_bytes=65536})),
-    true=byte_size(Wide)>0,true=byte_size(Wide)=<25614,
+    true=byte_size(Wide)>0,true=byte_size(Wide)=<25743,
     Nested=#transit_unified_column{name= <<"value">>,type={list,#transit_logical_element{type=uint128,nullable=true}}},
     [[{value,{list,[{value,{atom,{unsigned,340282366920938463463374607431768211455}}},null]}}]]=ok(A:decode([Nested],read(maps:get(<<"nested">>,Cfg)),1)),
     io:format("~p installed unified codecs: three sources, nine Boolean bundles, six types, five states 128 columns, uint128, nested values and malformed rejection passed~n",[A]).
@@ -109,7 +109,7 @@ serve(A,Cfg)->
     Unsigned=bundle(A,Source,Kind,false,case Kind of <<"document">>->[<<"Result">>,undefined,undefined,undefined]; _->[<<"Result">>] end,maps:get(<<"compound">>,Cfg)),
     try
         #transit_unified_bundle{bytes=Bundle}=ok(A:authorize(Client,Unsigned,Capture)),Bundle=read(maps:get(<<"bundle">>,Cfg)),
-        #transit_unified_description{bundle_bytes=25614,batch_rows=8}=ok(A:describe(Client,Source)),report(#{ready=>true}),
+        #transit_unified_description{bundle_bytes=25743,batch_rows=8}=ok(A:describe(Client,Source)),report(#{ready=>true}),
         Saved=loop(A,Client,Cfg,{Connection,Source},undefined),ok(A:close(Client)),{error,#transit_error{kind=closed}}=A:status(Client,1),
         case Saved of undefined->ok; #transit_unified_page{columns=Columns,ipc=Ipc,rows=Rows}->Rows=length(ok(A:decode(Columns,Ipc,Rows))) end,
         report(#{closed=>true})

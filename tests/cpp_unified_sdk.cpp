@@ -126,7 +126,7 @@ static void codecs(const std::string &root) {
     bool rejected=false; try { q::decode_arrow(columns,read(root+"/malformed.ipc"),5); }catch(const Error &) { rejected=true; } assert(rejected);
     std::vector<catalog::Column> wide_columns;std::vector<uint8_t> projection;std::vector<std::optional<std::string>> names128;
     for(size_t i=0;i<128;++i){wide_columns.push_back({i+1,"列 "+std::to_string(i),logical::Type::scalar(TRANSIT_LOGICAL_UINT128),true,std::nullopt,std::nullopt});projection.push_back(static_cast<uint8_t>(i));names128.push_back("結果 "+std::to_string(i));}
-    auto wide=q::prepare(table_source(wide_columns),{projection,q::Compare{127,Comparison::Eq,q::Scalar::unsigned_integer({UINT64_MAX,UINT64_MAX})},Aggregate::Rows,std::nullopt,names128},{1,1,65536});assert(!wide.data().empty()&&wide.data().size()<=25614);
+    auto wide=q::prepare(table_source(wide_columns),{projection,q::Compare{127,Comparison::Eq,q::Scalar::unsigned_integer({UINT64_MAX,UINT64_MAX})},Aggregate::Rows,std::nullopt,names128},{1,1,65536});assert(!wide.data().empty()&&wide.data().size()<=25743);
     const auto nested=q::decode_arrow({{"value",logical::Type::list(logical::Type::scalar(TRANSIT_LOGICAL_UINT128),true),false,false}},read(root+"/nested.ipc"),1);
     const auto children=nested[0][0].children();assert(children.size()==2&&children[1].state()==TRANSIT_LOGICAL_NULL);const auto atom=children[0].atom().native();assert(atom.kind==TRANSIT_ATOM_UNSIGNED&&atom.as.unsigned_value.low==UINT64_MAX&&atom.as.unsigned_value.high==UINT64_MAX);
     std::cout<<"C++ installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned values, 128 columns, uint128, nested values and malformed rejection passed"<<std::endl;
@@ -140,7 +140,7 @@ static void serve(char **args) {
     std::optional<q::Client> owner(q::Client::open(ClientConfig::growing(args[2]).timeout(10000),Credential(realm,std::stoull(args[7]),args[3]),connection,tables));
     auto &client=*owner;
     const auto definition=[&]()->q::Source{if(kind!=1)return source(resource,kind,false);auto table=client.lookup_table(1,"items");assert(table);return table->source;}();
-    assert(client.authorize_bundle(bundle(definition,kind,false,true,std::string(args[12])=="compound"),capture).data()==read(args[5])); const auto description=client.describe(definition); assert(description.bundle_bytes==25614&&description.batch_rows==8);
+    assert(client.authorize_bundle(bundle(definition,kind,false,true,std::string(args[12])=="compound"),capture).data()==read(args[5])); const auto description=client.describe(definition); assert(description.bundle_bytes==25743&&description.batch_rows==8);
     std::optional<q::Page> saved; std::cout<<"{\"ready\":true}"<<std::endl;
     std::string line;
     while(std::getline(std::cin,line)) {
@@ -198,6 +198,6 @@ static void serve(char **args) {
 }
 int main(int argc,char **argv) {
     assert(argc>=3);
-    try { if(std::string(argv[1])=="codecs")codecs(argv[2]);else { assert(argc==13); serve(argv); } }
+    try { if(std::string(argv[1])=="codecs")codecs(argv[2]);else { assert(argc>=5); assert(argc==(std::string(argv[4])=="table"?22:13)); serve(argv); } }
     catch(const Error &e) { std::cerr<<e.what()<<" status="<<e.detail().native_status<<" code="<<e.detail().code<<std::endl; return 1; }
 }

@@ -16,6 +16,7 @@
 -type predicate() :: predicate_atom() | #transit_unified_predicate_program{}.
 -type inspection() :: #transit_unified_inspection{}.
 -record(state,{bridge,connection=undefined}).
+bundle_bytes() -> maps:get(<<"query_bundle_bytes">>,maps:get(<<"limits">>,transit_sdk_value:contract(transit_station_sdk))).
 u64(V) -> transit_sdk_value:integer(V,0,18446744073709551615).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
 decimal(V) -> integer_to_binary(u64(V)).
@@ -101,7 +102,7 @@ prepare(Source,Plan,Budgets) -> prepare(Source,Plan,Budgets,undefined).
 prepare(Source,Plan,Budgets,Override) -> transit_sdk_value:protect(fun() ->
     Declaration=source(Source),Parameters=plan(Plan),
     Bound=case Declaration of #{<<"source">>:=#{<<"table">>:=#{<<"collations">>:=Collations}}}->Parameters#{<<"collations">>=>Collations}; _->Parameters end,
-    #{<<"prepared">>:=#{<<"bytes">>:=B}}=local(#{<<"prepare">>=>#{<<"source">>=>Declaration,<<"plan">>=>Bound,<<"limits">>=>budgets(Budgets)}},Override),#transit_unified_bundle{bytes=transit_sdk_value:unhex(B,25614)} end).
+    #{<<"prepared">>:=#{<<"bytes">>:=B}}=local(#{<<"prepare">>=>#{<<"source">>=>Declaration,<<"plan">>=>Bound,<<"limits">>=>budgets(Budgets)}},Override),#transit_unified_bundle{bytes=transit_sdk_value:unhex(B,bundle_bytes())} end).
 decode_arrow(Columns,Ipc,Rows) -> decode_arrow(Columns,Ipc,Rows,undefined).
 decode_arrow(Columns,Ipc,Rows,Override) -> transit_sdk_value:protect(fun() ->
     true=Columns=/=[],transit_sdk_value:integer(Rows,0,8),
@@ -160,15 +161,15 @@ operation(B,#transit_unified_connection{resource=R},{compile,S,Name,Sql,Budgets,
     source_check(S,R),
     Values=case Parameters of undefined->null; L when is_list(L),length(L)=<65 -> [scalar(V)||V<-L] end,
     #{<<"compiled">>:=#{<<"bundle">>:=Bundle}}=request(B,#{<<"compile">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>name(Name),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,4096),<<"parameters">>=>Values}}),
-    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Bundle,25614)};
+    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Bundle,bundle_bytes())};
 operation(B,_,{authorize,#transit_unified_bundle{bytes=Bytes},Capture}) ->
-    Encoded=transit_sdk_value:hex(transit_sdk_value:bytes(Bytes,25614)),
+    Encoded=transit_sdk_value:hex(transit_sdk_value:bytes(Bytes,bundle_bytes())),
     #{<<"authorized">>:=Value}=request(B,#{<<"authorize">>=>#{<<"bundle">>=>Encoded,<<"capture">>=>capture_wire(Capture)}}),
-    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Value,25614)};
+    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Value,bundle_bytes())};
 operation(B,_,{cleanup,N,#transit_unified_bundle{bytes=Bundle}}) ->
-    #{<<"prepared">>:=V}=request(B,#{<<"cleanup">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,25614))}}),prepared(V);
+    #{<<"prepared">>:=V}=request(B,#{<<"cleanup">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,bundle_bytes()))}}),prepared(V);
 operation(B,_,{next,N,#transit_unified_bundle{bytes=Bundle}}) ->
-    #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,25614))}}),prepared(V);
+    #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,bundle_bytes()))}}),prepared(V);
 operation(B,_,{control,Control,N}) -> #{<<"prepared">>:=V}=request(B,#{<<"prepare">>=>#{enum(Control,[cancel,retire,collect])=>decimal(positive(N))}}),prepared(V);
 operation(B,_,{submit,#transit_unified_prepared{bytes=Bytes}}) ->
     Result=transit_station_bridge:unified_query(B,#{<<"submit">>=>transit_sdk_value:text(Bytes,8192)},true),

@@ -173,7 +173,7 @@ async function serve() {
   try {
     assert.equal(hex((await client.authorizeBundle(bundle, capture)).data), hex(await readFile(config.bundle)));
     const description = await client.describe(source);
-    assert.equal(description.bundleBytes, 25614); assert.equal(description.batchRows, 8);
+    assert.equal(description.bundleBytes, 25743); assert.equal(description.batchRows, 8);
     console.log(JSON.stringify({ready: true}));
     for await (const line of readline.createInterface({input: process.stdin})) {
       const action = JSON.parse(line);

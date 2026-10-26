@@ -360,7 +360,7 @@ def decode_arrow(columns: tuple[Column, ...], ipc: bytes, rows: int, *,
 class Bundle:
     """Validated canonical bytes; preparing this value does not admit work."""
     data: bytes = field(repr=False)
-    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25614))
+    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, catalog.LIMITS['query_bundle_bytes']))
     @classmethod
     def prepare(cls, source: Source, plan: Plan, budgets: Budgets, *, native_directory: Path | None = None) -> Bundle:
         declaration, parameters = source._wire(), plan._wire()

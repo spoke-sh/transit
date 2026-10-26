@@ -98,7 +98,7 @@ ordered conflict IDs, bigint values, binary, Unicode and negative zero. For the
 pinned optional Apache Arrow 21.2.0 integration, `unifiedToArrow(page)` from
 `@transit/station/arrow` returns the nested schema without flattening states into
 nullable values. Byte getters copy owned data; native temporary buffers cannot
-escape. Bundles contain at most 25614 bytes. Table results admit 128 columns and
+escape. Bundles contain at most 25743 bytes. Table results admit 128 columns and
 segments contain at most eight rows and 64 KiB. Comparison literals retain their
 4 KiB byte bound; descriptors and recursive cells retain the shared logical
 budgets. KV has two columns; Document projections admit eight scalar decoders.

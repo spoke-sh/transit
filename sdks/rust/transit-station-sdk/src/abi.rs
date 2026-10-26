@@ -8,6 +8,7 @@ pub const HANDLER_TABLE_RESULT_BYTES: usize = 262144;
 pub const CATALOG_LINE_BYTES: usize = 16810056;
 pub const CATALOG_ACTION_BYTES: usize = 16793672;
 pub const CATALOG_INTENT_BYTES: usize = 8388644;
+pub const QUERY_BUNDLE_BYTES: usize = 25743;
 #[repr(C)] pub struct station_growing_server { _private: [u8; 0] }
 #[repr(C)] pub struct station_query_client { _private: [u8; 0] }
 #[repr(C)] pub struct station_catalog_client { _private: [u8; 0] }
