@@ -61,6 +61,23 @@ source, so its move from `apps/transit-docs` to `docs/handbook` changes that sto
 without changing package versions or toolchain pins. The boundary check builds
 both native runtime and SQL gateway derivations from that SDK-free source.
 
+[build-sources.nix](build-sources.nix) separates three build inputs. The frontend
+dependency fetch uses the runtime workspace's package manifests, lockfile and
+workspace configuration. Board assets use browser application/library source,
+the asset embedder and the embedded OpenAPI contract. Native runtime and gateway
+builds retain their source, fixtures and build graph. Changing native code or a
+test driver does not invalidate the Board asset build; editing browser source
+does not invalidate the dependency fetch. Package-manager inputs remain shared.
+
+These build-only snapshots omit `README.md`, `AGENTS.md` and retained records in
+`tests/verification/results/`. The repository keeps those documents and evidence;
+documentation checks continue to validate them. Executable test inputs, formal
+models, suite catalogs and live benchmark budgets remain included. New inputs
+must be added to their owning source set when the build starts consuming them.
+`just bindings::runtime-boundary` runs source-invalidation controls before the
+actual offline package builds, so cached results cannot substitute for changed
+source. See the [tooling index](../tests/tooling/README.md) for the controls.
+
 On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
 the Transit closure. Native local storage runs inside the node. The bundle
 places all executables together in `bin/`, so

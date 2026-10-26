@@ -13,6 +13,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [ci_select.py](ci_select.py) | Conservative changed-path selection; unknown or shared inputs select full CI |
 | [ci_cost.py](ci_cost.py) | Read hosted setup, execution and cache costs without treating missing lanes as success |
 | [ci_runner.py](ci_runner.py) | Selection, inventory, aggregate gate, interruption and clean-run regression controls |
+| [test_nix_inputs.py](test_nix_inputs.py) | Real Nix source invalidation controls for package manifests, assets, native code and retained evidence |
 
 Run `just check fast` in `nix develop` for formatting, tooling, independent Python
 oracle checks, diagnostic inventory/mappings and documentation links. It builds
@@ -49,3 +50,9 @@ affected real clean check/lane. [CI commands](../../tasks/ci.just) and
 and scenario definitions; this directory owns how their required tasks execute.
 The [task coverage checker](../verification/task_coverage.py) verifies direct
 recipe nesting and required tier ownership before expensive qualification.
+
+`just bindings::runtime-boundary` checks Nix input selection, then builds and
+exercises the actual packaged runtime and SQL gateway. Its input controls use
+small independent trees and the pinned Nix library; they do not compile a runtime
+and are not part of `just check fast`. The subsequent package builds qualify the
+selected real source trees. Neither check requalifies unrelated SDK languages.
