@@ -700,7 +700,7 @@ the control is rejected durably, the pin remains live, and the next valid proof
 at the same credential epoch completes cleanup. A third query loses Table access
 after admission but before acquisition eligibility. It becomes denied without a
 pin, and fresh cleanup after restoring access preserves that absence and failure.
-The [fixture](../../../tests/direct_captured_query.zig) uses the public clients and real native
+The [fixture](../../../tests/query/execution/direct_captured_query.zig) uses the public clients and real native
 hosts; its proxy injects response uncertainty after acceptance, not a fabricated
 storage outcome. `CapturedTablePin.observe` supplies read-only closure status.
 
@@ -2279,7 +2279,7 @@ is intentional; partial progress is visible without disclosing partial rows.
 
 ## M14 immutable publication
 
-`just test::publication` runs [real Zig Station callers](../../../tests/publication.zig) against
+`just test::publication` runs [real Zig Station callers](../../../tests/runtime/application/publication.zig) against
 an isolated `growing_v3` authority and disk-backed Ursula. The
 [Python harness](../../../tests/runtime/application/publication.py) verifies an independent SHA-256 fixture,
 intercepts actual signed HTTP responses and SIGKILLs four workers at named
@@ -4234,7 +4234,7 @@ passes 280 independent grammar/compiler cases with 244 exact schema comparisons,
 including all three COLLATE spellings, ADD COLUMN and invalid declaration controls.
 The new collation tests are in
 [`query_collation_test.zig`](../../../packages/zig/transit-fuze/src/query_collation_test.zig)
-and [`direct_table_collations.zig`](../../../tests/direct_table_collations.zig).
+and [`direct_table_collations.zig`](../../../tests/query/tables/direct_table_collations.zig).
 
 These checks do not establish text relational join/group/order support, general
 SQL encoded pushdown, benchmark percentiles or complete milestone qualification.

@@ -18,7 +18,7 @@ from performance.console.console_latency import digest, override
 from harness.http_probe import Probe
 from harness.processes import children
 from interfaces.installation.server import Fixture
-from storage.local.pages import metrics, sample_process
+from storage.providers.pages import metrics, sample_process
 from interfaces.cli.table_console import results as table_results, atom
 from harness.services import free_port
 

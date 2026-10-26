@@ -1213,7 +1213,7 @@ snapshot pages, filtered discovery, source expiry, release and grant changes
 between reading and publication. The separate provider proof retains these roots
 across actual checkpoint/trim/recovery; it preserves immutable page storage.
 
-The task also runs two real [growing Station callers](../../../tests/growing_station.zig),
+The task also runs two real [growing Station callers](../../../tests/runtime/application/growing_station.zig),
 retaining 41 typed Table rows and completed calls without reclamation. A proxy
 enforces point reads during handlers, corrupts a captured read and loses an
 accepted turn reply. A swallowed read failure cannot publish its private work;

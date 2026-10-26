@@ -339,7 +339,7 @@ ordinary-contention retry loop.
 
 On October 18, 2026, the core package suite and `just test::node-concurrency`
 pass with independently owned native engines and a shared bounded snapshot
-registry. The [disk schedule](../../../tests/storage/local/node_concurrency.py) holds one provider response
+registry. The [disk schedule](../../../tests/storage/providers/node_concurrency.py) holds one provider response
 while an independent signed read and commit finish before its release. It also
 holds old provider evidence across revocation and requires denial, then races
 two identical commands and checks one original receipt after reconciliation.
@@ -2606,7 +2606,7 @@ Coverage includes:
   exclusivity and shared snapshot reads; hidden metadata/value permissions;
   revocation before commits, reads and receipt disclosure; required/optional
   expiry; full read-view capacity and reserved retirement/reclamation progress.
-- [state.zig](../../../tests/state.zig), included in `just test::storage`: real disk Ursula,
+- [state.zig](../../../tests/runtime/core/state.zig), included in `just test::storage`: real disk Ursula,
   competing conditional appends, abandoned private preparations, lost receipts,
   SIGKILL/restart, durable view recovery, checkpoint publication/trim, and 32 live
   keys beyond the eight-entry page and 16-record replay buffer. It preserves

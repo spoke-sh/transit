@@ -14,6 +14,7 @@ def main():
     # Neither mutations nor temporary fixtures touch the contributor's checkout.
     files = {
         "build.zig": "// native build\n",
+        "build/test_modules.zig": "// fixture module graph\n",
         "build.zig.zon": ".{}\n",
         "package.json": '{"name":"root"}\n',
         "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
@@ -48,6 +49,7 @@ def main():
         "instructions": ("apps/transit-board-web/AGENTS.md", set()),
         "package-guide": ("packages/zig/owner/README.md", set()),
         "retained-evidence": ("tests/evidence/verification/observation.json", set()),
+        "build-support": ("build/test_modules.zig", runtime),
         "native-source": ("packages/zig/owner/src/main.zig", runtime),
         "upstream-source": ("third_party/owner/src/main.zig", runtime),
         "test-driver": ("tests/driver.py", runtime),

@@ -251,6 +251,7 @@
           "fmt",
           "--check",
           "build.zig",
+          "build",
           "sdks/zig",
           "packages/zig",
           "apps",

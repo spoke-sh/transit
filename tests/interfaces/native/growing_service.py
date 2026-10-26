@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
-from storage.local.growing_maintenance import run as maintenance
+from storage.providers.growing_maintenance import run as maintenance
 from runtime.application.growing_station import run as station
 from query.execution.growing_query import run as query_capture
 from runtime.station.growing_quota import run as quota

@@ -7,6 +7,7 @@
 | Declarative operations | [Guide](declarative/README.md), [manifest](declarative/manifest.json), [runner](declarative/run.py), [pure SQL probe](declarative/sql.py) |
 | Query operators, files and pipelines | [Guide](query/README.md), [runners](query/), [active budgets](query/budgets/) |
 | Storage and ingestion | [Owner measurement guide](storage/storage_benchmark.md), [paired runner](storage/storage_benchmark.py), [ingestion runner](storage/storage_ingest_benchmark.py) |
+| Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
 | Console and mutation latency | [Console runner](console/console_latency.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
 

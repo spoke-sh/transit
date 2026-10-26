@@ -19,7 +19,7 @@ empty intervals, UTF-8 prefixes and embedded zero bytes. Other cases check owned
 literal bytes, signed floating zero, a key outside the first column, unsupported
 collations/physical bounds, and fallback for general/order-sensitive plans.
 
-The [service schedule](../../../tests/direct_table_count_ranges.zig) uses the real local node
+The [service schedule](../../../tests/query/tables/direct_table_count_ranges.zig) uses the real local node
 with one resident authority page. A 17-row bulk-written Table has different key
 and identity orders. Each selected interval is compared with a forced full scan
 of the same pin and an independent expected count. Intervals span zero, one,

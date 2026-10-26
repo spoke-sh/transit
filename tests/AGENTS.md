@@ -15,9 +15,8 @@ installed-consumer checks, independent oracles and verification infrastructure.
 - Keep direct Table/storage acceptance separate from Station/application turns.
   Preserve provider-specific coverage when migrating a generic local fixture.
 - Put new files in the appropriate domain directory with README/AGENTS navigation.
-  Only README.md and AGENTS.md belong at the root. Existing root files and old
-  directories have explicit [migration exceptions](runner/layout.json); remove
-  each exception when moving its file. Do not add exceptions for new work.
+  Only README.md and AGENTS.md belong at the root. The
+  [layout policy](runner/layout.json) has no migration exceptions; keep it so.
 
 ## Fixtures and independent oracles
 
@@ -30,6 +29,9 @@ do not infer the repository from each driver's depth or export a test PYTHONPATH
 into installed consumers. Move all callers with an entry point.
 Use explicit binary paths and matching source/definition/profile identities.
 Separate immutable build artifacts from mutable installation state.
+Declare shared Zig fixture imports in the [build registry](../build/test_modules.zig)
+and supply owning package modules. Preserve shared type identity across domains;
+do not reach across directories with relative source imports.
 
 Each fixture owns and joins its processes. Preserve private failed installations
 when original-outcome investigation requires them. Exclude credentials from

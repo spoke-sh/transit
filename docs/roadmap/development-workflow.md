@@ -248,9 +248,9 @@ this plan is not another chronological test transcript.
 
 ### P6 — Public interfaces
 
-- [ ] P6.1 Move native/wire checks, SQL sessions and protocols into interface
+- [x] P6.1 Move native/wire checks, SQL sessions and protocols into interface
   owners; move SQL planning/result oracles to query rather than protocol folders.
-- [ ] P6.2 Group CLI/console, Board, HTTP/gRPC, reactive and Flight peers and
+- [x] P6.2 Group CLI/console, Board, HTTP/gRPC, reactive and Flight peers and
   schedules with their owning interface. Preserve read-only inspection gates.
 - [ ] P6.3 Group installation, launcher, configuration and reference deployment
   checks. Keep reusable provisioning in harness and installation assertions here.
@@ -259,9 +259,9 @@ this plan is not another chronological test transcript.
 
 ### P7 — Catalog and query semantics
 
-- [ ] P7.1 Move identity, definition, dependency, schema and current-policy
+- [x] P7.1 Move identity, definition, dependency, schema and current-policy
   scenarios into catalog, with their independent contract validators.
-- [ ] P7.2 Move planning, logical values, execution, snapshot and result scenarios
+- [x] P7.2 Move planning, logical values, execution, snapshot and result scenarios
   into query, including SQL/relational oracles and their native drivers.
 - [ ] P7.3 Split mixed operation modules by responsibility using explicit Zig
   module interfaces where needed; preserve test executable targets and behavior.
@@ -270,15 +270,15 @@ this plan is not another chronological test transcript.
 
 ### P8 — Storage and application runtime
 
-- [ ] P8.1 Move WAL, object, segment, codec, retention and direct Table recovery
+- [x] P8.1 Move WAL, object, segment, codec, retention and direct Table recovery
   checks into storage with explicit local/provider ownership.
-- [ ] P8.2 Move Station, delivery, supervision, application lifecycle and effect
+- [x] P8.2 Move Station, delivery, supervision, application lifecycle and effect
   scenarios into runtime. Assign mixed core tests by the boundary they assert.
-- [ ] P8.3 Preserve supported provider tests and retained actor-runtime checks.
+- [x] P8.3 Preserve supported provider tests and retained actor-runtime checks.
   Remove superseded data-path checks only with an identified, executed replacement.
 - [ ] P8.4 Execute local and Ursula disk/restart/fault coverage and affected
   application runtime schedules. Keep tmpfs and physical-disk evidence distinct.
-- [ ] P8.5 Reach the exact final root/owner layout. Remove all migration exceptions,
+- [x] P8.5 Reach the exact final root/owner layout. Remove all migration exceptions,
   old directory aliases and temporary forwarding mechanisms.
 
 ### P9 — Honest test profiles and runtime build inputs
@@ -379,15 +379,15 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | Stage | Status | Implementation and validation reference |
 | --- | --- | --- |
 | Delivered foundation | Completed | PRs #175–#181 above; each records its scoped qualification |
-| P0 | In Progress | Repairs: `945101ead`, `251f15195`, `c61a3f546`. File-query oracle: 190 cases; native/port codec: 143 cases; ten installed consumers: four collation vectors each; TypeScript: 39 adapter tests; Python types pass. KV, direct Table and Document unified live schedules now pass across all ten SDKs. [Earlier run](https://github.com/spoke-sh/transit/actions/runs/40404745910) was canceled after stale adapter failures; [corrected frozen baseline](https://github.com/spoke-sh/transit/actions/runs/40409695176) at `e61ef1891` is pending. |
-| P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The 1,405-file disposition map is recorded; eleven layout controls cover duplicate destinations, missing dispositions and retained-evidence integrity. Dynamic task/artifact dependency auditing remains pending. Committed-source checks pass after the runner move. |
+| P0 | In Progress | Repairs: `945101ead`, `251f15195`, `c61a3f546`. File-query oracle: 190 cases; native/port codec: 143 cases; ten installed consumers: four collation vectors each; TypeScript: 39 adapter tests; Python types pass. KV, direct Table and Document unified live schedules now pass across all ten SDKs. [Earlier run](https://github.com/spoke-sh/transit/actions/runs/40404745910) was canceled after stale adapter failures; [corrected frozen baseline](https://github.com/spoke-sh/transit/actions/runs/40409695176) at `e61ef1891` has passed core, formal, launcher and both SDK lanes. Growth remains running; the browser profile fails because the reactive-view Board configuration is missing a required field. This is not a successful full baseline. |
+| P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The 1,405-file disposition map is recorded; eleven layout controls cover duplicate destinations, missing dispositions and retained-evidence integrity. Dynamic task/artifact dependency auditing remains pending. Committed-source checks pass after the runner move. The final directory audit now accounts for all 1,405 original files, with 712 current test files, no migration exceptions and all 734 archived hashes verified; earlier counts describe intermediate batches. |
 | P2 | In Progress | Linux child discovery/joining extracted in `e61ef1891`; real child-death and adopted-grandchild controls pass. All 29 fast checks pass from clean committed source. The shared Python launcher has real controls for moved drivers, subdirectory invocation, arguments, failures and installed-child import isolation; the catalog uses it and the expanded 30-check fast scope passes locally. Remaining drivers migrate with their owners. The server schedule passes startup/configuration/host checks, then fails the SQL reply-observation control with `SqlOutcomeUnknown`; the private failed installation is preserved. Installation/provider qualification remains incomplete. |
 | P4 | In Progress | 734 historical/generated records leave the current tree with immutable Git links and original hashes; archive integrity checks verify all original blobs. Twelve layout controls and 29 fast checks pass. Active budgets remain executable inputs; 22 Nix invalidation controls pass. Automatic per-task capture is implemented in `81823b2e5`: local and clean-source fast/contract runs preserve logs, exact generator inputs and verifiable completion; missing/changed artifacts and interruption controls pass. Hosted publication paths include these records with 14-day retention. Benchmark families and active budgets now use performance owners; shared HTTP instrumentation belongs to harness. All 30 fast checks and 22 Nix input controls pass, and the original active-budget hashes are unchanged. At `261595975`, seven ReleaseSafe native benchmark targets build; declarative, SQL and all file-query comparator workloads pass. Small physical-disk storage (36 samples) and ingestion/reopen (18 samples) profiles pass; these do not recalibrate default performance budgets. Remaining affected workloads, final hosted and packaged-runtime qualification are pending. |
 | P3 | Completed | Forty formal runner, simulation, Zig fixture and corpus files moved to their owners with explicit imports and updated build/callers. All 24 saved replay JSON inputs retain their original hashes. The five-task formal lane passes: Authority 7,867 states and four replayed controls; WAL 201,771 states and six controls; Console 5,278 states / 91,198 replayed edges and six controls; Delivery and four Lean theorems pass. All 30 fast checks pass. Verification is now a navigation index; deterministic methods sit beside their scenarios and historical narratives retain an immutable source citation. Concrete schedules pass: 40 authority traces / 1,687 events, 14 delivery / 749, 204 resource / 3,958, eight scheduler / 542 and ten component schedules with identical replay. Mutation qualification exposed stale revision/permission patterns and a missing active-credential denial case; `bf9605ef0` and `3a4e3909d` repair those controls. All 19 production mutants are now detected across five campaigns from committed source. At committed `3a4e3909d`, the updated authority profile passes 41 traces / 1,697 events and the complete five-task formal lane passes; automatic artifacts are retained locally. |
 | P5 | In Progress | 158 scenario, ABI, installer and language-consumer files now have SDK ownership. Dynamic imports, copied compiler inputs, isolated retry processes, scenario catalogs and task/build callers follow the move. At `eb72e53f2`, all 30 fast checks pass from clean source; installed/interop qualification is running in an isolated clone. |
-| P6 | In Progress | 161 Python/Node/C interface drivers, inputs and guides move under native, CLI, Board, SQL, serving, installation and deployment owners. Import roots, generated fault wrappers, nested capacity invocations, Node imports, build/task callers and contract validators follow the move. Fast (30) and compiled contract (18) scopes pass locally. Native Zig fixture dependencies and real interface/fault qualification remain pending. |
-| P7 | In Progress | 51 catalog/query drivers and SQL guides now have domain ownership, with independent SQL helpers qualified explicitly and installed fault peers kept standalone. Fast checks pass. The actual SQL aggregate passes 174 compiler ASTs, 142 plans/Arrow results, 72 unified results, 280 DDL cases, 44 DML cases and parameter controls; independent grammar and all four Lean rewrite theorems pass. Native cross-domain modules and live domain qualification remain pending. |
-| P8 | In Progress | 49 storage/runtime drivers and shared ABI/artifact helpers move to explicit owners. Backend choices, saved operation identities and schedules are preserved. The audit places Station provisioning, delivery receipt controls and query recovery assertions with their actual semantic owners. All 30 fast checks pass; native module migration and physical backend/fault qualification remain pending. |
+| P6 | In Progress | 161 Python/Node/C interface drivers, inputs and guides move under native, CLI, Board, SQL, serving, installation and deployment owners. Import roots, generated fault wrappers, nested capacity invocations, Node imports, build/task callers and contract validators follow the move. Fast (30) and compiled contract (18) scopes pass locally. The remaining native fixtures now use 53 explicit shared modules across domain owners, including embedded gRPC descriptors and generated provider-root paths. Integration probes and all nine provider executables compile; gRPC generation and 3,411 diagnostic outcome projections pass. Real interface/fault qualification remains pending. |
+| P7 | In Progress | 51 catalog/query drivers and SQL guides now have domain ownership, with independent SQL helpers qualified explicitly and installed fault peers kept standalone. Fast checks pass. The actual SQL aggregate passes 174 compiler ASTs, 142 plans/Arrow results, 72 unified results, 280 DDL cases, 44 DML cases and parameter controls; independent grammar and all four Lean rewrite theorems pass. Native fixtures now use explicit cross-domain modules with shared type identities. The private operation driver compiles; live domain qualification remains pending. |
+| P8 | In Progress | 49 storage/runtime drivers and shared ABI/artifact helpers move to explicit owners. Backend choices, saved operation identities and schedules are preserved. The audit places Station provisioning, delivery receipt controls and query recovery assertions with their actual semantic owners. All 30 fast checks and 23 Nix input-selection controls pass. All 109 remaining Zig files move, provider-backed page/growth/collection tests are classified separately from local storage, and the structural page-layout experiment belongs to performance. The final root contains only the two indexes and 12 owners. Physical backend/fault qualification remains pending. |
 | P9–P12 | Planned | Checklists above; no execution claimed |
 
 The final PR closes the work only when the proposed structure exists, every

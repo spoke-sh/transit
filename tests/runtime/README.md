@@ -13,6 +13,7 @@ and [contribution instructions](AGENTS.md).
 | Recorded HTTP/gRPC effects and outcomes | [effects/](effects/), [HTTP worker](effects/http_worker.py), [gRPC worker](effects/grpc_worker.py) |
 | Document application behavior | [document/](document/) |
 | Provider replacement and lost responses | [Upgrade schedule](deployment/runtime_upgrade.py) |
+| Core authority, effects and readiness over Ursula | [Native core](core/), [effect proofs](effects/effects.zig), [outbox](delivery/outbox.zig) |
 
 The [test module](../../tasks/test.just) and
 [launcher modules](../../tasks/launchers.just) supply actual binaries and explicit

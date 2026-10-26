@@ -361,7 +361,7 @@
   },
   "external_fallbacks": {
     "file": {
-      "source": "tests/operations/FileDiagnosticTests.zig",
+      "source": "tests/interfaces/cli/operations/FileDiagnosticTests.zig",
       "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
     },
     "sql-table-ddl": {

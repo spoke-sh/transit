@@ -1113,7 +1113,7 @@
     },
     {
       "source": "tests/block_native.py",
-      "destination": "tests/storage/local/block_native.py",
+      "destination": "tests/storage/providers/block_native.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -1123,7 +1123,7 @@
     },
     {
       "source": "tests/block_storage.py",
-      "destination": "tests/storage/local/block_storage.py",
+      "destination": "tests/storage/providers/block_storage.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -1133,7 +1133,7 @@
     },
     {
       "source": "tests/block_storage.zig",
-      "destination": "tests/storage/local/block_storage.zig",
+      "destination": "tests/storage/providers/block_storage.zig",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -4111,7 +4111,7 @@
     },
     {
       "source": "tests/growing.py",
-      "destination": "tests/storage/local/growing.py",
+      "destination": "tests/storage/providers/growing.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -4122,7 +4122,7 @@
     },
     {
       "source": "tests/growing.zig",
-      "destination": "tests/storage/local/growing.zig",
+      "destination": "tests/storage/providers/growing.zig",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -4148,7 +4148,7 @@
     },
     {
       "source": "tests/growing_capacity.zig",
-      "destination": "tests/storage/local/growing_capacity.zig",
+      "destination": "tests/storage/providers/growing_capacity.zig",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -4195,7 +4195,7 @@
     },
     {
       "source": "tests/growing_maintenance.py",
-      "destination": "tests/storage/local/growing_maintenance.py",
+      "destination": "tests/storage/providers/growing_maintenance.py",
       "owner": "storage",
       "role": "helper",
       "reference_consumers": [
@@ -7005,7 +7005,7 @@
     },
     {
       "source": "tests/node_concurrency.py",
-      "destination": "tests/storage/local/node_concurrency.py",
+      "destination": "tests/storage/providers/node_concurrency.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -7016,7 +7016,7 @@
     },
     {
       "source": "tests/node_concurrency.zig",
-      "destination": "tests/storage/local/node_concurrency.zig",
+      "destination": "tests/storage/providers/node_concurrency.zig",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -7046,7 +7046,7 @@
     },
     {
       "source": "tests/node_recovery.py",
-      "destination": "tests/storage/local/node_recovery.py",
+      "destination": "tests/storage/providers/node_recovery.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -7390,8 +7390,8 @@
     },
     {
       "source": "tests/page_layout.py",
-      "destination": "tests/storage/local/page_layout.py",
-      "owner": "storage",
+      "destination": "tests/performance/storage/page_layout.py",
+      "owner": "performance",
       "role": "executable",
       "reference_consumers": [
         "tasks/test.just",
@@ -7400,8 +7400,8 @@
     },
     {
       "source": "tests/page_layout.zig",
-      "destination": "tests/storage/local/page_layout.zig",
-      "owner": "storage",
+      "destination": "tests/performance/storage/page_layout.zig",
+      "owner": "performance",
       "role": "executable",
       "reference_consumers": [
         "tests/page_layout.py",
@@ -7410,7 +7410,7 @@
     },
     {
       "source": "tests/pages.py",
-      "destination": "tests/storage/local/pages.py",
+      "destination": "tests/storage/providers/pages.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -7423,7 +7423,7 @@
     },
     {
       "source": "tests/pages.zig",
-      "destination": "tests/storage/local/pages.zig",
+      "destination": "tests/storage/providers/pages.zig",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -9623,7 +9623,7 @@
     },
     {
       "source": "tests/storage_collection.py",
-      "destination": "tests/storage/local/storage_collection.py",
+      "destination": "tests/storage/providers/storage_collection.py",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [
@@ -9633,7 +9633,7 @@
     },
     {
       "source": "tests/storage_collection.zig",
-      "destination": "tests/storage/local/storage_collection.zig",
+      "destination": "tests/storage/providers/storage_collection.zig",
       "owner": "storage",
       "role": "executable",
       "reference_consumers": [

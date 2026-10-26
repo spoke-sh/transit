@@ -41,6 +41,7 @@ in
   runtime = source (
     lib.fileset.difference (lib.fileset.unions [
       workspace
+      (root + /build)
       (root + /build.zig)
       (root + /build.zig.zon)
       (root + /apps)

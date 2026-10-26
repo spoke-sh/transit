@@ -713,7 +713,7 @@ failure releases the reservation while preserving the preceding pin. Conflicting
 operations on one pin fail explicitly. Stale releases cannot overwrite a newer
 reservation, and a fresh startup epoch prevents reuse after node restart.
 
-The [disk barrier proof](../../../tests/storage/local/node_concurrency.py) holds a provider
+The [disk barrier proof](../../../tests/storage/providers/node_concurrency.py) holds a provider
 response while requiring an independent signed read and commit to complete
 before release. A second schedule holds old evidence across revocation; a third
 races identical signed writes and checks exact receipt reconciliation. The

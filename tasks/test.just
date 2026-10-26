@@ -917,7 +917,7 @@ file-benchmark *args:
 
 # Isolated immutable-tree prototypes; never opens native installation state.
 page-layout *args:
-    python3 -B tests/runner/launch.py tests/storage/local/page_layout.py {{args}}
+    python3 -B tests/runner/launch.py tests/performance/storage/page_layout.py {{args}}
 
 # Experimental fixed-width kernel/owned-row comparison with independent answers.
 vector-benchmark output:

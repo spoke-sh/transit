@@ -9,6 +9,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | Native protocol, schemas and signed fixtures | [native/](native/), [fixture validator](native/native_fixtures.py) |
 | Read-only inspection and telemetry | [inspection/](inspection/), [Board](board/) |
 | CLI diagnostics and interactive console | [cli/](cli/), [console](cli/console.py), [diagnostic inventory](cli/diagnostic_inventory.py) |
+| Native operation-driver composition | [Private driver](cli/operations/main.zig), [shared module imports](../../build/README.md) |
 | SQL sessions and PostgreSQL/MySQL protocols | [Session checks](sql_sessions/README.md), [wire checks](sql_wire/README.md) |
 | HTTP serving and reactive sessions | [http/](http/), [reactive/](reactive/) |
 | gRPC and Arrow Flight | [grpc/](grpc/), [Flight guide](flight/README.md) |

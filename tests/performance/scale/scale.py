@@ -28,7 +28,7 @@ def main():
             for case in matrix:
                 destination = args.output / f"{case['name']}-{repeat}.json"
                 if case['kind'] == 'authority':
-                    command = [sys.executable, '-B', str(ROOT / 'tests/storage/local/growing.py'), args.growing]
+                    command = [sys.executable, '-B', str(ROOT / 'tests/runner/launch.py'), str(ROOT / 'tests/storage/providers/growing.py'), args.growing]
                 else:
                     command = [sys.executable, '-B', str(ROOT / 'tests/runner/launch.py'), str(ROOT / 'tests/performance/load/growing_load.py'), args.node, args.caller]
                 command += [*case['args'], '--output', str(destination)]

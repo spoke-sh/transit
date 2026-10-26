@@ -904,7 +904,7 @@ full-check and committed-HEAD clean results are tracked separately in the PR.
 
 `just test::sql` regenerates the ANTLR reference parser and runs the pinned
 pglast/libpg_query differential corpus, then invokes the actual Zig public-package
-consumer in [sql_driver.zig](../../../tests/sql_driver.zig). All 103 admitted SELECT statements
+consumer in [sql_driver.zig](../../../tests/query/sql/sql_driver.zig). All 103 admitted SELECT statements
 must have identical normalized ASTs across the three parsers. Fourteen are
 unchanged PostgreSQL REL_17_5 regression statements; source provenance, hashes,
 license and exact exclusions live in [the grammar contract](../../../contracts/sql/README.md).

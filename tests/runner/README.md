@@ -36,13 +36,11 @@ exit status and the caller's working directory. Import shared helpers by their
 owner (`harness.services`, `runner.paths`) and use `runner.paths.ROOT` for
 repository coordinates. Avoid per-file parent-depth calculations and `sys.path`
 edits in domain drivers. The import root affects this interpreter only; child
-SDK consumers resolve their installed packages independently. Existing unmigrated
-entry points remain in the migration inventory until their callers move together.
+SDK consumers resolve their installed packages independently.
 
 The layout check includes tracked and untracked, non-ignored test files. Put new
-work in a named owner with a README and AGENTS file. Remove the old exception
-when moving a file; exceptions describe existing migration work and are not
-permission to add a sibling file to an old directory.
+work in a named owner with a README and AGENTS file. The completed directory
+migration has no exceptions; keep root files limited to README.md and AGENTS.md.
 
 `just check contracts` compiles the nine schema exporters in one Zig build graph
 and runs the existing 18 independent checks. The runner receives immutable build

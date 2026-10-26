@@ -27,15 +27,16 @@ handoff log. A listed task establishes no passing result at the current revision
 | CLI, Board, serving and reactive interfaces | [CLI](../apps/transit-cli/README.md), [Board](../apps/transit-board/README.md), [Board tasks](../tasks/transit-board.just), [interface test recipes](../tasks/test.just) |
 | Flight and Arrow | [Flight checks](interfaces/flight/README.md), [independent Arrow check](query/arrow/arrow.py) |
 | Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](interfaces/installation/server.py) |
-| Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [operation drivers](operations/), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
+| Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [native module composition](../build/README.md), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
 | Retained observations and original outcomes | [Evidence index](evidence/README.md), [integrity check](runner/layout.py) |
 | Performance experiments | [Workloads, runners and active budgets](performance/README.md) |
 
-Many cross-component drivers remain at this directory's root. Use the owning
-recipes above to find their exact binary inputs and environments. A filename
-alone does not identify its backend: `storage.py` runs Ursula conformance, while
-`local_storage_faults.py` exercises local WAL/object storage. Actors belong to
-application execution; direct Table data has its own acceptance owner.
+Use the owning recipes above to find exact binary inputs and environments.
+The [provider conformance driver](storage/providers/storage.py) runs Ursula,
+while [local fault schedules](storage/local/local_storage_faults.py) exercise
+local WAL/object storage. Actors belong to application execution; direct Table
+data has its own acceptance owner. Shared native modules have explicit
+[build imports](../build/test_modules.zig) across these domains.
 
 ## Choose checks
 

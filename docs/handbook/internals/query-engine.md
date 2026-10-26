@@ -159,7 +159,7 @@ signed service and real native hosts with independent progress storage, unflushe
 rows, worker/node replacement and corrupted successful pin/release replies.
 Its assertions distinguish the original cut from a renamed current definition,
 and result disclosure from access revocation. The
-[fixture](../../../tests/direct_captured_query.zig) also exercises cancellation
+[fixture](../../../tests/query/execution/direct_captured_query.zig) also exercises cancellation
 and separately authorized cleanup after credential rotation. Its scoped relational
 schedule covers a two-row self-join and two separate two-row Tables, including
 replacement between acquisitions and result revocation/restoration. Installed

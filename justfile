@@ -61,5 +61,5 @@ doctor:
 # Format Nix, Zig and frontend source/documentation without regenerating contracts.
 fmt:
     nixfmt flake.nix nix/*.nix
-    zig fmt build.zig sdks/zig packages/zig apps examples tests
+    zig fmt build.zig build sdks/zig packages/zig apps examples tests
     just transit-board::fmt

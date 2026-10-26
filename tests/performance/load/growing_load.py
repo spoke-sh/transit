@@ -19,7 +19,7 @@ import threading
 import time
 import tempfile
 from storage.providers.cold_storage import ColdStore
-from storage.local.pages import metrics, sample_process
+from storage.providers.pages import metrics, sample_process
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
 

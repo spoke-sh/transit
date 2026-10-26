@@ -489,7 +489,7 @@
       "implementation": [
         "packages/zig/transit-backend-ursula/src/Store.zig",
         "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
-        "tests/growing.zig"
+        "tests/storage/providers/growing.zig"
       ],
       "profile": "transit-v1 development authority and disk Ursula; not running service",
       "tasks": [
@@ -518,7 +518,7 @@
         "apps/transit-node/Local.zig",
         "packages/zig/transit-client/src/root.zig",
         "packages/zig/transit-protocol/src/Growth.zig",
-        "tests/growing_client.zig",
+        "tests/interfaces/native/growing_client.zig",
         "tests/interfaces/native/growing_service.py",
         "packages/zig/transit-client/src/Session.zig"
       ],
@@ -550,7 +550,7 @@
         "packages/zig/transit-core/src/growing.zig",
         "apps/transit-node/GrowingMaintenance.zig",
         "packages/zig/transit-backend-ursula/src/Store.zig",
-        "tests/storage/local/growing_maintenance.py"
+        "tests/storage/providers/growing_maintenance.py"
       ],
       "profile": "transit-v1 development maintenance; one record per rotating scan step",
       "tasks": [
@@ -582,7 +582,7 @@
         "packages/zig/transit-station/src/Waiting.zig",
         "packages/zig/transit-station/src/growing_test.zig",
         "packages/zig/transit-station/src/GenServer.zig",
-        "tests/growing_station.zig",
+        "tests/runtime/application/growing_station.zig",
         "tests/runtime/application/growing_station.py"
       ],
       "profile": "Station growing development behavior/point-state slice",
@@ -624,7 +624,7 @@
         "packages/zig/transit-core/src/growing_read.zig",
         "packages/zig/transit-client/src/Session.zig",
         "packages/zig/transit-core/src/growing_test.zig",
-        "tests/growing_client.zig"
+        "tests/interfaces/native/growing_client.zig"
       ],
       "profile": "transit-v1 scoped retry development capability",
       "tasks": [
@@ -656,8 +656,8 @@
         "packages/zig/transit-core/src/growing_read.zig",
         "packages/zig/transit-core/src/growing_test.zig",
         "packages/zig/transit-client/src/Session.zig",
-        "tests/growing_client.zig",
-        "tests/growing.zig"
+        "tests/interfaces/native/growing_client.zig",
+        "tests/storage/providers/growing.zig"
       ],
       "profile": "transit-v1 retained read version development capability",
       "tasks": [
@@ -735,7 +735,7 @@
       "implementation": [
         "tests/performance/load/growing_load.zig",
         "tests/performance/load/growing_load.py",
-        "tests/growing.zig",
+        "tests/storage/providers/growing.zig",
         "tests/performance/scale/scale.py"
       ],
       "profile": "finite single-authority v3 growth/load matrix",
@@ -759,7 +759,7 @@
       "implementation": [
         "packages/zig/transit-fuze/src/Sql.zig",
         "packages/zig/transit-fuze/src/UnifiedSql.zig",
-        "tests/sql_driver.zig",
+        "tests/query/sql/sql_driver.zig",
         "tests/query/sql/reference.py",
         "tests/query/sql/compiler.py"
       ],
@@ -808,7 +808,7 @@
         "packages/zig/transit-query/src/UnifiedClient.zig",
         "packages/zig/transit-query/src/UnifiedBehavior.zig",
         "apps/transit-query-host/main.zig",
-        "tests/operations/main.zig"
+        "tests/interfaces/cli/operations/main.zig"
       ],
       "profile": "M13 public query v1 over growing v3",
       "tasks": [
@@ -1122,7 +1122,7 @@
         "packages/zig/transit-station-app/src/Sql.zig",
         "packages/zig/transit-station-app/src/Publication.zig",
         "tests/interfaces/installation/application_grammar.py",
-        "tests/application.zig",
+        "tests/runtime/application/application.zig",
         "tests/runtime/application/application.py",
         "packages/zig/transit-station-app/src/Request.zig",
         "packages/zig/transit-station-app/src/Behavior.zig",
@@ -1442,8 +1442,8 @@
         "packages/zig/transit-catalog/src/DirectTableTyped.zig",
         "packages/zig/transit-storage/src/TablePartition.zig",
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
-        "tests/direct_table_client.zig",
-        "tests/direct_table_predicates.zig"
+        "tests/interfaces/native/direct_table_client.zig",
+        "tests/query/tables/direct_table_predicates.zig"
       ],
       "profile": "direct-table-v1/native-local",
       "tasks": [
@@ -1480,7 +1480,7 @@
         "packages/zig/transit-query/src/UnifiedCapture.zig",
         "packages/zig/transit-query/src/DirectTableQuery.zig",
         "packages/zig/transit-catalog/src/DirectReadDelegation.zig",
-        "tests/direct_captured_query.zig",
+        "tests/query/execution/direct_captured_query.zig",
         "tests/query/execution/direct_captured_query.py"
       ],
       "profile": "direct-table-v1/unified-query/native-local",
@@ -1506,7 +1506,7 @@
       "implementation": [
         "packages/zig/transit-fuze/src/Declaration.zig",
         "packages/zig/transit-fuze/src/Sql.zig",
-        "tests/sql_declaration.zig",
+        "tests/interfaces/sql/sql_declaration.zig",
         "tests/query/sql/declarations.py",
         "packages/zig/transit-fuze/src/TableDdl.zig",
         "packages/zig/transit-fuze/src/declaration_test.zig"
@@ -1539,8 +1539,8 @@
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
         "apps/transit-station-host/main.zig",
         "tests/catalog/tables/catalog_abi.py",
-        "tests/operations/CatalogOptions.zig",
-        "tests/operations/RecoveryFiles.zig",
+        "tests/catalog/authorization/operations/CatalogOptions.zig",
+        "tests/harness/operations/RecoveryFiles.zig",
         "tests/interfaces/cli/cli_diagnostics.py",
         "sdks/python/transit-station/transit_station/catalog.py",
         "tests/sdk/consumers/python/python_catalog_sdk.py",
@@ -1586,7 +1586,7 @@
         "tests/catalog/tables/direct_catalog_abi.py",
         "tests/sdk/direct_sdk_catalog.py",
         "tests/storage/tables/direct_table_service.py",
-        "tests/direct_table_growth.zig"
+        "tests/storage/tables/direct_table_growth.zig"
       ],
       "profile": "declarative-catalog-v1/direct-table-v1/native-local",
       "tasks": [
@@ -1650,8 +1650,8 @@
         "packages/zig/transit-catalog/src/DirectTableClient.zig",
         "packages/zig/transit-catalog/src/DirectTableIntent.zig",
         "packages/zig/transit-query/src/DirectTableQuery.zig",
-        "tests/direct_table_lifecycle.zig",
-        "tests/direct_table_client.zig",
+        "tests/catalog/tables/direct_table_lifecycle.zig",
+        "tests/interfaces/native/direct_table_client.zig",
         "tests/storage/tables/direct_table_service.py"
       ],
       "profile": "direct-table-v1/native-local",
@@ -1755,7 +1755,7 @@
       "owner": "docs/handbook/reference/deployment.md",
       "implementation": [
         "packages/zig/transit-client/src/WorkerHandoff.zig",
-        "tests/direct_worker_handoff.zig",
+        "tests/query/execution/direct_worker_handoff.zig",
         "tests/query/execution/worker_handoff.py",
         "tests/query/execution/direct_captured_query.py"
       ],

@@ -5,7 +5,7 @@ import re
 
 from paths import ROOT as root
 files = [root / "README.md", root / "AGENTS.md"]
-for source in ("docs", "contracts", "examples", "packages", "sdks", "apps", "deploy", "charts", "launchers", "nix", "tasks", "tests", "bindings"):
+for source in ("docs", "contracts", "examples", "packages", "sdks", "apps", "deploy", "charts", "launchers", "nix", "tasks", "tests", "bindings", "build"):
     for directory, children, names in os.walk(root / source):
         # Check source documentation, not downloaded tools or generated output.
         children[:] = sorted(name for name in children if not name.startswith(".") and name not in {"node_modules", "zig-out", "zig-pkg", "dist", "coverage"})

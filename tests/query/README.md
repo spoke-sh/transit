@@ -13,6 +13,8 @@ expectations and qualification boundaries.
 | File discovery, bounded reads and independent plan bytes | [File-query schedule](files/fuze_file_query.py) |
 | Unified source, result, lifetime and recovery semantics | [Unified schedule](unified/unified_query.py), [codec oracle](unified/unified_codec.py), [lifecycle](unified/unified_lifecycle.py), [expiry](unified/unified_expiry.py) |
 | Direct Table capture, relational work and worker replacement | [execution/](execution/), [capture](execution/direct_captured_query.py), [relational oracle](execution/relational.py) |
+| Table predicates, projections, collation and ranges | [Native Table scenarios](tables/) |
+| Operation helpers with query semantics | [File operations](files/operations/), [unified operations and recovery](unified/operations/) |
 
 Use the owning [test recipes](../../tasks/test.just) for native binaries, pinned
 reference parsers and explicit backend choices. Python drivers use

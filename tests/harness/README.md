@@ -11,6 +11,7 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [abi_support.py](abi_support.py) | Generated native ABI dispatch, bounded handle ownership and exact saved bytes for cross-component fixtures |
 | [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
 | [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
+| [operations/RecoveryFiles.zig](operations/RecoveryFiles.zig) | Private recovery-file I/O for domain-owned native operation scenarios |
 
 Test drivers on the `tests/` import path use `harness.services` for generic
 helpers. Select `harness.ursula.Fixture` only when the scenario requires Ursula.

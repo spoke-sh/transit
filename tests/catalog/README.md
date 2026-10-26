@@ -12,6 +12,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 | Definition/dependency and index lifecycle fixtures | [Catalog](tables/catalog_fixture.py), [indexes](tables/index_lifecycle_contract.py) |
 | Native/port result ownership and rejection | [Catalog ABI](tables/catalog_abi.py), [direct ABI](tables/direct_catalog_abi.py) |
 | Current authorization through native operations | [Authority schedule](authorization/authorization_native.py) |
+| Native declaration and dependency callers | [Lifecycle](tables/direct_table_lifecycle.zig), [dependencies](tables/direct_dependencies.zig), [named resources](tables/direct_named_resources.zig) |
 
 The [test task module](../../tasks/test.just) owns executable commands and matching
 binary inputs. ABI helpers are invoked by their real caller schedules; copied

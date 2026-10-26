@@ -15740,9 +15740,9 @@
       }
     },
     "file.caller": {
-      "source": "tests/operations/FileCodes.zig",
+      "source": "tests/interfaces/cli/operations/FileCodes.zig",
       "registry_kind": "error",
-      "projection": "tests/operations/FileDiagnostic.zig",
+      "projection": "tests/interfaces/cli/operations/FileDiagnostic.zig",
       "profile": "Private file caller and typed file execution failures",
       "context": "No optional row/value witness in this fixture; exact witnesses remain owner/CLI tests.",
       "disclosure": "Caller file data only; no authority or external effects.",

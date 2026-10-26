@@ -10,9 +10,8 @@ inventory in [checks.json](checks.json), and measured cost policy in
 indirect build/runner nesting. Run `test_task_coverage.py` and `ci_runner.py`
 after changing task ownership; registration does not establish a passing result.
 
-[layout.json](layout.json) owns the allowed test directories and the enumerated
-files awaiting migration. Shrink its exceptions with each move. Do not add an
-exception for new work or use wildcard exceptions. Keep layout regression controls
+[layout.json](layout.json) owns the allowed test directories. The migration is
+complete; keep its exception list empty. Keep layout regression controls
 in the fast check; test actual added, moved, deleted and untracked files.
 
 Keep the fast profile free of runtime compilation, package installation, physical
