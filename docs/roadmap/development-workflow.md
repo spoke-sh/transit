@@ -20,6 +20,10 @@ Its tracked inventory contains 1,405 files under `tests/`, including 487 root
 files: 276 Python and 107 Zig files. Ordinary CI selects 103 tasks in seven lanes.
 The retained performance budgets qualify an earlier 33-task inventory, not this
 expanded suite. These counts describe the starting revision, not a future quota.
+The [source and execution baseline](development-workflow-baseline.json) preserves
+every tracked test file's size/hash and the original check/lane/nesting catalogs.
+It is a migration audit record, not another live execution inventory or a passing
+qualification result.
 
 The user paused the separate storage milestone work so this branch can migrate
 the storage/query test owners as well as the other domains. Preserve any work
@@ -146,7 +150,7 @@ this plan is not another chronological test transcript.
 - [x] P0.1 Inspect current task/build/source ownership and the Argon review;
   reconcile its suggestions against current code and the agreed directory tree.
 - [x] P0.2 Create the implementation branch and this acceptance checklist.
-- [ ] P0.3 Capture a tracked file/task baseline, existing nested executions,
+- [x] P0.3 Capture a tracked file/task baseline, existing nested executions,
   language/backend coverage and retained-evidence hashes at the starting revision.
 - [ ] P0.4 Diagnose and repair the existing collation-cutover qualification gaps
   in separate commits: the unified SDK Table source and independent query-plan
