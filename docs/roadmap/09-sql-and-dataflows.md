@@ -81,10 +81,35 @@ spill and freshness baselines here; the
 compares optimized structures and integrated local workloads. Its later delivery
 cannot defer this milestone's bounded execution or activation/recovery gates.
 
-- Extend expression/relational composition while preserving five-state values,
-  checked arithmetic, explicit collations, source identities, output types and
-  bounded operator state (with Tier 2 NVMe spill for large sorts, joins and
-  aggregations).
+- **Deliver the complete analytical and relational SQL surface in Fuze:** expand
+  beyond two-table equijoins to multi-way joins ($>2$ tables), non-equi/range
+  joins, `SEMI` (`EXISTS`/`IN`), `ANTI` (`NOT EXISTS`) and `LATERAL` joins with
+  correlated subquery decorrelation; **Window Functions** (`OVER (PARTITION BY ...
+  ORDER BY ... ROWS/RANGE/GROUPS BETWEEN ...)`), ranking/lag/lead/frame functions
+  and `QUALIFY`; **Common Table Expressions** (`WITH` and bounded `WITH RECURSIVE`
+  with cycle detection and explicit work budgets) and set operations (`UNION [ALL]`,
+  `INTERSECT`, `EXCEPT`); **Rich Aggregates** (`AVG`, `MIN`, `MAX`, `STDDEV`,
+  exact and approximate quantiles/`PERCENTILE_CONT`, `ARRAY_AGG`/`STRING_AGG`);
+  temporal/interval arithmetic; and **deterministic, resource-bounded scalar and
+  table User-Defined Functions (UDFs)** (SQL expression macros and sandboxed
+  in-engine Wasm UDFs executing directly over vectorized `Fuze` column batches
+  without round-tripping through `128 KiB` `Station` actor mailboxes). Preserve
+  five-state values, checked arithmetic, explicit collations, source identities,
+  output types and bounded operator state (with Tier 2 NVMe spill for large sorts,
+  window frames, joins and aggregations).
+- **Deliver first-class bitemporal SQL (`AS OF JOIN` and application-time periods):**
+  combine system-time knowledge cuts (`FOR SYSTEM_TIME AS OF`) with declarative
+  application/valid-time periods (`PERIOD FOR valid_time`) and native streaming
+  **`AS OF JOIN`** (matching each left observation to the nearest prior or exact
+  valid-time right row per entity key without $O(N^2)$ inequality joins). Ensure
+  point-in-time research, backtesting and decision auditing evaluate what was
+  valid in the domain *and* known to the system at the decision cut, preventing
+  later backfill corrections from leaking into earlier simulated decisions.
+- **Expose a first-class SQL `CHANGES(...)` table-valued function for CDC egress:**
+  allow SQL, Arrow Flight and SDK callers to query committed logical changes
+  (`+row`/`-row` or net upserts/deletes with transaction, LSN and manifest
+  provenance) between two snapshot cuts or watermarks (`SELECT * FROM CHANGES(table, ...)`),
+  preserving 5-state cells and current `policy_epoch` access checks.
 - Provide logical/physical explanation and output-schema inspection without
   source disclosure, mutation or external work.
 - Implement general `MERGE`/upsert and prepared-plan lifetime through shared SQL
@@ -93,13 +118,15 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   transaction-bound plan invalidation; those features do not all become transaction
   syntax merely because they can execute in a transaction. SQL `MERGE` is separate
   from branch merge. [Foreign relations](11-multi-model-and-foreign-relations.md)
-  now owns typed `COPY`/import/export together with its actual format adapters.
+  now owns typed `COPY`/import/export and streaming CDC ingress together with its
+  actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
   including conditional alteration and retirement. SQL, SDK and Board use the
   same administrative operations.
 - Optimize incremental maintained computation over `TransitLog` (`+row`/`-row`
   Z-set/delta vectors) against the complete finite-recomputation oracle.
-  Event-time windows require explicit timestamps, watermarks and late-data rules.
+  Event-time windows and bitemporal views require explicit timestamps, watermarks,
+  allowed-lateness bounds and retraction rules.
 - Bind outputs to recorded connector effects through independently authorized
   activation. Compiling, explaining, reading and replaying never dispatch a
   dataflow.

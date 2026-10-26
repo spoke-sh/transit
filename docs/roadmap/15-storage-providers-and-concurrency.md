@@ -37,13 +37,20 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    current authorization and ordering of revocation, append, publication and
    disclosure. A signed lease or cached epoch alone cannot fence a disconnected
    writer. Reuse #125/#111's commit authority; no independent manifest acceptance.
-2. **Deliver real reference storage and bounded disk caching.** Implement and
-   qualify `UrsulaWal` on disk-backed Ursula and real `S3ObjectStore` conditions,
-   immutable writes and range reads. Keep credential handling inside the backend.
-   Replace in-memory signing loopbacks and heap-only caches with content-verified
-   disposable NVMe range caching and bounded disk spill. Exercise interrupted
-   transfers, missing/corrupt bytes, cache loss and cold restart independently
-   of authoritative state. Qualify Compose and Kubernetes/Substrate deployment
+2. **Deliver real reference storage, envelope encryption at rest and bounded disk caching.**
+   Implement and qualify `UrsulaWal` on disk-backed Ursula and real `S3ObjectStore`
+   conditions, immutable writes and range reads. Keep credential handling inside
+   the backend. Deliver authenticated **encryption at rest and envelope encryption
+   (KMS / BYOK)** across `TransitLog` (`TWAL1`) segments, immutable `.tseg`/`.tdel`
+   objects and local NVMe cache/spill files, binding Data Encryption Keys (DEKs)
+   to realm, tenant or subject-group Key Encryption Keys (KEKs) so key rotation
+   and cryptographic erasure (crypto-shredding in
+   [Control & Policy Plane](19-control-and-policy-plane.md)) operate cleanly
+   over immutable object storage. Replace in-memory signing loopbacks and
+   heap-only caches with content-verified disposable NVMe range caching and
+   bounded disk spill. Exercise interrupted transfers, missing/corrupt bytes,
+   revoked/rotated KMS keys, cache loss and cold restart independently of
+   authoritative state. Qualify Compose and Kubernetes/Substrate deployment
    wiring; automatic placement remains later scope.
 3. **Qualify each additional planned provider.** Retain Kafka/Pulsar log adapters
    and GCS/R2/Azure object-store profiles as explicit delivery obligations. State
@@ -52,12 +59,17 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    unsupported and pending combinations; an S3 API name establishes no general
    equivalence. Each promised profile needs real evidence or an explicit later
    scope revision, never silent removal.
-4. **Integrate partitioned authority and concurrent publication.** Separate
-   control/policy authority from independent data/process partitions, enforce
-   epoch-fenced writer leases at actual storage publication, and integrate OCC
-   with the selected transaction isolation contract. Reuse staged immutable
-   segments for admissible disjoint writes while validating read/predicate,
-   schema, key and constraint conflicts as required. Measure rebase work; CAS
+4. **Integrate partitioned authority, concurrent publication and fine-grained distributed serializability.**
+   Separate control/policy authority from independent data/process partitions,
+   enforce epoch-fenced writer leases at actual storage publication, and integrate
+   OCC with the selected transaction isolation contract. Extend the fine-grained
+   key-range and predicate-level Serializable Snapshot Isolation (SSI / index-range
+   conflict detection) from [Milestone 8](08-indexing-and-access-paths.md) across
+   concurrent partition writers and multi-partition transactions so concurrent
+   read-write transactions touching disjoint keys or ranges on shared Tables do
+   not suffer whole-Table aborts. Reuse staged immutable segments for admissible
+   disjoint writes while validating read/predicate, `FOREIGN KEY`/`CHECK`,
+   schema, key and uniqueness conflicts as required. Measure rebase work; CAS
    alone proves neither serializability nor lock-freedom. Preserve local and
    native turn guarantees and expose unsupported cross-domain commits explicitly.
 5. **Qualify installed callers and deployment recovery.** Run SQL, typed SDKs,

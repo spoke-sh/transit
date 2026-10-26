@@ -60,18 +60,41 @@ The current component benchmark inventory does not execute complete TPC suites.
    Qualify allocation failure, resize/split/merge, reclamation and restart before
    reporting a faster replacement. Keep CPU cache-line layout, storage pages,
    execution vectors and wire/display batches independently budgeted.
-3. **Deliver statistics and physical plan selection.** Maintain bounded,
-   inspectable statistics with source/definition provenance: row/distinct counts,
-   distributions, relevant correlations and collection cost. Define sampling,
-   refresh and invalidation; stale estimates may affect speed but cannot justify
-   excluding possible rows. Cost scans versus index probes, segment pruning,
-   join order/strategy, aggregation, ordering and spill using selectivity,
-   locality, projected columns, coverage and expected I/O. Include parameter
-   sensitivity and skew; qualify prepared-plan lifetime with the transaction and
-   schema owners. Rewrites preserve checked arithmetic, fallibility, multiplicity
-   and any specified result ordering. `EXPLAIN` remains non-executing; observed
-   execution counters come from a separately authorized, explicit execution.
-4. **Optimize the durable runtime and shared client path.** Measure admission,
+3. **Deliver statistics, physical plan selection, partitioning and clustering layouts.**
+   Maintain bounded, inspectable statistics with source/definition provenance:
+   row/distinct counts, histograms/distributions, relevant correlations, declared
+   `FOREIGN KEY` referential cardinality invariants and collection cost. Define
+   sampling, refresh and invalidation; stale estimates may affect speed but cannot
+   justify excluding possible rows. Support declarative **Table Partitioning**
+   (`PARTITION BY` range/time/list so retention and archival can drop or detach
+   whole partitions in $O(1)$ manifest metadata work rather than row-by-row `.tdel`
+   bitmaps) and **Multi-Dimensional Clustering Keys** (`CLUSTER BY` linear sort
+   keys and space-filling Z-order / Hilbert curves over columns such as
+   `(event_time, symbol, venue)` decoupled from the primary-key uniqueness
+   constraint) so analytical and time-series scans prune `.tseg` segments across
+   multiple predicate dimensions. Cost scans versus index probes, segment/partition
+   pruning, join order/strategy (including `FOREIGN KEY` join elimination and
+   streaming $O(N + M)$ bitemporal `AS OF JOIN` merge plans), window frames,
+   aggregation, ordering and external NVMe spill using selectivity, locality,
+   projected columns, coverage and expected I/O. Include parameter sensitivity
+   and skew; qualify prepared-plan lifetime with the transaction and schema owners.
+   Rewrites preserve checked arithmetic, fallibility, multiplicity and any
+   specified result ordering. `EXPLAIN` remains non-executing; observed execution
+   counters come from a separately authorized, explicit execution.
+4. **Enforce LSM/segment compaction invariants, `.tdel` read-amplification bounds and scan-resistant caching.**
+   Specify and qualify leveled/size-tiered `.tseg` compaction policies that bound
+   the maximum number of overlapping `.tseg` runs per key range ($K_{\max}$) and
+   trigger segment rewrite/merge when `.tdel` deletion-vector ratios exceed
+   configured thresholds, preventing point and range lookups from degrading to
+   $O(K \log N)$ across fragmented segments or accumulating unbounded tombstone
+   overhead under update-heavy workloads. Coordinate with
+   [branches](12-branches-merges-and-restore.md) so compaction accounts for
+   branch-shared segments and pinned snapshots. Equip the buffer pool and local
+   NVMe segment cache with **scan-resistant eviction** (such as 2Q, ARC or
+   W-TinyLFU) and **I/O token-bucket pacing** so sequential analytical scans,
+   bulk imports, online index builds and background compactions cannot evict hot
+   OLTP index/memtable pages or saturate disk bandwidth.
+5. **Optimize the durable runtime and shared client path.** Measure admission,
    WAL append/sync, mailbox selection, dispatch/wakeup, turn commit, checkpoint,
    recovery and result delivery separately. Evaluate batching/group commit,
    allocation/copy reduction, queue/scheduler layout, worker-local caches and
@@ -82,7 +105,7 @@ The current component benchmark inventory does not execute complete TPC suites.
    data access stays independent of actor mailbox limits when no actor logic is
    invoked. In-process rates are separate from durable disk and installed caller
    rates; effect replay never dispatches to improve a score.
-5. **Qualify selected implementations and maintain regression gates.** Run mixed
+6. **Qualify selected implementations and maintain regression gates.** Run mixed
    database/runtime load with background index builds, flush, compaction and
    maintained computations. Establish sustained throughput at declared tail-
    latency budgets, bounded memory and recovery progress. Reject incorrect or
@@ -99,7 +122,8 @@ The current component benchmark inventory does not execute complete TPC suites.
 | Immutable indexes: paged prefix trees, sparse directories and segment-level routing | Actual index depth, candidate segments, range requests and bytes fetched under cold/warm caches, projected columns, compaction and retained snapshots; no universal one/two-read claim |
 | Membership filters: cardinality-sized conventional or split-block Bloom filters | False-positive rate, bits per distinct key, hash/collation consistency, filter loading/build cost and net I/O avoided across skew and saturation; no false negatives |
 | Deletion and candidate sets: sparse arrays, dense bitmaps and Roaring-style containers | Sparse/dense/run-heavy distributions, intersection/union cost, version/deletion correctness, conversion and resident/storage overhead |
-| Join/aggregation working state: Swiss-style or Robin-Hood hashing, partitioned arenas and spill | Key skew, collisions, bounded resize, larger-than-RAM execution, deterministic error behavior and checkpoint/recovery composition; an ephemeral hash table does not replace durable ordered roots by itself |
+| Join, window, temporal and aggregation working state: Swiss-style or Robin-Hood hashing, partitioned arenas, streaming `AS OF` merge and external NVMe spill | Key skew, collisions, bounded resize, larger-than-RAM execution (grace/hybrid hash join, external merge sort, window-frame spill), deterministic error behavior and checkpoint/recovery composition; an ephemeral hash table does not replace durable ordered roots by itself |
+| Compaction, partitioning, clustering and scan-resistant caching: leveled/tiered `.tseg` mergers, Z-order/Hilbert clustering keys and 2Q/ARC/W-TinyLFU caches | Overlapping-run bounds ($K_{\max}$), `.tdel` tombstone reclamation, multi-attribute segment pruning ratios, $O(1)$ partition-drop retention, OLTP cache hit-rate preservation during concurrent sequential scans and background I/O pacing |
 | Vector and encoded execution: compact strings, dictionary-aware kernels, late materialization and batching | Independent encoded/decoded oracles, CPU portability, allocation/copy counts and end-to-end gains over required storage codecs; no universal zero-copy assumption |
 | Runtime dispatch and coordination: bounded queues, scheduler/wakeup structures and batching | Durable completion latency/throughput, contention, starvation controls, overload/backpressure, recovery capacity and caller cancellation/uncertainty under mixed load |
 

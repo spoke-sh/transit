@@ -23,13 +23,20 @@ remains a gate for every preceding milestone.
 - Compose [index lifecycle](08-indexing-and-access-paths.md) evidence across
   transactions, retained history, branches, providers, failover, backup/PITR and
   moving placements. Include partial/covering reads, unique-key conflicts,
-  interrupted builds, compaction and retirement under current authorization.
+  index-backed `FOREIGN KEY` and `CHECK` enforcement, fine-grained key-range/predicate
+  Serializable Snapshot Isolation (SSI), online phased table rewrites,
+  segment-backed BM25 full-text and vector/hybrid search, interrupted builds,
+  branch-aware compaction and retirement under current authorization.
 - Repeat the [data structures, query and runtime scorecard](10-data-structures-and-performance.md)
   at the common revision with installed callers, concurrent maintenance and
-  durable runtime workloads. Preserve numeric budgets, matched competitor
-  versions/configurations, raw samples and visible failures/regressions. Report
-  leadership only for reproduced equivalent workload profiles; a component win
-  or reduced TPC workload is not a universal database/runtime ranking.
+  durable runtime workloads. Include leveled/tiered `.tseg` compaction bounds,
+  `.tdel` tombstone reclamation, declarative partitioning/multi-dimensional
+  clustering (`PARTITION BY`, `CLUSTER BY`), scan-resistant caching, external
+  NVMe spill for window/join/sort operators and bitemporal `AS OF JOIN` merge
+  execution. Preserve numeric budgets, matched competitor versions/configurations,
+  raw samples and visible failures/regressions. Report leadership only for
+  reproduced equivalent workload profiles; a component win or reduced TPC workload
+  is not a universal database/runtime ranking.
 
 - Qualify full declaration lifecycles: define data and computation, apply policy,
   inspect publication/results/progress, evolve dependencies and recover accepted
@@ -60,10 +67,15 @@ remains a gate for every preceding milestone.
   scheduling. Compare the same data/outcomes across modes; shared native code
   does not substitute for language-specific ownership and lifecycle evidence.
 - Qualify the shared enterprise journey across SQL, SDK, MCP and browser callers:
-  delegated identity, authorized resource discovery, one retained investigation
-  basis, isolated branch proposals, denied merges and reviewed publication.
-  Include identity-provider outages, stale membership, offboarding, agent attempts
-  to approve their own work, destination movement and lost acceptance replies.
+  delegated identity, authorized resource discovery, security-barrier Row-Level
+  Security (RLS) and dynamic column masking, KMS envelope encryption, GDPR/CCPA
+  crypto-shredding and audited cross-branch purge, Hierarchical Workload
+  Management (WLM) isolation under concurrent OLTP + analytical + MCP agent load,
+  one retained investigation basis, isolated branch proposals, denied merges and
+  reviewed publication. Include identity-provider outages, stale membership,
+  offboarding, side-channel `type_error` non-leakage on RLS-filtered rows, agent
+  attempts to approve their own work, destination movement and lost acceptance
+  replies.
 - Compose the installed [Board workbench](22-board-reimplementation.md) with
   those shared callers at the same revision. Compare catalog/preview/workbook,
   lineage and change-review evidence with independent public-operation results;
