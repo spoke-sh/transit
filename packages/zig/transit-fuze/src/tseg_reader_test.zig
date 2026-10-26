@@ -6,6 +6,7 @@ const Schema = @import("TableSchema.zig");
 const Row = @import("TableRow.zig");
 const Values = @import("Values.zig");
 const Codecs = @import("PhysicalCodecs.zig");
+const ColumnPredicate = @import("ColumnPredicate.zig");
 
 const columns = [_]Schema.Column{
     .{ .id = 1, .name = "id", .type = .int64, .nullable = false, .encoding = .bitpacked },
@@ -75,7 +76,7 @@ test "TSeg filtered groups retain schema budget integrity and projection validat
     try t.expectError(error.InvalidSegmentCoordinate, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{2}, filter, .{}, &failure));
     try t.expectError(error.SegmentReadBudgetExceeded, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, filter, .{ .decoded_bytes = 1 }, &failure));
     try t.expectEqual(before, input.calls);
-    const matching: Reader.Filter = .{ .column = 0, .predicate = .all };
+    const matching: Reader.Filter = .{ .column = 0, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .signed = 0 } } } };
     try t.expectError(error.SegmentReadBudgetExceeded, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, matching, .{ .page_bytes = 1 }, &failure));
     try t.expectEqual(before, input.calls);
     input.bytes[@intCast(reader.footer.row_groups[0].pages[0].offset)] ^= 1;
@@ -156,7 +157,12 @@ fn filteredAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     var reader = try Reader.open(allocator, input.source(), bytes.len, 8192);
     defer reader.deinit();
     var failure: ?Reader.FilterFailure = null;
-    var group = try reader.filteredGroup(allocator, input.source(), schema, 3, &.{ 0, 1 }, .{ .column = 0, .predicate = .all }, .{}, &failure);
+    const instructions = [_]ColumnPredicate.Program.Instruction{
+        .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .signed = 6 } } } } },
+        .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .ne, .value = .{ .bytes = "zzz" } } } } },
+        .conjunction,
+    };
+    var group = try reader.filteredProgram(allocator, input.source(), schema, 3, &.{ 0, 1 }, .{ .instructions = &instructions }, .{}, &failure);
     defer group.deinit();
     try t.expectEqualStrings("seven", group.columns[1][1].value.atom.bytes);
 }
@@ -190,6 +196,123 @@ test "TSeg filtered groups bound output expansion below a full decoded group" {
     try t.expectEqualStrings(&text, selected.columns[0][0].value.atom.bytes);
     try t.expect(selected.peakAllocatedBytes() <= 16 * 1024);
     try t.expectError(error.SegmentReadBudgetExceeded, reader.group(t.allocator, input.source(), schema, 0, &.{1}, .{ .decoded_bytes = 16 * 1024 }));
+}
+
+test "TSeg encoded programs preserve Boolean source order and prune with independent masks" {
+    const Instruction = ColumnPredicate.Program.Instruction;
+    const conjunction = [_]Instruction{
+        .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .signed = 3 } } } } },
+        .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .lt, .value = .{ .bytes = "seven" } } } } },
+        .conjunction,
+    };
+    const disjunction = [_]Instruction{
+        .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .lt, .value = .{ .signed = 1 } } } } },
+        .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .gt, .value = .{ .signed = 6 } } } } },
+        .disjunction,
+        .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .eq, .value = .{ .bytes = "one" } } } } },
+        .negate,
+        .conjunction,
+    };
+    const cases = [_]struct { code: []const Instruction, mask: [8]bool, candidates: [4]bool }{
+        .{ .code = &conjunction, .mask = .{ false, false, false, false, true, true, false, false }, .candidates = .{ false, false, true, false } },
+        .{ .code = &disjunction, .mask = .{ true, false, false, false, false, false, false, true }, .candidates = .{ true, false, false, true } },
+    };
+    for (cases) |case| {
+        var buffer: [16384]u8 = undefined;
+        var input: Input = .{ .bytes = try fixture(&buffer) };
+        var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+        defer reader.deinit();
+        const program: ColumnPredicate.Program = .{ .instructions = case.code };
+        var failure: ?Reader.FilterFailure = null;
+        var matched: usize = 0;
+        for (0..4) |index| {
+            const before = input.calls;
+            var selected = try reader.filteredProgram(t.allocator, input.source(), schema, index, &.{1}, program, .{}, &failure);
+            defer selected.deinit();
+            if (!case.candidates[index]) try t.expectEqual(before, input.calls) else try t.expect(input.calls > before);
+            var control = try reader.group(t.allocator, input.source(), schema, index, &.{ 0, 1 }, .{});
+            defer control.deinit();
+            var count: usize = 0;
+            for (0..2) |row| {
+                var instruction: ?u8 = null;
+                const cells = [_]Values.Cell{ control.columns[0][row], control.columns[1][row] };
+                try t.expectEqual(case.mask[index * 2 + row], (try program.truth(schema, &cells, &instruction)).selects());
+                if (!case.mask[index * 2 + row]) continue;
+                try t.expectEqual(@as(u32, @intCast(row)), selected.rows.?[count]);
+                try t.expectEqualStrings(names[index * 2 + row], selected.columns[0][count].value.atom.bytes);
+                count += 1;
+            }
+            try t.expectEqual(count, selected.rows.?.len);
+            matched += count;
+        }
+        try t.expectEqual(@as(usize, 2), matched);
+    }
+}
+
+test "TSeg encoded programs arbitrate eager failures by row then instruction" {
+    const Instruction = ColumnPredicate.Program.Instruction;
+    const fields = [_]Schema.Column{
+        .{ .id = 1, .name = "a", .type = .int64 },
+        .{ .id = 2, .name = "b", .type = .int64 },
+    };
+    const definition: Schema.Schema = .{ .object = 2, .revision = 1, .next_column = 3, .columns = &fields };
+    const left = [_]Values.Cell{ .{ .value = .{ .atom = .{ .signed = 0 } } }, .{ .type_error = .utf8 } };
+    const right = [_]Values.Cell{ .{ .conflict = &.{.{ .counter = 1, .replica = 2, .value = .null }} }, .{ .type_error = .int64 } };
+    var bytes: [8192]u8 = undefined;
+    const first = try Codecs.encodeColumnPage(t.allocator, fields[0], &left, &bytes);
+    const second = try Codecs.encodeColumnPage(t.allocator, fields[1], &right, bytes[first.len..]);
+    var pages: [2]TSeg.PageSlice = undefined;
+    for (&pages, [_][]const u8{ first, second }, 0..) |*coordinate, page_bytes, i| {
+        coordinate.* = .{ .offset = if (i == 0) 0 else first.len, .length = @intCast(page_bytes.len), .digest = undefined };
+        std.crypto.hash.sha2.Sha256.hash(page_bytes, &coordinate.digest, .{});
+    }
+    const zones = [_]TSeg.ZoneMap{ .{ .value_count = 1, .error_count = 1 }, .{ .conflict_count = 1, .error_count = 1 } };
+    const groups = [_]TSeg.RowGroupFooter{.{ .row_count = 2, .start_row_offset = 0, .pages = &pages, .zone_maps = &zones }};
+    var reader: Reader = .{ .footer_bytes = 0, .footer = .{ .arena = .init(t.allocator), .segment_id = 1, .object_id = 2, .schema_revision = 1, .layout_fingerprint = try definition.layoutFingerprint(), .total_rows = 2, .min_pk_sort_key = "", .max_pk_sort_key = "", .row_groups = &groups, .pk_index = &.{} } };
+    defer reader.deinit();
+    var input: Input = .{ .bytes = bytes[0 .. first.len + second.len] };
+    var failure: ?Reader.FilterFailure = null;
+    const predicate: ColumnPredicate.Predicate = .{ .compare = .{ .op = .eq, .value = .{ .signed = 999 } } };
+    var code = [_]Instruction{
+        .{ .atom = .{ .column = 0, .predicate = predicate } },
+        .{ .atom = .{ .column = 1, .predicate = predicate } },
+        .conjunction,
+    };
+    // The first column fails on row 1, but the second column fails on row 0.
+    // Physical evaluation order must not choose the column-0 error first.
+    const program: ColumnPredicate.Program = .{ .instructions = &code };
+    try t.expectError(error.QueryConflict, reader.filteredProgram(t.allocator, input.source(), definition, 0, &.{0}, program, .{}, &failure));
+    try t.expectEqual(@as(u32, 0), failure.?.row);
+    try t.expectEqual(@as(u8, 1), failure.?.instruction);
+    // A true left side of OR still evaluates the failing right operand.
+    code[0].atom.predicate = .all;
+    code[2] = .disjunction;
+    try t.expectError(error.QueryConflict, reader.filteredProgram(t.allocator, input.source(), definition, 0, &.{0}, program, .{}, &failure));
+    try t.expectEqual(@as(u8, 1), failure.?.instruction);
+    // Swap order so the same first source failure has instruction zero.
+    code[0].atom = .{ .column = 1, .predicate = predicate };
+    code[1].atom = .{ .column = 0, .predicate = predicate };
+    try t.expectError(error.QueryConflict, reader.filteredProgram(t.allocator, input.source(), definition, 0, &.{0}, program, .{}, &failure));
+    try t.expectEqual(@as(u8, 0), failure.?.instruction);
+}
+
+test "TSeg encoded programs preserve NULL negation and reject malformed programs before I O" {
+    var buffer: [16384]u8 = undefined;
+    var input: Input = .{ .bytes = try fixture(&buffer) };
+    var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+    defer reader.deinit();
+    var failure: ?Reader.FilterFailure = null;
+    const code = [_]ColumnPredicate.Program.Instruction{
+        .{ .atom = .{ .column = 0, .predicate = .null_compare } },
+        .negate,
+    };
+    const before = input.calls;
+    var empty = try reader.filteredProgram(t.allocator, input.source(), schema, 0, &.{1}, .{ .instructions = &code }, .{}, &failure);
+    defer empty.deinit();
+    try t.expectEqual(@as(usize, 0), empty.rows.?.len);
+    try t.expectEqual(before, input.calls);
+    try t.expectError(error.InvalidPredicateProgram, reader.filteredProgram(t.allocator, input.source(), schema, 0, &.{1}, .{ .instructions = code[1..] }, .{}, &failure));
+    try t.expectEqual(before, input.calls);
 }
 
 const Input = struct {

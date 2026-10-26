@@ -264,6 +264,17 @@ the predicate page after selection. These component operations do not change
 source retention, apply deletion vectors, enforce a query LIMIT, grant access or
 establish complete SQL results. The host retains those obligations.
 
+`filteredProgram` generalizes selection to at most 64 eager postfix instructions
+over column atoms. It uses the ordinary three-valued Boolean machine and a
+conservative abstract interpretation of footer counts/ranges for pruning.
+Possible errors in either operand prevent pruning even when the other operand
+determines the truth. Unknown remains unknown under negation. Candidate atoms
+retain separate row-outcome vectors under the decoded budget; physical column
+evaluation order cannot supersede first failure by source row and instruction.
+The error coordinate includes the original instruction. All atoms, including
+repeated references to one column, retain full page validation. The projection
+is decoded only after the entire predicate group succeeds.
+
 ## Local WAL persistence
 
 `LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second

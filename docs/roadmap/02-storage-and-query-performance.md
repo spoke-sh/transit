@@ -198,9 +198,15 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning
   with late projected decoding under the existing resident budgets. Independent
   byte/mask controls and allocation-failure checks cover this component path;
-  general SQL lowering, multi-column programs and installed/disk performance
+  general SQL lowering and installed/disk performance
   qualification remain open. This advances #118/#128 without closing their
   integration or complete comparison/hash/order obligations.
+- Encoded group filtering also executes bounded multi-column Boolean programs.
+  Zone-map abstract truth preserves unknown and eager source errors under
+  NOT/AND/OR, and the shared row machine arbitrates row/instruction order.
+  Logical program lowering keeps its original atoms and borrows their literals
+  under the exact Table interpretation; no wire or accepted-plan identity changes.
+  This is reader-component execution, with direct-service lowering still open.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

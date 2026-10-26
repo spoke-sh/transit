@@ -140,3 +140,27 @@ test "encoded column allocation failures free dictionary and validation workspac
     var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
     try t.checkAllAllocationFailures(no_resize.allocator(), allocationCase, .{encoded});
 }
+
+test "encoded column program lowering preserves NULL Boolean order and frozen collation" {
+    const Logical = @import("LogicalPredicate.zig");
+    const fields = [_]Schema.Column{ .{ .id = 1, .name = "text", .type = .utf8, .collation = .ascii_ci }, .{ .id = 2, .name = "n", .type = .int64 } };
+    const schema: Schema.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &fields };
+    const source = [_]Logical.Program.Instruction{
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .bytes = "A" } } } },
+        .{ .atom = .{ .null_compare = .{ .column = 1, .op = .eq } } },
+        .negate,
+        .disjunction,
+    };
+    var lowered: [Predicate.Program.max_instructions]Predicate.Program.Instruction = undefined;
+    const program = try Predicate.Program.fromLogical(.{ .instructions = &source }, &lowered);
+    try program.validate(schema);
+    try t.expectEqual(@as(usize, source.len), program.instructions.len);
+    var failed: ?u8 = null;
+    var cells = [_]Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "a" } } }, .{ .value = .{ .atom = .{ .signed = 1 } } } };
+    try t.expectEqual(.true_value, try program.truth(schema, &cells, &failed));
+    cells[0] = .{ .value = .{ .atom = .{ .bytes = "b" } } };
+    try t.expectEqual(.unknown, try program.truth(schema, &cells, &failed));
+    cells[1] = .{ .type_error = .utf8 };
+    try t.expectError(error.QueryTypeError, program.truth(schema, &cells, &failed));
+    try t.expectEqual(@as(?u8, 1), failed);
+}

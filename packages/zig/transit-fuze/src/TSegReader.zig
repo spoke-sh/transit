@@ -8,7 +8,7 @@ const TableSchema = @import("TableSchema.zig");
 const Values = @import("Values.zig");
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 const ColumnPredicate = @import("ColumnPredicate.zig");
-const Collation = @import("Collation.zig");
+const PredicateMachine = @import("PredicateMachine.zig");
 const Self = @This();
 
 pub const Source = struct {
@@ -24,7 +24,7 @@ pub const Limits = struct {
 };
 
 pub const Filter = struct { column: usize, predicate: ColumnPredicate.Predicate };
-pub const FilterFailure = struct { row: u32, column: usize, outcome: ColumnPredicate.Outcome };
+pub const FilterFailure = struct { row: u32, column: usize, instruction: u8 = 0, outcome: ColumnPredicate.Outcome };
 
 pub const Group = struct {
     workspace: *Workspace,
@@ -168,21 +168,30 @@ pub fn group(self: *const Self, allocator: std.mem.Allocator, source: Source, sc
 /// unchanged. The caller still owns snapshot, deletion and authorization gates.
 pub fn filteredGroup(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, filter: Filter, limits: Limits, failure: *?FilterFailure) !Group {
     failure.* = null;
+    if (filter.column >= schema.columns.len or filter.column >= TableSchema.max_columns) return error.InvalidSegmentCoordinate;
+    const instructions = [_]ColumnPredicate.Program.Instruction{.{ .atom = .{ .column = @intCast(filter.column), .predicate = filter.predicate } }};
+    return self.filteredProgram(allocator, source, schema, index, projection, .{ .instructions = &instructions }, limits, failure);
+}
+
+/// Evaluate a bounded eager Boolean program over encoded column outcomes.
+/// Group pruning is conservative under NOT/AND/OR and unknown values. All atoms
+/// remain eager; failures arbitrate by source row then original instruction.
+pub fn filteredProgram(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, limits: Limits, failure: *?FilterFailure) !Group {
+    failure.* = null;
     if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
         !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
-    if (index >= self.footer.row_groups.len or filter.column >= schema.columns.len or
+    if (index >= self.footer.row_groups.len or
         self.footer.row_groups[index].pages.len != schema.columns.len or
         self.footer.row_groups[index].zone_maps.len != schema.columns.len) return error.InvalidSegmentCoordinate;
     if (projection.len > schema.columns.len or limits.decoded_bytes == 0) return error.SegmentReadBudgetExceeded;
     for (projection) |column_index| if (column_index >= schema.columns.len) return error.InvalidSegmentCoordinate;
-    const column_schema = schema.columns[filter.column];
-    try filter.predicate.validate(column_schema);
+    try program.validate(schema);
     const metadata = self.footer.row_groups[index];
     const workspace = try Workspace.init(allocator, limits.decoded_bytes);
     errdefer workspace.deinit();
     const a = workspace.arena.allocator();
-    const rows: []const u32 = if (try mayMatch(metadata.zone_maps[filter.column], column_schema, filter.predicate))
-        self.filterRows(allocator, workspace, source, schema, index, filter, limits.page_bytes, failure) catch |err| return workspace.failure(err)
+    const rows: []const u32 = if (try program.mayMatch(schema, metadata.zone_maps))
+        self.programRows(allocator, workspace, source, schema, index, program, limits.page_bytes, failure) catch |err| return workspace.failure(err)
     else
         &.{};
     const columns = a.alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
@@ -192,65 +201,70 @@ pub fn filteredGroup(self: *const Self, allocator: std.mem.Allocator, source: So
     return .{ .workspace = workspace, .index = index, .source_rows = metadata.row_count, .columns = columns, .rows = rows };
 }
 
-fn mayMatch(zone: TSeg.ZoneMap, column_schema: TableSchema.Column, predicate: ColumnPredicate.Predicate) !bool {
-    return switch (predicate) {
-        .all => zone.value_count != 0 or zone.null_count != 0 or zone.missing_count != 0 or zone.error_count != 0 or zone.conflict_count != 0,
-        .state => |state| switch (state) {
-            .value => zone.value_count != 0,
-            .null => zone.null_count != 0,
-            .missing => zone.missing_count != 0,
-            .type_error => zone.error_count != 0,
-            .conflict => zone.conflict_count != 0,
-        },
-        .null_compare => zone.error_count != 0 or zone.conflict_count != 0,
-        .compare => |comparison| blk: {
-            // A logically nonmatching group can still contain an eager error.
-            if (zone.error_count != 0 or zone.conflict_count != 0) break :blk true;
-            if (comparison.op == .ne) break :blk zone.value_count != 0;
-            var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
-            const key = Collation.encodeSortKey(.{ .value = .{ .atom = comparison.value } }, column_schema.type, column_schema.collation, &buffer) catch |err| switch (err) {
-                error.WriteFailed => break :blk true,
-                else => return err,
-            };
-            break :blk switch (comparison.op) {
-                .eq => zone.mayMatch(.eq, key),
-                .lt => zone.mayMatch(.lt, key),
-                .le => zone.mayMatch(.le, key),
-                .gt => zone.mayMatch(.gt, key),
-                .ge => zone.mayMatch(.ge, key),
-                .ne => unreachable,
-            };
-        },
-    };
-}
+const OutcomeAtom = struct {
+    instruction: u8,
+    pub fn validateShape(self: OutcomeAtom) !void {
+        if (self.instruction >= ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
+    }
+    pub fn truth(self: OutcomeAtom, row: OutcomeRow) !@import("Finite.zig").Truth {
+        return row.columns[self.instruction].?[row.row].truth();
+    }
+};
+const OutcomeRow = struct { columns: []const ?[]ColumnPredicate.Outcome, row: usize };
 
-fn filterRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, filter: Filter, page_budget: usize, failure: *?FilterFailure) ![]const u32 {
-    const metadata = self.footer.row_groups[index];
-    const coordinate = metadata.pages[filter.column];
-    if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
-    const bytes = try allocator.alloc(u8, coordinate.length);
-    defer allocator.free(bytes);
-    try source.read(source.context, coordinate.offset, bytes);
-    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, filter.column);
+fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, page_budget: usize, failure: *?FilterFailure) ![]const u32 {
+    const row_count = self.footer.row_groups[index].row_count;
     const bounded = workspace.bounded();
-    const result = try PhysicalCodecs.evaluateColumnPage(bounded, bounded, schema.columns[filter.column], bytes, filter.predicate);
-    defer bounded.free(result.outcomes);
-    if (result.outcomes.len != metadata.row_count) return error.InvalidSegment;
+    var columns: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null);
+    defer for (columns) |column_outcomes| if (column_outcomes) |outcomes| bounded.free(outcomes);
+    var instructions: [ColumnPredicate.Program.max_instructions]PredicateMachine.Instruction(OutcomeAtom) = undefined;
+    for (program.instructions, 0..) |instruction, i| {
+        instructions[i] = switch (instruction) {
+            .atom => |atom| blk: {
+                if (atom.predicate == .all) {
+                    columns[i] = try bounded.alloc(ColumnPredicate.Outcome, row_count);
+                    @memset(columns[i].?, .yes);
+                } else {
+                    columns[i] = try self.columnOutcomes(allocator, workspace, source, schema, index, atom, page_budget);
+                }
+                break :blk .{ .atom = .{ .instruction = @intCast(i) } };
+            },
+            .negate => .negate,
+            .conjunction => .conjunction,
+            .disjunction => .disjunction,
+        };
+    }
+    const code = instructions[0..program.instructions.len];
     var count: usize = 0;
-    for (result.outcomes, 0..) |outcome, row| {
-        const truth = outcome.truth() catch |err| {
-            failure.* = .{ .row = @intCast(row), .column = filter.column, .outcome = outcome };
+    for (0..row_count) |row| {
+        var failed_instruction: ?u8 = null;
+        const truth = PredicateMachine.truthDiagnostic(code, OutcomeRow{ .columns = &columns, .row = row }, &failed_instruction) catch |err| {
+            if (failed_instruction) |at| failure.* = .{ .row = @intCast(row), .column = program.instructions[at].atom.column, .instruction = at, .outcome = columns[at].?[row] };
             return err;
         };
         if (truth.selects()) count += 1;
     }
     const rows = try workspace.arena.allocator().alloc(u32, count);
     var selected: usize = 0;
-    for (result.outcomes, 0..) |outcome, row| if (outcome == .yes) {
+    for (0..row_count) |row| if ((try PredicateMachine.truth(code, OutcomeRow{ .columns = &columns, .row = row })).selects()) {
         rows[selected] = @intCast(row);
         selected += 1;
     };
     return rows;
+}
+
+fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, atom: ColumnPredicate.Atom, page_budget: usize) ![]ColumnPredicate.Outcome {
+    const coordinate = self.footer.row_groups[index].pages[atom.column];
+    if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
+    const bytes = try allocator.alloc(u8, coordinate.length);
+    defer allocator.free(bytes);
+    try source.read(source.context, coordinate.offset, bytes);
+    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, atom.column);
+    const bounded = workspace.bounded();
+    const result = try PhysicalCodecs.evaluateColumnPage(bounded, bounded, schema.columns[atom.column], bytes, atom.predicate);
+    errdefer bounded.free(result.outcomes);
+    if (result.outcomes.len != self.footer.row_groups[index].row_count) return error.InvalidSegment;
+    return result.outcomes;
 }
 
 fn selectedColumn(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, rows: []const u32, page_budget: usize) ![]Values.Cell {

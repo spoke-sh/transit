@@ -72,6 +72,18 @@ footer's statistics and does not verify omitted payloads. Hosts own deletion
 visibility, query limits, snapshot retention and final disclosure; direct SQL
 does not yet lower general predicates into this component API.
 
+`filteredProgram` accepts a `ColumnPredicate.Program` with at most 64 postfix
+instructions across the declared columns. It evaluates all atoms, then uses the
+shared Boolean machine to preserve eager row/instruction failure order.
+Conservative zone-map truth sets retain unknown values under NOT/AND/OR; any
+possible eager error prevents pruning. Each atom's outcome vector shares the
+decoded budget, and only one encoded page is live. Repeated atoms can read the
+same column again. `Program.fromLogical` retains atom and instruction order while
+borrowing literals into caller-supplied instruction storage. The host binds its
+exact Table interpretation; this conversion creates no saved plan or new wire
+identity. Plain decoded `Program.truth` and encoded evaluation use the same
+declared collation and Boolean semantics.
+
 `AuthorizationSql.compile` parses the selected role, membership, privilege,
 default-privilege, schema and ownership statements into unresolved typed syntax.
 Its owned arena is released with `deinit`. Names are bounded to 63 UTF-8 bytes;

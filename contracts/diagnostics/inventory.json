@@ -7058,9 +7058,12 @@
     },
     "packages/zig/transit-fuze/src/ColumnPredicate.zig": {
       "errors": {
+        "InvalidSegmentCoordinate": 1,
         "QueryConflict": 1,
         "QueryTypeError": 1,
-        "UnsupportedComparison": 3
+        "UnknownColumn": 3,
+        "UnsupportedComparison": 3,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Outcome": [
@@ -7079,19 +7082,28 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Atom.truth()": "<inferred>",
+        "Atom.validateShape()": "<inferred>",
         "Outcome.truth()": "<inferred>",
         "Predicate.evaluate()": "<inferred>",
         "Predicate.evaluate().<struct>.order()": "<inferred>",
-        "Predicate.validate()": "<inferred>"
+        "Predicate.possibilities()": "<inferred>",
+        "Predicate.validate()": "<inferred>",
+        "Program.fromLogical()": "<inferred>",
+        "Program.mayMatch()": "<inferred>",
+        "Program.truth()": "<inferred>",
+        "Program.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
-        "catch": 0
+        "try": 11,
+        "catch": 1
       },
       "imports": [
         "Collation.zig",
         "Finite.zig",
+        "LogicalPredicate.zig",
+        "PredicateMachine.zig",
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
@@ -9721,37 +9733,41 @@
     "packages/zig/transit-fuze/src/TSegReader.zig": {
       "errors": {
         "InvalidColumnSelection": 1,
+        "InvalidPredicateProgram": 1,
         "InvalidSegment": 4,
-        "InvalidSegmentCoordinate": 6,
+        "InvalidSegmentCoordinate": 7,
         "SegmentReadBudgetExceeded": 11,
-        "TableSchemaChanged": 5,
-        "WriteFailed": 1
+        "TableSchemaChanged": 5
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "EncodedGroup.select()": "<inferred>",
+        "OutcomeAtom.truth()": "<inferred>",
+        "OutcomeAtom.validateShape()": "<inferred>",
         "Source.read()": "anyerror",
         "Workspace.failure()": "anyerror",
         "Workspace.init()": "<inferred>",
         "column()": "<inferred>",
+        "columnOutcomes()": "<inferred>",
         "encodedGroup()": "<inferred>",
-        "filterRows()": "<inferred>",
         "filteredGroup()": "<inferred>",
+        "filteredProgram()": "<inferred>",
         "group()": "<inferred>",
-        "mayMatch()": "<inferred>",
         "open()": "<inferred>",
+        "programRows()": "<inferred>",
         "selectedColumn()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 32,
-        "catch": 11
+        "try": 35,
+        "catch": 10
       },
       "imports": [
-        "Collation.zig",
         "ColumnPredicate.zig",
+        "Finite.zig",
         "PhysicalCodecs.zig",
+        "PredicateMachine.zig",
         "TSeg.zig",
         "TableSchema.zig",
         "Values.zig",

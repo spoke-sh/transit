@@ -1,5 +1,31 @@
 # Validation and evidence
 
+## Encoded Boolean segment programs — 2026-10-26
+
+On `cdf5cdda7` plus bounded program selection, pinned Fuze `zig build test
+--summary all` passes **369/369 tests** (one minute, reported MaxRSS 84 MiB).
+The encoded path and the decoded program share the existing predicate machine.
+Explicit masks exercise multi-column conjunction, disjunction and negation,
+comparing selected values/order with complete decoded groups. Noncandidate groups
+perform no payload reads. A bound NULL remains unknown under NOT and therefore
+does not select a row. Logical lowering preserves instruction order and binds
+the supplied declared collation.
+
+A synthetic two-column five-state page puts a later type error in the first
+physical column and an earlier conflict in the second. Encoded evaluation reports
+the earlier source row and its original instruction. A true left operand of OR
+does not hide the right operand's error; swapping atoms updates the instruction
+coordinate without changing source ordering. Malformed programs reject before
+I/O. Allocation-failure enumeration covers multiple outcome vectors and late
+projected decoding. Every outcome vector, selection ordinal and decoding
+workspace shares the configured resident allowance.
+
+These controls extend the preceding component evidence. They do not establish
+SQL pushdown, cross-column correlation-aware pruning, disk/latency improvements
+or complete milestone qualification. Repeated atoms may reread a column, and
+projection of predicate columns may read those pages again. No stored or wire
+definition changes.
+
 ## Encoded column predicates and projected segment filtering — 2026-10-26
 
 On merged `d553aa9c` plus this increment, the pinned Fuze selection
