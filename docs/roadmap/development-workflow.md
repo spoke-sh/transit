@@ -202,11 +202,11 @@ this plan is not another chronological test transcript.
 
 ### P3 — Verification organization and evidence integrity
 
-- [ ] P3.1 Group formal runners with their models/configurations; keep canonical
+- [x] P3.1 Group formal runners with their models/configurations; keep canonical
   Lean contract specifications with their owning contract where appropriate.
-- [ ] P3.2 Move deterministic drivers, replay corpora and implementation schedules
+- [x] P3.2 Move deterministic drivers, replay corpora and implementation schedules
   into `simulation/`, with explicit domain subgroups.
-- [ ] P3.3 Move mutation campaigns and negative controls into `mutations/`.
+- [x] P3.3 Move mutation campaigns and negative controls into `mutations/`.
   Preserve source-edit matching, committed clone isolation and detection rules.
 - [ ] P3.4 Make verification README/AGENTS navigational and instructional. Move
   reusable methods beside their owners and historical accounts to history.
@@ -383,7 +383,8 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The 1,405-file disposition map is recorded; eleven layout controls cover duplicate destinations, missing dispositions and retained-evidence integrity. Dynamic task/artifact dependency auditing remains pending. Committed-source checks pass after the runner move. |
 | P2 | In Progress | Linux child discovery/joining extracted in `e61ef1891`; real child-death and adopted-grandchild controls pass. All 29 fast checks pass from clean committed source. The shared Python launcher has real controls for moved drivers, subdirectory invocation, arguments, failures and installed-child import isolation; the catalog uses it and the expanded 30-check fast scope passes locally. Remaining drivers migrate with their owners. The server schedule passes startup/configuration/host checks, then fails the SQL reply-observation control with `SqlOutcomeUnknown`; the private failed installation is preserved. Installation/provider qualification remains incomplete. |
 | P4 | In Progress | 734 historical/generated records leave the current tree with immutable Git links and original hashes; archive integrity checks verify all original blobs. Twelve layout controls and 29 fast checks pass. Active budgets remain executable inputs; 22 Nix invalidation controls pass. Automatic per-task capture is implemented in `81823b2e5`: local and clean-source fast/contract runs preserve logs, exact generator inputs and verifiable completion; missing/changed artifacts and interruption controls pass. Hosted publication paths include these records with 14-day retention; final hosted and packaged-runtime qualification remain pending. |
-| P3, P5–P12 | Planned | Checklists above; no execution claimed |
+| P3 | In Progress | Forty formal runner, simulation, Zig fixture and corpus files moved to their owners with explicit imports and updated build/callers. All 24 saved replay JSON inputs retain their original hashes. The five-task formal lane passes: Authority 7,867 states and four replayed controls; WAL 201,771 states and six controls; Console 5,278 states / 91,198 replayed edges and six controls; Delivery and four Lean theorems pass. All 30 fast checks pass. Concrete generated schedules, committed-source mutations and final documentation consolidation remain pending. |
+| P5–P12 | Planned | Checklists above; no execution claimed |
 
 The final PR closes the work only when the proposed structure exists, every
 required scenario has an executable owner, source-clean checks pass, retained

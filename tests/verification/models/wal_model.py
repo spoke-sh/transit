@@ -10,8 +10,8 @@ import subprocess
 import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
-MODELS = Path(__file__).resolve().parent / "models"
+from runner.paths import ROOT
+MODELS = Path(__file__).resolve().parent
 MUTANTS = {
     "CheckSync": "PublishedHistory",
     "CheckFence": "AppendFenced",

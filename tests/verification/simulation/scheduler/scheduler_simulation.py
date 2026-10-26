@@ -9,10 +9,10 @@ import subprocess
 import tempfile
 import time
 
-from transitions import minimize
+from verification.simulation.transitions.transitions import minimize
 
-ROOT=Path(__file__).resolve().parents[2]
-CORPUS=Path(__file__).parent/'scheduler-simulation'
+from runner.paths import ROOT
+CORPUS=Path(__file__).parent/'corpus'
 
 
 def generated(seed, steps):

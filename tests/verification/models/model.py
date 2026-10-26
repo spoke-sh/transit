@@ -9,9 +9,9 @@ import subprocess
 import tempfile
 import time
 
-from transitions import ROOT, run
+from verification.simulation.transitions.transitions import ROOT, run
 
-MODELS = Path(__file__).resolve().parent / "models"
+MODELS = Path(__file__).resolve().parent
 
 
 def concrete(events):

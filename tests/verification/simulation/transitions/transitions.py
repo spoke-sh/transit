@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
+from runner.paths import ROOT
 CORPUS = Path(__file__).resolve().parent / "corpus"
 
 

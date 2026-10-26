@@ -12,7 +12,7 @@ const Store = struct {
     allocator: std.mem.Allocator,
     entries: std.ArrayList(core.Entry) = .empty,
     pages: std.AutoHashMapUnmanaged(core.pages.Reference, core.pages.Page) = .empty,
-    blocks: @import("simulation_blocks.zig") = .{},
+    blocks: @import("simulation_blocks") = .{},
     fault: Fault = .none,
     stages: usize = 0,
 

@@ -12,7 +12,7 @@ from pathlib import Path
 import subprocess
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
+from runner.paths import ROOT
 DOMAINS = ({'document', 'checkpoint'}, {'exchange'}, {'refresh'}, {'runtime'}, {'catalog'})
 
 

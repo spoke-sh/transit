@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
+from runner.paths import ROOT
 CORE = Path("packages/zig/transit-core/src")
 MUTANTS = {
     "generation": (

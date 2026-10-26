@@ -9,9 +9,9 @@ import subprocess
 import tempfile
 import time
 
-from transitions import ResourceModel, minimize
+from verification.simulation.transitions.transitions import ResourceModel, minimize
 
-ROOT = Path(__file__).resolve().parents[2]
+from runner.paths import ROOT
 FAULT_ERRORS = dict(stage_before='StorageUnavailable', stage_after='LostStageAcknowledgement',
                     load='PageUnavailable', before_append='StorageUnavailable',
                     after_append='LostAcknowledgement', trim_before='StorageUnavailable',
@@ -165,7 +165,7 @@ def main():
                     zig=subprocess.check_output(['zig','version'],text=True).strip(),
                     binary_sha256=hashlib.sha256(args.binary.read_bytes()).hexdigest(),
                     oracle_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                    oracle_dependencies={name:hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest() for name in ('transitions.py',)},
+                    oracle_dependencies={name:hashlib.sha256((ROOT/'tests/verification/simulation/transitions'/name).read_bytes()).hexdigest() for name in ('transitions.py',)},
                     generator='xorshift64-resource-v1', configuration=vars(args) | dict(binary=str(args.binary),trace=str(args.trace) if args.trace else None))
     report_path.write_text(json.dumps(identity | dict(completed=False),indent=2)+'\n')
     started = time.monotonic()
@@ -196,7 +196,7 @@ def main():
         if args.trace:
             check(json.loads(args.trace.read_text()))
         else:
-            for path in sorted((Path(__file__).parent/'resource-simulation').glob('*.json')):
+            for path in sorted((Path(__file__).parent/'corpus').glob('*.json')):
                 check(json.loads(path.read_text()))
             for seed in range(1, (0 if args.smoke else args.seeds)+1):
                 trace=baseline(seed)

@@ -12,7 +12,7 @@ const Store = struct {
     entries: std.ArrayList(core.Entry) = .empty,
     fault: Fault = .none,
     pages: std.AutoHashMapUnmanaged(core.pages.Reference, core.pages.Page) = .empty,
-    blocks: @import("simulation_blocks.zig") = .{},
+    blocks: @import("simulation_blocks") = .{},
 
     pub fn stage(self: *Store, reference: core.pages.Reference, page: *const core.pages.Page) !core.pages.Reference {
         try self.pages.put(self.allocator, reference, page.*);

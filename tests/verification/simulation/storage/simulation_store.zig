@@ -8,7 +8,7 @@ pub const Counts = struct { stages: u32 = 0, loads: u32 = 0, appends: u32 = 0, t
 allocator: std.mem.Allocator,
 entries: std.ArrayList(?core.Entry) = .empty,
 pages: std.AutoHashMapUnmanaged(core.pages.Reference, core.pages.Page) = .empty,
-blocks: @import("simulation_blocks.zig") = .{},
+blocks: @import("simulation_blocks") = .{},
 cache: [2]?struct { reference: core.pages.Reference, page: core.pages.Page } = @splat(null),
 next_cache: u1 = 0,
 fault: Fault = .none,

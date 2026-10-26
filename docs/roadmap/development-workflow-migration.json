@@ -1951,7 +1951,7 @@
     },
     {
       "source": "tests/delivery_simulation.zig",
-      "destination": "tests/verification/models/delivery_simulation.zig",
+      "destination": "tests/verification/simulation/storage/delivery_simulation.zig",
       "owner": "verification",
       "role": "executable",
       "reference_consumers": [
@@ -1961,7 +1961,8 @@
         "tests/scheduler_simulation.zig",
         "tests/verification/README.md",
         "tests/verification/invariants.json"
-      ]
+      ],
+      "rationale": "Exercises deterministic real-engine authority/delivery schedules; the independent Delivery TLA model remains under models."
     },
     {
       "source": "tests/deployments.py",

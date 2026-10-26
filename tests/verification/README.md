@@ -351,13 +351,13 @@ just test::properties --seeds 128 --steps 128
 just test::properties --trace .cache/verification/transitions/failure.json
 ```
 
-[transition_driver.zig](../transition_driver.zig) executes `Engine(Store)` with
+[transition_driver.zig](simulation/transitions/transition_driver.zig) executes `Engine(Store)` with
 real signatures, caller proposals and replay. Its test-only store separates
 failure before append from lost acknowledgement after append. Each step recovers
 the durable history and compares its logical state with the live engine. It does
 not run application handlers or make network calls.
 
-[transitions.py](transitions.py) independently tracks one PID, caller permission,
+[transitions.py](simulation/transitions/transitions.py) independently tracks one PID, caller permission,
 ownership, mailbox progress, retained receipts and caller-supplied opaque results.
 It compares every boundary against the driver, including preparations that never
 publish. Generation uses a fixed xorshift64 algorithm; failure evidence saves the
@@ -390,14 +390,14 @@ just test::simulation --trace .cache/verification/simulation/minimized.json
 just test::simulation-mutations
 ```
 
-[delivery_simulation.zig](../delivery_simulation.zig) executes real signed authority
+[delivery_simulation.zig](simulation/storage/delivery_simulation.zig) executes real signed authority
 and outbox transitions with producer PIDs 4 and 5, worker principals 1 and 2,
 destination PID 6 and courier principal 3. Root principal 0 owns provisioning and
 policy changes. The fixed topology and eight delayed-decision slots bound this
 test, not production cardinality. A synthetic turn copies one admitted integer
 into one committed output. No application handler, resource, HTTP or effect runs.
 
-[simulation.py](simulation.py) independently checks operation outcomes, sequences,
+[simulation.py](simulation/storage/simulation.py) independently checks operation outcomes, sequences,
 ownership, lifecycle, output phases, values and destination-input provenance after
 every event. A separately recovered engine must match the live engine's selected
 logical state without staging pages. The live engine/cache survive until explicit
@@ -456,7 +456,7 @@ minimized. The larger generated run also passed 263 traces / 33,250 boundaries
 in 475.97 seconds on the shared development host. This is a bounded exploration
 cost, not a throughput benchmark. Artifacts are under
 `.cache/verification/mutations/` and `.cache/verification/transitions.json`.
-The five-action [view-expiry regression](corpus/view-expiry-regression.json)
+The five-action [view-expiry regression](simulation/transitions/corpus/view-expiry-regression.json)
 is the minimized missing-deadline mutant counterexample and runs in the ordinary
 corpus. It records a negative control, not a discovered production defect.
 

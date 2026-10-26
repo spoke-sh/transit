@@ -245,7 +245,8 @@
           {
             "glob": "tests/*.zig"
           },
-          "tests/fuze_benchmarks"
+          "tests/fuze_benchmarks",
+          "tests/verification"
         ]
       },
       {

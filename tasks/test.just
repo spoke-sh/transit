@@ -230,7 +230,7 @@ simulation *args:
 
 # Committed HEAD only: qualify delivery oracles against compiling core mutants.
 simulation-mutations:
-    python3 -B tests/verification/mutations.py --simulation
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --simulation
 
 # Small saved storage fault regression corpus.
 resource-simulation-smoke:
@@ -238,7 +238,7 @@ resource-simulation-smoke:
 
 # Compiling core mutations for atomic resource/input publication.
 resource-simulation-mutations:
-    python3 -B tests/verification/mutations.py --resource
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --resource
 
 # Numbered page/journal faults, captured roots and checkpoint recovery.
 resource-simulation *args:
@@ -263,7 +263,7 @@ model *args:
 
 # Local WAL durability ordering, bounded exhaustive safety and six negative controls.
 wal-model *args:
-    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/verification/wal_model.py {{args}}
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/wal_model.py {{args}}
 
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
@@ -279,7 +279,7 @@ model-delivery:
 
 # Committed HEAD only: omit selected real guards in isolated clones.
 mutations:
-    python3 -B tests/verification/mutations.py
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py
 
 # Qualify finite IPC schemas/values against an independent Arrow reader.
 arrow:
@@ -849,7 +849,7 @@ scheduler-simulation *args:
 
 # Defects in the actual shared Session and courier code must be observed.
 scheduler-simulation-mutations:
-    python3 -B tests/verification/mutations.py --scheduler
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --scheduler
 
 # Seeded checks over real Document, Exchange, query/reactive, runtime and catalog code.
 domain-simulation *args:
@@ -857,7 +857,7 @@ domain-simulation *args:
 
 # Qualify each component oracle using a compiling defect in its real owner.
 domain-simulation-mutations:
-    python3 -B tests/verification/mutations.py --domain
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --domain
 
 # External OS/network faults over owned binaries and actual disk Ursula.
 vortex *args:

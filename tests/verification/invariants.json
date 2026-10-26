@@ -1307,7 +1307,7 @@
       "implementation": [
         "packages/zig/transit-core/src/growing.zig",
         "packages/zig/transit-core/src/growing_work.zig",
-        "tests/delivery_simulation.zig"
+        "tests/verification/simulation/storage/delivery_simulation.zig"
       ],
       "profile": "two producer PIDs and one destination; real signed core transitions with an atomic in-memory journal",
       "tasks": [
@@ -1333,7 +1333,7 @@
       "implementation": [
         "packages/zig/transit-core/src/growing_state.zig",
         "packages/zig/transit-core/src/pages.zig",
-        "tests/resource_simulation.zig"
+        "tests/verification/simulation/resources/resource_simulation.zig"
       ],
       "profile": "one resource writer, one key, captured roots, a two-page test cache and atomic journal",
       "tasks": [
@@ -1358,7 +1358,7 @@
       "implementation": [
         "packages/zig/transit-client/src/Session.zig",
         "packages/zig/transit-client/src/delivery.zig",
-        "tests/scheduler_simulation.zig"
+        "tests/verification/simulation/scheduler/scheduler_simulation.zig"
       ],
       "profile": "two producer Sessions and a courier with signed in-process transport; finite settlement profile and explicit trusted time",
       "tasks": [
@@ -1386,7 +1386,7 @@
         "packages/zig/transit-exchange/src/exchange_test.zig",
         "packages/zig/transit-serving/src/refresh_test.zig",
         "packages/zig/transit-core/src/growing_test.zig",
-        "tests/verification/domain_simulation.py",
+        "tests/verification/simulation/domains/domain_simulation.py",
         "packages/zig/transit-catalog/src/direct_catalog_test.zig"
       ],
       "profile": "Seeded real-component schedules with private-turn stores and volatile direct catalog log/object adapters",
@@ -1986,8 +1986,8 @@
         "apps/transit-cli/EditorState.zig",
         "apps/transit-cli/Terminal.zig",
         "apps/transit-cli/AssistanceRequest.zig",
-        "tests/console_state.zig",
-        "tests/verification/console_model.py"
+        "tests/verification/models/console_state.zig",
+        "tests/verification/models/console_model.py"
       ],
       "profile": "Finite editor interaction/request model plus production Zig reducer and Linux PTY adapter",
       "tasks": [

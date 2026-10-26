@@ -553,47 +553,64 @@ pub fn build(b: *std.Build) void {
     growth_test.has_side_effects = true;
     growth_test.stdio = .inherit;
     b.step("test-growing", "Prove growing authority publication and recovery through disk Ursula").dependOn(&growth_test.step);
-    const transition_driver = b.addExecutable(.{ .name = "transit-transition-driver", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/transition_driver.zig"),
+    const simulation_blocks = b.createModule(.{
+        .root_source_file = b.path("tests/verification/simulation/storage/simulation_blocks.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
+    });
+    const simulation_store = b.createModule(.{
+        .root_source_file = b.path("tests/verification/simulation/storage/simulation_store.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "simulation_blocks", .module = simulation_blocks } },
+    });
+    const delivery_simulation = b.createModule(.{
+        .root_source_file = b.path("tests/verification/simulation/storage/delivery_simulation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "simulation_blocks", .module = simulation_blocks } },
+    });
+    const transition_driver = b.addExecutable(.{ .name = "transit-transition-driver", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/simulation/transitions/transition_driver.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "simulation_blocks", .module = simulation_blocks } },
     }) });
     const properties = b.addSystemCommand(&.{ "python3", "-B" });
-    properties.addFileArg(b.path("tests/verification/transitions.py"));
+    properties.addFileArg(b.path("tests/runner/launch.py"));
+    properties.addFileArg(b.path("tests/verification/simulation/transitions/transitions.py"));
     properties.addArtifactArg(transition_driver);
     properties.addPassthruArgs();
     properties.has_side_effects = true;
     properties.stdio = .inherit;
     b.step("test-properties", "Run reproducible authority schedules and saved regressions").dependOn(&properties.step);
-    const simulation_driver = b.addExecutable(.{ .name = "transit-delivery-simulation", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/delivery_simulation.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
-    }) });
+    const simulation_driver = b.addExecutable(.{ .name = "transit-delivery-simulation", .root_module = delivery_simulation });
     const simulation = b.addSystemCommand(&.{ "python3", "-B" });
-    simulation.addFileArg(b.path("tests/verification/simulation.py"));
+    simulation.addFileArg(b.path("tests/runner/launch.py"));
+    simulation.addFileArg(b.path("tests/verification/simulation/storage/simulation.py"));
     simulation.addArtifactArg(simulation_driver);
     simulation.addPassthruArgs();
     simulation.has_side_effects = true;
     simulation.stdio = .inherit;
     b.step("test-simulation", "Simulate competing workers, ordered delivery and bounded recovery progress").dependOn(&simulation.step);
     const resource_simulation_driver = b.addExecutable(.{ .name = "transit-resource-simulation", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/resource_simulation.zig"),
+        .root_source_file = b.path("tests/verification/simulation/resources/resource_simulation.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "simulation_store", .module = simulation_store } },
     }) });
     const resource_simulation = b.addSystemCommand(&.{ "python3", "-B" });
-    resource_simulation.addFileArg(b.path("tests/verification/resource_simulation.py"));
+    resource_simulation.addFileArg(b.path("tests/runner/launch.py"));
+    resource_simulation.addFileArg(b.path("tests/verification/simulation/resources/resource_simulation.py"));
     resource_simulation.addArtifactArg(resource_simulation_driver);
     resource_simulation.addPassthruArgs();
     resource_simulation.has_side_effects = true;
     resource_simulation.stdio = .inherit;
     b.step("test-resource-simulation", "Simulate page I/O faults and atomic resource publication").dependOn(&resource_simulation.step);
     const formal = b.addSystemCommand(&.{ "python3", "-B" });
-    formal.addFileArg(b.path("tests/verification/model.py"));
+    formal.addFileArg(b.path("tests/runner/launch.py"));
+    formal.addFileArg(b.path("tests/verification/models/model.py"));
     formal.addArtifactArg(transition_driver);
     formal.addPassthruArgs();
     formal.has_side_effects = true;
@@ -631,20 +648,22 @@ pub fn build(b: *std.Build) void {
     b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
     const scheduler_driver = b.addExecutable(.{ .name = "transit-scheduler-simulation", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/scheduler_simulation.zig"),
+        .root_source_file = b.path("tests/verification/simulation/scheduler/scheduler_simulation.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_client", .module = client.module("transit_client") } },
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_client", .module = client.module("transit_client") }, .{ .name = "simulation_store", .module = simulation_store }, .{ .name = "delivery_simulation", .module = delivery_simulation } },
     }) });
     const scheduler = b.addSystemCommand(&.{ "python3", "-B" });
-    scheduler.addFileArg(b.path("tests/verification/scheduler_simulation.py"));
+    scheduler.addFileArg(b.path("tests/runner/launch.py"));
+    scheduler.addFileArg(b.path("tests/verification/simulation/scheduler/scheduler_simulation.py"));
     scheduler.addArtifactArg(scheduler_driver);
     scheduler.addPassthruArgs();
     scheduler.has_side_effects = true;
     scheduler.stdio = .inherit;
     b.step("test-scheduler-simulation", "Schedule shared Sessions/courier with faults, clocks and maintenance").dependOn(&scheduler.step);
     const domains = b.addSystemCommand(&.{ "python3", "-B" });
-    domains.addFileArg(b.path("tests/verification/domain_simulation.py"));
+    domains.addFileArg(b.path("tests/runner/launch.py"));
+    domains.addFileArg(b.path("tests/verification/simulation/domains/domain_simulation.py"));
     inline for (.{ document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core"), catalog.module("transit_catalog") }) |module| {
         domains.addArtifactArg(b.addTest(.{ .root_module = module, .filters = &.{"simulation:"} }));
     }
@@ -970,13 +989,14 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
     });
     const console_trace = b.addExecutable(.{ .name = "console-state-trace", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/console_state.zig"),
+        .root_source_file = b.path("tests/verification/models/console_state.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "console_editor", .module = console_editor }},
     }) });
     const console_model = b.addSystemCommand(&.{ "python3", "-B" });
-    console_model.addFileArg(b.path("tests/verification/console_model.py"));
+    console_model.addFileArg(b.path("tests/runner/launch.py"));
+    console_model.addFileArg(b.path("tests/verification/models/console_model.py"));
     console_model.addArtifactArg(console_trace);
     console_model.has_side_effects = true;
     console_model.stdio = .inherit;
