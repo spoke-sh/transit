@@ -10,6 +10,11 @@ inventory in [checks.json](checks.json), and measured cost policy in
 indirect build/runner nesting. Run `test_task_coverage.py` and `ci_runner.py`
 after changing task ownership; registration does not establish a passing result.
 
+[layout.json](layout.json) owns the allowed test directories and the enumerated
+files awaiting migration. Shrink its exceptions with each move. Do not add an
+exception for new work or use wildcard exceptions. Keep layout regression controls
+in the fast check; test actual added, moved, deleted and untracked files.
+
 Keep the fast profile free of runtime compilation, package installation, physical
 fault schedules and Transit service setup. Report its limited scope explicitly.
 Every check removed from an aggregate must retain an executable owner and required
