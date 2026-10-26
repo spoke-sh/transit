@@ -43,10 +43,34 @@ page, including skipped values and conflict details, using a reusable scratch
 workspace. Dictionary entries borrow encoded scalar bytes until selected;
 selected repetitions share one owned value. Symbol-table and EBCDIC strings
 still require transient expansion for validation. This reduces retained decoded
-values without claiming to skip all decoding work or supply encoded predicates.
+values without skipping complete-page validation.
 `Types.Codec.decodeBoundBorrowingBytes` exposes the underlying explicit lifetime:
 text, binary and JSON bytes borrow immutable input, recursive arrays belong to
 the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
+
+`PhysicalCodecs.evaluateColumnPage` evaluates one `ColumnPredicate` over physical
+values, runs or dictionary codes. Its output owns one byte per row, preserving
+true, false, unknown, type error and conflict separately. RLE runs and dictionary
+entries evaluate once; symbol-table and EBCDIC strings use bounded transient
+decoding. The caller keeps the typed literal alive during evaluation and owns
+scratch/output allocations. The complete encoded page is validated before
+success, including nonmatching values. Comparisons use the column's declared
+logical type and binary, ASCII case-insensitive or CP037 collation.
+
+`TSegReader.filteredGroup` combines that kernel with verified zone-map pruning
+and projected row selection. It validates interpretation and projection before
+pruning, reads the predicate column only for candidate groups, then decodes
+requested columns only at matching ordinals. No projected payload is read for an
+empty selection. Error/conflict counts prevent comparison pruning from hiding
+eager failures; `FilterFailure` records the first failing source row/column.
+State predicates can select errors/conflicts while retaining their details.
+The decoded budget includes outcomes, selection ordinals, output arena and
+simultaneously live validation/dictionary scratch. At most one encoded page is
+held; projecting the predicate column reads that page again after selection.
+Missing/oversized sort keys use the unpruned path. Pruning trusts the bound
+footer's statistics and does not verify omitted payloads. Hosts own deletion
+visibility, query limits, snapshot retention and final disclosure; direct SQL
+does not yet lower general predicates into this component API.
 
 `AuthorizationSql.compile` parses the selected role, membership, privilege,
 default-privilege, schema and ownership statements into unresolved typed syntax.

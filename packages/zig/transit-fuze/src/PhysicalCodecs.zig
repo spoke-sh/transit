@@ -5,6 +5,7 @@ const Types = @import("Types.zig");
 const Values = @import("Values.zig");
 const TableSchema = @import("TableSchema.zig");
 const Ebcdic = @import("Ebcdic037.zig");
+const ColumnPredicate = @import("ColumnPredicate.zig");
 
 pub const Encoding = TableSchema.Encoding;
 pub const page_header_bytes = 41;
@@ -380,7 +381,31 @@ pub fn decodeColumnPageSelected(scratch: std.mem.Allocator, arena: std.mem.Alloc
     return decodePage(scratch, arena, column, bytes, rows);
 }
 
+pub const Evaluated = struct {
+    outcomes: []ColumnPredicate.Outcome,
+    /// Predicate evaluations over physical values (one per dictionary entry or
+    /// RLE run), excluding non-value state tags. Not a device-I/O measurement.
+    evaluated_values: usize,
+};
+
+/// Evaluate directly over physical values/codes/runs. The result retains one
+/// byte per row, never decoded payloads. Scratch owns dictionary and reusable
+/// validation work. All framing and every value are checked before success.
+/// Source type errors/conflicts remain row-addressed outcomes, not hidden rows.
+pub fn evaluateColumnPage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicate: ColumnPredicate.Predicate) !Evaluated {
+    try predicate.validate(column);
+    var sink: PredicateSink = .{ .arena = arena, .column = column, .predicate = predicate };
+    _ = try decodeInto(scratch, column, bytes, &sink);
+    return .{ .outcomes = sink.outcomes, .evaluated_values = sink.evaluated_values };
+}
+
 fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: ?[]const u32) !Selected {
+    var sink: DecodeSink = .{ .arena = arena, .column = column, .rows = rows };
+    const count = try decodeInto(scratch, column, bytes, &sink);
+    return .{ .row_count = count, .cells = sink.cells };
+}
+
+fn decodeInto(scratch: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, sink: anytype) !u32 {
     try column.validateEncodingAndCollation();
     if (bytes.len < page_header_bytes or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
     if (!std.mem.eql(u8, bytes[4..36], &definition)) return error.IncompatibleDefinition;
@@ -389,9 +414,6 @@ fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: Tabl
     if (encoding != column.encoding) return error.ColumnEncodingMismatch;
     const row_count = try reader.takeInt(u32, .little);
     if (row_count > 65536) return error.ColumnPageRowLimitExceeded;
-    if (rows) |selected| for (selected, 0..) |row, i| {
-        if (row >= row_count or (i > 0 and selected[i - 1] >= row)) return error.InvalidColumnSelection;
-    };
     const tags = try reader.take(row_count);
     var value_count: usize = 0;
     for (tags) |tag| switch (tag) {
@@ -401,13 +423,7 @@ fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: Tabl
     };
     var temporary = std.heap.ArenaAllocator.init(scratch);
     defer temporary.deinit();
-    var sink: DecodeSink = .{
-        .arena = arena,
-        .column = column,
-        .rows = rows,
-        .tags = tags,
-        .cells = try arena.alloc(Values.Cell, if (rows) |selected| selected.len else row_count),
-    };
+    try sink.start(tags);
     for (tags, 0..) |tag, i| {
         const cell: Values.Cell = switch (tag) {
             0, 1 => .null,
@@ -431,19 +447,19 @@ fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: Tabl
             },
             else => unreachable,
         };
-        if (sink.destination(i)) |destination| sink.cells[destination] = try Values.cloneValidated(arena, cell);
+        if (tag != 0) try sink.nonValue(i, cell);
         _ = temporary.reset(.retain_capacity);
     }
 
     switch (column.encoding) {
         .plain => for (0..value_count) |_| {
-            _ = try sink.emit(.{ .value = try readCanonicalValue(temporary.allocator(), &reader, column.type) }, 1, false);
+            try sink.emit(.{ .value = try readCanonicalValue(temporary.allocator(), &reader, column.type) }, 1);
             _ = temporary.reset(.retain_capacity);
         },
-        .bitpacked => try decodeBitpackedValues(&reader, value_count, &sink),
-        .rle => try decodeRleValues(&temporary, &reader, value_count, &sink),
-        .dictionary => try decodeDictionaryValues(scratch, &temporary, &reader, value_count, &sink),
-        .fsst => try decodeFsstValues(&temporary, &reader, value_count, &sink),
+        .bitpacked => try decodeBitpackedValues(&reader, value_count, sink),
+        .rle => try decodeRleValues(&temporary, &reader, value_count, sink),
+        .dictionary => try decodeDictionaryValues(scratch, &temporary, &reader, value_count, sink),
+        .fsst => try decodeFsstValues(&temporary, &reader, value_count, sink),
         .comp_3, .zoned, .comp, .ibm_hfp => for (0..value_count) |_| {
             const cell = switch (column.encoding) {
                 .comp_3 => decodeComp3(try reader.take(16), column.type),
@@ -456,7 +472,7 @@ fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: Tabl
                 .ibm_hfp => decodeIbmHfp(try reader.take(8), column.type),
                 else => unreachable,
             };
-            _ = try sink.emit(cell, 1, false);
+            try sink.emit(cell, 1);
         },
         .ebcdic => for (0..value_count) |_| {
             const len = try reader.takeInt(u32, .little);
@@ -464,20 +480,20 @@ fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: Tabl
             const capacity = std.math.mul(usize, len, 2) catch return error.InvalidColumnPage;
             const buffer = try temporary.allocator().alloc(u8, capacity);
             const utf8 = try decodeEbcdic037(raw, buffer);
-            _ = try sink.emit(.{ .value = .{ .atom = .{ .bytes = utf8 } } }, 1, false);
+            try sink.emit(.{ .value = .{ .atom = .{ .bytes = utf8 } } }, 1);
             _ = temporary.reset(.retain_capacity);
         },
     }
     if (reader.seek != reader.end) return error.InvalidColumnPage;
-    return .{ .row_count = row_count, .cells = sink.cells };
+    return row_count;
 }
 
 const DecodeSink = struct {
     arena: std.mem.Allocator,
     column: TableSchema.Column,
     rows: ?[]const u32,
-    tags: []const u8,
-    cells: []Values.Cell,
+    tags: []const u8 = &.{},
+    cells: []Values.Cell = &.{},
     next_row: usize = 0,
 
     fn destination(self: *const DecodeSink, row: usize) ?usize {
@@ -490,21 +506,74 @@ const DecodeSink = struct {
         }
         return if (lo < rows.len and rows[lo] == row) lo else null;
     }
-    // RLE/dictionary cells share one owned value among selected occurrences.
-    // Even unused values are validated; selection never masks corruption.
-    fn emit(self: *DecodeSink, cell: Values.Cell, repeat: usize, already_owned: bool) !?Values.Cell {
+    fn start(self: *DecodeSink, tags: []const u8) !void {
+        if (self.rows) |rows| for (rows, 0..) |row, i| {
+            if (row >= tags.len or (i > 0 and rows[i - 1] >= row)) return error.InvalidColumnSelection;
+        };
+        self.tags = tags;
+        self.cells = try self.arena.alloc(Values.Cell, if (self.rows) |rows| rows.len else tags.len);
+    }
+    fn nonValue(self: *DecodeSink, row: usize, cell: Values.Cell) !void {
+        if (self.destination(row)) |slot| self.cells[slot] = try Values.cloneValidated(self.arena, cell);
+    }
+    const Cached = struct { cell: Values.Cell, owned: bool = false };
+    fn prepare(self: *DecodeSink, cell: Values.Cell) !Cached {
         if (cell == .value) try cell.validate(self.column.field(), .{});
-        var owned: ?Values.Cell = if (already_owned) cell else null;
+        return .{ .cell = cell };
+    }
+    fn emit(self: *DecodeSink, cell: Values.Cell, repeat: usize) !void {
+        var cached = try self.prepare(cell);
+        try self.emitCached(&cached, repeat);
+    }
+    // Selected RLE/dictionary repetitions share one detached owned value.
+    fn emitCached(self: *DecodeSink, cached: *Cached, repeat: usize) !void {
         for (0..repeat) |_| {
             while (self.next_row < self.tags.len and self.tags[self.next_row] != 0) self.next_row += 1;
             if (self.next_row == self.tags.len) return error.InvalidColumnPage;
             if (self.destination(self.next_row)) |slot| {
-                if (owned == null) owned = try Values.cloneValidated(self.arena, cell);
-                self.cells[slot] = owned.?;
+                if (!cached.owned) {
+                    cached.cell = try Values.cloneValidated(self.arena, cached.cell);
+                    cached.owned = true;
+                }
+                self.cells[slot] = cached.cell;
             }
             self.next_row += 1;
         }
-        return owned;
+    }
+};
+
+const PredicateSink = struct {
+    arena: std.mem.Allocator,
+    column: TableSchema.Column,
+    predicate: ColumnPredicate.Predicate,
+    tags: []const u8 = &.{},
+    outcomes: []ColumnPredicate.Outcome = &.{},
+    next_row: usize = 0,
+    evaluated_values: usize = 0,
+    const Cached = ColumnPredicate.Outcome;
+    fn start(self: *PredicateSink, tags: []const u8) !void {
+        self.tags = tags;
+        self.outcomes = try self.arena.alloc(ColumnPredicate.Outcome, tags.len);
+    }
+    fn nonValue(self: *PredicateSink, row: usize, cell: Values.Cell) !void {
+        self.outcomes[row] = try self.predicate.evaluate(self.column, cell);
+    }
+    fn prepare(self: *PredicateSink, cell: Values.Cell) !Cached {
+        if (cell == .value) try cell.validate(self.column.field(), .{});
+        self.evaluated_values += 1;
+        return self.predicate.evaluate(self.column, cell);
+    }
+    fn emit(self: *PredicateSink, cell: Values.Cell, repeat: usize) !void {
+        var cached = try self.prepare(cell);
+        try self.emitCached(&cached, repeat);
+    }
+    fn emitCached(self: *PredicateSink, cached: *Cached, repeat: usize) !void {
+        for (0..repeat) |_| {
+            while (self.next_row < self.tags.len and self.tags[self.next_row] != 0) self.next_row += 1;
+            if (self.next_row == self.tags.len) return error.InvalidColumnPage;
+            self.outcomes[self.next_row] = cached.*;
+            self.next_row += 1;
+        }
     }
 };
 
@@ -567,13 +636,13 @@ fn encodeBitpackedValues(writer: *std.Io.Writer, expected: Types.Type, values: [
     }
 }
 
-fn decodeBitpackedValues(reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
+fn decodeBitpackedValues(reader: *std.Io.Reader, count: usize, sink: anytype) !void {
     if (count == 0) return;
     const min_val = try reader.takeInt(u64, .little);
     const bit_width = try reader.takeByte();
     if (bit_width > 64) return error.InvalidBitpackedPage;
     if (bit_width == 0) {
-        _ = try sink.emit(try u64ToScalarCell(sink.column.type, min_val), count, false);
+        try sink.emit(try u64ToScalarCell(sink.column.type, min_val), count);
         return;
     }
     var bit_acc: u128 = 0;
@@ -588,7 +657,7 @@ fn decodeBitpackedValues(reader: *std.Io.Reader, count: usize, sink: *DecodeSink
         bit_acc >>= @intCast(bit_width);
         acc_bits -= bit_width;
         const word = std.math.add(u64, min_val, offset) catch return error.InvalidBitpackedPage;
-        _ = try sink.emit(try u64ToScalarCell(sink.column.type, word), 1, false);
+        try sink.emit(try u64ToScalarCell(sink.column.type, word), 1);
     }
 }
 
@@ -612,7 +681,7 @@ fn encodeRleValues(writer: *std.Io.Writer, expected: Types.Type, values: []const
     }
 }
 
-fn decodeRleValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
+fn decodeRleValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: anytype) !void {
     const runs = try reader.takeInt(u32, .little);
     if (runs > count) return error.InvalidRlePage;
     var pos: usize = 0;
@@ -620,7 +689,7 @@ fn decodeRleValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, 
         const val = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
         const len = try reader.takeInt(u32, .little);
         if (len == 0 or len > count - pos) return error.InvalidRlePage;
-        _ = try sink.emit(.{ .value = val }, len, false);
+        try sink.emit(.{ .value = val }, len);
         pos += len;
         _ = temporary.reset(.retain_capacity);
     }
@@ -654,24 +723,21 @@ fn encodeDictionaryValues(allocator: std.mem.Allocator, writer: *std.Io.Writer, 
     for (codes) |code| try writer.writeInt(u32, code, .little);
 }
 
-fn decodeDictionaryValues(scratch: std.mem.Allocator, temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
+fn decodeDictionaryValues(scratch: std.mem.Allocator, temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: anytype) !void {
     const dict_len = try reader.takeInt(u32, .little);
     if (dict_len > count) return error.InvalidDictionaryCode;
-    // Dictionary-admitted types are scalar; bytes borrow the encoded page.
-    // The owned bit avoids expanding a repeated selected string per occurrence.
-    const Entry = struct { cell: Values.Cell, owned: bool = false };
-    const dict = try scratch.alloc(Entry, dict_len);
+    // Decoding caches a borrowed/owned value; evaluation caches only its
+    // outcome. Each physical dictionary value is validated/evaluated once.
+    const dict = try scratch.alloc(@TypeOf(sink.*).Cached, dict_len);
     defer scratch.free(dict);
     for (dict) |*entry| {
         const value = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
-        entry.* = .{ .cell = .{ .value = value } };
+        entry.* = try sink.prepare(.{ .value = value });
     }
     for (0..count) |_| {
         const code = try reader.takeInt(u32, .little);
         if (code >= dict.len) return error.InvalidDictionaryCode;
-        if (try sink.emit(dict[code].cell, 1, dict[code].owned)) |owned| {
-            dict[code] = .{ .cell = owned, .owned = true };
-        }
+        try sink.emitCached(&dict[code], 1);
     }
 }
 
@@ -752,7 +818,7 @@ fn encodeFsstValues(writer: *std.Io.Writer, values: []const Values.Value) !void 
     }
 }
 
-fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: *DecodeSink) !void {
+fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: anytype) !void {
     const symbol_count = try reader.takeByte();
     if (symbol_count > 254) return error.InvalidFsstTable;
     var symbols: [254][]const u8 = undefined;
@@ -786,7 +852,7 @@ fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader,
             }
         }
         if (bi != decoded_len) return error.InvalidFsstStream;
-        _ = try sink.emit(.{ .value = .{ .atom = .{ .bytes = buf } } }, 1, false);
+        try sink.emit(.{ .value = .{ .atom = .{ .bytes = buf } } }, 1);
         _ = temporary.reset(.retain_capacity);
     }
 }

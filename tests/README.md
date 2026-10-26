@@ -1,5 +1,42 @@
 # Validation and evidence
 
+## Encoded column predicates and projected segment filtering — 2026-10-26
+
+On merged `d553aa9c` plus this increment, the pinned Fuze selection
+`zig build test -Dtest-filter=TSeg -Dtest-filter=column -Dtest-filter=physical
+--summary all` passes **78/78 tests**. The public
+`just test::storage-segments` passes **70/70 Fuze tests** and **2/2 disk-backed
+Table segment-range tests** (two minutes, reported MaxRSS 39 MiB for storage).
+The latter preserves existing live-owner read/cache behavior; it does not wire
+the new predicate API into SQL. The complete Fuze `zig build test` also passes
+**365/365 tests**.
+
+Independent TCP1 byte fixtures check bitpacked offsets, RLE runs and dictionary
+codes. Outcomes distinguish true, false, unknown, type error and conflict across
+all ten codecs. Explicit byte-order masks cover UTF-8, ASCII case folding and
+CP037, including prefixes, NUL and accented text. Direct malformed COMP-3 bytes
+produce an error outcome without changing source bytes. Truncated/trailing data
+reject even when every predicate result would be discarded. Dictionary and run
+controls count one physical-value evaluation per entry/run; each retained row
+outcome occupies one byte. Allocation-failure enumeration checks partial owners.
+
+Verified segment controls compare pruned selections with unpruned values and
+independent masks. Four two-row groups require three metadata reads plus four
+payload reads for a narrow projected filter; two excluded groups request no
+payload. Source destruction preserves selected strings and row coordinates.
+A 64-row group with 2 KiB strings fits one selected projected row within a
+16 KiB decoded budget; materializing the complete column fails that same budget.
+Synthetic five-state segment metadata confirms that nonmatching bounds cannot
+hide an earlier conflict, and state selection retains its alternative stamps.
+Schema, projection, page integrity and allocation gates also cover empty groups.
+
+These are component correctness and allocation/range controls, not installed
+latency/RSS measurements. The reader trusts its immutable footer's statistics,
+does not validate pruned payloads, and acquires neither retention nor current
+rights. Multi-column program lowering, query LIMIT semantics, shared hash/order
+collation propagation and direct SQL integration remain separate work. Stored
+formats and the shared definition are unchanged.
+
 ## Finite retained Table count ranges — 2026-10-26
 
 The pinned-shell `just test::table-count-ranges` passes the focused query suite

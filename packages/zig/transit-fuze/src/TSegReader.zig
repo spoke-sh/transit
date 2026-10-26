@@ -7,6 +7,8 @@ const TSeg = @import("TSeg.zig");
 const TableSchema = @import("TableSchema.zig");
 const Values = @import("Values.zig");
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
+const ColumnPredicate = @import("ColumnPredicate.zig");
+const Collation = @import("Collation.zig");
 const Self = @This();
 
 pub const Source = struct {
@@ -20,6 +22,9 @@ pub const Limits = struct {
     page_bytes: usize = TSeg.max_segment_bytes,
     decoded_bytes: usize = 64 * 1024 * 1024,
 };
+
+pub const Filter = struct { column: usize, predicate: ColumnPredicate.Predicate };
+pub const FilterFailure = struct { row: u32, column: usize, outcome: ColumnPredicate.Outcome };
 
 pub const Group = struct {
     workspace: *Workspace,
@@ -154,6 +159,110 @@ pub fn group(self: *const Self, allocator: std.mem.Allocator, source: Source, sc
         out.* = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err);
     }
     return .{ .workspace = workspace, .index = index, .source_rows = self.footer.row_groups[index].row_count, .columns = cells };
+}
+
+/// Use trusted, interpretation-bound zone maps before fetching the predicate
+/// page. Evaluate that page without retaining decoded payloads, then decode
+/// only matching rows of projected columns. Error/conflict outcomes remain
+/// eager and row-addressed; no result escapes a failed group. Source order is
+/// unchanged. The caller still owns snapshot, deletion and authorization gates.
+pub fn filteredGroup(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, filter: Filter, limits: Limits, failure: *?FilterFailure) !Group {
+    failure.* = null;
+    if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
+        !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
+    if (index >= self.footer.row_groups.len or filter.column >= schema.columns.len or
+        self.footer.row_groups[index].pages.len != schema.columns.len or
+        self.footer.row_groups[index].zone_maps.len != schema.columns.len) return error.InvalidSegmentCoordinate;
+    if (projection.len > schema.columns.len or limits.decoded_bytes == 0) return error.SegmentReadBudgetExceeded;
+    for (projection) |column_index| if (column_index >= schema.columns.len) return error.InvalidSegmentCoordinate;
+    const column_schema = schema.columns[filter.column];
+    try filter.predicate.validate(column_schema);
+    const metadata = self.footer.row_groups[index];
+    const workspace = try Workspace.init(allocator, limits.decoded_bytes);
+    errdefer workspace.deinit();
+    const a = workspace.arena.allocator();
+    const rows: []const u32 = if (try mayMatch(metadata.zone_maps[filter.column], column_schema, filter.predicate))
+        self.filterRows(allocator, workspace, source, schema, index, filter, limits.page_bytes, failure) catch |err| return workspace.failure(err)
+    else
+        &.{};
+    const columns = a.alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
+    for (projection, columns) |column_index, *cells| {
+        cells.* = if (rows.len == 0) &.{} else self.selectedColumn(allocator, workspace, source, schema, index, column_index, rows, limits.page_bytes) catch |err| return workspace.failure(err);
+    }
+    return .{ .workspace = workspace, .index = index, .source_rows = metadata.row_count, .columns = columns, .rows = rows };
+}
+
+fn mayMatch(zone: TSeg.ZoneMap, column_schema: TableSchema.Column, predicate: ColumnPredicate.Predicate) !bool {
+    return switch (predicate) {
+        .all => zone.value_count != 0 or zone.null_count != 0 or zone.missing_count != 0 or zone.error_count != 0 or zone.conflict_count != 0,
+        .state => |state| switch (state) {
+            .value => zone.value_count != 0,
+            .null => zone.null_count != 0,
+            .missing => zone.missing_count != 0,
+            .type_error => zone.error_count != 0,
+            .conflict => zone.conflict_count != 0,
+        },
+        .null_compare => zone.error_count != 0 or zone.conflict_count != 0,
+        .compare => |comparison| blk: {
+            // A logically nonmatching group can still contain an eager error.
+            if (zone.error_count != 0 or zone.conflict_count != 0) break :blk true;
+            if (comparison.op == .ne) break :blk zone.value_count != 0;
+            var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
+            const key = Collation.encodeSortKey(.{ .value = .{ .atom = comparison.value } }, column_schema.type, column_schema.collation, &buffer) catch |err| switch (err) {
+                error.WriteFailed => break :blk true,
+                else => return err,
+            };
+            break :blk switch (comparison.op) {
+                .eq => zone.mayMatch(.eq, key),
+                .lt => zone.mayMatch(.lt, key),
+                .le => zone.mayMatch(.le, key),
+                .gt => zone.mayMatch(.gt, key),
+                .ge => zone.mayMatch(.ge, key),
+                .ne => unreachable,
+            };
+        },
+    };
+}
+
+fn filterRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, filter: Filter, page_budget: usize, failure: *?FilterFailure) ![]const u32 {
+    const metadata = self.footer.row_groups[index];
+    const coordinate = metadata.pages[filter.column];
+    if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
+    const bytes = try allocator.alloc(u8, coordinate.length);
+    defer allocator.free(bytes);
+    try source.read(source.context, coordinate.offset, bytes);
+    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, filter.column);
+    const bounded = workspace.bounded();
+    const result = try PhysicalCodecs.evaluateColumnPage(bounded, bounded, schema.columns[filter.column], bytes, filter.predicate);
+    defer bounded.free(result.outcomes);
+    if (result.outcomes.len != metadata.row_count) return error.InvalidSegment;
+    var count: usize = 0;
+    for (result.outcomes, 0..) |outcome, row| {
+        const truth = outcome.truth() catch |err| {
+            failure.* = .{ .row = @intCast(row), .column = filter.column, .outcome = outcome };
+            return err;
+        };
+        if (truth.selects()) count += 1;
+    }
+    const rows = try workspace.arena.allocator().alloc(u32, count);
+    var selected: usize = 0;
+    for (result.outcomes, 0..) |outcome, row| if (outcome == .yes) {
+        rows[selected] = @intCast(row);
+        selected += 1;
+    };
+    return rows;
+}
+
+fn selectedColumn(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, rows: []const u32, page_budget: usize) ![]Values.Cell {
+    const coordinate = self.footer.row_groups[index].pages[column_index];
+    if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
+    const bytes = try allocator.alloc(u8, coordinate.length);
+    defer allocator.free(bytes);
+    try source.read(source.context, coordinate.offset, bytes);
+    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, column_index);
+    const selected = try PhysicalCodecs.decodeColumnPageSelected(workspace.bounded(), workspace.arena.allocator(), schema.columns[column_index], bytes, rows);
+    if (selected.row_count != self.footer.row_groups[index].row_count) return error.InvalidSegment;
+    return selected.cells;
 }
 
 /// Read and verify projected encoded pages under a total retained-byte budget.

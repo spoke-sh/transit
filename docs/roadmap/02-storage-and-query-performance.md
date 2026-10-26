@@ -193,6 +193,15 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
 
+- The shared codec walker now supports encoded single-column predicates with
+  one-byte row outcomes, dictionary/run evaluation reuse and detached selected
+  output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning
+  with late projected decoding under the existing resident budgets. Independent
+  byte/mask controls and allocation-failure checks cover this component path;
+  general SQL lowering, multi-column programs and installed/disk performance
+  qualification remain open. This advances #118/#128 without closing their
+  integration or complete comparison/hash/order obligations.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.

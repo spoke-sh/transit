@@ -68,6 +68,13 @@ Resumable logical/Unified pages and relational predicates share the kernels.
 Their progress encodings and original source-validation/work boundaries remain
 unchanged. Relational joins and group updates retain their one-pair work quantum.
 
+Fuze's [segment reader](../../../packages/zig/transit-fuze/README.md) also exposes
+typed column predicates over encoded pages. Verified zone maps can skip groups;
+candidate groups evaluate runs or dictionary codes before materializing selected
+projected rows. This component preserves declared collations, unknown values and
+eager error/conflict outcomes. Direct SQL retains its current access paths;
+general predicate/projection lowering to this reader is separate integration work.
+
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document

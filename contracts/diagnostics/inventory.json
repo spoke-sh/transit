@@ -7056,6 +7056,48 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ColumnPredicate.zig": {
+      "errors": {
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "UnsupportedComparison": 3
+      },
+      "outcomes": {
+        "Outcome": [
+          "yes",
+          "no",
+          "unknown",
+          "type_error",
+          "conflict"
+        ],
+        "Predicate": [
+          "all",
+          "state",
+          "compare",
+          "null_compare"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Outcome.truth()": "<inferred>",
+        "Predicate.evaluate()": "<inferred>",
+        "Predicate.evaluate().<struct>.order()": "<inferred>",
+        "Predicate.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "Finite.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "Values.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/ColumnRows.zig": {
       "errors": {},
       "outcomes": {},
@@ -8036,7 +8078,7 @@
         "IncompatibleColumnEncoding": 3,
         "IncompatibleDefinition": 1,
         "InvalidBitpackedPage": 3,
-        "InvalidColumnPage": 11,
+        "InvalidColumnPage": 12,
         "InvalidColumnSelection": 1,
         "InvalidComp3Length": 1,
         "InvalidComp4Length": 1,
@@ -8051,11 +8093,21 @@
       "error_sets": {},
       "error_returns": {
         "DecodeSink.emit()": "<inferred>",
+        "DecodeSink.emitCached()": "<inferred>",
+        "DecodeSink.nonValue()": "<inferred>",
+        "DecodeSink.prepare()": "<inferred>",
+        "DecodeSink.start()": "<inferred>",
+        "PredicateSink.emit()": "<inferred>",
+        "PredicateSink.emitCached()": "<inferred>",
+        "PredicateSink.nonValue()": "<inferred>",
+        "PredicateSink.prepare()": "<inferred>",
+        "PredicateSink.start()": "<inferred>",
         "decodeBitpackedValues()": "<inferred>",
         "decodeColumnPage()": "<inferred>",
         "decodeColumnPageSelected()": "<inferred>",
         "decodeDictionaryValues()": "<inferred>",
         "decodeFsstValues()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "decodePage()": "<inferred>",
         "decodeRleValues()": "<inferred>",
         "encodeBitpackedValues()": "<inferred>",
@@ -8066,6 +8118,7 @@
         "encodeFsstValues()": "<inferred>",
         "encodeRleValues()": "<inferred>",
         "encodeZoned()": "<inferred>",
+        "evaluateColumnPage()": "<inferred>",
         "readCanonicalValue()": "<inferred>",
         "u64ToScalarCell()": "<inferred>",
         "validateValue()": "<inferred>",
@@ -8073,10 +8126,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 121,
+        "try": 134,
         "catch": 10
       },
       "imports": [
+        "ColumnPredicate.zig",
         "Ebcdic037.zig",
         "IbmHfp.zig",
         "TableSchema.zig",
@@ -9667,10 +9721,11 @@
     "packages/zig/transit-fuze/src/TSegReader.zig": {
       "errors": {
         "InvalidColumnSelection": 1,
-        "InvalidSegment": 2,
-        "InvalidSegmentCoordinate": 4,
-        "SegmentReadBudgetExceeded": 8,
-        "TableSchemaChanged": 4
+        "InvalidSegment": 4,
+        "InvalidSegmentCoordinate": 6,
+        "SegmentReadBudgetExceeded": 11,
+        "TableSchemaChanged": 5,
+        "WriteFailed": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -9681,15 +9736,21 @@
         "Workspace.init()": "<inferred>",
         "column()": "<inferred>",
         "encodedGroup()": "<inferred>",
+        "filterRows()": "<inferred>",
+        "filteredGroup()": "<inferred>",
         "group()": "<inferred>",
-        "open()": "<inferred>"
+        "mayMatch()": "<inferred>",
+        "open()": "<inferred>",
+        "selectedColumn()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 19,
-        "catch": 6
+        "try": 32,
+        "catch": 11
       },
       "imports": [
+        "Collation.zig",
+        "ColumnPredicate.zig",
         "PhysicalCodecs.zig",
         "TSeg.zig",
         "TableSchema.zig",
@@ -11057,6 +11118,7 @@
         "Batch.zig",
         "BatchExecution.zig",
         "Collation.zig",
+        "ColumnPredicate.zig",
         "Declaration.zig",
         "FileQuery.zig",
         "FileSource.zig",

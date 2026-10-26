@@ -244,6 +244,26 @@ compressed strings can require transient expansion even when unselected. A
 successful selection owns all nested values independently of the encoded group.
 These reader operations consume the existing bytes and do not change v1 formats.
 
+`filteredGroup` accepts one typed column predicate and a projection. It validates
+the schema/layout, predicate and all projected coordinates before using trusted
+footer statistics. Value comparisons use the same declared collation as zone
+keys; missing or oversized keys require ordinary evaluation. A group containing
+error/conflict states cannot be skipped for a value or NULL comparison. State
+predicates use the corresponding state count. Skipped groups require no payload
+read; their footer metadata remains bound to the host's immutable source.
+
+Candidate predicates produce one owned outcome byte per source row without
+retaining decoded values. Dictionary values and RLE runs evaluate once; all page
+framing and values are validated before outcomes return. NULL/missing truth stays
+unknown, and eager errors/conflicts retain row position. A failed group returns
+no cells and records its first semantic failure coordinate. Selected ordinals
+remain in source order and only their projected cells are retained. Outcomes,
+ordinals, dictionary/validation scratch and output share the decoded budget;
+one transient encoded page has the separate page budget. Projection may reread
+the predicate page after selection. These component operations do not change
+source retention, apply deletion vectors, enforce a query LIMIT, grant access or
+establish complete SQL results. The host retains those obligations.
+
 ## Local WAL persistence
 
 `LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second
