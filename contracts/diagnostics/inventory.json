@@ -24652,7 +24652,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
+        "try": 78,
         "catch": 13
       },
       "imports": [

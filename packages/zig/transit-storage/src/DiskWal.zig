@@ -86,7 +86,12 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
         try self.atomic(".definition", &definition());
     }
     // Validate all retained partitions without retaining their entire directory.
-    var it = dir.iterate();
+    // Recovery performs its own scans. Iterators on the same directory handle
+    // share a filesystem offset, so the outer walk needs an independent handle
+    // or a nested scan can silently skip later directory pages.
+    const listing = try dir.openDir(io, ".", .{ .iterate = true });
+    defer listing.close(io);
+    var it = listing.iterate();
     while (try it.next(io)) |entry| {
         if (std.mem.eql(u8, entry.name, ".lock") or std.mem.eql(u8, entry.name, ".definition")) continue;
         if (entry.kind != .file) return error.InvalidWalDirectory;

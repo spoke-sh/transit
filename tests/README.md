@@ -27265,3 +27265,21 @@ are injected; these tests do not exhaust the host filesystem, simulate device
 loss or prove power-failure durability. No production runtime changes accompany
 this expansion. Diagnostic inventory, verification catalog, format and local
 documentation checks pass.
+
+## Complete local WAL startup validation — 2026-10-26
+
+A new disk regression creates three partitions with 128 single-frame segments
+each, then asserts that opening verifies all 384 frames before any caller read.
+The former implementation verifies only 128 and fails that assertion: nested
+recovery enumeration advances the same directory descriptor used by the outer
+startup iterator, skipping entries after its buffered page. Later reads can
+recover omitted partitions, but cannot establish the required startup gate.
+
+An independent directory handle for the startup walk restores full enumeration
+without retaining all filenames or partition descriptors. The regression also
+checks all partition tails and literal last-row values without additional
+recovery, then corrupts a later partition and requires opening to reject.
+`zig build test -Dtest-filter='opening validates every partition'
+-Dtest-filter='canceling' --summary all` in `packages/zig/transit-storage`
+passes 4/4 through the pinned development shell. This is a startup integrity
+check, not a claim about recovery after host power loss.
