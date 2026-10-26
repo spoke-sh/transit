@@ -27750,3 +27750,22 @@ check and `zig build test-work-items-unit -Doptimize=ReleaseSafe` then pass;
 preserves both failures. Contract generation/checking now includes this fixture,
 so future definition changes regenerate it and detect drift before root unit
 execution. Existing foreign/missing-definition rejection remains unchanged.
+
+## Relational setup outcome recovery — 2026-10-26
+
+`nix develop .#bindings --command just bindings::relational-node` passes the
+[installed control](verification/results/relational-setup-recovery-2026-10-26/report.json).
+It builds matching packages and checks Node sources before exercising native,
+port and installed Node relational callers. The direct proxy corrupts the
+accepted DDL reply for setup operation 1002; the fixture must inspect that same
+saved reference and establish its committed outcome. It never recompiles the SQL
+or allocates a new operation after uncertainty. Current denial and other semantic
+failures still escape; unavailable inspection has a bounded observation window.
+
+All three callers pass retained joins, current denial, node/host replacement,
+ordered overflow and original retention checks, across 1,088 typed requests.
+The earlier clean bindings-1 failure at `dd3687e01` is retained: Python completed
+its task, and Node passed its client/Station/HTTP/gRPC schedules before relational
+setup stopped on an unknown outcome. The first direct invocation of the focused
+Zig target was stopped because it lacked installed package prerequisites; only
+the owning just task is a pass. This does not complete the full SDK matrix.

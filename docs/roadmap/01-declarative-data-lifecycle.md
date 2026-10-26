@@ -136,6 +136,36 @@ transaction fixtures, later implementation histories and final qualification.
 It remains open. Older proof runs retain their source definitions; qualification
 after PR #163 requires a matching runtime/fixture set throughout.
 
+After merged PR #164, the follow-up closes two focused observation gaps:
+[control preparation and console status](../../tests/README.md#sql-observation-budgets--2026-10-26)
+retain the original deadline through temporary authority failures. The full
+[direct Table lifecycle proof](../../tests/README.md#paged-table-history-observation--2026-10-26)
+now passes both history replays and closure within the unchanged 180-second
+phase budget, using bounded history pages and the original one-page native
+cache. Charged requests decrease from 300 to 210 per replay; this is not a
+matched latency benchmark.
+
+The clean core run at `e3cbe9cca` fails only the independent work-item fixture
+checks in its root unit stage; it does not complete the core lane or queued
+repository check. The [regenerated current-definition fixture](../../tests/README.md#work-item-command-definition-cutover--2026-10-26)
+passes its generator and focused application unit suite. Contract tasks now
+include that fixture. Clean bindings-1 at `dd3687e01` passes the complete Python
+task and Node's client/Station/HTTP/gRPC schedules, then fails relational setup
+on an unknown direct-operation outcome. The fixture follow-up inspects that
+original saved operation and includes a deterministic lost-reply case. The
+[installed Node relational rerun](../../tests/README.md#relational-setup-outcome-recovery--2026-10-26)
+passes with matching packages, native/port callers, retained cuts, current denial
+and replacement. The containing SDK lane still needs a complete rerun.
+Broader C/C++ and Java progress remains
+source-specific until their containing lane finishes.
+
+Installed SQL is still an open gate. Later public observation recovers original
+INSERT 216 and RENAME 348 as applied without SQL resubmission. Original CREATE
+155 remains uploading and execution-ineligible after restart. Two subsequent
+installed native controls fail during startup on authority timeouts, before
+the test SQL runs. These failures remain recorded; focused observation fixes
+do not establish their historical causes or close combined qualification.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to
