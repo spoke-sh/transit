@@ -705,7 +705,7 @@ fn serve(config: &Value) -> AnyResult<()> {
     let description = client.describe(&source)?;
     assert_eq!(
         (description.bundle_bytes, description.batch_rows),
-        (25614, 8)
+        (25743, 8)
     );
     println!("{}", json!({"ready":true}));
     io::stdout().flush()?;
@@ -768,7 +768,7 @@ fn serve(config: &Value) -> AnyResult<()> {
                         result_bytes: text(limits, "result_bytes").parse().unwrap(),
                     },
                 )?;
-                assert_eq!(value.resource, resource);
+                assert_eq!(value.resource, source.resource());
                 inspection(value)
             } else if let Some(v) = action.get("next") {
                 let bundle = q::Bundle::from_bytes(unhex(text(v, "bundle")))?;

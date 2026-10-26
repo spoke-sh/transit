@@ -151,12 +151,12 @@ public final class UnifiedQuery {
         JsonObject wire() { return obj("pages",pages.toString(),"segments",segments.toString(),"result_bytes",resultBytes.toString()); }
     }
     public record Bundle(Bytes bytes) {
-        public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>25614)throw new IllegalArgumentException("Expected finite query bundle"); }
+        public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>Catalog.limit("query_bundle_bytes"))throw new IllegalArgumentException("Expected finite query bundle"); }
         public static Bundle prepare(Source source,Plan plan,Budgets budgets) { return prepare(source,plan,budgets,null); }
         public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) {
             JsonObject declaration=UnifiedQuery.source(source),parameters=plan.wire();
             if(source instanceof TableSource)parameters.add("collations",declaration.getAsJsonObject("source").getAsJsonObject("table").get("collations"));
-            return new Bundle(encoded(object(local(obj("prepare",obj("source",declaration,"plan",parameters,"limits",budgets.wire())),host).get("prepared")).get("bytes"),25614));
+            return new Bundle(encoded(object(local(obj("prepare",obj("source",declaration,"plan",parameters,"limits",budgets.wire())),host).get("prepared")).get("bytes"),Catalog.limit("query_bundle_bytes")));
         }
     }
     public record Prepared(Bytes bytes) {
@@ -330,13 +330,13 @@ public final class UnifiedQuery {
                 JsonArray bound=new JsonArray();for(Logical.Atom value:parameters)bound.add(wire(Objects.requireNonNull(value)));values=bound;
             }
             JsonObject action=obj("compile",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,4096),"parameters",values));
-            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),25614)));
+            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),Catalog.limit("query_bundle_bytes"))));
         }
         /** Seal new work before persistence; recover saved bundles unchanged. */
         public CompletableFuture<Bundle> authorizeBundle(Bundle bundle) { return authorizeBundle(bundle,null); }
         public CompletableFuture<Bundle> authorizeBundle(Bundle bundle,Capture capture) {
             JsonObject action=obj("authorize",obj("bundle",hex(bundle.bytes()),"capture",capture==null?null:capture.wire()));
-            return worker.submit(b -> new Bundle(encoded(b.unifiedQuery(action,false).get("authorized"),25614)));
+            return worker.submit(b -> new Bundle(encoded(b.unifiedQuery(action,false).get("authorized"),Catalog.limit("query_bundle_bytes"))));
         }
         public CompletableFuture<Prepared> prepareCleanup(BigInteger namespace,Bundle originalBundle) {
             JsonObject action=obj("cleanup",obj("namespace",positive(namespace).toString(),"bundle",hex(originalBundle.bytes())));

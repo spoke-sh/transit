@@ -86,7 +86,7 @@ distinct. Conflict alternatives retain ordered full-width assignment IDs.
 `Page.to_pyarrow()` requires the optional pinned PyArrow 23.0.0 dependency and
 preserves the nested state/alternative schema. An independently decoded IPC
 stream alone establishes neither current authorization nor complete-result
-coverage. Bundles contain at most 25614 bytes. Table results admit 128 columns;
+coverage. Bundles contain at most 25743 bytes. Table results admit 128 columns;
 segments contain at most eight rows and 64 KiB. Comparison literals retain a
 4 KiB byte limit. Descriptors and recursive cells use the shared logical budgets.
 KV has two columns, and Document projections admit eight scalar decoders.

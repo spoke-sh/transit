@@ -496,7 +496,7 @@ impl Budgets {
 pub struct Bundle(Vec<u8>);
 impl Bundle {
     pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
-        if data.len() > 25614 {
+        if data.len() > abi::QUERY_BUNDLE_BYTES {
             return Err(invalid());
         }
         Ok(Self(data))
@@ -521,7 +521,7 @@ impl Bundle {
         )?;
         Self::from_bytes(unhex(
             string(field(field(&v, "prepared")?, "bytes")?, "query-bundle")?,
-            25614,
+            abi::QUERY_BUNDLE_BYTES,
         )?)
     }
 }
@@ -1209,7 +1209,7 @@ impl Client {
                 field(field(&response, "compiled")?, "bundle")?,
                 "query-bundle",
             )?,
-            25614,
+            abi::QUERY_BUNDLE_BYTES,
         )?)
     }
     /// Seal newly constructed work once, before persisting its bytes or fingerprint.
@@ -1219,17 +1219,17 @@ impl Client {
         bundle: &Bundle,
         capture: Option<Capture>,
     ) -> Result<Bundle> {
-        let value = self.call(json!({"authorize":{"bundle":hex(bundle.data(),25614)?,"capture":capture.map(Capture::wire).transpose()?}}))?;
+        let value = self.call(json!({"authorize":{"bundle":hex(bundle.data(),abi::QUERY_BUNDLE_BYTES)?,"capture":capture.map(Capture::wire).transpose()?}}))?;
         Bundle::from_bytes(unhex(
             string(field(&value, "authorized")?, "authorized")?,
-            25614,
+            abi::QUERY_BUNDLE_BYTES,
         )?)
     }
     pub fn prepare_cleanup(&mut self, namespace: u64, bundle: &Bundle) -> Result<Prepared> {
         if namespace == 0 {
             return Err(invalid());
         }
-        let value = self.call(json!({"cleanup":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25614)?}}))?;
+        let value = self.call(json!({"cleanup":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),abi::QUERY_BUNDLE_BYTES)?}}))?;
         Prepared::from_data(string(field(&value, "prepared")?, "cleanup")?.to_owned())
     }
     pub fn prepare_next(&mut self, namespace: u64, bundle: &Bundle) -> Result<Option<Prepared>> {
@@ -1237,7 +1237,7 @@ impl Client {
             return Err(invalid());
         }
         let v = self.call(
-            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25614)?}}),
+            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),abi::QUERY_BUNDLE_BYTES)?}}),
         )?;
         let prepared = field(&v, "prepared")?;
         if prepared.is_null() {

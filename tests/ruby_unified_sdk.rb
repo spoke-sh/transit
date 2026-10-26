@@ -154,7 +154,7 @@ def serve(config)
   Q::Client.open(cfg, credential, connection, tables: tables) do |client|
     check(client.authorize_bundle(bundle, capture: capture).data == File.binread(config.fetch('bundle')))
     description = client.describe(source)
-    check(description.bundle_bytes == 25614 && description.batch_rows == 8)
+    check(description.bundle_bytes == 25743 && description.batch_rows == 8)
     puts JSON.generate(ready: true)
     STDIN.each_line do |line|
       action = JSON.parse(line)

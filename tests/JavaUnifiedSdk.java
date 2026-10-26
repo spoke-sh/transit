@@ -179,7 +179,7 @@ public final class JavaUnifiedSdk {
                 capture=new Capture(spec.get("executor").getAsLong(),new BigInteger(string(spec,"operation")),new BigInteger(string(expected,"partition")),new BigInteger(string(expected,"next_lsn")));
             } else source=source(resource,kind,false);
             check(await(client.authorizeBundle(bundle(source,kind,false,true,config.get("compound").getAsBoolean()),capture)).bytes().equals(read(config,"bundle")));
-            var description=await(client.describe(source)); check(description.bundleBytes()==25614 && description.batchRows()==8);
+            var description=await(client.describe(source)); check(description.bundleBytes()==25743 && description.batchRows()==8);
             System.out.println("{\"ready\":true}");
             try(var reader=new java.io.BufferedReader(new java.io.InputStreamReader(System.in,StandardCharsets.UTF_8))) {
                 for(String line;(line=reader.readLine())!=null;) {

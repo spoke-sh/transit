@@ -270,10 +270,10 @@ transit_sdk_error transit_station_unified_prepare_bundle(const transit_station_u
         require(source && plan && out,"query-bundle");const auto declaration=source_wire(*source);auto parameters=plan_wire(*plan);
         if(source->kind==TRANSIT_UNIFIED_TABLE){parameters.pop_back();parameters+=",\"collations\":"+logical::encode(table_collations(*source->source.table.schema))+"}";}
         const auto action="{\"prepare\":{\"source\":"+declaration+",\"plan\":"+parameters+",\"limits\":"+limits_wire(budgets)+"}}";
-        auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25614);});*out=bundle.release();
+        auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),TRANSIT_SDK_STATION_QUERY_BUNDLE_BYTES);});*out=bundle.release();
     });
 }
-transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25614)};});}
+transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,TRANSIT_SDK_STATION_QUERY_BUNDLE_BYTES)};});}
 transit_sdk_error transit_station_unified_bundle_bytes(const transit_station_unified_bundle *v,transit_sdk_bytes *out){if(out)*out={};return boundary([&]{require(v&&out,"query-bundle");*out=view(v->bytes);});}
 void transit_station_unified_bundle_destroy(transit_station_unified_bundle *v){delete v;}
 transit_sdk_error transit_station_unified_prepared_import(transit_sdk_bytes bytes,transit_station_unified_prepared **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-prepared");*out=new transit_station_unified_prepared{copy(bytes,8192)};});}
@@ -324,7 +324,7 @@ transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_cl
         std::string values="null";
         if(parameters){require(parameters->count<=65 && (parameters->values || !parameters->count),"query-parameters");values="[";for(size_t i=0;i<parameters->count;++i){if(i)values+=',';values+=scalar_wire(parameters->values[i]);}values+=']';}
         const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+",\"parameters\":"+values+"}}");
-        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),25614)};
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),TRANSIT_SDK_STATION_QUERY_BUNDLE_BYTES)};
     });
 }
 transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection **out){
@@ -358,7 +358,7 @@ transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unifi
         std::string binding="null";
         if(capture){counter(capture->executor);require(capture->operation && capture->partition,"query-capture");binding="{\"executor\":"+decimal(capture->executor)+",\"operation\":"+quote(decimal(capture->operation))+",\"expected\":{\"partition\":"+quote(decimal(capture->partition))+",\"next_lsn\":"+quote(decimal(capture->next_lsn))+"}}";}
         const auto result=n.call("{\"authorize\":{\"bundle\":"+quote(hex(bundle->bytes))+",\"capture\":"+binding+"}}");
-        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"authorized",true),25614)};
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"authorized",true),TRANSIT_SDK_STATION_QUERY_BUNDLE_BYTES)};
     });
 }
 transit_sdk_error transit_station_unified_prepare_cleanup(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
