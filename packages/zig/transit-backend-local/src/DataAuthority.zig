@@ -15,6 +15,9 @@ executor: ?core.protocol.Authorization.Subject = null,
 /// Additional frozen conditions narrow the independently authorized caller.
 /// They may address an accepted actor input with a different audience.
 prerequisite: ?core.protocol.Authorization.Guard = null,
+/// First successful authorization fixes the private candidate's storage epoch.
+/// Reacquisition rechecks policy, but cannot renew work staged before a fence.
+candidate_epoch: ?u64 = null,
 held: bool = false,
 /// Valid only after successful acquisition of the current native fence.
 verified: ?core.protocol.Authorization.Verified = null,
@@ -34,9 +37,10 @@ fn acquire(context: *anyopaque) !storage.TablePartition.Guard.Fence {
     if (self.executor) |subject| _ = try self.engine.authenticateDomain(subject, self.audience);
     if (self.prerequisite) |condition| _ = try self.engine.authorizeDomain(condition, condition.subject.audience());
     try self.engine.requireResourceLifetime(self.resource);
+    if (self.candidate_epoch == null) self.candidate_epoch = self.engine.head.storage_epoch;
     self.held = true;
     self.verified = verified;
-    return .{ .writer_epoch = self.engine.head.storage_epoch, .policy_epoch = self.engine.head.authorization.revision + 1 };
+    return .{ .writer_epoch = self.candidate_epoch.?, .policy_epoch = self.engine.head.authorization.revision + 1 };
 }
 
 fn release(context: *anyopaque) void {

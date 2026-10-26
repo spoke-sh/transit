@@ -618,6 +618,16 @@ LSN and the native record position must agree. The append accepts the complete
 catalog/policy roots, including resource state, input progress, outputs, effect
 intents and exact retry evidence. Staged objects grant no visibility or rights.
 
+Direct Table and catalog requests use nonzero WAL partitions. Their request
+guard captures the storage epoch on its first successful authorization, before
+private staging, and preserves it through publication. Reacquiring the native
+authority lock rechecks current authorization and resource lifetime; it does not
+renew that candidate's storage epoch. The local adapter rejects its append with
+`StaleStorageEpoch` if a storage fence intervened. Retrying an unaccepted
+operation requires fresh staging under the current epoch. Accepted operation
+identity and receipts survive the fence. Read disclosure still checks current
+authorization; a writer's stale epoch does not itself revoke read access.
+
 Native pages and blocks have this object envelope:
 
 | Offset | Meaning |

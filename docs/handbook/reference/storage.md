@@ -160,7 +160,11 @@ automatic immutable-object collection is not scheduled. The local backend expose
 [native collection and bounded compaction](../../../packages/zig/transit-backend-local/docs/maintenance.md)
 as explicit component operations. They preserve native history and captures,
 reject old creators by accepted epoch, and resume physical object deletion from
-a durable intent. They do not collect Table objects. Ursula uses the stream
+a durable intent. Direct Table and catalog guards also retain the epoch acquired
+before staging: an intervening storage fence rejects publication, while a fresh
+request can rebuild an unaccepted operation using the same identity. Receipt
+observation and reads continue to require current authorization. The local
+collector does not collect Table objects. Ursula uses the stream
 closure fences described above. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.

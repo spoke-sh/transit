@@ -118,6 +118,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Direct Table/catalog guards retain the storage epoch from their first
+  successful authorization through staging and publication. A native fence
+  rejects an old candidate even after it reacquires current policy. Point and
+  bulk race tests, the complete local backend suite and signed Table
+  authorization proof cover fresh retries and original receipts. This closes a
+  prerequisite for safe data-object collection; it does not supply the
+  remaining retained-root inventory or physical collector (#114/#116/#127).
+
 - A paired ReleaseSafe disk-owner matrix completes 768 verified samples across
   native/Table sizes, checkpoint variants, scan/range access and cold/warm file
   pages. The [measurement account](../../tests/storage_benchmarks/2026-10-26-owners/README.md)

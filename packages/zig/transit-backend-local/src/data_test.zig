@@ -78,6 +78,11 @@ test "direct data acceptance fences native policy and storage epochs without a n
     engine.clock = .{ .context = &clock_context, .read = clock };
     _ = try submit(&engine, .{ .storage_fence = {} });
     try t.expectError(error.StaleStorageEpoch, data.log().append(17, 1, refreshed.writer_epoch, refreshed.policy_epoch, .row_delta, "stale storage"));
+    const reacquired = try guard.acquire(guard.context);
+    guard.release(guard.context);
+    try t.expectEqual(original.writer_epoch, reacquired.writer_epoch);
+    try t.expectEqual(engine.head.authorization.revision + 1, reacquired.policy_epoch);
+    try t.expectError(error.StaleStorageEpoch, data.log().append(17, 1, reacquired.writer_epoch, reacquired.policy_epoch, .row_delta, "renewed old candidate"));
     try t.expectError(error.NativePartitionReserved, data.log().tail(0));
     try t.expectError(error.NoCheckpointIntent, data.log().trim(17, 1));
     try t.expect(data.observe.metrics.failures >= 3);
@@ -158,6 +163,84 @@ test "direct Table archive uses control reserve and trims only accepted coverage
 test "native policy revocation after Table staging denies the whole batch and exact observation" {
     try revocationAfterStaging(false);
     try revocationAfterStaging(true);
+}
+
+test "native storage fence after Table staging requires a fresh candidate without losing receipts" {
+    try storageFenceAfterStaging(.point);
+    try storageFenceAfterStaging(.bulk);
+}
+
+fn storageFenceAfterStaging(ingestion: storage.TablePartition.Ingestion) !void {
+    const f = @import("transit_fuze");
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+    const setup = try provision(&engine);
+    var clock_context: u8 = 0;
+    engine.clock = .{ .context = &clock_context, .read = clock };
+    var authority: backend.DataAuthority = .{ .engine = &engine, .request = setup.guard, .audience = 100, .resource = setup.resource };
+    var data: backend.DataStore = .{ .backend = &owner };
+    const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = setup.resource, .catalog = 3 }, .branch = 1, .object = 7 };
+    const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    var table = try storage.TablePartition.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    const creation: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(5) };
+    const created = try table.apply(creation, &.{}, .point, authority.guard());
+    var binding = creation;
+    binding.identity.operation = 2;
+    binding.action = .insert;
+    binding.expected_definition = table.root.interpretation;
+    const changes = [_]storage.TablePartition.Change{.{ .put = .{ .row = .{
+        .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 },
+        .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }},
+    } } }};
+    const Race = struct {
+        authority: *backend.DataAuthority,
+        engine: *Engine,
+        calls: usize = 0,
+        fn acquire(context: *anyopaque) !storage.TablePartition.Guard.Fence {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.calls += 1;
+            if (self.calls == 2) _ = try submit(self.engine, .{ .storage_fence = {} });
+            const guard = self.authority.guard();
+            return guard.acquire(guard.context);
+        }
+        fn release(context: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            const guard = self.authority.guard();
+            guard.release(guard.context);
+        }
+    };
+    var race: Race = .{ .authority = &authority, .engine = &engine };
+    const allocated = owner.allocated;
+    const before = table.root;
+    try t.expectError(error.StaleStorageEpoch, table.apply(binding, &changes, ingestion, .{ .context = &race, .acquire = Race.acquire, .release = Race.release }));
+    try t.expectEqual(@as(usize, 2), race.calls);
+    try t.expect(owner.allocated > allocated);
+    try t.expectEqual(before.next_lsn, try data.log().tail(17));
+    try t.expectEqualDeep(before, table.root);
+    try table.recover();
+    // Read authorization remains current; a stale candidate is not a revoked
+    // reader. Both acceptance observations remain exact across the fence.
+    try t.expectEqualDeep(created, (try table.observe(creation, authority.guard())).?);
+    try t.expect(try table.observe(binding, authority.guard()) == null);
+    try t.expectError(error.StaleStorageEpoch, table.apply(binding, &changes, ingestion, authority.guard()));
+    try table.recover();
+    var fresh: backend.DataAuthority = .{ .engine = &engine, .request = setup.guard, .audience = 100, .resource = setup.resource };
+    const accepted = try table.apply(binding, &changes, ingestion, fresh.guard());
+    try t.expectEqual(@as(u64, 1), accepted.affected);
+    try table.recover();
+    try t.expectEqualDeep(accepted, (try table.observe(binding, authority.guard())).?);
+    try t.expectEqualDeep(accepted, try table.apply(binding, &changes, ingestion, fresh.guard()));
+    try t.expectEqual(@as(u64, 1), table.root.live_rows);
+    try t.expectEqual(created.position.next_lsn + 1, table.root.next_lsn);
 }
 
 fn revocationAfterStaging(prerequisite: bool) !void {

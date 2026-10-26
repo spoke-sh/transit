@@ -29027,3 +29027,24 @@ Nix packages, compute and client ABI checks. It then fails in `test::station`:
 the query-upload capture proof times out waiting for Station domain work.
 The complete clean lane therefore fails. This older revision does not establish
 clean-lane qualification for the later aligned-buffer implementation.
+
+## Direct candidate epochs across native storage fences — 2026-10-26
+
+The complete local backend suite passes **25/25** tests. A focused **5/5** run
+includes a real native storage fence between Table staging and append for both
+point/WAL and bulk/segment ingestion. Publication rejects with
+`StaleStorageEpoch`, leaves accepted roots and the WAL frontier unchanged, and
+does not renew the old candidate on a later authorization check. Recovery and a
+fresh request accept the original unaccepted operation exactly once. Original
+receipt reads still work across the fence and continue to check current rights.
+The same suite preserves policy revocation, prerequisite authorization and
+unrelated native-progress behavior.
+
+The signed Table `authorization` service proof passes explicit role grants,
+future-only defaults, filtered metadata, SELECT-only write/DDL denial and retained
+cut recovery after revocation/restoration. Documentation links pass. The first
+diagnostic-inventory check detects only the quoted-to-unquoted definition enum
+spelling produced by Zig formatting in `040959617`; its reviewed inventory is
+refreshed, and inventory, mappings and inferred boundary checks pass. This fence
+correction does not add Table-object collection or change
+the stored definition.

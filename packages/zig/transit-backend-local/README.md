@@ -61,16 +61,26 @@ The service must bind the proof context to the complete request and choose its
 requirements; the adapter cannot infer those from a row batch. A shared authority
 fence covers the check and data commit/disclosure. Native publication takes its
 exclusive side. Private staging holds neither side, and independent data owners
-can hold shared fences together. Short data commits can delay native publication;
+can hold shared fences together. The first successful acquisition fixes the
+candidate's storage epoch. Later acquisitions recheck current permissions and
+resource lifetime but preserve that epoch: a storage fence during private
+staging makes publication fail with `StaleStorageEpoch`. A fresh request may
+rebuild the same unaccepted operation under the current epoch; accepted retries
+still resolve to their original receipt. Reads continue to check current rights
+and can disclose an accepted receipt across a storage fence. Short data commits
+can delay native publication;
 this is a local serialization profile, not a distributed fencing protocol.
 
 The component tests compose this guard and quota adapter with `TablePartition`,
 including actual native revocation after segment staging. The
 [node's public Table route](../../../apps/transit-node/README.md) uses this
-adapter for direct catalog and Table operations, and the
+adapter's request-owned guards through `LocalCatalogPolicy` for direct catalog
+and Table operations, and the
 [local SQL service](../../../docs/handbook/reference/sql.md) uses that same
 acceptance owner. Native resource turns and direct Table mutations retain
 separate commit boundaries.
+Component race tests cover point/WAL and bulk/segment staging across a storage
+fence, unchanged accepted roots, fresh retries and original receipt recovery.
 
 `Store.maintain` trims only an already accepted native history floor and keeps
 the latest entry. `StorageCollection` separately collects native pages and blocks
