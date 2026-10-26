@@ -1238,7 +1238,7 @@ not deduplication of accepted work. Native `HttpCapacity` produces `busy`: the
 account observation is deferred, so readiness remains unconfirmed, but the
 supervisor retains the process and exact pending work. The specific rejection
 is preserved instead of being flattened to `AuthorityUnavailable`. The
-[logging proof](../../../tests/server_logging.py) fills native data admission,
+[logging proof](../../../tests/interfaces/installation/server_logging.py) fills native data admission,
 observes this state, and checks that recovery changes neither process IDs nor
 connection-hint counts. Initial health polling remains `starting`; losing previously
 observed health becomes `unavailable`, retaining the same timeout/recovery gates.
@@ -1252,11 +1252,11 @@ terminal renderer would be simpler but could stall supervision. A separate
 handwritten server formatter would reintroduce format drift. Sharing bounded
 rendering preserves those constraints at the cost of lossy operational logs.
 
-The executable [pipe fixture](../../../tests/telemetry.py) checks both formats
+The executable [pipe fixture](../../../tests/interfaces/inspection/telemetry.py) checks both formats
 under drained, blocked and closed pipes on one CPU. The
-[server fixture](../../../tests/server_logging.py) uses a real PTY, a piped server,
+[server fixture](../../../tests/interfaces/installation/server_logging.py) uses a real PTY, a piped server,
 disk-backed providers, SQL settings and standalone executable failures. The
-[correlation fixture](../../../tests/observability.py) checks span parentage and
+[correlation fixture](../../../tests/interfaces/inspection/observability.py) checks span parentage and
 exclusion of credentials/payloads. Reproduction commands use the pinned
 development shell and are recorded with the executed results below. The [proof ledger](../../history/qualification/interfaces.md#unified-service-logging)
 records actual executions. These schedules do not prove arbitrary sinks, panics,
@@ -1338,8 +1338,8 @@ unauthorized caller receiving protected metadata. The implementation owners are
 [Config](../../../apps/transit-cli/server/Config.zig), the
 [signed contract](../../../packages/zig/transit-config/src/Contract.zig), and the
 [session owner](../../../packages/zig/transit-query/src/SettingsSession.zig).
-The installed [server proof](../../../tests/server_configuration.py) and
-[TLS adapter proof](../../../tests/sql_wire/settings.py) exercise the public routes;
+The installed [server proof](../../../tests/interfaces/installation/server_configuration.py) and
+[TLS adapter proof](../../../tests/interfaces/sql_wire/settings.py) exercise the public routes;
 [executed evidence](../../history/qualification/README.md) distinguishes completed runs from
 planned checks. Reproduce with the pinned development shell and the server and database-wire
 recipes named in the proof ledger; both use disposable installation state.

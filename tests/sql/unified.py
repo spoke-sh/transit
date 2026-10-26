@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 
 import pyarrow.ipc as ipc
-from reference import antlr_ast, pg_ast
+from interfaces.deployment.reference import antlr_ast, pg_ast
 
 NAMES = ['id', 'counter', 'fraction', 'flag', 'value', 'raw', 'missing', 'optional']
 

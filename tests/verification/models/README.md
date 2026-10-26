@@ -95,7 +95,7 @@ execution is outside that progress result. It establishes no wall-clock bound.
 The graph check and edge replay do not prove all Zig histories, arbitrary text,
 undo journals, allocation/arena lifetimes, terminal decoding/rendering, network
 behavior or a refinement theorem. The
-[terminal suite](../../console_editing.py) covers the actual effect interpreter
+[terminal suite](../../interfaces/cli/console_editing.py) covers the actual effect interpreter
 and display. The [mechanism account](../../../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)
 explains ownership and integration assumptions. Executed counts and commands
 belong to the [proof ledger](../../../docs/history/qualification/README.md).

@@ -1,0 +1,252 @@
+"""Independent Flight/ADBC consumers over the real native finite requester."""
+from runner.paths import ROOT
+from contextlib import ExitStack
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+import pyarrow as pa
+import pyarrow.flight as flight
+from google.protobuf.any_pb2 import Any
+from interfaces.http.serving_tls import TLSProxy
+from interfaces.flight.flight_faults import NativeBoundary
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
+from cold_storage import ColdStore
+
+
+def run(node, host, gateway, proof, mode=None, board=None):
+    faults = mode == 'faults'
+    node, host, gateway, proof = [str(Path(p).resolve()) for p in (node, host, gateway, proof)]
+    with ColdStore() as cold, Fixture(cold.config()) as fixture, ExitStack() as owned:
+        proto = ROOT / 'packages/zig/transit-flight/proto'
+        subprocess.run(['protoc', '-I', str(proto), '--python_out=' + str(fixture.root), str(proto / 'FlightSql.proto'), str(proto / 'Flight.proto')], check=True)
+        sys.path.insert(0, str(fixture.root))
+        import FlightSql_pb2 as sql
+        public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
+        port, flight_port = free_port(), free_port()
+        url = f'http://127.0.0.1:{port}'
+        config = fixture.root / 'node.json'
+        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), local_directory=str(fixture.root / 'authority'), port=port, resident_pages=8, request_timeout_ms=10000)))
+        processes, logs, hosts = [], [], {}
+        def start(name, command):
+            log = (fixture.root / f'{name}.log').open('w+')
+            logs.append(log)
+            child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=fixture.env)
+            processes.append(child)
+            hosts[name] = child
+            return child
+        def start_workers(directory, prefix=''):
+            for name in ('source', 'requester', 'courier'):
+                path = directory / f'{name}.json'
+                settings = json.loads(path.read_text())
+                settings['idle_max_interval_ms'] = 1000
+                path.write_text(json.dumps(settings))
+                start(prefix + name, [host, str(path)])
+        try:
+            subprocess.run([node, str(config), '--initialize'], check=True, capture_output=True, timeout=30)
+            authority = start('node', [node, str(config)])
+            wait_ready(fixture.http, authority, url + '/health')
+            subprocess.run([proof, url, 'catalog-bootstrap', str(fixture.root)], check=True, capture_output=True, timeout=300)
+            authority.terminate(); authority.wait(timeout=10)
+            settings = json.loads(config.read_text())
+            settings['table'] = json.loads((fixture.root / 'catalog-node.json').read_text())
+            config.write_text(json.dumps(settings))
+            authority = start('node-catalog', [node, str(config)])
+            hosts['node'] = authority
+            wait_ready(fixture.http, authority, url + '/health')
+            subprocess.run([proof, url, 'provision-flight-overflow' if mode == 'diagnostics' else 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=300)
+            start_workers(fixture.root)
+            caller = json.loads((fixture.root / 'cli.json').read_text())
+            def connection(caller):
+                return dict(caller['connection'], name=caller['workspace']['name'])
+            token = 'a' * 64
+            (fixture.root / 'credential').write_text(token)
+            (fixture.root / 'ticket.seed').write_text('2a' * 32)
+            boundary = owned.enter_context(NativeBoundary(url)) if faults else None
+            options = dict(url=boundary.url if boundary else url, inspector=55, inspector_seed_file=str(fixture.root / 'inspector.seed'), ticket_seed_file=str(fixture.root / 'ticket.seed'), port=flight_port, ticket_ttl_ms=120000,
+                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=connection(caller), service=1, binding_revision=1, definition=caller['workspace']['source'], capture=json.loads((fixture.root / 'flight-capture.json').read_text()))])
+            if faults:
+                options['native_timeout_ms'] = 15000
+                second = fixture.root / 'second'; second.mkdir(mode=0o700)
+                (second / 'catalog-profile.json').write_bytes((fixture.root / 'catalog-profile.json').read_bytes())
+                subprocess.run([proof, url, 'provision-flight-second', str(second)], check=True, capture_output=True, timeout=300)
+                (second / 'credential').write_text('b' * 64)
+                other = json.loads((second / 'cli.json').read_text())
+                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=connection(other), service=1, binding_revision=1, definition=other['workspace']['source'], capture=json.loads((second / 'flight-capture.json').read_text())))
+                start_workers(second, 'second-')
+            gateway_config = fixture.root / 'gateway.json'
+            gateway_config.write_text(json.dumps(options))
+            process = start('gateway', [gateway, str(gateway_config)])
+            edge = owned.enter_context(TLSProxy(fixture.root / 'tls', flight_port, grpc=True, read_timeout=185))
+            uri = f'grpc+tls://127.0.0.1:{edge.port}'
+            certificate = (edge.root / 'certificate.pem').read_bytes()
+            from interfaces.flight.flight_detail import Details
+            details = Details()
+            client = flight.connect(uri, tls_root_certs=certificate, middleware=[details])
+            auth = (b'authorization', ('Bearer ' + token).encode())
+            def call_options(sequence=None):
+                headers = [auth]
+                if sequence is not None: headers.append((b'x-transit-request-sequence', str(sequence).encode()))
+                return flight.FlightCallOptions(timeout=180, headers=headers)
+            def descriptor(command):
+                packed = Any(); packed.Pack(command)
+                return flight.FlightDescriptor.for_command(packed.SerializeToString())
+            def available(operation):
+                # The native listener has finite request capacity. Read-only
+                # calls and explicitly frozen statements may be retried; a
+                # failed stream is discarded in full before reading again.
+                deadline = time.monotonic() + 180
+                while True:
+                    try:
+                        return operation()
+                    except (flight.FlightUnavailableError, OSError) as error:
+                        # PyArrow's GetSchema reports gRPC UNAVAILABLE as
+                        # OSError; retain the exact status check for that API.
+                        if not isinstance(error, flight.FlightUnavailableError) and 'Detail: Unavailable' not in str(error):
+                            raise
+                        assert time.monotonic() < deadline
+                        assert process.poll() is None
+                        time.sleep(.1)
+            deadline = time.monotonic() + 20
+            while True:
+                try:
+                    assert list(client.list_actions(call_options())) == []
+                    break
+                except flight.FlightUnavailableError:
+                    assert process.poll() is None and time.monotonic() < deadline
+                    time.sleep(.1)
+            catalogs = available(lambda: client.get_flight_info(descriptor(sql.CommandGetCatalogs()), call_options()))
+            assert available(lambda: client.do_get(catalogs.endpoints[0].ticket, call_options()).read_all()).to_pylist() == [{'catalog_name':'transit'}]
+            # Schema and execution errors carry the same compiler evidence.
+            # Rejections leave the caller sequence available for the real query.
+            before_errors = subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)
+            for text, category, fragments in (
+                ('SELECT;', pa.ArrowInvalid, ('SQL parse error', 'line 1, column 7', '/reference/sql/')),
+                ('INSERT INTO items VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
+                ('INSERT INTO items (id, value) VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
+                ('CREATE CONNECTION unfinished', pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
+                ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'Subject: "absent"', 'scope: "items"', 'column 8')),
+                ("SELECT * FROM items WHERE value = '50% discount';", pa.ArrowInvalid, ('TypeMismatch', 'Expected int64; supplied utf8', '50% discount')),
+                ("SELECT * FROM items WHERE value = 'private-must-not-appear' junk;", pa.ArrowNotImplementedError, ('SQL construct unsupported', 'column')),
+            ):
+                invalid = descriptor(sql.CommandStatementQuery(query=text))
+                original_detail = None
+                for operation in (lambda: client.get_schema(invalid, call_options()),
+                                  lambda: client.get_flight_info(invalid, call_options(2))):
+                    try:
+                        available(operation)
+                    except category as error:
+                        message = str(error)
+                        assert all(fragment in message for fragment in fragments), message
+                        assert 'private-must-not-appear' not in message and '\x1b' not in message
+                        detail = details.diagnostic()
+                        assert detail['outcome'] == 'not_submitted' and detail['evidence'] == 'local_before_dispatch', detail
+                        assert not any(action and action['kind'] in ('resume_exact','cancel_wait') for action in detail['actions'])
+                        assert 'private-must-not-appear' not in json.dumps(detail)
+                        if original_detail is None: original_detail = detail
+                        else: assert detail == original_detail, (original_detail,detail)
+                        if 'absent' in text:
+                            assert detail['code'] == 'sql.unknown_column' and detail['location']['offset'] == '7', detail
+                        if '50%' in text:
+                            facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+                            assert facts['supplied_value'] == {'text':'"50% discount"'} and facts['expected_type'] == {'text':'int64'}, detail
+                    else:
+                        raise AssertionError(f'invalid SQL succeeded: {text}')
+            assert subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30) == before_errors
+            print('Flight SQL diagnostics: schema/execution categories, locations, recovery hints, redaction and no admission pass.', flush=True)
+            if mode == 'diagnostics':
+                from interfaces.flight.flight_diagnostics import verify
+                verify(locals())
+                return
+            statement = descriptor(sql.CommandStatementQuery(query='SELECT id, value FROM items'))
+            schema = available(lambda: client.get_schema(statement, call_options())).schema
+            assert schema == pa.schema([pa.field('id',pa.int64(),False),pa.field('value',pa.int64())])
+            started = time.monotonic()
+            if boundary:
+                boundary.drop = True
+                drop_deadline = time.monotonic() + 180
+                while boundary.original is None:
+                    try:
+                        client.get_flight_info(statement, call_options(2))
+                    except flight.FlightUnavailableError:
+                        assert time.monotonic() < drop_deadline
+                        if boundary.original is not None:
+                            detail = details.diagnostic()
+                            assert detail['code'] == 'query.send_unknown' and detail['outcome'] == 'unknown', detail
+                            assert detail['evidence'] == 'saved_intent' and detail['identity']['id'] == '2'
+                            assert detail['identity']['sequence'] == str(json.loads(boundary.original)['request']['sequence']), detail
+                            assert [action['kind'] for action in detail['actions'] if action] == ['inspect_status','resume_exact'], detail
+                        time.sleep(.1)
+                    else: raise AssertionError('lost native acceptance reported success')
+                assert boundary.receipt
+                process.kill(); process.wait(timeout=5)
+                process = start('gateway-replacement', [gateway, str(gateway_config)])
+                client.close()
+                client = flight.connect(uri, tls_root_certs=certificate)
+            def retained_info(sequence):
+                # Admission can return temporary capacity or lose any upload
+                # reply. Retry only this caller's same SQL and first sequence.
+                deadline = time.monotonic() + 180
+                while True:
+                    try:
+                        return client.get_flight_info(statement, call_options(sequence))
+                    except flight.FlightUnavailableError:
+                        assert time.monotonic() < deadline
+                        assert all(hosts[name].poll() is None for name in ('source', 'requester', 'courier'))
+                        time.sleep(.1)
+            info = retained_info(2)
+            assert info.total_records == 41 and len(info.endpoints) == 1
+            assert json.loads(info.app_metadata) == {'version': 1, 'next_sequence': json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30))}
+            table = available(lambda: client.do_get(info.endpoints[0].ticket, call_options()).read_all())
+            expected = [dict(id=i, value=None if i % 5 == 0 else 9007199254740993+i) for i in range(41)]
+            assert table.to_pylist() == expected
+            assert available(lambda: client.do_get(info.endpoints[0].ticket, call_options()).read_all()).equals(table)
+            # Direct data changes after completion cannot replace an original
+            # upload's capture, including when the gateway reconstructs it.
+            subprocess.run([proof, url, 'mutate-source', str(fixture.root / 'cli.json')], check=True, capture_output=True, timeout=60)
+            retry = retained_info(2)
+            assert available(lambda: client.do_get(retry.endpoints[0].ticket, call_options()).read_all()).equals(table)
+            fresh_sequence = json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30))
+            fresh = retained_info(fresh_sequence)
+            changed = [dict(row) for row in expected]
+            changed[1]['value'] = 42
+            assert available(lambda: client.do_get(fresh.endpoints[0].ticket, call_options()).read_all()).to_pylist() == changed
+            subprocess.run([proof, url, 'restore-source', str(fixture.root / 'cli.json')], check=True, capture_output=True, timeout=60)
+            print(f'Flight actual finite statement, full-width/null rows, schema, metadata and exact retry passed in {time.monotonic()-started:.2f}s', flush=True)
+            if faults:
+                assert boundary.retries >= 2
+                from interfaces.flight.flight_board import Observer
+                observation = Observer(locals(), board)
+                observation.check(caller['connection']['resource'], 'execution')
+                observation.check(caller['connection']['requests'], 'request')
+                from interfaces.flight.flight_lifecycle import qualify
+                qualify(locals())
+                return
+            client.close()
+            from interfaces.flight.flight_adbc import verify
+            verify(uri, edge.root / 'certificate.pem', fixture.root, token, schema, expected, lambda: json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)))
+
+        except BaseException as error:
+            if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+                print(error.stderr.decode()[-5000:], file=sys.stderr)
+            for log in logs:
+                log.flush(); log.seek(0)
+                print(log.read()[-16000:], file=sys.stderr)
+            raise
+        finally:
+            for child in reversed(processes):
+                if child.poll() is None: child.terminate()
+            for child in processes:
+                try: child.wait(timeout=5)
+                except subprocess.TimeoutExpired: child.kill(); child.wait(timeout=5)
+            for log in logs: log.close()
+
+
+if __name__ == '__main__':
+    run(*sys.argv[1:])
+    if len(sys.argv) == 5:
+        run(*sys.argv[1:], mode='diagnostics')

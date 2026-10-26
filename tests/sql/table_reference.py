@@ -10,7 +10,7 @@ import json
 import struct
 import sys
 import uuid
-from reference import ROOT, identifier, tree
+from interfaces.deployment.reference import ROOT, identifier, tree
 sys.path.insert(0, str(ROOT / 'tests'))
 from fuze_file_query import descriptor, cell_bytes
 from table_schema import DEFINITION

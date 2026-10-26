@@ -2613,7 +2613,7 @@ Coverage includes:
   unchanged values, deletes/recreates a key, permanently retires required
   dependents and reclaims opted-in data. Receipt permissions survive checkpoint
   recovery even after their view-opening records are trimmed.
-- [state_api.py](../../../tests/state_api.py), `just test::state`: the real HTTP/CLI boundary and
+- [state_api.py](../../../tests/interfaces/native/state_api.py), `just test::state`: the real HTTP/CLI boundary and
   counter executable; metadata/value grants, exact view revisions, pagination,
   changed cuts, state retention across two activations and unchanged legacy
   inline bytes. A clockless realm proves zero-age opted-in background cleanup

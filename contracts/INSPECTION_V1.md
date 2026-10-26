@@ -83,7 +83,7 @@ the envelope; `transit-admin query SEED QUERY.json URL` performs the public clie
 `just test::inspection` exercises real signed HTTP calls and disk recovery.
 A shared [canonical fixture](../packages/zig/transit-protocol/src/fixtures/inspection-v1.json)
 pins field ordering, the native query domain hash and signature. The
-[request vector check](../tests/fixtures.py) independently compares Python
+[request vector check](../tests/interfaces/native/fixtures.py) independently compares Python
 canonical bytes and hashes with Zig signing.
 Core tests deterministically inject final-tail races and trim, check scan budgets,
 scoped discovery and two-endpoint links, and distinguish mailbox dispositions.

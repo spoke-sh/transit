@@ -54,7 +54,7 @@ reset:
 
 # Prove persistence, duplicate-safe provisioning, fencing and missing-store refusal.
 test:
-    python3 -B tests/launchers.py local
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/launchers.py local
 
 # Qualify the three-process Station example, Board lenses and fresh ownership.
 test-station:

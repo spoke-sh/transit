@@ -6,7 +6,7 @@ corpus includes clause/alias boundaries, mixed aggregates and Boolean precedence
 import json
 import subprocess
 import sys
-from reference import ROOT, CACHE, generate, tree, identifier, column
+from interfaces.deployment.reference import ROOT, CACHE, generate, tree, identifier, column
 
 
 def instruction(op, column=None, value=None):

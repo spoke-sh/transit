@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 
-from inspection import System
+from interfaces.inspection.inspection import System
 
 
 class Native:

@@ -519,7 +519,7 @@
         "packages/zig/transit-client/src/root.zig",
         "packages/zig/transit-protocol/src/Growth.zig",
         "tests/growing_client.zig",
-        "tests/growing_service.py",
+        "tests/interfaces/native/growing_service.py",
         "packages/zig/transit-client/src/Session.zig"
       ],
       "profile": "transit-v1 development service; legacy launcher defaults preserved",
@@ -1062,8 +1062,8 @@
         "packages/zig/transit-flight/src/Metadata.zig",
         "packages/zig/transit-flight/src/Ticket.zig",
         "packages/zig/transit-grpc/src/Server.zig",
-        "tests/flight_metadata.py",
-        "tests/grpc_server.py"
+        "tests/interfaces/flight/flight_metadata.py",
+        "tests/interfaces/grpc/grpc_server.py"
       ],
       "profile": "M22 codec and inbound transport foundation; full gateway interoperability open",
       "tasks": [
@@ -1088,10 +1088,10 @@
         "packages/zig/transit-flight/src/Gateway.zig",
         "packages/zig/transit-station-flight/src/Replay.zig",
         "packages/zig/transit-serving/src/FiniteService.zig",
-        "tests/flight.py",
-        "tests/flight_lifecycle.py",
-        "tests/flight_load.py",
-        "tests/flight_outbound.py",
+        "tests/interfaces/flight/flight.py",
+        "tests/interfaces/flight/flight_lifecycle.py",
+        "tests/interfaces/flight/flight_load.py",
+        "tests/interfaces/flight/flight_outbound.py",
         "examples/flight/run.py"
       ],
       "profile": "M22 finite Table v1/int64 TLS gateway; independent pinned PyArrow and ADBC C/Python",
@@ -1121,7 +1121,7 @@
         "packages/zig/transit-station-app/src/Model.zig",
         "packages/zig/transit-station-app/src/Sql.zig",
         "packages/zig/transit-station-app/src/Publication.zig",
-        "tests/application_grammar.py",
+        "tests/interfaces/installation/application_grammar.py",
         "tests/application.zig",
         "tests/application.py",
         "packages/zig/transit-station-app/src/Request.zig",
@@ -1129,8 +1129,8 @@
         "packages/zig/transit-station-app/src/Native.zig",
         "packages/zig/transit-station-app/src/Host.zig",
         "packages/zig/transit-station-app/src/Upload.zig",
-        "tests/application_signing.py",
-        "tests/application_board.py",
+        "tests/interfaces/installation/application_signing.py",
+        "tests/interfaces/installation/application_board.py",
         "apps/transit-board-web/browser/application.spec.ts"
       ],
       "profile": "M23 bounded declarations and signed native publication owner",
@@ -1191,7 +1191,7 @@
         "packages/zig/transit-query/src/Assistance.zig",
         "packages/zig/transit-query/src/Workspace.zig",
         "packages/ts/transit-query-client/src/assistance.ts",
-        "tests/sql_sessions/native.py"
+        "tests/interfaces/sql_sessions/native.py"
       ],
       "profile": "Native SQL session console with Table catalogs and explicit KV/Table/Document bindings",
       "tasks": [
@@ -1219,9 +1219,9 @@
         "apps/transit-cli/server/Server.zig",
         "apps/transit-cli/server/Process.zig",
         "apps/transit-cli/server/Gateway.zig",
-        "tests/server.py",
-        "tests/server_faults.py",
-        "tests/server_capacity.py"
+        "tests/interfaces/installation/server.py",
+        "tests/interfaces/installation/server_faults.py",
+        "tests/interfaces/installation/server_capacity.py"
       ],
       "profile": "M24 Linux local_table_v1 with native MinIO, disk Ursula and eight owned child roles",
       "tasks": [
@@ -1248,9 +1248,9 @@
         "packages/zig/transit-client/src/Application.zig",
         "apps/transit-cli/server/Applications.zig",
         "examples/work-items/operator.zig",
-        "tests/server_applications.py",
-        "tests/server_application_faults.py",
-        "tests/server_application_capacity.py"
+        "tests/interfaces/installation/server_applications.py",
+        "tests/interfaces/installation/server_application_faults.py",
+        "tests/interfaces/installation/server_application_capacity.py"
       ],
       "profile": "M25 trusted local Linux, neutral v1 installation/bootstrap and separately compiled Zig work-item consumer",
       "tasks": [
@@ -1279,8 +1279,8 @@
         "apps/transit-cli/server/Installation.zig",
         "apps/transit-cli/server/Applications.zig",
         "packages/zig/transit-client/src/Application.zig",
-        "tests/server_board.py",
-        "tests/server_board_package.py"
+        "tests/interfaces/installation/server_board.py",
+        "tests/interfaces/installation/server_board_package.py"
       ],
       "profile": "M27 version-3 trusted local Linux neighborhood with default embedded Board and explicit application inspection",
       "tasks": [
@@ -1541,7 +1541,7 @@
         "tests/catalog_abi.py",
         "tests/operations/CatalogOptions.zig",
         "tests/operations/RecoveryFiles.zig",
-        "tests/cli_diagnostics.py",
+        "tests/interfaces/cli/cli_diagnostics.py",
         "sdks/python/transit-station/transit_station/catalog.py",
         "tests/sdk/consumers/python/python_catalog_sdk.py",
         "tests/sdk/consumers/python/python_catalog_values.py",
@@ -1787,7 +1787,7 @@
         "packages/zig/transit-station-bindings/src/QueryAbi.zig",
         "tests/relational_callers_native.py",
         "tests/sdk/sdk_relational.py",
-        "tests/board_relational.py"
+        "tests/interfaces/board/board_relational.py"
       ],
       "profile": "Interactive one/two-catalog caller through the Station ABI/port, installed TypeScript/Python adapters and explicit Board HTTP/browser, one native authority and disk Ursula",
       "tasks": [
@@ -1953,8 +1953,8 @@
         "packages/zig/transit-sql/src/ConfigurationOperations.zig",
         "packages/zig/transit-sql-client/src/Client.zig",
         "apps/transit-sql-gateway/src/Native.zig",
-        "tests/sql_sessions/native.py",
-        "tests/server_write_observation.py"
+        "tests/interfaces/sql_sessions/native.py",
+        "tests/interfaces/installation/server_write_observation.py"
       ],
       "profile": "Current-v1 HTTP/TLS and Linux Unix peer SQL sessions",
       "tasks": [

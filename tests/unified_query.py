@@ -376,7 +376,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     (root / 'shell.json').write_text(json.dumps(shell_config))
                     check(shell, root, kind, invoke, expected, fault, compound=compound, counts=counts)
                 if board:
-                    from unified_board import check
+                    from interfaces.board.unified_board import check
                     check(board, root, kind, invoke, expected, fixture, start, browser=browser)
                 if lifecycle:
                     from unified_failures import check as failure_check

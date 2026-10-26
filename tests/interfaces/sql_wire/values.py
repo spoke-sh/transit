@@ -1,0 +1,106 @@
+"""Wire values, shared literal relational plans and session-incarnation checks."""
+import json
+import struct
+import time
+
+import psycopg
+import mysql.connector
+from interfaces.sql_wire.faults import PostgreSQL, cancel, frame
+
+
+def run(postgres,mysql_options,controls,inventory):
+    with psycopg.connect(**postgres) as pg:
+        pg.execute("CREATE TABLE wire_defaults (id BIGINT PRIMARY KEY, label UTF8 DEFAULT 'fallback', required UTF8 NOT NULL)")
+        pg.execute('INSERT INTO wire_defaults (id,required) VALUES (%s,%s)',(1,'present'),prepare=True)
+        pg.execute('INSERT INTO wire_defaults (id,label,required) VALUES (%s,%s,%s)',(2,None,'present'),prepare=True)
+        assert pg.execute('SELECT label FROM wire_defaults WHERE id=1').fetchone() == ('fallback',)
+        assert pg.execute('SELECT label FROM wire_defaults WHERE id=2').fetchone() == (None,)
+        try:
+            pg.execute('UPDATE wire_defaults SET required=%s WHERE id=%s',(None,1),prepare=True)
+        except psycopg.errors.NotNullViolation:
+            pass
+        else:
+            raise AssertionError('Required field accepted NULL')
+        assert pg.execute('SELECT required FROM wire_defaults WHERE id=1').fetchone() == ('present',)
+        columns = ','.join(f'b{i} BINARY' for i in range(8))
+        pg.execute('CREATE TABLE wire_large (id BIGINT PRIMARY KEY, label UTF8, payload BINARY,'+columns+')')
+        label = '列'*1365+'x'
+        payload = bytes(range(256))*16
+        names = 'id,label,payload,'+','.join(f'b{i}' for i in range(8))
+        statement = 'INSERT INTO wire_large ('+names+') VALUES ('+','.join(['%s']*11)+')'
+        started = time.monotonic()
+        existing = {entry['operation'] for entry in inventory()}
+        print(json.dumps(dict(profile='database_wire_large_row',phase='begin',variable_bytes=10*4096)),flush=True)
+        wire_completion = True
+        try:
+            assert pg.execute(statement,(1,label,payload,*([payload]*8)),prepare=True).rowcount == 1
+        except psycopg.OperationalError:
+            wire_completion = False
+            print(json.dumps(dict(profile='database_wire_large_row',phase='wait_ended',seconds=round(time.monotonic()-started,3))),flush=True)
+    # A socket deadline does not roll back accepted work. Discover the one
+    # original operation even when no handle/reply reached the SQL client.
+    added = [entry for entry in inventory() if entry['operation'] not in existing]
+    assert len(added) == 1, added
+    operation = added[0]['operation']
+    # This bounds observation of the original durable operation independently
+    # of the 270-second SQL wait. The original 30-minute observation expired
+    # while the role-checked 40 KiB upload was still advancing. This one-hour
+    # observer budget does not extend the command or resend SQL.
+    deadline = started+3600
+    next_report = 0
+    while True:
+        status = controls('status',operation)
+        assert not status['operation']['blocked'], status
+        if status['terminal'] is not None:
+            terminal = status['terminal']
+            assert terminal['state'] == 'applied' and terminal['matched'] == terminal['changed'] == 1, status
+            break
+        if time.monotonic() >= next_report:
+            print(json.dumps(dict(profile='database_wire_large_row',phase='observing',seconds=round(time.monotonic()-started,3),operation=status['operation'])),flush=True)
+            next_report = time.monotonic()+30
+        assert time.monotonic()<deadline, status
+        time.sleep(2)
+    print(json.dumps(dict(profile='database_wire_large_row',phase='complete',seconds=round(time.monotonic()-started,3),wire_completion=wire_completion,operator_count_verified=True,sql_attempts=1)),flush=True)
+    readback = 'SELECT label,payload,'+','.join(f'b{i}' for i in range(8))+' FROM wire_large WHERE id=%s'
+    expected = (label,payload,*([payload]*8))
+    with psycopg.connect(**postgres) as pg:
+        try:
+            pg.execute('INSERT INTO wire_large (id,label) VALUES (%s,%s)',(2,'x'*4097),prepare=True)
+        except psycopg.errors.ProgramLimitExceeded:
+            pass
+        else:
+            raise AssertionError('Oversized bound cell was admitted')
+        with pg.cursor(binary=True) as cursor:
+            cursor.execute(readback,(1,),prepare=True)
+            assert cursor.fetchall() == [expected]
+        sql = 'SELECT a.id, SUM(b.id) AS total FROM wire_rows a JOIN wire_rows b ON a.id=b.id GROUP BY a.id'
+        assert sorted(pg.execute(sql).fetchall()) == [(101,101),(102,102),(103,103),(200,200)]
+    with mysql.connector.connect(**mysql_options) as my:
+        cursor = my.cursor(prepared=True)
+        cursor.execute(readback,(1,))
+        assert cursor.fetchall() == [expected]
+        cursor.close()
+        cursor = my.cursor()
+        cursor.execute(sql)
+        assert sorted(cursor.fetchall()) == [(101,101),(102,102),(103,103),(200,200)]
+        cursor.close()
+    old = PostgreSQL(postgres)
+    old_key = old.key
+    old.close()
+    wire = PostgreSQL(postgres)
+    try:
+        wire.sock.sendall(frame(b'P',b'hold\0SELECT id FROM wire_rows\0\0\0')+frame(b'B',b'portal\0hold\0\0\0\0\0\0\0')+frame(b'E',b'portal\0'+struct.pack('!I',1))+frame(b'H'))
+        assert wire.until(b's',b'E')[-1][0] == b's'
+        cancel(postgres,old_key)
+        wire.sock.sendall(frame(b'E',b'portal\0'+struct.pack('!I',1))+frame(b'H'))
+        replies = wire.until(b's',b'E')
+        assert sum(tag == b'D' for tag,_ in replies) == 1 and replies[-1][0] == b's'
+        wire.sock.sendall(frame(b'S'))
+        wire.until(b'Z')
+        # The transport may split an application frame at every byte boundary.
+        for byte in frame(b'Q',b'SELECT 1\0'):
+            wire.sock.sendall(bytes([byte]))
+        assert any(tag == b'D' for tag,_ in wire.until(b'Z'))
+    finally:
+        wire.close()
+    print(json.dumps(dict(profile='database_wire_values',utf8_bytes=len(label.encode()),binary_bytes=len(payload),variable_bytes_per_row=10*4096,all_ten_cells_verified=True,oversized_binding_rejected=True,defaults_and_null=True,required_rejection=True,literal_relational=True,stale_cancel=True,fragmented_query=True)),flush=True)

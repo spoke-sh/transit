@@ -15,7 +15,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
     assert protocol in ("http", "grpc")
     rpc = protocol == "grpc"
     assert fault is None or (rpc and fault in ("published", "retirement"))
-    from grpc_faults import Boundary
+    from interfaces.grpc.grpc_faults import Boundary
     boundary = Boundary()
     from sdk.client_abi import Native
     from sdk.client_abi_growing import GrowingSystem

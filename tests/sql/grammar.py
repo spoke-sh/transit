@@ -2,7 +2,7 @@
 import hashlib
 import json
 import re
-from reference import ROOT, generate, tree, antlr_ast, pg_ast
+from interfaces.deployment.reference import ROOT, generate, tree, antlr_ast, pg_ast
 
 
 def corpus():

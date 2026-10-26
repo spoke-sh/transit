@@ -88,15 +88,15 @@ to each executable:
 - [Substrate adapter](../../packages/zig/transit-runtime-substrate/README.md): pinned CLI, template validation, and egress policy.
 
 [charts/transit](../../charts/transit/README.md) owns the deployed service and
-WorkerPool definitions. [reference_chart.py](../../tests/reference_chart.py)
+WorkerPool definitions. [reference_chart.py](../../tests/interfaces/deployment/reference_chart.py)
 supplies public values and stages storage, explicit initialization, then normal
 recovery-only service startup. The workload fixture adds grants and Secrets
 before enabling Board and maintenance. It keeps controller fault injection on
 the host; the persistent launcher uses the chart's optional controller pod.
 Substrate infrastructure is installed separately.
 
-[tests/reference.py](../../tests/reference.py) owns infrastructure setup;
-[reference_workload.py](../../tests/reference_workload.py) owns provisioning and
+[tests/interfaces/deployment/reference.py](../../tests/interfaces/deployment/reference.py) owns infrastructure setup;
+[reference_workload.py](../../tests/interfaces/deployment/reference_workload.py) owns provisioning and
 fault injection. Keep version changes deliberate and rerun the recovery/isolation
 proof. Ursula uses the official upstream image with explicit disk configuration,
 not a separately compiled Nix image. Local Ursula binaries come from the overlay.
@@ -145,5 +145,5 @@ Allowed destinations are the Transit service, cluster DNS and local Board for
 port-forwarding. A positive Transit check precedes explicit transport-denial
 probes against raw Ursula and ready Substrate/Kubernetes endpoints. This proves
 the declared fixture, not all CNIs; a deployment needs equivalent enforced policy.
-See [the harness](../../tests/reference_board.py) and
+See [the harness](../../tests/interfaces/deployment/reference_board.py) and
 [recorded evidence](../../docs/history/qualification/interfaces.md#board-qualification).

@@ -9,7 +9,7 @@ import sys
 
 import pyarrow.ipc as ipc
 from grammar import check
-from reference import CACHE, antlr_ast
+from interfaces.deployment.reference import CACHE, antlr_ast
 
 
 def reference(case, ast):

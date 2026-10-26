@@ -650,8 +650,8 @@ Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,
 `just test::sql-wire-reference` passes against owned PostgreSQL 18.6 and Oracle
 MySQL 8.4.11 servers with verified TLS. Psycopg 3.3.4 and Connector/Python 9.4.0
 execute prepared reads, INSERT, UPDATE and DELETE where exercised by the
-[probe](../../../tests/sql_wire/reference.py); psql/mysql execute literal reads. The
-[sanitized transcript](../../../tests/sql_wire/reference-transcript.json) retains message kinds
+[probe](../../../tests/interfaces/sql_wire/reference.py); psql/mysql execute literal reads. The
+[sanitized transcript](../../../tests/interfaces/sql_wire/reference-transcript.json) retains message kinds
 and selected driver settings, never authentication, parameter or result bytes.
 The PostgreSQL intermediary actively withholds Execute through Sync; the
 prepared executions complete without a Flush dependency. The MySQL intermediary
@@ -738,7 +738,7 @@ turn fixture; real disk, signed control transport and host replacement remain
 separate required proofs.
 
 The subsequent `just test::sql-gateway` run passes the
-[native coordinator schedule](../../../tests/sql_gateway_native.py) in 31.102 seconds: 31 retained
+[native coordinator schedule](../../../tests/interfaces/sql/sql_gateway_native.py) in 31.102 seconds: 31 retained
 operations, 191 owner turns and 185 native sends, on disk-backed Ursula with eight
 resident pages. Lost ingress and Table receipts replay the identical signed bytes
 and recover the original receipt. The schedule kills both authority and storage,

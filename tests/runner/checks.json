@@ -197,7 +197,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/reference_launcher_state.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/deployment/reference_launcher_state.py"
         ]
       },
       {
@@ -247,12 +248,7 @@
           "packages/zig",
           "apps",
           "examples",
-          {
-            "glob": "tests/*.zig"
-          },
-          "tests/verification",
-          "tests/performance",
-          "tests/sdk"
+          "tests"
         ]
       },
       {
@@ -299,7 +295,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/contract.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/native/contract.py"
         ],
         "generator": {
           "name": "protocol",
@@ -312,7 +309,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/native_fixtures.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/native/native_fixtures.py"
         ]
       },
       {
@@ -330,7 +328,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/contract.py",
+          "tests/runner/launch.py",
+          "tests/interfaces/native/contract.py",
           "--installation"
         ],
         "generator": {
@@ -344,7 +343,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/installation_contract.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/installation_contract.py"
         ],
         "generator": {
           "name": "installation",
@@ -359,7 +359,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/diagnostic_contract.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/cli/diagnostic_contract.py"
         ],
         "generator": {
           "name": "protocol",
@@ -374,7 +375,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/contract.py",
+          "tests/runner/launch.py",
+          "tests/interfaces/native/contract.py",
           "--data-lifecycle"
         ],
         "generator": {
@@ -457,7 +459,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/configuration_contract.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/configuration_contract.py"
         ],
         "generator": {
           "name": "configuration",
@@ -470,7 +473,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/configuration_reference.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/configuration_reference.py"
         ],
         "generator": {
           "name": "settings-reference",
@@ -483,7 +487,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/sql_sessions/contracts.py",
+          "tests/runner/launch.py",
+          "tests/interfaces/sql_sessions/contracts.py",
           "--schema"
         ],
         "generator": {
@@ -497,7 +502,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/sql_sessions/contracts.py"
+          "tests/runner/launch.py",
+          "tests/interfaces/sql_sessions/contracts.py"
         ]
       },
       {

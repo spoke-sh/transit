@@ -14,7 +14,7 @@ import sys
 import time
 
 from harness.processes import children, command
-from server import Fixture
+from interfaces.installation.server import Fixture
 from harness.services import free_port
 from harness.http_probe import Probe
 
@@ -209,7 +209,7 @@ def main():
             assert code == 0, stderr
             assert re.fullmatch(r'Time: \d+ ms \((?:[a-z]+ \d+ ms, )*[a-z]+ \d+ ms\)\n', stderr), stderr
             if mode == 'json':
-                from table_console import results
+                from interfaces.cli.table_console import results
                 assert results(map(json.loads, stdout.splitlines()))[0]['complete']['rows'] == '0'
             else:
                 assert stdout.startswith('┌') and stdout.endswith(('0 rows; complete coverage\n', '1 rows; complete coverage\n'))

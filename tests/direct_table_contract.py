@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 import jsonschema
-from serving import Key
+from interfaces.http.serving import Key
 
 root = Path(__file__).resolve().parents[1]
 definition = "16c0cfe22317dcf6541123f20017e9cd3105ad41b8c8ddc724637901c26af9df"

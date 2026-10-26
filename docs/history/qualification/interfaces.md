@@ -2435,8 +2435,8 @@ output deadlines, cancellation, exit status and terminal restoration retain
 their existing limits and behavior.
 
 `just test::console-history` includes the real-syscall interposer
-[console_input_gate.c](../../../tests/console_input_gate.c) and
-[four scheduled cases](../../../tests/console_signals.py). The parent waits for a ready read,
+[console_input_gate.c](../../../tests/interfaces/cli/console_input_gate.c) and
+[four scheduled cases](../../../tests/interfaces/cli/console_signals.py). The parent waits for a ready read,
 applies a flush/signal, waits for the real handler's acknowledgment when needed,
 checks the terminal queue, then releases the read. Cases cover a flushed Ctrl-C
 during search, an empty read without a signal, Ctrl-C overriding queued Ctrl-D,

@@ -6,7 +6,7 @@ import subprocess
 import sys
 import uuid
 
-from inspection import System
+from interfaces.inspection.inspection import System
 
 
 def run(node, cli, controller):

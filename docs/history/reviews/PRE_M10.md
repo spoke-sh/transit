@@ -32,7 +32,7 @@ Substrate isolation.
 | Station | [GenServer](../../../packages/zig/transit-station/src/GenServer.zig), [Turn](../../../packages/zig/transit-station/src/Turn.zig) and [services](../../../packages/zig/transit-station/docs/services.md) implement detached turns, calls, names, timers and bounded supervision | Host-pumped ABI, one call per input, explicit recovery; no durable suspended language stack or general dynamic supervision tree. |
 | Fuze and Arrow | [Finite execution](../../../packages/zig/transit-fuze/src/execute.zig), [tests](https://github.com/spoke-sh/transit/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/packages/zig/transit-fuze/src/tests.zig) and independent [PyArrow checks](../../../tests/arrow.py) | Two-column bounded Tables; captured replies at most 672 IPC bytes. No optimizer rewrites, SQL, streaming query engine or cross-resource transaction support. |
 | Language bindings | [Matrix](../../../tests/sdk/bindings.py) exercises service/requester roles and host restart; [ABI proof](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/tests/station_abi.py) and runtime-specific bridge tests cover ownership/cancellation | Low-level bindings are qualified, not installable idiomatic SDKs. Foreign-language Substrate workers and broad platform compatibility remain outside M11. |
-| Operator surfaces and diagnostics | [Board](../../../apps/transit-board/README.md), [observability proof](../../../tests/observability.py), browser tests and launcher recovery | Board is inspection-only, admitted through a private deployment boundary. Observations do not grant execution authority. |
+| Operator surfaces and diagnostics | [Board](../../../apps/transit-board/README.md), [observability proof](../../../tests/interfaces/inspection/observability.py), browser tests and launcher recovery | Board is inspection-only, admitted through a private deployment boundary. Observations do not grant execution authority. |
 | Deployment | [Runtime adapter](../../../packages/zig/transit-runtime-substrate/README.md), launcher upgrade proofs and [reference workflow](../../../.github/workflows/reference.yml) | Pinned provider, reviewed Zig workload and topology; reference/physical-capacity qualification is manually triggered, not part of ordinary hosted CI. |
 
 This review did not rerun every runtime proof. Timing evidence below uses the
@@ -187,7 +187,7 @@ runner time, cache hit/size, setup, compile, scenario and cleanup separately.
    owners. Preserve unique checks such as Fuze's upstream compute suite. Measure
    actual cache reuse before treating all package time as removable duplication.
 4. **Build reusable artifacts once per required profile.**
-   [Launcher update tests](../../../tests/launcher_updates.py) intentionally build
+   [Launcher update tests](../../../tests/interfaces/deployment/launcher_updates.py) intentionally build
    Debug candidates against ReleaseSafe selections; the distinct-artifact proof
    must remain. Prebuild required artifacts once and reuse their immutable paths
    across scenarios. Separate pure configuration/selection cases from repeated
@@ -196,7 +196,7 @@ runner time, cache hit/size, setup, compile, scenario and cleanup separately.
 5. **Keep fewer real-time schedules, add many virtual-time schedules.** The
    [Station lifetime proof](../../../tests/station_lifetime.py) waits about 25 seconds
    to exceed the configured uncertainty window. The
-   [launcher proof](../../../tests/launchers.py) deliberately survives a 32-second
+   [launcher proof](../../../tests/interfaces/deployment/launchers.py) deliberately survives a 32-second
    historical readiness-failure window. These waits have reasons. Cover boundary
    combinations using the existing core clock seam and test-only scheduling
    controls; retain representative real-clock/manager regressions. Do not merely

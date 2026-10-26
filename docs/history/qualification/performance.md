@@ -1944,7 +1944,7 @@ case. The report does not identify which unavailable condition occurred.
 
 The console now retries unavailable preparation/observation reads inside its
 original wait deadline. The fault schedule in
-[server_write_observation.py](../../../tests/server_write_observation.py), included in
+[server_write_observation.py](../../../tests/interfaces/installation/server_write_observation.py), included in
 `just test::server`, injects one preflight and three post-admission `HttpCapacity`
 responses. The statement succeeds with exactly one submitted command and an
 independently verified row. A separate accepted command loses its reply: the

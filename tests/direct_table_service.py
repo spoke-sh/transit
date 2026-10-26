@@ -308,7 +308,7 @@ def run(node, caller, mode="tables", *artifacts):
                     print(f"Direct relational callers: {fault['requests']} public requests, original retained joins, current denial, node/caller replacement, budget and ordered overflow passed.")
                     return
                 if mode in ("board", "board-browser"):
-                    from board_relational import exercise
+                    from interfaces.board.board_relational import exercise
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=180)
                     def board_restart():
                         nonlocal authority

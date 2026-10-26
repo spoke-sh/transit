@@ -1,7 +1,7 @@
 """Actual remote sends, paused authorization, bounded closure and no replay I/O."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-from wire_values import encode_command
+from interfaces.native.wire_values import encode_command
 import os
 from pathlib import Path
 import queue

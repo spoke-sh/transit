@@ -54,17 +54,17 @@ direct-table-check:
     zig build direct-table-contract | python3 -B tests/direct_table_contract.py
 
 configuration-generate:
-    zig build configuration-contract | python3 -B tests/configuration_contract.py --write
-    zig build settings-reference | python3 -B tests/configuration_reference.py --write
+    zig build configuration-contract | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_contract.py --write
+    zig build settings-reference | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_reference.py --write
 
 configuration-check:
-    zig build configuration-contract | python3 -B tests/configuration_contract.py
-    zig build settings-reference | python3 -B tests/configuration_reference.py
+    zig build configuration-contract | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_contract.py
+    zig build settings-reference | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_reference.py
 
 sql-session-generate:
-    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/sql_sessions/contracts.py --schema --write
-    python3 -B tests/sql_sessions/contracts.py --write
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/interfaces/sql_sessions/contracts.py --schema --write
+    python3 -B tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --write
 
 sql-session-check:
-    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/sql_sessions/contracts.py --schema
-    python3 -B tests/sql_sessions/contracts.py
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/interfaces/sql_sessions/contracts.py --schema
+    python3 -B tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py

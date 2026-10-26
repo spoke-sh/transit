@@ -469,7 +469,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert requests[-1] == "/public" and requests.count("/public") == 1
 
             if board is not None:
-                from http_board import inspect_capture
+                from interfaces.http.http_board import inspect_capture
                 inspect_capture(fixture, admin, url, saved, board, provision, state, browser)
 
             from sdk.station_growing_abi import Native

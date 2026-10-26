@@ -201,7 +201,7 @@ def run(*, board=False, browser=False):
             try:
                 assert worker("create")["revision"] == "0"
                 if board or browser:
-                    from document_board import DocumentBoard
+                    from interfaces.board.document_board import DocumentBoard
                     inspection = DocumentBoard(system, writer, command, query, write, binaries, browser)
                     assert inspection.request("/api/v1/capabilities")["documents"]
                 invoke([binaries["transit-station-document-worker"], system.root / "writer.json"], error="FreshOwnershipRequired")

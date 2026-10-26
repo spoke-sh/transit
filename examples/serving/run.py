@@ -18,9 +18,9 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
-from serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
-from serving_tls import TLSProxy
-from serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
+from interfaces.http.serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
+from interfaces.http.serving_tls import TLSProxy
+from interfaces.http.serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
 from placement import Compose, DirectReference
 
 
@@ -352,7 +352,7 @@ def run(profile, reactive=False, views=False):
             assert read('discovery')['binding']['target'] == application
             reactive_state = None
             if reactive:
-                from reactive_placement import PhysicalReactive
+                from interfaces.reactive.reactive_placement import PhysicalReactive
                 reactive_state = PhysicalReactive(locals())
                 reactive_state.begin()
             frozen = native_command(keys[65536], 65536, sequences[65536] + 1, {'send': dict(pid=ingress, value=frame(submit(1, deadline)))})

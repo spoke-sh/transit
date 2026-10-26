@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-from serving import Key, compact
+from interfaces.http.serving import Key, compact
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
 

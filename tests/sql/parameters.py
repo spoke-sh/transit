@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pyarrow.ipc as ipc
-from reference import ROOT, antlr_ast, pg_ast, tree
+from interfaces.deployment.reference import ROOT, antlr_ast, pg_ast, tree
 
 
 def scalar(value):

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "launchers"))
 from common import HTTP, run, write
 from station_example import StationInstallation
-from launchers import ports
+from interfaces.deployment.launchers import ports
 from station_ledger import audit_total
 
 
@@ -190,7 +190,7 @@ def exercise(profile, name=None, base=None, existing=False):
             await_value(lambda: total() == 13, "Station replacement did not recover")
         recovered = installation.process("ledger")
         assert recovered["pid"] == before["ledger"]["pid"] and recovered["generation"] > before["ledger"]["generation"]
-        from launcher_updates import candidate
+        from interfaces.deployment.launcher_updates import candidate
         before_upgrade = {role: installation.process(role) for role in installation.workloads}
         candidate(installation, "example-station-ledger")
         invoke("update", "ledger", "--no-build")

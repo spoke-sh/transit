@@ -17,8 +17,8 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
-from flight_adbc import verify
-from serving_tls import TLSProxy
+from interfaces.flight.flight_adbc import verify
+from interfaces.http.serving_tls import TLSProxy
 from harness.services import wait_ready
 from placement import Compose, Reference
 

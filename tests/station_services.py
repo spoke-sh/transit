@@ -3,7 +3,7 @@ import json
 import struct
 import time
 
-from inspection import System
+from interfaces.inspection.inspection import System
 from station import frame
 from station_ledger import AUDIT, audit_state, audit_total, provision
 

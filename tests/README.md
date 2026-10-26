@@ -19,14 +19,14 @@ handoff log. A listed task establishes no passing result at the current revision
 | CI selection, lanes and cost | [Task inventory](runner/suite.json), [runner](runner/ci.py), [selection](runner/ci_select.py), [cost reporting](runner/ci_cost.py), [budgets](runner/ci-budgets.json) |
 | Local check orchestration | [Runner index](runner/README.md), [check inputs](runner/checks.json), [check commands](../tasks/check.just) |
 | Local storage, WAL, segments and recovery | [Storage package](../packages/zig/transit-storage/README.md), [local backend](../packages/zig/transit-backend-local/README.md), [process-death schedules](local_storage_faults.py), [storage task recipes](../tasks/test.just) |
-| Catalog, Table and named-resource lifecycles | [Catalog package](../packages/zig/transit-catalog/README.md), [direct service schedules](direct_table_service.py), [installed Table checks](server_direct_tables.py) |
+| Catalog, Table and named-resource lifecycles | [Catalog package](../packages/zig/transit-catalog/README.md), [direct service schedules](direct_table_service.py), [installed Table checks](interfaces/installation/server_direct_tables.py) |
 | Query execution and relational computation | [Query package](../packages/zig/transit-query/README.md), [SQL oracle checks](sql/), [query test recipes](../tasks/test.just) |
-| Database protocols and sessions | [Wire checks](sql_wire/), [session checks](sql_sessions/), [installed SQL checks](server_sql_local.py) |
+| Database protocols and sessions | [Wire checks](interfaces/sql_wire/README.md), [session checks](interfaces/sql_sessions/README.md), [installed SQL checks](interfaces/installation/server_sql_local.py) |
 | Station, delivery, resources and effects | [Station package](../packages/zig/transit-station/README.md), [simulation guide](verification/README.md), [runtime test recipes](../tasks/test.just) |
 | SDKs and isolated installed consumers | [Installed checks](sdk/README.md), [SDK guide](../sdks/README.md), [binding tasks](../tasks/bindings.just) |
 | CLI, Board, serving and reactive interfaces | [CLI](../apps/transit-cli/README.md), [Board](../apps/transit-board/README.md), [Board tasks](../tasks/transit-board.just), [interface test recipes](../tasks/test.just) |
-| Flight and Arrow | [Flight checks](flight/README.md), [independent Arrow check](arrow.py) |
-| Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](server.py) |
+| Flight and Arrow | [Flight checks](interfaces/flight/README.md), [independent Arrow check](arrow.py) |
+| Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](interfaces/installation/server.py) |
 | Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [operation drivers](operations/), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
 | Retained observations and original outcomes | [Evidence index](evidence/README.md), [integrity check](runner/layout.py) |
 | Performance experiments | [Workloads, runners and active budgets](performance/README.md) |

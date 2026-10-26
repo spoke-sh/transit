@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import time
 
-from inspection import System
+from interfaces.inspection.inspection import System
 from cold_storage import ColdStore
 from station import frame
 from harness.services import wait_ready

@@ -170,8 +170,8 @@ steps and operator intervention after revocation. Local TLS trust has its own
 checkpoint and lifecycle; replacing or expiring a certificate changes admission,
 not the identity or outcome of a recorded operation.
 
-The executable schedules are [public client onboarding](../../../tests/server_sql.py)
-and [interrupted enrollment](../../../tests/server_sql_faults.py). They check selected
+The executable schedules are [public client onboarding](../../../tests/interfaces/installation/server_sql.py)
+and [interrupted enrollment](../../../tests/interfaces/installation/server_sql_faults.py). They check selected
 disconnect, restart, revocation and trust failures on disk-backed Ursula. The
 [proof ledger](../../history/qualification/README.md) supplies reproduction commands and
 distinguishes executed results from this reasoning. These schedules do not cover every interruption point, sustained
@@ -330,7 +330,7 @@ frame deadline on the first network bytes, before TLS decoding can complete;
 the [connection adapter](../../../apps/transit-sql-gateway/src/Connection.zig)
 handles already buffered TLS bytes too. Thus disabling idle expiry does not
 permit an indefinitely incomplete frame or TLS record. Connection and memory
-quotas still bound resident state. The [lifetime proof](../../../tests/server_sql_lifetimes.py)
+quotas still bound resident state. The [lifetime proof](../../../tests/interfaces/installation/server_sql_lifetimes.py)
 checks idle sockets, independent native expiry and partial records over real
 plaintext and TLS sockets; the [proof ledger](../../history/qualification/README.md) records
 execution results and limits.
@@ -417,7 +417,7 @@ including background recovery. Two simultaneous sessions finish in
 2.63 seconds including result closure; their observation windows overlap
 and cannot be added as independent request counts. The service high-water mark
 at this observation is 116,236 KiB. The
-[measurement implementation](../../../tests/sql_sessions/measurements.py) records
+[measurement implementation](../../../tests/interfaces/sql_sessions/measurements.py) records
 body bytes, timings and process memory. The [evidence record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-sessions-2026-10-21.json)
 preserves exact source/binary hashes, structured observations and failed runs.
 
@@ -435,14 +435,14 @@ are 18.36–20.45 and 18.37–19.25 seconds.
 These observations include durable admission and completion under the fixture's
 retained history; they do not isolate wire encoding costs.
 
-The [resource sampler](../../../tests/sql_sessions/resources.py) samples the
+The [resource sampler](../../../tests/interfaces/sql_sessions/resources.py) samples the
 native fixture during provisioning, execution and process replacement. Its largest
 sampled sum of direct child RSS is 884,404 KiB; the largest SQL-process
 high-water mark across incarnations is 126,612 KiB. WAL file capacity peaks
 at 105,259,960 bytes. RSS sums can count shared pages repeatedly and exclude
 subprocess descendants. WAL capacity includes allocated segments, excludes cold
 storage, and does not isolate retained operation bytes. To repeat that observer,
-run `python3 tests/sql_sessions/resources.py PID FIXTURE OUTPUT.json` while the
+run `python3 tests/interfaces/sql_sessions/resources.py PID FIXTURE OUTPUT.json` while the
 source-session fixture's Python process is alive; use its PID and owned fixture
 directory. The integration fixture itself owns process cleanup.
 

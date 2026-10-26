@@ -3,7 +3,7 @@ import copy
 import itertools
 import json
 import subprocess
-from reference import ROOT, CACHE, tree, identifier
+from interfaces.deployment.reference import ROOT, CACHE, tree, identifier
 from table_reference import ALIASES, create, column, data_type, literal, schema_bytes
 
 TYPES=dict(INT64='int64',BOOL='boolean',UTF8='utf8',BINARY='binary')
@@ -97,6 +97,6 @@ def check(binary):
 
 if __name__ == '__main__':
     import sys
-    from reference import generate
+    from interfaces.deployment.reference import generate
     generate()
     check(sys.argv[1])

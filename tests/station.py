@@ -13,7 +13,7 @@ import time
 import pyarrow as pa
 
 from station_ledger import AUDIT, audit_total, query_key, query_result, provision
-from inspection import System
+from interfaces.inspection.inspection import System
 from harness.services import wait_ready
 
 

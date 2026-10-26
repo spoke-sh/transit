@@ -10,7 +10,7 @@ from decimal import Decimal
 import re
 import struct
 import subprocess
-from reference import ROOT, CACHE, tree, identifier, column
+from interfaces.deployment.reference import ROOT, CACHE, tree, identifier, column
 from table_reference import create, schema_bytes, literal, cell_bytes
 
 TYPES=dict(int64='INT64',boolean='BOOLEAN',utf8='UTF8',binary='BINARY')
@@ -170,5 +170,5 @@ def check(binary):
 
 if __name__=='__main__':
     import sys
-    from reference import generate
+    from interfaces.deployment.reference import generate
     generate();check(sys.argv[1])

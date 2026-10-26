@@ -16,7 +16,7 @@ from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
 from cold_storage import ColdStore
-from grpc_faults import Boundary
+from interfaces.grpc.grpc_faults import Boundary
 
 
 def run(node, provision, worker, board=None, browser=None, *, control=False):
@@ -172,7 +172,7 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
                     assert replay == dict(bytes=len(payload)*response_count, sha256=hashlib.sha256(payload*response_count).hexdigest(), status=0, messages=response_count), replay
                     secret.write_bytes(b"Bearer fixture-rpc-secret")
                 if board:
-                    from grpc_board import inspect_capture
+                    from interfaces.grpc.grpc_board import inspect_capture
                     inspect_capture(fixture, admin, url, saved, str(Path(board).resolve()), provision, state, browser)
                 assert recovered == {"seal", "dispatch", "observe"}, (dropped.keys(), recovered)
                 for exchange, (shape, method, _) in enumerate(shapes, 5):

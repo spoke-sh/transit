@@ -15,7 +15,7 @@ from harness.services import free_port, wait_ready
 
 
 def run(node, caller):
-    from application_contract import fixture as contract_fixture, PATH
+    from interfaces.installation.application_contract import fixture as contract_fixture, PATH
     assert json.loads(PATH.read_text()) == contract_fixture()
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with Fixture() as fixture:

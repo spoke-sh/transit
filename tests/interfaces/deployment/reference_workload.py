@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Deploy native v1 on the owned reference cluster and kill real workers."""
+import json
+from interfaces.native.wire_values import encode_command
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+import uuid
+
+import interfaces.deployment.reference as ref
+from harness.services import free_port
+
+
+def diagnostic_records(text):
+    # Mixed provider/host logs can include a partially written final record.
+    for line in text.splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict) and record.get("schema_version") == 1:
+            yield record
+
+
+def run():
+    s = ref.state()
+    images = json.loads((ref.CACHE / "images.json").read_text())
+    directory = ref.CACHE / ("proof-" + uuid.uuid4().hex[:8])
+    directory.mkdir(mode=0o700)
+    namespace = "transit-" + directory.name
+    http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    cli = ref.CACHE / "bin/bin/transit-admin"
+    controller_bin = ref.CACHE / "bin/bin/transit-runtime-controller"
+    children = []
+    logs = []
+
+    def start(argv, name):
+        log = (directory / (name + ".log")).open("w+")
+        logs.append(log)
+        child = subprocess.Popen(list(map(str, argv)), stdout=log, stderr=subprocess.STDOUT, env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "info"})
+        children.append(child)
+        return child, log
+
+    def key(name):
+        path = directory / (name + ".key")
+        path.write_text(os.urandom(32).hex())
+        path.chmod(0o600)
+        return path, json.loads(ref.run([cli, "public-key", path], capture=True))
+
+    root_key, root_public = key("root")
+    controller_key, controller_public = key("controller")
+    maintenance_key, maintenance_public = key("maintenance")
+    _, worker_public = key("initial-worker")
+    port = free_port()
+    url = f"http://127.0.0.1:{port}"
+    authority_host = f"transit.{namespace}.svc.cluster.local"
+    authority_url = f"http://{authority_host}:8080"
+    sequence = 0
+
+    def post(path, body, signing):
+        request_file = directory / "request.json"
+        request_file.write_text(json.dumps(body))
+        signed = ref.run([cli, signing, root_key, request_file], capture=True).encode()
+        for attempt in range(20):
+            try:
+                with http.open(urllib.request.Request(url + path, signed, {"Content-Type": "application/json"}), timeout=8) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as error:
+                if error.code not in (409, 503):
+                    raise RuntimeError((error.code, error.read().decode())) from error
+            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                pass
+            time.sleep(0.2)
+        raise TimeoutError("Authority unavailable")
+
+    def command(value):
+        nonlocal sequence
+        sequence += 1
+        return post("/v1/command", {"realm": 49, "principal": 0, "sequence": sequence,
+                                   "command": encode_command(value)}, "sign")["position"]
+
+    def query(kind):
+        return post("/v1/query", {"realm": 49, "principal": 0, "kind": kind}, "sign-query")["body"]
+
+    def view(pid):
+        return {"process": query({"inspection": {"resource": "process", "pid": pid}})["inspection"]["processes"][0]}
+
+    def counter():
+        entries = query({"read_entries": {"resource": resource, "keys": [b"value".hex()] + [None]*7}})["read_entries"]["entries"]
+        return int(bytes.fromhex(entries[0]["value"]).decode()) if entries[0] else 0
+
+    def apply(value):
+        ref.kube(s, ["apply", "-f", "-"], input=json.dumps(value))
+
+    def await_state(pid, expected, limit=240):
+        deadline = time.monotonic() + limit
+        while time.monotonic() < deadline:
+            try:
+                value = view(pid)
+                if counter() == expected:
+                    return value
+            except (RuntimeError, TimeoutError):
+                pass
+            time.sleep(0.5)
+        raise TimeoutError(f"Process did not reach state {expected}")
+
+    def actor():
+        return json.loads(ref.ate(s, ["get", "actor", actor_name, "-a", namespace, "-o", "json"], capture=True))
+
+    config = {"genesis": {"realm": 49, "root_key": root_public, "allow_history_trim": True, "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
+              "bucket": "transit-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
+    from interfaces.deployment.reference_chart import Chart
+    chart = Chart(s, directory, namespace, images, config)
+    try:
+        apply({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace}})
+        chart.deploy()
+        chart.deploy(initialize={"enabled": True})
+        # Ordinary pod restarts never create a missing realm.
+        chart.deploy(initialize={"enabled": False}, node={"enabled": True})
+        forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
+                            "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "port-forward")
+        time.sleep(1)
+        pid = command({"spawn": {}})
+        command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
+        command({"grant": {"subject": 2, "public_key": controller_public, "permissions": 17, "pid": pid}})
+        resource = command({"create_resource": {"writer": pid}})
+        for subject in (0, 1):
+            command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
+        command({"associate": {"pid": pid, "name": b"counter".hex(), "resource": resource}})
+        for value in range(1, 18):
+            command({"send": {"pid": pid, "value": value}})
+        chart.deploy(workerPool={"enabled": True, "labels": {"workload": namespace},
+                                "spec": {"replicas": 3, "workerImage": images["ateom"],
+                                         "template": {"nodeSelector": {"ate.dev/substrate-version": ref.PINS["substrate"][:7]},
+                                                      "resources": {"requests": {"cpu": "100m", "memory": "512Mi"},
+                                                                    "limits": {"cpu": "1", "memory": "1Gi"}}}}})
+        ref.ate(s, ["create", "atespace", namespace])
+        template = {"metadata": {"atespace": namespace, "name": "counter"}, "workerSelector": {"matchLabels": {"workload": namespace}},
+                    "containers": [{"name": "counter", "image": images["example-counter"],
+                                    "env": [{"name": "LOG_FORMAT", "value": "json"}, {"name": "LOG_LEVEL", "value": "info"}], "command": ["/example-counter", "--bootstrap-json",
+                                     json.dumps({"url": authority_url, "realm": 49, "principal": 1, "pid": pid})],
+                                    "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
+                    "volumes": [{"name": "runtime-data", "durableDir": {}}],
+                    "resources": {"limits": [{"name": "cpu", "quantity": "1"}, {"name": "memory", "quantity": "512Mi"}]},
+                    "snapshotsConfig": {"storageLocation": f"gs://ate-snapshots/{namespace}/", "onPause": "SNAPSHOT_CONTENT_SCOPE_DATA", "onCommit": "SNAPSHOT_CONTENT_SCOPE_DATA", "onResume": {"fromData": "RESUME_SOURCE_COLD_BOOT"}},
+                    "sandboxConfig": {"sandboxClass": "SANDBOX_CLASS_GVISOR", "configName": "gvisor-default"}}
+        template_file = directory / "template.json"
+        template_file.write_text(json.dumps(template))
+        created = json.loads(ref.ate(s, ["create", "actor-template", "-f", template_file, "-o", "json"], capture=True))
+        template_uid = created["metadata"]["uid"]
+        policy = directory / "egress.json"
+        policy.write_text(json.dumps({"rules": [{"hostnames": {"patterns": [authority_host]}}]}))
+        actor_name = f"realm-49-pid-{pid}"
+        controller_config = directory / "controller.json"
+        controller_config.write_text(json.dumps({"url": url, "realm": 49, "principal": 2, "seed_file": str(controller_key), "pid": pid, "worker": 1,
+            "provider": {"cli": ref.ate_binary(), "kubeconfig": str(ref.CACHE / "kubeconfig"), "context": "kind-" + s["cluster"],
+                         "instance": list(uuid.uuid4().bytes), "atespace": namespace, "actor": actor_name, "template": "counter",
+                         "template_uid": list(uuid.UUID(template_uid).bytes), "image": images["example-counter"],
+                         "egress_policy_file": str(policy), "authority_host": authority_host}}))
+        first, first_log = start([controller_bin, controller_config], "first-controller")
+        deadline = time.monotonic() + 60
+        while True:
+            if any(record.get("event", {}).get("name") == "transit.runtime.step" and
+                   record["event"].get("operation") == "created"
+                   for record in diagnostic_records(Path(first_log.name).read_text())):
+                first.kill()
+                first.wait(timeout=10)
+                break
+            if first.poll() is not None or time.monotonic() > deadline:
+                raise RuntimeError("Controller did not create the recorded Actor")
+            time.sleep(0.02)
+        first_actor_uid = actor()["metadata"]["uid"]
+        assert view(pid)["process"]["binding"]["phase"] == "pending"
+        assert view(pid)["process"]["owner"] is None
+        second, _ = start([controller_bin, controller_config], "replacement-controller")
+        completed = await_state(pid, 153)
+        live = actor()
+        assert live["metadata"]["uid"] == first_actor_uid
+        from interfaces.deployment.reference_board import Board
+        board = Board(s, directory, namespace, images, pid, command, key, apply, start, chart)
+        board_before = board.process(pid)
+        assert board_before["generation"] == completed["process"]["generation"]
+        old_worker = live["status"]["workerAssignment"]
+        ref.kube(s, ["-n", old_worker["workerNamespace"], "delete", "pod", old_worker["workerPod"], "--grace-period=0", "--force"])
+        command({"send": {"pid": pid, "value": 1000}})
+        recovered = await_state(pid, 1153)
+        replacement = actor()
+        assert replacement["metadata"]["uid"] == first_actor_uid
+        assert replacement["status"]["workerAssignment"]["workerPodUid"] != old_worker["workerPodUid"]
+        assert recovered["process"]["generation"] > completed["process"]["generation"]
+        board_after = board.process(pid)
+        assert board_after["pid"] == board_before["pid"]
+        assert board_after["generation"] > board_before["generation"]
+        assert board_after["binding"]["activation"]["worker_incarnation"] != board_before["binding"]["activation"]["worker_incarnation"]
+        ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=ursula", "--grace-period=0", "--force"])
+        ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/ursula", "--timeout=120s"])
+        assert await_state(pid, 1153)["process"]["pid"] == pid
+        # Independent maintenance survives lack of incoming requests and trims
+        # while the original authority stays running. No key reaches workers.
+        command({"grant": {"subject": 3, "public_key": maintenance_public, "permissions": 161}})
+        deadline = int(time.time() * 1000) + 5000
+        finite_pid = command({"spawn": {"work_before_ms": deadline, "settle_before_ms": deadline + 1000}})
+        command({"send": {"pid": finite_pid, "value": 99}})
+        apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "maintenance", "namespace": namespace},
+               "stringData": {"seed": maintenance_key.read_text()}})
+        chart.deploy(maintenance={"enabled": True, "existingSecret": "maintenance"})
+        limit = time.monotonic() + 60
+        while view(finite_pid)["process"]["lifecycle"] != "expired":
+            assert time.monotonic() < limit, "Finite process did not expire"
+            time.sleep(0.2)
+        # Authority recovery is independent of its HTTP connection and cache.
+        forward.kill()
+        forward.wait(timeout=10)
+        ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=transit", "--grace-period=0", "--force"])
+        ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/transit", "--timeout=120s"])
+        forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
+                            "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "replacement-forward")
+        assert await_state(pid, 1153)["process"]["pid"] == pid
+        assert view(finite_pid)["process"]["lifecycle"] == "expired"
+        assert board.process(finite_pid)["lifecycle"] == "expired"
+        assert counter() == 1153
+        assert "state" not in board.process(pid), "Board must not decode application state"
+        from interfaces.deployment.reference_isolation import run as isolation
+        isolation_evidence = isolation(s, directory, namespace, authority_host, images, template)
+        # A deterministic poison input must stop replacement, not turn worker
+        # exits into an endless Substrate activation loop.
+        failed_input = command({"send": {"pid": pid, "value": 9223372036854775807}})
+        limit = time.monotonic() + 60
+        while True:
+            blocked = view(pid)["process"]
+            if blocked["failure"] is not None and blocked["binding"]["phase"] == "stopped":
+                break
+            assert time.monotonic() < limit, "Handler failure was not durably blocked/stopped"
+            time.sleep(0.2)
+        assert blocked["failure"] == failed_input and counter() == 1153
+        time.sleep(2)
+        assert view(pid)["process"]["generation"] == blocked["generation"]
+        command({"terminate": pid})
+        assert view(pid)["process"]["lifecycle"] == "terminated"
+        limit = time.monotonic() + 60
+        while view(pid)["process"]["binding"]["phase"] != "stopped":
+            assert time.monotonic() < limit, "Runtime shutdown did not reconcile"
+            time.sleep(0.2)
+        assert board.process(pid)["lifecycle"] == "terminated"
+        board_history = board.read(f"processes/{pid}/history")["observation"]
+        board.evidence["retained_history"] = {key: board_history[key] for key in ("cut", "history", "complete")}
+        diagnostic_evidence = {}
+        for deployment_name, container_name, event in (("transit", "transit", "transit.http.request"), ("maintenance", "maintenance", "transit.maintenance.step"), ("board", "board", "board.http.request")):
+            output = ref.kube(s, ["-n", namespace, "logs", "deployment/" + deployment_name, "-c", container_name, "--tail=500"], capture=True)
+            parsed_logs = [json.loads(line) for line in output.splitlines() if line.startswith('{"schema_version":')]
+            assert any(r.get("event", {}).get("name") == event for r in parsed_logs), (deployment_name, output[-3000:])
+            # Board viewer keys were removed; all remaining fixture signing
+            # seeds must still stay out of service diagnostics.
+            assert all(credential.read_text().strip() not in output for credential in directory.glob("*.key"))
+            diagnostic_evidence[deployment_name] = len(parsed_logs)
+        assert any('"name":"transit.runtime.step"' in Path(log.name).read_text() for log in logs)
+        nodes = json.loads(ref.kube(s, ["get", "nodes", "-o", "json"], capture=True))
+        kubelet = json.loads(ref.kube(s, ["get", "--raw", "/api/v1/nodes/" + nodes["items"][0]["metadata"]["name"] + "/proxy/configz"], capture=True))["kubeletconfig"]
+        assert kubelet["containerLogMaxSize"] == "5Mi" and kubelet["containerLogMaxFiles"] == 3
+        diagnostic_evidence["container_log_budget"] = {"size": "5Mi", "files": 3}
+        evidence = {"observability": diagnostic_evidence, "board": board.evidence, "namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
+                    "first_worker_uid": old_worker["workerPodUid"], "replacement_worker_uid": replacement["status"]["workerAssignment"]["workerPodUid"],
+                    "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS, "chart": "charts/transit"}
+        (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))
+        print("Substrate controller crash, same-PID/Actor worker recovery, persistent Ursula/authority restart and background expiry passed.")
+        print("Evidence:", directory / "evidence.json")
+    except BaseException:
+        for log in logs:
+            sys.stderr.write(Path(log.name).read_text()[-6000:])
+        ref.kube(s, ["get", "pods", "-n", namespace])
+        raise
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+            child.wait(timeout=10)
+        for log in logs:
+            log.close()
+
+
+if __name__ == "__main__":
+    import sys
+    run()

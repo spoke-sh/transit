@@ -1,6 +1,6 @@
 """Background expiry and reclamation while an independent authority stays live."""
 import json
-from wire_values import encode_command
+from interfaces.native.wire_values import encode_command
 import os
 from pathlib import Path
 import signal
