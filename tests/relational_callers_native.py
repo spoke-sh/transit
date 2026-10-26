@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+import time
 
 from catalog_abi import CONTRACT, Native as Catalog
 from unified_abi import Failure, Native, Port
@@ -40,8 +41,43 @@ class Fixture:
                 sql=sql, dialect='transit', ingestion='bulk')))['compiled']
             reference = self.catalog.call(dict(stage=compiled['summary']['id']))['staged']
             self.catalog.call(dict(admit=reference))
-            observed = self.catalog.call(dict(operation=dict(reference=reference, command='execute', steps=32)))['observation']
-            assert 'committed' in next(iter(observed.values())), observed
+            self.execute(reference, operation)
+
+    def execute(self, reference, operation):
+        """Reconcile setup through its saved intent, never recompile after loss."""
+        deadline = time.monotonic() + 60
+        command = 'execute'
+        uncertain = 0
+        while time.monotonic() < deadline:
+            try:
+                observed = self.catalog.call(dict(operation=dict(reference=reference, command=command, steps=32)))['observation']
+            except Failure as failure:
+                detail = failure.detail or {}
+                if command == 'execute':
+                    diagnostic = detail.get('diagnostic') or {}
+                    if (failure.status != CONTRACT['statuses']['uncertain']
+                            or diagnostic.get('code') != 'catalog.direct_outcome_unknown'
+                            or diagnostic.get('outcome') != 'unknown'
+                            or diagnostic.get('evidence') != 'saved_intent'
+                            or diagnostic.get('identity', {}).get('id') != str(operation)):
+                        raise
+                    command = 'inspect'
+                    uncertain += 1
+                elif detail.get('err') not in ('AuthorityTimeout', 'AuthorityUnavailable'):
+                    raise
+                time.sleep(.05)
+                continue
+            state = next(iter(observed.values()))
+            if 'committed' in state:
+                if uncertain:
+                    print(f'Relational setup: original operation {operation} recovered after {uncertain} uncertain execution replies.', flush=True)
+                return
+            # Inspection can establish that the original bounded execution did
+            # not finish. Advance only that same staged identity, under current
+            # authorization; a terminal rejection remains a failed setup.
+            assert command == 'inspect' and 'admitted' in state, observed
+            command = 'execute'
+        raise AssertionError(('Original relational setup did not complete', operation))
 
     def retain(self, sources):
         """Persist each original acquisition before dispatch; aliases share one pin."""
