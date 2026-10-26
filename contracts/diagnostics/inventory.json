@@ -19302,7 +19302,7 @@
     "packages/zig/transit-sql/src/Session.zig": {
       "errors": {
         "AccessDenied": 1,
-        "AuthorityUnavailable": 1,
+        "AuthorityUnavailable": 2,
         "Canceled": 1,
         "Cancelled": 1,
         "CatalogDefinitionChanged": 2,
@@ -19313,7 +19313,7 @@
         "ConfigurationServiceRequired": 1,
         "ConfigurationSnapshotChanged": 1,
         "ConfigurationSortRequiresBoundedLimit": 1,
-        "Conflict": 2,
+        "Conflict": 5,
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
         "EmptyWireQuery": 1,
@@ -19336,7 +19336,7 @@
         "InvalidWireValue": 1,
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
-        "Rejected": 2,
+        "Rejected": 3,
         "SettingNotSessionMutable": 1,
         "SettingOutOfRange": 1,
         "SqlReadRecoveryRequired": 1,
@@ -19360,6 +19360,10 @@
         "WireValueOutOfRange": 1
       },
       "outcomes": {
+        "ObservationSource": [
+          "native",
+          "settings"
+        ],
         "Prepared": [
           "native",
           "probe",
@@ -19388,6 +19392,7 @@
         "current()": "<inferred>",
         "currentOnce()": "<inferred>",
         "fresh()": "<inferred>",
+        "freshOn()": "<inferred>",
         "init()": "<inferred>",
         "loadCredential()": "<inferred>",
         "openRead()": "<inferred>",
