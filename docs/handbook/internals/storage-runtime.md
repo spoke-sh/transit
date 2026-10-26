@@ -30,12 +30,17 @@ throughput. It answers a memory-growth question, not every scaling question.
 
 ### Private object staging and native progress
 
-Can a private object write block unrelated native reads and control publication?
+Can a private direct-data write block unrelated native reads and control publication?
 The exclusive local backend uses one mutex for WAL access, accepted-head state
-and quota reservations. Immutable object publication needs neither a new native
+and quota reservations. Direct-data object publication needs neither a new native
 root nor that mutex while its files are written and synced. Each disk object key
 has its own publication lock; readers capture an atomic descriptor and verify
-the requested content. No physical object collector runs in this owner.
+the requested content. Direct-data objects remain outside physical collection.
+The explicit native collector has a different creation/deletion boundary:
+`Backend.putNative` holds the journal mutex through allocation recording and
+object publication, and native reclamation holds the same mutex. This prevents
+a delayed creator from recreating an object after its allocation is consumed;
+native allocation/object syncs can therefore delay unrelated journal work.
 
 [`Backend.put`](../../../packages/zig/transit-backend-local/src/Backend.zig)
 checks for an existing descriptor, reserves encoded bytes under the shared

@@ -99,6 +99,35 @@ existing scan path; this measurement exercises the retained range operation.
 The [proof ledger](../../../tests/README.md#retained-table-cross-segment-range-control--2026-10-26)
 records the fixture and reproduction command.
 
+## Local ingestion and bounded growth measurements
+
+A separate disk-owner matrix completes 384 verified write/readback samples,
+including 31 observations per arm. At a 1,024-row baseline, inserting sixteen
+1 KiB rows takes median / p95 **473.68 / 1,188.34 ms** through point ingestion
+and **486.99 / 641.78 ms** through bulk ingestion with warm fixture pages.
+Verified cold entry raises these to **4,861.01 / 5,795.64 ms** and
+**4,882.02 / 6,883.45 ms**. Every sample verifies the complete original and new
+values, receipt and retained snapshot in a fresh process.
+
+Bulk ingestion reduces that batch's WAL bytes from 23,552 to 3,712, but total
+staging bytes and latency do not improve consistently. Both paths append once
+with three measured WAL syncs; final append medians are about 0.5–1.2% of total
+owner ingestion medians in these fixtures. A native turn's preparation includes
+input/view acceptance and private staging, so its timing is a separate workload.
+The [ingestion account and raw observations](../../../tests/storage_benchmarks/2026-10-26-ingestion/README.md)
+record both owners, exact source/build identities, allocation/RSS boundaries,
+cache conditioning and shared-host contention. Later Table evidence and native
+policy caching changes are outside this measurement; installed SQL and concurrent
+group commit are not measured.
+
+A [separate growth attempt](../../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+verifies 8,192 Table rows with 16 KiB values and 191,717,253 retained file bytes
+under a 134,217,728-byte process address-space ceiling. Fresh-process cold readback
+checks every value without changing storage. This exceeds the process ceiling,
+not host RAM. The full growth run fails when native setup exceeds its unchanged
+1,800-second timeout; completed Table observations do not establish native growth
+or a complete growth-matrix pass.
+
 ## Table point-read decoding measurements
 
 Point reads can retain one verified encoded row group and decode the requested

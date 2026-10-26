@@ -28430,6 +28430,7 @@ complete telemetry. Private configurations and durable fixture state remain
 outside Git. The committed reactive fixture and runtime deadlines are unchanged;
 the broader physical browser failure remains recorded separately from the
 data-plane lock-independence result.
+
 ## Declared finite query collations — 2026-10-26
 
 `just test::direct-table-service collations` passes in ReleaseSafe through the
@@ -29159,6 +29160,47 @@ catalog and 6,409 documentation links pass. This component does not select all
 retained roots, persist a collection queue, inventory allocations or delete
 objects. Test cursor JSON is not a stored maintenance format. Complete Table
 collection and final committed-HEAD clean qualification remain outstanding.
+
+## Archived ingestion and growth observations — 2026-10-26
+
+The [ingestion account](storage_benchmarks/2026-10-26-ingestion/README.md) preserves
+the exact successful 384-sample report and all twelve recomputed summaries.
+Every sample's independent value/count/digest, accepted position, retained
+snapshot and original receipt checks are revalidated before archiving. Recorded
+source hashes match clean revision `e7334f03e6c645f26de8186fc00e4aa8b7994f14`;
+later rebases do not change that attribution. The earlier conditioning failure
+remains a separate failed run. The [growth account](storage_benchmarks/2026-10-26-growth/README.md)
+similarly preserves the exact failed attempt from `b85a0a076`: its completed
+Table fixtures pass the independent validators and cold-entry checks, while
+native setup exceeds the unchanged 1,800-second deadline. There is no complete
+growth or beyond-host-RAM result to infer from these artifacts.
+
+## Rebase over private object I/O separation — 2026-10-26
+
+The branch rebases 31 commits onto `443404722` with all author dates preserved
+and matching committer dates. Resolution preserves direct-data namespace checks,
+the upstream removal of the journal mutex from private direct-object reads and
+publication, both proof-ledger histories and regenerated diagnostic inventory.
+Native allocation/collection serialization remains its existing separate scope.
+
+At rebased revision `db0214006`, `zig build test-local-native --summary all`
+passes **26/26**, including the upstream paused-sync/control-progress regression
+and this branch's native collection, quota, fencing and recovery cases. Focused
+storage tests pass **6/6** for disk-facade concurrency, independent conditional
+publishers, publication-sync failure and retained Table root enumeration.
+Diagnostic inventory matches. Commands run inside the pinned Nix shell; the
+storage selection uses `-Dtest-filter='disk facade'`,
+`-Dtest-filter='concurrent local publishers'`,
+`-Dtest-filter='object publication sync failures'` and
+`-Dtest-filter='Table retained root enumeration'` in `packages/zig/transit-storage`.
+
+The preceding full `just check` at `fcefc1e67` is **interrupted with exit 130**
+to perform the requested rebase. Python harnesses, toolchain checks, formatting
+and contracts complete; unit execution reports the 92 local storage and 15
+native collection SIGKILL schedules before interruption. The overall unit step,
+Board/site checks and full check do not complete. Its log remains
+`/var/tmp/transit-m2-retained-roots-check.log`. Focused post-rebase passes do not
+replace a completed full check or final committed-HEAD clean CI.
 
 ## Process-limited growth attempt and native setup timeout — 2026-10-26
 

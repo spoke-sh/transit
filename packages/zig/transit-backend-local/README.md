@@ -21,13 +21,17 @@ control reserve. Failed/uncertain writes conservatively retain their reservation
 until exclusive reopen recounts actual files. Exhausting quota stops new staging;
 it never authorizes expiry, trimming or deletion. Accounting bounds encoded file
 bytes and conservative publication overhead, not filesystem block/inode usage.
-Quota reservations hold the journal mutex briefly; private immutable object
-publication and reads run outside it. Per-key disk locks serialize competing
+Direct-data quota reservations hold the journal mutex briefly; private direct
+object publication and immutable reads run outside it. Per-key disk locks serialize competing
 publications, and completed object-attempt counters have a separate short lock.
 Concurrent attempts that both observe a missing key can reserve twice; those
-conservative reservations remain charged until reopen. Object syncs therefore
+conservative reservations remain charged until reopen. Direct-object syncs therefore
 do not hold up unrelated native reads or control publication through this mutex.
 Device contention and the serialized WAL can still delay them.
+Native page/block creation and explicit native collection retain the journal
+mutex through allocation, publication and reclamation. Their syncs can delay
+journal work; this serialization prevents a delayed native creator from
+recreating an object after collection consumes its allocation record.
 
 The object root requires the shared definition and a 64-byte `.native-owner`
 marker (`TNOWNER1`, the 32 definition bytes, then 24 zeros), locked exclusively

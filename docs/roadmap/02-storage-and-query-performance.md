@@ -118,6 +118,16 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- The [ingestion/commit matrix](../../tests/storage_benchmarks/2026-10-26-ingestion/README.md)
+  completes 384 independently verified write/readback samples with median/p95
+  owner and WAL timings, allocation/RSS and retained-file attribution. Bulk
+  ingestion reduces WAL bytes without a consistent total latency/storage gain.
+  The [full growth attempt](../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+  remains failed at native setup timeout, despite both Table fixtures completing
+  under the fixed process memory ceiling. These source-attributed accounts
+  advance #124/#76; native growth, final-revision qualification and the local
+  group-commit disposition remain open.
+
 - Table history/recovery root enumeration follows a fixed accepted cut with
   one bounded frame or capsule per step. Complete-chain checks bind its final
   root and selected checkpoint while keeping historical control graphs weak.
