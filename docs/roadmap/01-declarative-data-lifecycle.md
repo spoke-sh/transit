@@ -166,6 +166,25 @@ installed native controls fail during startup on authority timeouts, before
 the test SQL runs. These failures remain recorded; focused observation fixes
 do not establish their historical causes or close combined qualification.
 
+The later clean core check at `9ab5fb64a` passes in 1,877.37 seconds; its
+containing lane and queued full repository check remain incomplete. Hosted
+qualification of merge revision `7afcbcc7f` passes the complete launcher lane
+and eight experience tasks, including installed direct SQL, fault recovery and
+session lifetimes. The experience lane then fails on an explicit capacity
+refusal during its Unicode read check. The fixture now gives its four fixed
+finite data observations the same bounded, empty-result capacity handling;
+writes and partial results are excluded. Current-source reruns remain required.
+
+Local node diagnostics identify a cancelled native append followed by
+`WalRecoveryRequired` and supervisor replacement. A separate
+[deterministic regression](../../tests/README.md#wal-append-inspection-cancellation--2026-10-26)
+proves and fixes premature owner poisoning when existing-segment inspection is
+cancelled before any write. It preserves all uncertain-write recovery gates;
+the installed trace does not locate its cancelled syscall. The supervisor now
+retains native attempt diagnostics, and the installed fixture preserves the
+original failure and allows the existing 270-second settlement budget to finish.
+These corrections are not a completed installed or combined qualification.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

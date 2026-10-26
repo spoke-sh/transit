@@ -3015,6 +3015,29 @@ closed by these checks. Broader multi-source schedules, maintained logical-chang
 history, remaining caller migration and GC/compaction race coverage remain
 separate obligations.
 
+## Installed lifecycle qualification checkpoint — 2026-10-26
+
+[Retained task records](verification/results/lifecycle-qualification-2026-10-26/report.json)
+distinguish completed checks from partial lanes. Local clean `check-core` passes
+at `9ab5fb64a` in 1,877.37 seconds. Its subsequent core tasks and full `just check`
+are still running at this checkpoint.
+
+Hosted run `40274455146` executes merge revision `7afcbcc7f`, including main's
+count-range changes. Both launcher tasks pass. Eight experience tasks pass,
+including Board/docs checks, observability, server logging, direct Table SQL,
+direct fault recovery and database/native session lifetimes. `server-sql` then
+fails on a capacity refusal with empty stdout during its Unicode read; later
+experience tasks do not run. Its fixed Unicode/NULL observations now use the
+existing 30-second capacity-refusal window, alongside the two fixed COUNT
+queries. No mutation, denial, partial result or generic error uses this path.
+
+The [local diagnostic record](verification/results/installed-sql-diagnostics-2026-10-26/report.json)
+retains the separate cancelled-append/restart failure. Its console was killed
+by the fixture after 180 seconds, before the client's existing 270-second
+accepted-operation settlement budget. The fixture now allows 300 seconds and
+preserves the original SQL exception if cleanup finds an already-joined worker.
+These fixture and diagnostic changes still require their installed rerun.
+
 ## Retained-source publication authority — 2026-10-23
 
 The current shared definition is
