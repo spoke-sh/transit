@@ -77,6 +77,13 @@ static class Program
         }
     }
     static async Task Codecs(JsonNode config) {
+        var collations=JsonNode.Parse(File.ReadAllText(Text(config,"collations")))!.AsArray();
+        for(int i=0;i<4;i++) {
+            var collated=TableSource([new C.Column(1,"id",new L.Scalar(L.ScalarKind.Int64),nullable:false),
+                new C.Column(2,"label",new L.Scalar(L.ScalarKind.Utf8),collation:(C.Collation)i)]);
+            var prepared=await Q.Bundle.PrepareAsync(collated,new([1]),new(1000,500,1048576));
+            Check(Hex(prepared.Bytes)==Text(collations[i]!,"wire_hex"));
+        }
         var fixtures=JsonNode.Parse(File.ReadAllText(Text(config,"bundles")))!.AsArray();
         for(int i=0;i<3;i++) { string kind=new[]{"kv","table","document"}[i]; Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true)).Bytes)==Text(fixtures[i]!,"wire_hex")); Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true,true)).Bytes)==Text(fixtures[i]!,"named_wire_hex"));
             var counted=await Q.Bundle.PrepareAsync(await Source(new(46,7),kind,true),new([1],aggregate:QueryAggregate.CountValues,outputNames:["present"]),new(1000,500,1048576));

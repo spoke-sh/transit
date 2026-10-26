@@ -100,6 +100,12 @@ static void boolean_codecs(const std::string &root) {
     for(const auto &instructions:invalid){bool rejected=false;try{q::prepare(source,{{0},q::PredicateProgram{instructions},Aggregate::Rows,std::nullopt,std::nullopt},{1,1,1024});}catch(const Error &){rejected=true;}assert(rejected);}
 }
 static void codecs(const std::string &root) {
+    for(int collation=0;collation<4;++collation) {
+        auto s=std::get<q::TableSource>(source(ResourceRef(1,7),1,true));
+        s.schema.columns[1].collation=static_cast<catalog::Collation>(collation);
+        q::Plan plan{{1},All{},Aggregate::Rows,std::nullopt,std::nullopt};
+        assert(q::prepare(s,plan,{1000,500,1048576}).data()==read(root+"/collation"+std::to_string(collation)+".bin"));
+    }
     for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); assert(bundle(source(ResourceRef(46,7),kind,true),kind,true,true).data()==read(root+"/named-bundle"+std::to_string(kind)+".bin"));
         q::Plan counted{{1},All{},Aggregate::CountValues,std::nullopt,std::vector<std::optional<std::string>>{"present"}};
         assert(q::prepare(source(ResourceRef(46,7),kind,true),counted,{1000,500,1048576}).data()==read(root+"/counted-bundle"+std::to_string(kind)+".bin")); }

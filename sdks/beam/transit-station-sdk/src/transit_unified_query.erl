@@ -43,7 +43,8 @@ definition(#transit_unified_kv{prefix=P,key=K,value=V}) -> #{<<"kv">>=>#{<<"pref
 definition(#transit_unified_table{scope=Scope,audience=Owner,branch=Branch,namespace=Namespace,interpretation=Interpretation,schema=#transit_catalog_schema{object=Object,columns=Columns}}) ->
     true=Columns=/=[],RowType={structure,[table_field(C) || C<-array(Columns,128)]},
     #{<<"table">>=>#{<<"scope">>=>transit_catalog_value:scope(Scope),<<"owner">>=>transit_sdk_value:counter(Owner),<<"branch">>=>decimal(positive(Branch)),<<"namespace">>=>transit_sdk_value:counter(Namespace),<<"object">>=>decimal(positive(Object)),
-        <<"interpretation">>=>interpretation(Interpretation),<<"row_type">>=>transit_logical:type_wire(RowType)}};
+        <<"interpretation">>=>interpretation(Interpretation),<<"row_type">>=>transit_logical:type_wire(RowType),
+        <<"collations">>=>[transit_catalog_value:collation(C#transit_catalog_column.collation)||C<-Columns]}};
 definition(#transit_unified_document{reference=#transit_document_reference{resource=Resource,document=D,epoch=E,type_revision=T,revision=R},projections=P,expand=X}) ->
     true=P=/=[],positive(D),positive(E),
     #{<<"document">>=>#{<<"reference">>=>#{<<"resource">>=>resource(Resource),<<"document">>=>decimal(D),<<"epoch">>=>decimal(E),<<"type_revision">>=>transit_sdk_value:integer(T,1,4294967295),<<"revision">>=>decimal(R)},
@@ -98,7 +99,9 @@ local(Action,Override) ->
 -spec prepare(source(),#transit_unified_plan{},#transit_unified_budgets{}) -> {ok,#transit_unified_bundle{}} | {error,#transit_error{}}.
 prepare(Source,Plan,Budgets) -> prepare(Source,Plan,Budgets,undefined).
 prepare(Source,Plan,Budgets,Override) -> transit_sdk_value:protect(fun() ->
-    #{<<"prepared">>:=#{<<"bytes">>:=B}}=local(#{<<"prepare">>=>#{<<"source">>=>source(Source),<<"plan">>=>plan(Plan),<<"limits">>=>budgets(Budgets)}},Override),#transit_unified_bundle{bytes=transit_sdk_value:unhex(B,25614)} end).
+    Declaration=source(Source),Parameters=plan(Plan),
+    Bound=case Declaration of #{<<"source">>:=#{<<"table">>:=#{<<"collations">>:=Collations}}}->Parameters#{<<"collations">>=>Collations}; _->Parameters end,
+    #{<<"prepared">>:=#{<<"bytes">>:=B}}=local(#{<<"prepare">>=>#{<<"source">>=>Declaration,<<"plan">>=>Bound,<<"limits">>=>budgets(Budgets)}},Override),#transit_unified_bundle{bytes=transit_sdk_value:unhex(B,25614)} end).
 decode_arrow(Columns,Ipc,Rows) -> decode_arrow(Columns,Ipc,Rows,undefined).
 decode_arrow(Columns,Ipc,Rows,Override) -> transit_sdk_value:protect(fun() ->
     true=Columns=/=[],transit_sdk_value:integer(Rows,0,8),

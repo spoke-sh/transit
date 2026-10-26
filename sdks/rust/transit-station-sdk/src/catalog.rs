@@ -128,6 +128,11 @@ macro_rules! tags {
 }
 tags!(both Encoding {Plain=>"plain",Bitpacked=>"bitpacked",Rle=>"rle",Dictionary=>"dictionary",Fsst=>"fsst",Comp=>"comp",Comp3=>"comp_3",Zoned=>"zoned",IbmHfp=>"ibm_hfp",Ebcdic=>"ebcdic"});
 tags!(both Collation {None=>"none",Utf8Binary=>"utf8_binary",AsciiCi=>"ascii_ci",EbcdicCp037=>"ebcdic_cp037",IcuRoot=>"icu_root"});
+impl Collation {
+    pub(crate) fn wire(self) -> &'static str {
+        self.tag()
+    }
+}
 tags!(read Kind {Create=>"create",Alter=>"alter",Rename=>"rename",Drop=>"drop",Insert=>"insert",Update=>"update",Delete=>"delete"});
 tags!(write CellState {Missing=>"missing",Null=>"null",TypeError=>"type_error",Value=>"value",Conflict=>"conflict"});
 tags!(write CompareOperator {Eq=>"eq",Ne=>"ne",Lt=>"lt",Le=>"le",Gt=>"gt",Ge=>"ge"});

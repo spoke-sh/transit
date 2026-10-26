@@ -332,7 +332,8 @@ impl Source {
                         .collect(),
                 );
                 json!({"table":{"scope":scope.wire(),"owner":audience,"branch":branch.to_string(),"namespace":namespace,"object":schema.object.to_string(),
-                    "interpretation":interpretation.wire()?,"row_type":row_type.wire()?}})
+                    "interpretation":interpretation.wire()?,"row_type":row_type.wire()?,
+                    "collations":schema.columns.iter().map(|c|c.collation.wire()).collect::<Vec<_>>()}})
             }
             Self::Document {
                 reference: r,
@@ -509,8 +510,13 @@ impl Bundle {
         budgets: Budgets,
         native_directory: Option<&Path>,
     ) -> Result<Self> {
+        let declaration = source.wire()?;
+        let mut parameters = plan.wire()?;
+        if let Some(table) = declaration["source"].get("table") {
+            parameters["collations"] = table["collations"].clone();
+        }
         let v = unified_codec(
-            json!({"prepare":{"source":source.wire()?,"plan":plan.wire()?,"limits":budgets.wire()?}}),
+            json!({"prepare":{"source":declaration,"plan":parameters,"limits":budgets.wire()?}}),
             native_directory,
         )?;
         Self::from_bytes(unhex(

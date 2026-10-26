@@ -132,6 +132,14 @@ static void boolean_codecs(const char *root) {
     }
 }
 static void codecs(const char *root) {
+    for(uint32_t collation=0;collation<4;++collation) {
+        definition d=source((transit_sdk_resource){1,7},1,true);bind_source(&d);
+        transit_station_catalog_column columns[2];memcpy(columns,d.schema.columns,sizeof(columns));columns[1].collation=collation;d.schema.columns=columns;
+        const uint8_t projection[]={1};transit_station_unified_plan plan={0};plan.projection=projection;plan.projection_count=1;
+        transit_station_unified_bundle *b=NULL;checked(transit_station_unified_prepare_bundle(&d.source,&plan,(transit_station_unified_budgets){1000,500,1048576},NULL,&b));
+        transit_sdk_bytes encoded={0};checked(transit_station_unified_bundle_bytes(b,&encoded));
+        char name[32];snprintf(name,sizeof(name),"collation%u.bin",collation);transit_sdk_bytes expected=fixture(root,name);equal(encoded,expected);free((void *)expected.data);transit_station_unified_bundle_destroy(b);
+    }
     for(int i=0;i<3;++i) {
         definition d=source((transit_sdk_resource){46,7},i,true); transit_station_unified_bundle *b=bundle(&d,true,false,false); transit_sdk_bytes encoded={0}; checked(transit_station_unified_bundle_bytes(b,&encoded));
         char name[32]; snprintf(name,sizeof(name),"bundle%d.bin",i); transit_sdk_bytes expected=fixture(root,name); equal(encoded,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);

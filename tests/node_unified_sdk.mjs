@@ -48,6 +48,14 @@ function inspectedPredicate(value) {
 }
 async function codecs() {
   const resource = new ResourceRef(46, 7);
+  for (const fixture of JSON.parse(await readFile(config.collations, 'utf8'))) {
+    const source = tableSource(new ResourceRef(1, 7), 3, 9n, 9n, 1n, 200, '01'.repeat(32), [
+      {id: 1n, name: 'id', type: {kind: 'int64'}, nullable: false},
+      {id: 2n, name: 'label', type: {kind: 'utf8'}, collation: fixture.collation},
+    ]);
+    const bundle = await q.Bundle.prepare(source, {projection: [1]}, {pages: 1000n, segments: 500n, resultBytes: 1048576n});
+    assert.equal(hex(bundle.data), fixture.wire_hex);
+  }
   const sources = [
     {kind: 'kv', resource, prefix: Buffer.from('data/'), key: {type: 'binary'}, value: {type: 'uint64'}},
     tableSource(new ResourceRef(1, 7), 3, 9n, 9n, 1n, 200, '01'.repeat(32), [

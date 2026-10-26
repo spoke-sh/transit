@@ -101,6 +101,7 @@ void mutation(Writer &w, const transit_station_catalog_action &a) {
 }
 
 }
+Json collation_wire(uint32_t value) { return collation(value); }
 std::string schema_wire(const Schema &value) { return encode_schema(value); }
 std::string mutation_wire(const transit_station_catalog_action &value, size_t maximum) {
     Writer writer(maximum); mutation(writer, value); return writer.finish();

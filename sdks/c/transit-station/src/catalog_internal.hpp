@@ -97,6 +97,7 @@ Json scope_wire(Scope);
 Json connection_wire(Connection, uint64_t principal);
 Json position_wire(Position);
 Json object_wire(Object);
+Json collation_wire(uint32_t);
 std::string schema_wire(const Schema &);
 Schema schema(const Json &, Arena &);
 std::string mutation_wire(const transit_station_catalog_action &, size_t maximum = max_action);

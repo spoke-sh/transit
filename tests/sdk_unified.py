@@ -15,7 +15,7 @@ import tomllib
 
 import pyarrow
 from unified_abi import Failure
-from unified_codec import arrow_fixture, boolean_bundle_fixtures, nested_arrow_fixture
+from unified_codec import arrow_fixture, boolean_bundle_fixtures, nested_arrow_fixture, table_collation_fixtures
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -91,6 +91,8 @@ def install(root, languages):
     fixtures = dict(bundles=str(root/'bundles.json'), arrow=str(root/'arrow.ipc'), empty=str(root/'empty.ipc'), malformed=str(root/'malformed.ipc'))
     (root/'boolean.json').write_text(json.dumps(boolean_bundle_fixtures()))
     fixtures['boolean'] = str(root/'boolean.json')
+    (root/'collations.json').write_text(json.dumps(table_collation_fixtures()))
+    fixtures['collations'] = str(root/'collations.json')
     nested_arrow_fixture(root/'producer/bin/transit-logical-arrow-proof', root/'nested.ipc')
     fixtures['nested'] = str(root/'nested.ipc')
     (root/'fixtures.json').write_text(json.dumps(fixtures))
@@ -310,6 +312,8 @@ def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c', *, 
         (fixtures/f'counted-bundle{i}.bin').write_bytes(bytes.fromhex(item['counted_wire_hex']))
     for i, item in enumerate(json.loads((fixtures/'boolean.json').read_text())):
         (fixtures/f'boolean{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
+    for i, item in enumerate(json.loads((fixtures/'collations.json').read_text())):
+        (fixtures/f'collation{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
     subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     if language == 'cpp':
         source.write_text('#include <transit/unified_query.hpp>\nvoid copy(transit::sdk::station::unified::Client &client) { auto other = client; }')
@@ -416,4 +420,4 @@ if __name__ == '__main__':
     languages = ('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir')
     with tempfile.TemporaryDirectory(prefix='transit-sdk-codecs-') as directory:
         install(Path(directory) / 'installed', languages)
-    print('All ten installed query SDK codec consumers passed; no authority or recovery claim.')
+    print('All ten installed query SDK codec consumers passed, including four independently encoded Table collation vectors; no authority or recovery claim.')

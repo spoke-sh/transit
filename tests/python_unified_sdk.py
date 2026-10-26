@@ -47,6 +47,10 @@ def codecs(config):
             q.Projection(q.DecoderColumn('title', q.DecoderType.UTF8), ('title',)),
             q.Projection(q.DecoderColumn('body', q.DecoderType.UTF8), ('body',), mode=q.ProjectionMode.TEXT)))]
     fixtures = json.loads(Path(config['bundles']).read_text())
+    for fixture in json.loads(Path(config['collations']).read_text()):
+        collated = table_source([catalog.Column(1, 'id', l.ScalarType('int64'), False),
+                                catalog.Column(2, 'label', l.ScalarType('utf8'), collation=catalog.Collation(fixture['collation']))])
+        assert q.Bundle.prepare(collated, q.Plan((1,)), q.Budgets(1000, 500, 1048576)).data.hex() == fixture['wire_hex']
     for index, source in enumerate(sources):
         scalar = q.Scalar('unsigned', 2**64-1) if index == 0 else q.Scalar('utf8', 'x'*512)
         bundle = q.Bundle.prepare(source, q.Plan((1, 0), q.Compare(1, Comparison.NE, scalar), 2**64-1), q.Budgets(1000, 500, 1048576))

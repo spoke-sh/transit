@@ -3,6 +3,39 @@
   "profile": "shared behavioral scenarios; Linux low-level bindings and qualified public SDK adapters",
   "scenarios": [
     {
+      "id": "direct-table-source-collations",
+      "steps": [
+        "Prepare Table query bundles with none, UTF8_BINARY, ASCII_CI and EBCDIC_CP037 declarations in all ten installed Station SDKs",
+        "Compare exact source and plan bytes with the independent encoder",
+        "Reject missing, wrong-width, unsupported or inconsistent source/plan collation vectors",
+        "Reject a looked-up source whose collation vector disagrees with the returned schema"
+      ],
+      "expected": {
+        "installed_station_languages": 10,
+        "collation_vectors": 4,
+        "source_and_plan_collations_match": true,
+        "missing_metadata_rejected": true
+      },
+      "proofs": [
+        {
+          "task": "bindings::unified-all",
+          "source": "tests/sdk_unified.py",
+          "anchor": "table_collation_fixtures()"
+        },
+        {
+          "task": "test::unified-codec",
+          "source": "tests/unified_codec.py",
+          "anchor": "for fixture in table_collation_fixtures():"
+        },
+        {
+          "task": "bindings::node-check",
+          "source": "sdks/ts/transit-station-sdk/src/unified.test.ts",
+          "anchor": "Missing required fields fail schema admission"
+        }
+      ],
+      "limits": "Native codec and isolated installed-consumer controls plus TypeScript response-admission negatives. These do not establish source authority, capture, disk recovery or execution results."
+    },
+    {
       "id": "blocking-owner-disposal",
       "steps": [
         "Move a blocking client into an owned controller task",

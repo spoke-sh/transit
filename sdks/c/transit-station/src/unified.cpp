@@ -36,6 +36,12 @@ std::string columns_wire(const transit_station_unified_column *columns,size_t co
 logical::Json digest_array(const uint8_t (&bytes)[32]) {
     auto out=logical::Json::array();for(const auto b:bytes)out.items.push_back(logical::Json::integer(b));return out;
 }
+logical::Json table_collations(const transit_station_catalog_schema &schema) {
+    require(schema.columns && schema.column_count>0 && schema.column_count<=128,"query-table-columns");
+    auto result=logical::Json::array();
+    for(size_t n=0;n<schema.column_count;++n)result.items.push_back(transit::sdk::catalog_detail::collation_wire(schema.columns[n].collation));
+    return result;
+}
 std::string table_wire(const transit_station_unified_source &source) {
     const auto &t=source.source.table;require(t.schema,"query-table-definition");
     const auto &s=*t.schema;const auto scope=t.scope;const auto &i=t.interpretation;
@@ -50,7 +56,7 @@ std::string table_wire(const transit_station_unified_source &source) {
         {"scope",transit::sdk::catalog_detail::scope_wire(scope)},
         {"owner",J::integer(t.audience)},{"branch",J::string(decimal(t.branch))},{"namespace",J::integer(t.namespace_id)},{"object",J::string(decimal(s.object))},
         {"interpretation",J::object({{"revision",J::string(decimal(i.revision))},{"digest",digest_array(i.digest)},{"bytes",J::string(decimal(i.byte_count))},{"schema",digest_array(i.schema_digest)}})},
-        {"row_type",logical::type_json(row)}})}}));
+        {"row_type",logical::type_json(row)},{"collations",table_collations(s)}})}}));
 }
 std::string path_wire(const char *const *names,size_t count) {
     require(count<=8 && (names || !count),"query-path");std::string out="[";
@@ -260,7 +266,12 @@ std::string query_plan_wire(const transit_station_unified_plan &value) { return 
 }
 extern "C" {
 transit_sdk_error transit_station_unified_prepare_bundle(const transit_station_unified_source *source,const transit_station_unified_plan *plan,transit_station_unified_budgets budgets,const char *directory,transit_station_unified_bundle **out){
-    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25614);});*out=bundle.release();});
+    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{
+        require(source && plan && out,"query-bundle");const auto declaration=source_wire(*source);auto parameters=plan_wire(*plan);
+        if(source->kind==TRANSIT_UNIFIED_TABLE){parameters.pop_back();parameters+=",\"collations\":"+logical::encode(table_collations(*source->source.table.schema))+"}";}
+        const auto action="{\"prepare\":{\"source\":"+declaration+",\"plan\":"+parameters+",\"limits\":"+limits_wire(budgets)+"}}";
+        auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25614);});*out=bundle.release();
+    });
 }
 transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25614)};});}
 transit_sdk_error transit_station_unified_bundle_bytes(const transit_station_unified_bundle *v,transit_sdk_bytes *out){if(out)*out={};return boundary([&]{require(v&&out,"query-bundle");*out=view(v->bytes);});}
@@ -283,7 +294,7 @@ transit_sdk_error transit_station_unified_lookup_table(transit_station_unified_c
         const auto root=logical::parse(bytes);const auto &v=root.at("table");if(v.is_null())return;
         v.fields({"source","schema","expected"});const auto &envelope=v.at("source");envelope.fields({"version","resource","source"});
         envelope.at("source").fields({"table"});const auto &direct=envelope.at("source").at("table");
-        direct.fields({"scope","owner","branch","namespace","object","interpretation","row_type"});
+        direct.fields({"scope","owner","branch","namespace","object","interpretation","row_type","collations"});
         direct.at("scope").fields({"realm","resource","catalog"});direct.at("interpretation").fields({"revision","digest","bytes","schema"});v.at("expected").fields({"partition","next_lsn"});
         const auto &r=n.local.raw;const std::string p="table/source/source/table/";
         auto owner=std::make_unique<transit_station_unified_table_definition>();auto &source=owner->value.source;auto &table=source.source.table;
@@ -296,6 +307,7 @@ transit_sdk_error transit_station_unified_lookup_table(transit_station_unified_c
         const auto row=logical::type_from(direct.at("row_type"),owner->arena);
         const auto expected=logical::JsonParser(table_wire(source)).parse();
         require(logical::encode(logical::type_json(row))==logical::encode(expected.at("table").at("row_type")),"query-table-row-type");
+        require(logical::encode(direct.at("collations"))==logical::encode(expected.at("table").at("collations")),"query-table-collations");
         owner->value.partition=wide(r,bytes,"table/expected/partition");owner->value.next_lsn=wide(r,bytes,"table/expected/next_lsn");
         require(owner->value.partition,"query-table-partition");*out=owner.release();
     });

@@ -47,6 +47,12 @@ budgets and optional ordered scalar bindings. They call the same shared
 compiler, current-access checks and neutral codecs. Compilation returns an owned
 ordinary bundle and performs no snapshot acquisition or admission.
 
+Direct Table sources carry each schema column's declared collation in column
+order. Preparing a new bundle binds its plan to that same vector. Lookup
+validates the source's row type and collation vector against its
+returned schema before exposing a reusable declaration. Missing or inconsistent
+source metadata is rejected; it does not acquire a default collation on read.
+
 | Language | Public query method |
 | --- | --- |
 | Python | [`Client.compile_sql`, `AsyncClient.compile_sql`](../../../sdks/python/transit-station/docs/unified-query.md) |

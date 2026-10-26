@@ -12,7 +12,7 @@ import { Bridge, QueryBridge } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
 import { wide, nativeWide, ReadVersion } from "./values.ts";
 import { DocumentReference } from "./document.ts";
-import { Scope, Schema, schemaValue } from "./catalog.ts";
+import { Scope, Schema, schemaValue, schemaWire } from "./catalog.ts";
 import { encodeType, decodeType, encodeAtom, decodeCell } from "./logical-values.ts";
 import type { Descriptor, Atom, Cell as LogicalCell, Field } from "./logical-values.ts";
 import type { Aggregate, Comparison } from "./query.ts";
@@ -268,6 +268,7 @@ function sourceWire(source: Source): WireSource {
                 optional: false,
               })),
             }),
+            collations: schemaWire(source.schema).columns.map((column) => column.collation),
           },
         },
       };
@@ -397,11 +398,14 @@ export class Bundle {
     budgets: Budgets,
     nativeHost?: string,
   ): Promise<Bundle> {
+    const declaration = sourceWire(source);
+    const parameters = planWire(plan);
+    if ("table" in declaration.source) parameters.collations = declaration.source.table.collations;
     const value = await codec(
       {
         prepare: {
-          source: sourceWire(source),
-          plan: planWire(plan),
+          source: declaration,
+          plan: parameters,
           limits: {
             pages: positive(budgets.pages),
             segments: positive(budgets.segments),
@@ -933,9 +937,10 @@ export class Client {
     if (
       !("table" in expected) ||
       JSON.stringify(encodeType(decodeType(expected.table.row_type))) !==
-        JSON.stringify(encodeType(decodeType(direct.row_type)))
+        JSON.stringify(encodeType(decodeType(direct.row_type))) ||
+      JSON.stringify(expected.table.collations) !== JSON.stringify(direct.collations)
     )
-      throw new IncompatibleNative("Inconsistent direct Table row type");
+      throw new IncompatibleNative("Inconsistent direct Table row type or collations");
     return new TableDefinition(
       source,
       nativeWide(found.expected.partition),

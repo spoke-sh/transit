@@ -2,7 +2,7 @@
 -module(transit_catalog_value).
 -include("transit_catalog.hrl").
 -export([scope/1,action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/3,context/0,with_context/2,save/1,restore/2,prepare_snapshot/3,reference_info/1]).
--export([schema/1,parse_schema/1,parse_scope/1,mutation/1,parse_mutation/1]).
+-export([schema/1,parse_schema/1,parse_scope/1,mutation/1,parse_mutation/1,collation/1]).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
 small(V) -> transit_sdk_value:integer(V,1,4294967295).
 counter(V) -> transit_sdk_value:counter(V).
@@ -39,6 +39,7 @@ fixed(V,N) -> B=transit_sdk_value:bytes(V,N),check(byte_size(B)=:=N),B.
 unhex(V,N) -> fixed(transit_sdk_value:unhex(V,N),N).
 encodings() -> [plain,bitpacked,rle,dictionary,fsst,comp,comp_3,zoned,ibm_hfp,ebcdic].
 collations() -> [none,utf8_binary,ascii_ci,ebcdic_cp037,icu_root].
+collation(V) -> enum(V,collations()).
 kinds() -> [create,alter,rename,drop,insert,update,delete].
 
 scope(#transit_catalog_scope{resource=#transit_resource{realm=Realm,resource=Resource},catalog=Catalog}) ->
@@ -47,7 +48,7 @@ authority(#transit_catalog_authority{database_domain=D,schema_domain=S,table_dom
     check(D=/=S andalso D=/=T andalso S=/=T andalso DO=/=SO),
     #{<<"database_domain">>=>counter(D),<<"schema_domain">>=>counter(S),<<"table_domain">>=>counter(T),<<"database">>=>counter(DO),<<"initial_schema_authority">>=>counter(SO),<<"initial_schema">>=>counter(NS)}.
 column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation) ->
-    #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>enum(Collation,collations())}.
+    #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>collation(Collation)}.
 column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max,encoding=Encoding,collation=Collation}) ->
     (column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation))#{<<"id">>=>decimal(Id)}.
 %% Retain only a bounded prefix plus one individually bounded conversion.
