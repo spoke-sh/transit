@@ -28092,3 +28092,59 @@ failure label. These observations do not establish the original failure's exact
 stage or cause, nor turn the failed clean lane into a pass. Timings are single
 observations on a shared host, not latency measurements under matched conditions.
 Final-candidate combined qualification remains open.
+
+## Browser prerequisites and native reactive cutover — 2026-10-26
+
+The runtime candidate at PR head `e550f4ed5`, tested as merge `d423d50fe` in
+[hosted run 40304759291](https://github.com/spoke-sh/transit/actions/runs/40304759291),
+completes core (28 tasks, 3,454.32 seconds), launchers (2, 696.03), experience
+(13, 1,791.31), bindings-1 (17, 7,077.89), and bindings-2 (5, 4,544.12).
+The SDK lanes include Python, Node, Rust, Ruby, Go, C/C++, Java, .NET, Erlang/Elixir,
+shared native/port, interoperability, authorization and recovery checks. The first two browser tasks also pass. The combined
+experience/browser job fails when the HTTP task cannot find MinIO, before its
+workload executes. Hosted growth remains incomplete at this checkpoint.
+
+Commit `0496e0411` supplies the already pinned MinIO derivation and the Python
+gRPC/protobuf peer dependencies to the shared CI experience shell. There is no
+lockfile or upstream-version change. Doctor, experience/bindings shell selection
+and the complete HTTP and gRPC browser/worker tasks pass; the latter tasks take
+1,050.41 and 634.38 seconds, including compilation. These are separate local
+observations, not a combined hosted job duration. The experience/browser outer
+cap is 120 minutes in `6ee9e0583`; individual proof budgets remain unchanged.
+
+The independent reactive fixture still called an external store's stop/start
+methods after switching to native local persistence. Commit `db7d50165` reopens
+the same node-owned WAL/object directory. Reprovisioning native process rights
+retires the original private role, so the fixture first proves source denial,
+then explicitly restores database CONNECT, schema USAGE and Table SELECT to
+the new role. Chromium independently signs the current subject-proof envelope
+with its observed credential epoch and explicit command role. The complete
+protocol/browser task passes in 33.56 seconds and live views in 300.91 seconds.
+Intermediate fixture failures remain in the bundle, including an incorrectly
+scoped diagnostic read and the superseded browser envelope.
+
+The first shared-tab lifecycle attempt fails during offline recovery with
+capacity refusals and expiry while the full repository check also runs. An
+isolated control passes recovery, reload/closure, rotation and reset, then fails
+the retirement diagnostic assertion: protected rows clear, but current denial
+after native admission preserves the original pending receipt. That result is
+not a rejected control. Commit `ed5491ada` checks both admission orderings and
+requires pending-receipt recovery to remain available with replacement Follow
+disabled. The complete focused lifecycle schedule passes in 226.97 seconds,
+including compilation. Neither pass establishes the earlier capacity failure's
+cause. Runtime authority, session limits and deadlines are unchanged.
+
+Full `just check` passes at `6ee9e0583`; Board formatting/lint checks pass after
+the test-only correction. Committed-HEAD clean launchers at `61a3a5e79` passes
+in 567.84 seconds. A clean browser lane is running at `ed5491ada`; earlier
+queued browser controllers did not execute after focused failures. One isolated
+attempt stopped before testing on a missing cached Nix derivation. Subsequent
+local commands inherit `eval-cache = false` through nested shells without
+changing source or pins.
+
+The [source-attributed records, failed controls and hashed raw logs](verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
+retain task exit codes, source patches and downloaded hosted artifacts. Earlier
+[installed SQL failures](#installed-table-qualification-and-original-outcomes--2026-10-26)
+remain separate failures; subsequent diagnostics and hosted passes do not
+identify their historical causes. Final combined qualification and acceptance
+reconciliation remain open.

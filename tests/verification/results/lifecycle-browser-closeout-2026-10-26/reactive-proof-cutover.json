@@ -1,0 +1,28 @@
+{
+  "revision": "0496e0411b4f13632c2b044cf598eb6e6c200bf7",
+  "patch_sha256": "fda19b501fff5e0b29dd81a1ca90fba1cea8d602332b24b0789ecc4076fe65c6",
+  "started": "2026-10-26T11:37:29.027139+00:00",
+  "complete": false,
+  "tasks": [
+    {
+      "task": "test::reactive-browser",
+      "seconds": 33.56,
+      "exit_code": 0,
+      "log": "/var/tmp/transit-lifecycle-reactive-proof-cutover-0.log"
+    },
+    {
+      "task": "test::reactive-views",
+      "seconds": 300.91,
+      "exit_code": 0,
+      "log": "/var/tmp/transit-lifecycle-reactive-proof-cutover-1.log"
+    },
+    {
+      "task": "test::reactive-views-lifecycle",
+      "seconds": 124.47,
+      "exit_code": 1,
+      "log": "/var/tmp/transit-lifecycle-reactive-proof-cutover-2.log"
+    }
+  ],
+  "active_task": null,
+  "finished": "2026-10-26T11:45:07.963742+00:00"
+}

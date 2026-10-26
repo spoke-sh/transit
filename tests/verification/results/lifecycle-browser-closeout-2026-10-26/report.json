@@ -1,0 +1,350 @@
+{
+  "hosted": {
+    "run": 40304759291,
+    "head": "e550f4ed54ec4cd9a1c40cb4c568a64752861a16",
+    "merge": "d423d50feb8c3c9e8310f94199a97d2265eadd69",
+    "core": {
+      "tasks": 28,
+      "complete": true,
+      "seconds": 3454.32,
+      "artifact_id": 12645546550
+    },
+    "launchers": {
+      "tasks": 2,
+      "complete": true,
+      "seconds": 696.03,
+      "artifact_id": 12643016839
+    },
+    "experience": {
+      "tasks": 13,
+      "complete": true,
+      "seconds": 1791.31,
+      "artifact_id": 12645150397
+    },
+    "browser": {
+      "passed_tasks": 2,
+      "failed_task": "transit-board::http-browser",
+      "cause": "CI experience shell lacks pinned MinIO; stops before HTTP workload",
+      "complete": false
+    },
+    "bindings2": {
+      "tasks": 5,
+      "complete": true,
+      "seconds": 4544.12,
+      "artifact_id": 12646412523
+    },
+    "bindings1": {
+      "tasks": 17,
+      "complete": true,
+      "seconds": 7077.89,
+      "artifact_id": 12649115752
+    }
+  },
+  "correction": "0496e0411",
+  "doctor": {
+    "exit_code": 0,
+    "log": "doctor.log.gz"
+  },
+  "shell_selection": {
+    "experience": "experience-shell.log.gz",
+    "bindings": "bindings-shell.log.gz",
+    "minio": "RELEASE.2025-09-07T16-13-09Z",
+    "grpcio": "1.80.0",
+    "protobuf": "7.34.1"
+  },
+  "clean_launchers": "clean-launchers.json",
+  "limits": [
+    "Hosted combined experience/browser job failed despite completed experience inventory.",
+    "Focused browser tasks pass separately; committed clean browser and hosted growth remain in progress. Earlier queued clean controllers did not execute after focused failures.",
+    "Earlier local SQL failures remain separately recorded; later passes do not identify their historical causes."
+  ],
+  "files": {
+    "hosted-core.zip": {
+      "bytes": 41710,
+      "sha256": "ed8571d04d1e216d214b596ee46bb3bd52ae77ac1c131f753eecee5b7322e0fa"
+    },
+    "hosted-core.json": {
+      "bytes": 2912,
+      "sha256": "58a5d7c18082d4a41459533724059d14ba17e38c1a3e9bc137dcab36a6e08242"
+    },
+    "hosted-core.meta.json": {
+      "bytes": 1263,
+      "sha256": "3897dda8acdd1954bf2f9a61ecd004cad08204ea440a3941c4b1cfc34a907e08"
+    },
+    "hosted-launchers.zip": {
+      "bytes": 758,
+      "sha256": "82eb45b71cf5dbf0c63f5ce547895469e5dc984b84e7788ac90b91aa7def3aeb"
+    },
+    "hosted-launchers.json": {
+      "bytes": 220,
+      "sha256": "25e61fb6929293dde6645415fba8811ac80af9266bd99f8c35b565833f7a3419"
+    },
+    "hosted-launchers.meta.json": {
+      "bytes": 587,
+      "sha256": "585d912a04cd7e580343f8174c6b243b6e0739fbb758f95ce1d86b9d6474ac58"
+    },
+    "hosted-experience.zip": {
+      "bytes": 5699,
+      "sha256": "b239fbc6ba7c53e95ea00277861544c8fc7e5941a5c65faa3cc1a2449e6d02e0"
+    },
+    "hosted-browser.json": {
+      "bytes": 348,
+      "sha256": "880c215e7693f6019e41b26a43d33d6edc95f2c2322b23140c4557ea4b9e65b6"
+    },
+    "hosted-browser.meta.json": {
+      "bytes": 769,
+      "sha256": "1e74bb638e06ef616b6c67d4d6792a592dd838c460c66da03555659fc391b88a"
+    },
+    "hosted-experience.json": {
+      "bytes": 1491,
+      "sha256": "639f0d1fb7ffbe32b183826e5abad8c43b3dfac68b9cea4faf91698b3992ae0d"
+    },
+    "hosted-experience.meta.json": {
+      "bytes": 933,
+      "sha256": "5ee7423aa75f4e823e877b3d0d5c67c496575adecf397c5751fd44b33410002b"
+    },
+    "hosted-experience.log.gz": {
+      "bytes": 39920,
+      "sha256": "654d30188e595d5d290dd667fd66079078f523127af61099ddbc13e278c18349",
+      "uncompressed_sha256": "80fde650eee8f9e88bb0c04d3e315d7ad0526860cd8ee0e307e509d660134928"
+    },
+    "doctor.log.gz": {
+      "bytes": 1258,
+      "sha256": "faf177fecf80968ecf9cec89a0c59b81671c7e2a2b22921bc3010b58507ba122",
+      "uncompressed_sha256": "3455c7d21141753db710180b7a488c2a6643a3acae91ad7b280e84cf5aa64699"
+    },
+    "experience-shell.log.gz": {
+      "bytes": 498,
+      "sha256": "e2ba29e59131ae6c70e55c963298e77933b54e61d39e6d9518960bf005d5675e",
+      "uncompressed_sha256": "94c79103d9372aa1c449c45ebed60384dc432ba01eccd9d608ab199c994e3a5d"
+    },
+    "bindings-shell.log.gz": {
+      "bytes": 199,
+      "sha256": "2c60761e42c22ad04844fb90aae89f8b2373a12cffe7cd9cea2e51f9fcf83dbd",
+      "uncompressed_sha256": "403fc68a3a51308ebca96df205a0ea75283566f61a275f0a9730768f1039d3bf"
+    },
+    "clean-launchers.log.gz": {
+      "bytes": 2567,
+      "sha256": "8def401972f9c87dd84817b0a61ba3eb85692ddee18b2d83f4ecb2a1c281b614",
+      "uncompressed_sha256": "f9938cc9ac902d1bf7d955b94956d6a21711cd7ca26d404d1433e55d1fd8e5c6"
+    },
+    "clean-launchers.json": {
+      "bytes": 389,
+      "sha256": "7af91f2170f19bd288c4e83462d45cebc1949f1ce0ee488c068a81310730b335"
+    },
+    "check.log.gz": {
+      "bytes": 6905,
+      "sha256": "d213f5d5e3627d9b07af4ca7874a5257f08d0713596032a75252a45b61abeefc",
+      "uncompressed_sha256": "f7aaa71be1057c465154c703825becabe69a941a5e6ea90faf5be651d62705ee"
+    },
+    "hosted-bindings2.zip": {
+      "bytes": 812,
+      "sha256": "b26643c0c688e6215f5afc27d806758c7a3239fcf3cecfc54fd4ed3642fbb40a"
+    },
+    "hosted-bindings-2.json": {
+      "bytes": 581,
+      "sha256": "fa5e659d964d47f8e0332b4888da8fbf343948e61bbc49b55c22d30c1265e5c1"
+    },
+    "hosted-bindings-2.meta.json": {
+      "bytes": 691,
+      "sha256": "5474e159f7f54647a261256db8258b3c92d7b1aa2289c23cd879d52eba80a794"
+    },
+    "browser-prerequisites.json": {
+      "bytes": 828,
+      "sha256": "6087e5bbe63655f65117dd247bb83a3082350ce1993f615ea44d053eded1face"
+    },
+    "browser-prerequisites.patch.gz": {
+      "bytes": 2022,
+      "sha256": "70a709a1e1049daa2b10cf36a2c9ece526fd57bc2c56b6fffa854ecb7b59c9b2",
+      "uncompressed_sha256": "cc616e03903bdb74b936bbdaae5316c9194f11d454e188bbf094f3634c9dd02e"
+    },
+    "browser-prerequisites-0.log.gz": {
+      "bytes": 2002,
+      "sha256": "673af9a6644e91fed8865eb15a3862c996dbfa4da9a1487965252243ec9073e7",
+      "uncompressed_sha256": "a92b982c821416c50079f1f96113fdd835560b0f83910592985789a0165bd462"
+    },
+    "browser-prerequisites-1.log.gz": {
+      "bytes": 1474,
+      "sha256": "5139d03e00b3177fe9273661a6a225e3b7e6b05ee70e00343742cd33aeaf7aca",
+      "uncompressed_sha256": "f51412258fb14ca229ddb7de7881c396dcc0935803b3681da13c6d26bdb88566"
+    },
+    "browser-prerequisites-2.log.gz": {
+      "bytes": 7139,
+      "sha256": "eb8f3c5b6ed319bdb8d7e2dc954288f75a7664b4fab163a2a32c976567371e27",
+      "uncompressed_sha256": "25f09b54031126e05ce76369551259c24ee71c60c6c829a1bf82cf2e2ea217e3"
+    },
+    "reactive-local-recovery.json": {
+      "bytes": 478,
+      "sha256": "66736758ba2998cde02f52e8df98f606a7f4e1dc35a9aecbc1ab4803b4defd7d"
+    },
+    "reactive-local-recovery.patch.gz": {
+      "bytes": 1013,
+      "sha256": "b7239d384ec5d9cd1c7c657fa9fbc49ef8b9dba95e425affe7674520fd746233",
+      "uncompressed_sha256": "88ec22388027057348e39dddbeda9ac6ed75d6e51ab20f632fa92159dcf8cb8a"
+    },
+    "reactive-local-recovery-0.log.gz": {
+      "bytes": 7147,
+      "sha256": "7f4a6823e40e5ef7c6d7be96b83bf2fab4b139d2e5af2836f1c92c3eb371ffd8",
+      "uncompressed_sha256": "ba3c1703a7f642d6f74e86b0c178d9934eb37e8779b3186fb2e8fa5549520975"
+    },
+    "reactive-current-rights.json": {
+      "bytes": 478,
+      "sha256": "10dd4b55035c6f4079497330751617a0733c6e271910bf9e5e9b3b70c78cb2fc"
+    },
+    "reactive-current-rights.patch.gz": {
+      "bytes": 1453,
+      "sha256": "fff97ca1ceaaad547a982bd17bcede94a825026d6bce509ac021b77777451c0a",
+      "uncompressed_sha256": "e2f48964f786c7376b54de39887f77e504fb805f8b966ecd38e20594e7f37a29"
+    },
+    "reactive-current-rights-0.log.gz": {
+      "bytes": 6644,
+      "sha256": "fb2ea141aa3a78fd3f98dec5d3d53759d74f4b6bd3d4bdd2fedf6b3aabfed75b",
+      "uncompressed_sha256": "b7335f3f8e27877721d6d8f4027ffe02f7c25e94e8a63b6a5adff9c2b58194fb"
+    },
+    "reactive-source-recovery.json": {
+      "bytes": 479,
+      "sha256": "44f7d7e489652caa1e360dfacd9e4c23ed0c3b39f39a4f4299e3ff12e3f9ae12"
+    },
+    "reactive-source-recovery.patch.gz": {
+      "bytes": 1458,
+      "sha256": "97e00850fb9830247eda72f74b43ffd9542963bdd15b9660d67c86e88c68cfb1",
+      "uncompressed_sha256": "99b11d640b41ed0b753c8427f641e0c2f876fd56801b58b2db785463a45d8282"
+    },
+    "reactive-source-recovery-0.log.gz": {
+      "bytes": 7779,
+      "sha256": "e3557af3bbf38e6a0d793095468c4e2dd78c0c5b264fa9e2414a72c75b9c2cb9",
+      "uncompressed_sha256": "a0b94c4abbc24fd51a8819a8590feb1419f22a22ec4c3eb26e23916d5bae1166"
+    },
+    "reactive-proof-cutover.json": {
+      "bytes": 825,
+      "sha256": "480f4e41baab1b382aba76531cf8dbd5e3e993720a3d5ac062d6971e3a607ed4"
+    },
+    "reactive-proof-cutover.patch.gz": {
+      "bytes": 2392,
+      "sha256": "54a291bbb73bb72aa0e6f88b80038723fd0b750d713bdd73c0faf4c3af8c71b4",
+      "uncompressed_sha256": "fda19b501fff5e0b29dd81a1ca90fba1cea8d602332b24b0789ecc4076fe65c6"
+    },
+    "reactive-proof-cutover-0.log.gz": {
+      "bytes": 1056,
+      "sha256": "01a54620506fa6ff4820af2bebb6479b8525d0553a732fa97abdd15717ee2c65",
+      "uncompressed_sha256": "e255d55c25b67686cbd52da99c4525f487a0e73a9ad561d14e3ce3d94414e416"
+    },
+    "reactive-proof-cutover-2.log.gz": {
+      "bytes": 13607,
+      "sha256": "1322990f9ad62375305af9ed0cad317f3d5feb4526926d2e3266c55873931d2e",
+      "uncompressed_sha256": "d0cf3097724620b88586af59cc91c1ad9f64e6d0619d670d8519b81ce5cd95e8"
+    },
+    "reactive-proof-cutover-1.log.gz": {
+      "bytes": 2917,
+      "sha256": "b3eb62aa4c719499ff1e5b0baff853bfeca41ac8b081ed7e0784f664cfb33ef8",
+      "uncompressed_sha256": "e8177daa690eee94a750bd8863fd98b4f88b09ef424d6ab66228bae35ea8c75c"
+    },
+    "view-lifecycle-isolated.json": {
+      "bytes": 485,
+      "sha256": "996ef581c519f57dcc60e0cdef5d9adc129738b24d520701e7bad7deddd60b50"
+    },
+    "view-lifecycle-isolated.patch.gz": {
+      "bytes": 20,
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "view-lifecycle-isolated-0.log.gz": {
+      "bytes": 243,
+      "sha256": "48d641eff36359c32443614a6f30c608dc89c984d127dc1adf4fd02c97d95611",
+      "uncompressed_sha256": "4ec094f01e03d7cab02bce592904d4f5fd1da3298fffc99bfe4ee5f1413f38cd"
+    },
+    "view-lifecycle-isolated-eval.json": {
+      "bytes": 571,
+      "sha256": "4d42efd9891d4d990e7c68847e8654fd68b9cbcf97df7f2ce7e2e30e5b54852e"
+    },
+    "view-lifecycle-isolated-eval.patch.gz": {
+      "bytes": 20,
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "view-lifecycle-isolated-eval-0.log.gz": {
+      "bytes": 15522,
+      "sha256": "ccde346d8074b8cb2de1da5479f126c58a6c23ffba61fda4fad013a2f0d82590",
+      "uncompressed_sha256": "efb5d87d6c3f0484d8456e998e75afdcc89b5c8aeb90f1566f13eb8d4136b9ef"
+    },
+    "reactive-cutover-check.log.gz": {
+      "bytes": 6910,
+      "sha256": "f6773fb2badd698eb210a248981ecbbaf95ffcc014b3483329c5eda5daf66b95",
+      "uncompressed_sha256": "5a3871d5253e411921dbad1c5a5e5a7889a9e166b0cfbe3b5270c00b3907ab9f"
+    },
+    "view-lifecycle-retirement.json": {
+      "bytes": 567,
+      "sha256": "81ec2d5f7d8481683f63776b4dda3a85f9ca660953784084bf894ffacc2b0cd2"
+    },
+    "view-lifecycle-retirement.patch.gz": {
+      "bytes": 1162,
+      "sha256": "da5495557e8b798317b3f8e85ba122975d14870a6e57c60b097c38d1b6bddf11",
+      "uncompressed_sha256": "cab92db9aa64ea8f80ef33b786efdd53db56f0baf8e829502f362f815347f2b1"
+    },
+    "view-lifecycle-retirement-0.log.gz": {
+      "bytes": 1811,
+      "sha256": "a273c6467ac1d5bc259dcf9a40834fc20690e4132d92f57da15bbc8edf0e8319",
+      "uncompressed_sha256": "ed0109f1260c4b9c610da8a2d6ff416ce2a691d071f81936aa24b0ce6034f527"
+    },
+    "hosted-bindings1.zip": {
+      "bytes": 9163,
+      "sha256": "71b8f089e57b40b926950b0b66d63fd04c8b25d224606e2159e161ef92479eee"
+    },
+    "hosted-bindings-1.meta.json": {
+      "bytes": 1008,
+      "sha256": "cb5d2e0cf3c46288d084edce18398a0be667eb6beac8dbe189aea7313f08f0cc"
+    },
+    "hosted-bindings-1.json": {
+      "bytes": 1906,
+      "sha256": "8a305362363683240e7b1751aa67181f9499ab139c5307b18be5505be643ed2a"
+    }
+  },
+  "repository_check": {
+    "command": "nix develop --option eval-cache false --command just check",
+    "revision": "0496e0411",
+    "exit_code": 0,
+    "source": "Same complete source patch as 61a3a5e79 + browser prerequisite patch; committed during this check.",
+    "log": "check.log.gz"
+  },
+  "browser_focused": {
+    "record": "browser-prerequisites.json",
+    "http": "pass1050.41seconds",
+    "grpc": "pass634.38seconds",
+    "reactive_browser": "fails before recovery: external store stop/start called on native-local fixture; later tasks not run"
+  },
+  "reactive_followup": {
+    "correction": "db7d50165",
+    "passing_tasks": {
+      "reactive-browser": 33.56,
+      "reactive-views": 300.91
+    },
+    "original_lifecycle_failure": "Offline-tab peer did not advance before browser deadline; repeated HttpCapacity and original tab expired. Full repository check ran concurrently.",
+    "isolated_control": {
+      "revision": "6ee9e058365e74c9f1121d5c8cd74e7e7be98d25",
+      "record": "view-lifecycle-isolated-eval.json",
+      "result": "Reached retirement after disconnect, shared tabs, reload/closure, credential rotation and reset; protected state correctly cleared. Test expected only serving.access_denied but current accepted-control diagnostic retained pending native receipt and AccessDenied. Corrected by ed5491ada; original control remains a failure.",
+      "seconds": 223.16
+    },
+    "stale_local_evaluator": "First isolated attempt failed before test on missing cached Nix derivation. Subsequent command inherits eval-cache=false through nested shells, with no pin/source change.",
+    "retirement_correction": {
+      "record": "view-lifecycle-retirement.json",
+      "result": "pass",
+      "seconds": 226.97,
+      "runtime_authority_or_budget_changes": false,
+      "scope": "Both current denial and accepted control uncertainty remain distinct; protected state clears, pending receipt recovery remains available and replacement Follow is disabled.",
+      "commit": "ed5491ada1e31080a4e93108a4a207ec11d1be84"
+    }
+  },
+  "repository_check_current": {
+    "revision": "6ee9e058365e74c9f1121d5c8cd74e7e7be98d25",
+    "command": "nix develop --option eval-cache false --command just check",
+    "exit_code": 0,
+    "log": "reactive-cutover-check.log.gz"
+  },
+  "clean_browser_current": {
+    "revision": "ed5491ada1e31080a4e93108a4a207ec11d1be84",
+    "status": "running",
+    "record_pending": "/var/tmp/transit-lifecycle-clean-browser-current.json",
+    "checkout": "/var/tmp/transit-ci-2mqka5rf/src"
+  }
+}

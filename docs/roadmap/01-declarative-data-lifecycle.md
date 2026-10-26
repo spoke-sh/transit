@@ -266,6 +266,18 @@ WAL owner or establishes the historical failure's exact cause. The
 preserve that distinction. Final combined qualification and acceptance remain
 open; no WAL recovery gate is relaxed to obtain a pass.
 
+The current hosted candidate completes core, launchers, all thirteen experience
+tasks and both SDK groups. Its browser inventory stops before HTTP execution
+on a missing CI dependency. Supplying the existing pinned MinIO and gRPC peer
+packages qualifies HTTP and gRPC locally. The independent reactive fixture now
+reopens native local persistence, explicitly restores source rights after private
+role replacement, and signs current subject proofs. Protocol/browser, live views
+and shared-tab lifecycle tasks pass, including current denial with preserved
+accepted-control uncertainty. The [qualification record](../../tests/README.md#browser-prerequisites-and-native-reactive-cutover--2026-10-26)
+retains the preceding failures, exact sources and unchanged authority/deadline
+limits. Full repository checks pass. Committed-HEAD clean browser qualification,
+hosted growth and final acceptance reconciliation remain open.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to
