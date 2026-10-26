@@ -282,6 +282,17 @@ passes two distinct accepted-reply losses with exact recovery, unchanged runtime
 semantics and existing deadlines. Committed-HEAD clean browser qualification and
 final acceptance reconciliation remain open.
 
+PR #169 is merged as `17b73b4f2`. The next clean browser run at `717f55793`
+passes embedded Board, query-browser, HTTP and gRPC, then fails reactive-browser:
+the original serving operation remains admitted at its ten-second completion
+deadline. The final two tasks do not run. A source-matched physical-disk control
+reproduces the failure; a tmpfs control passes without establishing physical
+durability. The [physical qualification record](../../tests/README.md#physical-reactive-qualification--2026-10-26)
+preserves that distinction and the failed frozen-read experiment. Work continues
+on `fix/lifecycle-final-qualification`; combined qualification remains open.
+The separate hosted SQL lifetime failure now has bounded stderr diagnostics,
+but its historical cause is not yet established.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

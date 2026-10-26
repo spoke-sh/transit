@@ -1,0 +1,217 @@
+{
+  "source_revision": "717f5579362a1135d0623668faa6a58f3788c6b9",
+  "merged_revision": "17b73b4f2dbc63e75793d0f6e0c2067757759004",
+  "production_and_reactive_sources_unchanged_between_revisions": true,
+  "clean": {
+    "passed_tasks": 4,
+    "failed_task": "test::reactive-browser",
+    "failed_seconds": 285.32,
+    "total_seconds": 2854.08,
+    "remaining_tasks_not_run": 2
+  },
+  "physical": {
+    "status": "failed",
+    "seconds": 84.02,
+    "filesystem": "ext4",
+    "method": "Same compiled binaries and unchanged fixture, plus full retention and observation timing. Reproduces original operation1 still service_admitted at10-second deadline."
+  },
+  "tmpfs_control": {
+    "status": "passed",
+    "seconds": 23.3,
+    "filesystem": "tmpfs",
+    "method": "Same binaries and fixture with temporary root on tmpfs. Passes full reactive protocol/browser trace; not physical durability qualification."
+  },
+  "frozen_read_control": {
+    "status": "failed",
+    "seconds": 100.26,
+    "filesystem": "ext4",
+    "method": "Reuse one signed operation read while current rights remain checked by gateway. Still fails10-second completion. Experimental source change removed; patch retained."
+  },
+  "limits": [
+    "No runtime fix or physical reactive pass is established. Original10-second deadline unchanged.",
+    "Earlier focused invocations did not record filesystem provenance; the current Nix default resolves to tmpfs. Do not infer a physical-storage pass from those earlier results.",
+    "Original failed clean serving fixture auto-deleted its temporary state. Diagnostic fixtures retain their full private state locally; only telemetry/observation logs and nonsecret metadata are published."
+  ],
+  "files": {
+    "clean-failure/browser.json": {
+      "bytes": 580,
+      "sha256": "664b5f3f18796fb8263d965df1fbe54669a8273728db14b3ee1d666df7d91981"
+    },
+    "clean-failure/browser.meta.json": {
+      "bytes": 1173,
+      "sha256": "6956ca056a133f84268f47d8b805c8b41d01768a7dca6d15e10f2dec4e37394e"
+    },
+    "clean-failure/clean.json": {
+      "bytes": 551,
+      "sha256": "f77de2062bcedf69d15a42e3925590b6047718d601bdfb598dde9bfaba6817c3"
+    },
+    "clean-failure/clean.log.gz": {
+      "bytes": 11352,
+      "sha256": "7ec167649fab477be5a652be8e80395434d85adf4ef867e85358fb00a5c93ebd"
+    },
+    "clean-failure/report.json": {
+      "bytes": 1178,
+      "sha256": "d028b0099fbde01ad9a2ecdf08b95923fc8818d9d1e963a1a1845575b161f0ea"
+    },
+    "frozen-read-control/application.log.gz": {
+      "bytes": 385,
+      "sha256": "a974fe0663767da5408b8c3562e86e0dfda71c2d635a454179c46e5a6383555a"
+    },
+    "frozen-read-control/controller.py.gz": {
+      "bytes": 1542,
+      "sha256": "c83c4890195de785f0d28392eebf9905b838d76cda86ec08326b03c1ba04cfa4"
+    },
+    "frozen-read-control/courier.log.gz": {
+      "bytes": 537,
+      "sha256": "bdbaac86ea5be2c1d1cbb232f8c97e09b82c225255001ea399b1a34a69d8d4f1"
+    },
+    "frozen-read-control/gateway-0.log.gz": {
+      "bytes": 986,
+      "sha256": "876d43c1fc22234ec133ae007102854cc30688bd1336a44f064c9638f64a3731"
+    },
+    "frozen-read-control/gateway-1.log.gz": {
+      "bytes": 104,
+      "sha256": "f04e477a881afae238be1825f0e397251174f7e12e1ba04bae81c90e1438ff7e"
+    },
+    "frozen-read-control/ingress.log.gz": {
+      "bytes": 555,
+      "sha256": "3f936091d433970c2aacc6860b18454c9ba8fea951e482ffd2e016683dd82c47"
+    },
+    "frozen-read-control/node-direct.log.gz": {
+      "bytes": 4008,
+      "sha256": "18a8552f66cb9d738ac0afe5d1a0c3f57a7250be2edb22eb586a48e3ffa37022"
+    },
+    "frozen-read-control/node-live.log.gz": {
+      "bytes": 4058,
+      "sha256": "f33ce5c104bcff20e47c4a7c27bcb2d6bf8c1b0e08735c217aac033d98363653"
+    },
+    "frozen-read-control/observations.jsonl.gz": {
+      "bytes": 3287,
+      "sha256": "b6265e01e05d144503019b47b782a443717bc943af8f3be739151f678069da1b"
+    },
+    "frozen-read-control/run.json": {
+      "bytes": 1423,
+      "sha256": "120c0614032425e3e1a7ceafdcefd3b625f3b4839ee12b9aa4a55a32153bb773"
+    },
+    "frozen-read-control/run.log.gz": {
+      "bytes": 6020,
+      "sha256": "981732b5fbdccb4741d3ddd474bd778462a8aba27d62cf91f07fcf14c5746e18"
+    },
+    "frozen-read-control/source.patch.gz": {
+      "bytes": 535,
+      "sha256": "8b338dff4a03167b9b00a7303dd7268c04bdd125a647acc9ea4e4c559fd820dc"
+    },
+    "physical/application.log.gz": {
+      "bytes": 566,
+      "sha256": "6d6e561f824c6d2c9e99a5812c5b0ebadfeece35d12c5f9e61c3934c8f7db675"
+    },
+    "physical/controller.py.gz": {
+      "bytes": 1277,
+      "sha256": "dc564938b5ffa72dfe264836c6a1710ef39b8364f5a7798361cec40c6163c09f"
+    },
+    "physical/courier.log.gz": {
+      "bytes": 612,
+      "sha256": "9c33d94d9682abd3e4ff134380619fb417e0da8d98cc6ebe7f30c7e1a0bc7fd8"
+    },
+    "physical/gateway-0.log.gz": {
+      "bytes": 912,
+      "sha256": "403b7a7a4035f6b784c9cf9827bbf36f57127440e261817c03e8d386ceab4078"
+    },
+    "physical/gateway-1.log.gz": {
+      "bytes": 104,
+      "sha256": "fb2cc361ff76e7102ad1f0faa857a3da2b713f3ae45e9b9ee8389678914d5164"
+    },
+    "physical/ingress.log.gz": {
+      "bytes": 504,
+      "sha256": "458b9bcd9950f4ad92053a625725516d90173568ee95181ee9af265f75ab7cd8"
+    },
+    "physical/node-direct.log.gz": {
+      "bytes": 4187,
+      "sha256": "1c47721e5adf290ac43e9d44e04792824bb358350a675d0354389168d05d14d8"
+    },
+    "physical/node-live.log.gz": {
+      "bytes": 4066,
+      "sha256": "6c59e077e0bd0a897b3db41cd711b6210d8e63510e2cb75a4b0360e14b06e8e9"
+    },
+    "physical/observations.jsonl.gz": {
+      "bytes": 3575,
+      "sha256": "1efa4b4e9a6c64e2ce44aed287fa081183b990ee8368e7208646dd696cc4f678"
+    },
+    "physical/run.json": {
+      "bytes": 1261,
+      "sha256": "861cfb89e2c1ecbf6f6a653530cd3c40a5b232d92ac3198ce47d5b98099e8e29"
+    },
+    "physical/run.log.gz": {
+      "bytes": 6206,
+      "sha256": "8f37ddbbc524e46c5c82748d7646105fc0e122182b4b6b7a0e0e39f2778f1f83"
+    },
+    "tmpfs-control/application.log.gz": {
+      "bytes": 497,
+      "sha256": "76726397ef6d34eb8856b9617153829a4b63bfbda1cb7572c68b1002b86991ab"
+    },
+    "tmpfs-control/controller.py.gz": {
+      "bytes": 1329,
+      "sha256": "852ed7f8834f1bcd86c7e41a6610930528ba3764da4fcba4575b90d27895baa0"
+    },
+    "tmpfs-control/courier.log.gz": {
+      "bytes": 648,
+      "sha256": "68ea8e531dd504c34c42847d8a99741865819f50b57977dc9cc2ab971947af25"
+    },
+    "tmpfs-control/gateway-0.log.gz": {
+      "bytes": 801,
+      "sha256": "560a195558e52587e9da1a628b4a6e290480895828264f748c08a8f8236238ea"
+    },
+    "tmpfs-control/gateway-1.log.gz": {
+      "bytes": 450,
+      "sha256": "9e91860b1ccf9016ed2121af573c73f12da0d12c803c691411b789b4e311af38"
+    },
+    "tmpfs-control/ingress.log.gz": {
+      "bytes": 488,
+      "sha256": "24550caa72c81bc805093f30e45907802de41e6d0ef470049dea1b115d44a61d"
+    },
+    "tmpfs-control/node-direct.log.gz": {
+      "bytes": 6446,
+      "sha256": "996fc00f35d45713df10824e720ae7019f3f5582b62ea3003967b0bda11a7abe"
+    },
+    "tmpfs-control/node-live.log.gz": {
+      "bytes": 3879,
+      "sha256": "97717b532d3f1d47dfaab9faffde84004c0c48e06869722624ed46d0b6b7a540"
+    },
+    "tmpfs-control/observations.jsonl.gz": {
+      "bytes": 3783,
+      "sha256": "5b2accd2c37bf362834dd1cd79b0697b0649a5bcde365ea726c8d74fefcdb877"
+    },
+    "tmpfs-control/reactive-application-recovered.log.gz": {
+      "bytes": 549,
+      "sha256": "8e5eabc7379a1b87523c6e177302d4085649e99b2c5d2521908893119d43bd2a"
+    },
+    "tmpfs-control/reactive-courier-recovered.log.gz": {
+      "bytes": 448,
+      "sha256": "980020f618984a654ec6a8231863bb3498b02ece2dd3dee3b53f58a1f9d604b9"
+    },
+    "tmpfs-control/reactive-gateway-recovered-0.log.gz": {
+      "bytes": 569,
+      "sha256": "d26c882f4b6368d45488f1fde61e676d9814a116b1a13e89289cbef74323dfc3"
+    },
+    "tmpfs-control/reactive-gateway-recovered-1.log.gz": {
+      "bytes": 176,
+      "sha256": "fcba680f166eb5609f20391cfbc1ee599f744f30e6922777bc1e61d7213344b4"
+    },
+    "tmpfs-control/reactive-ingress-recovered.log.gz": {
+      "bytes": 505,
+      "sha256": "79ba33b09a03afc33659fec0a95affbf47069ba9de83523da1ad201279a3c0b0"
+    },
+    "tmpfs-control/reactive-node-recovered.log.gz": {
+      "bytes": 4140,
+      "sha256": "3310f92ed3abfa183faea4548544af7c8620de143414a27d75f9b32839b619b1"
+    },
+    "tmpfs-control/run.json": {
+      "bytes": 1295,
+      "sha256": "e52c6c87db085b7c302a1aa915b0e01fe1ee19134b2957522cb38977193edd8f"
+    },
+    "tmpfs-control/run.log.gz": {
+      "bytes": 709,
+      "sha256": "769b27dce03a33afc159546d42744cbce6ffc6fcffc14d78647872e296289ec1"
+    }
+  }
+}

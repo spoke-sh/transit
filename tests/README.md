@@ -28216,3 +28216,35 @@ failure report with the active phase and manager stderr. This makes a SQL error
 observable without mislabelling it as an unanswered query. It adds no retry and
 keeps the original 30-second response deadline. This diagnostic correction does
 not identify the historical cause or establish a runtime fix.
+
+## Physical reactive qualification — 2026-10-26
+
+The clean browser lane at `717f55793` passes embedded Board (378.52 seconds),
+query-browser (316.13), HTTP browser/worker (1,111.86) and gRPC browser/worker
+(731.58). It then fails `test::reactive-browser` after 285.32 seconds including
+compilation: the original serving operation remains `service_admitted` at the
+fixture's 10-second completion deadline. Capacity refusals and slow native
+calls are recorded. The two remaining reactive-view tasks do not execute.
+The containing clean run fails after 2,854.08 seconds; four completed tasks do
+not establish a complete browser lane.
+
+A diagnostic uses the exact compiled binaries and unchanged fixture with full
+failure-state retention and timed public observations. On `/var/tmp` (ext4), it
+reproduces the failure in 84.02 seconds. Its 68 native setup commands take 51.96
+seconds collectively; the original operation is not replaced. A control with
+those same binaries and fixture on `/tmp` (tmpfs) passes the complete protocol
+and browser trace in 23.30 seconds. That control establishes protocol behavior
+and process replacement on the stated filesystem, not physical durability.
+Earlier focused invocations did not record mount provenance; the current Nix
+shell's default temporary parent resolves to tmpfs, so their shorter timings
+must not be treated as physical-storage qualification.
+
+Reusing one frozen signed status request removes repeated credential preparation
+while preserving the gateway's current authorization checks, but the physical
+control still fails the same completion assertion. That experimental source
+change is removed. The [source-attributed evidence](verification/results/lifecycle-reactive-physical-2026-10-26/report.json)
+retains all controls, binary hashes, patches and full telemetry logs. Private
+fixture state stays outside Git. The original clean fixture deleted its own
+temporary state on failure; later diagnostic fixtures retain theirs. Runtime
+and protocol deadlines are unchanged. Physical reactive qualification and its
+cause remain open; no successful control relabels the failed run as passed.

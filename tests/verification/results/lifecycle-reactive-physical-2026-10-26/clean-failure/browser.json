@@ -1,0 +1,32 @@
+[
+  {
+    "lane": "browser",
+    "task": "transit-board::browser",
+    "seconds": 378.52,
+    "exit_code": 0
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::query-browser",
+    "seconds": 316.13,
+    "exit_code": 0
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::http-browser",
+    "seconds": 1111.86,
+    "exit_code": 0
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::grpc-browser",
+    "seconds": 731.58,
+    "exit_code": 0
+  },
+  {
+    "lane": "browser",
+    "task": "test::reactive-browser",
+    "seconds": 285.32,
+    "exit_code": 1
+  }
+]
