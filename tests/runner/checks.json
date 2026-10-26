@@ -3,6 +3,24 @@
   "profiles": {
     "fast": [
       {
+        "id": "test-layout",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/layout.py"
+        ]
+      },
+      {
+        "id": "test-layout-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_layout.py"
+        ]
+      },
+      {
         "id": "nix-format",
         "phase": "format",
         "command": [

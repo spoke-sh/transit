@@ -7,6 +7,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | --- | --- |
 | [checks.json](checks.json) | Ordered fast checks and generated-contract validators |
 | [checks.py](checks.py) | Execute the inventory, propagate child failures and retain stage timings |
+| [layout.json](layout.json), [layout.py](layout.py), [test_layout.py](test_layout.py) | Domain owners, explicit migration exceptions and real file-layout regression controls |
 | [suite.json](suite.json) | Required lanes, environments, task nesting and focused/external owners |
 | [task_coverage.py](task_coverage.py), [test_task_coverage.py](test_task_coverage.py) | Check task registration and required coverage against real Just recipes |
 | [ci-budgets.json](ci-budgets.json) | Measured CI cost limits and the inventory qualified by those observations |
@@ -24,6 +25,11 @@ oracle checks, diagnostic inventory/mappings and documentation links. It builds
 no runtime binaries and starts no Transit services. It does not replace compiled
 contract checks, package tests, disk/recovery proofs or frontend validation.
 `just check all` and the hosted core lane retain those broader checks.
+
+The layout check includes tracked and untracked, non-ignored test files. Put new
+work in a named owner with a README and AGENTS file. Remove the old exception
+when moving a file; exceptions describe existing migration work and are not
+permission to add a sibling file to an old directory.
 
 `just check contracts` compiles the nine schema exporters in one Zig build graph
 and runs the existing 18 independent checks. The runner receives immutable build

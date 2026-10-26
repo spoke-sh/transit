@@ -14,8 +14,10 @@ installed-consumer checks, independent oracles and verification infrastructure.
   and their execution owner; distinguish nested checks from additional executions.
 - Keep direct Table/storage acceptance separate from Station/application turns.
   Preserve provider-specific coverage when migrating a generic local fixture.
-- Prefer the existing scoped directory. Root files awaiting migration remain
-  supported; do not create another root family when a real owner exists.
+- Put new files in the appropriate domain directory with README/AGENTS navigation.
+  Only README.md and AGENTS.md belong at the root. Existing root files and old
+  directories have explicit [migration exceptions](runner/layout.json); remove
+  each exception when moving its file. Do not add exceptions for new work.
 
 ## Fixtures and independent oracles
 
