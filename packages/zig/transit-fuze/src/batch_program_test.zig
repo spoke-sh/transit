@@ -73,6 +73,39 @@ test "generic nested values and variable literals own their bytes under allocati
     try t.checkAllAllocationFailures(t.allocator, richOwnership, .{});
 }
 
+test "borrowed batch retains five states and recursive payloads without arena expansion" {
+    const text: [8192]u8 = @splat('z');
+    const children = [_]Cell{ .null, .{ .value = .{ .atom = .{ .bytes = &text } } } };
+    const alternatives = [_]types.Values.Alternative{
+        .{ .counter = 1, .replica = 1, .value = .null },
+        .{ .counter = 2, .replica = 1, .value = .{ .value = .{ .list = &children } } },
+    };
+    const fields = [_]types.Field{.{ .name = "nested", .type = .{ .list = .{ .type = &.utf8, .nullable = true } }, .nullable = true, .optional = true }};
+    const plan: q.Plan = .{ .schema = .{ .structure = &fields }, .source_basis = @splat(71), .projection = &.{0} };
+    var physical = try Batch.init(t.allocator, plan, .{ .rows = 8, .bytes = 8192 });
+    defer physical.deinit();
+    const cells = [_]Cell{ .null, .missing, .{ .type_error = .int64 }, .{ .conflict = &alternatives }, .{ .value = .{ .list = &children } } };
+    const used = physical.memory.end_index;
+    for (cells, 0..) |cell, i| {
+        try cell.validate(fields[0], .{});
+        try physical.appendBorrowedValidated(&.{cell}, .{ .row = i + 1, .boundary = 1 });
+    }
+    physical.evaluate();
+    for (cells, 0..) |expected, i| {
+        try t.expectEqualDeep(expected, physical.columns[0].view(cells.len).cell(i));
+        try t.expect(physical.outcomes[i].truth.selects());
+    }
+    try t.expectEqual(used, physical.memory.end_index);
+    try t.expectEqual(alternatives[0..].ptr, physical.columns[0].view(cells.len).cell(3).conflict.ptr);
+    try t.expectEqual(children[0..].ptr, physical.columns[0].view(cells.len).cell(4).value.list.ptr);
+    try t.expectError(error.InvalidProvenance, physical.appendBorrowedValidated(&.{.null}, .{ .row = 5, .boundary = 1 }));
+    try t.expectEqual(cells.len, physical.len);
+    physical.reset();
+    try t.expectError(error.BatchFull, physical.appendValidated(&.{cells[4]}, .{ .row = 1, .boundary = 1 }));
+    try t.expectEqual(@as(usize, 0), physical.len);
+    try t.expectEqual(used, physical.memory.end_index);
+}
+
 test "portable and supported AVX2 agree on masks, every tail and five-state failures" {
     const finite = @import("Finite.zig");
     const alternatives = [_]types.Values.Alternative{ .{ .counter = 1, .replica = 1, .value = .null }, .{ .counter = 2, .replica = 1, .value = .null } };

@@ -92,8 +92,12 @@ positions into compute batches; skipped rows do not renumber overflow or predica
 failures. LIMIT stops at the selected prefix and limits each source request's
 remaining matches. Empty full-source results still verify all source coverage.
 A deferred predicate failure follows earlier selected rows so prior aggregate
-failures or a satisfied LIMIT retain precedence. These reads use owned rows;
-compatible borrowing and relational predicate pushdown have separate owners.
+failures or a satisfied LIMIT retain precedence. The finite executor borrows
+variable and recursive payloads from one decoded reader page until its compute
+prefix is consumed, then resets those views before replacing the page. Returned
+results own their values independently. This avoids a compute payload copy;
+transport decoding and result materialization retain their existing owners.
+Arrow buffer interchange and relational predicate pushdown have separate owners.
 
 `DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
 schema-bound template without acquiring a pin. Its preparation fingerprint

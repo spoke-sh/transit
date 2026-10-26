@@ -28939,3 +28939,27 @@ lane's disk-heavy unit suite. Its completed phases include contract fixtures,
 and retained-metadata checks; the run as a whole remains incomplete. The clean
 core run at `d80f5c1ed` continues independently. No lane or milestone completion
 is inferred from these partial runs.
+
+## Borrowed finite Table compute pages — 2026-10-26
+
+Finite direct Table execution retains one decoded reader page while compute
+columns borrow its variable, recursive and conflict payloads. It consumes the
+page before replacing that owner. The focused Fuze run passes **47/47** tests,
+including an 8 KiB value in a 4 KiB compute buffer with no payload-arena growth,
+pointer identity, all five states and nested/conflict details. Independent output
+rows survive source replacement and executor destruction. Exhaustive allocation
+failures release pages and detached outputs. Deferred read errors preserve prior
+SUM overflow, selected-prefix LIMIT and full-source verification; current
+disclosure denial prevents further source acquisition.
+
+The complete query unit suite passes **141/141**, including its existing
+16,840-row relational growth case. The signed `projection` service proof passes
+encoded filtering, sparse coverage, segment/WAL reads, owned results, prepared
+`ASCII_CI` comparisons, ordered failures and post-compute/terminal revocation.
+Diagnostic inventory, verification catalog and documentation links pass.
+
+The [batch guide](../packages/zig/transit-fuze/docs/batches.md) specifies page
+invalidation and separate source/compute/output budgets. This change removes one
+compute payload copy; it does not change stored formats, export Arrow buffers or
+establish a whole-query latency improvement. The earlier clean core lane and
+ingestion matrix remain in progress at their recorded revisions.

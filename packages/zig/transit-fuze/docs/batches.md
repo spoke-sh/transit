@@ -18,7 +18,7 @@ column kernels. Other admitted scalar comparisons and recursive projections use
 generic logical storage; unsupported comparisons still fail plan admission.
 
 Flat columns separate fixed-width values from five-state tags and error/conflict
-sidecars. Required recursive values and conflict alternatives are deeply copied.
+sidecars. Owned appends deeply copy required recursive values and conflict alternatives.
 Columns used only for state predicates or COUNT(column) retain states without
 copying unused payloads. Such views support state access, not value disclosure.
 Projection and comparison dependencies retain their complete values. Source
@@ -28,6 +28,13 @@ Constant and validated-page views borrow their source owner; no view outlives it
 repeated validation only when the source has validated this exact schema. Failed
 appends retain the previous prefix. Original source ordinals, validation boundaries
 and optional stable Table identities survive selection without granting access.
+
+`appendBorrowedValidated` stores fixed-width lanes and references variable,
+recursive and conflict payloads without allocating payload memory. The caller
+must validate the exact schema and keep every referenced payload immutable until
+reset or destruction, including while a host runner joins its workers. This
+method does not transfer ownership or extend a source lifetime. Its views are
+logical compute columns, not an Arrow buffer or C data export.
 
 Programs evaluate atoms in instruction order over columns. A per-lane error site
 retains the first failing instruction even if Boolean composition determines the
@@ -52,7 +59,7 @@ No total source-cardinality limit is introduced.
 The surrounding executor and decoder have separate memory owners: one source
 scan, at most one held decoded row, existing bounded plan-admission scratch,
 and independently owned output rows. These are **additional** to the compute
-buffer. File and Table pull executors also reserve one 4 KiB decoded-row cache
+buffer. File pull executors also reserve one 4 KiB decoded-row cache
 plus its allocator metadata. The stable cache owner reuses one allocation;
 larger or simultaneous allocations use the original allocator. It changes no
 decoder limits or validation. Oversized projected outputs copy into independent
@@ -61,6 +68,23 @@ Hosts must account for those owners under their enclosing query budget;
 this byte limit is not a whole-query RSS cap. Returned rows deeply copy
 recursive values and conflict alternatives and survive resetting or releasing the batch. Callers must
 release each row with `deinit` instead of accumulating an unbounded result.
+
+A source can expose `nextBorrowed` and `batchAvailable` to retain one decoded
+page while the executor borrows its cells. `batchAvailable` counts the rows
+remaining before a call may replace that page. Earlier returned cells must stay
+valid across subsequent calls within the page, including failed calls. The
+executor stops filling at that boundary, consumes the ordered prefix, then
+resets its views before acquiring another page. Startup and LIMIT can choose a
+smaller prefix. No pending owned row or decoded-row cache is needed for this
+path; the source's full page remains additional to the compute budget. Sources
+without this contract retain owned acquisition and oversized-row handling.
+
+Finite direct Table execution uses this borrowed-page path over its existing
+at-most-eight-row reader page. Decoding and transport still own their allocations;
+this removes the intervening compute payload copy. Final projected results are
+independent copies and survive page replacement, query close and destruction.
+Early close releases the page with the executor and never releases the durable
+Table pin. Current rights still gate each disclosed result batch and completion.
 
 Source reads are serial. A later read failure is retained until the already
 acquired prefix has reached its operator frontier. A failure yields no complete

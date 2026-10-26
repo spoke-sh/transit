@@ -149,17 +149,30 @@ pub fn append(self: *Self, cells: []const Cell, provenance: Provenance) !void {
 /// Native Table and frozen file decoders establish this precondition. This is
 /// not a replacement for a source's original whole-row validation boundary.
 pub fn appendValidated(self: *Self, cells: []const Cell, provenance: Provenance) !void {
-    try self.plan.collations.validateCells(cells);
-    if (self.len == self.capacity) return error.BatchFull;
-    if (cells.len != self.columns.len) return error.InvalidColumnCount;
-    if (provenance.row == 0 or provenance.boundary == 0) return error.InvalidProvenance;
-    if (self.len > 0 and provenance.row <= self.provenance[self.len - 1].row) return error.InvalidProvenance;
-    if (provenance.identity) |identity| try identity.validate();
+    try self.validateAppend(cells, provenance);
     const previous = self.memory.end_index;
     errdefer self.memory.end_index = previous;
     for (cells, self.columns) |cell, column| column.append(self.memory.allocator(), self.len, cell) catch return error.BatchFull;
     self.provenance[self.len] = provenance;
     self.len += 1;
+}
+/// Stores column metadata without copying variable or recursive payloads. The
+/// source must have validated this exact schema and keep all referenced values
+/// immutable until reset/deinit, including while a host runner joins its work.
+/// Source memory is additional to residentBytes and remains source-owned.
+pub fn appendBorrowedValidated(self: *Self, cells: []const Cell, provenance: Provenance) !void {
+    try self.validateAppend(cells, provenance);
+    for (cells, self.columns) |cell, column| column.appendBorrowed(self.len, cell);
+    self.provenance[self.len] = provenance;
+    self.len += 1;
+}
+fn validateAppend(self: *const Self, cells: []const Cell, provenance: Provenance) !void {
+    if (self.len == self.capacity) return error.BatchFull;
+    if (cells.len != self.columns.len) return error.InvalidColumnCount;
+    try self.plan.collations.validateCells(cells);
+    if (provenance.row == 0 or provenance.boundary == 0) return error.InvalidProvenance;
+    if (self.len > 0 and provenance.row <= self.provenance[self.len - 1].row) return error.InvalidProvenance;
+    if (provenance.identity) |identity| try identity.validate();
 }
 /// Computes outcomes without committing progress or arbitrating later failures.
 /// The ordered consumer applies LIMIT and aggregate errors at each source row.

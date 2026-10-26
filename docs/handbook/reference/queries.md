@@ -57,6 +57,12 @@ Arrow output and durable publication keep their existing independent bounds.
 A valid large decoded row executes under its source owner when it cannot fit the
 compute buffer. File LIMIT still verifies the complete captured input.
 
+Finite direct Table execution retains one decoded source page while compute
+columns borrow its variable and recursive payloads. It consumes that page before
+replacing it; returned results own their values and survive query close. Source
+page memory is separate from the compute budget. Transport decoding, current
+authorization and result materialization keep their existing boundaries.
+
 Linux x86_64 can select AVX2 comparisons after CPU and operating-system checks.
 The Zig host APIs allow portable selection and an optional bounded compute pool.
 Source acquisition, authorization, failure arbitration and publication stay with

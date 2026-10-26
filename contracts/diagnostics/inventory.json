@@ -7095,13 +7095,15 @@
         "Limits.validate()": "<inferred>",
         "Runner.evaluate()": "anyerror",
         "append()": "<inferred>",
+        "appendBorrowedValidated()": "<inferred>",
         "appendValidated()": "<inferred>",
         "copyPlan()": "<inferred>",
-        "init()": "<inferred>"
+        "init()": "<inferred>",
+        "validateAppend()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 12
       },
       "imports": [
@@ -7120,7 +7122,7 @@
         "IncompleteSource": 1,
         "QueryConflict": 2,
         "QueryTypeError": 3,
-        "SourceChanged": 5
+        "SourceChanged": 6
       },
       "outcomes": {},
       "error_sets": {},
@@ -7134,10 +7136,10 @@
         "Execution().<return>.next()": "<inferred>",
         "Execution().<return>.next().<struct>.integer()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 26,
-        "catch": 6
+        "try": 27,
+        "catch": 9
       },
       "imports": [
         "Batch.zig",
@@ -14354,6 +14356,7 @@
         "fingerprint()": "<inferred>",
         "next()": "<inferred>",
         "nextAfter()": "<inferred>",
+        "nextBorrowed()": "<inferred>",
         "open()": "<inferred>",
         "rejected()": "anyerror",
         "selectAccess()": "<inferred>",
@@ -14361,7 +14364,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 12,
+        "try": 13,
         "catch": 7
       },
       "imports": [

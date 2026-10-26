@@ -91,6 +91,15 @@ pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
     if (selected.len < self.reader.schema.schema.columns.len) try self.reader.selectColumns(selected.columns());
 }
 pub fn next(self: *Self) !?f.LogicalQuery.Row {
+    const cells = (try self.nextBorrowed()) orelse return null;
+    const row = self.page.?.rows[self.index - 1].?;
+    self.page.?.rows[self.index - 1] = null;
+    return .{ .arena = row.value.descriptor.arena, .cells = cells };
+}
+/// Borrow the decoded page without detaching each row. All page payloads remain
+/// immutable until the next call after batchAvailable reaches zero, or deinit.
+/// A caller must consume/reset its views before crossing that page boundary.
+pub fn nextBorrowed(self: *Self) !?[]const f.Types.Values.Cell {
     try self.checkCancellation();
     if (self.complete) return null;
     if (self.point_key) |*key| {
@@ -100,9 +109,12 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
         // coverage. A missing key has the same post-compute authorization gate.
         self.complete = true;
         const found = row orelse return null;
+        self.page = .{ .complete = true, .count = 1 };
+        self.page.?.rows[0] = found;
+        self.index = 1;
         self.after = found.identity;
         self.ordinal += 1;
-        return .{ .arena = found.value.descriptor.arena, .cells = found.row().cells };
+        return found.row().cells;
     }
     while (self.page == null or self.index == self.page.?.count) {
         if (self.page) |*page| page.deinit();
@@ -138,14 +150,14 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
         }
     }
     const row = self.page.?.rows[self.index].?;
-    self.page.?.rows[self.index] = null;
     self.ordinal = if (self.reader.filter != null) self.page.?.ordinals[self.index] else self.ordinal + 1;
     self.selected += 1;
     self.index += 1;
     self.after = row.identity;
-    // TableRow owns its value and descriptor in one arena. Transfer that arena
-    // to Fuze; the source page can be freed independently of the returned row.
-    return .{ .arena = row.value.descriptor.arena, .cells = row.row().cells };
+    return row.row().cells;
+}
+pub fn batchAvailable(self: *const Self) usize {
+    return if (self.page) |page| page.count - self.index else 0;
 }
 pub fn batchOrdinal(self: *const Self) u64 {
     return self.ordinal;

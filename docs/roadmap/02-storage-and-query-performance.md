@@ -284,6 +284,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   changing stored formats. Arrow-compatible physical buffers, broader batch
   handoff and relational text comparison/hash/order remain open.
 
+- Finite direct Table computation now borrows variable and recursive cells from
+  one retained decoded reader page. The executor stops at its page boundary and
+  resets views before replacement, while returned results remain independently
+  owned. Focused lifetime and allocation-failure controls cover this handoff.
+  This advances #128 without changing stored pages or claiming Arrow-compatible
+  physical buffers; transport decoding and output materialization still copy.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

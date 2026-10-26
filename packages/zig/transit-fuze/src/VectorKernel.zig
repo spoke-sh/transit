@@ -29,27 +29,32 @@ pub const Column = struct {
         return .{ .type = kind, .data = if (!retain) .states_only else if (hot(kind)) .{ .words = try a.alloc(u64, capacity) } else .{ .values = try a.alloc(t.Values.Value, capacity) }, .states = try a.alloc(t.State, capacity), .details = try a.alloc(Detail, capacity) };
     }
     pub fn append(self: Column, a: std.mem.Allocator, i: usize, cell: t.Values.Cell) !void {
+        const owned = if (self.data == .states_only or (self.data == .words and cell != .conflict)) cell else try t.Values.cloneValidated(a, cell);
+        self.appendBorrowed(i, owned);
+    }
+    /// The complete cell (including recursive/conflict payloads) stays immutable
+    /// under its source owner until every view of this lane has been consumed.
+    pub fn appendBorrowed(self: Column, i: usize, cell: t.Values.Cell) void {
         if (self.data == .states_only) {
             self.states[i] = std.meta.activeTag(cell);
             self.details[i] = .none;
             return;
         }
-        const owned = if (self.data == .words and cell != .conflict) cell else try t.Values.cloneValidated(a, cell);
-        self.states[i] = std.meta.activeTag(owned);
-        self.details[i] = switch (owned) {
+        self.states[i] = std.meta.activeTag(cell);
+        self.details[i] = switch (cell) {
             .conflict => |alternatives| .{ .conflict = alternatives },
             .type_error => |kind| .{ .type_error = kind },
             else => .none,
         };
         switch (self.data) {
-            .words => |words| words[i] = if (owned != .value) 0 else switch (self.type) {
-                .int64 => @bitCast(@as(i64, @intCast(owned.value.atom.signed))),
-                .uint64 => @intCast(owned.value.atom.unsigned),
-                .float64 => @bitCast(owned.value.atom.float),
-                .boolean => @intFromBool(owned.value.atom.boolean),
+            .words => |words| words[i] = if (cell != .value) 0 else switch (self.type) {
+                .int64 => @bitCast(@as(i64, @intCast(cell.value.atom.signed))),
+                .uint64 => @intCast(cell.value.atom.unsigned),
+                .float64 => @bitCast(cell.value.atom.float),
+                .boolean => @intFromBool(cell.value.atom.boolean),
                 else => unreachable,
             },
-            .values => |values| values[i] = if (owned == .value) owned.value else .{ .atom = .{ .signed = 0 } },
+            .values => |values| values[i] = if (cell == .value) cell.value else .{ .atom = .{ .signed = 0 } },
             .states_only => unreachable,
         }
     }
