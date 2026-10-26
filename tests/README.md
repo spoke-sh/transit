@@ -27226,3 +27226,33 @@ local clean experience run has a separate authority/restart-budget failure.
 These are not passes, not attributed to the model, and not fixed by increasing
 fixture budgets here. Full checks and committed-source clean lanes on the final
 PR revision remain separate gates.
+
+## Native C/C++ library search paths — 2026-10-25
+
+The C-driver wrapper at `c1d23c14a` selects the pinned GNU libc ABI/version,
+which disables the compiler's automatic native library-path discovery.
+An independent control built from that revision's `nix/zig.nix` fails to link
+an OpenSSL consumer with `-lcrypto` in both C and C++: the compiler reports no
+searched library paths. Both control compile-only commands already pass under
+`-Werror`; those are coverage checks, not reproduced failures.
+
+The wrapper now forwards the Nix include, library and runtime search paths as
+separate arguments without evaluating environment contents as shell code.
+Compile-only invocations receive no linker arguments. A loader override keeps
+the native GNU ABI and paths; an explicit target retains upstream behavior.
+Compiler, library and lockfile versions are unchanged.
+
+Both C/C++ linkage controls compile and run with the corrected wrapper.
+The offline toolchain check additionally creates and joins native threads,
+verifies exact interpreters and both loader-override spellings, checks
+compile-only commands, and executes a static musl target without GNU headers or
+an ELF interpreter. `nix flake check`, `just doctor`, Nix formatting and
+documentation links pass on Linux x86_64. Other platforms and the complete
+committed-source qualification remain separate gates.
+
+An earlier diagnostic with unchanged SDK artifacts from
+`4dc0d3ba01497e4cac9929e0817ce4bc221fde92` runs the native-lifetime fixture
+with older glibc 2.40 and pinned 2.42 loaders. C and C++ both abort in
+`allocate_stack` with the older loader and pass with the pinned loader. This
+demonstrates the invalid pairing, without establishing that the local abort
+and the previously recorded hosted segmentation fault have the same path.
