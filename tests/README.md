@@ -4536,7 +4536,11 @@ installations:
   With idle expiry disabled, incomplete wire frames, partial TLS records and
   application bytes already buffered by TLS close under a one-second frame bound.
   The fixture verifies unchanged child PIDs during each scenario and joins them
-  during teardown.
+  during teardown. Its piped psql client stops on SQL errors and includes SQLSTATE
+  in stderr; an error cannot silently become a wait for a nonexistent row.
+  Failures retain the current phase, query, exit status and bounded stderr tails
+  in `.cache/verification/server-sql-lifetimes-failure.json`, included in CI
+  artifacts. Configuration and native session credentials are excluded.
 - `just test::server-logging`: four held native request bodies exhaust data
   admission. SQL status reports `busy` and `HttpCapacity` at warning level,
   withholds confirmed readiness, preserves child PIDs and emits no repeated
@@ -28193,3 +28197,22 @@ retain exact attribution to `adad2b189` plus patch SHA-256
 Frontend checks and all 6,354 documentation links pass. Hosted growth is now
 complete, but another full committed clean browser lane and the final acceptance
 review still gate lifecycle closure.
+
+## SQL lifetime failure reporting — 2026-10-26
+
+Follow-up hosted run [40337023008](https://github.com/spoke-sh/transit/actions/runs/40337023008)
+tests head `717f55793` at merge `2ed8ead0f`. Launchers completes 2/2 tasks in
+699.80 seconds. Experience completes its first seven tasks, then fails
+`test::server-sql-lifetimes` after 46.10 seconds. The first psql
+`SELECT value FROM items` yields no stdout row within 30 seconds after the
+console reports an applied INSERT. The fixture did not capture psql stderr in
+the failure or upload the retained installation, so the reason is unknown.
+The [artifact and job log](verification/results/lifecycle-browser-closeout-2026-10-26/hosted-717/report.json)
+retain the failure; subsequent tasks did not execute.
+
+The fixture now starts psql with `ON_ERROR_STOP=1` and verbose SQLSTATE reporting,
+includes bounded stderr in EOF/deadline failures, and publishes a bounded JSON
+failure report with the active phase and manager stderr. This makes a SQL error
+observable without mislabelling it as an unanswered query. It adds no retry and
+keeps the original 30-second response deadline. This diagnostic correction does
+not identify the historical cause or establish a runtime fix.

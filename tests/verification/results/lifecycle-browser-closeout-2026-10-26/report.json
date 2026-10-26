@@ -62,7 +62,8 @@
   "limits": [
     "Hosted combined experience/browser job remains failed despite completed experience inventory; all other hosted lanes including growth complete.",
     "Focused browser tasks pass separately, including two accepted upload reply losses. New complete committed clean browser qualification remains required.",
-    "Earlier local SQL and browser failures remain recorded; later passes do not identify unreproduced historical causes."
+    "Earlier local SQL and browser failures remain recorded; later passes do not identify unreproduced historical causes.",
+    "Follow-up hosted717 experience fails in SQL lifetime qualification; its cause is unknown because the old fixture did not preserve psql stderr. Diagnostic test correction does not establish a runtime fix."
   ],
   "files": {
     "bindings-shell.log.gz": {
@@ -481,6 +482,38 @@
       "bytes": 76,
       "sha256": "0e66b06e0c0f1e199cedb362aa29acbf5163464e307da8fb941987af346f050b",
       "uncompressed_sha256": "e35d76efc8632bc98a6c1e65f6ea81a9b612c65e1b650baa65d38e869358cdc1"
+    },
+    "hosted-717/experience.json": {
+      "bytes": 916,
+      "sha256": "7830dc946f63e289e033ba51c9ee9130a54f30be52b5bd255a5719d36aefaa37"
+    },
+    "hosted-717/experience.log.gz": {
+      "bytes": 34342,
+      "sha256": "9d2c70406f18bf9a0d1a119d553e96f61e858b047c0f3c6786d3674337f3fb56"
+    },
+    "hosted-717/experience.meta.json": {
+      "bytes": 933,
+      "sha256": "35f9eee5dfd654e7edfe980ce94efa52808afa6d122abc13cacc3daa74fa944a"
+    },
+    "hosted-717/experience.zip": {
+      "bytes": 976,
+      "sha256": "036f2adea220cdd29ff2317beebac229722c5440e6e03bb7e869a1730b5993a6"
+    },
+    "hosted-717/launchers.json": {
+      "bytes": 220,
+      "sha256": "72e4f40f6f239a246d91f529a5dd128d0e3b1b3f051a8ac57bb2efcb4249ce50"
+    },
+    "hosted-717/launchers.meta.json": {
+      "bytes": 585,
+      "sha256": "40dbece4049c045b41c13c478f470b5afc9bba31ec812a2d02201b9ba2e15408"
+    },
+    "hosted-717/launchers.zip": {
+      "bytes": 757,
+      "sha256": "d73049f04d90edce12d98c6b2b21fa8cb60f52575c35bc8c0c96d312243d7805"
+    },
+    "hosted-717/report.json": {
+      "bytes": 1780,
+      "sha256": "856ebe20e70232798190461c8a3f9bffd75a1c5a476ddbae28c0a0b050caaf7f"
     }
   },
   "repository_check": {
@@ -571,5 +604,13 @@
     "restore": "tar --zstd -xf <recorded archive> -C <recorded root>",
     "source_and_original_uncertain_sql_installations_preserved": true,
     "archives_are_local_recovery_artifacts": true
+  },
+  "hosted_followup_717": {
+    "report": "hosted-717/report.json",
+    "run": 40337023008,
+    "head": "717f5579362a1135d0623668faa6a58f3788c6b9",
+    "merge": "2ed8ead0f51fb428bc48b306790a8dd2245c255e",
+    "launchers": "passed2/2",
+    "experience": "Seven tasks pass; first psql SELECT in SQL lifetime test produces no row within30s. stderr unavailable; cause unknown. Lane fails."
   }
 }
