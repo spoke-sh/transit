@@ -155,6 +155,10 @@ a durable intent. They do not collect Table objects. Ursula uses the stream
 closure fences described above. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
+The local backend also exposes explicit [standalone payload operations](../../../packages/zig/transit-backend-local/docs/payloads.md).
+They verify the accepted declaration, preserve uncertain creation and require
+opted-in native retirement before physical deletion. Installed local payload
+routes remain separate from these component operations.
 See [retention](retention.md) and [deployment](deployment.md).
 
 The [backend package](../../../packages/zig/transit-backend-ursula/README.md) and

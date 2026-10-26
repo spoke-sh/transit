@@ -215,6 +215,12 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   replaces the shared current-v1 definition for the mandatory inventory layout.
   Table checkpoint/history/collection, standalone payload ownership, automatic
   installed triggers and complete performance qualification remain open.
+- The local standalone payload adapter now binds one immutable creation attempt
+  and verification/deletion to the current native payload record. Recovery syncs
+  observed publication without repeating creation; opted-in retirement retains a
+  permanent attempt marker. This advances the payload ownership item in #126.
+  Installed local payload routes and lifecycle scheduling remain milestone 3
+  integration work; Table retention and full storage acceptance remain open.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

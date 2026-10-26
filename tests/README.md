@@ -1,5 +1,38 @@
 # Validation and evidence
 
+## Local standalone payload ownership — 2026-10-26
+
+On `09d24daa8` plus the payload adapter and immutable-publication confirmation,
+the local backend's focused payload run passes **7/7 tests** (33 seconds,
+reported MaxRSS 16 MiB), including the package root test. It verifies accepted
+declarations, a lost creation reply and disk reopen, the 64 KiB limit, quota
+refusal, two independent creator lanes, current-identity rejection, corrupt
+markers/content, unlimited retention, opted-in retirement, repeated deletion and
+the permanent creation marker after checkpoint/reopen. The physical adapter does
+not publish native readiness or deletion completion on its own.
+
+The creation schedule discovers **eight sync barriers**, fails each one and
+reopens the owner. Only verification resolves the original bytes; no PUT or new
+native acceptance occurs. Two deletion-sync failures resume the same accepted
+retirement and preserve the attempt fence. The verification schedule fails each
+of **seven recovery barriers** and proves that native state and PUT counts remain
+unchanged. Missing bytes remain unavailable, never an empty or recreated payload.
+
+The storage confirmation control passes **2/2 tests**, including the package root
+test. It independently checks the five object-publication barriers in order:
+content file, checksum file, content directory, descriptor file and descriptor
+directory. Each injected failure propagates. Confirmation rejects conditional
+identity, missing objects and corrupt empty-object data. These are local disk
+and syscall-boundary observations, not a filesystem power-loss model.
+
+Reproduce in `nix develop` with the local backend's `zig build test
+-Dtest-filter="local standalone payload" -Dtest-filter="local payload"
+--summary all`, and the storage package's `zig build test
+-Dtest-filter="immutable confirmation" --summary all`. Diagnostics and local
+documentation links pass. Installed local payload routes and automatic lifecycle
+reclamation remain separate integration work; no complete milestone or clean-CI
+claim follows from these focused cases.
+
 ## Local native allocation and physical collection — 2026-10-26
 
 On `78d43b93a` plus the local collection implementation, pinned local-backend

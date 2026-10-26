@@ -2455,6 +2455,47 @@
         "transit_core"
       ]
     },
+    "packages/zig/transit-backend-local/src/PayloadStore.zig": {
+      "errors": {
+        "InvalidPayload": 2,
+        "InvalidPayloadOwner": 1,
+        "MissingStorageObject": 1,
+        "PayloadCreationAttempted": 1,
+        "PayloadIdentityMismatch": 1,
+        "PayloadIntegrity": 3,
+        "PayloadPhase": 2,
+        "PayloadUnavailable": 3,
+        "UnknownPayload": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "acquire()": "<inferred>",
+        "create()": "<inferred>",
+        "createPayloadOnce()": "<inferred>",
+        "marker()": "<inferred>",
+        "reclaim()": "<inferred>",
+        "reclaimPayload()": "<inferred>",
+        "requireMarker()": "<inferred>",
+        "validate()": "<inferred>",
+        "verify()": "<inferred>",
+        "verifyPayload()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 4
+      },
+      "imports": [
+        "Backend.zig",
+        "Diagnostics.zig",
+        "LocalFiles.zig",
+        "PageStore.zig",
+        "Store.zig",
+        "std",
+        "transit_core"
+      ]
+    },
     "packages/zig/transit-backend-local/src/StorageCollection.zig": {
       "errors": {
         "ActiveStorageCollection": 1,
@@ -2560,6 +2601,7 @@
         "DataAuthority.zig",
         "DataStore.zig",
         "PageStore.zig",
+        "PayloadStore.zig",
         "StorageCollection.zig",
         "Store.zig"
       ]
@@ -24734,11 +24776,11 @@
         "BufferTooSmall": 1,
         "CorruptObjectDescriptor": 5,
         "FileNotFound": 4,
-        "ImmutableObjectConflict": 3,
+        "ImmutableObjectConflict": 4,
         "IncompatibleDefinition": 3,
-        "ObjectDigestMismatch": 6,
+        "ObjectDigestMismatch": 8,
         "ObjectKeyConflict": 1,
-        "ObjectNotFound": 1,
+        "ObjectNotFound": 2,
         "ObjectTooLarge": 4,
         "PathAlreadyExists": 1,
         "RangeOutOfBounds": 1
@@ -24751,6 +24793,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "confirmImmutable()": "<inferred>",
         "content()": "<inferred>",
         "delete()": "<inferred>",
         "head()": "<inferred>",
@@ -24770,7 +24813,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 75,
+        "try": 88,
         "catch": 9
       },
       "imports": [
@@ -24842,15 +24885,16 @@
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
-        "ImmutableObjectConflict": 3,
-        "ObjectDigestMismatch": 1,
-        "ObjectNotFound": 1,
+        "ImmutableObjectConflict": 4,
+        "ObjectDigestMismatch": 2,
+        "ObjectNotFound": 2,
         "ObjectTooLarge": 2,
         "RangeOutOfBounds": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "LocalSegmentStore.confirmImmutableObject()": "<inferred>",
         "LocalSegmentStore.deleteErased()": "anyerror",
         "LocalSegmentStore.deleteObject()": "<inferred>",
         "LocalSegmentStore.getObjectRange()": "<inferred>",
@@ -24867,8 +24911,8 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 18,
-        "catch": 0
+        "try": 20,
+        "catch": 1
       },
       "imports": [
         "DiskObjects.zig",

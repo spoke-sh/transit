@@ -422,6 +422,13 @@ syncs their directory before returning confirmed removed bytes. An allocation
 intent supplies the identity when descriptor publication never completed.
 Missing files make the same deletion idempotent; lock files remain.
 
+`LocalSegmentStore.confirmImmutableObject` verifies an exact immutable descriptor,
+the complete object bytes and chunk checksums without a PUT. It syncs the content
+and checksum files, their directory, the descriptor file and its directory in
+that order. Empty objects still require both files and exact zero lengths.
+Failure cannot establish durable publication. This operation resolves readable
+but uncertain immutable publication before a higher-level owner records readiness.
+
 The [process fixture](../tests/local_objects.py), run by the root unit task,
 checks competing conditional/immutable publication through separate processes.
 The [disk component cases](../packages/zig/transit-storage/src/disk_objects_test.zig)
@@ -511,6 +518,38 @@ FIFO consume, not a transient counter, establishes completed inventory progress.
 Native compaction preserves logical values and captured roots through the core
 `storage_compact` operation. Standalone payload publication, Table collection and
 automatic installed maintenance retain separate owners.
+
+## Local standalone payloads
+
+The component `PayloadStore` binds physical I/O to the complete current accepted
+native `Payload` record under the publication fence. It does not authenticate a
+public caller or grant access independently of native operations. Its immutable
+object key is `native/u/<16 lowercase hexadecimal payload ID>`; the object body
+is the exact declared bytes, at most 64 KiB. Native page/block collection ignores
+these objects. Direct data adapters reject the reserved namespace.
+
+The permanent creation-attempt marker is `.payload-<16 hex payload ID>` in the
+native root. Its 136 bytes contain `TPAY1` and three zeros at `0..8`, the mandatory
+shared definition at `8..40`, little-endian payload ID, PID and publisher at
+`40..48`, `48..56` and `56..64`, little-endian `u32` length at `64..68`, deletion
+opt-in (`0` or `1`) at `68`, three zeros, SHA-256 of the declared bytes at
+`72..104`, and SHA-256 of `0..104` at `104..136`. The marker's file and directory
+are synced before content creation. A marker never grants publication authority.
+
+`createPayloadOnce` requires the current `creating` record and exact body. An
+existing marker rejects another attempt, including an exact retry. The trusted
+publisher calls once; uncertain results use `verifyPayload`, which does not PUT.
+Verification matches the marker and current `creating`/`ready` record, verifies
+all bytes and syncs the observed marker and object publications before success.
+Missing bytes remain unavailable. No helper manufactures `payload_ready`.
+
+`reclaimPayload` requires the current `retiring` record, `allow_delete` and its
+accepted retirement position. It confirms descriptor/content/checksum removal
+while preserving the marker. Repeating deletion is idempotent; only a separate
+authorized `payload_deleted` command records native completion. Quota refusal,
+process ownership or an old payload record cannot authorize deletion or recreate
+bytes. Physical adapter operations preserve the native identity and outcomes;
+installed local payload routes and automatic reclamation remain separate.
 
 ## `.tseg` (`TSEG` v1) hybrid segment layout
 

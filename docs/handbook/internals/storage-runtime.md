@@ -770,6 +770,28 @@ do not prove arbitrary filesystem rollback or power-loss behavior, and automatic
 installed scheduling is separate from the component mechanism. No latency or
 throughput claim follows from its bounded resident state.
 
+Standalone payloads have a separate question: after losing a creation reply,
+what evidence permits the publisher to declare the original bytes ready? The
+[local payload adapter](../../../packages/zig/transit-backend-local/src/PayloadStore.zig)
+keeps a permanent attempt marker and verifies the current accepted declaration.
+It never retries creation during recovery. A readable descriptor can have survived
+process death before its directory sync, so read-and-hash alone would let a later
+`payload_ready` outlive that publication after a subsequent power failure. The
+[confirmation primitive](../../../packages/zig/transit-storage/src/DiskObjects.zig)
+verifies complete content and syncs content/checksum files, their directory,
+the descriptor and its directory. The marker has its own file/directory barriers.
+Only successful verification permits the trusted caller to publish readiness.
+Native authentication and payload phase transitions remain independent checks.
+
+The [payload tests](../../../packages/zig/transit-backend-local/src/payload_test.zig)
+inject all creation and verification sync failures, race independent creator
+lanes, corrupt markers/content and resume deletion while preserving native
+retirement. The [disk-object control](../../../packages/zig/transit-storage/src/disk_objects_test.zig)
+checks confirmation barrier order and empty-object corruption. These establish
+the observed local syscall boundaries; they do not model every filesystem's
+power-loss behavior. The alternative of repeating an immutable PUT is unsuitable
+for this owner because its contract preserves one uncertain creation attempt.
+
 ## Reducing durable mutation work
 
 The question is which work a short Table mutation can share or avoid while

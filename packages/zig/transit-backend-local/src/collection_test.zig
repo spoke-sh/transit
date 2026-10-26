@@ -6,7 +6,7 @@ const Allocations = @import("NativeAllocations.zig");
 const g = core.protocol.Growth;
 const Engine = core.growing.Engine(local.Store, local.PageStore);
 
-const Fixture = struct {
+pub const Fixture = struct {
     owner: local.Backend = undefined,
     pages: local.PageStore = undefined,
     journal: local.Store = undefined,
@@ -20,8 +20,11 @@ const Fixture = struct {
     fn clock(raw: *anyopaque) anyerror!core.Time.Sample {
         return .{ .unix_ms = @as(*Fixture, @ptrCast(@alignCast(raw))).now };
     }
-    fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
-        self.owner = try local.Backend.open(t.allocator, t.io, directory, "native", .{});
+    pub fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
+        return self.openWithIo(directory, fresh, t.io);
+    }
+    pub fn openWithIo(self: *Fixture, directory: std.Io.Dir, fresh: bool, io: std.Io) !void {
+        self.owner = try local.Backend.open(t.allocator, io, directory, "native", .{});
         self.pages = try local.PageStore.init(&self.owner, 1);
         self.journal = .{ .backend = &self.owner };
         const genesis: core.growing.Genesis = .{ .realm = 42, .root_key = (try key()).public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true };
@@ -29,17 +32,17 @@ const Fixture = struct {
         self.engine.clock = .{ .context = self, .read = clock };
         self.collector = .{ .backend = &self.owner };
     }
-    fn close(self: *Fixture) void {
+    pub fn close(self: *Fixture) void {
         self.pages.deinit();
         self.owner.deinit();
     }
-    fn submit(self: *Fixture, command: g.Command) !u64 {
+    pub fn submit(self: *Fixture, command: g.Command) !u64 {
         return self.engine.submit(try self.signed(command));
     }
-    fn signed(self: *Fixture, command: g.Command) !g.SignedRequest {
+    pub fn signed(self: *Fixture, command: g.Command) !g.SignedRequest {
         return g.sign(.{ .realm = 42, .principal = 0, .sequence = (try self.engine.principal(0)).sequence + 1, .command = command }, try key());
     }
-    fn query(self: *Fixture, kind: @FieldType(g.Query, "kind")) !g.Response {
+    pub fn query(self: *Fixture, kind: @FieldType(g.Query, "kind")) !g.Response {
         return self.engine.query(try g.signQuery(.{ .realm = 42, .principal = 0, .kind = kind }, try key()));
     }
     fn proposal(self: *Fixture, pid: u64, resource: u64) !g.TurnWithVersions {

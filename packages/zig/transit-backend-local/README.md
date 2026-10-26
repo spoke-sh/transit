@@ -77,8 +77,11 @@ and request grace interval. Its durable allocation FIFO, paged marks and deletio
 intent resume after reopen. `storage_compact` relocates bounded native data while
 retained captures keep their original values. See [native maintenance](docs/maintenance.md)
 for invocation, ownership, quotas and recovery. Table objects and standalone
-payload publication retain their separate owners; this package does not collect
-them or schedule automatic local collection.
+payloads retain separate ownership; this collector does not delete them or
+schedule automatic local collection. `PayloadStore` implements explicit
+[standalone payload publication and retirement](docs/payloads.md) under the
+existing native declarations. These component operations are separate from
+installed node payload routes and automatic maintenance.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task
