@@ -76,7 +76,7 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 1 | [Data identities, declarations and commit contracts](01-declarative-data-lifecycle.md) | In Progress ([#108](https://github.com/spoke-sh/transit/issues/108)) | Neutral data/definition identities, lifecycle operations, atomic-domain/isolation decisions and snapshot contracts before dependent formats |
+| 1 | [Data identities, declarations and commit contracts](01-declarative-data-lifecycle.md) | Completed ([#108](https://github.com/spoke-sh/transit/issues/108)) | Neutral data/definition identities, lifecycle operations, atomic-domain/isolation decisions and snapshot contracts before dependent formats |
 | 2 | [Local durable storage, `.tseg` segments and bounded queries](02-storage-and-query-performance.md) | In Progress ([#109](https://github.com/spoke-sh/transit/issues/109)) | Durable native local WAL/object storage across all owners, bounded segments/readers, logical history, codecs/collations and safe local publication |
 | 3 | [Executable data lifecycles and live storage/SQL cutover](03-live-storage-and-sql-cutover.md) | In Progress ([#110](https://github.com/spoke-sh/transit/issues/110)) | Installed direct Table and named KV/Document/computation lifecycles, lazy `.tseg` schema projection, local storage/SQL wiring and exact restart recovery |
 | 4 | [SQL statement results and client consumption](04-statement-results-and-consumption.md) | Planned | Shared command/result lifecycle, bounded batches/readers, verified completion and explicit transaction attribution |
@@ -572,7 +572,7 @@ requirements; no original tracker closes merely because its work was split.
 
 ## Architectural direction across the sequence
 
-1. **Define declarative operations independently of the actor turn ceremony ([Milestone 1](01-declarative-data-lifecycle.md) — In Progress).**
+1. **Define declarative operations independently of the actor turn ceremony ([Milestone 1](01-declarative-data-lifecycle.md) — Completed).**
    Unify catalog identities (`CatalogId`, `DefinitionId`), dependency tracking and
    policy bindings across Tables, KV, Documents and named computations. Route
    data-plane DDL/DML and batch ingestion directly through the catalog and

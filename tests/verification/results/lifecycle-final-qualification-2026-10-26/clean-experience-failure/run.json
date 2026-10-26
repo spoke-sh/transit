@@ -1,0 +1,25 @@
+{
+  "revision": "a048b154f081d80dbbf2b57f70e3fb787d546ca1",
+  "status": "failed",
+  "queued": "2026-10-26T16:53:35.944878+00:00",
+  "command": [
+    "nix",
+    "develop",
+    "--option",
+    "eval-cache",
+    "false",
+    "--command",
+    "just",
+    "ci-clean",
+    "--lane",
+    "experience"
+  ],
+  "environment_override": {
+    "NIX_CONFIG_append": "eval-cache = false"
+  },
+  "free_bytes_before": 36367122432,
+  "started": "2026-10-26T16:53:35.962117+00:00",
+  "exit_code": 1,
+  "seconds": 445.13,
+  "finished": "2026-10-26T17:01:01.093579+00:00"
+}
