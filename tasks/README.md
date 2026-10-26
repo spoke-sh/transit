@@ -324,6 +324,14 @@ its embedded UI into `zig-out/bin`. Install frontend dependencies first with
 default installation directory is shared: the most recent build replaces those
 binaries. Use `--prefix` to keep separate outputs.
 
+The Python, TypeScript, Rust, Ruby, C/C++, Java, .NET and BEAM Station SDK tasks
+build the node with `ReleaseSafe` while keeping their bindings, ports, callers
+and connector workers in Debug. Their disk-backed query schedules retain the
+same row counts, small caches, recovery assertions and ten-minute query budget.
+The [measured profile control](../tests/README.md#sdk-query-node-build-profile--2026-10-26)
+records the Debug-node timeout and optimized-node result. Other tasks select
+their own build modes; this does not change the repository's Debug unit checks.
+
 Arguments after the profile pass directly to `zig build`, preserving quoting:
 
 ```sh
