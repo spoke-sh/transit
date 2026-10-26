@@ -28102,7 +28102,8 @@ completes core (28 tasks, 3,454.32 seconds), launchers (2, 696.03), experience
 The SDK lanes include Python, Node, Rust, Ruby, Go, C/C++, Java, .NET, Erlang/Elixir,
 shared native/port, interoperability, authorization and recovery checks. The first two browser tasks also pass. The combined
 experience/browser job fails when the HTTP task cannot find MinIO, before its
-workload executes. Hosted growth remains incomplete at this checkpoint.
+workload executes. Growth subsequently completes all 39 tasks in 11,119.35
+seconds; its downloaded artifact and raw job log are retained in the same bundle.
 
 Commit `0496e0411` supplies the already pinned MinIO derivation and the Python
 gRPC/protobuf peer dependencies to the shared CI experience shell. There is no
@@ -28158,3 +28159,37 @@ retain task exit codes, source patches and downloaded hosted artifacts. Earlier
 remain separate failures; subsequent diagnostics and hosted passes do not
 identify their historical causes. Final combined qualification and acceptance
 reconciliation remain open.
+
+
+## Explicit recovery of each query upload step — 2026-10-26
+
+The clean browser run at `adad2b189` passes both Board tasks, then fails HTTP
+when MinIO refuses cold puts with `XMinioStorageFull`. Ursula reaches its unchanged
+8 MiB hot-data bound, and the worker retains `AuthorityOutcomeUnknown`. Five
+inactive compiler caches are archived losslessly and verified before their
+unpacked copies are removed. Source, proof records and original uncertain SQL
+installations remain intact; no MinIO guard or runtime recovery rule changes.
+
+The next clean run begins with 44,964,306,944 free bytes. Embedded Board passes
+in 422.06 seconds; query-browser fails in 415.61 seconds. Its trace shows the
+first synthetic dropped response was pre-dispatch HTTP 429. Explicit retry then
+accepts that step, but a later upload step returns HTTP 503 with
+`query.send_unknown` and `AuthorityTimeout`. Board retains that exact signed
+request, requires another explicit recovery action and reports incomplete upload.
+The test instead waits for automatic completion and exceeds its result deadline.
+
+The corrected schedule drops two distinct successful upload replies, checks
+identical saved request bytes and receipts on recovery, and uses the visible
+explicit recovery action for each classified unknown step. It preserves real
+throttling responses and fails on other submission errors. Both recoveries share
+the existing 120-second window; the whole browser test remains bounded to
+180 seconds. The complete focused task passes in 300.31 seconds, including
+compilation, stale participation refresh, query verification, navigation, current
+revocation and source retirement. Production runtime code is unchanged.
+
+The [failure trace, HTTP timeline, source patch and focused result](verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
+retain exact attribution to `adad2b189` plus patch SHA-256
+`1efaf42711164d55369c187dfb48b555d48ddc23b40d963d2f9a6d489b2b23c1`.
+Frontend checks and all 6,354 documentation links pass. Hosted growth is now
+complete, but another full committed clean browser lane and the final acceptance
+review still gate lifecycle closure.

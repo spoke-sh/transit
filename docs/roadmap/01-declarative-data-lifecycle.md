@@ -275,8 +275,12 @@ role replacement, and signs current subject proofs. Protocol/browser, live views
 and shared-tab lifecycle tasks pass, including current denial with preserved
 accepted-control uncertainty. The [qualification record](../../tests/README.md#browser-prerequisites-and-native-reactive-cutover--2026-10-26)
 retains the preceding failures, exact sources and unchanged authority/deadline
-limits. Full repository checks pass. Committed-HEAD clean browser qualification,
-hosted growth and final acceptance reconciliation remain open.
+limits. Full repository checks and hosted growth now pass. A clean browser run
+then exposes a test assumption that only one upload step can require explicit
+unknown-outcome recovery. The [corrected complete focused schedule](../../tests/README.md#explicit-recovery-of-each-query-upload-step--2026-10-26)
+passes two distinct accepted-reply losses with exact recovery, unchanged runtime
+semantics and existing deadlines. Committed-HEAD clean browser qualification and
+final acceptance reconciliation remain open.
 
 ## Implementation record
 
