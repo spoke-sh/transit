@@ -28,6 +28,11 @@ storage-key-ranges:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="ordered full key" -Dtest-filter="Table index batches" -Dtest-filter="retained Table key ranges" -Dtest-filter="Table recovery" -Dtest-filter="Table segment ranges" --summary all
     cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained key range" -Dtest-filter="retained reader binds" --summary all
 
+# Finite count intervals, same-pin scan controls and post-compute disclosure.
+table-count-ranges:
+    cd packages/zig/transit-query && zig build test-unit -Dtest-filter="count range" --summary all
+    just test::direct-table-service count-ranges
+
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe

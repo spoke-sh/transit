@@ -347,11 +347,17 @@ must be specified together when extending this boundary.
 Native key/value Table queries use their ordered primary-key index: equality
 reads one key, lower bounds seek, and upper bounds stop the scan. General catalog
 Table SELECTs use a collision-safe point lookup for a conjunction containing
-exactly one equality per declared primary-key column. Partial keys, inequalities
-and additional predicates retain identity-ordered bounded scans. The original
-Fuze predicate still determines matching rows, and empty selections require
-current rights. The direct retained key-range API does not itself enable SQL
-inequality pushdown. Persistent Arrow storage blocks are
+exactly one equality per declared primary-key column. Finite `COUNT(*)` also uses
+the retained range index for a conjunction of `=`, `<`, `<=`, `>` or `>=`
+comparisons on a single-column primary key, without an input limit. Repeated
+bounds intersect; an empty interval yields zero only after a complete authorized
+read. The original Fuze predicate still determines matching rows. Each range page
+and the final count retain the exact source and require current rights; request
+exhaustion, cancellation or a missing terminal page cannot yield a partial count.
+Row-returning queries, `SUM`, `COUNT(column)`, composite-key inequalities and
+additional predicates retain identity-ordered bounded scans. Bounds that cannot
+fit the stored key profile also retain the scan. Captured queries keep their
+separate equality optimization. Persistent Arrow storage blocks are
 separate from the native Arrow batches used for execution and presentation.
 
 The [interactive query contract](../../../contracts/INTERACTIVE_QUERY_V1.md) defines

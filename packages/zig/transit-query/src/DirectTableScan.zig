@@ -6,6 +6,7 @@ const c = q.catalog;
 const f = q.fuze;
 const Self = @This();
 const Key = q.storage.TablePartition.KeyRange.Key;
+const CountRange = @import("DirectTableCountRange.zig");
 allocator: std.mem.Allocator,
 client: c.DirectTableClient,
 reader: c.DirectTableReader,
@@ -19,6 +20,9 @@ complete: bool = false,
 closed: bool = false,
 rejection: ?q.protocol.ErrorCode = null,
 point_key: ?Key = null,
+count_range: ?CountRange = null,
+range_after: ?q.storage.TablePartition.KeyRange.Cursor = null,
+range_complete: bool = false,
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     if (request_limit < 2) return error.InvalidQueryBudget;
@@ -76,6 +80,10 @@ pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
     const key = f.Collation.encodePrimaryKeySortKey(schema, values, false, &encoded) catch return;
     self.point_key = Key.init(key) catch unreachable; // bounded by encoded above
 }
+pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) void {
+    self.selectPoint(plan);
+    if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
+}
 pub fn next(self: *Self) !?f.LogicalQuery.Row {
     try self.checkCancellation();
     if (self.complete) return null;
@@ -93,14 +101,21 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
         if (self.page) |*page| page.deinit();
         self.page = null;
         self.index = 0;
-        if (self.reader.complete) {
+        if (self.reader.complete or self.range_complete) {
             self.complete = true;
             return null;
         }
         try self.charge();
-        self.page = (self.reader.next(self.client, .{}) catch |err| return self.rejected(err)) orelse return error.IncompleteSource;
+        if (self.count_range) |*range| {
+            const page = self.reader.readRange(self.client, range.interval(), self.range_after, .{}) catch |err| return self.rejected(err);
+            self.page = page.batch;
+            self.range_after = page.next;
+            self.range_complete = page.batch.complete;
+        } else {
+            self.page = (self.reader.next(self.client, .{}) catch |err| return self.rejected(err)) orelse return error.IncompleteSource;
+        }
         if (self.page.?.count == 0) {
-            if (!self.reader.complete) return error.IncompleteSource;
+            if (!self.reader.complete and !self.range_complete) return error.IncompleteSource;
             self.complete = true;
             return null;
         }
@@ -119,6 +134,9 @@ pub fn batchIdentity(self: *const Self) ?f.TableRow.Identity {
 /// Rewinds traverse the same retained identity index. The common sequential
 /// call uses the already buffered page; no new snapshot or name lookup occurs.
 pub fn nextAfter(self: *Self, after: ?f.TableRow.Identity) !?f.LogicalQuery.Row {
+    // Relational rewinds require identity order; only the finite count owner
+    // selects a range and it consumes next() without identity-based rewinds.
+    std.debug.assert(self.count_range == null);
     try self.checkCancellation();
     if (std.meta.eql(after, self.after)) return self.next();
     if (self.page) |*page| page.deinit();

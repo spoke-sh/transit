@@ -1,5 +1,44 @@
 # Validation and evidence
 
+## Finite retained Table count ranges — 2026-10-26
+
+The pinned-shell `just test::table-count-ranges` passes the focused query suite
+and signed HTTP service schedule. The query run executes **13/13 tests**;
+the final combined command reuses that successful unit result. Independent
+selection masks cover signed interval boundaries, intersected/repeated bounds,
+empty intervals, UTF-8 prefixes and embedded zero bytes. Other cases check owned
+literal bytes, signed floating zero, a key outside the first column, unsupported
+collations/physical bounds, and fallback for general/order-sensitive plans.
+
+The [service schedule](direct_table_count_ranges.zig) uses the real local node
+with one resident authority page. A 17-row bulk-written Table has different key
+and identity orders. Each selected interval is compared with a forced full scan
+of the same pin and an independent expected count. Intervals span zero, one,
+eight, nine and seventeen rows, including nonempty final pages. A narrow count
+uses **eight** charged credential/direct exchanges; its full scan uses **twelve**
+and fails under the eight-exchange budget. These counts include query opening
+and final disclosure, exclude pin acquisition, and are not latency or disk-byte
+measurements. Prepared intervals use ten exchanges for the one-page cases.
+
+The original pin excludes later bulk and point writes. A fresh pin counts both
+segment-backed and unflushed WAL rows. NULL parameters keep scan semantics;
+request exhaustion cannot publish a prefix count. Row LIMIT selection and SUM's
+intermediate overflow retain identity order. Revocation after local computation
+denies both matching and empty counts, and repeated completion checks current
+rights. Cancellation after buffering and released pins fail without completion;
+the latter retains the HTTP `Conflict`/native `QueryExpired` classification.
+
+Initial service fixture assertions needed budget for a second terminal check
+and the public HTTP release-error classification; both were corrected without
+changing runtime semantics. The first repository check also detected a work-item
+WI1 fixture left on the preceding shared definition. Its owning generator and a
+stale Board example are corrected separately in `0c716599`; the independent
+fixture check passes. Documentation links, verification catalog, diagnostic
+inventory and mappings pass. The corrected repository run and committed-HEAD
+clean qualification remain separate pending gates. This increment changes no
+wire/stored definition and does not qualify general inequality pushdown, encoded
+predicate execution, compaction or an installed latency improvement.
+
 ## Finite retained SQL point reads — 2026-10-25
 
 On `765b287b` plus finite point selection, the pinned-shell command

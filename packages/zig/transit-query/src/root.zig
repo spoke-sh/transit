@@ -54,6 +54,7 @@ pub const UnifiedSource = @import("UnifiedSource.zig");
 pub const Decoder = @import("Decoder.zig");
 pub const SourceDefinition = @import("SourceDefinition.zig");
 test {
+    _ = @import("direct_table_count_range_test.zig");
     _ = @import("table_source_test.zig");
     _ = @import("source_test.zig");
     _ = @import("sql_template_test.zig");

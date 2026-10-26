@@ -234,8 +234,11 @@ covers the requested interval, while `total_rows` describes the whole source.
 Finite Table queries bind the full logical row schema and return typed values.
 A conjunction containing exactly one equality per declared primary-key column
 uses the collision-safe index in captured and finite retained SELECTs, including
-prepared execution. Partial keys, inequalities and additional predicates use the qualified
-finite scan; the complete Fuze predicate still runs. The retained identity/key
+prepared execution. Finite `COUNT(*)` can additionally use the retained range
+index for comparisons joined by AND on a single-column primary key. Other
+inequalities, partial keys and additional predicates use the qualified finite
+scan; the complete Fuze predicate still runs. The [query reference](queries.md#interactive-sessions)
+defines count eligibility, completion and source-order limits. The retained identity/key
 indexes resolve rows in WAL-backed records or immutable segments. Arrow is an
 interchange format and does not itself establish segment pruning.
 Finite SELECTs retain the scan when a valid comparison literal cannot fit the
