@@ -118,6 +118,24 @@ issues #111/#112/#119/#120 are closed; #108 stays open until those final gates
 are met. #123/#124 retain their broader obligations, and later transaction,
 index, scheduling and provider work keeps its existing delivery owner.
 
+The subsequent close-out branch includes merged PR #162 and the shared-definition
+cutover in PR #163. [SQL settings observation recovery](../../tests/README.md#sql-settings-observation-recovery--2026-10-26)
+now passes forced preparation/page failures through both database protocols,
+with unchanged cursors, current denial, snapshot-change rejection and original
+reload identity. Full installed SQL remains a separate gate. The clean SDK run
+at `dd3687e01` passes Python's Station, HTTP and gRPC schedules; its catalog and
+remaining language schedules are not yet complete. The clean growth run at
+`a756f2cf4` passes local catalog and direct Table restart recovery, then exceeds
+the 180-second lifecycle phase budget. The experience run at `0a7fcbb83` reports
+an unknown console outcome during ALTER TABLE RENAME; original-outcome diagnosis
+remains open. None of those partial lanes is a full pass.
+
+The acceptance review of #125 now distinguishes delivered identity/statement
+contracts and the selected transaction design from its remaining concrete
+transaction fixtures, later implementation histories and final qualification.
+It remains open. Older proof runs retain their source definitions; qualification
+after PR #163 requires a matching runtime/fixture set throughout.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to
