@@ -100,8 +100,20 @@ def run(node, cli, board):
             fcntl.fcntl(stalled_node.stderr.fileno(), fcntl.F_SETPIPE_SZ, 4096)
             try:
                 wait_ready(s.store.http, stalled_node, s.url + "/health")
-                for _ in range(60):
-                    s.post("/v1/command", {}, status=400)
+                # A response can reach this one-CPU client before its server
+                # task releases the bounded admission slot. A brief capacity
+                # rejection is valid; a stalled logger must still fail this
+                # finite budget for sixty completed malformed requests.
+                completed = 0
+                deadline = time.monotonic() + 5
+                while completed < 60:
+                    assert time.monotonic() < deadline, ("stalled diagnostic pipe", completed)
+                    status, body = s.post("/v1/command", {}, status=None)
+                    if status == 400:
+                        completed += 1
+                    else:
+                        assert status == 503 and body == {"err": "HttpCapacity"}, (status, body)
+                        time.sleep(.01)
                 time.sleep(.1)
                 unread = array.array("i", [0])
                 fcntl.ioctl(stalled_node.stderr.fileno(), termios.FIONREAD, unread)

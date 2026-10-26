@@ -27002,3 +27002,21 @@ and reads; killed callers and abrupt restart retain the original binding;
 resumption applies exactly once and cancellation remains terminal after restart.
 This focused result does not replace the complete clean experience rerun or
 establish that default request budgets meet an interactive latency target.
+
+## Stalled-log HTTP admission schedule — 2026-10-26
+
+Hosted experience run [40246276730](https://github.com/spoke-sh/transit/actions/runs/40246276730)
+fails `test::observability` when the malformed-request producer receives
+`503 HttpCapacity` instead of its expected 400. The unchanged rebased fixture
+passes locally, so this is not evidence of a persistent stalled logger. The HTTP
+listener can flush a response before its worker releases its bounded request
+slot; a one-CPU client immediately submitting more requests can observe that
+transient admission limit.
+
+The fixture now requires sixty completed malformed requests within five seconds,
+retrying only explicit `HttpCapacity` responses. Other responses still fail. The
+actual full unread pipe, incomplete-header deadline, signed control command and
+exact repeated receipt assertions remain. Persistent admission exhaustion still
+fails the finite fill budget. `nix develop --command just test::observability`
+passes after this fixture correction; the hosted lane must still be rerun. No
+listener limit, telemetry behavior or accepted-work retry policy changes.
