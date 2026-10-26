@@ -174,9 +174,10 @@ uses the owner principal/operation pair; its value is one released byte (`0` or
 `1`), little-endian `u64` object length and 32-byte digest. Acquisition and release
 are accepted Table log transitions. Object existence alone is not a pin.
 
-This component retains complete logical history and immutable objects. It can
-move accepted WAL records to an immutable archive and remove covered WAL files;
-this is physical relocation, not logical expiry. Pins preserve accepted unflushed
+This component retains complete logical history by default and retains immutable
+objects. It can move accepted WAL records to an immutable archive and remove
+covered WAL files. The separate explicit history-floor operation controls logical
+expiry. Pins preserve accepted unflushed
 rows, exact schema and row indexes across restart. Snapshot retirement does not
 claim object deletion. Automatic scheduling and immutable Table-object collection
 are separate from the archive mechanism.
@@ -228,6 +229,44 @@ adapter can reserve physical staging/append capacity. This API rejects retired
 Tables and performs no object deletion or logical expiry. Liveness comes from the
 accepted paged row directory: removed/replaced rows are omitted from new segments,
 while older retained roots keep their original segment references.
+
+### Table logical history floors
+
+Every accepted Table root and saved snapshot root has mandatory `history_floor`
+(`u64`) and `history_pins` (nullable immutable page reference) fields. A new Table
+starts at floor zero with no history leases. Missing fields reject; this layout
+uses the replacement shared current-v1 definition. No earlier stored root gains
+an implicit floor or empty lease index.
+
+`TablePartition.expireHistory(through, guard)` is an explicit one-off opt-in to
+logical expiry below a fixed partition/frontier. Its adapter must require
+maintenance authority. The owner checks current authorization before work and
+again at append, uses the optional control reserve, and accepts a `history_floor`
+transition through the same Table WAL. The requested frontier must be accepted,
+covered by the published archive and covered by a published recovery checkpoint.
+It cannot exceed the original frontier of any live history lease. The floor is
+monotone; retrying an already covered request returns the current floor without
+another append. A lost acknowledgement requires recovery/observation as for
+other Table acceptance operations. Physical maintenance, quota exhaustion and
+ordinary mutations never advance this floor implicitly.
+
+The history-lease index uses bounded `TreeStore` pages. Its 24-byte keys contain
+big-endian `u64` original exclusive frontier, principal and operation, in that
+order. Values use the existing unreleased 41-byte pin encoding. Acquisition and
+release update this directory and the owner-keyed pin directory in one accepted
+transition. Finding the oldest lease visits a bounded page path, independently
+of retained lease count. Saved snapshot roots clear both pin directories; they
+do not recursively retain other owners' pins. Recovery checks lease transitions
+and refuses a floor transition across the indexed oldest live lease.
+
+`history` reports `TableHistoryExpired` when its starting cursor is below the
+current floor, including an empty interval. Current authorization is checked
+before reporting that expiry. Live history leases preserve their original root
+and all successors; ordinary snapshot pins retain their exact values below the
+history floor. Current rows, schema, original operation receipts and admitted
+work are unchanged. Expiry does not delete archive records, immutable objects or
+WAL files. Physical collection must separately prove every remaining dependency.
+The installed service exposes no automatic Table history-expiry policy.
 
 ### Table history archives
 

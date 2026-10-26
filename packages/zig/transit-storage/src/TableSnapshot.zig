@@ -40,6 +40,7 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: 
     // A data snapshot does not recursively pin earlier pin/receipt directories.
     var basis = root;
     basis.pins = null;
+    basis.history_pins = null;
     basis.recovery = null;
     basis.receipts = null;
     basis.operations = null;
@@ -107,3 +108,23 @@ pub const Pin = struct {
         return pin;
     }
 };
+
+/// A numeric frontier prefix makes the oldest live history lease a bounded
+/// tree lookup. Owner identity distinguishes leases at an identical frontier.
+pub fn historyKey(owner: d.Operation, next_lsn: u64) !pages.Key {
+    try owner.validate();
+    if (next_lsn == 0) return error.InvalidTablePin;
+    var bytes: [24]u8 = undefined;
+    std.mem.writeInt(u64, bytes[0..8], next_lsn, .big);
+    std.mem.writeInt(u64, bytes[8..16], owner.principal, .big);
+    std.mem.writeInt(u64, bytes[16..24], owner.operation, .big);
+    return pages.Key.init(&bytes);
+}
+
+pub fn historyOwner(scope: d.Scope, entry: pages.Key) !struct { owner: d.Operation, next_lsn: u64 } {
+    if (entry.len != 24) return error.InvalidTablePin;
+    const owner: d.Operation = .{ .scope = scope, .principal = std.mem.readInt(u64, entry.data[8..16], .big), .operation = std.mem.readInt(u64, entry.data[16..24], .big) };
+    const next_lsn = std.mem.readInt(u64, entry.data[0..8], .big);
+    if (!std.meta.eql(entry, try historyKey(owner, next_lsn))) return error.InvalidTablePin;
+    return .{ .owner = owner, .next_lsn = next_lsn };
+}

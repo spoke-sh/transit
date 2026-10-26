@@ -160,10 +160,23 @@ reject even when both revisions share one lease. Current rights apply before
 work and after buffering, including empty pages. `releaseSnapshot` closes either
 retention kind and prevents subsequent history disclosure.
 
-The owner retains complete logical history and immutable pages. It exposes no
-immutable-object collector; archival preserves complete WAL records, and a future
-collector must preserve every root and log record covered by a live history lease. Lease acquisition does not
-schedule or advance a maintained computation.
+History remains unlimited until an application explicitly calls
+`expireHistory(through, guard)` with maintenance authority. The operation advances
+a durable logical read floor to a fixed accepted frontier only after archive and
+recovery-checkpoint coverage exist. A live history lease blocks expiry past its
+original frontier, including while its consumer is offline. A paged directory
+ordered by lease frontier keeps the oldest-lease check bounded as pins grow.
+Releasing the lease permits a later explicit expiry call; it does not itself
+expire history. Retrying an already covered floor performs no new append.
+
+Starting `history` below the floor returns `TableHistoryExpired`, even for an
+empty interval. Ordinary snapshot pins still read their original values below
+that boundary. Original receipts, current rows and admitted work remain exact.
+Expiry uses the optional control reserve and rechecks current authority before
+publication. It does not collect immutable objects or remove archive records.
+Physical collection must preserve each live snapshot, history lease and remaining
+receipt/recovery dependency. Lease acquisition does not schedule or advance a
+maintained computation.
 
 ## Typed predicate mutations
 
@@ -346,12 +359,14 @@ the original definition, accepted position, logical-change frontier and total
 source-row count. End of this source traversal is distinct from a query's
 terminal result and from a consistent multi-source snapshot.
 
-Data snapshots omit recovery references and receipt, operation, pending and pin directories from their retained read basis, so
-they do not recursively retain earlier pin owners.
+Data snapshots omit recovery references and receipt, operation, pending and both
+pin directories from their retained read basis, so they do not recursively
+retain earlier pin owners.
 
-This owner retains complete logical history in WAL or accepted immutable archives,
-and retains all immutable objects. It exposes no logical expiry or immutable-object collection. Durable pin ownership is implemented;
-GC/compaction races that actually remove retained data require a collector and
+This owner preserves accepted WAL records in WAL or immutable archives and retains
+all immutable objects. The explicit history floor controls logical disclosure;
+immutable-object collection remains separate. Durable pin ownership is implemented;
+collection races that actually remove retained data require a collector and
 separate qualification. Recovery follows contiguous, hash-linked records from a
 published recovery baseline, or from creation when none exists. It consumes
 archive/WAL records one frame at a time, verifies top-level roots before serving, and verifies

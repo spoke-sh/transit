@@ -118,6 +118,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Explicit Table history expiry now publishes a monotone logical floor through
+  the existing acceptance WAL, after archive and recovery coverage. A paged
+  directory of live history leases protects offline consumers without scanning
+  all pins. Exact snapshots, receipts and admitted work remain retained. Required
+  root fields use a shared current-v1 cutover. This advances #127; safe physical
+  Table-object collection and automatic installed scheduling remain open.
+
 - Direct Table/catalog guards retain the storage epoch from their first
   successful authorization through staging and publication. A native fence
   rejects an old candidate even after it reacquires current policy. Point and

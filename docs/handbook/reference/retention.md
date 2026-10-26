@@ -62,6 +62,16 @@ additional trimming or expiry authority. This
 [physical history maintenance](../../../packages/zig/transit-storage/docs/table-partitions.md#archive-complete-history-and-trim-wal-files)
 does not expire history or collect immutable Table objects.
 
+The Table storage component also accepts explicit `expireHistory` calls with
+maintenance authority. A call advances a durable logical history floor only
+within published archive/checkpoint coverage and never past a live history
+lease's original frontier. Reads starting below that floor report expiry.
+Ordinary pinned snapshots, original receipts, current data and admitted work
+remain retained. An offline history consumer keeps its lease until explicit
+release. The paged lease directory bounds the oldest-lease check independently
+of pin count. This operation does not reclaim physical objects; the installed
+service has no automatic Table history-expiry policy.
+
 Logical deletion precedes physical reclamation. Cleanup is fenced, resumable and
 dependency-aware; a delayed delete cannot target a replacement identity. An
 adapter's delete acknowledgement does not prove removal from every backup or

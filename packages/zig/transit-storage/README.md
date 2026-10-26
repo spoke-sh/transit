@@ -61,6 +61,8 @@ automatic archive scheduling, immutable Table-object collection or multi-process
   WAL batches, staged `.tseg` batches, bounded flushing, durable read pins and
   accepted history archives with resumable physical WAL trimming and bounded
   recovery baselines published by that same acceptance log.
+  Explicit logical history floors require archive/checkpoint coverage, preserve
+  snapshots and receipts, and respect a paged minimum of live history leases.
   Explicit bounded compaction merges live segment rows below a fixed boundary
   while retained roots keep their original physical references.
   Mutation, rewrite and flush workspaces have an explicit allocation ceiling,

@@ -29,6 +29,10 @@ pub const Root = struct {
     ordered_rows: ?pages.Reference,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
+    /// Mandatory logical read boundary. Zero retains all accepted history.
+    history_floor: u64,
+    /// Live history leases ordered by their original exclusive frontier.
+    history_pins: ?pages.Reference,
     /// Required on disk: older roots must not silently lose admitted work.
     operations: ?pages.Reference,
     pending: ?pages.Reference,
@@ -46,7 +50,8 @@ pub const Root = struct {
         try self.declared().validate();
         try self.archive.validate(self.next_lsn);
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
-        if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or
+        if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or self.history_floor > self.next_lsn or
+            (self.history_pins != null and self.pins == null) or
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null) or
             (self.live_rows == 0) != (self.ordered_rows == null) or
@@ -105,6 +110,7 @@ pub const Record = struct {
         checkpoint,
         archive,
         recovery,
+        history_floor,
         pin: struct { owner: d.Operation, basis: d.Content },
         release: struct { owner: d.Operation, basis: d.Content },
     },
@@ -141,7 +147,7 @@ pub const Record = struct {
                     value.basis.position.partition != self.root.partition or
                     value.basis.position.next_lsn >= self.root.next_lsn) return error.InvalidTableHistory;
             },
-            .checkpoint, .archive, .recovery => {},
+            .checkpoint, .archive, .recovery, .history_floor => {},
         }
     }
 };

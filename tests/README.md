@@ -29048,3 +29048,38 @@ spelling produced by Zig formatting in `040959617`; its reviewed inventory is
 refreshed, and inventory, mappings and inferred boundary checks pass. This fence
 correction does not add Table-object collection or change
 the stored definition.
+
+## Table logical history floors — 2026-10-26
+
+The shared current-v1 definition is
+`ebc59054719c82fc7358f55b1f7044b499bf2ec361df39ed9c8323a68a1de3c0`.
+Table roots require an explicit logical history floor and a paged index ordered
+by live history-lease frontier. Earlier definitions and missing persisted fields
+reject. Schemas, bindings, independent fixtures and signing resources are
+regenerated together.
+
+The complete Table-filtered storage suite passes **63/63**. A final focused
+**5/5** run additionally checks admitted work across expiry/restart and empty
+history intervals below the floor. Disk-backed cases cover required archive and
+recovery coverage, live lease blocking and release, exact lease-frontier expiry,
+publication-time denial, lost acknowledgement, monotonic retry after reopen,
+original receipts, retained snapshot values and new work after expiry. A
+65-lease case with a one-page cache bounds the oldest-lease lookup and rejects a
+forged floor that crosses a live lease. Allocation-failure sweeps preserve the
+accepted root during lease acquisition, release and floor publication.
+
+The complete local backend suite passes **25/25**, including expiry through
+reserved control capacity after ordinary quota exhaustion. The complete signed
+direct Table service proof passes **1,942 typed calls**, including CRUD/DDL,
+retained cuts, lifecycle/history replay, authorization, prepared queries,
+collations, filtered projection and original outcomes across three restarts.
+This service proof checks existing public operations under the new definition;
+logical expiry is a component maintenance operation, not a new service endpoint.
+
+Contract/fixture checks, diagnostic inventory/mappings/inferred boundaries and
+documentation links pass. The [history-floor contract](../contracts/TRANSIT_STORAGE_V1.md#table-logical-history-floors)
+separates explicit logical expiry from physical collection: the floor neither
+deletes objects nor authorizes expiry under quota pressure. Full ingestion and
+beyond-process-memory growth runs retain their earlier frozen revisions; neither
+is claimed complete here. Clean CI qualification for this revision remains
+outstanding.

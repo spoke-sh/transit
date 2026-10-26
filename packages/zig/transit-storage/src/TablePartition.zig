@@ -259,11 +259,17 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .archive = .empty, .recovery = null };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
     const after = record.root;
+    if (record.action == .history_floor) {
+        if (after.history_floor <= before.history_floor or after.history_floor > before.next_lsn or
+            after.history_floor > before.archive.through or before.recovery == null or
+            after.history_floor > before.recovery.?.next_lsn or !std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
+    } else if (after.history_floor != before.history_floor) return error.InvalidTableHistory;
+    if (record.action != .pin and record.action != .release and !std.meta.eql(before.history_pins, after.history_pins)) return error.InvalidTableHistory;
     if (record.action == .archive) {
         if (after.archive.through <= before.archive.through or after.archive.through > before.next_lsn or
             after.archive.through - before.archive.through > Archive.max_frames or
@@ -315,7 +321,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
-            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery) return error.InvalidTableHistory;
+            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor) return error.InvalidTableHistory;
         },
     }
 }
@@ -381,13 +387,14 @@ pub fn recover(self: *Self) !void {
         if (selected != null and (!std.meta.eql(record.root.recovery, selected) or
             (work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
         try requireTransition(next, record, try self.operationTransition(next, record));
+        try self.requireHistoryRetentionTransition(next, record);
         chain = r.hash(frame.payload);
         next = record.root;
         work.replayed_frames += 1;
     }
     // Verify all top-level roots before exposing the recovered state. Descendant
     // pages and row objects remain checked on access, never substituted by empty.
-    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.receipts, next.pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
+    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.receipts, next.pins, next.history_pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
     if (end != 0) {
@@ -463,6 +470,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
     }
+    if (from.next_lsn < self.root.history_floor) return error.TableHistoryExpired;
     var result: HistoryPage = .{ .object = self.root.interpretation.object, .through = through, .next = from };
     var previous: ?[32]u8 = null;
     while (result.next.next_lsn < through.next_lsn and result.scanned < frames) {
@@ -484,7 +492,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .checkpoint, .archive, .recovery, .pin, .release => {},
+            .operation, .checkpoint, .archive, .recovery, .history_floor, .pin, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -1336,6 +1344,7 @@ fn rewrite(self: *Self, allocator: std.mem.Allocator, next: *Root, transition: f
 fn publish(self: *Self, record: r.Record, row_bytes: []const u8, guard: Guard) !void {
     try record.validate(self.root.next_lsn);
     try requireTransition(self.root, record, try self.operationTransition(self.root, record));
+    try self.requireHistoryRetentionTransition(self.root, record);
     if (self.root.next_lsn == 0) _ = try Declaration.stage(self.objects, &self.declaration);
     const buffer = try self.allocator.alloc(u8, Log.max_payload_bytes);
     defer self.allocator.free(buffer);
@@ -1861,6 +1870,76 @@ pub fn trimArchived(self: *Self, guard: Guard) !u64 {
     return through;
 }
 
+/// Explicit one-off opt-in to a logical history floor. The caller supplies a
+/// maintenance-authorized guard; neither quota pressure nor physical trimming
+/// invokes this operation. Complete archive and recovery coverage must precede
+/// expiry. Snapshot values, pending work and original receipts remain retained.
+pub fn expireHistory(self: *Self, through: d.Position, guard: Guard) !d.Position {
+    try self.ready();
+    try through.validate();
+    if (through.partition != self.root.partition or through.next_lsn > self.root.next_lsn) return error.InvalidTableBasis;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    if (through.next_lsn <= self.root.history_floor) return .{ .partition = self.root.partition, .next_lsn = self.root.history_floor };
+    if (through.next_lsn > self.root.archive.through or self.root.recovery == null or
+        through.next_lsn > self.root.recovery.?.next_lsn) return error.TableHistoryCoverageRequired;
+    if (try self.oldestHistoryLease(self.root)) |oldest| if (through.next_lsn > oldest) return error.TableHistoryPinned;
+    const ordinary_log = self.log;
+    defer self.log = ordinary_log;
+    if (self.options.control) |control| self.log = control.log;
+    var next = self.root;
+    next.history_floor = through.next_lsn;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .history_floor }, &.{}, guard);
+    try self.reply();
+    return .{ .partition = next.partition, .next_lsn = next.history_floor };
+}
+
+fn oldestHistoryLease(self: *Self, basis: Root) !?u64 {
+    const first = (try self.tree().scan(basis.history_pins, null)).entries[0] orelse return null;
+    const identity = try Snapshot.historyOwner(basis.interpretation.object.scope, first.key);
+    const pin_value = try Snapshot.Pin.decode(first.value);
+    if (pin_value.released or identity.next_lsn > basis.next_lsn or identity.next_lsn < basis.history_floor) return error.InvalidTablePin;
+    const original = try self.tree().get(basis.pins, try r.operationKey(identity.owner)) orelse return error.InvalidTablePin;
+    if (!std.meta.eql(original, first.value)) return error.InvalidTablePin;
+    var frozen = try Snapshot.load(self.allocator, self.objects, .{ .owner = identity.owner, .content = pin_value.content });
+    defer frozen.deinit();
+    if (frozen.retention != .history or frozen.root.partition != basis.partition or
+        frozen.root.next_lsn != identity.next_lsn or !std.meta.eql(frozen.root.interpretation.object, basis.interpretation.object)) return error.InvalidTablePin;
+    return identity.next_lsn;
+}
+
+fn requireHistoryRetentionTransition(self: *Self, before: Root, record: r.Record) !void {
+    switch (record.action) {
+        .history_floor => {
+            if (try self.oldestHistoryLease(before)) |oldest| if (record.root.history_floor > oldest) return error.InvalidTableHistory;
+        },
+        inline .pin, .release => |value| {
+            const after_pin = try self.tree().get(record.root.pins, try r.operationKey(value.owner)) orelse return error.InvalidTablePin;
+            const expected = try (Snapshot.Pin{ .content = value.basis, .released = record.action == .release }).encode();
+            if (!std.meta.eql(after_pin, expected)) return error.InvalidTablePin;
+            var frozen = try Snapshot.load(self.allocator, self.objects, .{ .owner = value.owner, .content = value.basis });
+            defer frozen.deinit();
+            if (frozen.retention == .snapshot) {
+                if (!std.meta.eql(before.history_pins, record.root.history_pins)) return error.InvalidTablePin;
+                return;
+            }
+            const key = try Snapshot.historyKey(value.owner, frozen.root.next_lsn);
+            const earlier = try self.tree().get(before.history_pins, key);
+            const later = try self.tree().get(record.root.history_pins, key);
+            if (record.action == .pin) {
+                if (earlier != null or later == null or !std.meta.eql(later.?, expected) or frozen.root.next_lsn != before.next_lsn) return error.InvalidTablePin;
+            } else {
+                const live = try (Snapshot.Pin{ .content = value.basis }).encode();
+                if (earlier == null or later != null or !std.meta.eql(earlier.?, live)) return error.InvalidTablePin;
+            }
+        },
+        else => {},
+    }
+}
+
 /// Capture exactly the requested accepted frontier, including unflushed rows.
 /// Complete logical history remains retained in WAL or accepted archives. Pin
 /// ownership and release are durable; releasing a pin does not delete objects.
@@ -1899,6 +1978,7 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.pins = try self.tree().put(next.pins, try r.operationKey(owner), try (Snapshot.Pin{ .content = handle.content }).encode());
+    if (retention == .history) next.history_pins = try self.tree().put(next.history_pins, try Snapshot.historyKey(owner, self.root.next_lsn), try (Snapshot.Pin{ .content = handle.content }).encode());
     try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .pin = .{ .owner = owner, .basis = handle.content } } }, &.{}, guard);
     try self.reply();
     return handle;
@@ -1938,11 +2018,14 @@ pub fn releaseSnapshot(self: *Self, handle: SnapshotHandle, guard: Guard) !void 
         defer guard.release(guard.context);
         if ((try self.requirePin(handle)).released) return;
     }
+    var frozen = try Snapshot.load(self.allocator, self.objects, handle);
+    defer frozen.deinit();
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.pins = try self.tree().put(next.pins, try r.operationKey(handle.owner), try (Snapshot.Pin{ .content = handle.content, .released = true }).encode());
+    if (frozen.retention == .history) next.history_pins = try self.tree().remove(next.history_pins, try Snapshot.historyKey(handle.owner, frozen.root.next_lsn));
     try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .release = .{ .owner = handle.owner, .basis = handle.content } } }, &.{}, guard);
     try self.reply();
 }

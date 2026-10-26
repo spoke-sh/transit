@@ -12977,7 +12977,7 @@
           "deadline"
         ],
         "Definition": [
-          "ee8cd16789fd88d229945c3dee87bbaadf11e948adadffd8f5dc0e5f3b9fb422"
+          "ebc59054719c82fc7358f55b1f7044b499bf2ec361df39ed9c8323a68a1de3c0"
         ],
         "Effect.phase": [
           "pending",
@@ -25424,13 +25424,14 @@
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
-        "InvalidTableBasis": 8,
+        "InvalidTableBasis": 9,
         "InvalidTableCompactionBudget": 1,
         "InvalidTableDeclaration": 1,
-        "InvalidTableHistory": 41,
+        "InvalidTableHistory": 45,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 3,
         "InvalidTableOperation": 16,
+        "InvalidTablePin": 9,
         "InvalidTableReadBudget": 2,
         "InvalidTableReceipt": 2,
         "InvalidTableRowReference": 30,
@@ -25449,7 +25450,10 @@
         "TableDataChanged": 6,
         "TableDefinitionChanged": 4,
         "TableHistoryConflict": 1,
+        "TableHistoryCoverageRequired": 1,
+        "TableHistoryExpired": 1,
         "TableHistoryMissing": 9,
+        "TableHistoryPinned": 1,
         "TableHistoryRetentionRequired": 1,
         "TableKeyHashCollision": 4,
         "TableNotCreated": 2,
@@ -25525,6 +25529,7 @@
         "currentBasis()": "<inferred>",
         "decodeFrame()": "<inferred>",
         "expectations()": "<inferred>",
+        "expireHistory()": "<inferred>",
         "filteredCursorFingerprint()": "<inferred>",
         "filteredCursorSource()": "<inferred>",
         "flush()": "<inferred>",
@@ -25542,6 +25547,7 @@
         "observeEvidence()": "<inferred>",
         "observeRows()": "<inferred>",
         "observed()": "<inferred>",
+        "oldestHistoryLease()": "<inferred>",
         "openHistoryPoint()": "<inferred>",
         "operationAt()": "<inferred>",
         "operationForKey()": "<inferred>",
@@ -25567,6 +25573,7 @@
         "reply()": "<inferred>",
         "requireAdmissionBasis()": "<inferred>",
         "requireBasis()": "<inferred>",
+        "requireHistoryRetentionTransition()": "<inferred>",
         "requirePin()": "<inferred>",
         "requireTransition()": "<inferred>",
         "retain()": "<inferred>",
@@ -25593,7 +25600,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 503,
+        "try": 533,
         "catch": 10
       },
       "imports": [
@@ -25651,6 +25658,7 @@
           "checkpoint",
           "archive",
           "recovery",
+          "history_floor",
           "pin",
           "release"
         ],
@@ -25718,7 +25726,7 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "InvalidTableBasis": 1,
-        "InvalidTablePin": 1,
+        "InvalidTablePin": 4,
         "InvalidTableSnapshot": 8,
         "TableSnapshotMissing": 1
       },
@@ -25732,13 +25740,15 @@
       "error_returns": {
         "Pin.decode()": "<inferred>",
         "Pin.encode()": "<inferred>",
+        "historyKey()": "<inferred>",
+        "historyOwner()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 23,
         "catch": 0
       },
       "imports": [
