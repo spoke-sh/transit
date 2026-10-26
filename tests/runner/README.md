@@ -8,6 +8,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [checks.json](checks.json) | Ordered fast checks and generated-contract validators |
 | [checks.py](checks.py) | Execute the inventory, propagate child failures and retain stage timings |
 | [capture.py](capture.py) | Stream diagnostics, preserve automatic run artifacts and verify their identity/completion |
+| [launch.py](launch.py), [paths.py](paths.py) | Explicit Python test import root and shared repository coordinates |
 | [layout.json](layout.json), [layout.py](layout.py), [test_layout.py](test_layout.py) | Domain owners, explicit migration exceptions and real file-layout regression controls |
 | [suite.json](suite.json) | Required lanes, environments, task nesting and focused/external owners |
 | [task_coverage.py](task_coverage.py), [test_task_coverage.py](test_task_coverage.py) | Check task registration and required coverage against real Just recipes |
@@ -26,6 +27,17 @@ oracle checks, diagnostic inventory/mappings and documentation links. It builds
 no runtime binaries and starts no Transit services. It does not replace compiled
 contract checks, package tests, disk/recovery proofs or frontend validation.
 `just check all` and the hosted core lane retain those broader checks.
+
+Launch migrated Python drivers through `python3 -B tests/runner/launch.py`,
+followed by their repository-relative path and arguments. For example,
+`python3 -B tests/runner/launch.py tests/verification/check.py` runs the catalog
+check. Absolute paths inside `tests/` also work. The launcher preserves arguments,
+exit status and the caller's working directory. Import shared helpers by their
+owner (`harness.services`, `runner.paths`) and use `runner.paths.ROOT` for
+repository coordinates. Avoid per-file parent-depth calculations and `sys.path`
+edits in domain drivers. The import root affects this interpreter only; child
+SDK consumers resolve their installed packages independently. Existing unmigrated
+entry points remain in the migration inventory until their callers move together.
 
 The layout check includes tracked and untracked, non-ignored test files. Put new
 work in a named owner with a README and AGENTS file. Remove the old exception

@@ -3,12 +3,11 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import sys
 
-ROOT = Path(__file__).resolve().parents[2]
-DIRECTORY = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT / "tests"))
+from runner.paths import ROOT
 from runner.task_coverage import read_recipes, validate_ownership, validate_required_tiers
+
+DIRECTORY = Path(__file__).resolve().parent
 
 
 def read(name):

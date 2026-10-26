@@ -201,6 +201,7 @@
         "command": [
           "python3",
           "-B",
+          "tests/runner/launch.py",
           "tests/verification/check.py"
         ]
       },
@@ -245,6 +246,15 @@
             "glob": "tests/*.zig"
           },
           "tests/fuze_benchmarks"
+        ]
+      },
+      {
+        "id": "test-launcher",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_launch.py"
         ]
       },
       {

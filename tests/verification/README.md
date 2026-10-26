@@ -129,7 +129,7 @@ generated principal fields. Other component-specific bounds still require review
 when those components change. A bounded resident array does not establish a bound
 on retained collection size.
 
-`python3 -B tests/verification/check.py` validates owners, links, classifications
+`python3 -B tests/runner/launch.py tests/verification/check.py` validates owners, links, classifications
 and drift; `just check all` includes it. Missing tasks and unreviewed limit changes
 are negative controls. The [current cutover evidence](../../docs/history/qualification/runtime.md#native-v1-cutover-checkpoint--2026-09-30)
 separates newly executed proofs from historical qualification. An inventory entry

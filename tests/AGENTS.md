@@ -24,6 +24,10 @@ installed-consumer checks, independent oracles and verification infrastructure.
 Share process management, ports, fault injection, bounded waits and artifact
 capture. Keep expected values and semantic oracles independent of the production
 implementation. Do not make a test pass by using its actual result as its oracle.
+Use `python3 -B tests/runner/launch.py tests/OWNER/DRIVER.py` for migrated Python
+drivers. Import helpers by owner and repository coordinates from `runner.paths`;
+do not infer the repository from each driver's depth or export a test PYTHONPATH
+into installed consumers. Move all callers with an entry point.
 Use explicit binary paths and matching source/definition/profile identities.
 Separate immutable build artifacts from mutable installation state.
 

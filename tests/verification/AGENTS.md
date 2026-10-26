@@ -21,7 +21,7 @@ actual invocations and cannot be satisfied by a focused-only command. Run
 `python3 -B tests/runner/test_task_coverage.py` when changing this inventory.
 
 Run the affected driver, its negative controls and the catalog checker:
-`python3 -B tests/verification/check.py` inside `nix develop`. Timeouts, compiler
+`python3 -B tests/runner/launch.py tests/verification/check.py` inside `nix develop`. Timeouts, compiler
 errors, missing completion and malformed traces are inconclusive failures. A
 mutation is detected only by the intended executed assertion, not a build failure.
 
