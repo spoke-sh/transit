@@ -26,5 +26,7 @@ errors, missing completion and malformed traces are inconclusive failures. A
 mutation is detected only by the intended executed assertion, not a build failure.
 
 Use [model instructions](models/AGENTS.md) for formal work and
-[evidence instructions](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/AGENTS.md) for records. Keep navigation concise;
+[simulation instructions](simulation/AGENTS.md) for deterministic schedules.
+[Mutation instructions](mutations/AGENTS.md) own production guard campaigns;
+[evidence instructions](../evidence/AGENTS.md) own retained references. Keep navigation concise;
 qualification history belongs in the [topic archive](../../docs/history/qualification/README.md).

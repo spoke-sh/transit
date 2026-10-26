@@ -414,7 +414,7 @@ assignments and dependencies, checkpoint discard/final floors, Exchange closure
 and replay holds, query refresh ownership/source cuts, and provider activation.
 These are real component operations over private-turn stores. They do not qualify
 physical storage, application installation, transport or remote dispatch. See the
-[harness guide](../../../tests/verification/README.md#component-simulation) for exact bounds,
+[harness guide](../../../tests/verification/simulation/domains/README.md) for exact bounds,
 artifacts, seed replay and separate mutation qualification.
 
 At committed `a59e0d9c`, all five real-code mutations were detected by executed
@@ -426,7 +426,7 @@ The two-seed replay after that logging change passed in 2.377 seconds.
 
 The shared Session/courier driver runs production preparation, frozen retry,
 activation checks and courier selection against controlled signed transport.
-Its [guide](../../../tests/verification/README.md#shared-client-scheduling-simulation) defines
+Its [guide](../../../tests/verification/simulation/scheduler/README.md) defines
 faults, invariants and limits. At dirty source based on `b6626cae`, the ordinary
 run passed four saved and four generated schedules: eight traces / 542 events,
 each replayed identically, in 15.876 seconds. The finite case exercised recorded
@@ -449,7 +449,7 @@ eight-trace / 542-event run passed in 16.730 seconds before mutation qualificati
 
 The resource profile adds numbered page staging/read faults, a two-page cache,
 resource/input/output correspondence, captured view roots and checkpoint/trim
-recovery. The [harness guide](../../../tests/verification/README.md#resource-publication-simulation)
+recovery. The [harness guide](../../../tests/verification/simulation/resources/README.md)
 owns commands and model limits. On the shared Linux host with pinned Zig
 `0.17.0-dev.2267+48abf1a34`, the first development sweep based on `38ac8781`
 passed 99 traces / 1,923 events, each replayed identically, in 53.290 seconds.
@@ -469,7 +469,7 @@ atomic in-memory journal. Its independent oracle checks every operation outcome,
 ownership/sequence/lifecycle projection, output and destination-input provenance.
 Cold recovery must match the live engine without writing pages; the live engine
 and cache persist until an explicit restart. The
-[harness guide](../../../tests/verification/README.md#authority-and-delivery-simulation) owns
+[harness guide](../../../tests/verification/simulation/storage/README.md) owns
 commands, fault assumptions, bounded progress and artifact formats.
 
 The initial development run of `just test::simulation` passed six saved cases and
@@ -1793,3 +1793,14 @@ storage maintenance and changes the current-v1 definition. The runs above retain
 their earlier source and definition attribution. They do not qualify that later
 implementation or establish cross-definition compatibility; current storage
 integration and qualification remain separate.
+
+## Former verification guide narratives
+
+The [former guide at its recorded source](https://github.com/spoke-sh/transit/blob/b4a3411e7246f1a10709c1089eaf06a0a0cad867/tests/verification/README.md)
+preserves the earlier CI/clean-run cost discussion, SDK qualification stages,
+model/guard observations, offered-load account and codec/tool limits. Those
+statements describe their stated revisions and inventories; they do not qualify
+the reorganized suite. Current execution, automatic result retention and scope
+navigation are owned by the [runner](../../../tests/runner/README.md) and
+[verification index](../../../tests/verification/README.md). Reusable deterministic
+methods now live beside their [scenario owners](../../../tests/verification/simulation/README.md).

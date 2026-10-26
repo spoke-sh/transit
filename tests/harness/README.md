@@ -32,3 +32,7 @@ qualification separately from model exploration and fake transports.
 with a finite deadline. [Process controls](test_processes.py) check live-child
 refusal and reaping a grandchild after its manager is killed. Domain fixtures
 retain startup, activation and recovery assertions.
+
+The [external fault profile guide](fault-profiles.md) describes owned physical
+process and transport experiments, their prerequisites, deadlines and limits.
+It distinguishes those schedules from deterministic implementation simulation.

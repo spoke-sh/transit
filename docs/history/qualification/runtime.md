@@ -1242,7 +1242,7 @@ or uncertain authority is still a failure, not accepted expiry evidence.
 
 ## External fault supervisor and installed hosts
 
-The [external harness](../../../tests/verification/README.md#external-fault-testing) runs real
+The [external harness](../../../tests/harness/fault-profiles.md) runs real
 node/counter/courier binaries and disk Ursula, retaining requested/observed faults,
 public request/reply histories, independent quiescent state checks and joined
 cleanup. At dirty source based on `a59e0d9c`, four rounds passed in 7.219 seconds.

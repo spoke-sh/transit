@@ -533,7 +533,7 @@ The separate weekly/manual fault workflow expands model/property exploration and
 runs actual guard mutations through `just test::vortex-profile discovery`. It
 restores the ordinary core Nix cache without adding another cache writer. Its
 exploration stage/job limits are distinct from ordinary CI feedback budgets;
-the [harness guide](../tests/verification/README.md#external-fault-testing) owns
+the [harness guide](../tests/harness/fault-profiles.md) owns
 the commands, limits and failure reporting.
 The separate dedicated reference workflow runs weekly and on demand; absent
 runner capacity is outstanding evidence, not a passing deployment proof.

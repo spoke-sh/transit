@@ -79,7 +79,7 @@ while its [liveness account](https://tigerbeetle.com/blog/2023-07-06-simulation-
 motivates stabilizing required dependencies before expecting progress. Transit's
 finite explicit scheduler is narrower than that cluster simulation.
 
-The [harness guide](../../../tests/verification/README.md#authority-and-delivery-simulation)
+The [harness guide](../../../tests/verification/simulation/storage/README.md)
 owns bounds, reproduction and negative controls. The
 [simulation evidence](../../history/qualification/verification.md#authority-and-delivery-simulation)
 records executed results; no timing here establishes deployed throughput or latency.
@@ -118,7 +118,7 @@ focused experiment. Full traces, bounded minimized correspondence failures,
 source/compiler/binary/oracle identity and incomplete-run status are retained.
 Mutation checks omit actual resource writes or input progress to challenge the
 oracle. Physical WAL, page deletion/GC and arbitrary corruption remain outside
-this model. See the [harness guide](../../../tests/verification/README.md#resource-publication-simulation)
+this model. See the [harness guide](../../../tests/verification/simulation/resources/README.md)
 for reproducible commands and the [proof ledger](../../history/qualification/README.md) for executed
 results and costs.
 
