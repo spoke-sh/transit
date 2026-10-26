@@ -102,17 +102,57 @@ runCommand "transit-toolchain-check"
     cat > build.zig <<'ZIG'
     const std = @import("std");
     pub fn build(b: *std.Build) void {
+        const target = b.standardTargetOptions(.{});
+        const mod = b.createModule(.{
+            .root_source_file = b.path("linkage.zig"),
+            .target = target,
+            .link_libc = true,
+        });
+        mod.linkSystemLibrary("crypto", .{});
+        b.installArtifact(b.addExecutable(.{ .name = "linkage", .root_module = mod }));
+        b.installArtifact(b.dependency("child", .{ .target = target }).artifact("nested-linkage"));
+    }
+    ZIG
+    # Both ResolvedTarget and Target.Query cross a package boundary here. A
+    # root-only check misses dependency artifacts such as the SQL gateway.
+    mkdir -p child/leaf
+    cat > build.zig.zon <<'ZIG'
+    .{ .name = .linkage_root, .fingerprint = 0xeb96561ba3deccbe,
+       .version = "0.0.0", .paths = .{""},
+       .dependencies = .{ .child = .{ .path = "child" } } }
+    ZIG
+    cat > child/build.zig.zon <<'ZIG'
+    .{ .name = .linkage_child, .fingerprint = 0x54927716a3deccbe,
+       .version = "0.0.0", .paths = .{""},
+       .dependencies = .{ .leaf = .{ .path = "leaf" } } }
+    ZIG
+    cat > child/leaf/build.zig.zon <<'ZIG'
+    .{ .name = .linkage_leaf, .fingerprint = 0x3bfdafa7a3deccbe,
+       .version = "0.0.0", .paths = .{""} }
+    ZIG
+    cat > child/build.zig <<'ZIG'
+    const std = @import("std");
+    pub fn build(b: *std.Build) void {
+        const target = b.standardTargetOptions(.{});
+        b.installArtifact(b.dependency("leaf", .{ .target = target.query }).artifact("nested-linkage"));
+    }
+    ZIG
+    cp linkage.zig child/leaf/linkage.zig
+    cat > child/leaf/build.zig <<'ZIG'
+    const std = @import("std");
+    pub fn build(b: *std.Build) void {
         const mod = b.createModule(.{
             .root_source_file = b.path("linkage.zig"),
             .target = b.standardTargetOptions(.{}),
             .link_libc = true,
         });
         mod.linkSystemLibrary("crypto", .{});
-        b.installArtifact(b.addExecutable(.{ .name = "linkage", .root_module = mod }));
+        b.installArtifact(b.addExecutable(.{ .name = "nested-linkage", .root_module = mod }));
     }
     ZIG
     zig build
     ./zig-out/bin/linkage
+    ./zig-out/bin/nested-linkage
     cat > linkage.c <<'C'
     #include <openssl/crypto.h>
     #include <pthread.h>
@@ -137,12 +177,19 @@ runCommand "transit-toolchain-check"
     zig c++ -Werror -x c++ -c linkage.c -o cpp-linkage.o
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       test "$(patchelf --print-interpreter zig-out/bin/linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
+      test "$(patchelf --print-interpreter zig-out/bin/nested-linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
       test "$(patchelf --print-interpreter c-linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
       test "$(patchelf --print-interpreter cpp-linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
       # Explicit target settings belong to the caller. Inspect this deliberately
       # non-runnable loader path without attempting to execute the result.
       zig build -Ddynamic-linker=/transit-toolchain-explicit-loader
       test "$(patchelf --print-interpreter zig-out/bin/linkage)" = /transit-toolchain-explicit-loader
+      test "$(patchelf --print-interpreter zig-out/bin/nested-linkage)" = /transit-toolchain-explicit-loader
+      zig build -Ddynamic-linker=
+      if patchelf --print-interpreter zig-out/bin/nested-linkage > /dev/null 2>&1; then
+        echo "Explicit empty loader was lost across a dependency boundary" >&2
+        exit 1
+      fi
       zig build-exe linkage.zig -lc -lcrypto --dynamic-linker /transit-toolchain-explicit-loader -femit-bin=explicit-linkage
       test "$(patchelf --print-interpreter explicit-linkage)" = /transit-toolchain-explicit-loader
       zig cc linkage.c -lcrypto -lpthread -Wl,--dynamic-linker,/transit-toolchain-explicit-loader -o explicit-c-linkage
