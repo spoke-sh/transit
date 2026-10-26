@@ -243,40 +243,114 @@ test "canceling a cold read before mutation preserves the local log owner" {
     _ = try wal.log().append(0, 1, 1, 1, .row_delta, "successor");
 }
 
-test "a failed sync poisons the owner and recovery preserves complete uncertain work" {
+test "disk sync errors poison WAL owners and preserve complete uncertain work" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
-        var fail: bool = false;
+        var remaining: usize = 0;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
-            if (fail) {
-                fail = false;
-                return error.InputOutput;
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
             }
             return real.fileSync(context, file);
         }
     };
-    var tmp = t.tmpDir(.{});
-    defer tmp.cleanup();
     Fault.real = t.io.vtable;
     var vtable = t.io.vtable.*;
     vtable.fileSync = Fault.sync;
     var io = t.io;
     io.vtable = &vtable;
-    {
-        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{});
-        defer wal.deinit();
-        _ = try wal.log().append(1, 0, 1, 1, .row_delta, "known");
-        Fault.fail = true;
-        try t.expectError(error.InputOutput, wal.log().append(1, 1, 1, 1, .row_delta, "uncertain"));
-        try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 1, 1, .row_delta, "wrong-retry"));
-        try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
+    // Three syncs for append, four when publishing a new segment directory entry.
+    for ([_]usize{ 192, 4096 }) |segment_bytes| {
+        const sync_count: usize = if (segment_bytes == 192) 4 else 3;
+        for (1..sync_count + 1) |failure| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            {
+                var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{ .segment_bytes = segment_bytes });
+                defer wal.deinit();
+                _ = try wal.log().append(1, 0, 1, 1, .row_delta, "known");
+                Fault.remaining = failure;
+                try t.expectError(error.InputOutput, wal.log().append(1, 1, 1, 1, .row_delta, "uncertain"));
+                try t.expectEqual(@as(usize, 0), Fault.remaining);
+                try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 1, 1, .row_delta, "wrong-retry"));
+                try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
+            }
+            var wal = try open(tmp.dir);
+            defer wal.deinit();
+            try t.expectEqual(@as(u64, 2), try wal.log().tail(1));
+            var batch = try wal.log().read(t.allocator, 1, 0, 8);
+            defer batch.deinit();
+            try t.expectEqual(@as(usize, 2), batch.frames.len);
+            try t.expectEqualStrings("known", batch.frames[0].payload);
+            try t.expectEqualStrings("uncertain", batch.frames[1].payload);
+            _ = try wal.log().append(1, 2, 1, 1, .row_delta, "successor");
+        }
     }
-    var wal = try open(tmp.dir);
-    defer wal.deinit();
-    try t.expectEqual(@as(u64, 2), try wal.log().tail(1));
-    var batch = try wal.log().read(t.allocator, 1, 1, 1);
-    defer batch.deinit();
-    try t.expectEqualStrings("uncertain", batch.frames[0].payload);
+}
+
+test "disk space errors preserve accepted WAL bytes and uncertain complete frames" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var prefix: ?usize = null;
+        fn write(context: ?*anyopaque, file: std.Io.File, header: []const u8, data: []const []const u8, splat: usize, offset: u64) std.Io.File.WritePositionalError!usize {
+            if (prefix) |count| {
+                prefix = null;
+                std.debug.assert(header.len == 0 and data.len == 1 and splat == 1);
+                try file.writePositionalAll(real, data[0][0..@min(count, data[0].len)], offset);
+                return error.NoSpaceLeft;
+            }
+            return real.vtable.fileWritePositional(context, file, header, data, splat, offset);
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileWritePositional = Fault.write;
+    var io = t.io;
+    io.vtable = &vtable;
+    // Exercise both an existing segment and rollover. The injected syscall
+    // error occurs before any bytes, after a torn header, or after a full frame.
+    // It models ENOSPC propagation; it does not fill the host filesystem.
+    for ([_]usize{ 192, 4096 }) |segment_bytes| {
+        for ([_]usize{ 0, 13, std.math.maxInt(usize) }) |prefix| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            {
+                var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{ .segment_bytes = segment_bytes });
+                defer wal.deinit();
+                _ = try wal.log().append(1, 0, 3, 5, .row_delta, "accepted");
+                Fault.prefix = prefix;
+                try t.expectError(error.NoSpaceLeft, wal.log().append(1, 1, 7, 9, .row_delta, "uncertain"));
+                try t.expectEqual(null, Fault.prefix);
+                try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
+                try t.expectError(error.WalRecoveryRequired, wal.log().read(t.allocator, 1, 0, 1));
+                try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 3, 5, .row_delta, "wrong-retry"));
+            }
+            var wal = try open(tmp.dir);
+            defer wal.deinit();
+            const complete = prefix == std.math.maxInt(usize);
+            const tail: u64 = if (complete) 2 else 1;
+            try t.expectEqual(tail, try wal.log().tail(1));
+            var batch = try wal.log().read(t.allocator, 1, 0, 8);
+            defer batch.deinit();
+            try t.expectEqual(tail, batch.frames.len);
+            try t.expectEqualStrings("accepted", batch.frames[0].payload);
+            try t.expectEqual(@as(u64, 0), batch.frames[0].header.lsn);
+            try t.expectEqual(@as(u64, 3), batch.frames[0].header.writer_epoch);
+            if (complete) {
+                try t.expectEqualStrings("uncertain", batch.frames[1].payload);
+                try t.expectEqual(@as(u64, 1), batch.frames[1].header.lsn);
+                try t.expectEqual(@as(u64, 7), batch.frames[1].header.writer_epoch);
+                try t.expectEqual(@as(u64, 9), batch.frames[1].header.policy_epoch);
+                try t.expectError(error.StaleWriterEpoch, wal.log().append(1, tail, 3, 9, .row_delta, "stale"));
+                try t.expectError(error.StalePolicyEpoch, wal.log().append(1, tail, 7, 5, .row_delta, "stale"));
+            }
+            _ = try wal.log().append(1, tail, 7, 9, .row_delta, "successor");
+            var successor = try wal.log().read(t.allocator, 1, tail, 1);
+            defer successor.deinit();
+            try t.expectEqualStrings("successor", successor.frames[0].payload);
+        }
+    }
 }
 
 test "canceling recovery after truncation still requires reopening the log owner" {

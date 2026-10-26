@@ -19,6 +19,10 @@ storage-segments:
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
 
+# Disk owner error propagation with real partial writes and injected syscall failures.
+storage-io-faults:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all
+
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe
