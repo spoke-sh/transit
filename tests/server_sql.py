@@ -223,7 +223,10 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             if result.returncode == 0:
                 return
             operation = re.search(r'Gateway operation ([0-9]+); sending SQL again creates new work', result.stderr)
-            assert not result.stdout and operation and 'Request wait ended; admitted work requires outcome inspection' in result.stderr, (result.stdout, result.stderr)
+            uncertain = any(message in result.stderr for message in (
+                'Request wait ended; admitted work requires outcome inspection',
+                'Native request capacity exhausted; inspect admitted writes before retrying SQL'))
+            assert not result.stdout and operation and uncertain, (result.stdout, result.stderr)
             original = int(operation[1])
             control = fixture.installation / f'sql/accounts/{name}/control.json'
             while True:
