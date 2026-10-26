@@ -189,6 +189,7 @@ def source_value(definition, owner):
     source['interpretation'] = dict(revision=str(stored['interpretation']['revision']),
         digest=stored['interpretation']['digest'], bytes=str(stored['content']['bytes']),
         schema=stored['schema_fingerprint'])
+    source['collations'] = [column['collation'] for column in definition['schema']['columns']]
     return value
 
 
