@@ -32,6 +32,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
         processes, logs = [], []
         probe = None
         session_faults = None
+        settings_faults = None
         def start(binary, config, *before):
             log = (root / f'process-{len(logs)}.log').open('w+')
             logs.append(log)
@@ -77,7 +78,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             call(ledger, 'app-config', sql_port)
             configuration = json.loads((root/'sql-gateway.json').read_text())
             if settings_binding is not None:
-                configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
+                configuration['settings'] = dict(url=settings_faults.url if settings_faults is not None else f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
             if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
@@ -113,6 +114,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             settings_binding = call(ledger, 'configuration')
             from settings import start_configuration
             settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
+            if slice in ('all', 'settings'):
+                from sql_sessions.faults import Faults
+                settings_faults = Faults(f'http://127.0.0.1:{settings_port}')
 
             if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from sql_sessions.faults import Faults
@@ -216,7 +220,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 foundation(options,mysql_options,dict(node=node,catalog=catalog,ledger=ledger,host=host,gateway=gateway,configuration_host=configuration_host))
                 return
             from settings import run as settings_proof
-            settings_proof(root,options,mysql_options,settings_source,lambda mode: call(ledger,mode))
+            settings_proof(root,options,mysql_options,settings_source,lambda mode: call(ledger,mode),settings_faults)
             if slice == 'settings':
                 return
             if slice == 'lifecycle':
@@ -346,6 +350,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 child.wait(timeout=10)
             if probe:
                 probe.close()
+            if settings_faults is not None:
+                settings_faults.close()
             if session_faults is not None:
                 session_faults.close()
                 if sys.exc_info()[0]:

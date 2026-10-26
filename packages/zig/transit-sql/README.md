@@ -105,6 +105,11 @@ repeated aliases of one Table share a pin. Parameterized relational SQL is exclu
 checks independently of a database wire protocol. The supervised SQL application
 creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
 MySQL retain their protocol admission and scalar encoding rules in their adapters.
+Settings preparation and page reads use the settings transport's own rejection
+when deciding bounded recovery and reporting SQL errors. Transient page failures
+resume the retained continuation, including private ordered rows; current denial
+and changed configuration snapshots remain terminal. Reload submission stays
+outside observation retries and retains its original journal identity.
 Session cleanup releases reads and transports; durable account operations remain
 in the ledger. `ReadPins` records each original acquisition before its first
 request and marks closure before attempting release. A bounded recovery pass
