@@ -57,8 +57,16 @@ and compute memory. Cancellation and read failures leave incomplete results.
 Exactly one equality for every declared primary-key column selects a retained
 point read, including a conjunction for a composite key. The original predicate
 still runs. Missing keys complete the selection without claiming full-Table
-coverage. Additional predicates, partial keys, inequalities, OR and NOT keep
-identity-ordered bounded scans; aggregate overflow checks retain source order.
+coverage. Finite `COUNT(*)` without an input limit can also traverse a retained
+interval when its predicate consists only of `=`, `<`, `<=`, `>` or `>=`
+comparisons joined by AND on a single-column primary key. Repeated bounds
+intersect, including empty intervals. The original predicate still runs, and
+the count requires complete interval coverage and current rights after computation.
+The interval owns at most two 4,096-byte keys and one bounded continuation; it
+does not materialize matching keys or derive a count from whole-Table metadata.
+Row queries, `SUM`, `COUNT(column)`, composite-key inequalities, extra conditions,
+OR and NOT keep identity-ordered bounded scans; aggregate overflow checks retain
+source order. Captured queries retain their separate complete-key equality path.
 Finite reads also keep the scan when a valid comparison literal exceeds the
 stored key's character or encoded-byte limit.
 

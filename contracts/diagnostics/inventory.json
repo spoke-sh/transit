@@ -13886,6 +13886,21 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/DirectTableCountRange.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 6
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/DirectTablePrepared.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
@@ -13966,9 +13981,10 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 9,
-        "catch": 6
+        "catch": 7
       },
       "imports": [
+        "DirectTableCountRange.zig",
         "root.zig",
         "std"
       ]

@@ -181,7 +181,15 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   fixtures, all-codec state/provenance checks, allocation failures and a same-cut
   disk control establish the [scoped behavior and memory counts](../../tests/README.md#selected-table-segment-decoding--2026-10-26).
   This advances #116/#118/#128; repeated selection still validates skipped data.
-- SQL inequality pushdown, encoded predicates/pruned execution,
+- Finite `COUNT(*)` now qualifies conjunctions of comparisons over one complete
+  single-column primary key for retained interval traversal. Bound bytes are
+  owned and cursors remain source/interval-bound; the original predicate and
+  final current-authorization gate still execute. Row output, ordered aggregates,
+  composite ranges, general predicates and captured execution retain their
+  existing paths. This advances SQL inequality pushdown for #116/#128 without
+  claiming general pruning or encoded predicate execution. See the
+  [query owner](../../packages/zig/transit-query/README.md) for the exact profile.
+- General SQL inequality pushdown, encoded predicates/pruned execution,
   retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
 
