@@ -232,6 +232,16 @@ pub const LocalSegmentStore = struct {
         }
     }
 
+    /// Exclusive physical owner only; ordinary descriptor deletion retains bytes.
+    pub fn reclaimImmutableObject(self: *LocalSegmentStore, key: []const u8, expected: TransitObjectStore.ObjectMeta) !u64 {
+        if (self.disk) |disk| return disk.reclaimImmutable(key, expected);
+        const existing = (self.findMemory(key)) orelse return 0;
+        if (!existing.immutable or existing.bytes.len != expected.size or !std.mem.eql(u8, &existing.sha256, &expected.sha256)) return error.ImmutableObjectConflict;
+        const size = existing.bytes.len;
+        try self.deleteObject(key);
+        return size;
+    }
+
     fn putImmutableErased(
         ctx: *anyopaque,
         key: []const u8,

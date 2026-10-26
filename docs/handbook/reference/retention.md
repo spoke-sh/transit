@@ -57,6 +57,13 @@ dependency-aware; a delayed delete cannot target a replacement identity. An
 adapter's delete acknowledgement does not prove removal from every backup or
 external copy. Broad physical-erasure guarantees need a contract for those copies.
 
+The [local native maintenance API](../../../packages/zig/transit-backend-local/docs/maintenance.md)
+marks retained roots and live captured versions before deleting immutable pages
+and blocks. It requires an accepted epoch fence and a persisted time fence after
+snapshot/request grace. Allocation and deletion progress survive reopen. Native
+compaction preserves values and resource revisions; Table retention and automatic
+local collection scheduling have separate owners.
+
 Documents add an explicit merge epoch/history floor. Old replicas may need
 resynchronization after opted-in compaction; they cannot replay stale edits into
 a new epoch. Ordinary resource references do not pin all historical revisions.

@@ -3,6 +3,7 @@
 const std = @import("std");
 const core = @import("transit_core");
 const storage = @import("transit_storage");
+const Allocations = @import("NativeAllocations.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
@@ -11,7 +12,9 @@ directory: std.Io.Dir,
 lock: std.Io.File,
 wal: storage.LocalWal.LocalWal,
 objects: storage.LocalSegmentStore.LocalSegmentStore,
+allocations: Allocations,
 mutex: std.Io.Mutex = .init,
+collection: std.Io.Mutex = .init,
 /// Data owners hold a shared fence only while checking/disclosing/committing.
 /// Native publication takes the exclusive side; private staging holds neither.
 authority: std.Io.RwLock = .init,
@@ -35,14 +38,16 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
     try bindNativeOwner(io, directory, lock);
     var wal = try storage.LocalWal.LocalWal.openDiskWithOptions(allocator, io, directory, "wal", .{});
     errdefer wal.deinit();
+    var allocations = try Allocations.open(allocator, io, directory);
+    errdefer allocations.deinit();
     var allocated = try countFiles(io, directory);
     // Known depth only; file/object cardinality does not determine resident size.
-    for ([_][]const u8{ "keys", "locks", "objects", "wal" }) |relative| {
+    for ([_][]const u8{ "keys", "locks", "objects", "wal", "native-allocations", "native-allocations/queue" }) |relative| {
         const child = try directory.openDir(io, relative, .{ .iterate = true });
         defer child.close(io);
         allocated = try std.math.add(u64, allocated, try countFiles(io, child));
     }
-    return .{ .allocator = allocator, .io = io, .directory = directory, .lock = lock, .wal = wal, .objects = objects, .limits = limits, .allocated = allocated };
+    return .{ .allocator = allocator, .io = io, .directory = directory, .lock = lock, .wal = wal, .objects = objects, .allocations = allocations, .limits = limits, .allocated = allocated };
 }
 
 fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {
@@ -60,12 +65,14 @@ fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {
     var iterator = directory.iterate();
     while (try iterator.next(io)) |entry| {
         if (std.mem.eql(u8, entry.name, ".initialize") or std.mem.eql(u8, entry.name, ".definition") or std.mem.eql(u8, entry.name, ".native-owner")) continue;
-        if (!std.mem.eql(u8, entry.name, "keys") and !std.mem.eql(u8, entry.name, "locks") and !std.mem.eql(u8, entry.name, "objects")) return error.NativeStorageUnmarked;
+        if (!std.mem.eql(u8, entry.name, "keys") and !std.mem.eql(u8, entry.name, "locks") and !std.mem.eql(u8, entry.name, "objects") and !std.mem.eql(u8, entry.name, "native-allocations")) return error.NativeStorageUnmarked;
         const child = try directory.openDir(io, entry.name, .{ .iterate = true });
         defer child.close(io);
         var contents = child.iterate();
         if (try contents.next(io) != null) return error.NativeStorageUnmarked;
     }
+    try directory.createDirPath(io, "native-allocations");
+    try @import("LocalFiles.zig").sync(io, directory);
     try lock.writePositionalAll(io, &expected, 0);
     try lock.sync(io);
     const file: std.Io.File = .{ .handle = directory.handle, .flags = .{ .nonblocking = false } };
@@ -73,6 +80,7 @@ fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {
 }
 
 pub fn deinit(self: *Self) void {
+    self.allocations.deinit();
     self.objects.deinit();
     self.wal.deinit();
     self.lock.close(self.io);
@@ -101,6 +109,7 @@ pub fn reserve(self: *Self, bytes: usize, control: bool) !void {
 }
 
 pub fn put(self: *Self, key: []const u8, bytes: []const u8, control: bool) !void {
+    try dataKey(key);
     const store = self.objects.objectStore();
     if (try store.head(key) == null) {
         // Payload, checksum chunks, descriptor and bounded publication overhead.
@@ -116,6 +125,31 @@ pub fn put(self: *Self, key: []const u8, bytes: []const u8, control: bool) !void
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     _ = try store.putImmutable(key, bytes, digest);
+}
+
+pub fn dataKey(key: []const u8) !void {
+    try storage.TransitObjectStore.validateKey(key);
+    if (std.mem.startsWith(u8, key, "native/")) return error.NativeObjectReserved;
+}
+
+/// Record the allocation before any object bytes. The accepted epoch fences
+/// delayed creators, including those whose previous publication was uncertain.
+pub fn putNative(self: *Self, epoch: u64, kind: @FieldType(Allocations.Allocation, "kind"), address: [32]u8, bytes: []const u8, control: bool) !void {
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    const current_epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
+    // A storage-fence candidate stages in the next epoch before acceptance.
+    if (epoch < current_epoch or epoch - current_epoch > 1) return error.StaleStorageEpoch;
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    const allocation: Allocations.Allocation = .{ .epoch = epoch, .kind = kind, .address = address, .meta = .{ .size = bytes.len, .sha256 = digest } };
+    if (try self.allocations.read(allocation.name()) == null) {
+        const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
+        try self.reserve(bytes.len + checks * 32 + 1536 + Allocations.record_bytes, control);
+    }
+    _ = try self.allocations.record(allocation);
+    var key: [96]u8 = undefined;
+    _ = try self.objects.objectStore().putImmutable(try allocation.key(&key), bytes, digest);
 }
 
 pub fn read(self: *Self, key: []const u8, output: []u8) ![]const u8 {

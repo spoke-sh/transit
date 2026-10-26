@@ -14,7 +14,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_core", .module = core }, .{ .name = "transit_storage", .module = storage }, .{ .name = "transit_observability", .module = observations } },
     });
     module.addImport("transit_fuze", fuze);
-    const tests = b.addTest(.{ .root_module = module });
+    const filters = b.option([]const []const u8, "test-filter", "Run local native tests whose names contain a filter") orelse &.{};
+    const tests = b.addTest(.{ .root_module = module, .filters = filters });
     b.step("test", "Verify native authority over local durable storage").dependOn(&b.addRunArtifact(tests).step);
     b.step("check", "Compile local native persistence checks").dependOn(&tests.step);
 }

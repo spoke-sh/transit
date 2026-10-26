@@ -726,6 +726,50 @@ corrupts a reachable block and checks retained read versions after relocation.
 These finite schedules do not prove arbitrary provider rollback safety, immediate
 filesystem/cold-object space return, distributed clock correctness or throughput.
 
+### Local immutable-object collection
+
+The local implementation asks the same ownership question at individual object
+granularity: which native pages and blocks can be removed without invalidating
+accepted history, a current root or a live capture? The
+[local collector](../../../packages/zig/transit-backend-local/src/StorageCollection.zig)
+uses the same typed root enumeration and graph traversal. It assumes exclusive
+directory ownership, durable local sync, the native request/snapshot bounds and
+trusted time. It excludes Table objects and standalone payload publication.
+
+An [allocation FIFO](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig)
+records intent before the exact marker and content can become visible. Carrying
+a retained item and advancing the consumed prefix use one WAL append. Thus a
+crash after physical deletion but before private progress publication leaves
+either the original intent or an already consumed item; recovery cannot invent
+a new deletion target. Duplicate uncertain creation intents refer to the same
+immutable identity. The accepted storage epoch rejects delayed old creators,
+so the local owner does not require Ursula's permanent closed-stream fence.
+
+The mark index distinguishes traversal kind and captured-resource scope before
+reusing a visited subtree. A separate physical-object mark protects its bytes.
+History and current live captures are independent root sources; historical closed
+capture metadata is not recursive ownership. An incomplete mark set, including
+one interrupted by an authorized history trim, never reaches sweep. After the
+snapshot/request grace and a persisted time floor, the exact pending allocation
+authorizes descriptor, payload, checksum and marker removal in that order.
+
+Each step visits at most four graph edges, one allocation, or 64 empty FIFO
+records. Tree height, private metadata size and cache budgets bound resident
+work independently of retained cardinality. A directory-search cursor would
+also bound memory but would repeatedly enumerate the inventory; the FIFO avoids
+that scan. It adds durable writes and inherits WAL recovery/trim I/O. Control
+capacity must cover its progress and mark pages. File-length accounting remains
+conservative after uncertainty and does not measure filesystem blocks or inodes.
+
+The [native disk tests](../../../packages/zig/transit-backend-local/src/collection_test.zig)
+and [process-death harness](../../../tests/local_native_collection_faults.py)
+check current and retained values, relocation, old creators, corrupt metadata,
+FIFO sync uncertainty and resumed deletion. Reproduction and executed outcomes
+are recorded in the [proof ledger](../../../tests/README.md). These finite controls
+do not prove arbitrary filesystem rollback or power-loss behavior, and automatic
+installed scheduling is separate from the component mechanism. No latency or
+throughput claim follows from its bounded resident state.
+
 ## Reducing durable mutation work
 
 The question is which work a short Table mutation can share or avoid while

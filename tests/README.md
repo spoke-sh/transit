@@ -1,5 +1,48 @@
 # Validation and evidence
 
+## Local native allocation and physical collection — 2026-10-26
+
+On `78d43b93a` plus the local collection implementation, pinned local-backend
+`zig build test --summary all` passes **17/17 tests** (three minutes, reported
+MaxRSS 48 MiB). The first run of the retained-block
+case used a stale fixture generation and failed before collection; the corrected
+fixture reads the actual process generation. These are component disk proofs.
+
+`zig build test-local-native-collection-faults -Doptimize=ReleaseSafe` passes
+**15 SIGKILL schedules**: all eight observed sync boundaries, four physical
+unlinks, FIFO publication, private-state publication and lost completion reply.
+Each schedule kills a real blocked child, reopens the same disk bytes, resumes
+the exact pending identity and verifies the physical absence of its descriptor,
+payload, checksums and allocation marker. Native accepted position/process state
+and unrelated Table-owned bytes remain intact. Repeated reopen preserves the
+completed result. The Python parent independently verifies the exact allocation
+marker bytes, definition, object length and both hashes before the schedules.
+This does not simulate filesystem rollback or power loss.
+
+The owner tests cover retained history, incomplete-mark abort after an authorized
+trim, old-epoch creators, exact allocation retries, unpublished content, corrupted
+private state/allocation markers, control reserve under ordinary quota pressure,
+and independent retained block values after compaction, checkpoint and restart.
+Revocation still denies the retained read. The FIFO carry test discovers and
+injects every sync boundary in one carry operation, then reopens and proves that
+cursor advancement retains ownership exactly once. The storage package's focused
+immutable/publication run passes **5/5**, including both deletion-directory sync
+failures, identity/kind rejection and unchanged unrelated objects.
+Missing allocation history rejects without recreating a queue or resetting
+persisted objects.
+
+Reproduce with `just test::local-native-collection`; the root unit suite includes
+the native owner and process-death cases. The shared definition is replaced and
+schema, signing and host/browser artifacts are regenerated together. Application
+tests pass **52/52** after regenerating the new definition's signing fixture;
+native/host and browser contract checks, diagnostics and documentation links pass.
+The initial `just check` caught stale Table-query/signing fixtures. The run that
+had compiled the old signing fixture was stopped after its failure; its remaining
+disk checks are incomplete. Repository and clean-lane qualification remain
+separate from these executed cases. This
+does not close Table maintenance, standalone payload ownership, installed local
+collection scheduling, or the full storage milestone.
+
 ## Encoded Boolean segment programs — 2026-10-26
 
 On `cdf5cdda7` plus bounded program selection, pinned Fuze `zig build test

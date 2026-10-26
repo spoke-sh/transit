@@ -247,3 +247,40 @@ pub fn delete(self: *Self, key: []const u8) !void {
     // Content and checks remain immutable. Removing their last descriptor does
     // not prove that a captured reader or retained snapshot has released them.
 }
+
+/// Physical primitive for an exclusive retained-root owner. The caller must
+/// fence recreation and prove that no current/history/pin/in-flight reader owns
+/// this exact immutable object. Generic ObjectStore.delete cannot prove that.
+/// An allocation intent supplies the identity even if publication never finished.
+pub fn reclaimImmutable(self: *Self, key: []const u8, expected: object.ObjectMeta) !u64 {
+    try object.validateKey(key);
+    if (expected.size > object.max_object_bytes) return error.ObjectTooLarge;
+    const lock = try self.lockKey(key);
+    defer lock.close(self.io);
+    if (try self.readRecord(key)) |record| {
+        if (record.kind != .immutable or !std.meta.eql(record.meta, expected)) return error.ImmutableObjectConflict;
+    }
+    var keys = try self.dir.openDir(self.io, "keys", .{ .iterate = true });
+    defer keys.close(self.io);
+    var removed = try removeFile(self.io, keys, &keyName(key));
+    // Revoke discovery durably before removing the bytes it described.
+    try sync(self.io, keys);
+    var objects = try self.dir.openDir(self.io, "objects", .{ .iterate = true });
+    defer objects.close(self.io);
+    var filename: [144]u8 = undefined;
+    removed += try removeFile(self.io, objects, contentName(key, expected.sha256, false, &filename));
+    removed += try removeFile(self.io, objects, contentName(key, expected.sha256, true, &filename));
+    try sync(self.io, objects);
+    return removed;
+}
+
+fn removeFile(io: std.Io, directory: std.Io.Dir, name: []const u8) !u64 {
+    const file = directory.openFile(io, name, .{ .follow_symlinks = false }) catch |err| switch (err) {
+        error.FileNotFound => return 0,
+        else => return err,
+    };
+    defer file.close(io);
+    const size = try file.length(io);
+    try directory.deleteFile(io, name);
+    return size;
+}

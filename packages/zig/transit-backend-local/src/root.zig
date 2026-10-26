@@ -4,8 +4,10 @@ pub const Store = @import("Store.zig");
 pub const PageStore = @import("PageStore.zig");
 pub const DataStore = @import("DataStore.zig");
 pub const DataAuthority = @import("DataAuthority.zig");
+pub const StorageCollection = @import("StorageCollection.zig");
 
 test {
     _ = @import("native_test.zig");
     _ = @import("data_test.zig");
+    _ = @import("collection_test.zig");
 }

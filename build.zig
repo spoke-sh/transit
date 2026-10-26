@@ -327,6 +327,19 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&local_catalog_tests.step);
     test_step.dependOn(&local_native_tests.step);
     b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
+    const local_collection_faults = b.addExecutable(.{ .name = "transit-local-native-collection-faults", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/local_native_collection_faults.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
+    }) });
+    const local_collection_test = b.addSystemCommand(&.{ "python3", "-B" });
+    local_collection_test.addFileArg(b.path("tests/local_native_collection_faults.py"));
+    local_collection_test.addArtifactArg(local_collection_faults);
+    local_collection_test.has_side_effects = true;
+    local_collection_test.stdio = .inherit;
+    test_step.dependOn(&local_collection_test.step);
+    b.step("test-local-native-collection-faults", "Verify process death during native physical collection").dependOn(&local_collection_test.step);
     const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/local_objects.zig"),
         .target = target,

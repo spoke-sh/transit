@@ -19,6 +19,11 @@ storage-segments:
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
 
+# Real process death during native object deletion and allocation FIFO progress.
+local-native-collection:
+    zig build test-local-native
+    zig build test-local-native-collection-faults -Doptimize=ReleaseSafe
+
 # Disk owner error propagation with real partial writes and injected syscall failures.
 storage-io-faults:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all

@@ -94,6 +94,7 @@ fn range(context: *anyopaque, key: []const u8, offset: u64, length: u32, output:
     return self.observe.run(self.backend.io, "data.object_read", rangeImpl, .{ self, key, offset, length, output });
 }
 fn rangeImpl(self: *Self, key: []const u8, offset: u64, length: u32, output: []u8) ![]const u8 {
+    try Backend.dataKey(key);
     const bytes = try self.backend.objects.objectStore().getRange(key, offset, length, output);
     self.observe.metrics.response_bytes +|= bytes.len;
     return bytes;
@@ -103,6 +104,7 @@ fn head(context: *anyopaque, key: []const u8) !?Objects.ObjectMeta {
     return self.observe.run(self.backend.io, "data.object_head", headImpl, .{ self, key });
 }
 fn headImpl(self: *Self, key: []const u8) !?Objects.ObjectMeta {
+    try Backend.dataKey(key);
     return self.backend.objects.objectStore().head(key);
 }
 fn delete(_: *anyopaque, _: []const u8) !void {

@@ -2226,8 +2226,10 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "MissingStorageObject": 1,
+        "NativeObjectReserved": 1,
         "NativeStorageInUse": 1,
         "NativeStorageUnmarked": 2,
+        "StaleStorageEpoch": 1,
         "StorageObjectTooLarge": 1,
         "StorageQuota": 1
       },
@@ -2236,17 +2238,22 @@
       "error_returns": {
         "bindNativeOwner()": "<inferred>",
         "countFiles()": "<inferred>",
+        "dataKey()": "<inferred>",
         "open()": "<inferred>",
         "put()": "<inferred>",
+        "putNative()": "<inferred>",
         "read()": "<inferred>",
         "reserve()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
-        "catch": 1
+        "try": 42,
+        "catch": 2
       },
       "imports": [
+        "LocalFiles.zig",
+        "NativeAllocations.zig",
+        "Store.zig",
         "std",
         "transit_core",
         "transit_storage"
@@ -2310,7 +2317,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 14,
         "catch": 0
       },
       "imports": [
@@ -2336,6 +2343,72 @@
       "imports": [
         "std",
         "transit_observability"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/LocalFiles.zig": {
+      "errors": {
+        "FileNotFound": 2,
+        "InvalidStorageMetadata": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "<inferred>",
+        "remove()": "<inferred>",
+        "save()": "<inferred>",
+        "sync()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/NativeAllocations.zig": {
+      "errors": {
+        "AllocationConflict": 3,
+        "FileNotFound": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidAllocationHistory": 4,
+        "InvalidNativeAllocation": 7,
+        "MissingAllocationHistory": 3
+      },
+      "outcomes": {
+        "Allocation.kind": [
+          "page",
+          "block"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Allocation.decode()": "<inferred>",
+        "Allocation.encode()": "<inferred>",
+        "Allocation.key()": "<inferred>",
+        "Allocation.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "at()": "<inferred>",
+        "consume()": "<inferred>",
+        "consumeEmpty()": "<inferred>",
+        "current()": "<inferred>",
+        "open()": "<inferred>",
+        "read()": "<inferred>",
+        "record()": "<inferred>",
+        "remove()": "<inferred>",
+        "trim()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 34,
+        "catch": 2
+      },
+      "imports": [
+        "LocalFiles.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
       ]
     },
     "packages/zig/transit-backend-local/src/PageStore.zig": {
@@ -2372,12 +2445,64 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 22,
         "catch": 0
       },
       "imports": [
         "Backend.zig",
         "Diagnostics.zig",
+        "std",
+        "transit_core"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/StorageCollection.zig": {
+      "errors": {
+        "ActiveStorageCollection": 1,
+        "AllocationConflict": 1,
+        "ClockUnavailable": 1,
+        "CollectionTimeFenceRequired": 1,
+        "FileNotFound": 1,
+        "HistoryReclaimed": 1,
+        "IncompleteHistory": 1,
+        "InvalidNativeAllocation": 1,
+        "InvalidStorageCollection": 8,
+        "InvalidStorageGraph": 2,
+        "NoStorageFence": 3,
+        "StorageMaintenanceBudget": 1
+      },
+      "outcomes": {
+        "State.phase": [
+          "mark",
+          "wait",
+          "sweep",
+          "deleting",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "current()": "<inferred>",
+        "mark()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "reclaim()": "<inferred>",
+        "save()": "<inferred>",
+        "scopeKey()": "<inferred>",
+        "start()": "<inferred>",
+        "step()": "<inferred>",
+        "sweep()": "<inferred>",
+        "trim()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 62,
+        "catch": 4
+      },
+      "imports": [
+        "Backend.zig",
+        "LocalFiles.zig",
+        "NativeAllocations.zig",
+        "PageStore.zig",
+        "Store.zig",
         "std",
         "transit_core"
       ]
@@ -2435,6 +2560,7 @@
         "DataAuthority.zig",
         "DataStore.zig",
         "PageStore.zig",
+        "StorageCollection.zig",
         "Store.zig"
       ]
     },
@@ -12637,7 +12763,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"797a232fae8565cae9c6f149ab3dca2b4cc5c85516f6b3436df98ffcfec70ba0\""
+          "@\"693b9c35bed85a9c5cbbcae180e785b616fabc0ed4a3ca37069fda3aae4233f8\""
         ],
         "Effect.phase": [
           "pending",
@@ -24607,13 +24733,13 @@
       "errors": {
         "BufferTooSmall": 1,
         "CorruptObjectDescriptor": 5,
-        "FileNotFound": 3,
-        "ImmutableObjectConflict": 2,
+        "FileNotFound": 4,
+        "ImmutableObjectConflict": 3,
         "IncompatibleDefinition": 3,
         "ObjectDigestMismatch": 6,
         "ObjectKeyConflict": 1,
         "ObjectNotFound": 1,
-        "ObjectTooLarge": 3,
+        "ObjectTooLarge": 4,
         "PathAlreadyExists": 1,
         "RangeOutOfBounds": 1
       },
@@ -24635,6 +24761,8 @@
         "putImmutable()": "<inferred>",
         "read()": "<inferred>",
         "readRecord()": "<inferred>",
+        "reclaimImmutable()": "<inferred>",
+        "removeFile()": "<inferred>",
         "saveRecord()": "<inferred>",
         "stage()": "<inferred>",
         "sync()": "<inferred>",
@@ -24642,8 +24770,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
-        "catch": 8
+        "try": 75,
+        "catch": 9
       },
       "imports": [
         "TransitObjectStore.zig",
@@ -24714,7 +24842,7 @@
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
-        "ImmutableObjectConflict": 2,
+        "ImmutableObjectConflict": 3,
         "ObjectDigestMismatch": 1,
         "ObjectNotFound": 1,
         "ObjectTooLarge": 2,
@@ -24734,11 +24862,12 @@
         "LocalSegmentStore.putConditionalErased()": "anyerror",
         "LocalSegmentStore.putConditionalObject()": "<inferred>",
         "LocalSegmentStore.putImmutableErased()": "anyerror",
-        "LocalSegmentStore.putImmutableObject()": "<inferred>"
+        "LocalSegmentStore.putImmutableObject()": "<inferred>",
+        "LocalSegmentStore.reclaimImmutableObject()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 17,
+        "try": 18,
         "catch": 0
       },
       "imports": [

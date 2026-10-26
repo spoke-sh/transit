@@ -147,8 +147,12 @@ ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
 The local CLI profile composes the native log and object store inside the node.
 Lifecycle maintenance and accepted-floor trimming run in that owner; local
-immutable-object collection and compaction are unavailable. The physical
-collection and compaction mechanisms above apply to Ursula. Provider budgets,
+automatic immutable-object collection is not scheduled. The local backend exposes
+[native collection and bounded compaction](../../../packages/zig/transit-backend-local/docs/maintenance.md)
+as explicit component operations. They preserve native history and captures,
+reject old creators by accepted epoch, and resume physical object deletion from
+a durable intent. They do not collect Table objects. Ursula uses the stream
+closure fences described above. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
 See [retention](retention.md) and [deployment](deployment.md).

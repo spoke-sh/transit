@@ -207,6 +207,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   Logical program lowering keeps its original atoms and borrows their literals
   under the exact Table interpretation; no wire or accepted-plan identity changes.
   This is reader-component execution, with direct-service lowering still open.
+- Local native collection now uses an allocation FIFO over a separate segmented
+  WAL, accepted epoch/time fences, shared retained-root traversal, paged marks
+  and resumable exact-object deletion. Disk cases preserve captured block values
+  across bounded native compaction/checkpoint and restart; process-death schedules
+  exercise deletion and FIFO progress. This advances #114/#116/#126/#127 and
+  replaces the shared current-v1 definition for the mandatory inventory layout.
+  Table checkpoint/history/collection, standalone payload ownership, automatic
+  installed triggers and complete performance qualification remain open.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

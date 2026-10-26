@@ -414,6 +414,13 @@ chunk hashes and lock files remain; superseded and staged content likewise remai
 Their physical collection requires an owner that accounts for retained roots,
 uncertain publication and captured readers. This component does not infer safe
 collection from absence of a live key or implement that retention authority.
+`LocalSegmentStore.reclaimImmutableObject` supplies an explicit physical primitive
+for an exclusive owner that has already established those facts and fenced
+recreation. It checks any existing descriptor's immutable kind and exact metadata,
+syncs descriptor removal before deleting the named content/checksum pair, and
+syncs their directory before returning confirmed removed bytes. An allocation
+intent supplies the identity when descriptor publication never completed.
+Missing files make the same deletion idempotent; lock files remain.
 
 The [process fixture](../tests/local_objects.py), run by the root unit task,
 checks competing conditional/immutable publication through separate processes.
@@ -457,20 +464,53 @@ definition bytes, kind byte, little-endian `u64` storage epoch and ordinal,
 both the envelope and that logical digest, in addition to object-store integrity.
 No page or block reference grants access independently of native authorization.
 
+Every native creation first appends an allocation intent to
+`native-allocations/queue/`, a separate segmented `LocalWal`. FIFO records use
+partition zero, writer/policy epoch one and `manifest_checkpoint` frames. Their
+224-byte payload is `TNALQ1` plus two zeros at `0..8`, definition at `8..40`,
+little-endian record position and consumed-prefix cursor at `40..48` and `48..56`,
+an item-present byte at `56`, seven zeros, and a 160-byte allocation at `64..224`
+(all zero when absent). The payload position equals its LSN; the cursor cannot
+exceed that position. Carrying a live item and advancing the cursor share one
+append. At most 64 empty progress records can be collapsed by one cursor advance.
+Consumed prefixes are physically trimmed only after their progress is durable.
+
+An exact intent marker lives at
+`native-allocations/<16 hex epoch>-<kind>-<64 hex location>`. Its 160 bytes contain
+`TALLOC1` plus NUL at `0..8`, definition at `8..40`, little-endian epoch at `40..48`,
+kind at `48`, seven zeros, location at `56..88`, little-endian object size at
+`88..96`, object SHA-256 at `96..128`, and SHA-256 of `0..128` at `128..160`.
+The FIFO append precedes marker publication, which precedes content creation.
+Uncertain marker publication may leave duplicate FIFO intents; it cannot leave
+untracked content. Creation checks the accepted native epoch under the publication
+mutex, allowing the current epoch or the next epoch for a prepared fence and
+rejecting older creators. Direct data access reserves the `native/` namespace.
+
 `Storage.Limits` bounds candidate bytes and encoded-file allocation admission.
 The core carries its control classification with the prepared transition through
 commit; a later candidate cannot change its reserve eligibility. Reservations
 remain conservative after uncertainty. Exclusive reopen counts actual file
 lengths with bounded directory traversal. These are encoded-file bounds, not a
-filesystem block or inode quota. Current local object retention keeps staged and
-superseded content, so admission can eventually stop at the configured quota.
+filesystem block or inode quota. Confirmed native object reclamation releases
+removed file lengths. Uncertainty can retain excess reservations until reopen;
+retained objects and maintenance metadata can still exhaust admission.
 
 The latest accepted native WAL entry is the recovery root. A native accepted
 history floor can authorize trimming older frames while retaining that entry.
 Exact retry records and durable captures remain in its catalog. This adapter's
-trim does not collect objects or dispatch effects. Standalone payload publication,
-retained-root physical collection and installed runtime composition are separate
-owners; the adapter alone does not establish those capabilities.
+trim does not collect objects or dispatch effects. `StorageCollection` records
+its accepted fence cut, FIFO end, root/traversal cursor, paged mark root and exact
+pending deletion in a definition-bound `.native-collection` JSON body of at most
+256 KiB followed by its 32-byte SHA-256. Replacement syncs the file and parent
+directory. A complete mark protects retained journal roots, current live captures
+and all newer allocation epochs. A racing trim aborts incomplete marking.
+Deletion waits beyond the fence's upper time plus five minutes of snapshot life
+and sixty seconds of request grace, and requires a persisted native time floor
+beyond that boundary. Pending deletion resumes the same immutable identity;
+FIFO consume, not a transient counter, establishes completed inventory progress.
+Native compaction preserves logical values and captured roots through the core
+`storage_compact` operation. Standalone payload publication, Table collection and
+automatic installed maintenance retain separate owners.
 
 ## `.tseg` (`TSEG` v1) hybrid segment layout
 

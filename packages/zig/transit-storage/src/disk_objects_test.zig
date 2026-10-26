@@ -281,3 +281,47 @@ test "object publication sync failures leave a complete old or complete new desc
         try t.expect(try reopened.objectStore().putConditional("head", .{ .if_match = hash(expected) }, "reconciled"));
     }
 }
+
+test "exclusive immutable reclamation validates identity and resumes every deletion sync failure" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var remaining: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
+            }
+            return real.fileSync(context, file);
+        }
+    };
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for (1..3) |failure| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+        defer owner.deinit();
+        const expected = try owner.objectStore().putImmutable("retired", "immutable bytes", hash("immutable bytes"));
+        const keep = try owner.objectStore().putImmutable("live", "same independent bytes", hash("same independent bytes"));
+        var wrong = expected;
+        wrong.sha256[0] ^= 1;
+        try t.expectError(error.ImmutableObjectConflict, owner.reclaimImmutableObject("retired", wrong));
+        try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "conditional"));
+        try t.expectError(error.ImmutableObjectConflict, owner.reclaimImmutableObject("head", (try owner.objectStore().head("head")).?));
+        Fault.remaining = failure;
+        try t.expectError(error.InputOutput, owner.reclaimImmutableObject("retired", expected));
+        try t.expectEqual(@as(usize, 0), Fault.remaining);
+        var reopened = try open(tmp.dir);
+        defer reopened.deinit();
+        _ = try reopened.reclaimImmutableObject("retired", expected);
+        try t.expectEqual(@as(u64, 0), try reopened.reclaimImmutableObject("retired", expected));
+        try t.expectEqual(null, try reopened.objectStore().head("retired"));
+        try t.expectEqualDeep(keep, (try reopened.objectStore().head("live")).?);
+        var bytes: [32]u8 = undefined;
+        try t.expectEqualStrings("same independent bytes", try reopened.objectStore().getRange("live", 0, bytes.len, &bytes));
+        try t.expectEqualStrings("conditional", try reopened.objectStore().getRange("head", 0, bytes.len, &bytes));
+    }
+}

@@ -71,9 +71,14 @@ acceptance owner. Native resource turns and direct Table mutations retain
 separate commit boundaries.
 
 `Store.maintain` trims only an already accepted native history floor and keeps
-the latest entry. It does not collect immutable objects. Superseded and staged
-objects remain until a retained-root collector can establish safe reclamation;
-the package does not provide that collector or standalone payload publication.
+the latest entry. `StorageCollection` separately collects native pages and blocks
+after a signed storage fence, complete retained-root marking and the snapshot
+and request grace interval. Its durable allocation FIFO, paged marks and deletion
+intent resume after reopen. `storage_compact` relocates bounded native data while
+retained captures keep their original values. See [native maintenance](docs/maintenance.md)
+for invocation, ownership, quotas and recovery. Table objects and standalone
+payload publication retain their separate owners; this package does not collect
+them or schedule automatic local collection.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task
