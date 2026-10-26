@@ -54,26 +54,29 @@ does not include the frontend toolchain. Compilation uses fixed-output source
 downloads for the three external Zig dependencies, verifies their Zig package
 identities and builds with an offline system package directory. No ambient Zig
 package cache or source checkout artifact is required. Runtime source excludes
-`sdks/` and the language SDK examples; builds pass `-Dsdk-examples=false`.
+`tests/`, `sdks/` and the language SDK examples; builds pass `-Dchecks=false`.
+The [build graphs](../build/README.md) register runtime artifacts once and share
+them with development checks when those checks are enabled.
 The fixed-output frontend dependency-store hash follows the selected runtime
 workspace, including importer moves. The handbook lives outside the runtime
 source, so its move from `apps/transit-docs` to `docs/handbook` changes that store
 without changing package versions or toolchain pins. The boundary check builds
-both native runtime and SQL gateway derivations from that SDK-free source.
+both native runtime and SQL gateway derivations from that source.
 
 [build-sources.nix](build-sources.nix) separates three build inputs. The frontend
 dependency fetch uses the runtime workspace's package manifests, lockfile and
 workspace configuration. Board assets use browser application/library source,
 the asset embedder and the embedded OpenAPI contract. Native runtime and gateway
-builds retain their source, fixtures and build graph. Changing native code or a
+builds retain their implementation inputs and build graph. Changing native code or a
 test driver does not invalidate the Board asset build; editing browser source
 does not invalidate the dependency fetch. Package-manager inputs remain shared.
 
-These build-only snapshots omit `README.md`, `AGENTS.md` and retained records in
-`tests/evidence/`. The repository keeps those documents and evidence;
-documentation checks continue to validate them. Executable test inputs, formal
-models, suite catalogs and live benchmark budgets remain included. New inputs
-must be added to their owning source set when the build starts consuming them.
+These build-only snapshots omit `README.md` and `AGENTS.md`. The runtime source
+also excludes the entire test tree. Fixtures, formal models, suite catalogs and
+live benchmark budgets remain executable inputs to development/CI checks, but
+changing them does not rebuild packaged runtime binaries. The repository keeps
+its documentation and test sources; their owning checks still validate them.
+Add newly consumed runtime inputs to the owning source set explicitly.
 `just bindings::runtime-boundary` runs source-invalidation controls before the
 actual offline package builds, so cached results cannot substitute for changed
 source. See the [tooling index](../tests/runner/README.md) for the controls.

@@ -492,7 +492,7 @@ zig-test:
     cd sdks/zig && zig build test
     python3 -B tests/runner/launch.py tests/sdk/sdk_zig.py
 
-# Build the runtime in an isolated source tree that contains no SDKs.
+# Build the runtime without tests/SDKs and reject disabled or missing checks.
 runtime-boundary:
     python3 -B tests/runner/test_nix_inputs.py
     python3 -B tests/runner/launch.py tests/sdk/sdk_runtime.py

@@ -22,7 +22,7 @@ stdenv.mkDerivation {
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-cache"
   '';
   buildPhase = ''
-    zig build transit-sql-gateway --system ${transit.zigDependencies} -Dsdk-examples=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit-sql-gateway --system ${transit.zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
   '';
   dontInstall = true;
   doInstallCheck = true;

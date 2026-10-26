@@ -94,7 +94,9 @@ The [task coverage checker](task_coverage.py) verifies direct
 recipe nesting and required tier ownership before expensive qualification.
 
 `just bindings::runtime-boundary` checks Nix input selection, then builds and
-exercises the actual packaged runtime and SQL gateway. Its input controls use
+exercises the actual packaged runtime and SQL gateway without test or SDK source.
+It also checks that disabled test registration and missing test inputs fail.
+Its input controls use
 small independent trees and the pinned Nix library; they do not compile a runtime
 and are not part of `just check fast`. The subsequent package builds qualify the
 selected real source trees. Neither check requalifies unrelated SDK languages.

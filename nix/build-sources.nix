@@ -39,7 +39,7 @@ in
     ]
   );
   runtime = source (
-    lib.fileset.difference (lib.fileset.unions [
+    lib.fileset.unions [
       workspace
       (root + /build)
       (root + /build.zig)
@@ -47,10 +47,9 @@ in
       (root + /apps)
       (root + /packages)
       (root + /third_party)
-      (root + /tests)
       (lib.fileset.difference (root + /examples) (root + /examples/station-sdk))
       (root + /tasks)
       (root + /contracts)
-    ]) (root + /tests/evidence)
+    ]
   );
 }

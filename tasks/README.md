@@ -442,11 +442,13 @@ Consumer packages live in `sdks/<language>/`; shared runtime libraries remain in
 `packages/`. `just bindings::zig-test` checks shared module identity and compiles
 the work-items application from a source-only copy outside the checkout.
 `just bindings::runtime-boundary` builds the actual Nix runtime and SQL gateway
-with SDK source excluded. Both belong to the ordinary core lane. Root checks
+with test and SDK source excluded, and verifies that disabled checks and missing
+test inputs fail. Both belong to the ordinary core lane. Root checks
 also reject SDK dependencies in runtime manifests/imports, including negative
 controls for Zig and TypeScript.
 
-Packaged runtime builds pass `-Dsdk-examples=false`. Root development/example
-builds resolve the public Zig SDK lazily; trying to build a consumer example
-with the SDK disabled is an error. The handbook's SDK navigation reads language
+Packaged runtime builds pass `-Dchecks=false` to register only the
+[runtime build graph](../build/README.md). Development builds register all checks
+and examples and resolve the public Zig SDK lazily; trying to build a consumer
+example with `-Dsdk-examples=false` is an error. The handbook's SDK navigation reads language
 installation guides from their SDK directories.
